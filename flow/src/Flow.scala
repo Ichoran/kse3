@@ -565,13 +565,13 @@ extension [N, Y](ok: Ok[N, Y]) {
 
 extension (objectOk: Ok.type) {
   inline def hops[N, Y](f: CanHop[N] ?=> Y) =
-    given ch: CanHop[N] = new CanHop.Any[N]
+    given ch: Hop.AnyImpl[N] = new Hop.AnyImpl[N]
     try { Yes(f) }
-    catch { case h: Hop[Y] if ch owns h => No(h.value) }
+    catch { case h: Hop[_] if ch eq h => No(ch.value) }
   inline def hopsUnit[Y](f: CanHop.Unit ?=> Y) =
-    given ch: CanHop.Unit = new CanHop.Unit
+    given ch: Hop.UnitImpl = new Hop.UnitImpl
     try { Yes(f) }
-    catch { case h: Hop[_] if ch owns h => Ok.UnitNo }
+    catch { case h: Hop[_] if ch eq h => Ok.UnitNo }
 }
 
 extension [L, R](either: Either[L, R]) {
@@ -585,9 +585,9 @@ extension [L, R](either: Either[L, R]) {
 
 extension (objectEither: Either.type)
   inline def hops[L, R](f: CanHop[L] ?=> R) =
-    given ch: CanHop[L] = new CanHop.Any[L]
+    given ch: Hop.AnyImpl[L] = new Hop.AnyImpl[L]
     try { Right(f) }
-    catch { case h: Hop[L] if ch owns h => Left(h.value) }
+    catch { case h: Hop[_] if ch eq h => Left(ch.value) }
 
 extension [A](option: Option[A])
   inline def good(using ch: CanHop[Unit]): A = option match
@@ -596,6 +596,6 @@ extension [A](option: Option[A])
 
 extension (objectOption: Option.type)
   inline def hops[A](f: CanHop.Unit ?=> A) =
-    given ch: CanHop.Unit = new CanHop.Unit
+    given ch: Hop.UnitImpl = new Hop.UnitImpl
     try { Some(f) }
-    catch { case h: Hop[_] if ch owns h => None }
+    catch { case h: Hop[_] if ch eq h => None }

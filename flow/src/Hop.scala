@@ -1,81 +1,51 @@
 package kse.flow
 
-trait CanHop[A] {
+
+sealed trait CanHop[A] {
   def hop(a: A): Nothing
-  def owns(h: Hop[_]): Boolean = h.catcher eq this
 }
 object CanHop {
-  final class Unit extends CanHop[scala.Unit] {
-    def hop(): Nothing = throw new Hop.Unit(this)
-    def hop(unit: scala.Unit): Nothing = throw new Hop.Unit(this)
+  sealed trait Unit extends CanHop[scala.Unit] {
+    def hop(): Nothing; def hop(unit: scala.Unit): Nothing = hop()
   }
-  final class Int extends CanHop[scala.Int] {
-    def hop(double: scala.Int): Nothing = throw new Hop.Int(double, this)
-  }
-  final class Long extends CanHop[scala.Long] {
-    def hop(double: scala.Long): Nothing = throw new Hop.Long(double, this)
-  }
-  final class Double extends CanHop[scala.Double] {
-    def hop(double: scala.Double): Nothing = throw new Hop.Double(double, this)
-  }
-  final class Float extends CanHop[scala.Float] {
-    def hop(double: scala.Float): Nothing = throw new Hop.Float(double, this)
-  }
-  sealed class Any[A] extends CanHop[A] {
-    def hop(a: A): Nothing = throw new Hop.Any(a, this)
-  }
-  final class Map[A, B](f: A => B)(using ch: CanHop[B]) extends CanHop[A] {
-    def hop(a: A): Nothing = throw new Hop.Any(f(a), ch)
-    override def owns(h: Hop[_]): Boolean = ch owns h
-  }
+  sealed trait Int    extends CanHop[scala.Int]    { def hop(int: scala.Int): Nothing }
+  sealed trait Long   extends CanHop[scala.Long]   { def hop(long: scala.Long): Nothing }
+  sealed trait Float  extends CanHop[scala.Float]  { def hop(float: scala.Float): Nothing }
+  sealed trait Double extends CanHop[scala.Double] { def hop(double: scala.Double): Nothing }
+  sealed trait Any[A] extends CanHop[A]            { def hop(a: A): Nothing }
+
+  final class Map[A, B](f: A => B)(using ch: CanHop[B]) extends CanHop[A] { def hop(a: A): Nothing = ch.hop(f(a)) }
 }
 
-abstract class Hop[A] extends scala.util.control.ControlThrowable("") {
+
+sealed abstract class Hop[A] extends scala.util.control.ControlThrowable("") {
   def value: A
-  def catcher: CanHop[A]
   override def getMessage = value.toString
   override def toString = s"Hop($value)"
 }
-
 object Hop {
-  final class Unit(val catcher: CanHop.Unit) extends Hop[scala.Unit] {
-    def value = ()
-  }
-  final class Int(val value: scala.Int,       val catcher: CanHop[scala.Int]   ) extends Hop[scala.Int] {}
-  final class Long(val value: scala.Long,     val catcher: CanHop[scala.Long]  ) extends Hop[scala.Long] {}
-  final class Double(val value: scala.Double, val catcher: CanHop[scala.Double]) extends Hop[scala.Double] {}
-  final class Float(val value: scala.Float,   val catcher: CanHop[scala.Float] ) extends Hop[scala.Float] {}
-  final class Any[A](val value: A,            val catcher: CanHop[A]           ) extends Hop[A] {}
+  sealed abstract class Unit   extends Hop[scala.Unit]   { def u = ();          def value = u }
+  sealed abstract class Int    extends Hop[scala.Int]    { def i: scala.Int;    def value = i }
+  sealed abstract class Long   extends Hop[scala.Long]   { def l: scala.Long;   def value = l }
+  sealed abstract class Float  extends Hop[scala.Float]  { def f: scala.Float;  def value = f }
+  sealed abstract class Double extends Hop[scala.Double] { def d: scala.Double; def value = d }
+  sealed abstract class Any[A] extends Hop[A]            { def a: A;            def value = a }
 
-  def unit(f: CanHop.Unit ?=> scala.Unit): scala.Unit = {
-    given ch: CanHop.Unit = new CanHop.Unit
-    try { f } catch { case h: Hop.Unit if ch owns h => () }
-  }
+  final class UnitImpl   extends Unit   with CanHop.Unit   {                               def hop(): Nothing                     = throw this                           }
+  final class IntImpl    extends Int    with CanHop.Int    { var i = 0;                    def hop(int: scala.Int): Nothing       = { i = int;    throw this } }
+  final class LongImpl   extends Long   with CanHop.Long   { var l = 0;                    def hop(long: scala.Long): Nothing     = { l = long;   throw this } }
+  final class FloatImpl  extends Float  with CanHop.Float  { var f = 0;                    def hop(float: scala.Float): Nothing   = { f = float;  throw this } }
+  final class DoubleImpl extends Double with CanHop.Double { var d = 0;                    def hop(double: scala.Double): Nothing = { d = double; throw this } }
+  final class AnyImpl[A] extends Any[A] with CanHop.Any[A] { var a = null.asInstanceOf[A]; def hop(any: A): Nothing               = { a = any;    throw this } }
 
-  def int(f: CanHop.Int ?=> scala.Int): scala.Int = {
-    given ch: CanHop.Int = new CanHop.Int
-    try { f } catch { case h: Hop.Int if ch owns h => h.value }
-  }
-
-  def long(f: CanHop.Long ?=> scala.Long): scala.Long = {
-    given ch: CanHop.Long = new CanHop.Long
-    try { f } catch { case h: Hop.Long if ch owns h => h.value }
-  }
-
-  def double(f: CanHop.Double ?=> scala.Double): scala.Double = {
-    given ch: CanHop.Double = new CanHop.Double
-    try { f } catch { case h: Hop.Double if ch owns h => h.value }
-  }
-
-  def double(f: CanHop.Float ?=> scala.Float): scala.Float = {
-    given ch: CanHop.Float = new CanHop.Float
-    try { f } catch { case h: Hop.Float if ch owns h => h.value }
-  }
-
-  def any[A](f: CanHop[A] ?=> A): A = {
-    given ch: CanHop[A] = new CanHop.Any[A]
-    try { f } catch { case h: Hop[_] if ch owns h => h.value.asInstanceOf[A] }
-  }
+  def unit  (f: CanHop.Unit   ?=> scala.Unit  ): scala.Unit   = { given ch: UnitImpl   = new UnitImpl;   try { f } catch { case h: Hop.Unit   if ch eq h => ()   } }
+  def int   (f: CanHop.Int    ?=> scala.Int   ): scala.Int    = { given ch: IntImpl    = new IntImpl;    try { f } catch { case h: Hop.Int    if ch eq h => ch.i } }
+  def long  (f: CanHop.Long   ?=> scala.Long  ): scala.Long   = { given ch: LongImpl   = new LongImpl;   try { f } catch { case h: Hop.Long   if ch eq h => ch.l } }
+  def float (f: CanHop.Float  ?=> scala.Float ): scala.Float  = { given ch: FloatImpl  = new FloatImpl;  try { f } catch { case h: Hop.Float  if ch eq h => ch.f } }
+  def double(f: CanHop.Double ?=> scala.Double): scala.Double = { given ch: DoubleImpl = new DoubleImpl; try { f } catch { case h: Hop.Double if ch eq h => ch.d } }
+  def any[A](f: CanHop.Any[A] ?=> A           ): A            = { given ch: AnyImpl[A] = new AnyImpl[A]; try { f } catch { case h: Hop.Any[_] if ch eq h => ch.a } }
+  
+  def map[A, B](f: A => B)(using chb: CanHop[B])(g: CanHop[A] ?=> A): A = g(using new CanHop.Map[A, B](f)(using chb))
 
   inline def out(               )(using ch: CanHop[scala.Unit]): Nothing = ch.hop(())
   inline def out(x: scala.Int   )(using ch: CanHop.Int        ): Nothing = ch hop x
@@ -83,6 +53,4 @@ object Hop {
   inline def out(x: scala.Double)(using ch: CanHop.Double     ): Nothing = ch hop x
   inline def out(x: scala.Float )(using ch: CanHop.Float      ): Nothing = ch hop x
   inline def out[A](x: A        )(using ch: CanHop[A]         ): Nothing = ch hop x
-
-  inline def map[A, B, Z](f: A => B)(g: CanHop[A] ?=> Z)(using chb: CanHop[B]): Z = g(using new CanHop.Map(f))
 }
