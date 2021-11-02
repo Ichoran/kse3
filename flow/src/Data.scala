@@ -1,6 +1,92 @@
 package kse.flow
 
 
+
+////////////////////////////////////////////////
+/// Packaging and wrappers to alter behavior ///
+////////////////////////////////////////////////
+
+/** Anything that has a potentially stored value */
+trait Valued[V] {
+  def value: V
+  inline final def foreach(inline f: V => Unit): Unit = f(value)
+}
+
+
+/** Holds mutable data (would be better if standard library exposed this!) */
+sealed abstract class Mu[A] extends Valued[A] {
+  inline def apply(): A = value
+  def value: A
+  def value_=(a: A): Unit
+  def set(a: A): this.type = { value = a; this }
+  inline final def op(inline f: A => A): this.type = { value = f(value); this }
+  override def toString = value.toString
+  override def hashCode = value.##
+}
+object Mu {
+  object      MuUnit                   extends Mu[Unit]    { def value: Unit = (); def value_=(u: Unit): Unit = () }
+  final class MuBoolean(init: Boolean) extends Mu[Boolean] { var value = init }
+  final class MuByte   (init: Byte)    extends Mu[Byte]    { var value = init }
+  final class MuShort  (init: Short)   extends Mu[Short]   { var value = init }
+  final class MuChar   (init: Char)    extends Mu[Char]    { var value = init }
+  final class MuInt    (init: Int)     extends Mu[Int]     { var value = init }
+  final class MuLong   (init: Long)    extends Mu[Long]    { var value = init }
+  final class MuFloat  (init: Float)   extends Mu[Float]   { var value = init }
+  final class MuDouble (init: Double)  extends Mu[Double]  { var value = init }
+  final class MuAny[A] (init: A)       extends Mu[A]       { var value = init }
+  def apply(u: Unit):    Mu[Unit]  = MuUnit
+  def apply(z: Boolean): MuBoolean = new MuBoolean(z)
+  def apply(b: Byte):    MuByte    = new MuByte(b)
+  def apply(s: Short):   MuShort   = new MuShort(s)
+  def apply(c: Char):    MuChar    = new MuChar(c)
+  def apply(i: Int):     MuInt     = new MuInt(i)
+  def apply(l: Long):    MuLong    = new MuLong(l)
+  def apply(f: Float):   MuFloat   = new MuFloat(f)
+  def apply(d: Double):  MuDouble  = new MuDouble(d)
+  def apply[A](a: A):    Mu[A]     = new MuAny(a)
+}
+
+
+/** Hides data from case classes, etc. */
+final class Anon[A](val value: A) extends Valued[A] {
+  override def toString = "..."
+  override def hashCode = 1239182
+  override def equals(a: Any) = a match {
+    case _: Anon[_] => true
+    case _ => false
+  }
+}
+object Anon {
+  def apply[A](a: A) = new Anon(a)
+}
+
+
+/** Box that uses reference equality and identity hash code */
+final class Identity[A](val value: A) extends Valued[A] {
+  override def toString = value.toString
+  override def hashCode = java.lang.System.identityHashCode(value)
+  override def equals(a: Any) = a.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef]
+}
+
+
+/** Way to create new boxed types.  Use
+ *  ```
+ *  object MyThing extends NewType[OldThing] {
+ *    extension (t: T) def myMethodOnMyThing: Bar = whateverComputation(t: OldThing)
+ *  }
+ *  ```
+ **/
+trait NewType[A] extends Valued[A] {
+  opaque type Type = A
+
+  inline def apply(a: A): Type = a
+  extension (t: Type) inline def value: A = t
+
+  given (using CanEqual[A, A]): CanEqual[Type, Type] = CanEqual.derived
+}
+
+
+
 //////////////////////////////////////////////////////////////////////////////////
 /// Generally helpful evaluation/execution utilities for singletons and tuples ///
 //////////////////////////////////////////////////////////////////////////////////

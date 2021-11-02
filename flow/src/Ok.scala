@@ -321,4 +321,6 @@ object Ok {
     val nos = oks.collect{ case No(n) => n }
     if (nos.size > 0) No(nos) else Yes(oks.map(_.yes))
   }
+
+  given [N, Y, M, Z](using CanEqual[N, M], CanEqual[Y, Z]): CanEqual[Ok[N, Y], Ok[M, Z]] = CanEqual.derived
 }
