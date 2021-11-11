@@ -6,6 +6,12 @@ package kse.flow
 /// Packaging and wrappers to alter behavior ///
 ////////////////////////////////////////////////
 
+
+/** Anything that can copy its state to another copy of approximately itself. */
+trait Copy[+A <: Copy[_]] { self: A =>
+  def copy: A
+}
+
 /** Anything that has a potentially stored value */
 trait Valued[V] {
   def value: V

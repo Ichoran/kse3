@@ -6,7 +6,9 @@ trait Scala3 extends ScalaModule {
 
 object flow extends Scala3 {}
 
-object maths extends Scala3 {}
+object maths extends Scala3 {
+  def moduleDeps = Seq(flow)
+}
 
 object all extends Scala3 {
   def moduleDeps = Seq(flow, maths)

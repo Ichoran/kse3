@@ -1094,6 +1094,12 @@ extension (pm: kse.maths.packed.PlusMinus) {
     val e = pm.error.toDouble
     if (e == 0) PlusMinus.of(jm.sqrt(v).toFloat, 0f)
     else        PlusMinus.of(jm.sqrt(v).toFloat, (e * kse.maths.NumericConstants.OverSqrtTwo).toFloat)
+
+  final def pow(exponent: Float): kse.maths.packed.PlusMinus =
+    val v = pm.value.toDouble
+    val e = pm.error.toDouble
+    if (e == 0) PlusMinus.of(jm.pow(v, exponent).toFloat, 0f)
+    else        PlusMinus.of(jm.pow(v, exponent).toFloat, (e * jm.sqrt(exponent)).toFloat)
 }
 extension (pm: kse.maths.packed.PlusMinus) {
   @targetName("PlusMinus_pr") def pr: String =
@@ -1124,6 +1130,7 @@ extension(l: Long | Bytex8 | Shortx4 | Charx4 | Intx2 | Floatx2) {
 }
 
 extension(l: Long | Bitx64 | Shortx4 | Charx4 | Intx2 | Floatx2) {
+  inline def asBytes: kse.maths.packed.Bytex8   = l
   inline def B8: kse.maths.packed.Bytex8 = l
 }
 
@@ -1246,10 +1253,10 @@ object Pack {
 }
 
 
-object Vf {
+object Vcf {
   inline def apply(f0: Float, f1: Float): kse.maths.packed.Vc = Vc.from(f0, f1)
 }
 
-object Vd {
+object Vcd {
   inline def apply(d0: Double, d1: Double): kse.maths.packed.Vc = Vc.from(d0, d1)
 }
