@@ -11,12 +11,17 @@ object NumericConstants {
   inline val SqrtTwo = 1.4142135623730950488
   inline val PiOverTwo = 1.5707963267948966192
   inline val SqrtTwoPi = 2.5066282746310005024
+  inline val TwoPi = 6.2831853071795864769
+  inline val OverTwoPi = 0.15915494309189533576
 
   // Less common constants involving Pi
   inline val LnTwoPi = 1.8378770664093454836
   inline val HalfLnTwoPi = 0.91893853320467274178
   inline val OverSqrtEight = 0.3535533905932737622
   inline val QuarterSqrtPi = 0.44311346272637900682
+
+  inline val DegreesPerRadian = 0.017453292519943295769
+  inline val RadiansPerDegree = 57.295779513082320877
 
   // Logarithmic and exponential constants
   inline val OverLnTwo = 1.4426950408889634079
@@ -622,6 +627,11 @@ extension (f: Float) {
 
   inline def bitsAsI = java.lang.Float.floatToRawIntBits(f)
   inline def f64: Double = f.toDouble
+
+  inline def rad2deg: Float = (f * NumericConstants.DegreesPerRadian).toFloat
+  inline def rad2rev: Float = (f * NumericConstants.OverTwoPi).toFloat
+  inline def deg2rad: Float = (f * NumericConstants.RadiansPerDegree).toFloat
+  inline def rev2rad: Float = (f * NumericConstants.TwoPi).toFloat
 }
 
 extension (d: Double) {
@@ -648,6 +658,11 @@ extension (d: Double) {
   inline def cosh = jm.cosh(d)
   inline def sinh = jm.sinh(d)
   inline def tanh = jm.tanh(d)
+
+  inline def rad2deg = d * NumericConstants.DegreesPerRadian
+  inline def rad2rev = d * NumericConstants.OverTwoPi
+  inline def deg2rad = d * NumericConstants.RadiansPerDegree
+  inline def rev2rad = d * NumericConstants.TwoPi
 
   inline def gamma = NumericFunctions.gamma(d)
   inline def lnGamma = NumericFunctions.lnGamma(d)
