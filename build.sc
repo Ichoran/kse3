@@ -1,3 +1,7 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE
+// Copyright 2021 Rex Kerr and Calico Life Sciences, LLC
+
+
 import mill._, scalalib._
 
 trait Scala3 extends ScalaModule {

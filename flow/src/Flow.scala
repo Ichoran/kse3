@@ -1,5 +1,8 @@
-package kse.flow
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2014-2015, 2021 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
+
+package kse.flow
 
 import scala.util.control.NonFatal
 

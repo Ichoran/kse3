@@ -7,39 +7,61 @@ import java.lang.{Math => jm}
 
 import kse.flow.Copy
 
+/** Random number generator intended to be fast, low-state, but reasonably well-distributed.
+ *  You can serialize this into a few Longs--in many cases only one Long!--when the cache is
+ *  empty.  You can also create copies including the cache.
+ */
 abstract class Prng extends Copy[Prng] {
-  def Z: Boolean = (L & 0x1) != 0
-  def B: Byte = L.toByte
-  def S: Short = L.toShort
-  def C: Char = L.toChar
-  def I: Int = L.toInt
+  protected final var cache: Long = 0L
+  protected final var bits: Int = 0
+
+  /** Removes the cache, rendering this Prng ready for serialization into Longs. */
+  def clean: this.type = { bits = 0; this }
+
+  /** Checks whether there is any cache. */
+  def isClean: Boolean = bits == 0
+
+  def Z: Boolean =
+    if (bits < 1) { bits = 63; cache = L } else bits -= 1
+    (cache & (0x1L << bits)) != 0
+
+  def B: Byte =
+    if (bits < 8) { bits = 56; cache = L } else bits -= 8
+    ((cache >>> bits) & 0xFFL).toByte
+
+  def S: Short =
+    if (bits < 16) { bits = 48; cache = L } else bits -= 16
+    ((cache >>> bits) & 0xFFFFL).toShort
+
+  def C: Char =
+    if (bits < 16) { bits = 48; cache = L } else bits -= 16
+    ((cache >>> bits) & 0xFFFFL).toChar
+
+  def I: Int =
+    if (bits < 32) { bits = 32; cache = L } else bits -= 32
+    ((cache >>> bits) & 0xFFFFFFFFL).toInt
+
   def L: Long
+
   def F: Float = Prng.symmetricFloatFromInt(I)
+
   def D: Double = Prng.symmetricDoubleFromLong(L)
 
   def %(n: Int): Int = 
     if (n <= 0) 0
     else {
-      var l = 0L
-      val mask = 0xFFFFFFFFL >>> java.lang.Integer.numberOfLeadingZeros(n)
-      var more = true
-      while(more) {
-        l = L
-        if ((l & mask) < n) more = false
-        else {
-          l = l >>> 32;
-          if ((l & mask) < n) more = false
-        }
-      }
-      (l & mask).toInt
+      var i = Int.MaxValue
+      val mask = 0xFFFFFFFF >>> java.lang.Integer.numberOfLeadingZeros(n)
+      while (i >= n) i = I & mask
+      i
     }
 
   def %(n: Long): Long =
     if (n <= 0) 0
     else {
-      var l = L
+      var l = Long.MaxValue
       val mask = 0xFFFFFFFFFFFFFFFFL >>> java.lang.Long.numberOfLeadingZeros(n)
-      while ((l & mask) >= n) l = L
+      while (l >= n) l = L & mask
       l & mask
     }
 
@@ -59,6 +81,16 @@ abstract class Prng extends Copy[Prng] {
     else {
       val scale = jm.sqrt( (-2 * jm.log(rr)) / rr )
       kse.maths.packed.Vc.from(x * scale, y * scale)
+    }
+
+  def gaussianPair(f: (Double, Double) => Unit): Unit =
+    val x = D*2 - 1
+    val y = D*2 - 1
+    val rr = x*x + y*y
+    if (rr >= 1) gaussianPair(f)
+    else {
+      val scale = jm.sqrt( (-2 * jm.log(rr)) / rr )
+      f(x * scale, y * scale)
     }
 
   def arrayZ(n: Int): Array[Boolean] =
@@ -229,13 +261,9 @@ abstract class Prng extends Copy[Prng] {
     var i = a.length - 1; while (i > 0) { val j = this % (i+1); if (j != i) { val x = a(j); a(j) = a(i); a(i) = x }; i -= 1 }
   }
 
-  def state: Array[Byte]
-  def bits: Int
-  def setFrom(bin: Array[Byte]): Boolean
-  def setFrom(i: Int): Boolean
-  def setFrom(l: Long): Boolean
-  def setFrom(a: Long, b: Long): Boolean
-  def setFromClock: Boolean
+  def state(i: Int): Long
+  def stateLength: Int
+  def setState(i: Int)(l: Long): Boolean
 }
 object Prng {
   def symmetricFloatFromInt(i: Int): Float =
@@ -258,56 +286,45 @@ object Prng {
 
 }
 
-abstract class PrngState64 extends Prng with Copy[PrngState64] {
-  import kse.maths.packed._
+sealed abstract class PrngState64 extends Prng with Copy[PrngState64] {
+ protected final var state64: Long = 0L
 
-  final def bits = 64
-  def state64: Long
-  def state: Array[Byte] =
-    val a = new Array[Byte](8)
-    val b = state64.asBytes
-    a(0) = b.b0
-    a(1) = b.b1
-    a(2) = b.b2
-    a(3) = b.b3
-    a(4) = b.b4
-    a(5) = b.b5
-    a(6) = b.b6
-    a(7) = b.b7
-    a
-
-  def setFromClock: Boolean = setFrom(java.lang.System.nanoTime)
-  def setFrom(i: Int): Boolean = { setFromClock; false }
-  def setFrom(a: Long, b: Long): Boolean = setFrom(a)
-  def setFrom(bin: Array[Byte]): Boolean =
-    if (bin.length < 8) { setFromClock; false }
-    else setFrom(Pack(bin(0), bin(1), bin(2), bin(3), bin(4), bin(5), bin(6), bin(7)).L)
+  final def stateLength = 1
+  final def state(i: Int): Long = state64
+  final def setState(i: Int)(l: Long) = if (i == 0) { state64 = l; true } else false
 }
 
 // From public domain code by Sebastiano Vigna
-final class ShiftMix64(state0: Long = java.lang.System.nanoTime) extends PrngState64  with Copy[ShiftMix64]{
-  private[this] var myState = state0
-  def copy: ShiftMix64 = new ShiftMix64(myState)
-  def state64 = myState
-  def setFrom(l: Long): Boolean = { myState = l; true }
-  final def L = {
-    myState += 0x9E3779B97F4A7C15L;
-    var l = (myState ^ (myState >>> 30)) * 0xBF58476D1CE4E5B9L
+final class ShiftMix64(initialState: Long = java.lang.System.nanoTime) extends PrngState64 with Copy[ShiftMix64] {
+  state64 = initialState
+
+  def copy: ShiftMix64 = 
+    val ans = new ShiftMix64(state64)
+    ans.bits = bits
+    ans.cache = cache
+    ans
+
+  def L =
+    bits = 0
+    state64 += 0x9E3779B97F4A7C15L;
+    var l = (state64 ^ (state64 >>> 30)) * 0xBF58476D1CE4E5B9L
     l = (l ^ (l >>> 27)) * 0x94D049BB133111EBL
     l ^ (l >>> 31)
-  }
 }
 
 // Algorithm taken from PCG generators by Melissa O'Niell (Apache 2 license); RXS M XS 64 variant (one sequence)
-final class Pcg64(state0: Long = java.lang.System.nanoTime) extends PrngState64 with Copy[Pcg64] {
-  private[this] var myState = state0
-  def copy: Pcg64 = new Pcg64(myState)
-  def state64 = myState
-  def setFrom(l: Long): Boolean = { myState = l; true }
-  final def L = {
-    myState = (myState * 6364136223846793005L) + 1442695040888963407L
-    val l = ((myState >>> ((myState >>> 59) + 5)) ^ myState) * 0xAEF17502108EF2D9L   // 12605985483714917081 base 10
-    (l >>> 43) ^ l
-  }
-}
+final class Pcg64(initialState: Long = java.lang.System.nanoTime) extends PrngState64 with Copy[Pcg64] {
+  state64 = initialState
 
+  def copy: Pcg64 =
+    val ans = new Pcg64(state64)
+    ans.bits = bits
+    ans.cache = cache
+    ans
+
+  def L =
+    bits = 0
+    state64 = (state64 * 6364136223846793005L) + 1442695040888963407L
+    val l = ((state64 >>> ((state64 >>> 59) + 5)) ^ state64) * 0xAEF17502108EF2D9L   // 12605985483714917081 base 10
+    (l >>> 43) ^ l
+}

@@ -11,14 +11,16 @@ import java.lang.Integer.{rotateLeft => rotl32, rotateRight => rotr32 }
 import java.lang.Long.{rotateLeft => rotl64, rotateRight => rotr64 }
 import java.nio.{ByteBuffer, ByteOrder}
 
-trait SimpleIncrementalHash {
+import kse.flow.Copy
+
+trait SimpleIncrementalHash extends Copy[SimpleIncrementalHash] {
   def begin(): this.type
   def append(bb: ByteBuffer): this.type
   def resultAs[R](implicit tag: scala.reflect.ClassTag[R]): Option[R]
   def resultAsLong(): Long
 }
 
-trait IncrementalHash[A, Z] extends SimpleIncrementalHash {
+trait IncrementalHash[A, Z] extends SimpleIncrementalHash with Copy[IncrementalHash[A, Z]] {
   def begin(): this.type
   def begin(seed: A): this.type
   def append(bb: ByteBuffer): this.type
@@ -29,9 +31,19 @@ trait IncrementalHash[A, Z] extends SimpleIncrementalHash {
 }
 
 /** Caching with helper methods.  TODO: use this only for hashers that don't contain their own cache. */
-final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) extends IncrementalHash[A, Z] {
-  private[this] val cache = ByteBuffer.wrap(new Array[Byte](16))
+final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) extends IncrementalHash[A, Z] with Copy[CachedIncrementalHash[A, Z]] {
+  private[this] val cache = ByteBuffer.wrap(new Array[Byte](16))   // Must never use "mark" or we can't copy faithfully!
   cache.order(ByteOrder.LITTLE_ENDIAN)
+
+  private def mimicCache(that: ByteBuffer): Unit =
+    System.arraycopy(that.array, 0, cache.array, 0, 16)
+    cache.limit(that.limit)
+    cache.position(that.position)
+
+  def copy =
+    val ans = new CachedIncrementalHash[A, Z](underlying.copy)
+    ans.mimicCache(cache)
+    ans
 
   def begin() = { underlying.begin(); this }
   def begin(seed: A) = { underlying.begin(seed); this }
@@ -77,7 +89,7 @@ trait FullHash32 {
   final def hash32(bb: ByteBuffer): Int = hash32(bb, 0)
 }
 
-trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] {
+trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] with Copy[Hash32] {
   def hash32(bb: ByteBuffer, seed: Int): Int = begin(seed).result(bb)
   def begin(): this.type = begin(0)
   def begin(seed: Int): this.type
@@ -99,7 +111,7 @@ trait FullHash64 {
   inline def hash64(bb: ByteBuffer): Long = hash64(bb, 0L)
 }
 
-trait Hash64 extends FullHash64 with IncrementalHash[Long, Long] {
+trait Hash64 extends FullHash64 with IncrementalHash[Long, Long] with Copy[Hash64] {
   def hash64(bb: ByteBuffer, seed: Long): Long = begin(seed).result(bb)
   def begin(): this.type = begin(0L)
   def begin(seed: Long): this.type
@@ -130,7 +142,7 @@ trait FullHash128 {
   inline def hash128(bb: ByteBuffer): HashCode128 = hash128(bb, 0L, 0L)
 }
 
-trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128] {
+trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128] with Copy[Hash128] {
   def hash128(bb: ByteBuffer, seed0: Long, seed1: Long): HashCode128 = begin(seed0, seed1).result(bb)
   def begin(): this.type = begin(0L, 0L)
   def begin(seed0: Long, seed1: Long): this.type
@@ -143,7 +155,7 @@ trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128]
 }
 
 
-final class XxHash32(initialSeed: Int) extends Hash32 {
+final class XxHash32(initialSeed: Int) extends Hash32 with Copy[XxHash32] {
   import XxHash.{Prime32_1, Prime32_2, Prime32_3, Prime32_4, Prime32_5}
   private[this] var v1: Int = 0
   private[this] var v2: Int = 0
@@ -151,9 +163,30 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
   private[this] var v4: Int = 0
   private[this] var v5: Int = 0
   private[this] var hadBlock: Boolean = false
-  private[this] var myBuffer: ByteBuffer = null
+  private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
   begin(initialSeed)
+
   def this() = this(0)
+
+  private def mimicState(u1: Int, u2: Int, u3: Int, u4: Int, u5: Int, had: Boolean, bb: ByteBuffer): Unit =
+    v1 = u1
+    v2 = u2
+    v3 = u3
+    v4 = u4
+    v5 = u5
+    hadBlock = had
+    if (bb eq null) myBuffer = null
+    else {
+      myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 16))
+      myBuffer.limit(bb.limit)
+      myBuffer.position(bb.limit)
+    }
+
+  def copy: XxHash32 =
+    val ans = new XxHash32(0)
+    ans.mimicState(v1, v2, v3, v4, v5, hadBlock, myBuffer)
+    ans
+
   def begin(seed: Int): this.type = {
     v1 = seed + Prime32_1 + Prime32_2
     v2 = seed + Prime32_2
@@ -274,7 +307,7 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
 }
 
 
-final class XxHash64(initialSeed: Long) extends Hash64 {
+final class XxHash64(initialSeed: Long) extends Hash64 with Copy[XxHash64] {
   import XxHash.{Prime64_1, Prime64_2, Prime64_3, Prime64_4, Prime64_5}
   private[this] var v1: Long = 0
   private[this] var v2: Long = 0
@@ -282,9 +315,30 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
   private[this] var v4: Long = 0
   private[this] var v5: Long = 0
   private[this] var hadBlock: Boolean = false
-  private[this] var myBuffer: ByteBuffer = null
+  private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
   begin(initialSeed)
+
   def this() = this(0)
+  
+  private def mimicState(u1: Long, u2: Long, u3: Long, u4: Long, u5: Long, had: Boolean, bb: ByteBuffer): Unit =
+    v1 = u1
+    v2 = u2
+    v3 = u3
+    v4 = u4
+    v5 = u5
+    hadBlock = had
+    if (bb eq null) myBuffer = null
+    else {
+      myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 32))
+      myBuffer.limit(bb.limit)
+      myBuffer.position(bb.limit)
+    }
+
+  def copy: XxHash64 =
+    val ans = new XxHash64(0)
+    ans.mimicState(v1, v2, v3, v4, v5, hadBlock, myBuffer)
+    ans
+
   def begin(seed: Long): this.type = {
     v1 = seed + Prime64_1 + Prime64_2
     v2 = seed + Prime64_2
@@ -590,11 +644,22 @@ object XxHash extends FullHash32 with FullHash64 {
 }
 
 /// Austin Appleby's MurmurHash3, commit 92cf370 -- x86 32 bit algorithm
-final class Murmur32 extends Hash32 {
+final class Murmur32 extends Hash32 with Copy[Murmur32] {
   private[this] var state = 0
   private[this] var n = 0
   private[this] var partial = 0
   private[this] var partialN = 0
+
+  private def mimicState(st: Int, m: Int, p: Int, pN: Int): Unit =
+    state = st
+    n = m
+    partial = p
+    partialN = pN
+
+  def copy: Murmur32 =
+    val ans = new Murmur32
+    ans.mimicState(state, n, partial, partialN)
+    ans
 
   def appendI(i: Int): this.type =
     n += 4
@@ -650,11 +715,24 @@ final class Murmur32 extends Hash32 {
     state
 }
 
-final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode128] {
+final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode128] with Copy[Murmur128] {
   private[this] var state0, state1 = 0L
   private[this] var partial0, partial1 = 0L
   private[this] var partialN = 0
   private[this] var n = 0
+
+  private def mimicState(s0: Long, s1: Long, p0: Long, p1: Long, pN: Int, m: Int): Unit =
+    state0 = s0
+    state1 = s1
+    partial0 = p0
+    partial1 = p1
+    partialN = pN
+    n = m
+
+  def copy: Murmur128 =
+    val ans = new Murmur128
+    mimicState(state0, state1, partial0, partial1, partialN, n)
+    ans
 
   override def begin(): this.type = begin(0L, 0L)
   def begin(seed: Long): this.type = begin(seed, 0L)
@@ -752,10 +830,21 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
 }
 
 
-final class SimpleSum32 extends Hash32 {
+final class SumHash32 extends Hash32 with Copy[SumHash32] {
   private[this] var sum = 0
   private[this] var partial = 0
   private[this] var partialN = 0
+
+  private def mimicState(s: Int, p: Int, pN: Int): Unit =
+    sum = s
+    partial = p
+    partialN = pN
+
+  def copy: SumHash32 =
+    val ans = new SumHash32
+    mimicState(sum, partial, partialN)
+    ans
+
   def begin(seed: Int): this.type = { sum = seed; partial = 0; partialN = 0; this }
   def append(bb: ByteBuffer): this.type = {
     bb.order(ByteOrder.LITTLE_ENDIAN)
@@ -791,12 +880,24 @@ final class SimpleSum32 extends Hash32 {
   }
 }
 
-final class SimpleSum64 extends Hash64 {
+final class SumHash64 extends Hash64 with Copy[SumHash64] {
   private[this] var sum = 0L
   private[this] var partial = 0L
   private[this] var partialN = 0
+
+  private def mimicState(s: Long, p: Long, pN: Int): Unit =
+    sum = s
+    partial = p
+    partialN = pN
+
+  def copy: SumHash64 =
+    val ans = new SumHash64
+    mimicState(sum, partial, partialN)
+    ans
+
   def begin(seed: Long): this.type = { sum = seed; partial = 0; partialN = 0; this }
-  def append(bb: ByteBuffer): this.type = {
+
+  def append(bb: ByteBuffer): this.type =
     bb.order(ByteOrder.LITTLE_ENDIAN)
     if (partialN > 0) {
       while (partialN < 8 && bb.hasRemaining) {
@@ -815,17 +916,117 @@ final class SimpleSum64 extends Hash64 {
       partialN += 1
     }
     this
-  }
-  def result(bb: ByteBuffer): Long = {
+  
+  def result(bb: ByteBuffer): Long =
     append(bb)
     result()
-  }
-  def result(): Long = {
+  
+  def result(): Long =
     if (partialN > 0) {
       sum += partial
       partialN = 0
       partial = 0
     }
     sum
-  }
+}
+
+final class XorHash32 extends Hash32 with Copy[XorHash32] {
+  private[this] var xor = 0
+  private[this] var partial = 0
+  private[this] var partialN = 0
+
+  private def mimicState(x: Int, p: Int, pN: Int): Unit =
+    xor = x
+    partial = p
+    partialN = pN
+
+  def copy: XorHash32 =
+    val ans = new XorHash32
+    mimicState(xor, partial, partialN)
+    ans
+
+  def begin(seed: Int): this.type = { xor = seed; partial = 0; partialN = 0; this }
+
+  def append(bb: ByteBuffer): this.type =
+    bb.order(ByteOrder.LITTLE_ENDIAN)
+    if (partialN > 0) {
+      while (partialN < 4 && bb.hasRemaining) {
+        partial |= (bb.get & 0xFF) << (partialN*8)
+        partialN += 1
+      }
+      if (partialN == 4) {
+        xor = xor ^ partial
+        partialN = 0
+        partial = 0
+      }
+    }
+    while (bb.remaining >= 4) xor = xor ^ bb.getInt
+    while (bb.hasRemaining) {
+      partial |= (bb.get & 0xFF) << (partialN*8)
+      partialN += 1
+    }
+    this
+  
+  def result(bb: ByteBuffer): Int =
+    append(bb)
+    result()
+  
+  def result(): Int =
+    if (partialN > 0) {
+      xor = xor ^ partial
+      partial = 0
+      partialN = 0        
+    }
+    xor
+}
+
+final class XorHash64 extends Hash64 with Copy[XorHash64] {
+  private[this] var xor = 0L
+  private[this] var partial = 0L
+  private[this] var partialN = 0
+
+  private def mimicState(x: Long, p: Long, pN: Int): Unit =
+    xor = x
+    partial = p
+    partialN = pN
+
+  def copy: XorHash64 =
+    val ans = new XorHash64
+    mimicState(xor, partial, partialN)
+    ans
+
+  def begin(seed: Long): this.type = { xor = seed; partial = 0; partialN = 0; this }
+
+  def append(bb: ByteBuffer): this.type =
+    bb.order(ByteOrder.LITTLE_ENDIAN)
+    if (partialN > 0) {
+      while (partialN < 8 && bb.hasRemaining) {
+        partial |= (bb.get & 0xFFL) << (partialN*8)
+        partialN += 1
+      }
+      if (partialN == 8) {
+        xor = xor ^ partial
+        partialN = 0
+        partial = 0
+      }
+    }
+    while (bb.remaining >= 8) xor = xor ^ bb.getLong
+    while (bb.hasRemaining) {
+      partial |= (bb.get & 0xFFL) << (partialN*8)
+      partialN += 1
+    }
+    this
+  
+  def result(bb: ByteBuffer): Long =
+    append(bb)
+    result()
+  
+  def result(): Long =
+    if (partialN > 0) {
+      xor = xor ^ partial
+      partialN = 0
+      partial = 0
+    }
+    xor
+
 }

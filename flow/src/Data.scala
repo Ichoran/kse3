@@ -1,6 +1,8 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2011-2015, 2021 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
+
+
 package kse.flow
-
-
 
 ////////////////////////////////////////////////
 /// Packaging and wrappers to alter behavior ///
@@ -20,7 +22,7 @@ trait Valued[V] {
 
 
 /** Holds mutable data (would be better if standard library exposed this!) */
-sealed abstract class Mu[A] extends Valued[A] {
+sealed abstract class Mu[A] extends Valued[A] with Copy[Mu[A]] {
   inline def apply(): A = value
   def value: A
   def value_=(a: A): Unit
@@ -30,16 +32,16 @@ sealed abstract class Mu[A] extends Valued[A] {
   override def hashCode = value.##
 }
 object Mu {
-  object      MuUnit                   extends Mu[Unit]    { def value: Unit = (); def value_=(u: Unit): Unit = () }
-  final class MuBoolean(init: Boolean) extends Mu[Boolean] { var value = init }
-  final class MuByte   (init: Byte)    extends Mu[Byte]    { var value = init }
-  final class MuShort  (init: Short)   extends Mu[Short]   { var value = init }
-  final class MuChar   (init: Char)    extends Mu[Char]    { var value = init }
-  final class MuInt    (init: Int)     extends Mu[Int]     { var value = init }
-  final class MuLong   (init: Long)    extends Mu[Long]    { var value = init }
-  final class MuFloat  (init: Float)   extends Mu[Float]   { var value = init }
-  final class MuDouble (init: Double)  extends Mu[Double]  { var value = init }
-  final class MuAny[A] (init: A)       extends Mu[A]       { var value = init }
+  object      MuUnit                   extends Mu[Unit]    with Copy[MuUnit.type]{ def copy = this                ; def value: Unit = (); def value_=(u: Unit): Unit = () }
+  final class MuBoolean(init: Boolean) extends Mu[Boolean] with Copy[MuBoolean  ]{ def copy = new MuBoolean(init) ; var value = init }
+  final class MuByte   (init: Byte)    extends Mu[Byte]    with Copy[MuByte     ]{ def copy = new MuByte(init)    ; var value = init }
+  final class MuShort  (init: Short)   extends Mu[Short]   with Copy[MuShort    ]{ def copy = new MuShort(init)   ; var value = init }
+  final class MuChar   (init: Char)    extends Mu[Char]    with Copy[MuChar     ]{ def copy = new MuChar(init)    ; var value = init }
+  final class MuInt    (init: Int)     extends Mu[Int]     with Copy[MuInt      ]{ def copy = new MuInt(init)     ; var value = init }
+  final class MuLong   (init: Long)    extends Mu[Long]    with Copy[MuLong     ]{ def copy = new MuLong(init)    ; var value = init }
+  final class MuFloat  (init: Float)   extends Mu[Float]   with Copy[MuFloat    ]{ def copy = new MuFloat(init)   ; var value = init }
+  final class MuDouble (init: Double)  extends Mu[Double]  with Copy[MuDouble   ]{ def copy = new MuDouble(init)  ; var value = init }
+  final class MuAny[A] (init: A)       extends Mu[A]       with Copy[MuAny[A]   ]{ def copy = new MuAny[A](init)  ; var value = init }
   def apply(u: Unit):    Mu[Unit]  = MuUnit
   def apply(z: Boolean): MuBoolean = new MuBoolean(z)
   def apply(b: Byte):    MuByte    = new MuByte(b)
