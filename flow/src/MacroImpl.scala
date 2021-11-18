@@ -11,6 +11,13 @@ extends Exception() {
   override def toString = s"${super.toString}($value)"
 }
 
+/** An indicator trait indicating that an untransformed flow exception can be caught ()
+  */
+trait TransformsFlow[A] {}
+object TransformsFlow {
+  private[this] val genericInstance = new TransformsFlow[Any] {}
+  def of[A]: TransformsFlow[A] = genericInstance.asInstanceOf[TransformsFlow[A]]
+}
 
 // Important references:
 //   https://docs.scala-lang.org/scala3/guides/macros/macros.html
@@ -30,16 +37,15 @@ object EarlyReturnMacro {
     import quotes.reflect.*
 
     def transform(): Expr[T] =
-      println(x.asTerm.symbol.maybeOwner)
-      val term = Impl.transformTerm(x.asTerm)(x.asTerm.symbol)
-      Check(term)(term.symbol)
-      term.asExprOf[T]
+      Impl.transformTerm(x.asTerm)(x.asTerm.symbol).asExprOf[T]
 
     private object Impl extends TreeMap {
       val tpr = TypeRepr.of[T]
       var defdefDepth = 0
       var lambdaEnabled = false
-      private def reportPosition(p: Position): String = 
+      var qmPos: Option[Position] = None
+
+      private def reportPosition(p: Position): String =
         val shown = p.sourceCode match {
           case Some(code) =>
             if (code.indexOf('\n') < 0) {
@@ -54,18 +60,13 @@ object EarlyReturnMacro {
           case _ => ""
         }
         s"\nAt ${p.sourceFile}, line ${p.endLine+1}, column ${p.endColumn}$shown\n"
-      private def returnThrownCaseDefs(casedefs: List[CaseDef], position: Position): List[CaseDef] = casedefs.map {
-        case c @ CaseDef(
-          v, p,
-          b @ Block(xs,
-            Apply(
-              Ident("throw"),
-              Apply(
-                ta @ TypeApply(Select(New(TypeIdent("UntransformedFlowException")), _), tt :: Nil),
-                param :: Nil
-              ) :: Nil
-            )
-          )
+
+      private def returnInsteadOfFlowException(app: Apply, position: Position)(owner: Symbol): Term = app match
+        case Apply(Ident("throw"),
+          Apply(
+            ta @ TypeApply(Select(New(TypeIdent("UntransformedFlowException")), _), tt :: Nil),
+            param :: Nil
+          ) :: Nil
         ) =>
           if (!(tt.tpe <:< tpr)) {
             report.throwError(s"Type mismatch in .? return.\n  Required: ${tpr.show}\n  Found:    ${tt.tpe.show}${reportPosition(position)}")
@@ -79,32 +80,10 @@ object EarlyReturnMacro {
           if (!s.isDefDef) {
             report.throwError(s"No method found enclosing .? return.${reportPosition(position)}")
           }
-          CaseDef.copy(c)(v, p, Block.copy(b)(xs, Return(param, s)))
-        case c @ CaseDef(
-          v, p,
-          Apply(
-            Ident("throw"),
-            Apply(
-              ta @ TypeApply(Select(New(TypeIdent("UntransformedFlowException")), _), tt :: Nil),
-              param :: Nil
-            ) :: Nil
-          )
-        ) => 
-          if (!(tt.tpe <:< tpr)) {
-            report.throwError(s"Type mismatch in .? return.\n  Required: ${tpr.show}\n  Found:    ${tt.tpe.show}${reportPosition(position)}")
-          }
-          var s = param.symbol
-          var n = 0
-          while (s.exists && (n < defdefDepth || !s.isDefDef)) {
-            if (s.isDefDef) n += 1
-            s = s.maybeOwner
-          }
-          if (!s.isDefDef) {
-            report.throwError(s"No method found enclosing .? return.${reportPosition(position)}")
-          }
-          CaseDef.copy(c)(v, p, Block(Nil, Return(param, s)))
-        case x => x
-      }
+          Return(param, s)
+        case x =>
+          super.transformTerm(x)(owner)
+
       override def transformStatement(statement: Statement)(owner: Symbol) = statement match
         case _: ValDef => super.transformStatement(statement)(owner)
         case _: Term => super.transformStatement(statement)(owner)
@@ -115,39 +94,22 @@ object EarlyReturnMacro {
           defdefDepth -= 1
           answer
         case x => x
-      override def transformTerm(term: Term)(owner: Symbol) = term match
-        case z @ Inlined(a @ Some(Apply(Ident(i), _)), b, c) if i == "?" => c match
-          case Typed(m @ Match(x, cds), y) =>
-            val m2 = Match.copy(m)(transformTerm(x)(owner), returnThrownCaseDefs(cds, z.pos))
-            Inlined.copy(term)(a, transformSubTrees(b)(owner), Typed.copy(c)(m2, y))
-          case _ => super.transformTerm(term)(owner)
-        case z @ Inlined(a @ Some(Apply(TypeApply(Ident(i), _), _)), b, c) if i == "?" => c match
-          case Typed(m @ Match(x, cds), y) => 
-            Inlined.copy(term)(
-              a,
-              transformSubTrees(b)(owner),
-              Typed.copy(c)(Match.copy(m)(transformTerm(x)(owner), returnThrownCaseDefs(cds, z.pos)), y)
-            )
-          case _ => super.transformTerm(term)(owner)
-        case Lambda(xs, y) => lambdaEnabled = true; super.transformTerm(term)(owner)
-        /*
-        case Inlined(a, b, c) => println(s"Inlined $a\nis $c\n"); super.transformTerm(term)(owner)  // Helpful case for debugging printlns
-        case Block(xs, y) => 
-          println("Block:")
-          xs.zipWithIndex.foreach{ case (x, i) => println(s"  #$i = $x") }
-          println("------")
-          println(s"$y\n")
-          super.transformTerm(term)(owner)  // Helpful case for debugging printlns
-        */
-        case _ => super.transformTerm(term)(owner)
-    }
 
-    private object Check extends TreeTraverser {
-      def apply(tree: Tree)(owner: Symbol): Unit = traverseTree(tree)(owner)
-      override def foldOverTree(x: Unit, tree: Tree)(owner: Symbol) = tree match
-        case n @ New(TypeIdent("UntransformedFlowException")) => report.throwError(s"UntransformedFlowException escaped from ${n.pos}")
-        case _ => super.foldOverTree(x, tree)(owner)
+      override def transformTerm(term: Term)(owner: Symbol) = term match
+        case app @ Apply(Ident(i), _) =>
+          if (i == "throw") returnInsteadOfFlowException(app, qmPos.getOrElse(app.pos))(owner)
+          else if (i == "?") {
+            val oldPos = qmPos
+            qmPos = Some(app.pos)
+            val ans = super.transformTerm(app)(owner)
+            qmPos = oldPos
+            ans
+          }
+          else super.transformTerm(app)(owner)
+
+        case Lambda(xs, y) => lambdaEnabled = true; super.transformTerm(term)(owner)
+
+        case _ => super.transformTerm(term)(owner)
     }
   }
 }
-

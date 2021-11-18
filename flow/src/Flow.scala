@@ -14,49 +14,62 @@ import scala.util.{Try, Success, Failure}
 //////////////////////////////////////
 
 extension [N, Y](ok: Ok[N, Y])
-  inline def ? : Y = ok match
+  inline def ?(using TransformsFlow[No[N]]) : Y = ok match
     case Yes(y) => y
-    case n      => throw new UntransformedFlowException(n)
+    case n: No[N] => throw new UntransformedFlowException(n)
+
 
 extension [L, R](either: Either[L, R])
-  inline def ? : R = either match
+  inline def ?(using TransformsFlow[Left[L, R]]) : R = either match
     case Right(r) => r
-    case l => throw new UntransformedFlowException(l)
+    case l: Left[L, R] => throw new UntransformedFlowException(l)
 
 extension [A](option: Option[A])
-  inline def ? : A = option match
+  inline def ?(using TransformsFlow[None.type]) : A = option match
     case Some(a) => a
     case _ => throw new UntransformedFlowException(None)
 
 extension [A](`try`: Try[A])
-  inline def ? : A = `try` match
+  inline def ?(using TransformsFlow[Failure[A]]) : A = `try` match
     case Success(a) => a
-    case f => throw new UntransformedFlowException(f)
+    case f: Failure[A] => throw new UntransformedFlowException(f)
 
 extension (double: Double)
-  inline def ? : Double = double match
+  inline def ?(using TransformsFlow[Double]) : Double = double match
     case x if java.lang.Double.isNaN(x) => throw new UntransformedFlowException(x)
     case y => y
 
 extension (float: Float)
-  inline def ? : Float = float match
+  inline def ?(using TransformsFlow[Float]) : Float = float match
     case x if java.lang.Float.isNaN(x) => throw new UntransformedFlowException(x)
     case y => y
 
-inline def Ret[A](inline a: A) = ${ EarlyReturnMacro.transform('a) }
+inline def Ret[A](inline a: TransformsFlow[A] ?=> A): A =
+  ${ EarlyReturnMacro.transform('{a(using TransformsFlow.of[A])}) }
 
 extension (objectOk: Ok.type)
-  inline def Ret[N, Y](inline y: Y): Ok[N, Y] =
-    ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = Yes(y); ok }) }
+  inline def Ret[N, Y](inline y: TransformsFlow[No[N]] ?=> Y): Ok[N, Y] =
+    ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = Yes(y(using TransformsFlow.of[No[N]])); ok }) }
+  inline def FlatRet[N, Y](inline y: TransformsFlow[No[N]] ?=> Ok[N, Y]): Ok[N, Y] =
+    ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = y(using TransformsFlow.of[No[N]]); ok }) }
 
 extension (objectEither: Either.type)
-  inline def Ret[L, R](inline r: R): Either[L, R] = ${ EarlyReturnMacro.transform('{ val either: Either[L, R] = Right(r); either }) }
+  inline def Ret[L, R](inline r: TransformsFlow[Left[L, R]] ?=> R): Either[L, R] =
+    ${ EarlyReturnMacro.transform('{ val either: Either[L, R] = Right(r(using TransformsFlow.of[Left[L, R]])); either }) }
+  inline def FlatRet[L, R](inline r: TransformsFlow[Left[L, R]] ?=> Either[L, R]): Either[L, R] =
+    ${ EarlyReturnMacro.transform('{ val either: Either[L, R] = r(using TransformsFlow.of[Left[L, R]]); either }) }
 
 extension (objectOption: Option.type)
-  inline def Ret[A](inline a: A): Option[A] = ${ EarlyReturnMacro.transform('{ val option: Option[A] = Some(a); option }) }
+  inline def Ret[A](inline a: TransformsFlow[None.type] ?=> A): Option[A] =
+    ${ EarlyReturnMacro.transform('{ val option: Option[A] = Some(a(using TransformsFlow.of[None.type])); option }) }
+  inline def FlatRet[A](inline a: TransformsFlow[None.type] ?=> Option[A]): Option[A] =
+    ${ EarlyReturnMacro.transform('{ val option: Option[A] = a(using TransformsFlow.of[None.type]); option }) }
 
 extension (tryObject: Try.type)
-  inline def Ret[A](inline a: A): Try[A] = ${ EarlyReturnMacro.transform('{ val tri: Try[A] = Success(a); tri }) }
+  inline def Ret[A](inline a: TransformsFlow[Failure[A]] ?=> A): Try[A] =
+    ${ EarlyReturnMacro.transform('{ val tri: Try[A] = Success(a(using TransformsFlow.of[Failure[A]])); tri }) }
+  inline def FlatRet[A](inline a: TransformsFlow[Failure[A]] ?=> Try[A]): Try[A] =
+    ${ EarlyReturnMacro.transform('{ val tri: Try[A] = a(using TransformsFlow.of[Failure[A]]); tri }) }
 
 
 
