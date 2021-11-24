@@ -669,9 +669,9 @@ object JsonRecyclingParser {
     if (jrp.available < 4) return No(JastError("Expected JSON null but not enough input", jrp.start))
     if (jrp.buffer(jrp.start) != 'n') No(JastError("Expected JSON null but did not find 'n'", jrp.start))
     jrp.parseNull() match {
-      case j: kse.jsonal.Json.Null => if (ep ne null) ep.index = jrp.offset + jrp.start; Yes(j)
+      case j: kse.jsonal.Json.Null => if (ep ne null) ep.index = jrp.offset + jrp.start; yesNull
       case e: JastError => No(e)
-      case _ => No(JastError("Internal error: parse did not produce JSON null or an error?"))
+      case _ => Jast.To.error("Internal error: parse did not produce JSON null or an error?")
     }
   }
   def Bool(input: RecyclingBuffer => Boolean, ep: FromJson.Endpoint = null): Jast.To[kse.jsonal.Json.Bool] = {
@@ -679,9 +679,9 @@ object JsonRecyclingParser {
     jrp.parseBool() match {
       case jb: kse.jsonal.Json.Bool =>
         if (ep ne null) ep.index = jrp.offset + jrp.start
-        if (jb.value) myRightTrue else myRightFalse
+        if (jb.value) yesTrue else yesFalse
       case je: JastError => No(je)
-      case _ => No(JastError("Internal error: parse did not produce JSON boolean or an error?"))
+      case _ => Jast.To.error("Internal error: parse did not produce JSON boolean or an error?")
     }
   }
   def Str(input: RecyclingBuffer => Boolean, ep: FromJson.Endpoint = null): Jast.To[kse.jsonal.Json.Str] = {
@@ -691,7 +691,7 @@ object JsonRecyclingParser {
     jrp.parseStr() match {
       case js: kse.jsonal.Json.Str => if (ep ne null) ep.index = jrp.offset + jrp.start; Yes(js)
       case je: JastError => No(je)
-      case _ => No(JastError("Internal error: parse did not produce JSON string or an error?"))
+      case _ => Jast.To.error("Internal error: parse did not produce JSON string or an error?")
     }
   }
   def Num(input: RecyclingBuffer => Boolean, ep: FromJson.Endpoint = null, relaxed: Boolean = false): Jast.To[kse.jsonal.Json.Num] = {

@@ -109,7 +109,10 @@ object Jast extends ParseToJast(false) {
 
   type To[+A] = Ok[JastError, A]
   object To {
-    def error(msg: String): No[JastError] = No(JastError(msg))
+    inline def error(msg: String): No[JastError] = No(JastError(msg))
+    inline def error(msg: String, where: Long): No[JastError] = No(JastError(msg, where))
+    inline def error(msg: String, why: Jast): No[JastError] = No(JastError(msg, because = why))
+    inline def error(msg: String, where: Long, why: Jast): No[JastError] = No(JastError(msg, where, why))
   }
 
   inline def Ret[A](inline a: TransformsFlow[No[JastError]] ?=> To[A]): To[A] = Ok.FlatRet[JastError, A]{ a }

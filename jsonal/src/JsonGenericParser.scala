@@ -8,9 +8,9 @@ import kse.flow._
 object JsonGenericParser {
   private[jsonal] val smallPowersOfTen = Array.tabulate(23)(i => s"1e$i".toDouble)
 
-  private[jsonal] val myRightNull = Yes(kse.jsonal.Json.Null)
-  private[jsonal] val myRightTrue = Yes(kse.jsonal.Json.Bool.True)
-  private[jsonal] val myRightFalse = Yes(kse.jsonal.Json.Bool.False)
+  private[jsonal] val yesNull = Yes(kse.jsonal.Json.Null)
+  private[jsonal] val yesTrue = Yes(kse.jsonal.Json.Bool.True)
+  private[jsonal] val yesFalse = Yes(kse.jsonal.Json.Bool.False)
 
   private[jsonal] val wouldNotFitInDouble = JastError("Text number would not fit in a Double")
 }

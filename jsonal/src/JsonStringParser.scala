@@ -468,13 +468,13 @@ object JsonStringParser{
   def Null(input: String, i0: Int, iN: Int, ep: FromJson.Endpoint): Jast.To[kse.jsonal.Json.Null] = {
     val i = math.max(0, i0)
     val iM = math.min(iN, input.length)
-    if (i >= iM) return No(JastError("Expected JSON null but at end of input"))
-    if (input.charAt(i) != 'n') return No(JastError("Expected JSON null but found character "+input.charAt(i).toString, i))
+    if (i >= iM) return Jast.To.error("Expected JSON null but at end of input")
+    if (input.charAt(i) != 'n') return Jast.To.error("Expected JSON null but found character "+input.charAt(i).toString, i)
     val jsp = new JsonStringParser
     jsp.parseNull(input, i+1, iM) match {
-      case jn: kse.jsonal.Json.Null => if (ep ne null) jsp.setEndpoint(ep); myRightNull
+      case jn: kse.jsonal.Json.Null => if (ep ne null) jsp.setEndpoint(ep); yesNull
       case je: JastError => No(je)
-      case _ => No(JastError("Internal error: parse did not produce JSON null or an error?"))
+      case _ => Jast.To.error("Internal error: parse did not produce JSON null or an error?")
     }
   }
   def Bool(input: String, i0: Int, iN: Int, ep: FromJson.Endpoint): Jast.To[kse.jsonal.Json.Bool] = {
@@ -482,9 +482,9 @@ object JsonStringParser{
     jsp.parseBool(input, math.max(0, i0), math.min(iN, input.length)) match {
       case jb: kse.jsonal.Json.Bool =>
         if (ep ne null) jsp.setEndpoint(ep)
-        if (jb.value) myRightTrue else myRightFalse
+        if (jb.value) yesTrue else yesFalse
       case je: JastError => No(je)
-      case _ => No(JastError("Internal error: parse did not produce JSON boolean or an error?"))
+      case _ => Jast.To.error("Internal error: parse did not produce JSON boolean or an error?")
     }
   }
   def Str(input: String, i0: Int, iN: Int, ep: FromJson.Endpoint): Jast.To[kse.jsonal.Json.Str] = {
