@@ -21,28 +21,10 @@ trait FromJson[A] {
     case je: JastError => No(je)
     case js: Json => apply(js)
 
-  /** Recover teh object from its JSON representation if there was a Jast.To[Json] parse */
+  /** Recover the object from its JSON representation if there was a Jast.To[Json] parse */
   def apply(input: Jast.To[Json]): Jast.To[A] = input match
     case Yes(j) => apply(j)
     case n: No[_] => n
-
-  /** Deserialize the object from a string containing its JSON representation, keeping track of the end of parsing. */
-  def parse(input: String, i0: Int, iN: Int, ep: FromJson.Endpoint): Jast.To[A] = apply(Json.fromJson.parse(input, i0, iN, ep))
-
-  /** Deserialize the object from a string containing its JSON representation. */
-  def parse(input: String): Jast.To[A] = parse(input, 0, input.length, new FromJson.Endpoint(0))
-
-  /** Deserialize the object from a ByteBuffer containing its JSON representation. */
-  def parse(input: ByteBuffer): Jast.To[A] = apply(Json.fromJson.parse(input))
-
-  /** Deserialize the object from a CharBuffer containing its JSON representation. */
-  def parse(input: CharBuffer): Jast.To[A] = apply(Json.fromJson.parse(input))
-
-  /** Deserialize the object from an InputStream containing its JSON representation, keeping track of the end of parsing. */
-  def parse(input: java.io.InputStream, ep: FromJson.Endpoint): Jast.To[A] = apply(Json.fromJson.parse(input, ep))
-
-  /** Deserialize the object from an InputStream containing its JSON representation. */
-  def parse(input: java.io.InputStream): Jast.To[A] = parse(input, ep = null)
 
   /** Recover an array of these objects from their JSON representation */
   def array(input: Json.Arr)(using tag: reflect.ClassTag[A]): Jast.To[Array[A]] =
@@ -380,17 +362,12 @@ class ParseToJast private[jsonal] (protected val isRelaxed: Boolean) {
   /** Parses a section of a `String` and indicates the end of the parse in a `FromJson.Endpoint` class */
   def parse(input: String, i0: Int, iN: Int, ep: FromJson.Endpoint): Jast =
     if (input eq null) Json.Null
-    else {
-      val jsp = (new JsonStringParser).relaxedNumbers(isRelaxed)
-      val ans = jsp.parseVal(input, math.max(0, i0), math.min(iN, input.length))
-      if (ep ne null) jsp.setEndpoint(ep)
-      ans
-    }
+    else (new JsonStringParser).relaxedNumbers(isRelaxed).parse(input, math.max(0, i0), math.min(iN, input.length))
 
   /** Parses a string to a JSON AST. */
   def parse(input: String): Jast =
     if (input eq null) Json.Null
-    else (new JsonStringParser).relaxedNumbers(isRelaxed).parseVal(input, 0, input.length)
+    else (new JsonStringParser).relaxedNumbers(isRelaxed).parse(input)
 
   /** Parses a `ByteBuffer`, starting at its current position, to a JSON AST. */
   def parse(input: ByteBuffer): Jast =
@@ -400,34 +377,190 @@ class ParseToJast private[jsonal] (protected val isRelaxed: Boolean) {
   def parse(input: CharBuffer): Jast =
     (new JsonCharBufferParser).relaxedNumbers(isRelaxed).parseVal(input)
 
-  /** Parses an input stream to a JSON AST, keeping a record of the number of bytes consumed (in `ep`).
+  /** Parses an input stream to a JSON AST.
     *
     * Note: if the end of the stream is not reached, no indication will be given.  The stream will not be closed.
     */
-  def parse(input: java.io.InputStream, ep: FromJson.Endpoint): Jast =
-    val jrp = (new JsonRecyclingParser).refresh(JsonRecyclingParser recycleInputStream input).relaxedNumbers(isRelaxed)
-    val ans = jrp.recycle().parseVal()
-    if ((ep ne null) && ans.isInstanceOf[Json]) ep.index = jrp.offset + jrp.start
-    ans
+  def parse(input: java.io.InputStream): Jast =
+    (new JsonCachedByteSourceParser(8192)).relaxedNumbers(isRelaxed).parse(JsonCachedByteSourceParser source input)
+}
 
-  /** Parses an input stream to a JSON AST. */
-  def parse(input: java.io.InputStream): Jast = parse(input, null)
+trait JsonCompanion[A] {
+  given fromJson: FromJson[A]
+
+
+ /** Deserialize the object from a string containing its JSON representation. */
+  final def parseToJson(input: String): Jast.To[A] = parseToJson(input, 0, input.length, false)
+
+  /** Deserialize the object from a string containing its JSON representation. */
+  final def parseToJson(input: String, relaxed: Boolean): Jast.To[A] = parseToJson(input, 0, input.length, relaxed)
+
+  /** Deserialize the object from a substring containing its JSON representation. */
+  final def parseToJson(input: String, i0: Int, iN: Int): Jast.To[A] = parseToJson(input, i0, iN, false)
+
+  /** Deserialize the object from a substring containing its JSON representation. */
+  def parseToJson(input: String, i0: Int, iN: Int, relaxed: Boolean): Jast.To[A] = fromJson(JsonStringParser.parse(input, i0, iN, relaxed))
+
+
+  /** Deserialize the object from an Array[Byte] containing its JSON representation. */
+  final def parseToJson(input: Array[Byte]): Jast.To[A] = parseToJson(input, 0, input.length, false)
+
+  /** Deserialize the object from an Array[Byte] containing its JSON representation. */
+  final def parseToJson(input: Array[Byte], relaxed: Boolean): Jast.To[A] = parseToJson(input, 0, input.length, relaxed)
+
+  /** Deserialize the object from an Array[Byte] containing its JSON representation. */
+  final def parseToJson(input: Array[Byte], i0: Int, iN: Int): Jast.To[A] = parseToJson(input, i0, iN, false)
+
+  /** Deserialize the object from an Array[Char] containing its JSON representation. */
+  def parseToJson(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Jast.To[A] = fromJson(JsonByteArrayParser.parse(input, i0, iN, relaxed))
+
+
+  /** Deserialize the object from an Array[Char] containing its JSON representation. */
+  final def parseToJson(input: Array[Char]): Jast.To[A] = parseToJson(input, 0, input.length, false)
+
+  /** Deserialize the object from an Array[Char] containing its JSON representation. */
+  final def parseToJson(input: Array[Char], relaxed: Boolean): Jast.To[A] = parseToJson(input, 0, input.length, relaxed)
+
+  /** Deserialize the object from an Array[Char] containing its JSON representation. */
+  final def parseToJson(input: Array[Char], i0: Int, iN: Int): Jast.To[A] = parseToJson(input, i0, iN, false)
+
+  /** Deserialize the object from an Array[Char] containing its JSON representation. */
+  def parseToJson(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Jast.To[A] = fromJson(JsonCharArrayParser.parse(input, i0, iN, relaxed))
+
+
+  /** Deserialize the object from a ByteBuffer containing its JSON representation. */
+  final def parseToJson(input: ByteBuffer): Jast.To[A] = parseToJson(input, false)
+
+  /** Deserialize the object from a ByteBuffer containing its JSON representation. */
+  def parseToJson(input: ByteBuffer, relaxed: Boolean): Jast.To[A] = fromJson(JsonByteBufferParser.parse(input, relaxed))
+
+
+  /** Deserialize the object from a CharBuffer containing its JSON representation. */
+  final def parseToJson(input: CharBuffer): Jast.To[A] = parseToJson(input, false)
+
+  /** Deserialize the object from a CharBuffer containing its JSON representation. */
+  def parseToJson(input: CharBuffer, relaxed: Boolean): Jast.To[A] = fromJson(JsonCharBufferParser.parse(input, relaxed))
+
+
+  /** Deserialize the object from an InputStream containing its JSON representation. */
+  final def parseToJson(input: java.io.InputStream): Jast.To[A] = parseToJson(input, false)
+
+  /** Deserialize the object from an InputStream containing its JSON representation. */
+  def parseToJson(input: java.io.InputStream, relaxed: Boolean): Jast.To[A] =
+    fromJson((new JsonCachedByteSourceParser(8000)).relaxedNumbers(relaxed).parse(JsonCachedByteSourceParser source input))
+
 
   /** Parses the contents of a file to a JSON AST.  The file will be closed.
     *
     * Note: if the file contains additional information beyond the end of the JSON object, it will be ignored.
     */
-  def parse(filename: java.io.File): Jast =
-    if (!filename.exists) JastError("File does not exist: "+filename.getPath)
+  final def parseToJson(filename: java.io.File): Jast.To[A] = parseToJson(filename, false)
+
+  /** Parses the contents of a file to a JSON AST.  The file will be closed.
+    *
+    * Note: if the file contains additional information beyond the end of the JSON object, it will be ignored.
+    */
+  def parseToJson(filename: java.io.File, relaxed: Boolean): Jast.To[A] =
+    if (!filename.exists) Jast.To.error("File does not exist: "+filename.getPath)
     else {
       try
         val fis = new java.io.FileInputStream(filename)
-        try { parse(fis) } finally { fis.close }
+        try { parseToJson(fis) } finally { fis.close }
       catch
-        case t if NonFatal(t) => JastError("File read error: "+t.getClass.getName+" "+t.getMessage) 
+        case t if NonFatal(t) => Jast.To.error("File read error: "+t.getClass.getName+" "+t.getMessage) 
+    }
+
+  /** Parses the contents of a file to a JSON AST.  The file will be closed.
+    *
+    * Note: if the file contains additional information beyond the end of the JSON object, it will be ignored.
+    */
+  final def parseToJson(pathname: java.nio.file.Path): Jast.To[A] = parseToJson(pathname, false)
+
+  /** Parses the contents of a file to a JSON AST.  The file will be closed.
+    *
+    * Note: if the file contains additional information beyond the end of the JSON object, it will be ignored.
+    */
+  def parseToJson(pathname: java.nio.file.Path, relaxed: Boolean): Jast.To[A] =
+    if (!java.nio.file.Files.exists(pathname)) Jast.To.error("File does not exist: " + pathname)
+    else {
+      try
+        val is = java.nio.file.Files.newInputStream(pathname)
+        try { parseToJson(is) } finally { is.close }
+      catch
+        case t if NonFatal(t) => Jast.To.error("File read error: "+t.getClass.getName+" "+t.getMessage) 
     }
 }
 
-trait JsonCompanion[A] {
-  given fromJson: FromJson[A]
+trait JsonParse[J <: Jast] {
+  final def parse(input: String): J | JastError = parse(input, 0, input.length, false)
+  final def parse(input: String, relaxed: Boolean): J | JastError = parse(input, 0, input.length, relaxed)
+  final def parse(input: String, i0: Int, iN: Int): J | JastError = parse(input, i0, iN, false)
+  def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): J | JastError
+
+  final def parse(input: Array[Byte]): J | JastError = parse(input, 0, input.length, false)
+  final def parse(input: Array[Byte], relaxed: Boolean): J | JastError = parse(input, 0, input.length, relaxed)
+  final def parse(input: Array[Byte], i0: Int, iN: Int): J | JastError = parse(input, i0, iN, false)
+  def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): J | JastError
+
+  final def parse(input: Array[Char]): J | JastError = parse(input, 0, input.length, false)
+  final def parse(input: Array[Char], relaxed: Boolean): J | JastError = parse(input, 0, input.length, relaxed)
+  final def parse(input: Array[Char], i0: Int, iN: Int): J | JastError = parse(input, i0, iN, false)
+  def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): J | JastError
+
+  final def parse(input: ByteBuffer): J | JastError = parse(input, false)
+  def parse(input: ByteBuffer, relaxed: Boolean): J | JastError
+
+  final def parse(input: CharBuffer): J | JastError = parse(input, false)
+  def parse(input: CharBuffer, relaxed: Boolean): J | JastError
+
+  final def parse(input: java.io.InputStream): J | JastError = parse(input, false)
+  def parse(input: java.io.InputStream, relaxed: Boolean): J | JastError
+
+  final def parse(filename: java.io.File): J | JastError = parse(filename.toPath, false)
+  final def parse(filename: java.io.File, relaxed: Boolean): J | JastError = parse(filename.toPath, relaxed)
+  final def parse(pathname: java.nio.file.Path): J | JastError = parse(pathname, false)
+  final def parse(pathname: java.nio.file.Path, relaxed: Boolean): J | JastError =
+    if (!java.nio.file.Files.exists(pathname)) JastError("File does not exist: " + pathname)
+    else {
+      try
+        val is = java.nio.file.Files.newInputStream(pathname)
+        try { parse(is, relaxed) } finally { is.close }
+      catch
+        case t if NonFatal(t) => JastError("Read error: " + t.getClass.getName + " "  + t.getMessage)
+    }
+}
+object JsonParse {
+  trait Companion[J <: Jast] extends JsonParse[J] with JsonCompanion[J] {
+    final override def parseToJson(input: String, i0: Int, iN: Int, relaxed: Boolean): Jast.To[J] = parse(input, i0, iN, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Jast.To[J] = parse(input, i0, iN, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Jast.To[J] = parse(input, i0, iN, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: ByteBuffer, relaxed: Boolean): Jast.To[J] = parse(input, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: CharBuffer, relaxed: Boolean): Jast.To[J] = parse(input, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: java.io.InputStream, relaxed: Boolean): Jast.To[J] = parse(input, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: java.io.File, relaxed: Boolean): Jast.To[J] = parse(input, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+
+    final override def parseToJson(input: java.nio.file.Path, relaxed: Boolean): Jast.To[J] = parse(input, relaxed) match
+      case je: JastError => No(je)
+      case jx => Yes(jx.asInstanceOf[J])
+  }
 }
