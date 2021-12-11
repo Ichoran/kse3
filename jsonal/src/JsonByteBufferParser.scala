@@ -44,7 +44,17 @@ final class JsonByteBufferParser() extends JsonGenericByteParser[ByteBuffer] {
   ///////////////////////////////
 
 
-  def parse(input: ByteBuffer): Jast = myParseVal(input)
+  def parse(input: ByteBuffer): Jast = 
+    val start = input.position
+    if (options.trim) { if (whiteless(input) != -129) movePos(input)(-1) }
+    val ans = myParseVal(input)
+    val err = ans.isInstanceOf[JastError]
+    if (!err & options.trim) { if (whiteless(input) != -129) movePos(input)(-1) }
+    val full = !hasSome(input)
+    options.outcome match
+      case Some(o) => o.complete = full; o.error = err; o.consumed += input.position - start
+      case _ =>
+    if (full || !options.complete) ans else JastError("JSON parse covered only part of input", globalPos(input))
 
   /////////////
   // Important invariants within methods:
@@ -139,22 +149,29 @@ object JsonByteBufferParser extends JsonGenericParserCompanion.Positional[ByteBu
   protected inline def setPos(in: ByteBuffer)(pos: Int): Unit = in.position(pos)
   protected inline def backOne(in: ByteBuffer): Unit = in.position(in.position - 1)
   protected inline def getC(in: ByteBuffer): Char = in.get.toChar
+  protected inline def whiteless(in: ByteBuffer): Int =
+    var c = -129
+    while (
+      { if (hasAtLeast(in)(1)) true else { c = -129; false } } && 
+      { c = in.get; isWhite(c-8) }
+    ) {}
+    c
 
   def newParser = new JsonByteBufferParser
 
-  def parse(input: ByteBuffer, relaxed: Boolean = false): Jast = parseImpl(input, relaxed)
+  def parse(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): Jast = parseImpl(input, options)
 
-  def parseJson(input: ByteBuffer, relaxed: Boolean = false): kse.jsonal.Json | JastError = parseJsonImpl(input, relaxed)
+  def parseJson(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json | JastError = parseJsonImpl(input, options)
 
-  def parseNull(input: ByteBuffer): kse.jsonal.Json.Null.type | JastError = parseNullImpl(input)
+  def parseNull(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Null.type | JastError = parseNullImpl(input, options)
   
-  def parseBool(input: ByteBuffer): kse.jsonal.Json.Bool | JastError = parseBoolImpl(input)
+  def parseBool(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Bool | JastError = parseBoolImpl(input, options)
   
-  def parseStr(input: ByteBuffer): kse.jsonal.Json.Str | JastError = parseStrImpl(input)
+  def parseStr(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Str | JastError = parseStrImpl(input, options)
 
-  def parseNum(input: ByteBuffer, relaxed: Boolean = false): kse.jsonal.Json.Num | JastError = parseNumImpl(input, relaxed)
+  def parseNum(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Num | JastError = parseNumImpl(input, options)
   
-  def parseArr(input: ByteBuffer, relaxed: Boolean = false): kse.jsonal.Json.Arr | JastError = parseArrImpl(input, relaxed)
+  def parseArr(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Arr | JastError = parseArrImpl(input, options)
   
-  def parseObj(input: ByteBuffer, relaxed: Boolean = false): kse.jsonal.Json.Obj | JastError = parseObjImpl(input, relaxed)
+  def parseObj(input: ByteBuffer, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Obj | JastError = parseObjImpl(input, options)
 }

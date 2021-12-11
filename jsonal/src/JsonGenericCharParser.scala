@@ -155,13 +155,13 @@ trait JsonGenericCharParser[In] extends JsonGenericParser[In] {
             if (initial == '-') digits = -digits   // No-op for Long.MinValue, so we're okay
             result = digits.toDouble
             if (toCache) cache = JsonGenericParser.createNum(java.lang.Double.longBitsToDouble(digits), null)
-            else if (strictNumbers && result.toLong != digits) cache = wouldNotFitInDouble
+            else if (!options.lossy && result.toLong != digits) cache = wouldNotFitInDouble
           }
           else {
             val text = subString(input)(zero, getPos(input))
             result = text.toDouble
             if (toCache) cache = JsonGenericParser.createNum(result, text)
-            else if (strictNumbers && !Json.Num.numericStringEquals(result.toString, text))
+            else if (!options.lossy && !Json.Num.numericStringEquals(result.toString, text))
               cache = wouldNotFitInDouble
           }
           done = true  // Strictly speaking this is unnecessary, but we leave this here in case it's refactored such that it matters
@@ -277,14 +277,14 @@ trait JsonGenericCharParser[In] extends JsonGenericParser[In] {
             Double.NaN
           }
           else Double.NaN
-        if (strictNumbers && (cache eq wouldNotFitInDouble) && result == Int.MaxValue) {
+        if (!options.lossy && (cache eq wouldNotFitInDouble) && result == Int.MaxValue) {
           if (n > 0) cache = new Json.Arr.Dbl(buffer)
           setPos(input)(zero)
           result = n
         }
         if (ans.isNaN && (cache ne null) && cache.isInstanceOf[JastError] && result == Int.MaxValue) result = -1
         if (result == Int.MaxValue) {
-          if (n >= buffer.length) buffer = java.util.Arrays.copyOf(buffer, 0x7FFFFFFE & ((buffer.length << 1) | 0x2))
+          if (n >= buffer.length) buffer = java.util.Arrays.copyOf(buffer, 0x7FFFFFFC & ((buffer.length << 1) | 0x4))
           buffer(n) = ans      
           n += 1
           c = whiteless(input)

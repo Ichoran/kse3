@@ -6,7 +6,7 @@ package kse.jsonal
 import kse.flow._
 
 trait JsonGenericParser[In] {
-  final protected var strictNumbers: Boolean = true
+  final private[jsonal] var options: JsonOptions = JsonOptions.Default
   final protected var cache: Jast = null
 
   inline protected def decache(): Jast =
@@ -18,25 +18,17 @@ trait JsonGenericParser[In] {
     if (cache eq null) null
     else decache().asInstanceOf[A]
 
-  /** Relaxed parsing of numbers.  Parse everything to Double. */
-  final def relaxed: this.type =
-    strictNumbers = false
+  final def setOptions(opts: JsonOptions): this.type =
+    options = opts
     this
 
-  /** Strict parsing of numbers.  Parse everything to its exact form (the default). */
-  final def strict: this.type =
-    strictNumbers = true
-    this
-
-  /** Set whether parsing of numbers is strict (default) or relaxed */
-  final def relaxedNumbers(relax: Boolean): this.type =
-    strictNumbers = !relax
-    this
-
-  /** Query whether we will parse numbers strictly or relaxedly (which is always to Double) */
-  final def isRelaxed: Boolean = !strictNumbers
+  final def copyOptions(): JsonOptions = options.copy
 
   def parse(input: In): Jast
+
+  final def parse(input: In, opts: JsonOptions): Jast =
+    setOptions(opts)
+    parse(input)
 
   private[jsonal] inline def getI(in: In): Int
   private[jsonal] inline def hasSome(in: In): Boolean
@@ -64,10 +56,10 @@ trait JsonGenericParser[In] {
     val dbl = str.toDouble
     if (toCache)
       cache = 
-        if (strictNumbers) JsonGenericParser.createNum(dbl, str)
+        if (!options.lossy) JsonGenericParser.createNum(dbl, str)
         else if (java.lang.Double.isNaN(dbl) || java.lang.Double.isInfinite(dbl)) Json.Null
         else JsonGenericParser.createNum(dbl, "")
-    else if (strictNumbers && !Json.Num.numericStringEquals(str, dbl.toString))
+    else if (!options.lossy && !Json.Num.numericStringEquals(str, dbl.toString))
       cache = JsonGenericParser.wouldNotFitInDouble
     dbl
 
@@ -131,7 +123,7 @@ trait JsonGenericParser[In] {
       var result: (Json.Obj | JastError) = null
 
       while (c != '}' && (result eq null)) {
-        if (n >= kvs.length-1) kvs = java.util.Arrays.copyOf(kvs, 0x7FFFFFFE & ((kvs.length << 1) | 0x2))
+        if (n >= kvs.length-1) kvs = java.util.Arrays.copyOf(kvs, 0x7FFFFFFC & ((kvs.length << 1) | 0x4))
         if (c != '"') result = JastError("object keys must be strings", globalPos(input) - 1)
         else {
           val p = globalPos(input)
@@ -215,60 +207,59 @@ object JsonGenericParser {
 }
 
 trait JsonGenericParserCompanion[In, Par >: Null <: JsonGenericParser[In]] {
-  protected inline def withParser[A](inline f: Par => A): A
+  protected inline def withParser[A >: JastError](input: In)(inline init: Par => Par)(inline f: Par => A): A
 
   def newParser: Par
 
-  def parse(input: In, relaxed: Boolean = false): Jast
+  def parse(input: In, options: JsonOptions = JsonOptions.Default): Jast
 
-  def parseJson(input: In, relaxed: Boolean = false): kse.jsonal.Json | JastError
-  def parseNull(input: In): kse.jsonal.Json.Null.type | JastError
-  def parseBool(input: In): kse.jsonal.Json.Bool | JastError
-  def parseStr(input: In): kse.jsonal.Json.Str | JastError
-  def parseNum(input: In, relaxed: Boolean = false): kse.jsonal.Json.Num | JastError
-  def parseArr(input: In, relaxed: Boolean = false): kse.jsonal.Json.Arr | JastError
-  def parseObj(input: In, relaxed: Boolean = false): kse.jsonal.Json.Obj | JastError
+  def parseJson(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json | JastError
+  def parseNull(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Null.type | JastError
+  def parseBool(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Bool | JastError
+  def parseStr(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Str | JastError
+  def parseNum(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Num | JastError
+  def parseArr(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Arr | JastError
+  def parseObj(input: In, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Obj | JastError
 
-  final def Json(input: In, relaxed: Boolean = false): Jast.To[kse.jsonal.Json] = parseJson(input, relaxed) match
+  final def Json(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json] = parseJson(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json => Yes(jx)
 
-  final def Null(input: In): Jast.To[kse.jsonal.Json.Null.type] = parseNull(input) match
+  final def Null(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Null.type] = parseNull(input, options) match
     case je: JastError => No(je)
     case _ => JsonGenericParser.yesNull
 
-  final def Bool(input: In): Jast.To[kse.jsonal.Json.Bool] = parseBool(input) match
+  final def Bool(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Bool] = parseBool(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json.Bool => if (jx.value) JsonGenericParser.yesTrue else JsonGenericParser.yesFalse
 
-  final def Str(input: In): Jast.To[kse.jsonal.Json.Str] = parseStr(input) match
+  final def Str(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Str] = parseStr(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json.Str => Yes(jx)
 
-  final def Num(input: In, relaxed: Boolean = false): Jast.To[kse.jsonal.Json.Num] = parseNum(input, relaxed) match
+  final def Num(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Num] = parseNum(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json.Num => Yes(jx)
 
-  final def Arr(input: In, relaxed: Boolean = false): Jast.To[kse.jsonal.Json.Arr] = parseArr(input, relaxed) match
+  final def Arr(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Arr] = parseArr(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json.Arr => Yes(jx)
 
-  final def Obj(input: In, relaxed: Boolean = false): Jast.To[kse.jsonal.Json.Obj] = parseObj(input, relaxed) match
+  final def Obj(input: In, options: JsonOptions = JsonOptions.Default): Jast.To[kse.jsonal.Json.Obj] = parseObj(input, options) match
     case je: JastError => No(je)
     case jx: kse.jsonal.Json.Obj => Yes(jx)
 
 
-  protected inline def parseImpl(input: In, relaxed: Boolean): Jast =
-    withParser(_.relaxedNumbers(relaxed).parseVal(input))
+  protected inline def parseImpl(input: In, opts: JsonOptions): Jast =
+    withParser(input)(_ setOptions opts)(_.parseVal(input))
 
-  protected inline def parseJsonImpl(input: In, relaxed: Boolean): kse.jsonal.Json | JastError =
-    withParser(_.relaxedNumbers(relaxed).parseVal(input) match {
+  protected inline def parseJsonImpl(input: In, opts: JsonOptions): kse.jsonal.Json | JastError =
+    withParser(input)(_ setOptions opts)(_.parseVal(input)) match
       case je: JastError => je
       case j: kse.jsonal.Json => j
-    })
 
-  protected inline def parseBoolImpl(input: In): kse.jsonal.Json.Bool | JastError =
-    withParser(_.parseBool(input))
+  protected inline def parseBoolImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Bool | JastError =
+    withParser(input)(_ setOptions opts)(_.parseBool(input))
 }
 object JsonGenericParserCompanion {
   trait Positional[In, Par >: Null <: JsonGenericParser[In]] extends JsonGenericParserCompanion[In, Par] {
@@ -279,29 +270,38 @@ object JsonGenericParserCompanion {
     protected inline def setPos(in: In)(pos: Int): Unit
     protected inline def backOne(in: In): Unit
     protected inline def getC(in: In): Char
+    protected inline def whiteless(in: In): Int
 
-    protected inline def withParser[A](inline f: Par => A): A = f(newParser)
+    protected inline def withParser[A >: JastError](input: In)(inline init: Par => Par)(inline f: Par => A): A = f(init(newParser))
 
-    protected inline def parseNullImpl(input: In): kse.jsonal.Json.Null.type | JastError =
+    protected inline def optionalize[A >: JastError](in: In, opts: JsonOptions)(inline f: => A): A =
+      val start = getPos(in)
+      if (opts.trim) { if (whiteless(in) != -129) backOne(in) }
+      val ans = f
+      val err = ans.isInstanceOf[JastError]
+      if (opts.trim && !err) { if (whiteless(in) != -129) backOne(in) }
+      val full = !hasAtLeast(in)(1)
+      opts.outcome match
+        case Some(o) => o.complete = full; o.error = err; o.consumed += getPos(in) - start
+        case _ =>
+      if (full || !opts.complete) ans else JastError("JSON parse covered only part of input", getPos(in))
+
+    protected inline def parseNullImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Null.type | JastError = optionalize(input, opts) {
       if (!hasAtLeast(input)(4)) JastError("Expected JSON null but not enough input", getPos(input))
       else {
-        val zero = getPos(input)
-        if (getC(input) != 'n' || getC(input) != 'u' || getC(input) != 'l' || getC(input) != 'l') {
-          setPos(input)(zero)
-          JastError("Expected JSON null but did not find literal text 'null'", zero)
-        }
+        if (getC(input) != 'n' || getC(input) != 'u' || getC(input) != 'l' || getC(input) != 'l')
+          JastError("Expected JSON null but did not find literal text 'null'", getPos(input))
         else kse.jsonal.Json.Null
       }
+    }
 
-    protected inline def parseStrImpl(input: In): kse.jsonal.Json.Str | JastError =
+    protected inline def parseStrImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Str | JastError = optionalize(input, opts) {
       if (!hasAtLeast(input)(2)) JastError("Expected JSON string but at end of input")
-      else if (getC(input) != '"') {
-        backOne(input)
-        JastError("Expected JSON string but did not find '\"'", getPos(input))
-      }
-      else newParser.parseStr(input)
+      else if (getC(input) != '"') JastError("Expected JSON string but did not find '\"'", getPos(input))
+      else newParser.setOptions(opts).parseStr(input)
+    }
 
-    protected inline def parseNumImpl(input: In, relaxed: Boolean): kse.jsonal.Json.Num | JastError =
+    protected inline def parseNumImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Num | JastError = optionalize(input, opts) {
       if (!hasAtLeast(input)(1)) JastError("Expected JSON number but at end of input")
       else {
         val c = getC(input)
@@ -309,10 +309,11 @@ object JsonGenericParserCompanion {
           backOne(input)
           JastError("Expected JSON number but found character "+c, getPos(input))
         }
-        else newParser.relaxedNumbers(relaxed).parseJastNum(input, c)
+        else newParser.setOptions(opts).parseJastNum(input, c)
       }
+    }
 
-    protected inline def parseArrImpl(input: In, relaxed: Boolean): kse.jsonal.Json.Arr | JastError =
+    protected inline def parseArrImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Arr | JastError = optionalize(input, opts) {
       if (!hasAtLeast(input)(1)) JastError("Expected JSON array but at end of input")
       else {
         val c = getC(input)
@@ -320,10 +321,11 @@ object JsonGenericParserCompanion {
           backOne(input)
           JastError("Expected JSON array but found character "+c, getPos(input))
         }
-        else newParser.relaxedNumbers(relaxed).parseArr(input)
+        else newParser.setOptions(opts).parseArr(input)
       }
+    }
     
-    protected inline def parseObjImpl(input: In, relaxed: Boolean): kse.jsonal.Json.Obj | JastError =
+    protected inline def parseObjImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Obj | JastError = optionalize(input, opts) {
       if (!hasAtLeast(input)(1)) JastError("Expected JSON object but at end of input")
       else {
         val c = getC(input)
@@ -331,8 +333,9 @@ object JsonGenericParserCompanion {
           backOne(input)
           JastError("Expected JSON object but found character "+c, getPos(input))
         }
-        else newParser.relaxedNumbers(relaxed).parseObj(input)
+        else newParser.setOptions(opts).parseObj(input)
       }
+    }
   }
 
   trait Instanced[In, Par >: Null <: JsonGenericParser[In]] extends JsonGenericParserCompanion[In, Par] {
@@ -340,163 +343,172 @@ object JsonGenericParserCompanion {
 
     protected val myCachedPar: AtomicReference[Par] = new AtomicReference(null)
 
-    protected inline def withParser[A](inline f: Par => A): A =
+    protected inline def withParser[A >: JastError](input: In)(inline init: Par => Par)(inline f: Par => A): A =
       val p = myCachedPar.getAndSet(null)
-      val par = if (p eq null) newParser else p
-      val ans: A = f(par)
+      val par = init(if (p eq null) newParser else p)
+      val start = par.globalPos(input)
+      if (par.options.trim) if (par.whiteless(input) != -129) par.movePos(input)(-1)
+      var ans: A = f(par)
+      val err = ans.isInstanceOf[JastError]
+      if (!err && par.options.trim) if (par.whiteless(input) != -129) par.movePos(input)(-1)
+      val full = !par.hasSome(input)
+      par.options.outcome match
+        case Some(o) => o.complete = full; o.error = err; o.consumed += par.globalPos(input) - start
+        case _ =>
+      if (!full && par.options.complete) ans = JastError("JSON parse covered only part of input", par.globalPos(input))
       myCachedPar.compareAndSet(null, par)
       ans
 
-    protected inline def parseNullImpl(input: In): kse.jsonal.Json.Null.type | JastError = withParser{ par =>
-      par.getI(input) match
-        case 'n' => par.parseNull(input)
-        case -129 => JastError("Expected JSON null but not enough input", par.globalPos(input))
-        case _ => JastError("Expected JSON null but did not start with n", par.globalPos(input))
-    }
+    protected inline def parseNullImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Null.type | JastError =
+      withParser(input)(_ setOptions opts){ par =>
+        par.getI(input) match
+          case 'n' => par.parseNull(input)
+          case -129 => JastError("Expected JSON null but not enough input", par.globalPos(input))
+          case _ => JastError("Expected JSON null but did not start with n", par.globalPos(input))
+      }
 
-    protected inline def parseStrImpl(input: In): kse.jsonal.Json.Str | JastError = withParser{ par =>
-      par.getI(input) match
-        case '"' => par.parseStr(input)
-        case -129 => JastError("Expected JSON string but not enough input", par.globalPos(input))
-        case _ => JastError("Expected JSON string but did not start with \"", par.globalPos(input))
-    }
+    protected inline def parseStrImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Str | JastError = 
+      withParser(input)(_ setOptions opts){ par =>
+        par.getI(input) match
+          case '"' => par.parseStr(input)
+          case -129 => JastError("Expected JSON string but not enough input", par.globalPos(input))
+          case _ => JastError("Expected JSON string but did not start with \"", par.globalPos(input))
+      }
 
-    protected inline def parseNumImpl(input: In, relaxed: Boolean):kse.jsonal.Json.Num | JastError = withParser{ par =>
-      par.relaxedNumbers(relaxed)
-      par.getI(input) match
-        case c if (c >= '0' && c <= '9' || c == '-') => par.parseJastNum(input, c)
-        case -129 => JastError("Expected JSON number but not enough input", par.globalPos(input))
-        case _ => JastError("Expected JSON number but did not start with - or digit", par.globalPos(input))
-    }
+    protected inline def parseNumImpl(input: In, opts: JsonOptions):kse.jsonal.Json.Num | JastError = 
+      withParser(input)(_ setOptions opts){ par =>
+        par.getI(input) match
+          case c if (c >= '0' && c <= '9' || c == '-') => par.parseJastNum(input, c)
+          case -129 => JastError("Expected JSON number but not enough input", par.globalPos(input))
+          case _ => JastError("Expected JSON number but did not start with - or digit", par.globalPos(input))
+      }
 
 
-    protected inline def parseArrImpl(input: In, relaxed: Boolean): kse.jsonal.Json.Arr | JastError = withParser{ par =>
-      par.relaxedNumbers(relaxed)
-      par.getI(input) match
-        case '[' => par.parseArr(input)
-        case -129 => JastError("Expected JSON array but not enough input", par.globalPos(input))
-        case _ => JastError("Expected JSON array but did not start with [", par.globalPos(input))
-    }
+    protected inline def parseArrImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Arr | JastError = 
+      withParser(input)(_ setOptions opts){ par =>
+        par.getI(input) match
+          case '[' => par.parseArr(input)
+          case -129 => JastError("Expected JSON array but not enough input", par.globalPos(input))
+          case _ => JastError("Expected JSON array but did not start with [", par.globalPos(input))
+      }
 
-    protected inline def parseObjImpl(input: In, relaxed: Boolean): kse.jsonal.Json.Obj | JastError = withParser{ par =>
-      par.getI(input) match
-        case '{' => par.parseObj(input)
-        case -129 => JastError("Expected JSON object but not enough input", par.globalPos(input))
-        case _ => JastError("Expected JSON object but did not start with {", par.globalPos(input))
-    }
+    protected inline def parseObjImpl(input: In, opts: JsonOptions): kse.jsonal.Json.Obj | JastError =
+      withParser(input)(_ setOptions opts){ par =>
+        par.getI(input) match
+          case '{' => par.parseObj(input)
+          case -129 => JastError("Expected JSON object but not enough input", par.globalPos(input))
+          case _ => JastError("Expected JSON object but did not start with {", par.globalPos(input))
+      }
   }
 
   trait Sliced[In, Par >: Null <: JsonGenericParser.Slicing[In]] extends Instanced[In, Par] {
-    def parse(input: In, i0: Int, iN: Int): Jast
-    def parse(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast
+    final def parse(input: In, i0: Int, iN: Int): Jast = parse(input, i0, iN, JsonOptions.Default)
+    def parse(input: In, i0: Int, iN: Int, options: JsonOptions): Jast
 
-    def parseJson(input: In, i0: Int, iN: Int): kse.jsonal.Json | JastError
-    def parseJson(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json | JastError
-    def parseNull(input: In, i0: Int, iN: Int): kse.jsonal.Json.Null | JastError
-    def parseBool(input: In, i0: Int, iN: Int): kse.jsonal.Json.Bool | JastError
-    def parseStr(input: In, i0: Int, iN: Int): kse.jsonal.Json.Str | JastError
-    def parseNum(input: In, i0: Int, iN: Int): kse.jsonal.Json.Num | JastError
-    def parseNum(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Num | JastError
-    def parseArr(input: In, i0: Int, iN: Int): kse.jsonal.Json.Arr | JastError
-    def parseArr(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Arr | JastError
-    def parseObj(input: In, i0: Int, iN: Int): kse.jsonal.Json.Obj | JastError
-    def parseObj(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Obj | JastError
+    def parseJson(input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json           | JastError
+    def parseNull(input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Null.type | JastError
+    def parseBool(input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Bool      | JastError
+    def parseStr( input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Str       | JastError
+    def parseNum( input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Num       | JastError
+    def parseArr( input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Arr       | JastError
+    def parseObj( input: In, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Obj       | JastError
 
-    def Json(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json] = parseJson(input, i0, iN) match
+    final def parseJson(input: In, i0: Int, iN: Int): kse.jsonal.Json           | JastError = parseJson(input, i0, iN, JsonOptions.Default)
+    final def parseNull(input: In, i0: Int, iN: Int): kse.jsonal.Json.Null.type | JastError = parseNull(input, i0, iN, JsonOptions.Default)
+    final def parseBool(input: In, i0: Int, iN: Int): kse.jsonal.Json.Bool      | JastError = parseBool(input, i0, iN, JsonOptions.Default)
+    final def parseStr( input: In, i0: Int, iN: Int): kse.jsonal.Json.Str       | JastError = parseStr( input, i0, iN, JsonOptions.Default)
+    final def parseNum( input: In, i0: Int, iN: Int): kse.jsonal.Json.Num       | JastError = parseNum( input, i0, iN, JsonOptions.Default)
+    final def parseArr( input: In, i0: Int, iN: Int): kse.jsonal.Json.Arr       | JastError = parseArr( input, i0, iN, JsonOptions.Default)
+    final def parseObj( input: In, i0: Int, iN: Int): kse.jsonal.Json.Obj       | JastError = parseObj( input, i0, iN, JsonOptions.Default)
+
+    final def Json(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json]           = Json(input, i0, iN, JsonOptions.Default)
+    final def Null(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Null.type] = Null(input, i0, iN, JsonOptions.Default)
+    final def Bool(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Bool]      = Bool(input, i0, iN, JsonOptions.Default)
+    final def Str( input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Str]       = Str( input, i0, iN, JsonOptions.Default)
+    final def Num( input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Num]       = Num( input, i0, iN, JsonOptions.Default)
+    final def Arr( input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Arr]       = Arr( input, i0, iN, JsonOptions.Default)
+    final def Obj( input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Obj]       = Obj( input, i0, iN, JsonOptions.Default)
+    
+    final def Json(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json] = parse(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json => Yes(jx) 
     
-    def Json(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast.To[kse.jsonal.Json] = parse(input, i0, iN, relaxed) match
-      case je: JastError => No(je)
-      case jx: kse.jsonal.Json => Yes(jx) 
-    
-    def Null(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Null.type] = parseNull(input, i0, iN) match
+    final def Null(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Null.type] = parseNull(input, i0, iN, options) match
       case je: JastError => No(je)
       case _ => JsonGenericParser.yesNull
     
-    def Bool(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Bool] = parseBool(input, i0, iN) match
+    final def Bool(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Bool] = parseBool(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json.Bool => if (jx.value) JsonGenericParser.yesTrue else JsonGenericParser.yesFalse
     
-    def Str(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Str] = parseStr(input, i0, iN) match
+    final def Str(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Str] = parseStr(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json.Str => Yes(jx) 
     
-    def Num(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Num] = parseNum(input, i0, iN) match
+    final def Num(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Num] = parseNum(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json.Num => Yes(jx) 
     
-    def Num(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast.To[kse.jsonal.Json.Num] = parseNum(input, i0, iN) match
-      case je: JastError => No(je)
-      case jx: kse.jsonal.Json.Num => Yes(jx) 
-    
-    def Arr(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Arr] = parseArr(input, i0, iN) match
+    final def Arr(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Arr] = parseArr(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json.Arr => Yes(jx) 
     
-    def Arr(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast.To[kse.jsonal.Json.Arr] = parseArr(input, i0, iN) match
-      case je: JastError => No(je)
-      case jx: kse.jsonal.Json.Arr => Yes(jx) 
-    
-    def Obj(input: In, i0: Int, iN: Int): Jast.To[kse.jsonal.Json.Obj] = parseObj(input, i0, iN) match
-      case je: JastError => No(je)
-      case jx: kse.jsonal.Json.Obj => Yes(jx) 
-    
-    def Obj(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast.To[kse.jsonal.Json.Obj] = parseObj(input, i0, iN, relaxed) match
+    final def Obj(input: In, i0: Int, iN: Int, options: JsonOptions): Jast.To[kse.jsonal.Json.Obj] = parseObj(input, i0, iN, options) match
       case je: JastError => No(je)
       case jx: kse.jsonal.Json.Obj => Yes(jx) 
     
 
-    protected inline def parseSliceImpl(input: In, i0: Int, iN: Int, relaxed: Boolean): Jast =
-      withParser(_.initSlice(input, i0, iN).relaxedNumbers(relaxed).parseVal(input))
+    protected inline def parseSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): Jast =
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts))(_.parseVal(input))
 
-    protected inline def parseJsonSliceImpl(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json | JastError =
-      withParser(_.relaxedNumbers(relaxed).initSlice(input, i0, iN).parseVal(input) match {
-        case je: JastError => je
-        case j: kse.jsonal.Json => j
-      })
+    protected inline def parseJsonSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json | JastError =
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.parseVal(input) match
+          case je: JastError => je
+          case j: kse.jsonal.Json => j
+      }
 
-    protected inline def parseNullSliceImpl(input: In, i0: Int, iN: Int): kse.jsonal.Json.Null.type | JastError = withParser{ par =>
-      par.initSlice(input, i0, iN)
-      par.getI(input) match
-        case 'n'  => par.parseNull(input)
-        case -129 => JastError("Expected JSON null but not enough input", par.globalPos(input))
-        case _    => JastError("Expected JSON null but did not start with n", par.globalPos(input))
-    }
+    protected inline def parseNullSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Null.type | JastError =
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.getI(input) match
+          case 'n'  => par.parseNull(input)
+          case -129 => JastError("Expected JSON null but not enough input", par.globalPos(input))
+          case _    => JastError("Expected JSON null but did not start with n", par.globalPos(input))
+      }
 
-    protected inline def parseBoolSliceImpl(input: In, i0: Int, iN: Int): kse.jsonal.Json.Bool | JastError =
-      withParser(_.initSlice(input, i0, iN).parseBool(input))
+    protected inline def parseBoolSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Bool | JastError =
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts))(_.parseBool(input))
 
-    protected inline def parseStrSliceImpl(input: In, i0: Int, iN: Int): kse.jsonal.Json.Str | JastError = withParser{ par =>
-      par.initSlice(input, i0, iN)
-      par.getI(input) match
-        case '"'  => par.parseStr(input)
-        case -129 => JastError("Expected JSON string but not enough input", par.globalPos(input))
-        case _    => JastError("Expected JSON string but did not start with \"", par.globalPos(input))
-    }
+    protected inline def parseStrSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Str | JastError = 
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.getI(input) match
+          case '"'  => par.parseStr(input)
+          case -129 => JastError("Expected JSON string but not enough input", par.globalPos(input))
+          case _    => JastError("Expected JSON string but did not start with \"", par.globalPos(input))
+      }
 
-    protected inline def parseNumSliceImpl(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Num | JastError = withParser{ par =>
-      par.initSlice(input, i0, iN).relaxedNumbers(relaxed)
-      par.getI(input) match
-        case c if (c >= '0' && c <= '9' || c == '-') => par.parseJastNum(input, c)
-        case -129 => JastError("Expected JSON number but not enough input", par.globalPos(input))
-        case _    => JastError("Expected JSON number but did not start with - or digit", par.globalPos(input))
-    }
+    protected inline def parseNumSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Num | JastError =
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.getI(input) match
+          case c if (c >= '0' && c <= '9' || c == '-') => par.parseJastNum(input, c)
+          case -129 => JastError("Expected JSON number but not enough input", par.globalPos(input))
+          case _    => JastError("Expected JSON number but did not start with - or digit", par.globalPos(input))
+      }
 
-    protected inline def parseArrSliceImpl(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Arr | JastError = withParser{ par =>
-      par.initSlice(input, i0, iN).relaxedNumbers(relaxed)
-      par.getI(input) match
-        case '['  => par.parseArr(input)
-        case -129 => JastError("Expected JSON array but not enough input", par.globalPos(input))
-        case _    => JastError("Expected JSON array but did not start with [", par.globalPos(input))
-    }
+    protected inline def parseArrSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Arr | JastError = 
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.getI(input) match
+          case '['  => par.parseArr(input)
+          case -129 => JastError("Expected JSON array but not enough input", par.globalPos(input))
+          case _    => JastError("Expected JSON array but did not start with [", par.globalPos(input))
+      }
 
-    protected inline def parseObjSliceImpl(input: In, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Obj | JastError = withParser{ par =>
-      par.initSlice(input, i0, iN).relaxedNumbers(relaxed)
-      par.getI(input) match
-        case '{'  => par.parseObj(input)
-        case -129 => JastError("Expected JSON object but not enough input", par.globalPos(input))
-        case _    => JastError("Expected JSON object but did not start with {", par.globalPos(input))
-    }
+    protected inline def parseObjSliceImpl(input: In, i0: Int, iN: Int, opts: JsonOptions): kse.jsonal.Json.Obj | JastError = 
+      withParser(input)(_.initSlice(input, i0, iN).setOptions(opts)){ par =>
+        par.getI(input) match
+          case '{'  => par.parseObj(input)
+          case -129 => JastError("Expected JSON object but not enough input", par.globalPos(input))
+          case _    => JastError("Expected JSON object but did not start with {", par.globalPos(input))
+      }
   }
 }

@@ -15,7 +15,7 @@ object maths extends Scala3 {
 }
 
 object jsonal extends Scala3 {
-  def moduleDeps = Seq(flow)
+  def moduleDeps = Seq(flow, maths)
 }
 
 object all extends Scala3 {

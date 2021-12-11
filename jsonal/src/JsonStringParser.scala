@@ -46,6 +46,18 @@ final class JsonStringParser() extends JsonGenericCharParser[String] with JsonGe
     ixN = if (iN < ix0) ix0 else if (iN > in.length) in.length else iN
     this
 
+  private[jsonal] inline def optionalize[A >: JastError](in: String)(inline f: => A): A =
+    val start = ix
+    if (options.trim) { if (whiteless(in) != -129) ix -= 1 }
+    val ans = f
+    val err = ans.isInstanceOf[JastError]
+    if (!err && options.trim) { if (whiteless(in) != -129) ix -= 1 }
+    val full = ix >= ixN
+    options.outcome match
+      case Some(o) => o.complete = full; o.error = err; o.consumed += ix - start
+      case _ =>
+    if (full || !options.complete) ans else JastError("JSON parse covered only part of input", globalPos(in))
+
   ///////////////////////////////
   // End of implementation of inline methods dealing with the data buffer
   ///////////////////////////////
@@ -55,13 +67,13 @@ final class JsonStringParser() extends JsonGenericCharParser[String] with JsonGe
     ix0 = 0
     ix = 0
     ixN = input.length
-    myParseVal(input)
+    optionalize(input)(myParseVal(input))
 
   def parse(input: String, start: Int, end: Int): Jast =
     ix0 = start
     ix = start
     ixN = if (start < 0 || end < start) -1 else end
-    myParseVal(input)
+    optionalize(input)(myParseVal(input))
 
   /////////////
   // Important invariants within methods:
@@ -121,33 +133,34 @@ final class JsonStringParser() extends JsonGenericCharParser[String] with JsonGe
 object JsonStringParser extends JsonGenericParserCompanion.Sliced[String, JsonStringParser] {
   def newParser = new JsonStringParser
 
-  def parse(input: String, relaxed: Boolean = false): Jast = parseImpl(input, relaxed)
-  def parse(input: String, i0: Int, iN: Int): Jast = parseSliceImpl(input, i0, iN, false)
-  def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Jast = parseSliceImpl(input, i0, iN, relaxed)
+  def parse(input: String, options: JsonOptions = JsonOptions.Default): Jast = parseImpl(input, options)
+  def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Jast = parseSliceImpl(input, i0, iN, options)
 
-  def parseJson(input: String, relaxed: Boolean = false): kse.jsonal.Json | JastError = parseJsonImpl(input, relaxed)
-  def parseJson(input: String, i0: Int, iN: Int): kse.jsonal.Json | JastError = parseJsonSliceImpl(input, i0, iN, false)
-  def parseJson(input: String, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json | JastError = parseJsonSliceImpl(input, i0, iN, relaxed)
+  def parseJson(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json | JastError = parseJsonImpl(input, options)
+  def parseJson(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json | JastError = parseJsonSliceImpl(input, i0, iN, options)
 
-  def parseNull(input: String): kse.jsonal.Json.Null.type | JastError = parseNullImpl(input)
-  def parseNull(input: String, i0: Int, iN: Int): kse.jsonal.Json.Null.type | JastError = parseNullSliceImpl(input, i0, iN)
+  def parseNull(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Null.type | JastError = parseNullImpl(input, options)
+  def parseNull(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Null.type | JastError = 
+    parseNullSliceImpl(input, i0, iN, options)
   
-  def parseBool(input: String): kse.jsonal.Json.Bool | JastError = parseBoolImpl(input)
-  def parseBool(input: String, i0: Int, iN: Int): kse.jsonal.Json.Bool | JastError = parseBoolSliceImpl(input, i0, iN)
+  def parseBool(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Bool | JastError = parseBoolImpl(input, options)
+  def parseBool(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Bool | JastError =
+    parseBoolSliceImpl(input, i0, iN, options)
   
-  def parseStr(input: String): kse.jsonal.Json.Str | JastError = parseStrImpl(input)
-  def parseStr(input: String, i0: Int, iN: Int): kse.jsonal.Json.Str | JastError = parseStrSliceImpl(input, i0, iN)
+  def parseStr(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Str | JastError = parseStrImpl(input, options)
+  def parseStr(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Str | JastError =
+    parseStrSliceImpl(input, i0, iN, options)
 
-  def parseNum(input: String, relaxed: Boolean = false): kse.jsonal.Json.Num | JastError = parseNumImpl(input, relaxed)
-  def parseNum(input: String, i0: Int, iN: Int): kse.jsonal.Json.Num | JastError = parseNumSliceImpl(input, i0, iN, false)
-  def parseNum(input: String, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Num | JastError = parseNumSliceImpl(input, i0, iN, relaxed)
+  def parseNum(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Num | JastError = parseNumImpl(input, options)
+  def parseNum(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Num | JastError = 
+    parseNumSliceImpl(input, i0, iN, options)
   
-  def parseArr(input: String, relaxed: Boolean = false): kse.jsonal.Json.Arr | JastError = parseArrImpl(input, relaxed)
-  def parseArr(input: String, i0: Int, iN: Int): kse.jsonal.Json.Arr | JastError = parseArrSliceImpl(input, i0, iN, false)
-  def parseArr(input: String, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Arr | JastError = parseArrSliceImpl(input, i0, iN, relaxed)
+  def parseArr(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Arr | JastError = parseArrImpl(input, options)
+  def parseArr(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Arr | JastError = 
+    parseArrSliceImpl(input, i0, iN, options)
   
-  def parseObj(input: String, relaxed: Boolean = false): kse.jsonal.Json.Obj | JastError = parseObjImpl(input, relaxed)
-  def parseObj(input: String, i0: Int, iN: Int): kse.jsonal.Json.Obj | JastError = parseObjSliceImpl(input, i0, iN, false)
-  def parseObj(input: String, i0: Int, iN: Int, relaxed: Boolean): kse.jsonal.Json.Obj | JastError = parseObjSliceImpl(input, i0, iN, relaxed)
+  def parseObj(input: String, options: JsonOptions = JsonOptions.Default): kse.jsonal.Json.Obj | JastError = parseObjImpl(input, options)
+  def parseObj(input: String, i0: Int, iN: Int, options: JsonOptions): kse.jsonal.Json.Obj | JastError =
+    parseObjSliceImpl(input, i0, iN, options)
 }
 

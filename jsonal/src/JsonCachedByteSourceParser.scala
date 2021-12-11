@@ -19,7 +19,7 @@ final class JsonCachedByteSourceParser(minCacheSize: Int = 14) extends JsonGener
   private[jsonal] var ixZ = 0L
   private[jsonal] var buf: Array[Byte] = 
     var n = 14
-    while (n < minCacheSize && n < 0x7FFFFFFE) n = (n << 1) | 2
+    while (n < minCacheSize && n < 0x7FFFFFFC) n = (n << 1) | 0x4
     new Array[Byte](n)
   private[jsonal] def myZeroPos(): Unit =
     val n = 2 + (ixN - ix)
@@ -29,7 +29,7 @@ final class JsonCachedByteSourceParser(minCacheSize: Int = 14) extends JsonGener
     ixN = n
   private[jsonal] def myExpandCache(input: ByteSource): Boolean =
     if (ixN > 0 && (buf.length < 4096 || ixN > buf.length - (buf.length >> 3)))
-      buf = java.util.Arrays.copyOf(buf, (0x7FFFFFFE & ((buf.length << 1) | 2)))
+      buf = java.util.Arrays.copyOf(buf, (0x7FFFFFFC & ((buf.length << 1) | 0x4)))
     val r = input.read(buf, ixN)
     if (r > 0) ixN += r
     r > 0
@@ -67,7 +67,15 @@ final class JsonCachedByteSourceParser(minCacheSize: Int = 14) extends JsonGener
     ix = 0
     ixN = 0
     ixZ = 0L
-    myParseVal(input)
+    if (options.trim) { if (whiteless(input) != -129) movePos(input)(-1) }
+    val ans = myParseVal(input)
+    val err = ans.isInstanceOf[JastError]
+    if (!err & options.trim) { if (whiteless(input) != -129) movePos(input)(-1) }
+    val full = !hasSome(input)
+    options.outcome match
+      case Some(o) => o.complete = full; o.error = err; o.consumed += ixZ + ix
+      case _ =>
+    if (full || !options.complete) ans else JastError("JSON parse covered only part of input", globalPos(input))
 
   /////////////
   // Important invariants within methods:

@@ -119,39 +119,39 @@ object Jast {
   inline def Ret[A](inline a: TransformsFlow[No[JastError]] ?=> To[A]): To[A] = Ok.FlatRet[JastError, A]{ a }
 
   def parse(input: String): Jast = JsonStringParser.parse(input)
-  def parse(input: String, relaxed: Boolean): Jast = JsonStringParser.parse(input, relaxed)
+  def parse(input: String, options: JsonOptions): Jast = JsonStringParser.parse(input, options)
   def parse(input: String, i0: Int, iN: Int): Jast = JsonStringParser.parse(input, i0, iN)
-  def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Jast = JsonStringParser.parse(input, i0, iN, relaxed)
+  def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Jast = JsonStringParser.parse(input, i0, iN, options)
 
   def parse(input: Array[Byte]): Jast = JsonByteArrayParser.parse(input)
-  def parse(input: Array[Byte], relaxed: Boolean): Jast = JsonByteArrayParser.parse(input, relaxed)
+  def parse(input: Array[Byte], options: JsonOptions): Jast = JsonByteArrayParser.parse(input, options)
   def parse(input: Array[Byte], i0: Int, iN: Int): Jast = JsonByteArrayParser.parse(input, i0, iN)
-  def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Jast = JsonByteArrayParser.parse(input, i0, iN, relaxed)
+  def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Jast = JsonByteArrayParser.parse(input, i0, iN, options)
 
   def parse(input: Array[Char]): Jast = JsonCharArrayParser.parse(input)
-  def parse(input: Array[Char], relaxed: Boolean): Jast = JsonCharArrayParser.parse(input, relaxed)
+  def parse(input: Array[Char], options: JsonOptions): Jast = JsonCharArrayParser.parse(input, options)
   def parse(input: Array[Char], i0: Int, iN: Int): Jast = JsonCharArrayParser.parse(input, i0, iN)
-  def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Jast = JsonCharArrayParser.parse(input, i0, iN, relaxed)
+  def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Jast = JsonCharArrayParser.parse(input, i0, iN, options)
 
   def parse(input: ByteBuffer): Jast = JsonByteBufferParser.parse(input)
-  def parse(input: ByteBuffer, relaxed: Boolean): Jast = JsonByteBufferParser.parse(input, relaxed)
+  def parse(input: ByteBuffer, options: JsonOptions): Jast = JsonByteBufferParser.parse(input, options)
 
   def parse(input: CharBuffer): Jast = JsonCharBufferParser.parse(input)
-  def parse(input: CharBuffer, relaxed: Boolean): Jast = JsonCharBufferParser.parse(input, relaxed)
+  def parse(input: CharBuffer, options: JsonOptions): Jast = JsonCharBufferParser.parse(input, options)
 
-  def parse(input: java.io.InputStream): Jast = parse(input, false)
-  def parse(input: java.io.InputStream, relaxed: Boolean): Jast =
-    (new JsonCachedByteSourceParser(8000)).relaxedNumbers(relaxed).parse(JsonCachedByteSourceParser source input)
+  def parse(input: java.io.InputStream): Jast = parse(input, JsonOptions.Default)
+  def parse(input: java.io.InputStream, options: JsonOptions): Jast =
+    (new JsonCachedByteSourceParser(8000)).parse(JsonCachedByteSourceParser source input, options)
 
-  def parse(input: java.io.File): Jast = parse(input.toPath, false)
-  def parse(input: java.io.File, relaxed: Boolean): Jast = parse(input.toPath, relaxed)
-  def parse(input: java.nio.file.Path): Jast = parse(input, false)
-  def parse(input: java.nio.file.Path, relaxed: Boolean): Jast =
+  def parse(input: java.io.File): Jast = parse(input.toPath, JsonOptions.Default)
+  def parse(input: java.io.File, options: JsonOptions): Jast = parse(input.toPath, options)
+  def parse(input: java.nio.file.Path): Jast = parse(input, JsonOptions.Default)
+  def parse(input: java.nio.file.Path, options: JsonOptions): Jast =
     if (!java.nio.file.Files.exists(input)) JastError("File does not exist: " + input)
     else {
       try
         val is = java.nio.file.Files.newInputStream(input)
-        try { parse(is, relaxed) } finally { is.close }
+        try { parse(is, options) } finally { is.close }
       catch
         case t if NonFatal(t) => JastError("Read error: " + t.getClass.getName + " "  + t.getMessage)
     }
@@ -444,22 +444,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
     def apply(input: Json): Jast.To[Json] = Yes(input)
   }
 
-  def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Json | JastError = 
-    JsonStringParser.parseJson(input, i0, iN, relaxed)
+  def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Json | JastError = 
+    JsonStringParser.parseJson(input, i0, iN, options)
 
-  def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Json | JastError =
-    JsonByteArrayParser.parseJson(input, i0, iN, relaxed)
+  def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Json | JastError =
+    JsonByteArrayParser.parseJson(input, i0, iN, options)
 
-  def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Json | JastError =
-    JsonCharArrayParser.parseJson(input, i0, iN, relaxed)
+  def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Json | JastError =
+    JsonCharArrayParser.parseJson(input, i0, iN, options)
 
-  def parse(input: ByteBuffer, relaxed: Boolean): Json | JastError =
-    JsonByteBufferParser.parseJson(input, relaxed)
+  def parse(input: ByteBuffer, options: JsonOptions): Json | JastError =
+    JsonByteBufferParser.parseJson(input, options)
 
-  def parse(input: CharBuffer, relaxed: Boolean): Json | JastError =
-    JsonCharBufferParser.parseJson(input, relaxed)
+  def parse(input: CharBuffer, options: JsonOptions): Json | JastError =
+    JsonCharBufferParser.parseJson(input, options)
 
-  def parse(input: java.io.InputStream, relaxed: Boolean): Json | JastError = Jast.parse(input, relaxed) match
+  def parse(input: java.io.InputStream, options: JsonOptions): Json | JastError = Jast.parse(input, options) match
     case je: JastError => je
     case j: Json => j
 
@@ -501,22 +501,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         else Jast.To.error("Expected null but got " + input.jsonClassName)
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Null | JastError = 
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Null | JastError = 
       JsonStringParser.parseNull(input, i0, iN)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Null | JastError =
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Null | JastError =
       JsonByteArrayParser.parseNull(input, i0, iN)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Null | JastError =
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Null | JastError =
       JsonCharArrayParser.parseNull(input, i0, iN)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Null | JastError =
+    def parse(input: ByteBuffer, options: JsonOptions): Null | JastError =
       JsonByteBufferParser.parseNull(input)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Null | JastError =
+    def parse(input: CharBuffer, options: JsonOptions): Null | JastError =
       JsonCharBufferParser.parseNull(input)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Null | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Null | JastError = Jast.parse(input, options) match
       case n: Json.Null.type => n
       case e: JastError => e
       case x => JastError("Could not parse JSON string; instead found " + x.jsonClassName)
@@ -577,22 +577,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Bool | JastError = 
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Bool | JastError = 
       JsonStringParser.parseBool(input, i0, iN)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Bool | JastError =
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Bool | JastError =
       JsonByteArrayParser.parseBool(input, i0, iN)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Bool | JastError =
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Bool | JastError =
       JsonCharArrayParser.parseBool(input, i0, iN)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Bool | JastError =
+    def parse(input: ByteBuffer, options: JsonOptions): Bool | JastError =
       JsonByteBufferParser.parseBool(input)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Bool | JastError =
+    def parse(input: CharBuffer, options: JsonOptions): Bool | JastError =
       JsonCharBufferParser.parseBool(input)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Bool | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Bool | JastError = Jast.parse(input, options) match
       case b: Json.Bool => b
       case e: JastError => e
       case x => JastError("Could not parse JSON boolean; instead found " + x.jsonClassName)
@@ -689,22 +689,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         case _      => Jast.To.error("Expected Json.Str but got " + input.jsonClassName)
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Str | JastError = 
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Str | JastError = 
       JsonStringParser.parseStr(input, i0, iN)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Str | JastError =
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Str | JastError =
       JsonByteArrayParser.parseStr(input, i0, iN)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Str | JastError =
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Str | JastError =
       JsonCharArrayParser.parseStr(input, i0, iN)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Str | JastError =
+    def parse(input: ByteBuffer, options: JsonOptions): Str | JastError =
       JsonByteBufferParser.parseStr(input)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Str | JastError =
+    def parse(input: CharBuffer, options: JsonOptions): Str | JastError =
       JsonCharBufferParser.parseStr(input)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Str | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Str | JastError = Jast.parse(input, options) match
       case s: Json.Str => s
       case e: JastError => e
       case x => JastError("Could not parse JSON string; instead found " + x.jsonClassName)
@@ -1099,22 +1099,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Num | JastError = 
-      JsonStringParser.parseNum(input, i0, iN, relaxed)
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Num | JastError = 
+      JsonStringParser.parseNum(input, i0, iN, options)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Num | JastError =
-      JsonByteArrayParser.parseNum(input, i0, iN, relaxed)
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Num | JastError =
+      JsonByteArrayParser.parseNum(input, i0, iN, options)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Num | JastError =
-      JsonCharArrayParser.parseNum(input, i0, iN, relaxed)
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Num | JastError =
+      JsonCharArrayParser.parseNum(input, i0, iN, options)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Num | JastError =
-      JsonByteBufferParser.parseNum(input, relaxed)
+    def parse(input: ByteBuffer, options: JsonOptions): Num | JastError =
+      JsonByteBufferParser.parseNum(input, options)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Num | JastError =
-      JsonCharBufferParser.parseNum(input, relaxed)
+    def parse(input: CharBuffer, options: JsonOptions): Num | JastError =
+      JsonCharBufferParser.parseNum(input, options)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Num | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Num | JastError = Jast.parse(input, options) match
       case n: Json.Num => n
       case e: JastError => e
       case x => JastError("Could not parse JSON number, instead found " + x.jsonClassName)
@@ -1366,10 +1366,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         private[this] var i = 0
         private[this] var a: Array[Json] = new Array[Json](6)
         private[this] def ensureAtLeast(n: Int): Unit =
-          if (n > a.length && a.length < 0x7FFFFFFE) {
+          if (n > a.length && a.length < 0x7FFFFFFC) {
             var m = a.length
-            while (m < n && (m&0x40000000) == 0) m = ((m << 1) | m) & 0x7FFFFFFE
-            if (m < n) m = 0x7FFFFFFE
+            while (m < n && (m&0x40000000) == 0) m = ((m << 1) | 0x4) & 0x7FFFFFFC
+            if (m < n) m = 0x7FFFFFFC
             a = java.util.Arrays.copyOf(a, m)
           }
 
@@ -1387,7 +1387,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
 
         /** Add another JSON value to this array. */
         def ~(js: Json): this.type =
-          if (i >= a.length) a = java.util.Arrays.copyOf(a, ((a.length << 1) | a.length) & 0x7FFFFFFE)
+          if (i >= a.length) a = java.util.Arrays.copyOf(a, ((a.length << 1) | 0x4) & 0x7FFFFFFC)
           a(i) = js
           i += 1
           this
@@ -1632,10 +1632,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         private[this] var i = 0
         private[this] var a: Array[Double] = new Array[Double](6)
         private[this] def ensureAtLeast(n: Int): Unit =
-          if (n > a.length && a.length < 0x7FFFFFFE) {
+          if (n > a.length && a.length < 0x7FFFFFFC) {
             var m = a.length
-            while (m < n && (m&0x40000000) == 0) m = ((m << 1) | m) & 0x7FFFFFFE
-            if (m < n) m = 0x7FFFFFFE
+            while (m < n && (m & 0x40000000) == 0) m = ((m << 1) | 0x4) & 0x7FFFFFFC
+            if (m < n) m = 0x7FFFFFFC
             a = java.util.Arrays.copyOf(a, m)
           }
 
@@ -1662,7 +1662,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
 
         /** Adds another Double to this numeric JSON array */
         def ~(dbl: Double): this.type = {
-          if (i >= a.length) a = java.util.Arrays.copyOf(a, ((a.length << 1) | a.length) & 0x7FFFFFFE)
+          if (i >= a.length) a = java.util.Arrays.copyOf(a, ((a.length << 1) | 0x4) & 0x7FFFFFFC)
           a(i) = dbl
           i += 1
           this
@@ -1723,22 +1723,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Arr | JastError = 
-      JsonStringParser.parseArr(input, i0, iN, relaxed)
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Arr | JastError = 
+      JsonStringParser.parseArr(input, i0, iN, options)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Arr | JastError =
-      JsonByteArrayParser.parseArr(input, i0, iN, relaxed)
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Arr | JastError =
+      JsonByteArrayParser.parseArr(input, i0, iN, options)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Arr | JastError =
-      JsonCharArrayParser.parseArr(input, i0, iN, relaxed)
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Arr | JastError =
+      JsonCharArrayParser.parseArr(input, i0, iN, options)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Arr | JastError =
-      JsonByteBufferParser.parseArr(input, relaxed)
+    def parse(input: ByteBuffer, options: JsonOptions): Arr | JastError =
+      JsonByteBufferParser.parseArr(input, options)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Arr | JastError =
-      JsonCharBufferParser.parseArr(input, relaxed)
+    def parse(input: CharBuffer, options: JsonOptions): Arr | JastError =
+      JsonCharBufferParser.parseArr(input, options)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Arr | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Arr | JastError = Jast.parse(input, options) match
       case a: Json.Arr => a
       case e: JastError => e
       case x => JastError("Could not parse JSON array, instead found " + x.jsonClassName)
@@ -2458,7 +2458,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       private[this] var i = 0
       private[this] var a: Array[AnyRef] = new Array[AnyRef](6)
       private[this] def append(key: String, js: Json): this.type = {
-        if (i >= a.length-1) a = java.util.Arrays.copyOf(a, ((a.length << 1) | a.length) & 0x7FFFFFFE)
+        if (i >= a.length-1) a = java.util.Arrays.copyOf(a, ((a.length << 1) | a.length | 0x4) & 0x7FFFFFFC)
         a(i) = key
         a(i+1) = js
         i += 2
@@ -2480,7 +2480,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
           val m = math.max(0, 2*math.min((that.length - i0) >> 1, n))
           if (i >= a.length - m) {
             var k = a.length
-            while (i >= k - m && k < 0x7FFFFFFE) k = ((k << 1) | k) & 0x7FFFFFFE
+            while (i >= k - m && k < 0x7FFFFFFC) k = ((k << 1) | k | 0x4) & 0x7FFFFFFC
             a = java.util.Arrays.copyOf(a, k)
           }
           System.arraycopy(that, i0, a, i, m)
@@ -2590,22 +2590,22 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
     }
 
-    def parse(input: String, i0: Int, iN: Int, relaxed: Boolean): Obj | JastError = 
-      JsonStringParser.parseObj(input, i0, iN, relaxed)
+    def parse(input: String, i0: Int, iN: Int, options: JsonOptions): Obj | JastError = 
+      JsonStringParser.parseObj(input, i0, iN, options)
 
-    def parse(input: Array[Byte], i0: Int, iN: Int, relaxed: Boolean): Obj | JastError =
-      JsonByteArrayParser.parseObj(input, i0, iN, relaxed)
+    def parse(input: Array[Byte], i0: Int, iN: Int, options: JsonOptions): Obj | JastError =
+      JsonByteArrayParser.parseObj(input, i0, iN, options)
 
-    def parse(input: Array[Char], i0: Int, iN: Int, relaxed: Boolean): Obj | JastError =
-      JsonCharArrayParser.parseObj(input, i0, iN, relaxed)
+    def parse(input: Array[Char], i0: Int, iN: Int, options: JsonOptions): Obj | JastError =
+      JsonCharArrayParser.parseObj(input, i0, iN, options)
 
-    def parse(input: ByteBuffer, relaxed: Boolean): Obj | JastError =
-      JsonByteBufferParser.parseObj(input, relaxed)
+    def parse(input: ByteBuffer, options: JsonOptions): Obj | JastError =
+      JsonByteBufferParser.parseObj(input, options)
 
-    def parse(input: CharBuffer, relaxed: Boolean): Obj | JastError =
-      JsonCharBufferParser.parseObj(input, relaxed)
+    def parse(input: CharBuffer, options: JsonOptions): Obj | JastError =
+      JsonCharBufferParser.parseObj(input, options)
 
-    def parse(input: java.io.InputStream, relaxed: Boolean): Obj | JastError = Jast.parse(input, relaxed) match
+    def parse(input: java.io.InputStream, options: JsonOptions): Obj | JastError = Jast.parse(input, options) match
       case o: Json.Obj => o
       case e: JastError => e
       case x => JastError("Could not parse JSON object, instead found " + x.jsonClassName)
