@@ -99,8 +99,8 @@ sealed trait Jast {
   /** Lookup of key in JSON object, if this is a JSON object.  Returns `JastError` if key not found or if this is not a JSON object. */
   def apply(key: String): Jast
 
-  /** Parse into a class given an implicit (or explicit) converter */
-  def to[A](implicit fj: FromJson[A]): Jast.To[A]
+  /** Parse into a class given a converter */
+  def to[A](using fj: FromJson[A]): Jast.To[A]
 
   /** Returns self, except converts Json.Error into JSON null values */
   def errorToNull: Json
@@ -174,7 +174,7 @@ final case class JastError(msg: String, where: Long = -1L, because: Jast = Json.
   def stringOrNull: String = null
   def apply(i: Int) = this
   def apply(key: String) = this
-  def to[A](implicit fj: FromJson[A]): Jast.To[A] = No(this)
+  def to[A](using fj: FromJson[A]): Jast.To[A] = No(this)
   def errorToNull: Json = Json.Null
 
   override def toString = {
@@ -260,12 +260,12 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
 
 
   /** Returns a JSON value if a conversion exists, handling null inputs properly */
-  def orNull[A](a: A)(implicit jser: Jsonize[A]): Json =
+  def orNull[A](a: A)(using jser: Jsonize[A]): Json =
     if (a.asInstanceOf[AnyRef] eq null) Null
     else jser.jsonize(a)
 
   /** Applies automatic conversions to create a JSON value via a typeclass */
-  def apply[A](a: A)(implicit jser: Jsonize[A]): Json = jser.jsonize(a)
+  def apply[A](a: A)(using jser: Jsonize[A]): Json = jser.jsonize(a)
 
   /** Returns an empty JSON value (in this case, a JSON null) */
   def apply(): Json = Null
@@ -308,7 +308,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
   /** Makes explicit that you're happy to put either of two options into a JSON format without
     * a key or anything to distingish between the two.
     */
-  def either[L, R](e: Either[L, R])(implicit jsel: Jsonize[L], jser: Jsonize[R]): Json = e match {
+  def either[L, R](e: Either[L, R])(using jsel: Jsonize[L], jser: Jsonize[R]): Json = e match {
     case Right(r) => jser.jsonize(r)
     case Left(l)  => jsel.jsonize(l)
   }
@@ -317,7 +317,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
   /** Makes explicit that you're happy to put either of two options into a JSON format without
     * a key or anything to distingish between the two.
     */
-  def ok[N, Y](e: Ok[N, Y])(implicit jsen: Jsonize[N], jsey: Jsonize[Y]): Json = e match {
+  def ok[N, Y](e: Ok[N, Y])(using jsen: Jsonize[N], jsey: Jsonize[Y]): Json = e match {
     case Yes(y) => jsey.jsonize(y)
     case No(n)  => jsen.jsonize(n)
   }
@@ -391,10 +391,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
   def ~(key: String, js: Json) = (new Obj.Build[Json]) ~ (Str(key), js)
 
   /** Build a JSON object starting with this JSON string key and an object that can be converted to JSON */
-  def ~[A](key: Str, a: A)(implicit jser: Jsonize[A]) = (new Obj.Build[Json]) ~ (key, jser.jsonize(a))
+  def ~[A](key: Str, a: A)(using jser: Jsonize[A]) = (new Obj.Build[Json]) ~ (key, jser.jsonize(a))
 
   /** Build a JSON object starting with this string key and an object that can be converted to JSON */
-  def ~[A](key: String, a: A)(implicit jser: Jsonize[A]) = (new Obj.Build[Json]) ~ (Str(key), jser.jsonize(a))
+  def ~[A](key: String, a: A)(using jser: Jsonize[A]) = (new Obj.Build[Json]) ~ (Str(key), jser.jsonize(a))
 
   /** Adds to this JSON object a JSON string key and a JSON abstract syntax tree element but only if the element is not null, NaN, empty, or an error */
   def ~?(key: Str, ja: Jast) = (new Obj.Build[Json]) ~? (key, ja)
@@ -424,13 +424,13 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
   def ~~(coll: collection.TraversableOnce[(String,Json)]) = (new Obj.Build[Json]) ~~ coll
 
   /** Build a JSON object starting with the JSON string / JSON value pairs in this collection */
-  def ~~[S](coll: collection.TraversableOnce[(S,Json)])(implicit ev: S =:= Str) = (new Obj.Build[Json]) ~~ coll
+  def ~~[S](coll: collection.TraversableOnce[(S,Json)])(using ev: S =:= Str) = (new Obj.Build[Json]) ~~ coll
 
   /** Build a JSON object starting with the string / JSON-convertible-object pairs in this collection */
   def ~~[A: Jsonize](coll: collection.TraversableOnce[(String,A)]) = (new Obj.Build[Json]) ~~ coll
 
   /** Build a JSON object starting with the JSON string / JSON-convertible-object pairs in this collection */
-  def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(implicit jser: Jsonize[A], ev: S =:= Str) = (new Obj.Build[Json]) ~~ coll
+  def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(using jser: Jsonize[A], ev: S =:= Str) = (new Obj.Build[Json]) ~~ coll
 
   /** Begins building a JSON object starting with an existing JSON object. */
   def ~~(jo: Obj) = (new Obj.Build[Json]) ~~ jo
@@ -1396,7 +1396,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         def ~(nul: scala.Null): this.type = this ~ Null
 
         /** Add to this array an object that can be converted to JSON */
-        def ~[A](a: A)(implicit jser: Jsonize[A]): this.type = this ~ jser.jsonize(a)
+        def ~[A](a: A)(using jser: Jsonize[A]): this.type = this ~ jser.jsonize(a)
 
         /** Complete building this array and return the array. */
         def ~~(done: JsonBuildTerminator[T]): T = this ~ done
@@ -1423,7 +1423,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         }
 
         /** Add to this array an array of objects that can be converted to JSON */
-        def ~~[A](as: Array[A])(implicit jser: Jsonize[A]): this.type = {
+        def ~~[A](as: Array[A])(using jser: Jsonize[A]): this.type = {
           ensureAtLeast(i + as.length)
           var j = 0
           while (j < as.length) {
@@ -1435,7 +1435,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
         }
 
         /** Add to this array a segment of an array of objects that can be converted to JSON */
-        def ~~[A](as: Array[A], i0: Int, iN: Int)(implicit jser: Jsonize[A]): this.type = {
+        def ~~[A](as: Array[A], i0: Int, iN: Int)(using jser: Jsonize[A]): this.type = {
           val j0 = math.max(i0, 0)
           val jN = math.max(j0, math.min(as.length, iN))
           val n = jN - j0
@@ -1473,7 +1473,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       def size = doubles.length
       override def apply(i: Int) = if (i < 0 || i >= doubles.length) noSuchIndexError else Num(doubles(i))
       def foreach[U](f: Json => U): Unit = { var i = 0; while (i < doubles.length) { f(Num(doubles(i))); i += 1 } }
-      def foreach[A](f: Double => Unit)(implicit ev: A =:= Double): Unit = {
+      def foreach[A](f: Double => Unit)(using ev: A =:= Double): Unit = {
         var i = 0
         while (i < doubles.length) { f(doubles(i)); i += 1 }
       }
@@ -1488,7 +1488,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
           b.result()
         }
       }
-      def filter[A](p: Double => Boolean)(implicit ev: A =:= Double): Dbl = {
+      def filter[A](p: Double => Boolean)(using ev: A =:= Double): Dbl = {
         var i = 0
         while (i < doubles.length && p(doubles(i))) i += 1
         if (i == doubles.length) this
@@ -2399,10 +2399,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
     def ~(key: String, js: Json) = (new Build[Obj]) ~ (key, js)
 
     /** Begins building a JSON object starting with the given JSON string key and an object that can be converted to a JSON value */
-    def ~[A](key: Str, a: A)(implicit jser: Jsonize[A]) = (new Build[Obj]) ~ (key, jser.jsonize(a))
+    def ~[A](key: Str, a: A)(using jser: Jsonize[A]) = (new Build[Obj]) ~ (key, jser.jsonize(a))
 
     /** Begins building a JSON object starting with the given string key and an object that can be converted to a JSON value */
-    def ~[A](key: String, a: A)(implicit jser: Jsonize[A]) = (new Build[Obj]) ~ (key, jser.jsonize(a))
+    def ~[A](key: String, a: A)(using jser: Jsonize[A]) = (new Build[Obj]) ~ (key, jser.jsonize(a))
 
     /** Adds to this JSON object a JSON string key and a JSON abstract syntax tree element but only if the element is not null, NaN, empty, or an error */
     def ~?(key: Str, ja: Jast) = (new Build[Obj]) ~? (key, ja)
@@ -2438,7 +2438,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       *
       * Note: the non-straightforward type signature is required to distinguish this case from the `String` case.
       */
-    def ~~[S](coll: collection.TraversableOnce[(S,Json)])(implicit ev: S =:= Str) = (new Build[Obj]) ~~ coll
+    def ~~[S](coll: collection.TraversableOnce[(S,Json)])(using ev: S =:= Str) = (new Build[Obj]) ~~ coll
 
     /** Begins building a JSON object starting with a collection of string keys and objects that can be converted to JSON values */
     def ~~[A: Jsonize](coll: collection.TraversableOnce[(String,A)]) = (new Build[Obj]) ~~ coll
@@ -2447,7 +2447,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       *
       * Note: the non-straightforward type signature is required to distinguish this case from the `String` case.
       */
-    def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(implicit jser: Jsonize[A], ev: S =:= Str) = (new Build[Obj]) ~~ coll
+    def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(using jser: Jsonize[A], ev: S =:= Str) = (new Build[Obj]) ~~ coll
 
     /** Begins building a JSON object starting with an existing JSON object. */
     def ~~(o: Obj) = (new Build[Obj]) ~~ o
@@ -2512,10 +2512,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       def ~(key: String, nul: scala.Null): this.type = append(key, Null)
 
       /** Adds to this JSON object a JSON string key and an object convertible to JSON */
-      def ~[A](key: Str, a: A)(implicit jser: Jsonize[A]): this.type = this ~ (key, jser.jsonize(a))
+      def ~[A](key: Str, a: A)(using jser: Jsonize[A]): this.type = this ~ (key, jser.jsonize(a))
 
       /** Adds to this JSON object a string key and an object convertible to JSON */
-      def ~[A](key: String, a: A)(implicit jser: Jsonize[A]): this.type = this ~ (key, jser.jsonize(a))
+      def ~[A](key: String, a: A)(using jser: Jsonize[A]): this.type = this ~ (key, jser.jsonize(a))
 
       /** Adds to this JSON object a JSON string key and a JSON abstract syntax tree element but only if the element is not null, NaN, empty, or an error */
       def ~?(key: Str, ja: Jast): this.type = if (isNonEmptyJson(ja)) this ~ (key, ja.asInstanceOf[Json]) else this
@@ -2530,10 +2530,10 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       def ~?(key: String, value: String): this.type = if ((value ne null) && !value.isEmpty) this ~ (key, Str(value)) else this
 
       /** Optionally adds to this JSON object a JSON string key and value of an object convertible to JSON */
-      def ~?[A](key: Str, oa: Option[A])(implicit jser: Jsonize[A]): this.type = if (oa.isDefined) this ~ (key, jser.jsonize(oa.get)) else this
+      def ~?[A](key: Str, oa: Option[A])(using jser: Jsonize[A]): this.type = if (oa.isDefined) this ~ (key, jser.jsonize(oa.get)) else this
 
       /** Optionally adds to this JSON object a string key and value of an object convertible to JSON */
-      def ~?[A](key: String, oa: Option[A])(implicit jser: Jsonize[A]): this.type = if (oa.isDefined) this ~ (key, jser.jsonize(oa.get)) else this
+      def ~?[A](key: String, oa: Option[A])(using jser: Jsonize[A]): this.type = if (oa.isDefined) this ~ (key, jser.jsonize(oa.get)) else this
 
       /** Optionally adds to this JSON object a JSON string key and values of an object convertible to JSON. */
       def ~?[A: Jsonize](key: Str, toa: TraversableOnce[A]): this.type =
@@ -2557,7 +2557,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
 
       /** Adds the JSON string key / JSON value pairs in this collection to this JSON object */
-      def ~~[S](coll: collection.TraversableOnce[(S,Json)])(implicit ev: S =:= Str): this.type = {
+      def ~~[S](coll: collection.TraversableOnce[(S,Json)])(using ev: S =:= Str): this.type = {
         coll.foreach{ case (k,v) => this ~ (ev(k),v) }
         this
       }
@@ -2569,7 +2569,7 @@ object Json extends JsonParse.Companion[Json] with JsonBuildTerminator[Json] {
       }
 
       /** Adds to this JSON object the pairs in this collection (JSON string keys and objects convertible to JSON) */
-      def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(implicit jser: Jsonize[A], ev: S =:= Str): this.type = {
+      def ~~[A, S](coll: collection.TraversableOnce[(S,A)])(using jser: Jsonize[A], ev: S =:= Str): this.type = {
         coll.foreach{ case (k,a) => this ~ (ev(k),a) }
         this
       }

@@ -33,7 +33,7 @@ trait FromJson[A] {
     while (i < input.size) {
       val ji = input(i) match
         case jx: Json => jx
-        case je: JastError => return Jast.To.error("Error retriving index "+i, why = je)
+        case je: JastError => return Jast.To.error("Error retrieving index "+i, why = je)
       apply(ji) match
         case No(e) => return Jast.To.error("Error parsing index " + i, why = e)
         case Yes(x) => a(i) = x
@@ -48,7 +48,7 @@ trait FromJson[A] {
     while (i < input.size) {
       val ji = input(i) match
         case jx: Json => jx
-        case je: JastError => return Jast.To.error("Error retriving index "+i, why = je)
+        case je: JastError => return Jast.To.error("Error retrieving index "+i, why = je)
       apply(ji) match
         case No(e) => return Jast.To.error("Error parsing index " + i, why = e)
         case Yes(x) => b += x
@@ -57,12 +57,6 @@ trait FromJson[A] {
     Yes(b.result)
 }
 object FromJson {
-  /** Helper method that makes an instance of a FromJson */
-  def apply[A](name: String)(pf: PartialFunction[Json, Jast.To[A]]): FromJson[A] = new FromJson[A] {
-    def apply(json: Json): Jast.To[A] =
-      pf.applyOrElse(json, (_: Json) => Jast.To.error(s"Incorrect structure for JSON representation of $name"))
-  }
-
   def obj[A, Z](
     name: String,
     fa: (String, Json => Jast.To[A])
