@@ -147,6 +147,7 @@ class DoubleAsEpoch private (val time: Double) extends AnyVal {
   }
   def local = TemporalMaths.toLocal(instant)
   def utc = TemporalMaths.toUTC(instant)
+  def offset = TemporalMaths.toOffset(instant)
   def zoned = TemporalMaths.toZoned(instant)
   def filetime =
     if (math.abs(time) < 9e15) FileTime.fromMillis(math.rint(time * 1e3).toLong)
@@ -192,6 +193,9 @@ object TemporalMaths {
   def toZoned(instant: Instant): ZonedDateTime = instant.atZone(ZoneId.systemDefault)
   def toZoned(datetime: LocalDateTime): ZonedDateTime = datetime.atZone(ZoneId.systemDefault)
   def toZoned(datetime: OffsetDateTime): ZonedDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault)
+
+  def toOffset(instant: Instant): OffsetDateTime = toZoned(instant).toOffsetDateTime
+  def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
 
   def roundMillis(instant: Instant): Instant =
     val n = instant.getNano % 1000000
@@ -354,6 +358,7 @@ extension (instant: Instant) {
   def epoch = DoubleAsEpoch.apply(instant)
   def local = TemporalMaths.toLocal(instant)
   def utc = TemporalMaths.toUTC(instant)
+  def offset = TemporalMaths.toOffset(instant)
   def zoned = TemporalMaths.toZoned(instant)
   def filetime = FileTime from instant
 }
@@ -390,9 +395,10 @@ extension (datetime: LocalDateTime) {
     if (n == 0) datetime else datetime.minusNanos(n)
   
   def epoch = DoubleAsEpoch(TemporalMaths.toInstant(datetime))
-  def utc = TemporalMaths.toUTC(datetime)
-  def zoned = TemporalMaths.toZoned(datetime)
   def instant = TemporalMaths.toInstant(datetime)
+  def utc = TemporalMaths.toUTC(datetime)
+  def offset = TemporalMaths.toOffset(datetime)
+  def zoned = TemporalMaths.toZoned(datetime)
   def filetime = FileTime from TemporalMaths.toInstant(datetime)
 }
 
@@ -429,6 +435,7 @@ extension (datetime: ZonedDateTime) {
   
   def epoch = DoubleAsEpoch.apply(datetime)
   def utc = TemporalMaths.toUTC(datetime)
+  def offset = datetime.toOffsetDateTime
   def local = TemporalMaths.toLocal(datetime)
   def instant = datetime.toInstant
   def filetime = FileTime from datetime.toInstant

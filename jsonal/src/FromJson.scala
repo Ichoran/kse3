@@ -10,6 +10,7 @@ import scala.language.higherKinds
 import scala.util.control.NonFatal
 
 import kse.flow._
+import kse.maths._
 
 /** Classes or objects implementing this trait are able to deserialize objects from a JSON representation. */
 trait FromJson[A] {

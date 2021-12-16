@@ -100,6 +100,11 @@ object JsonConversion {
     case j: Json => arrayTypeError(wanted, j, index)
     case je: JastError => No(JastError("Expected $wanted but found error at index $index", because = je))
 
+  def fromStr[A](j: Jast)(wanted: String)(f: Json.Str => Jast.To[A]) = j match
+    case s: Json.Str => f(s)
+    case je: JastError => Jast.To.error(s"Could not create $wanted from error", why = je)
+    case x: Json => Jast.To.error(s"Could not create $wanted: Json.Str required but found ${x.jsonClassName}")
+
   def fromArr[A](j: Jast)(wanted: String)(f: Json.Arr => Jast.To[A]) = j match
     case a: Json.Arr => f(a)
     case je: JastError => Jast.To.error(s"Could not create $wanted from error", why = je)
