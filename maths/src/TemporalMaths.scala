@@ -8,6 +8,26 @@ import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
 
+class NanoTime(val time: Long) extends AnyVal {
+  def <(that: NanoTime) = time < that.time
+  def <=(that: NanoTime) = time <= that.time
+  def >=(that: NanoTime) = time >= that.time
+  def >(that: NanoTime) = time > that.time
+  def min(that: NanoTime) = if (that.time < time) that else this
+  def max(that: NanoTime) = if (that.time > time) that else this
+
+  def -(that: NanoTime): DoubleAsDeltaT = DoubleAsDeltaT.apply((time - that.time)/1e9)
+
+  def elapsed: DoubleAsDeltaT = NanoTime.now - this
+}
+object NanoTime {
+  def now: NanoTime = new NanoTime(System.nanoTime)
+
+  given Ordering[NanoTime] = new {
+    def compare(a: NanoTime, b: NanoTime) = a.time compareTo b.time
+  }
+}
+
 class DoubleAsDeltaT private (val time: Double) extends AnyVal {
   def <(that: DoubleAsDeltaT) = time < that.time
   def <=(that: DoubleAsDeltaT) = time <= that.time
