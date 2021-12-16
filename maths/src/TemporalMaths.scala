@@ -171,10 +171,11 @@ object DoubleAsEpoch {
     def compare(a: DoubleAsEpoch, b: DoubleAsEpoch) = if (a.=~=(b)) 0 else java.lang.Double.compare(a.time, b.time)
   }
 
-  def apply(epoch: Double) = new DoubleAsEpoch(math.rint(epoch*1e9)/1e9)
-  def apply(instant: Instant) = new DoubleAsEpoch(instant.getEpochSecond + instant.getNano/1e9)
-  def apply(datetime: ZonedDateTime) = new DoubleAsEpoch(datetime.toEpochSecond + datetime.getNano/1e9)
-  def apply(datetime: OffsetDateTime) = new DoubleAsEpoch(datetime.toEpochSecond + datetime.getNano/1e9)
+  def apply(seconds: Long, nanos: Int): DoubleAsEpoch = new DoubleAsEpoch(seconds.toDouble + nanos/1e-9)
+  def apply(epoch: Double): DoubleAsEpoch = new DoubleAsEpoch(math.rint(epoch*1e9)/1e9)
+  def apply(instant: Instant): DoubleAsEpoch = apply(instant.getEpochSecond, instant.getNano)
+  def apply(datetime: ZonedDateTime): DoubleAsEpoch = apply(datetime.toEpochSecond, datetime.getNano)
+  def apply(datetime: OffsetDateTime): DoubleAsEpoch = apply(datetime.toEpochSecond, datetime.getNano)
 }
 
 object TemporalMaths {
