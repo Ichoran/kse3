@@ -98,60 +98,30 @@ object AorB {
   object Or {
     inline def from[L, R](e: Either[L, R]): R Or L = e match
       case Left(l) => Alt(l)
-      case Right(r) => summonFrom {
-        case _: (Is[_] <:< R) => Is(r)
-        case _: (Alt[_] <:< R) => Is(r)
-        case _ => r
-      }
+      case Right(r) => Is(r)
 
     inline def from[N, Y](ok: Ok[N, Y]): Y Or N = ok match
       case No(n) => Alt(n)
-      case Yes(y) => summonFrom {
-        case _: (Is[_] <:< Y) => Is(y)
-        case _: (Alt[_] <:< Y) => Is(y)
-        case _ => y
-      }
+      case Yes(y) => Is(y)
 
     inline def from[A](o: Option[A]): A Or Unit = o match
-      case Some(a) => summonFrom {
-        case _: (Is[_] <:< A) => Is(a)
-        case _: (Alt[_] <:< A) => Is(a)
-        case _ => a
-      }
+      case Some(a) => Is(a)
       case _ => Alt.unit
 
     inline def from[T](t: Try[T]): T Or Throwable = t match
       case Failure(e) => Alt(e)
-      case Success(s) => summonFrom {
-        case _: (Is[_] <:< T) => Is(s)
-        case _: (Alt[_] <:< T) => Is(s)
-        case _ => s
-      }
+      case Success(s) => Is(s)
 
     inline def from[T, E](t: Try[T], fix: Throwable => E): T Or E = t match
       case Failure(e) => Alt(fix(e))
-      case Success(s) => summonFrom {
-        case _: (Is[_] <:< T) => Is(s)
-        case _: (Alt[_] <:< T) => Is(s)
-        case _ => s
-      }
+      case Success(s) => Is(s)
+
+    val defaultApplyOrElse: Any = new Function1[Any, Any] { def apply(a: Any) = this }
   }
   extension [X, Y](or: Or[X, Y]) {
-    inline def get: X = summonFrom {
-      case _: (Is[_] <:< X) => or match
-        case _: WrappedOr[_] => or match
-          case i: IsWrap[_] => i.get.asInstanceOf[X]
-          case _ => throw new NoSuchElementException("get when Or is Alt")
-        case _ => or.asInstanceOf[X]
-      case _: (Alt[_] <:< X) => or match
-        case _: WrappedOr[_] => or match
-          case i: IsWrap[_] => i.get.asInstanceOf[X]
-          case _ => throw new NoSuchElementException("get when Or is Alt")
-        case _ => or.asInstanceOf[X]
-      case _ => or match
-        case _: Alt[_] => throw new NoSuchElementException("get when Or is Alt")
-        case _ => or.asInstanceOf[X]
-    }
+    inline def get: X = or match
+      case _: Alt[X] => throw new NoSuchElementException("get when Or is Alt")
+      case _ => Is unwrap or.asInstanceOf[Is[X]]
 
     inline def alt: Y = or match
       case a: Alt[_] => a.alt.asInstanceOf[Y]
@@ -165,32 +135,85 @@ object AorB {
       case w: WrappedOr[_] => true
       case _               => false
 
-    inline def map[XX](inline f: X => XX): XX Or Y = summonFrom {
-      case _: (Is[_] <:< X) => or match
-        case _: Alt[_] => or.asInstanceOf[Alt[Y]]
-        case _ => Is(f(or match { case i: IsWrap[_] => i.get.asInstanceOf[X]; case _ => or.asInstanceOf[X] }))
-      case _: (Alt[_] <:< X) => or match
-        case _: Alt[_] => or.asInstanceOf[Alt[Y]]
-        case _ => Is(f(or match { case i: IsWrap[_] => i.get.asInstanceOf[X]; case _ => or.asInstanceOf[X] }))
-      case _ =>
-        if or.isInstanceOf[WrappedOr[_]] then or.asInstanceOf[Alt[Y]]
-        else Is(f(or.asInstanceOf[X]))
-    }
+    inline def fold[Z](inline f: X => Z)(inline g: Y => Z): Z = or match
+      case _: Alt[_] => g(or.asInstanceOf[Alt[Y]].alt)
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def getOrElse[Z >: X](inline f: Y => Z): Z = or match
+      case _: Alt[_] => f(or.asInstanceOf[Alt[Y]].alt)
+      case _ => Is unwrap or.asInstanceOf[Is[X]]
+
+    inline def altOrElse[Z >: Y](inline f: X => Z): Z = or match
+      case a: Alt[_] => a.alt.asInstanceOf[Y]
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def map[XX](inline f: X => XX): XX Or Y = or match
+      case _: Alt[_] => or.asInstanceOf[Alt[Y]]
+      case _ => Is(f(Is unwrap or.asInstanceOf[Is[X]]))
 
     inline def mapAlt[YY](inline f: Y => YY): X Or YY = or match
       case a: Alt[_] => Alt(f(a.alt.asInstanceOf[Y]))
       case x => x.asInstanceOf[Is[X]]
 
+    inline def mapThem[XX, YY](inline f: X => XX)(inline g: Y => YY): XX Or YY = or match
+      case a: Alt[_] => Alt(g(a.alt.asInstanceOf[Y]))
+      case _ => Is(f(Is unwrap or.asInstanceOf[Is[X]]))
+
     inline def flatMap[YY >: Y, XX](inline f: X => XX Or YY): XX Or YY = or match
-      case w: WrappedOr[_] => w match
-        case i: IsWrap[_] => f(i.get.asInstanceOf[X])
-        case y       => y.asInstanceOf[Alt[Y]]
-      case x => f(x.asInstanceOf[X])
+      case _: Alt[_] => or.asInstanceOf[Alt[Y]]
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]]) 
 
     inline def flatMapAlt[XX >: X, YY](inline g: Y => XX Or YY): XX Or YY = or match
-      case y: Alt[_] => g(y.get.asInstanceOf[Y])
+      case a: Alt[_] => g(a.get.asInstanceOf[Y])
       case _ => or.asInstanceOf[Is[X]]
 
+    inline def flatMapThem[XX, YY](inline f: X => XX Or YY)(inline g: Y => XX Or YY): XX Or YY = or match
+      case a: Alt[_] => g(a.get.asInstanceOf[Y])
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def foreach(inline f: X => Unit): Unit = or match
+      case _: Alt[_] => ()
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def forAlt(inline f: Y => Unit): Unit = or match
+      case a: Alt[_] => f(a.alt.asInstanceOf[Y])
+      case _ => ()
+
+    inline def forThem(inline f: X => Unit)(inline g: Y => Unit) = or match
+      case a: Alt[_] => g(a.alt.asInstanceOf[Y])
+      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def tapeach(inline f: X => Unit): or.type =
+      or match
+        case _: Alt[_] =>
+        case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+      or
+
+    inline def tapAlt(inline f: Y => Unit): or.type =
+      or match
+        case a: Alt[_] => f(a.alt.asInstanceOf[Y])
+        case _ =>
+      or
+
+    inline def tapThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
+      or match
+        case a: Alt[_] => g(a.alt.asInstanceOf[Y])
+        case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+      or
+
+    inline def discard[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = or match
+      case _: Alt[_] => or.asInstanceOf[Alt[Y]]
+      case _ => pf.applyOrElse(Is unwrap or.asInstanceOf[Is[X]], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
+        case yy => Alt(yy.asInstanceOf[YY])
+
+    inline def restore[XX >: X](pf: PartialFunction[Y, XX]): XX Or Y = or match
+      case a: Alt[_] => pf.applyOrElse(a.alt.asInstanceOf[Y], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
+        case xx => Is(xx.asInstanceOf[XX])
+      case _ => or
+
+    /*
     inline def pivot[P, Q](using (P Or Q) =:= X): P Or (Q Or Y) = or match
       case y: Alt[_] => Alt(y.asInstanceOf[Alt[Y]])
       case i: IsWrap[_] => i.get.asInstanceOf[P Or Q] match
@@ -198,16 +221,54 @@ object AorB {
         case p => p.asInstanceOf[Is[P]]
       case _ => or.asInstanceOf[Is[P]]
 
-    inline def fold[Z](inline f: X => Z)(inline g: Y => Z): Z = or match
-      case w: WrappedOr[_] => w match
-        case y: Alt[_] => g(y.alt.asInstanceOf[Y])
-        case _ => f(or.asInstanceOf[IsWrap[X]].get)
-      case _ => f(or.asInstanceOf[X])
+    inline def unpivot[U, V](using (U Or V) =:= Y): (X Or U) Or V = or match
+      case y: Alt[_] => y.alt.asInstanceOf[U Or V] match
+        case v: Alt[_] => v.asInstanceOf[Alt[V]]
+        case u => IsWrap(Alt(Is unwrap u.asInstanceOf[Is[U]]))
+      case _: IsWrap[_] => IsWrap(or.asInstanceOf[Is[X]])
+      case _ => or.asInstanceOf[Is[X]]
+    */
+
+    inline def swap: Y Or X = or match
+      case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)
+      case _ => Alt(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def toOk: Ok[Y, X] = or match
+      case a: Alt[_] => No(a.alt.asInstanceOf[Y])
+      case _ => Yes(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def toEither: Either[Y, X] = or match
+      case a: Alt[_] => Left(a.alt.asInstanceOf[Y])
+      case _ => Right(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def toOption: Option[X] = or match
+      case _: Alt[_] => None
+      case _ => Some(Is unwrap or.asInstanceOf[Is[X]])
+
+    inline def toTry: Try[X] = or match
+      case a: Alt[_] => Failure(new WrongBranchException(a.alt.asInstanceOf[Y]))
+      case _ => Success(Is unwrap or.asInstanceOf[Is[X]])
   }
 
-  extension [X](x: X)
-    inline def or[Y]: X Or Y = Is(x)
+  extension [A](a: A) {
+    inline def or[Y]: A Or Y = Is(a)
 
-  extension [Y](y: Y)
-    inline def isnt[X]: X Or Y = Alt(y)
+    inline def isnt[X]: X Or A = Alt(a)
+
+    inline def orIf(inline p: A => Boolean): A Or A =
+      if p(a) then Is(a) else Alt(a)
+
+    inline def isntIf(inline q: A => Boolean): A Or A =
+      if q(a) then Alt(a) else Is(a)
+
+    inline def orCase[X](pf: PartialFunction[A, X]): X Or A =
+      pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt(a)
+        case x => Is(x.asInstanceOf[X])
+
+    inline def isntCase[Y](pf: PartialFunction[A, Y]): A Or Y =
+      pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
+        case y => Alt(y.asInstanceOf[Y])
+  }
 }

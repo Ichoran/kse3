@@ -20,14 +20,18 @@ export kse.flow.AorB._
 /// Early returns with ? a la Rust ///
 //////////////////////////////////////
 
+infix trait AutoMap[Y, YY] extends Function1[Y, YY] {}
+
 extension [X, Y](or: X Or Y)
   inline def ?(using TransformsFlow[Alt[Y]]) : X = (or: @unchecked) match
-    case x if !x.isInstanceOf[Alt[_]] => scala.compiletime.summonFrom {
-      case _: (Is[_] <:< X)  => or.get
-      case _: (Alt[_] <:< X) => or.get
-      case _ => x.asInstanceOf[X]
-    }
     case y: Alt[Y @unchecked] => throw new UntransformedFlowException(y)
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
+  inline def ?+[YY](inline f: Y => YY)(using TransformsFlow[Alt[YY]]) : X =
+    or.mapAlt(f).?
+
+  inline def ?*[YY](using tr: TransformsFlow[Alt[YY]], m: Y AutoMap YY) : X =
+    or.mapAlt(m).?
 
 extension [N, Y](ok: Ok[N, Y])
   inline def ?(using TransformsFlow[No[N]]) : Y = ok match
@@ -97,47 +101,6 @@ extension (tryObject: Try.type)
 /// Validation and exception handling ///
 /////////////////////////////////////////
 
-extension (throwable: Throwable) {
-  def explainAsArray(lines: Int = Int.MaxValue): Array[String] =
-    import scala.collection.mutable.LongMap
-    val seen = new LongMap[List[Throwable]]
-      val sab = Array.newBuilder[String]
-      var t = ((throwable, "", lines, false)) :: Nil
-      while (t.nonEmpty) {
-        val (ti, si, ni, cb) = t.head
-        t = t.tail
-        val notYetSeen = {
-          val ihc = System.identityHashCode(ti)
-          val entry = seen.getOrNull(ihc)
-          if (entry eq null) { seen(ihc) = ti :: Nil; true }
-          else if (!entry.exists(_ eq t)) { seen(ihc) = ti :: entry; true }
-          else false
-        }
-        if (notYetSeen) {
-          sab += (if (cb) si + "CAUSED BY " else si) + ti.getClass.getName + ": " + ti.getMessage
-          val st = ti.getStackTrace
-          sab ++= st.take(ni).map(_.toString)
-          if (st.length > ni && ni > 0) sab += si + "...[" + (st.length - ni).toString + " lines elided]"
-          val tj = ti.getCause
-          if (tj ne null) t = ((tj, si, lines, true)) :: t
-          val sup = ti.getSuppressed
-          if (sup.length > 0) t = sup.reverse.map(s => (s, si + "> ", lines/2, false)) ++: t
-        }
-        else sab += si + "(Circular reference to " + ti.getClass.getName + ": " + ti.getMessage + ")"
-      }
-      sab.result
-
-  def explainAsVector(lines: Int = Int.MaxValue): Vector[String] = throwable.explainAsArray(lines).toVector
-
-  def explain(lines: Int = Int.MaxValue): String = explainAsArray(lines).mkString("\n")
-}
-
-trait NotNice[N] {
-  def fromThrowable(t: Throwable): N
-}
-object NotNice {
-  given NotNice[String] = new NotNice[String] { def fromThrowable(t: Throwable) = t.explain(12) }
-}
 
 inline def safe[Y](inline y: => Y): Ok[Throwable, Y] =
   try Yes(y)
@@ -173,19 +136,17 @@ extension [Y](ok: Ok[Throwable | String, Y])
         case No(e) => No(msg + "\n" + e)
 
 
-//////////////////////////////////////////////////////////////////
-/// Interconversions between Ok and standard library sum types ///
-//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////
+/// Interconversions between sum types ///
+//////////////////////////////////////////
 
-
-final case class LeftBranchException[+L](left: L) extends Exception {
-  override def getMessage: String = left.toString
-}
 
 extension [L, R](either: Either[L, R]) {
   inline def toOk: Ok[L, R] = either match
     case Right(r) => Yes(r)
     case Left(l)  => No(l)
+
+  inline def toOr: R Or L = Or from either
 }
 
 extension [A](`try`: Try[A]) {
@@ -196,6 +157,10 @@ extension [A](`try`: Try[A]) {
   inline def okOr[B](inline f: Throwable => B): Ok[B, A] = `try` match
     case Success(s) => Yes(s)
     case Failure(t) => No(f(t))
+
+  inline def toOr: A Or Throwable = Or from `try`
+
+  inline def explained[E](using NotNice[E]) = Or.from(`try`, summon[NotNice[E]].fromThrowable _)
 }
 
 extension [A](option: Option[A]) {
@@ -206,8 +171,17 @@ extension [A](option: Option[A]) {
   inline def okOr[B](inline b: => B) = option match
     case Some(a) => Yes(a)
     case _       => No(b)
+
+  inline def toTry: Try[A] = option match
+    case Some(a) => Success(a)
+    case _ => Failure(new WrongBranchException(None))
+
+  inline def toOr: A Or Unit = Or from option
 }
 
+extension [N, Y](ok: Ok[N, Y]) {
+  inline def toOr: Y Or N = Or from ok
+}
 
 
 ////////////////////////////////////////////////////////
