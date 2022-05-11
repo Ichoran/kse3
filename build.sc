@@ -2,26 +2,35 @@
 // Copyright 2021 Rex Kerr and Calico Life Sciences, LLC
 
 
-import mill._, scalalib._
+import mill._
+import mill.scalalib._
 
-trait Scala3 extends ScalaModule {
+trait Common extends ScalaModule {
   def scalaVersion = "3.1.0"
+
+  def scalaOptions = T{Seq(
+    "-opt"
+  )}
+
+  object test extends Tests with TestModule.Junit4 {}
+
+  object bench extends Tests with TestModule.Junit4 {}
 }
 
-object flow extends Scala3 {}
+object flow extends Common {}
 
-object maths extends Scala3 {
+object maths extends Common {
   def moduleDeps = Seq(flow)
 }
 
-object jsonal extends Scala3 {
+object jsonal extends Common {
   def moduleDeps = Seq(flow, maths)
 }
 
-object eio extends Scala3 {
+object eio extends Common {
   def moduleDeps = Seq(flow, maths, jsonal)
 }
 
-object all extends Scala3 {
+object all extends Common {
   def moduleDeps = Seq(flow, maths, jsonal, eio)
 }

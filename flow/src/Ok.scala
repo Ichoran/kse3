@@ -288,6 +288,11 @@ object Ok {
 
   /** Enables returning a `Unit` on the [[No]] branch when filtering. */
   given [Y]: Defaulter[Unit, Y] = DefaultUnitToUnit
+
+
+  def wrap[N, Y](yes: Y): Ok[N, Y] = Yes(yes)
+
+  def wrapNo[N, Y](no: N): Ok[N, Y] = No(no)
   
   
   /** Converts an `Option` to a disfavored value.  `None` maps to a content-free (`Unit`) favored value. */

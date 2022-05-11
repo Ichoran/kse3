@@ -9,9 +9,25 @@ import scala.util.control.NonFatal
 import scala.util.{Try, Success, Failure}
 
 
+///////////////////////////////////////////////
+/// Exports of other nicely packaged things ///
+///////////////////////////////////////////////
+
+export kse.flow.AorB._
+
+
 //////////////////////////////////////
 /// Early returns with ? a la Rust ///
 //////////////////////////////////////
+
+extension [X, Y](or: X Or Y)
+  inline def ?(using TransformsFlow[Alt[Y]]) : X = (or: @unchecked) match
+    case x if !x.isInstanceOf[Alt[_]] => scala.compiletime.summonFrom {
+      case _: (Is[_] <:< X)  => or.get
+      case _: (Alt[_] <:< X) => or.get
+      case _ => x.asInstanceOf[X]
+    }
+    case y: Alt[Y @unchecked] => throw new UntransformedFlowException(y)
 
 extension [N, Y](ok: Ok[N, Y])
   inline def ?(using TransformsFlow[No[N]]) : Y = ok match
@@ -46,6 +62,10 @@ extension (float: Float)
 
 inline def Ret[A](inline a: TransformsFlow[A] ?=> A): A =
   ${ EarlyReturnMacro.transform('{a(using TransformsFlow.of[A])}) }
+
+extension (objectOr: Or.type)
+  inline def Ret[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X): X Or Y =
+    ${ EarlyReturnMacro.transform('{ val or: X Or Y = Is(x(using TransformsFlow.of[Alt[Y]])); or }) }
 
 extension (objectOk: Ok.type)
   inline def Ret[N, Y](inline y: TransformsFlow[No[N]] ?=> Y): Ok[N, Y] =
@@ -136,6 +156,21 @@ extension (objectOk: Ok.type) {
   inline def Nicer[N, Y](inline y: Y)(using nn: NotNice[N]): Ok[N, Y] =
     ${ EarlyReturnMacro.transform('{ try{ Yes(y) } catch { case t if NonFatal(t) => No(nn fromThrowable t) }}) }
 }
+
+extension [Y](throwOk: Ok[Throwable, Y])
+  def text: Ok[String, Y] = throwOk match
+    case y: Yes[Y] => y
+    case No(e) => No(e.explain(50))
+
+extension [Y](ok: Ok[Throwable | String, Y])
+  inline def why(inline msg: String, lines: Int = 50): Ok[String, Y] =
+    inline ok match
+      case okt: Ok[Throwable, Y] => okt match
+        case y: Yes[Y] => y
+        case No(e) => No(msg + "\n" + e.explain(lines))
+      case oks: Ok[String, Y] => oks match
+        case y: Yes[Y] => y
+        case No(e) => No(msg + "\n" + e)
 
 
 //////////////////////////////////////////////////////////////////
