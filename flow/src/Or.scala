@@ -8,6 +8,17 @@ import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
 import scala.util.control.{NonFatal, ControlThrowable}
 
+/** This is the implementation for `Or`, an unboxed union sum type.
+  * 
+  * `Or` is left-biased and reads in normal order: `A Or B` has a
+  * favored value of type `A` and an alternative value of type `B`.
+  * The favored branch is encoded as an opaque type `Is[A]`, while
+  * the disfavored branch is encoded in a box (class) `Alt[B]`.
+  * 
+  * Internally, `Is[X]` is either a bare `X` or a box class `IsWrap[X]`.
+  * The latter is only the case if `X` itself is either an `Alt` or
+  * another `IsWrap`.
+  */
 object AorB {
   sealed abstract class WrappedOr[+Z]() {
     def value: Z
@@ -16,7 +27,7 @@ object AorB {
   final class IsWrap[+X](val get: X) extends WrappedOr[X]() {
     def value = get
     override def toString = s"Is($get)"
-    override def hashCode = -1837305302 ^ get.##
+    override def hashCode = -1837305301 + get.##
     override def equals(a: Any) = a match
       case i: IsWrap[_] => get == i.get
       case _ => false
@@ -25,7 +36,7 @@ object AorB {
   final class Alt[+Y](val alt: Y) extends WrappedOr[Y]() {
     def value = alt
     override def toString = s"Alt($alt)"
-    override def hashCode = -1867746108 ^ alt.##
+    override def hashCode = -1867746107 + alt.##
     override def equals(a: Any) = a match
       case aa: Alt[_] => alt == aa.alt
       case _ => false

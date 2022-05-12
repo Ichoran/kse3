@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2011-2015, 2021 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2011-15, 2021-22 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
 
 
 package kse.flow
@@ -14,21 +14,15 @@ trait Copy[+A <: Copy[_]] { self: A =>
   def copy: A
 }
 
-/** Anything that has a potentially stored value */
-trait Valued[V] {
-  def value: V
-  inline final def foreach(inline f: V => Unit): Unit = f(value)
-}
-
 
 /** Holds mutable data (would be better if standard library exposed this!) */
-sealed abstract class Mu[A] extends Valued[A] with Copy[Mu[A]] {
+sealed abstract class Mu[A] extends Copy[Mu[A]] {
   inline def apply(): A = value
   def value: A
   def value_=(a: A): Unit
   def set(a: A): this.type = { value = a; this }
   inline final def op(inline f: A => A): this.type = { value = f(value); this }
-  override def toString = value.toString
+  override def toString = s"~$value"
   override def hashCode = value.##
 }
 object Mu {
@@ -56,7 +50,7 @@ object Mu {
 
 
 /** Hides data from case classes, etc. */
-final class Anon[A](val value: A) extends Valued[A] {
+final class Anon[A](val value: A) {
   override def toString = "..."
   override def hashCode = 1239182
   override def equals(a: Any) = a match {
@@ -70,7 +64,7 @@ object Anon {
 
 
 /** Box that uses reference equality and identity hash code */
-final class Identity[A](val value: A) extends Valued[A] {
+final class Identity[A](val value: A) {
   override def toString = value.toString
   override def hashCode = java.lang.System.identityHashCode(value)
   override def equals(a: Any) = a.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef]
@@ -80,11 +74,11 @@ final class Identity[A](val value: A) extends Valued[A] {
 /** Way to create new boxed types.  Use
  *  ```
  *  object MyThing extends NewType[OldThing] {
- *    extension (t: T) def myMethodOnMyThing: Bar = whateverComputation(t: OldThing)
+ *    extension (t: Type) def myMethodOnMyThing: Bar = whateverComputation(t: OldThing)
  *  }
  *  ```
  **/
-trait NewType[A] extends Valued[A] {
+trait NewType[A] {
   opaque type Type = A
 
   inline def apply(a: A): Type = a

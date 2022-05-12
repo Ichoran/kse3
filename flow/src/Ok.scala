@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-2021 Rex Kerr, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2014-2022 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 package kse.flow
 
@@ -11,6 +11,9 @@ import scala.util.control.{NonFatal, ControlThrowable}
   * (second) branch is the default, you can use for comprehensions; a richer
   * set of methods are provided; and each of the two branches does not remember
   * what the other alternative might have been, simplifying the code. 
+  * 
+  * NOTE: `Ok` is preserved for historical reasons, but for Scala 3, `Or` is
+  * almost always what you want to use instead.
   */
 sealed trait Ok[+N, +Y] extends Product with Serializable {
   

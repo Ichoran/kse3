@@ -5,7 +5,7 @@ import java.lang.ref.SoftReference
 
 
 /** A general way to defer a computation but cache the result. */
-final class Lazy[V](gen: => V) extends Valued[V] {
+final class Lazy[V](gen: => V) {
   lazy val value = gen
   def map[W](f: V => W) = Lazy(f(value))
   def flatMap[W](f: V => Lazy[W]) = Lazy(f(value).value)
@@ -16,7 +16,7 @@ object Lazy {
 
 
 /** An unset value that you can set but then not change (thread-safe) */
-final class Worm[V] extends Valued[Option[V]] {
+final class Worm[V] {
   private[this] val myValue: AtomicReference[AnyRef] = new AtomicReference[AnyRef](Worm.storedNullSentinel)
 
   def setIfEmpty(v: => V): Boolean =
@@ -34,9 +34,9 @@ final class Worm[V] extends Valued[Option[V]] {
     case x if x eq Worm.storedNullSentinel => throw new java.lang.IllegalStateException("Retrieved value before being set")
     case x                                 => x.asInstanceOf[V]
 
-  def value: Option[V] = myValue.get() match
-    case x if x eq Worm.storedNullSentinel => None
-    case x                                 => Some(x.asInstanceOf[V])
+  def value: V Or Unit = myValue.get() match
+    case x if x eq Worm.storedNullSentinel => Alt.unit
+    case x                                 => Is(x.asInstanceOf[V])
 }
 object Worm {
   def of[V]: Worm[V] = new Worm[V]
@@ -46,7 +46,7 @@ object Worm {
 
 
 /** Caches expensive computations that are cleared when memory gets especially tight (via SoftReference); not thread-safe */
-final class Soft[S, V](source: S)(gen: S => V) extends Valued[V] {
+final class Soft[S, V](source: S)(gen: S => V) {
   private[this] var myCache: SoftReference[AnyRef] = new SoftReference(null)
 
   def value: V = myCache.get() match
@@ -69,7 +69,7 @@ object Soft {
 
 
 /** Clearable, chainable, thread-safe caching with hidden extra (captured) state.  Fairly heavyweight operation, so use for work that is significant. */
-sealed trait Hold[V] extends Valued[V] {
+sealed trait Hold[V] {
   /** Indicate that this value should be recomputed next access. */
   def invalidate(): Unit
 
