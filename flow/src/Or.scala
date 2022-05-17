@@ -186,27 +186,27 @@ object AorB {
       case _: Alt[_] => ()
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
-    inline def forAlt(inline f: Y => Unit): Unit = or match
+    inline def foreachAlt(inline f: Y => Unit): Unit = or match
       case a: Alt[_] => f(a.alt.asInstanceOf[Y])
       case _ => ()
 
-    inline def forThem(inline f: X => Unit)(inline g: Y => Unit) = or match
+    inline def foreachThem(inline f: X => Unit)(inline g: Y => Unit) = or match
       case a: Alt[_] => g(a.alt.asInstanceOf[Y])
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
-    inline def tapeach(inline f: X => Unit): or.type =
+    inline def use(inline f: X => Unit): or.type =
       or match
         case _: Alt[_] =>
         case _ => f(Is unwrap or.asInstanceOf[Is[X]])
       or
 
-    inline def tapAlt(inline f: Y => Unit): or.type =
+    inline def useAlt(inline f: Y => Unit): or.type =
       or match
         case a: Alt[_] => f(a.alt.asInstanceOf[Y])
         case _ =>
       or
 
-    inline def tapThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
+    inline def useThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
       or match
         case a: Alt[_] => g(a.alt.asInstanceOf[Y])
         case _ => f(Is unwrap or.asInstanceOf[Is[X]])
@@ -224,21 +224,21 @@ object AorB {
         case xx => Is(xx.asInstanceOf[XX])
       case _ => or
 
-    /*
     inline def pivot[P, Q](using (P Or Q) =:= X): P Or (Q Or Y) = or match
-      case y: Alt[_] => Alt(y.asInstanceOf[Alt[Y]])
-      case i: IsWrap[_] => i.get.asInstanceOf[P Or Q] match
-        case q: Alt[_] => q.asInstanceOf[Alt[Q Or Y]]
-        case p => p.asInstanceOf[Is[P]]
+      case _: WrappedOr[_] => or match
+        case y: Alt[_] => Alt(y.asInstanceOf[Alt[Y]])
+        case _ => (Is unwrap or.asInstanceOf[P Or Q]) match
+          case q: Alt[_] => Alt(Is(q.alt.asInstanceOf[Q]))
+          case p => Is(Is unwrap p.asInstanceOf[Is[P]])
       case _ => or.asInstanceOf[Is[P]]
 
     inline def unpivot[U, V](using (U Or V) =:= Y): (X Or U) Or V = or match
-      case y: Alt[_] => y.alt.asInstanceOf[U Or V] match
-        case v: Alt[_] => v.asInstanceOf[Alt[V]]
-        case u => IsWrap(Alt(Is unwrap u.asInstanceOf[Is[U]]))
-      case _: IsWrap[_] => IsWrap(or.asInstanceOf[Is[X]])
-      case _ => or.asInstanceOf[Is[X]]
-    */
+      case _: WrappedOr[_] => or match
+        case y: Alt[_] => y.alt.asInstanceOf[U Or V] match
+          case v: Alt[_] => v.asInstanceOf[Alt[V]]
+          case u => Is(Alt(Is unwrap u.asInstanceOf[Is[U]]))
+        case _ => Is(or.asInstanceOf[Is[X]])
+      case _ => or.asInstanceOf[Is[Is[X]]]
 
     inline def swap: Y Or X = or match
       case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)

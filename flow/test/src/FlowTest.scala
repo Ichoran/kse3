@@ -15,7 +15,12 @@ class FlowTest {
   import kse.testutilities.TestUtilities.{_, given}
   import kse.flow.{_, given}
 
-  given Asserter(assertEquals _, assertNotEquals _, assertTrue _)
+  given Asserter(
+    (m, test, x) => assertEquals(m, x, test),
+    (m, test, x) => assertNotEquals(m, x, test),
+    assertTrue _
+  )
+
 
   @Test
   def exceptionsTest(): Unit =
@@ -48,6 +53,7 @@ class FlowTest {
     val lines = full.drop(9).count(s => !s.startsWith("| "))
     "" \ short.last ==== s". . . (+$lines lines and 1 more exception)"
 
+
   @Test
   def repeatTest(): Unit =
     var bit = 1
@@ -61,6 +67,79 @@ class FlowTest {
     val babble = new StringBuilder()
     cFor("hi")(_.length < 20)(s => s + " " + s){ s => if babble.nonEmpty then babble ++= ", "; babble ++= s }
     "generic cFor" \ babble.toString ==== "hi, hi hi, hi hi hi hi"
+
+    var sumi = 0
+    nFor(1000)(i => sumi += i*i + 1)
+    "int nFor" \ sumi ==== 332834500
+
+    var suml = 0L
+    nFor(10000L)(l => suml += l*l + 1)
+    "long nFor" \ suml ==== 333283345000L
+
+    val ab = Array[Byte](1, 3, 5, 7, 9)
+    var sumab = 0L
+    aFor(ab)((b, i) => sumab += b*(i+1))
+    "byte aFor" \ sumab ==== 95L
+
+    val ac = Array[Char]('s', 'a', 'l', 'm', 'o', 'n')
+    val sumac = new StringBuilder
+    aFor(ac)((c, i) => sumac ++= c.toString*(i+1))
+    "char aFor" \ sumac.result ==== "saalllmmmmooooonnnnnn"
+
+    val s  = ac.mkString
+    val sums = new StringBuilder
+    aFor(s)((c, i) => sums ++= c.toString*(i+1))
+    "string aFor" \ sums.result ==== "saalllmmmmooooonnnnnn"
+
+
+    val as = Array[Short](1, 3, 5, 7, 9)
+    var sumas = 0L
+    aFor(as)((s, i) => sumas += s*(i+1))
+    "short aFor" \ sumas ==== 95L
+
+    val aj = Array[Int](1, 3, 5, 7 ,9)
+    var sumaj = 0L
+    aFor(aj)((j, i) => sumaj += j*(i+1))
+    "int aFor" \ sumaj ==== 95L
+
+    val al = Array[Long](1, 3, 5, 7, 9)
+    var sumal = 0L
+    aFor(al)((l, i) => sumal += l*(i+1))
+    "long aFor" \ sumal ==== 95L
+
+    val af = Array[Float](0.1f, 0.3f, 0.5f, 0.7f, 0.9f)
+    var sumaf = 0f
+    aFor(af)((f, i) => sumaf += f*(i+1))
+    "float aFor" \ sumaf =~~= 9.5f
+
+    val ad = Array[Double](0.01, 0.03, 0.05, 0.07, 0.09)
+    var sumad = 0.0
+    aFor(ad)((d, i) => sumad += d*(i+1))
+    "double aFor" \ sumad =~~= 9.5
+
+    val aa = Array[Option[String]](None, Some("cod"), Some("salmon"))
+    val sumaa = new StringBuilder
+    aFor(aa){ (o, i) => o match
+      case Some(s) =>
+        if sumaa.nonEmpty then sumaa ++= ", "
+        sumaa ++= s*(i+1)
+      case _ =>
+    }
+    "generic aFor" \ sumaa.result ==== "codcod, salmonsalmonsalmon"
+
+    val xs = "cod" :: "bass" :: "perch" :: "salmon" :: Nil
+    val fish = new StringBuilder
+    iFor(xs.iterator){ (s, i) =>
+      if fish.nonEmpty then fish ++= ", "
+      fish ++= s*(i+1)
+    }
+    "iFor" \ fish.result ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
+
+
+
+  @Test
+  def orTest(): Unit =
+    ()
 
   @Test
   def valueTest(): Unit =

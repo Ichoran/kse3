@@ -15,6 +15,35 @@ object TestUtilities {
     val assertTrue: (String, Boolean) => Unit
   ) {}
 
+  trait Approximation[A] {
+    def approx(a0: A, a1: A): Boolean
+  }
+  object Approximation {
+    given Approximation[Float] = new {
+      def approx(a0: Float, a1: Float) =
+        (a0 == a1) ||
+        (a0.isNaN && a1.isNaN) ||
+        {
+          val delta = math.abs(a0 - a1)
+          val a = math.abs(a0) max math.abs(a1)
+          if a > 1 then delta < 1e-6*a
+          else delta < 1e-6
+        }
+    }
+
+    given Approximation[Double] = new {
+      def approx(a0: Double, a1: Double) =
+        (a0 == a1) ||
+        (a0.isNaN && a1.isNaN) ||
+        {
+          val delta = math.abs(a0 - a1)
+          val a = math.abs(a0) max math.abs(a1)
+          if a > 1 then delta < 1e-9*a
+          else delta < 1e-9
+        }
+    }
+  }
+
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
@@ -48,6 +77,9 @@ object TestUtilities {
         case _ =>
 
     def =??=[B](t: Typed[B])(using B =:= A): Unit = {}
+
+    def =~~=[B >: A](b: => B)(using apx: Approximation[B]): Unit =
+      apx.approx(value(), b)
   }
 
   class LabeledCollection[C, I <: IsIterable[C]](val message: String, val value: () => C, val ii: I)(using asr: Asserter) extends Messaging {
