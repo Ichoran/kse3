@@ -107,17 +107,17 @@ inline def safe[Y](inline y: => Y): Ok[Throwable, Y] =
   catch
     case e if NonFatal(e) => No(e)
 
-inline def nice[N, Y](inline y: => Y)(using NotNice[N]): Ok[N, Y] = 
+inline def nice[N, Y](inline y: => Y)(using cope: Cope[N]): Ok[N, Y] = 
   try Yes(y)
   catch
-    case e if NonFatal(e) => No(summon[NotNice[N]] fromThrowable e)
+    case e if NonFatal(e) => No(cope fromThrowable e)
 
 
 extension (objectOk: Ok.type) {
   inline def Safer[N, Y](erf: Throwable => N)(inline y: Y): Ok[N, Y] =
     ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = try { Yes(y) } catch { case t if scala.util.control.NonFatal(t) => No(erf(t)) }; ok }) }
-  inline def Nicer[N, Y](inline y: Y)(using nn: NotNice[N]): Ok[N, Y] =
-    ${ EarlyReturnMacro.transform('{ try{ Yes(y) } catch { case t if NonFatal(t) => No(nn fromThrowable t) }}) }
+  inline def Nicer[N, Y](inline y: Y)(using cope: Cope[N]): Ok[N, Y] =
+    ${ EarlyReturnMacro.transform('{ try{ Yes(y) } catch { case t if NonFatal(t) => No(cope fromThrowable t) }}) }
 }
 
 extension [Y](throwOk: Ok[Throwable, Y])
@@ -160,7 +160,7 @@ extension [A](`try`: Try[A]) {
 
   inline def toOr: A Or Throwable = Or from `try`
 
-  inline def explained[E](using NotNice[E]) = Or.from(`try`, summon[NotNice[E]].fromThrowable _)
+  inline def explained[E](using cope: Cope[E]) = Or.from(`try`, cope fromThrowable _)
 }
 
 extension [A](option: Option[A]) {

@@ -5,54 +5,67 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
+import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
-import kse.flow._
-
-
-object Test {
-  case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
-  def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
-
-  case class Typed[A](unit: Unit = ()) {}
-  def typed[A]: Typed[A] = new Typed[A]()
-
-  case class Labeled[A](message: String, value: () => A) {
-    def ====[B](b: => B): Unit =
-      val ta = Try{ value() }
-      b match
-        case t @ Thrown(tag) => ta match
-          case Failure(x) =>
-            if !tag.runtimeClass.isAssignableFrom(x.getClass) then
-              assertEquals(message, ta, Failure(t))
-          case _ => assertEquals(message, ta, Failure(t))
-        case _ => assertEquals(message, ta.get, b)
-
-    def =!!=[B](b: => B): Unit = Try{ value() } match
-      case Success(v) => assertNotEquals(message, v, b)
-      case Failure(x) => b match
-        case t @ Thrown(tag) =>
-          if tag.runtimeClass.isAssignableFrom(x.getClass) then
-            assertTrue(s"$message\nDid not expect $x\nto be a ${t.classname}", false)
-        case _ =>
-
-    def =??=[B](t: Typed[B])(using B =:= A): Unit = {}
-  }
-
-  extension (message: String)
-    def \[A](a: => A): Labeled[A] = Labeled(message, () => a)
-}
-
-
-
 @RunWith(classOf[JUnit4])
-class OkTest {
-  import Test._
+class FlowTest {
+  import kse.testutilities.TestUtilities.{_, given}
+  import kse.flow.{_, given}
+
+  given Asserter(assertEquals _, assertNotEquals _, assertTrue _)
+
+  @Test
+  def exceptionsTest(): Unit =
+    val basic = new Exception("basic-exception")
+    val caused = new Exception("caused-exception", basic)
+    val stackless = new scala.util.control.ControlThrowable("stackless-exception") {}
+    val circular = new Exception("circular-exception-1", stackless);
+    val circulas = new Exception("circular-exception-2", stackless);
+    circular.addSuppressed(circulas)
+    circulas.addSuppressed(circular)
+
+    for (thing, who) <- List(basic, caused, stackless, circular, circulas).zip(List("basic", "caused", "stackless", "circular", "circulas")) do
+      val msg = s"while testing $who"
+      msg \ thing.explainAsArray()           =**= ExceptionExplainer.explainAsArray(thing)
+      msg \ thing.explainAsArray()           =**= thing.explainAsVector()
+      msg \ thing.explain()                  ==== thing.explainAsArray().mkString("\n")
+      msg \ thing.explainSuppressedAsArray() =**= ExceptionExplainer.explainAsArray(thing, showSuppressed = true)
+      msg \ thing.explainSuppressedAsArray() =**= thing.explainSuppressedAsVector()
+      msg \ thing.explainSuppressed()        ==== thing.explainSuppressedAsArray().mkString("\n")
+
+    "" \ stackless.explainAsArray().length ==== 1
+    "" \ caused.explainAsArray()               exists { x => x.contains("CAUSE") }
+    "" \ circular.explainSuppressedAsArray()   exists { x => x.contains("circular-exception-2") }
+    "" \ caused.explainAsArray()               exists { x => x startsWith "| " }
+    "" \ caused.explainAsArray(childLines = 3) exists { x => x startsWith "| . . ." }
+
+    val short = caused.explainAsArray(lines = 10)
+    val full  = caused.explainAsArray()
+    "" \ short.take(9) =**= full.take(9)
+    val lines = full.drop(9).count(s => !s.startsWith("| "))
+    "" \ short.last ==== s". . . (+$lines lines and 1 more exception)"
+
+  @Test
+  def repeatTest(): Unit =
+    var bit = 1
+    cFor(0)(_ < 10)(_ + 1){ _ => bit *= 2 }
+    "int cFor" \ bit ==== (1 << 10)
+
+    var sum = 0L
+    cFor(Int.MaxValue + 10L)(_ >= Int.MaxValue - 10L)(_ - 1){ sum += _ }
+    "long cFor" \ sum ==== 21L * Int.MaxValue
+
+    val babble = new StringBuilder()
+    cFor("hi")(_.length < 20)(s => s + " " + s){ s => if babble.nonEmpty then babble ++= ", "; babble ++= s }
+    "generic cFor" \ babble.toString ==== "hi, hi hi, hi hi hi hi"
 
   @Test
   def valueTest(): Unit =
+    ()
+    /*
     "" \ Ok[Int]()("salmon") ==== Yes("salmon")
     "" \ Ok[Int]()("salmon") =??= typed[Ok[Int, String]]
     "" \ Ok(7)[String]()     ==== No(7)
@@ -82,24 +95,17 @@ class OkTest {
     "" \ No("herring").yesOr(_ => "minnow") ==== "minnow"
     "" \ Yes("salmon").noOr( _ => "minnow") ==== "minnow"
     "" \ No("herring").noOr( _ => "minnow") ==== "herring"
+    */
 
   @Test
   def mapTest(): Unit =
+    ()
+    /*
     "" \ Ok[String]()("salmon").map(_.length)    ==== Yes(6)
     "" \ Ok("herring")[String]().map(_.length)   ==== No("herring")
     "" \ Ok[String]()("salmon").mapNo(_.length)  ==== Yes("salmon")
     "" \ Ok("herring")[String]().mapNo(_.length) ==== No(7)
-}
-
-
-@RunWith(classOf[JUnit4])
-class FlowTest {
-  import Test._
-
-  @Test
-  def canTest(): Unit = {
-    "toOk" \ Yes("hi") ==== Option("hi").toOk
-  }
+    */
 }
 object FlowTest {
   // @BeforeClass

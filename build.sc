@@ -5,14 +5,20 @@
 import mill._
 import mill.scalalib._
 
-trait Common extends ScalaModule {
+trait Base extends ScalaModule {
   def scalaVersion = "3.1.0"
 
   def scalaOptions = T{Seq(
     "-opt"
   )}
+}
 
-  object test extends Tests with TestModule.Junit4 {}
+object testutilities extends Base {}
+
+trait Common extends Base {
+  object test extends Tests with TestModule.Junit4 {
+    def moduleDeps = Seq(testutilities) ++ super.moduleDeps
+  }
 
   object bench extends Tests with TestModule.Junit4 {}
 }
