@@ -6,7 +6,7 @@ import mill._
 import mill.scalalib._
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.1.0"
+  def scalaVersion = "3.1.2"
 
   def scalaOptions = T{Seq(
     "-opt"

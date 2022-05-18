@@ -10,10 +10,18 @@ import scala.util.control.ControlThrowable
 
 object TestUtilities {
   class Asserter(
-    val assertEquals: (String, Any, Any) => Unit,
-    val assertNotEquals: (String, Any, Any) => Unit,
-    val assertTrue: (String, Boolean) => Unit
-  ) {}
+        assertEq:    (String, Any, Any) => Unit,
+        assertNotEq: (String, Any, Any) => Unit,
+    val assertTrue:  (String, Boolean)  => Unit,
+        isScalaEquality: Boolean = false
+  ) {
+    /** Checks Scala equality before passing on to error handler */
+    def assertEquals(message: String, expect: Any, actual: Any): Unit =
+      if isScalaEquality || expect != actual then assertEq(message, expect, actual)
+
+    def assertNotEquals(message: String, expect: Any, actual: Any): Unit =
+      if isScalaEquality || expect == actual then assertNotEq(message, expect, actual)
+  }
 
   trait Approximation[A] {
     def approx(a0: A, a1: A): Boolean

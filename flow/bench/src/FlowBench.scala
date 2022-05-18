@@ -176,7 +176,7 @@ class FlowBench {
     result
 
   def bestAnyRefSum(input: Array[Int], zero: AnyRef): AnyRef =
-    var result = zero
+    var result: Any = zero
     var i = 0
     while i < input.length do
       val v = input(i)
@@ -184,7 +184,7 @@ class FlowBench {
         case i: Int => (i + v).asInstanceOf[AnyRef]
         case _ => result
       i += 1
-    result
+    result.asInstanceOf[AnyRef]
 
   def sumBench(): Unit = {
     println

@@ -139,7 +139,68 @@ class FlowTest {
 
   @Test
   def orTest(): Unit =
-    ()
+    "altnum" \ Alt(5) ==== Alt(5L)
+
+    val aoc = Alt(Option("cod"))
+    val asc = Alt(Some("cod"))
+    "" \ aoc          ==== asc
+    "" \ aoc.##       ==== asc.##
+    "" \ aoc          =!!= Alt("cod")
+    "" \ aoc.toString ==== "Alt(Some(cod))"
+
+    "" \ aoc        ==== Alt.wrap(Some("cod"))
+    "" \ aoc.unwrap ==== Some("cod")
+
+    "" \ Alt.unit ==== Alt(())
+
+    aoc.favor[Int] match
+      case Alt(y) => "" \ y ==== Some("cod")
+      case y      => assertTrue(s"Took disfavored branch with $y", false)
+
+    (aoc: Any) match
+      case Alt(y) => "" \ y ==== Some("cod")
+      case y      => assertTrue(s"Took disfavored branch with $y", false)
+
+    "isnum" \ Is(5) ==== Is(5L)
+
+    "1" \ Is("salmon") ==== Is("salmon")
+    "2" \ Is(aoc)      ==== Is(aoc: Any)
+
+    val ioc = Is(Option("cod"))
+    val isc = Is(Some("cod"))
+    "3" \ ioc              ==== isc
+    "4" \ ioc.##           ==== isc.##
+    "5" \ ioc              ==== Some("cod")
+    "6" \ ioc.toString     ==== "Some(cod)"
+    "7" \ Is(aoc).##       ==== Is(aoc: Any).##
+    "8" \ Is(aoc).toString ==== "Is(Alt(Some(cod)))"
+    "9" \ Is(aoc)          =!!= aoc
+    "A" \ Is(Is(aoc))      =!!= Is(aoc)
+
+    "B" \ ioc                ==== Is.wrap(Some("cod"))
+    "C" \ ioc.unwrap         ==== Some("cod")
+    "D" \ Is(aoc).unwrap     ==== aoc
+    "E" \ Is(Is(aoc)).unwrap ==== Is(aoc)
+    "F" \ Is.unit            ==== Is(())
+
+    ioc.disfavor[Int] match
+      case Is(x) => "" \ x ==== Some("cod")
+      case x     => assertTrue(s"Took favored branch with $x", false)
+
+    (ioc: Any) match
+      case Is(x) => "" \ x ==== Some("cod")
+      case x     => assertTrue(s"Took favored branch with $x", false)
+
+    Is(aoc).disfavor[Int] match
+      case Is(x) => "" \ x ==== aoc
+      case x     => assertTrue(s"Took favored branch with $x", false)
+
+    (Is(aoc): Any) match
+      case Is(x) => "" \ x ==== aoc
+      case x     => assertTrue(s"Took favored branch with $x", false)
+
+
+
 
   @Test
   def valueTest(): Unit =

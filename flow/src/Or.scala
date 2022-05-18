@@ -63,6 +63,9 @@ object AorB {
     extension[Y](alt: Alt[Y]) {
       /** Extracts the value stored in this `Alt`, if we are sure that the type is `Alt` and not an `Or`. */
       inline def unwrap: Y = alt.alt
+
+      /** Extends the type to an `Or` with specified favored branch */
+      inline def favor[X]: X Or Y = alt
     }
 
     /** Wraps a value into an `Alt`.
@@ -95,29 +98,46 @@ object AorB {
   object Is {
     extension [X](is: Is[X]) {
       /** Extracts the value stored in this `Is`, if we are sure that the type is `Is` and not an `Or`. */
-      inline def unwrap: X = summonFrom {
-        case _: (Is[_] <:< X) => is match
-          case i: BoxedIs[_] => i.get.asInstanceOf[X]
-          case _ => is.asInstanceOf[X]
-        case _: (Alt[_] <:< X) => is match
-          case i: BoxedIs[_] => i.get.asInstanceOf[X]
-          case _ => is.asInstanceOf[X]
-        case _ => is.asInstanceOf[X]
+      inline def unwrap: X = ${
+        AorBMacroImpl.properlyUnwrapIs('is)('{
+          is match
+            case b: BoxedIs[_] => b.asInstanceOf[BoxedIs[X]].get
+            case u => u.asInstanceOf[X]
+        })('{
+          summonFrom {
+            case _: (Is[_] <:< X) => is match
+              case i: BoxedIs[_] => i.get.asInstanceOf[X]
+              case _ => is.asInstanceOf[X]
+            case _: (Alt[_] <:< X) => is match
+              case i: BoxedIs[_] => i.get.asInstanceOf[X]
+              case _ => is.asInstanceOf[X]
+            case _ => is.asInstanceOf[X]
+          }
+        })
       }
+
+      /** Extends the type to an `Or` with specified favored branch */
+      inline def disfavor[Y]: X Or Y = is
     }
 
     /** Wraps a value into an `Is` (by doing nothing unless it's wrapping some other boxed `Or`) */
-    inline def apply[X](x: X): Is[X] = inline erasedValue[X] match
-      case _: Alt[_] => new BoxedIs(x)
-      case _ => summonFrom {
-        case _: (Is[_] <:< X) => x match
-          case _: BoxedOr[_] => new BoxedIs(x)
-          case _ => x
-        case _: (Alt[_] <:< X) => x match
-          case w: BoxedOr[_] => new BoxedIs(x)
-          case _ => x
-        case _ => x
-      }
+    inline def apply[X](x: X): Is[X] = ${
+      AorBMacroImpl.properlyWrapIs('x)('{
+        (x: Any) match
+          case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
+          case u => u.asInstanceOf[Is[X]]
+      })('{
+        summonFrom {
+          case _: (Is[_] <:< X) => (x: Any) match
+            case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
+            case _ => x.asInstanceOf[Is[X]]
+          case _: (Alt[_] <:< X) => (x: Any) match
+            case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
+            case _ => x.asInstanceOf[Is[X]]
+          case _ => x.asInstanceOf[Is[X]]
+        }
+      })
+    }
 
     /** Wraps a value into an `Is`.  `Is wrap x` is equivalent to `Is(x)`. */
     inline def wrap[X](x: X): Is[X] = apply(x)
@@ -453,4 +473,25 @@ object AorB {
         case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
         case y => Alt(y.asInstanceOf[Y])
   }
+}
+
+object AorBMacroImpl {
+  import scala.quoted._
+
+  //inline def printTree[T](inline x: T): Unit = ${printTreeImpl('x)}
+
+  def properlyWrapIs[T: Type](x: Expr[T])(u: Expr[Is[T]])(v: Expr[Is[T]])(using Quotes): Expr[Is[T]] =
+    import quotes.reflect.*
+    val tr = TypeRepr.of[T]
+    tr match
+      case AppliedType(TypeRef(TermRef(_, "AorB"), "Is"), _) => u
+      case _ => v
+
+  def properlyUnwrapIs[T: Type](x: Expr[Is[T]])(u: Expr[T])(v: Expr[T])(using Quotes): Expr[T] =
+    import quotes.reflect.*
+    val tr = TypeRepr.of[T]
+    tr match
+      case AppliedType(TypeRef(TermRef(_, "AorB"), "Is"), _) => u
+      case _ => v
+
 }
