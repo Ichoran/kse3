@@ -170,20 +170,22 @@ class FlowTest {
 
     val ioc = Is(Option("cod"))
     val isc = Is(Some("cod"))
-    "" \ ioc              ==== isc
-    "" \ ioc.##           ==== isc.##
-    "" \ ioc              ==== Some("cod")
-    "" \ ioc.toString     ==== "Some(cod)"
-    "" \ Is(aoc).##       ==== Is(aoc: Any).##
-    "" \ Is(aoc).toString ==== "Is(Alt(Some(cod)))"
-    "" \ Is(aoc)          =!!= aoc
-    "" \ Is(Is(aoc))      =!!= Is(aoc)
+    val iaoc = Is(aoc)
+    val iiaoc = Is(iaoc)
+    "" \ ioc           ==== isc
+    "" \ ioc.##        ==== isc.##
+    "" \ ioc           ==== Some("cod")
+    "" \ ioc.toString  ==== "Some(cod)"
+    "" \ iaoc.##       ==== Is(aoc: Any).##
+    "" \ iaoc.toString ==== "Is(Alt(Some(cod)))"
+    "" \ iaoc          =!!= aoc
+    "" \ iiaoc         =!!= Is(aoc)
 
-    "" \ ioc                ==== Is.wrap(Some("cod"))
-    "" \ ioc.unwrap         ==== Some("cod")
-    "" \ Is(aoc).unwrap     ==== aoc
-    "" \ Is(Is(aoc)).unwrap ==== Is(aoc)
-    "" \ Is.unit            ==== Is(())
+    "" \ ioc          ==== Is.wrap(Some("cod"))
+    "" \ ioc.unwrap   ==== Some("cod")
+    "" \ iaoc.unwrap  ==== aoc
+    "" \ iiaoc.unwrap ==== iaoc
+    "" \ Is.unit      ==== Is(())
 
     ioc.disfavor[Int] match
       case Is(x) => "" \ x ==== Some("cod")
@@ -201,7 +203,39 @@ class FlowTest {
       case Is(x) => "" \ x ==== aoc
       case x     => assertTrue(s"Took favored branch with $x", false)
 
+    "" \ Or.from(Right[Int, String]("herring")) ==== Is("herring")
+    "" \ Or.from(Left[Int, String](5))          ==== Alt(5)
+    "" \ Or.swapFrom(Right[Int, String]("cod")) ==== Alt("cod")
+    "" \ Or.swapFrom(Left[Int, String](9))      ==== Is(9)
+    "" \ Or.from(Yes("herring").typeNo[Int])    ==== Is("herring")
+    "" \ Or.from(No(5).typeYes[String])         ==== Alt(5)
+    "" \ Or.swapFrom(Yes("cod").typeNo[Int])    ==== Alt("cod")
+    "" \ Or.swapFrom(No(9).typeYes[String])     ==== Is(9)
+    "" \ Or.from(Option("herring"))             ==== Is("herring")
+    "" \ Or.from(Some("herring"))               ==== Is("herring")
+    "" \ Or.from(None: Option[String])          ==== Alt.unit
+    "" \ Or.swapFrom(Option(5))                 ==== Alt(5)
+    "" \ Or.swapFrom(Some(9))                   ==== Alt(9)
+    "" \ Or.swapFrom(None: Option[Int])         ==== Is.unit
 
+    val e = new Exception("test-exception")
+    val trys = Try{ "herring" }
+    val trye = Try{ throw e; 5 }
+    "" \ Or.from(trys)                   ==== Is("herring")
+    "" \ Or.from(trye)                   ==== Alt(e)
+    "" \ Or.from(trye, _.getMessage)     ==== Alt("test-exception")
+    "" \ Or.swapFrom(trys)               ==== Alt("herring")
+    "" \ Or.swapFrom(trye)               ==== Is(e)
+    "" \ Or.swapFrom(trye, _.getMessage) ==== Is("test-exception")
+
+    val oi = ioc.disfavor[Int]
+    val oa = aoc.favor[String]
+    "" \ oi                                          ==== ioc
+    "" \ oa                                          ==== aoc
+    "" \ Option("cod").or[Int]                       ==== oi
+    "" \ Option("cod").isnt[String]                  ==== oa
+    "" \ Option("cod").isnt[String].or[Int]          ==== iaoc
+    "" \ Option("cod").isnt[String].or[Int].or[Char] ==== iiaoc
 
 
   @Test

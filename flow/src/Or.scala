@@ -12,12 +12,12 @@ import scala.util.control.{NonFatal, ControlThrowable}
   * 
   * `Or` is left-biased and reads in normal order: `A Or B` has a
   * favored value of type `A` and an alternative value of type `B`.
-  * The favored branch is encoded as an opaque type `Is[A]`, while
+  * The favored branch is encoded as an type `Is[A]`, while
   * the disfavored branch is encoded in a box (class) `Alt[B]`.
   * 
-  * Internally, `Is[X]` is either a bare `X` or a box class `BoxedIs[X]`.
-  * The latter is only the case if `X` itself is either an `Alt` or
-  * another `BoxedIs`.
+  * Internally, `Is[X]` is either a bare `X` typed as an opaque `IsJust[X]`
+  * or a box class `IsBox[X]`. The latter is only the case if `X`
+  * itself is either an `Alt` or another `IsBox`.
   */
 object AorB {
   /** Supertype of any boxed branch of an `Or`.
@@ -29,18 +29,24 @@ object AorB {
     def value: Z
   }
 
+  /** Witnesses that a value is being used in an `Or`, but does not box it.
+    *
+    * This type is not intended to be used directly.
+    */
+  opaque type IsJust[+X] = X
+
   /** A boxed favored branch.  A favored branch is boxed if and only if
     * it contains another `Or` and the value is either a disfavored branch
     * or a boxed favored branch.
     * 
     * This class is not intended to be used directly.
     */
-  final class BoxedIs[+X](val get: X) extends BoxedOr[X]() {
+  final class IsBox[+X](val get: X) extends BoxedOr[X]() {
     def value = get
     override def toString = s"Is($get)"
     override def hashCode = -1837305301 + get.##
     override def equals(a: Any) = a match
-      case i: BoxedIs[_] => get == i.get
+      case i: IsBox[_] => get == i.get
       case _ => false
   }
 
@@ -89,75 +95,68 @@ object AorB {
 
   /** The favored branch of an `Or`.
     *
-    * Internally, the value is stored bare if possible, or in a `BoxedIs` if not.
+    * Internally, the value is stored bare if possible, or in a `IsBox` if not.
     * 
     * You can retrieve the value with `get`, by pattern matching into `Is(x)`, or by
     * using various exension methods on `Or`.
     */
-  opaque type Is[+X] = X | BoxedIs[X]
+  type Is[+X] = IsJust[X] | IsBox[X]
   object Is {
-    extension [X](is: Is[X]) {
-      /** Extracts the value stored in this `Is`, if we are sure that the type is `Is` and not an `Or`. */
-      inline def unwrap: X = ${
-        AorBMacroImpl.properlyUnwrapIs('is)('{
-          is match
-            case b: BoxedIs[_] => b.asInstanceOf[BoxedIs[X]].get
-            case u => u.asInstanceOf[X]
-        })('{
-          summonFrom {
-            case _: (Is[_] <:< X) => is match
-              case i: BoxedIs[_] => i.get.asInstanceOf[X]
-              case _ => is.asInstanceOf[X]
-            case _: (Alt[_] <:< X) => is match
-              case i: BoxedIs[_] => i.get.asInstanceOf[X]
-              case _ => is.asInstanceOf[X]
-            case _ => is.asInstanceOf[X]
-          }
-        })
+    /** Extracts the value stored in this `Is`, if we are sure that the type is `Is`. */
+    inline def unwrap[X](is: Is[X]): X = inline erasedValue[X] match
+      case _: Alt[_] => is.asInstanceOf[IsBox[X]].get
+      case _: IsBox[_] => is.asInstanceOf[IsBox[X]].get
+      case _ => summonFrom {
+        case _: (IsBox[_] <:< X) => (is: Any) match
+          case _: BoxedOr[_] => is.asInstanceOf[IsBox[X]].get
+          case _ => is.asInstanceOf[X]
+        case _: (Alt[_] <:< X) => (is: Any) match
+          case _: BoxedOr[_] => is.asInstanceOf[IsBox[X]].get
+          case _ => is.asInstanceOf[X]
+        case _ => is.asInstanceOf[X]
       }
 
-      /** Extends the type to an `Or` with specified favored branch */
-      inline def disfavor[Y]: X Or Y = is
-    }
-
     /** Wraps a value into an `Is` (by doing nothing unless it's wrapping some other boxed `Or`) */
-    inline def apply[X](x: X): Is[X] = ${
-      AorBMacroImpl.properlyWrapIs('x)('{
-        (x: Any) match
-          case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
-          case u => u.asInstanceOf[Is[X]]
-      })('{
-        summonFrom {
-          case _: (Is[_] <:< X) => (x: Any) match
-            case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
-            case _ => x.asInstanceOf[Is[X]]
-          case _: (Alt[_] <:< X) => (x: Any) match
-            case b: BoxedOr[_] => (new BoxedIs(b)).asInstanceOf[Is[X]]
-            case _ => x.asInstanceOf[Is[X]]
-          case _ => x.asInstanceOf[Is[X]]
-        }
-      })
-    }
+    inline def apply[X](x: X): Is[X] = inline erasedValue[X] match
+      case _: Alt[_] => new IsBox(x)
+      case _: IsBox[_] => new IsBox(x)
+      case _ => summonFrom {
+        case _: (IsBox[_] <:< X) => (x: Any) match
+          case _: BoxedOr[_] => new IsBox(x)
+          case _ => x
+        case _: (Alt[_] <:< X) => (x: Any) match
+          case w: BoxedOr[_] => new IsBox(x)
+          case _ => x.asInstanceOf[IsJust[X]]
+        case _ => x.asInstanceOf[IsJust[X]]
+      }
 
     /** Wraps a value into an `Is`.  `Is wrap x` is equivalent to `Is(x)`. */
     inline def wrap[X](x: X): Is[X] = apply(x)
 
     def unapply[X, Y](o: X Or Y): Option[X] = o match
       case _: BoxedOr[_] => o match
-        case x: BoxedIs[_] => Some(x.asInstanceOf[BoxedIs[X]].get)
+        case x: IsBox[_] => Some(x.get.asInstanceOf[X])
         case _         => None
       case _ => Some(o.asInstanceOf[X])
 
     @annotation.targetName("unapplyAny")
     def unapply(a: Any): Option[Any] = a match
       case _: BoxedOr[_] => a match
-        case x: BoxedIs[_] => Some(x.asInstanceOf[BoxedIs[Any]].get)
+        case x: IsBox[_] => Some(x.get.asInstanceOf[Any])
         case _         => None
       case _ => Some(a)
 
     /** The canonical Is[Unit], which is actually always just `()`, the only possible `Unit`; but this one is typed as `Is[Unit]`. */
     val unit: Is[Unit] = ()
   }
+  extension [X](is: Is[X]) {
+    /** Unwraps this type. */
+    inline def unwrap: X = Is.unwrap(is)
+
+    /** Extends the type to an `Or` with specified favored branch */
+    inline def disfavor[Y]: X Or Y = is
+  }
+
 
 
   /** An unboxed sum type with the favored branch on the left.
@@ -170,12 +169,12 @@ object AorB {
   infix type Or[+X, +Y] = Is[X] | Alt[Y]
   object Or {
     /** Converts an `Either` into an `Or`, preserving the favored branch (i.e. Right[R] to Is[R]). */
-    inline def from[L, R](e: Either[L, R]): R Or L = e match
+    inline def from[L, R, E <: Either[L, R]](e: E): R Or L = (e: Either[L, R]) match
       case Left(l) => Alt(l)
       case Right(r) => Is(r)
 
     /** Converts an `Either` into an `Or`, swapping favored and disfavored branches (i.e Left[L] to Is[L]). */
-    inline def swapFrom[L, R](e: Either[L, R]): L Or R = e match
+    inline def swapFrom[L, R, E <: Either[L, R]](e: E): L Or R = (e: Either[L, R]) match
       case Left(l) => Is(l)
       case Right(r) => Alt(r)
 
@@ -190,12 +189,12 @@ object AorB {
       case Yes(y) => Alt(y)
 
     /** Converts an `Option` into an `Or`, with a value favored and `None` disfavored and mapping to `Unit`. */
-    inline def from[A](o: Option[A]): A Or Unit = o match
+    inline def from[A, O <: Option[A]](o: O): A Or Unit = (o: Option[A]) match
       case Some(a) => Is(a)
       case _ => Alt.unit
 
     /** Converts an `Option` into an `Or`, with a value disfavored and `None` mapping to `Is[Unit]` */
-    inline def swapFrom[A](o: Option[A]): Unit Or A = o match
+    inline def swapFrom[A, O <: Option[A]](o: O): Unit Or A = (o: Option[A]) match
       case Some(a) => Alt(a)
       case _ => Is.unit
 
@@ -473,25 +472,4 @@ object AorB {
         case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
         case y => Alt(y.asInstanceOf[Y])
   }
-}
-
-object AorBMacroImpl {
-  import scala.quoted._
-
-  //inline def printTree[T](inline x: T): Unit = ${printTreeImpl('x)}
-
-  def properlyWrapIs[T: Type](x: Expr[T])(u: Expr[Is[T]])(v: Expr[Is[T]])(using Quotes): Expr[Is[T]] =
-    import quotes.reflect.*
-    val tr = TypeRepr.of[T]
-    tr match
-      case AppliedType(TypeRef(TermRef(_, "AorB"), "Is"), _) => u
-      case _ => v
-
-  def properlyUnwrapIs[T: Type](x: Expr[Is[T]])(u: Expr[T])(v: Expr[T])(using Quotes): Expr[T] =
-    import quotes.reflect.*
-    val tr = TypeRepr.of[T]
-    tr match
-      case AppliedType(TypeRef(TermRef(_, "AorB"), "Is"), _) => u
-      case _ => v
-
 }
