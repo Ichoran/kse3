@@ -59,12 +59,14 @@ object TestUtilities {
   def typed[A]: Typed[A] = new Typed[A]()
 
   trait Messaging {
-    def message: String
-    def mline: String = if message.isEmpty then message else s"${message}\n"
+    def message: String = if mline.isEmpty then mline else s"${mline}\n"
+    def mline: String
   }
 
-  class Labeled[A](val message: String, val value: () => A)(using asr: Asserter) extends Messaging {
+  class Labeled[A](val mline: String, val value: () => A)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {
     import asr._
+
+    override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
 
     def ====[B](b: => B): Unit =
       val ta = Try{ value() }
@@ -81,7 +83,7 @@ object TestUtilities {
       case Failure(x) => b match
         case t @ Thrown(tag) =>
           if tag.runtimeClass.isAssignableFrom(x.getClass) then
-            assertTrue(s"${mline}Did not expect $x\nto be a ${t.classname}", false)
+            assertTrue(s"${message}Did not expect $x\nto be a ${t.classname}", false)
         case _ =>
 
     def =??=[B](t: Typed[B])(using B =:= A): Unit = {}
@@ -90,7 +92,7 @@ object TestUtilities {
       apx.approx(value(), b)
   }
 
-  class LabeledCollection[C, I <: IsIterable[C]](val message: String, val value: () => C, val ii: I)(using asr: Asserter) extends Messaging {
+  class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {
     import asr._
 
     def =**=[D, J <: IsIterable[D]](d: => D)(using jj: J): Unit =
@@ -104,9 +106,9 @@ object TestUtilities {
           assertEquals(message + s"\nerror at index $i", va, vb)
         i += 1
       if ia.hasNext then
-        assertTrue(s"${mline}extra element at index $i\n${ia.next}", false)
+        assertTrue(s"${message}extra element at index $i\n${ia.next}", false)
       if ib.hasNext then
-        assertTrue(s"${mline}extra element at index $i\n${ib.next}", false)
+        assertTrue(s"${message}extra element at index $i\n${ib.next}", false)
 
     def contains[B](b: => B): Unit =
       val ia = ii(value()).iterator
@@ -115,16 +117,16 @@ object TestUtilities {
         val va = ia.next
         if va == vb then
           return
-      assertTrue(s"${mline}could not find an element matching $vb", false )
+      assertTrue(s"${message}could not find an element matching $vb", false )
 
     def exists(f: ii.A => Boolean): Unit =
       val ia = ii(value()).iterator
       while ia.hasNext do
         if f(ia.next) then return
-      assertTrue(s"${mline}collection never passed test", false )
+      assertTrue(s"${message}collection never passed test", false )
   }
 
-  extension (message: String)(using asr: Asserter)
+  extension (message: String)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName)
     def \[A](a: => A): Labeled[A] = Labeled(message, () => a)
     def \[A](a: => A)(using ii: IsIterable[A]): LabeledCollection[A, ii.type] = LabeledCollection[A, ii.type](message, () => a, ii)
 }

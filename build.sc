@@ -13,10 +13,19 @@ trait Base extends ScalaModule {
   )}
 }
 
-object testutilities extends Base {}
+object testutilities extends Base {
+  def ivyDeps = Agg(
+    ivy"com.lihaoyi::sourcecode:0.2.7"
+  )
+}
 
 trait Common extends Base {
   object test extends Tests with TestModule.Junit4 {
+    override def ivyDeps = T{
+      super.ivyDeps() ++ Agg(
+        ivy"com.lihaoyi::sourcecode:0.2.7"
+      )
+    }
     def moduleDeps = Seq(testutilities) ++ super.moduleDeps
   }
 
