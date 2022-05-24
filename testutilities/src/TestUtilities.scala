@@ -55,8 +55,13 @@ object TestUtilities {
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
-  case class Typed[A](unit: Unit = ()) {}
+  case class Typed[A](unit: Unit = ()) {
+    def :->:[B](b: B) = (b, this)
+
+    def :==:[B](b: B)(using B =:= A): Unit = {}
+  }
   def typed[A]: Typed[A] = new Typed[A]()
+  def typedLike[A](a: A): Typed[A] = new Typed[A]()
 
   trait Messaging {
     def message: String = if mline.isEmpty then mline else s"${mline}\n"
@@ -87,6 +92,9 @@ object TestUtilities {
         case _ =>
 
     def =??=[B](t: Typed[B])(using B =:= A): Unit = {}
+
+    def =&&=[B, C](bt: => (C, Typed[B]))(using B =:= A): Unit =
+      this ==== bt._1
 
     def =~~=[B >: A](b: => B)(using apx: Approximation[B]): Unit =
       apx.approx(value(), b)

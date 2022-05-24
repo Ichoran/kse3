@@ -27,6 +27,8 @@ object AorB {
   sealed abstract class BoxedOr[+Z]() {
     /** The value of the `Or`. */
     def value: Z
+
+    def isBoxed = true
   }
 
   /** Witnesses that a value is being used in an `Or`, but does not box it.
@@ -58,6 +60,7 @@ object AorB {
     * various extension methods on `Or`.
     */
   final class Alt[+Y](val alt: Y) extends BoxedOr[Y]() {
+    def get: Nothing = throw new NoSuchElementException("get on Alt")
     def value = alt
     override def toString = s"Alt($alt)"
     override def hashCode = -1867746107 + alt.##
@@ -66,14 +69,6 @@ object AorB {
       case _ => false
   }
   object Alt {
-    extension[Y](alt: Alt[Y]) {
-      /** Extracts the value stored in this `Alt`, if we are sure that the type is `Alt` and not an `Or`. */
-      inline def unwrap: Y = alt.alt
-
-      /** Extends the type to an `Or` with specified favored branch */
-      inline def favor[X]: X Or Y = alt
-    }
-
     /** Wraps a value into an `Alt`.
       *
       * `Alt wrap y` is equivalent to `Alt(y)` or `new Alt(y)`.
@@ -92,6 +87,55 @@ object AorB {
     /** A canonical instance for Alt[Unit].  Although others are allowed, why not use this one? */
     val unit = Alt(())
   }
+  extension[Y](alt: Alt[Y]) {
+    /** Extracts the value stored in this `Alt`, if we are sure that the type is `Alt` and not an `Or`. */
+    inline def unwrap: Y = alt.alt
+
+    /** Extends the type to an `Or` with specified favored branch */
+    inline def favor[X]: X Or Y = alt
+
+    /** Uses a partial function to reclaim some values for the favored branch */
+    inline def reclaim[X](pf: PartialFunction[Y, X]): X Or Y =
+      pf.applyOrElse(alt.alt, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => alt
+        case x => Is(x.asInstanceOf[X])
+
+    /** Simply pack into an `Is` instead. */
+    inline def swap: Is[Y] =
+      Is(alt.alt)
+
+    /** Put value into No */
+    inline def toOk: No[Y] =
+      No(alt.alt)
+
+    /** Put value into Yes */
+    inline def swapToOk: Yes[Y] =
+      Yes(alt.alt)
+
+    /** Put value into Left */
+    inline def toEither: Either[Y, Nothing] =
+      Left(alt.alt)
+
+    /** Put value into Right */
+    inline def swapToEither: Either[Nothing, Y] =
+      Right(alt.alt)
+
+    /** Discard value, return None */
+    inline def toOption: Option[Nothing] =
+      None
+
+    /** Store value in Option */
+    inline def swapToOption: Option[Y] =
+      Some(alt.alt)
+
+    /** Put value into WrongBranchException and pack in Try */
+    inline def toTry: Try[Nothing] =
+      Failure(new WrongBranchException(alt.alt))
+
+    /** Store value in Try as a Success */
+    inline def swapToTry: Try[Y] =
+      Success(alt.alt)
+  }
 
   /** The favored branch of an `Or`.
     *
@@ -104,6 +148,7 @@ object AorB {
   object Is {
     /** Extracts the value stored in this `Is`, if we are sure that the type is `Is`. */
     inline def unwrap[X](is: Is[X]): X = inline erasedValue[X] match
+      case _: Null => is.asInstanceOf[X]
       case _: Alt[_] => is.asInstanceOf[IsBox[X]].get
       case _: IsBox[_] => is.asInstanceOf[IsBox[X]].get
       case _ => summonFrom {
@@ -118,6 +163,7 @@ object AorB {
 
     /** Wraps a value into an `Is` (by doing nothing unless it's wrapping some other boxed `Or`) */
     inline def apply[X](x: X): Is[X] = inline erasedValue[X] match
+      case _: Null => x.asInstanceOf[IsJust[X]]
       case _: Alt[_] => new IsBox(x)
       case _: IsBox[_] => new IsBox(x)
       case _ => summonFrom {
@@ -151,10 +197,78 @@ object AorB {
   }
   extension [X](is: Is[X]) {
     /** Unwraps this type. */
-    inline def unwrap: X = Is.unwrap(is)
+    inline def unwrap: X = Is unwrap is
 
     /** Extends the type to an `Or` with specified favored branch */
     inline def disfavor[Y]: X Or Y = is
+
+    /** Unwraps this type */
+    inline def get: X = Is unwrap is
+
+    /** Can't get the alternative version of this type */
+    inline def alt: Nothing = throw new NoSuchElementException("alt on Is")
+
+    /** Fold is trivial--ignore the other branch */
+    inline def fold[Z](inline f: X => Z)(inline g: Nothing => Z): Z =
+      f(Is unwrap is)
+
+    /** Map is trivial--just apply function and wrap */
+    inline def map[XX](inline f: X => XX): Is[XX] =
+      Is(f(Is unwrap is))
+
+    /** flatMap is trivial--just apply function */
+    inline def flatMap[XX, Y](inline f: X => XX Or Y): XX Or Y =
+      f(Is unwrap is)
+
+    /** foreach is trivial--just apply function and return unit */
+    inline def foreach(inline f: X => Unit): Unit =
+      f(Is unwrap is)
+
+    /** use is trivial--just apply function and return this Is */
+    inline def use(inline f: X => Unit): is.type =
+      f(Is unwrap is); is
+
+    /** discard is a handy way to build an Or out of an Is */
+    inline def discard[Y](inline pf: PartialFunction[X, Y]): X Or Y =
+      pf.applyOrElse(Is unwrap is, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => is
+        case y => Alt(y.asInstanceOf[Y])
+
+    /** Simply pack into an `Alt` instead. */
+    inline def swap: Alt[X] =
+      Alt(Is unwrap is)
+
+    /** Put value into Yes */
+    inline def toOk: Yes[X] =
+      Yes(Is unwrap is)
+
+    /** Put value into No */
+    inline def swapToOk: No[X] =
+      No(Is unwrap is)
+
+    /** Put value into Right */
+    inline def toEither: Either[Nothing, X] =
+      Right(Is unwrap is)
+
+    /** Put value into Left */
+    inline def swapToEither: Either[X, Nothing] =
+      Left(Is unwrap is)
+
+    /** Put value into Option */
+    inline def toOption: Option[X] =
+      Some(Is unwrap is)
+
+    /** Discard value and return None */
+    inline def swapToOption: Option[Nothing] =
+      None
+
+    /** Put value into Try */
+    inline def toTry: Try[X] =
+      Success(Is unwrap is)
+
+    /** Pack value into WrongBranchException and return as a Try */
+    inline def swapToTry: Try[Nothing] =
+      Failure(new WrongBranchException(Is unwrap is))
   }
 
 
@@ -198,6 +312,16 @@ object AorB {
       case Some(a) => Alt(a)
       case _ => Is.unit
 
+    /** Converts an `Option` into the favored value of an `Or`, or loads a default disfavored value. */
+    inline def fromOrElse[A, B, O <: Option[A]](o: O, b: => B): A Or B = (o: Option[A]) match
+      case Some(a) => Is(a)
+      case _       => Alt(b)
+
+    /** Converts an `Option` into the disfavored value of an `Or`, or loads a default favored value. */
+    inline def swapFromOrElse[A, B, O <: Option[A]](o: O, b: => B): B Or A = (o: Option[A]) match
+      case Some(a) => Alt(a)
+      case _       => Is(b)
+
     /** Converts a `Try` into an `Or`, preserving the favored branch and simply storing the `Throwable` in the disfavored branch. */
     inline def from[T](t: Try[T]): T Or Throwable = t match
       case Failure(e) => Alt(e)
@@ -226,7 +350,7 @@ object AorB {
   extension [X, Y](or: Or[X, Y]) {
     /** The favored value of an `Or`, or a `NoSuchElementException` if the branch is disfavored. */
     inline def get: X = or match
-      case _: Alt[X] => throw new NoSuchElementException("get when Or is Alt")
+      case _: Alt[_] => throw new NoSuchElementException("get when Or is Alt")
       case _ => Is unwrap or.asInstanceOf[Is[X]]
 
     /** The disfavored branch of an `Or`, or a `NoSuchElementException` if the branch is favored. */
@@ -235,16 +359,16 @@ object AorB {
       case _         => throw new NoSuchElementException(s"alt when Or is Is")
 
     /** Either value of an `Or`, returned as a type union of the two branches. */
-    inline def value: X | Y = or match
+    inline def value: X | Y = (or: Any) match    // Avoid error on Is(null)...compiler knows answer but how do we tell it here???
       case w: BoxedOr[_] => w.value.asInstanceOf[X | Y]
-      case x               => x.asInstanceOf[X]
+      case x             => x.asInstanceOf[X]
 
     /** Informational method that tells whether the favored branch is ever boxed
       * (if you follow it all the way down in case of a favored branch itself being an `Or`).
       */
-    inline def isBoxed: Boolean = or match
-      case w: BoxedOr[_] => true
-      case _               => false
+    inline def isBoxed: Boolean = (or: Any) match  // Avoid error on Is(Alt(x))...compiler knows answer but how do we tell it here???
+      case _: BoxedOr[_] => true
+      case _             => false
 
     /** Access to both branches of an `Or`.
       *
@@ -253,15 +377,18 @@ object AorB {
       * 5.or[String].fold(_ + 1)(_.length)
       * }}}
       */
-    inline def fold[Z](inline f: X => Z)(inline g: Y => Z): Z = or match
+    inline def fold[Z](inline f: X => Z)(inline g: Y => Z): Z = inline or match
+      case _: Null => f(or.asInstanceOf[X])
       case _: Alt[_] => g(or.asInstanceOf[Alt[Y]].alt)
-      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+      case _ => or match
+        case _: Alt[_] => g(or.asInstanceOf[Alt[Y]].alt)
+        case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Extracts the favored branch of an `Or`, or remaps the disfavored value.
       *
       * Equivalent to `o.fold{ x => x }{ y => f(y) }
       */
-    inline def getOrElse[Z >: X](inline f: Y => Z): Z = or match
+    inline def getOrElse[Z >: X](inline f: Y => Z): Z = (or: X Or Y) match
       case _: Alt[_] => f(or.asInstanceOf[Alt[Y]].alt)
       case _ => Is unwrap or.asInstanceOf[Is[X]]
 
@@ -269,17 +396,17 @@ object AorB {
       * 
       * Equivalent to `o.fold{ x => f(x )}{ y => y }`
       */
-    inline def altOrElse[Z >: Y](inline f: X => Z): Z = or match
+    inline def altOrElse[Z >: Y](inline f: X => Z): Z = (or: X Or Y) match
       case a: Alt[_] => a.alt.asInstanceOf[Y]
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Applies a function to the favored value to create a new `Or`; a disfavored value is left unchanged. */
-    inline def map[XX](inline f: X => XX): XX Or Y = or match
+    inline def map[XX](inline f: X => XX): XX Or Y = (or: X Or Y) match
       case _: Alt[_] => or.asInstanceOf[Alt[Y]]
       case _ => Is(f(Is unwrap or.asInstanceOf[Is[X]]))
 
     /** Applies a function to the disfavored value to create a new `Or`; a favored value is left unchanged. */
-    inline def mapAlt[YY](inline f: Y => YY): X Or YY = or match
+    inline def mapAlt[YY](inline f: Y => YY): X Or YY = (or: X Or Y) match
       case a: Alt[_] => Alt(f(a.alt.asInstanceOf[Y]))
       case x => x.asInstanceOf[Is[X]]
 
@@ -287,35 +414,35 @@ object AorB {
       *
       * Equivalent to `o.fold{ x => Is(f(x)) }{ y => Alt(g(y))` }
       */
-    inline def mapThem[XX, YY](inline f: X => XX)(inline g: Y => YY): XX Or YY = or match
+    inline def mapThem[XX, YY](inline f: X => XX)(inline g: Y => YY): XX Or YY = (or: X Or Y) match
       case a: Alt[_] => Alt(g(a.alt.asInstanceOf[Y]))
       case _ => Is(f(Is unwrap or.asInstanceOf[Is[X]]))
 
     /** Applies a function that converts a favored value into an `Or`; the disfavored value is retained. */
-    inline def flatMap[YY >: Y, XX](inline f: X => XX Or YY): XX Or YY = or match
+    inline def flatMap[YY >: Y, XX](inline f: X => XX Or YY): XX Or YY = (or: X Or Y) match
       case _: Alt[_] => or.asInstanceOf[Alt[Y]]
       case _ => f(Is unwrap or.asInstanceOf[Is[X]]) 
 
     /** Applies a function that converts a disfavored value into an `Or; the favored value is retained. */
-    inline def flatMapAlt[XX >: X, YY](inline g: Y => XX Or YY): XX Or YY = or match
-      case a: Alt[_] => g(a.get.asInstanceOf[Y])
+    inline def flatMapAlt[XX >: X, YY](inline g: Y => XX Or YY): XX Or YY = (or: X Or Y) match
+      case a: Alt[_] => g(a.alt.asInstanceOf[Y])
       case _ => or.asInstanceOf[Is[X]]
 
     /** Applies a function to whichever value exists, creating a new Or.
       * 
       * Equivalent to `o.fold{ x => f(x) }{ y => g(y) }` where `f` and `g` both produce type `XX Or YY`.
       */
-    inline def flatMapThem[XX, YY](inline f: X => XX Or YY)(inline g: Y => XX Or YY): XX Or YY = or match
-      case a: Alt[_] => g(a.get.asInstanceOf[Y])
+    inline def flatMapThem[XX, YY](inline f: X => XX Or YY)(inline g: Y => XX Or YY): XX Or YY = (or: X Or Y) match
+      case a: Alt[_] => g(a.alt.asInstanceOf[Y])
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Operate on the favored value if it exists. */
-    inline def foreach(inline f: X => Unit): Unit = or match
+    inline def foreach(inline f: X => Unit): Unit = (or: X Or Y) match
       case _: Alt[_] => ()
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Operate on the disfavored value if it exists. */
-    inline def foreachAlt(inline f: Y => Unit): Unit = or match
+    inline def foreachAlt(inline f: Y => Unit): Unit = (or: X Or Y) match
       case a: Alt[_] => f(a.alt.asInstanceOf[Y])
       case _ => ()
 
@@ -323,20 +450,20 @@ object AorB {
       * 
       * Equivalent to `o.fold( x => f(x) ){ y => g(y) }; ()`
       */
-    inline def foreachThem(inline f: X => Unit)(inline g: Y => Unit) = or match
+    inline def foreachThem(inline f: X => Unit)(inline g: Y => Unit) = (or: X Or Y) match
       case a: Alt[_] => g(a.alt.asInstanceOf[Y])
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Operate on the favored value if it exists, but pass on the original `Or`. */
     inline def use(inline f: X => Unit): or.type =
-      or match
+      (or: X Or Y) match
         case _: Alt[_] =>
         case _ => f(Is unwrap or.asInstanceOf[Is[X]])
       or
 
     /** Operate on the disfavored value if it exists, but pass on the original `Or`. */
     inline def useAlt(inline f: Y => Unit): or.type =
-      or match
+      (or: X Or Y) match
         case a: Alt[_] => f(a.alt.asInstanceOf[Y])
         case _ =>
       or
@@ -346,7 +473,7 @@ object AorB {
       * Equivalent to `o.fold{ x => f(x) }{ y => g(y) }; o`
       */
     inline def useThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
-      or match
+      (or: X Or Y) match
         case a: Alt[_] => g(a.alt.asInstanceOf[Y])
         case _ => f(Is unwrap or.asInstanceOf[Is[X]])
       or
@@ -360,29 +487,36 @@ object AorB {
       * -5.or[String].discard{ case x if x < 0 => "Negative value" }
       * }}}
       */
-    inline def discard[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = or match
+    inline def discard[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = (or: X Or Y) match
       case _: Alt[_] => or.asInstanceOf[Alt[Y]]
       case _ => pf.applyOrElse(Is unwrap or.asInstanceOf[Is[X]], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
         case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
         case yy => Alt(yy.asInstanceOf[YY])
 
-    /** Restores some disfavored values, when a disfavored value exists, by converting them into favored values.
+    /** Reclaims some disfavored values, when a disfavored value exists, by converting them into favored values.
       * 
       * A partial function determines which disfavored values are to be restored, and performs the remapping.
       * 
       * Usage example:
       * {{{
-      * '7'.isnt[Int].restore{ case c if c.isDigit => java.lang.Character.digit(c, 10) }
+      * '7'.isnt[Int].reclaim{ case c if c.isDigit => java.lang.Character.digit(c, 10) }
       * }}}
       */
-    inline def restore[XX >: X](pf: PartialFunction[Y, XX]): XX Or Y = or match
+    inline def reclaim[XX >: X](pf: PartialFunction[Y, XX]): XX Or Y = (or: X Or Y) match
       case a: Alt[_] => pf.applyOrElse(a.alt.asInstanceOf[Y], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
         case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
         case xx => Is(xx.asInstanceOf[XX])
       case _ => or
 
+    /** Discards favored values without losing track of the other possible types of disfavored values. */
+    inline def alsoDiscard[Z](pf: PartialFunction[X, Z]): X Or (Z Or Y) = (or: X Or Y) match
+      case _: Alt[_] => Alt(or.asInstanceOf[Alt[Y]])
+      case _ => pf.applyOrElse(Is unwrap or.asInstanceOf[Is[X]], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or.asInstanceOf[Is[X]]
+        case z => Alt(Is(z.asInstanceOf[Z]))
+
     /** Reshapes `(P Or Q) Or Y` into `P Or (Q or Y)`; the latter is recommended as the canonical packing for three alternatives, as it has less boxing for disfavored cases. */
-    inline def pivot[P, Q](using (P Or Q) =:= X): P Or (Q Or Y) = or match
+    inline def pivot[P, Q](using (P Or Q) =:= X): P Or (Q Or Y) = (or: X Or Y) match
       case _: BoxedOr[_] => or match
         case y: Alt[_] => Alt(y.asInstanceOf[Alt[Y]])
         case _ => (Is unwrap or.asInstanceOf[P Or Q]) match
@@ -391,7 +525,7 @@ object AorB {
       case _ => or.asInstanceOf[Is[P]]
 
     /** Reshapes `P Or (U or V)` into `(P Or U) Or V`; the latter is not recommended as the canonical packing for three alternatives, but may be useful at times. */
-    inline def unpivot[U, V](using (U Or V) =:= Y): (X Or U) Or V = or match
+    inline def unpivot[U, V](using (U Or V) =:= Y): (X Or U) Or V = (or: X Or Y) match
       case _: BoxedOr[_] => or match
         case y: Alt[_] => y.alt.asInstanceOf[U Or V] match
           case v: Alt[_] => v.asInstanceOf[Alt[V]]
@@ -452,24 +586,55 @@ object AorB {
     /** Uses a value as the disfavored branch of an `Or` while specifying the type of a favored branch. */
     inline def isnt[X]: X Or A = Alt(a)
 
+    /** Uses a value as the favored branch of an `Or` while specifying the type of a disfavored branch.  Generally use `or` intsead. */
+    inline def isOr[Y]: A Or Y = Is(a)
+
+    /** Usese a value as the disfavored branch of an `Or` while specifying the type of a favored branch.  Generally use `isnt` instead. */
+    inline def altOr[X]: X Or A = Alt(a)
+
     /** Separates values into favored and disfavored based on a predicate; true means favored. */
     inline def isIf(inline p: A => Boolean): A Or A =
       if p(a) then Is(a) else Alt(a)
 
     /** Separates values into disfavored and favored based on a predicate; true means disfavored. */
-    inline def isntIf(inline q: A => Boolean): A Or A =
+    inline def altIf(inline q: A => Boolean): A Or A =
       if q(a) then Alt(a) else Is(a)
 
     /** Maps certain vales into a favored branch based on a partial function; those that don't map are disfavored. */
-    inline def orCase[X](pf: PartialFunction[A, X]): X Or A =
+    inline def isCase[X](pf: PartialFunction[A, X]): X Or A =
       pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
         case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt(a)
         case x => Is(x.asInstanceOf[X])
 
     /** Maps certain values into a disfavored branch based on a partial function; those that don't map are favored. */
-    inline def isntCase[Y](pf: PartialFunction[A, Y]): A Or Y =
+    inline def altCase[Y](pf: PartialFunction[A, Y]): A Or Y =
       pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
         case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
         case y => Alt(y.asInstanceOf[Y])
+
+    /** Maps certain values into a favored branch based on a partial function; those that don't are mapped to a disfavored branch */
+    inline def isCaseOrAlt[X, Y](pf: PartialFunction[A, X])(g: A => Y): X Or Y =
+      pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt(g(a))
+        case x => Is(x.asInstanceOf[X])
+
+    /** Maps certain values into a favored branch based on a partial function; those that don't are mapped to a disfavored branch */
+    inline def altCaseOrIs[X, Y](pf: PartialFunction[A, Y])(f: A => X): X Or Y =
+      pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+        case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(f(a))
+        case y => Alt(y.asInstanceOf[Y])
+
+    /** Uses a predicate to determine which function to use to map a value into a favored or disfavored Or branch */
+    inline def unfoldToOr[X, Y](p: A => Boolean)(f: A => X)(g: A => Y): X Or Y =
+      if p(a) then Is(f(a)) else Alt(g(a))
+
+    /** This is a favored value, but make it look like another Or */
+    inline def isLike[X >: A, Y](that: X Or Y): X Or Y = Is(a: X)
+
+    /** This is a disfavored value, but make it look like another Or */
+    inline def altLike[X, Y >: A](that: X Or Y): X Or Y = Alt(a: Y)
+
+    /** This is a disfavored value, and add it to the possibilities of disfavored values in another Or */
+    inline def altAlso[X, Y](that: X Or Y): X Or (A Or Y) = Alt(Is(a))
   }
 }

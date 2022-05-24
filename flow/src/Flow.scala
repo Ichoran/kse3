@@ -177,6 +177,8 @@ extension [A](option: Option[A]) {
     case _ => Failure(new WrongBranchException(None))
 
   inline def toOr: A Or Unit = Or from option
+
+  inline def or[B](b: => B): A Or B = Or.fromOrElse(option, b)
 }
 
 extension [N, Y](ok: Ok[N, Y]) {
