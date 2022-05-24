@@ -678,4 +678,10 @@ object AorB {
     /** This is a disfavored value, and add it to the possibilities of disfavored values in another Or */
     inline def altAlso[X, Y](that: X Or Y): X Or (A Or Y) = Alt(Is(a))
   }
+
+  extension [A >: Null] (a: A) {
+    /** Ensures that a value is not null and places it as the favored branch; null is converted to a disfavored Unit value */
+    inline def nn: A Or Unit =
+      if a == null then Alt.unit else Is(a)
+  }
 }

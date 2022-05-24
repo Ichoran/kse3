@@ -39,88 +39,88 @@ class FlowTest {
 
     for (thing, who) <- List(basic, caused, stackless, circular, circulas).zip(List("basic", "caused", "stackless", "circular", "circulas")) do
       val msg = s"while testing $who"
-      msg \ thing.explainAsArray()           =**= ExceptionExplainer.explainAsArray(thing)
-      msg \ thing.explainAsArray()           =**= thing.explainAsVector()
-      msg \ thing.explain()                  ==== thing.explainAsArray().mkString("\n")
-      msg \ thing.explainSuppressedAsArray() =**= ExceptionExplainer.explainAsArray(thing, showSuppressed = true)
-      msg \ thing.explainSuppressedAsArray() =**= thing.explainSuppressedAsVector()
-      msg \ thing.explainSuppressed()        ==== thing.explainSuppressedAsArray().mkString("\n")
+      T(msg) ~ thing.explainAsArray()           =**= ExceptionExplainer.explainAsArray(thing)
+      T(msg) ~ thing.explainAsArray()           =**= thing.explainAsVector()
+      T(msg) ~ thing.explain()                  ==== thing.explainAsArray().mkString("\n")
+      T(msg) ~ thing.explainSuppressedAsArray() =**= ExceptionExplainer.explainAsArray(thing, showSuppressed = true)
+      T(msg) ~ thing.explainSuppressedAsArray() =**= thing.explainSuppressedAsVector()
+      T(msg) ~ thing.explainSuppressed()        ==== thing.explainSuppressedAsArray().mkString("\n")
 
-    "" \ stackless.explainAsArray().length ==== 1
-    "" \ caused.explainAsArray()               exists { x => x.contains("CAUSE") }
-    "" \ circular.explainSuppressedAsArray()   exists { x => x.contains("circular-exception-2") }
-    "" \ caused.explainAsArray()               exists { x => x startsWith "| " }
-    "" \ caused.explainAsArray(childLines = 3) exists { x => x startsWith "| . . ." }
+    T ~ stackless.explainAsArray().length ==== 1
+    T ~ caused.explainAsArray()               exists { x => x.contains("CAUSE") }
+    T ~ circular.explainSuppressedAsArray()   exists { x => x.contains("circular-exception-2") }
+    T ~ caused.explainAsArray()               exists { x => x startsWith "| " }
+    T ~ caused.explainAsArray(childLines = 3) exists { x => x startsWith "| . . ." }
 
     val short = caused.explainAsArray(lines = 10)
     val full  = caused.explainAsArray()
-    "" \ short.take(9) =**= full.take(9)
+    T ~ short.take(9) =**= full.take(9)
     val lines = full.drop(9).count(s => !s.startsWith("| "))
-    "" \ short.last ==== s". . . (+$lines lines and 1 more exception)"
+    T ~ short.last ==== s". . . (+$lines lines and 1 more exception)"
 
 
   @Test
   def repeatTest(): Unit =
     var bit = 1
     cFor(0)(_ < 10)(_ + 1){ _ => bit *= 2 }
-    "int cFor" \ bit ==== (1 << 10)
+    T("int cFor") ~ bit ==== (1 << 10)
 
     var sum = 0L
     cFor(Int.MaxValue + 10L)(_ >= Int.MaxValue - 10L)(_ - 1){ sum += _ }
-    "long cFor" \ sum ==== 21L * Int.MaxValue
+    T("long cFor") ~ sum ==== 21L * Int.MaxValue
 
     val babble = new StringBuilder()
     cFor("hi")(_.length < 20)(s => s + " " + s){ s => if babble.nonEmpty then babble ++= ", "; babble ++= s }
-    "generic cFor" \ babble.toString ==== "hi, hi hi, hi hi hi hi"
+    T("generic cFor") ~ babble.toString ==== "hi, hi hi, hi hi hi hi"
 
     var sumi = 0
     nFor(1000)(i => sumi += i*i + 1)
-    "int nFor" \ sumi ==== 332834500
+    T("int nFor") ~ sumi ==== 332834500
 
     var suml = 0L
     nFor(10000L)(l => suml += l*l + 1)
-    "long nFor" \ suml ==== 333283345000L
+    T("long nFor") ~ suml ==== 333283345000L
 
     val ab = Array[Byte](1, 3, 5, 7, 9)
     var sumab = 0L
     aFor(ab)((b, i) => sumab += b*(i+1))
-    "byte aFor" \ sumab ==== 95L
+    T("byte aFor") ~ sumab ==== 95L
 
     val ac = Array[Char]('s', 'a', 'l', 'm', 'o', 'n')
     val sumac = new StringBuilder
     aFor(ac)((c, i) => sumac ++= c.toString*(i+1))
-    "char aFor" \ sumac.result ==== "saalllmmmmooooonnnnnn"
+    T("char aFor") ~ sumac.result ==== "saalllmmmmooooonnnnnn"
 
     val s  = ac.mkString
     val sums = new StringBuilder
     aFor(s)((c, i) => sums ++= c.toString*(i+1))
-    "string aFor" \ sums.result ==== "saalllmmmmooooonnnnnn"
+    T("string aFor") ~ sums.result ==== "saalllmmmmooooonnnnnn"
 
 
     val as = Array[Short](1, 3, 5, 7, 9)
     var sumas = 0L
     aFor(as)((s, i) => sumas += s*(i+1))
-    "short aFor" \ sumas ==== 95L
+    T("short aFor") ~ sumas ==== 95L
 
     val aj = Array[Int](1, 3, 5, 7 ,9)
     var sumaj = 0L
     aFor(aj)((j, i) => sumaj += j*(i+1))
-    "int aFor" \ sumaj ==== 95L
+    T("int aFor") ~ sumaj ==== 95L
 
     val al = Array[Long](1, 3, 5, 7, 9)
     var sumal = 0L
     aFor(al)((l, i) => sumal += l*(i+1))
-    "long aFor" \ sumal ==== 95L
+    T("long aFor") ~ sumal ==== 95L
 
     val af = Array[Float](0.1f, 0.3f, 0.5f, 0.7f, 0.9f)
     var sumaf = 0f
     aFor(af)((f, i) => sumaf += f*(i+1))
-    "float aFor" \ sumaf =~~= 9.5f
+    T("float aFor") ~ sumaf =~~= 9.5f
 
     val ad = Array[Double](0.01, 0.03, 0.05, 0.07, 0.09)
     var sumad = 0.0
     aFor(ad)((d, i) => sumad += d*(i+1))
-    "double aFor" \ sumad =~~= 9.5
+    T("double aFor") ~ sumad =~~= 9.5
 
     val aa = Array[Option[String]](None, Some("cod"), Some("salmon"))
     val sumaa = new StringBuilder
@@ -130,7 +130,7 @@ class FlowTest {
         sumaa ++= s*(i+1)
       case _ =>
     }
-    "generic aFor" \ sumaa.result ==== "codcod, salmonsalmonsalmon"
+    T("generic aFor") ~ sumaa.result ==== "codcod, salmonsalmonsalmon"
 
     val xs = "cod" :: "bass" :: "perch" :: "salmon" :: Nil
     val fish = new StringBuilder
@@ -138,143 +138,147 @@ class FlowTest {
       if fish.nonEmpty then fish ++= ", "
       fish ++= s*(i+1)
     }
-    "iFor" \ fish.result ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
+    T("iFor") ~ fish.result ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
 
 
   @Test
   def orCreationConversionTest: Unit =
-    "altnum" \ Alt(5) ==== Alt(5L)
+    T("altnum") ~ Alt(5) ==== Alt(5L)
 
     val aoc = Alt(Option("cod"))
     val asc = Alt(Some("cod"))
-    "" \ aoc          ==== asc
-    "" \ aoc.##       ==== asc.##
-    "" \ aoc          =!!= Alt("cod")
-    "" \ aoc.toString ==== "Alt(Some(cod))"
+    T ~ aoc          ==== asc
+    T ~ aoc.##       ==== asc.##
+    T ~ aoc          =!!= Alt("cod")
+    T ~ aoc.toString ==== "Alt(Some(cod))"
 
-    "" \ aoc        ==== Alt.wrap(Some("cod"))
-    "" \ aoc.unwrap ==== Some("cod")
+    T ~ aoc        ==== Alt.wrap(Some("cod"))
+    T ~ aoc.unwrap ==== Some("cod")
 
-    "" \ Alt.unit ==== Alt(())
+    T ~ Alt.unit ==== Alt(())
 
     aoc.favor[Int] match
-      case Alt(y) => "" \ y ==== Some("cod")
+      case Alt(y) => T ~ y ==== Some("cod")
       case y      => assertTrue(s"Took disfavored branch with $y", false)
 
     (aoc: Any) match
-      case Alt(y) => "" \ y ==== Some("cod")
+      case Alt(y) => T ~ y ==== Some("cod")
       case y      => assertTrue(s"Took disfavored branch with $y", false)
 
-    "isnum" \ Is(5) ==== Is(5L)
+    T("isnum") ~ Is(5) ==== Is(5L)
 
-    "" \ Is("salmon") ==== Is("salmon")
-    "" \ Is(aoc)      ==== Is(aoc: Any)
+    T ~ Is("salmon") ==== Is("salmon")
+    T ~ Is(aoc)      ==== Is(aoc: Any)
 
     val ioc = Is(Option("cod"))
     val isc = Is(Some("cod"))
     val iaoc = Is(aoc)
     val iiaoc = Is(iaoc)
-    "" \ ioc           ==== isc
-    "" \ ioc.##        ==== isc.##
-    "" \ ioc           ==== Some("cod")
-    "" \ ioc.toString  ==== "Some(cod)"
-    "" \ iaoc.##       ==== Is(aoc: Any).##
-    "" \ iaoc.toString ==== "Is(Alt(Some(cod)))"
-    "" \ iaoc          =!!= aoc
-    "" \ iiaoc         =!!= Is(aoc)
+    T ~ ioc           ==== isc
+    T ~ ioc.##        ==== isc.##
+    T ~ ioc           ==== Some("cod")
+    T ~ ioc.toString  ==== "Some(cod)"
+    T ~ iaoc.##       ==== Is(aoc: Any).##
+    T ~ iaoc.toString ==== "Is(Alt(Some(cod)))"
+    T ~ iaoc          =!!= aoc
+    T ~ iiaoc         =!!= Is(aoc)
 
-    "" \ ioc          ==== Is.wrap(Some("cod"))
-    "" \ ioc.unwrap   ==== Some("cod")
-    "" \ iaoc.unwrap  ==== aoc
-    "" \ iiaoc.unwrap ==== iaoc
-    "" \ Is.unit      ==== Is(())
+    T ~ ioc          ==== Is.wrap(Some("cod"))
+    T ~ ioc.unwrap   ==== Some("cod")
+    T ~ iaoc.unwrap  ==== aoc
+    T ~ iiaoc.unwrap ==== iaoc
+    T ~ Is.unit      ==== Is(())
 
     ioc.disfavor[Int] match
-      case Is(x) => "" \ x ==== Some("cod")
+      case Is(x) => T ~ x ==== Some("cod")
       case x     => assertTrue(s"Took favored branch with $x", false)
 
     (ioc: Any) match
-      case Is(x) => "" \ x ==== Some("cod")
+      case Is(x) => T ~ x ==== Some("cod")
       case x     => assertTrue(s"Took favored branch with $x", false)
 
     Is(aoc).disfavor[Int] match
-      case Is(x) => "" \ x ==== aoc
+      case Is(x) => T ~ x ==== aoc
       case x     => assertTrue(s"Took favored branch with $x", false)
 
     (Is(aoc): Any) match
-      case Is(x) => "" \ x ==== aoc
+      case Is(x) => T ~ x ==== aoc
       case x     => assertTrue(s"Took favored branch with $x", false)
 
-    "" \ Or.from(Right[Int, String]("herring")) ==== Is("herring")
-    "" \ Or.from(Left[Int, String](5))          ==== Alt(5)
-    "" \ Or.swapFrom(Right[Int, String]("cod")) ==== Alt("cod")
-    "" \ Or.swapFrom(Left[Int, String](9))      ==== Is(9)
+    T ~ Or.from(Right[Int, String]("herring")) ==== Is("herring")
+    T ~ Or.from(Left[Int, String](5))          ==== Alt(5)
+    T ~ Or.swapFrom(Right[Int, String]("cod")) ==== Alt("cod")
+    T ~ Or.swapFrom(Left[Int, String](9))      ==== Is(9)
 
-    "" \ Or.from(Yes("herring").typeNo[Int]) ==== Is("herring")
-    "" \ Or.from(No(5).typeYes[String])      ==== Alt(5)
-    "" \ Or.swapFrom(Yes("cod").typeNo[Int]) ==== Alt("cod")
-    "" \ Or.swapFrom(No(9).typeYes[String])  ==== Is(9)
+    T ~ Or.from(Yes("herring").typeNo[Int]) ==== Is("herring")
+    T ~ Or.from(No(5).typeYes[String])      ==== Alt(5)
+    T ~ Or.swapFrom(Yes("cod").typeNo[Int]) ==== Alt("cod")
+    T ~ Or.swapFrom(No(9).typeYes[String])  ==== Is(9)
 
-    "" \ Or.from(Option("herring"))                  ==== Is("herring")
-    "" \ Or.from(Some("herring"))                    ==== Is("herring")
-    "" \ Or.from(None: Option[String])               ==== Alt.unit
-    "" \ Or.swapFrom(Option(5))                      ==== Alt(5)
-    "" \ Or.swapFrom(Some(9))                        ==== Alt(9)
-    "" \ Or.swapFrom(None: Option[Int])              ==== Is.unit
-    "" \ Or.fromOrElse(Option("herring"), 2)         ==== Is("herring")
-    "" \ Or.fromOrElse(Some("herring"), 2)           ==== Is("herring")
-    "" \ Or.fromOrElse(None: Option[String], 2)      ==== Alt(2)
-    "" \ Or.swapFromOrElse(Option(5), "cod")         ==== Alt(5)
-    "" \ Or.swapFromOrElse(Some(9), "cod")           ==== Alt(9)
-    "" \ Or.swapFromOrElse(None: Option[Int], "cod") ==== Is("cod")
+    T ~ Or.from(Option("herring"))                  ==== Is("herring")
+    T ~ Or.from(Some("herring"))                    ==== Is("herring")
+    T ~ Or.from(None: Option[String])               ==== Alt.unit
+    T ~ Or.swapFrom(Option(5))                      ==== Alt(5)
+    T ~ Or.swapFrom(Some(9))                        ==== Alt(9)
+    T ~ Or.swapFrom(None: Option[Int])              ==== Is.unit
+    T ~ Or.fromOrElse(Option("herring"), 2)         ==== Is("herring")
+    T ~ Or.fromOrElse(Some("herring"), 2)           ==== Is("herring")
+    T ~ Or.fromOrElse(None: Option[String], 2)      ==== Alt(2)
+    T ~ Or.swapFromOrElse(Option(5), "cod")         ==== Alt(5)
+    T ~ Or.swapFromOrElse(Some(9), "cod")           ==== Alt(9)
+    T ~ Or.swapFromOrElse(None: Option[Int], "cod") ==== Is("cod")
 
     val e = new Exception("test-exception")
     val trys = Try{ "herring" }
     val trye = Try{ throw e; 5 }
-    "" \ Or.from(trys)                   ==== Is("herring")
-    "" \ Or.from(trye)                   ==== Alt(e)
-    "" \ Or.from(trye, _.getMessage)     ==== Alt("test-exception")
-    "" \ Or.swapFrom(trys)               ==== Alt("herring")
-    "" \ Or.swapFrom(trye)               ==== Is(e)
-    "" \ Or.swapFrom(trye, _.getMessage) ==== Is("test-exception")
+    T ~ Or.from(trys)                   ==== Is("herring")
+    T ~ Or.from(trye)                   ==== Alt(e)
+    T ~ Or.from(trye, _.getMessage)     ==== Alt("test-exception")
+    T ~ Or.swapFrom(trys)               ==== Alt("herring")
+    T ~ Or.swapFrom(trye)               ==== Is(e)
+    T ~ Or.swapFrom(trye, _.getMessage) ==== Is("test-exception")
 
     val dis = ioc.disfavor[Int]
     val fav = aoc.favor[String]
-    "" \ dis                                         ==== ioc
-    "" \ fav                                         ==== aoc
-    "" \ Option("cod").isOr[Int]                     ==== dis   // Have to use `isOr` because of `or` on `Option`
-    "" \ Option("cod").isnt[String]                  ==== fav
-    "" \ Option("cod").isnt[String].or[Int]          ==== iaoc
-    "" \ Option("cod").isnt[String].or[Int].or[Char] ==== iiaoc
+    T ~ dis                                         ==== ioc
+    T ~ fav                                         ==== aoc
+    T ~ Option("cod").isOr[Int]                     ==== dis   // Have to use `isOr` because of `or` on `Option`
+    T ~ Option("cod").isnt[String]                  ==== fav
+    T ~ Option("cod").isnt[String].or[Int]          ==== iaoc
+    T ~ Option("cod").isnt[String].or[Int].or[Char] ==== iiaoc
 
-    "" \ 5.isIf(_ > 0)                                      =&&= 5            -> typed[Int Or Int]
-    "" \ 5.isIf(_ < 0)                                      =&&= Alt(5)       -> typed[Int Or Int]
-    "" \ 5.altIf(_ > 0)                                     =&&= Alt(5)       -> typed[Int Or Int]
-    "" \ 5.altIf(_ < 0)                                     =&&= 5            -> typed[Int Or Int]
-    "" \ 5.isCase{ case x if x > 0 => "!"*x }               =&&= "!!!!!"      -> typed[String Or Int]
-    "" \ 5.isCase{ case x if x < 0 => x.toChar }            =&&= Alt(5)       -> typed[Char Or Int]
-    "" \ 5.altCase{ case x if x > 0 => "!"*x }              =&&= Alt("!!!!!") -> typed[Int Or String]
-    "" \ 5.altCase{ case x if x < 0 => x.toChar }           =&&= 5            -> typed[Int Or Char]
-    "" \ 5.isCaseOrAlt{ case x if x > 0 => "!"*x }{_ < -3}  =&&= "!!!!!"      -> typed[String Or Boolean]
-    "" \ 5.isCaseOrAlt{ case x if x < 0 => x.toChar}{_ > 3} =&&= Alt(true)    -> typed[Char Or Boolean]
-    "" \ 5.altCaseOrIs{ case x if x > 0 => "!"*x }{_ < -3}  =&&= Alt("!!!!!") -> typed[Boolean Or String]
-    "" \ 5.altCaseOrIs{ case x if x < 0 => x.toChar}{_ > 3} =&&= true         -> typed[Boolean Or Char]
-    "" \ 5.unfoldToOr(_ > 0)("!" * _)(_ < -3)               =&&= "!!!!!"      -> typed[String Or Boolean]
-    "" \ 5.unfoldToOr(_ < 0)(_.toChar)(_ > 3)               =&&= Alt(true)    -> typed[Char Or Boolean]
-    "" \ 5.isLike(true.isnt[Int])                           =&&= 5            -> typed[Int Or Boolean]
-    "" \ 5.altLike('e'.or[Int])                             =&&= Alt(5)       -> typed[Char Or Int]
-    "" \ 5.altAlso(true.or[Char])                           =&&= Alt(5)       -> typed[Boolean Or (Int Or Char)]
+    T ~ 5.isIf(_ > 0)                                      ==== 5            --: typed[Int Or Int]
+    T ~ 5.isIf(_ < 0)                                      ==== Alt(5)       --: typed[Int Or Int]
+    T ~ 5.altIf(_ > 0)                                     ==== Alt(5)       --: typed[Int Or Int]
+    T ~ 5.altIf(_ < 0)                                     ==== 5            --: typed[Int Or Int]
+    T ~ 5.isCase{ case x if x > 0 => "!"*x }               ==== "!!!!!"      --: typed[String Or Int]
+    T ~ 5.isCase{ case x if x < 0 => x.toChar }            ==== Alt(5)       --: typed[Char Or Int]
+    T ~ 5.altCase{ case x if x > 0 => "!"*x }              ==== Alt("!!!!!") --: typed[Int Or String]
+    T ~ 5.altCase{ case x if x < 0 => x.toChar }           ==== 5            --: typed[Int Or Char]
+    T ~ 5.isCaseOrAlt{ case x if x > 0 => "!"*x }{_ < -3}  ==== "!!!!!"      --: typed[String Or Boolean]
+    T ~ 5.isCaseOrAlt{ case x if x < 0 => x.toChar}{_ > 3} ==== Alt(true)    --: typed[Char Or Boolean]
+    T ~ 5.altCaseOrIs{ case x if x > 0 => "!"*x }{_ < -3}  ==== Alt("!!!!!") --: typed[Boolean Or String]
+    T ~ 5.altCaseOrIs{ case x if x < 0 => x.toChar}{_ > 3} ==== true         --: typed[Boolean Or Char]
+    T ~ 5.unfoldToOr(_ > 0)("!" * _)(_ < -3)               ==== "!!!!!"      --: typed[String Or Boolean]
+    T ~ 5.unfoldToOr(_ < 0)(_.toChar)(_ > 3)               ==== Alt(true)    --: typed[Char Or Boolean]
+    T ~ 5.isLike(true.isnt[Int])                           ==== 5            --: typed[Int Or Boolean]
+    T ~ 5.altLike('e'.or[Int])                             ==== Alt(5)       --: typed[Char Or Int]
+    T ~ 5.altAlso(true.or[Char])                           ==== Alt(5)       --: typed[Boolean Or (Int Or Char)]
 
     // Extra, probably superfluous tests
-    "" \ List(5, -5).map(_.isIf( _ > 0)) ==== List(5, Alt(-5))
-    "" \ List(5, -5).map(_.altIf(_ > 0)) ==== List(Alt(5), -5)
-    "" \ List(5, -5).map(_.isCase{  case 5 => "five" }) ==== List("five", Alt(-5))
-    "" \ List(5, -5).map(_.altCase{ case 5 => "five" }) ==== List(Alt("five"), -5)
+    T ~ List(5, -5).map(_.isIf( _ > 0)) ==== List(5, Alt(-5))
+    T ~ List(5, -5).map(_.altIf(_ > 0)) ==== List(Alt(5), -5)
+    T ~ List(5, -5).map(_.isCase{  case 5 => "five" }) ==== List("five", Alt(-5))
+    T ~ List(5, -5).map(_.altCase{ case 5 => "five" }) ==== List(Alt("five"), -5)
 
-    "" \ List("cod", null).map(_.isIf( _ ne null)) ==== List(Is("cod"), Alt(null))
-    "" \ List("cod", null).map(_.altIf(_ ne null)) ==== List(Alt("cod"), null)
-    "" \ List("cod", null).map(_.isCase{  case "cod" => true}) ==== List(true, Alt(null))
-    "" \ List("cod", null).map(_.altCase{ case "cod" => true}) ==== List(Alt(true), null)
+    T ~ List("cod", null).map(_.isIf( _ ne null)) ==== List(Is("cod"), Alt(null))
+    T ~ List("cod", null).map(_.altIf(_ ne null)) ==== List(Alt("cod"), null)
+    T ~ List("cod", null).map(_.isCase{  case "cod" => true}) ==== List(true, Alt(null))
+    T ~ List("cod", null).map(_.altCase{ case "cod" => true}) ==== List(Alt(true), null)
+
+    T ~ null.nn           ==== Alt(()) --: typed[Null Or Unit]
+    T ~ (null: String).nn ==== Alt(()) --: typed[String Or Unit]
+    T ~ "cod".nn          ==== "cod"   --: typed[String Or Unit]
 
 
   class ProvideVariousOrValues() {
@@ -319,353 +323,353 @@ class FlowTest {
     import valueProvider._
 
     // Tests both identity and expected level of boxing
-    "" \ i    ==== 5
-    "" \ a    ==== Alt("cod")
-    "" \ oi   =&&= 5                    -> typed[Int Or String]
-    "" \ oa   =&&= Alt("cod")           -> typed[Int Or String]
-    "" \ oii  =&&= 5                    -> typed[(Int Or String) Or Char]
-    "" \ oia  =&&= Is(Alt("cod"))       -> typed[(Int Or String) Or Char]
-    "" \ oai  =&&= Alt(5)               -> typed[Char Or (Int Or String)]
-    "" \ oaa  =&&= Alt(Alt("cod"))      -> typed[Char Or (Int Or String)]
-    "" \ oiii =&&= 5                    -> typed[((Int Or String) Or Char) Or Long]
-    "" \ oiia =&&= Is(Is(Alt("cod")))   -> typed[((Int Or String) Or Char) Or Long]
-    "" \ oiai =&&= Is(Alt(5))           -> typed[(Char Or (Int Or String)) Or Long]
-    "" \ oiaa =&&= Is(Alt(Alt("cod")))  -> typed[(Char Or (Int Or String)) Or Long]
-    "" \ oaii =&&= Alt(5)               -> typed[Long Or ((Int Or String) Or Char)]
-    "" \ oaia =&&= Alt(Is(Alt("cod")))  -> typed[Long Or ((Int Or String) Or Char)]
-    "" \ oaai =&&= Alt(Alt(5))          -> typed[Long Or (Char Or (Int Or String))]
-    "" \ oaaa =&&= Alt(Alt(Alt("cod"))) -> typed[Long Or (Char Or (Int Or String))]
-    "" \ n    ==== null
-    "" \ m    ==== Alt(null)
-    "" \ on   =&&= null               :->: typed[Null Or Int]
-    "" \ om   =&&= Alt(null)            -> typed[Int Or Null]
-    "" \ oin  =&&= null               :->: typed[(Null Or Int) Or Char]
-    "" \ oim  =&&= Is(Alt(null))        -> typed[(Int Or Null) Or Char]
-    "" \ oan  =&&= Alt(null)            -> typed[Char Or (Null Or Int)]
-    "" \ oam  =&&= Alt(Alt(null))       -> typed[Char Or (Int Or Null)]
-    "" \ p    ==== null
-    "" \ q    ==== Alt(null)
-    "" \ op   =&&= null               :->: typed[String Or Int]
-    "" \ oq   =&&= Alt(null)            -> typed[Int Or String]
-    "" \ oip  =&&= null               :->: typed[(String Or Int) Or Char]
-    "" \ oiq  =&&= Is(Alt(null))        -> typed[(Int Or String) Or Char]
-    "" \ oap  =&&= Alt(null)            -> typed[Char Or (String Or Int)]
-    "" \ oaq  =&&= Alt(Alt(null))       -> typed[Char Or (Int Or String)]
+    T ~ i    ==== 5
+    T ~ a    ==== Alt("cod")
+    T ~ oi   ==== 5                    --: typed[Int Or String]
+    T ~ oa   ==== Alt("cod")           --: typed[Int Or String]
+    T ~ oii  ==== 5                    --: typed[(Int Or String) Or Char]
+    T ~ oia  ==== Is(Alt("cod"))       --: typed[(Int Or String) Or Char]
+    T ~ oai  ==== Alt(5)               --: typed[Char Or (Int Or String)]
+    T ~ oaa  ==== Alt(Alt("cod"))      --: typed[Char Or (Int Or String)]
+    T ~ oiii ==== 5                    --: typed[((Int Or String) Or Char) Or Long]
+    T ~ oiia ==== Is(Is(Alt("cod")))   --: typed[((Int Or String) Or Char) Or Long]
+    T ~ oiai ==== Is(Alt(5))           --: typed[(Char Or (Int Or String)) Or Long]
+    T ~ oiaa ==== Is(Alt(Alt("cod")))  --: typed[(Char Or (Int Or String)) Or Long]
+    T ~ oaii ==== Alt(5)               --: typed[Long Or ((Int Or String) Or Char)]
+    T ~ oaia ==== Alt(Is(Alt("cod")))  --: typed[Long Or ((Int Or String) Or Char)]
+    T ~ oaai ==== Alt(Alt(5))          --: typed[Long Or (Char Or (Int Or String))]
+    T ~ oaaa ==== Alt(Alt(Alt("cod"))) --: typed[Long Or (Char Or (Int Or String))]
+    T ~ n    ==== null
+    T ~ m    ==== Alt(null)
+    T ~ on   ==== null                 --: typed[Null Or Int]
+    T ~ om   ==== Alt(null)            --: typed[Int Or Null]
+    T ~ oin  ==== null                 --: typed[(Null Or Int) Or Char]
+    T ~ oim  ==== Is(Alt(null))        --: typed[(Int Or Null) Or Char]
+    T ~ oan  ==== Alt(null)            --: typed[Char Or (Null Or Int)]
+    T ~ oam  ==== Alt(Alt(null))       --: typed[Char Or (Int Or Null)]
+    T ~ p    ==== null
+    T ~ q    ==== Alt(null)
+    T ~ op   ==== null                 --: typed[String Or Int]
+    T ~ oq   ==== Alt(null)            --: typed[Int Or String]
+    T ~ oip  ==== null                 --: typed[(String Or Int) Or Char]
+    T ~ oiq  ==== Is(Alt(null))        --: typed[(Int Or String) Or Char]
+    T ~ oap  ==== Alt(null)            --: typed[Char Or (String Or Int)]
+    T ~ oaq  ==== Alt(Alt(null))       --: typed[Char Or (Int Or String)]
 
-    "" \ i.get   ==== 5
-    "" \ a.get   ==== thrown[NoSuchElementException]
-    "" \ i.alt   ==== thrown[NoSuchElementException]
-    "" \ a.alt   ==== "cod"
-    "" \ oi.get  ==== 5
-    "" \ oi.alt  ==== thrown[NoSuchElementException]
-    "" \ oia.get ==== Alt("cod")
-    "" \ oia.alt ==== thrown[NoSuchElementException]
-    "" \ oa.get  ==== thrown[NoSuchElementException]
-    "" \ oa.alt  ==== "cod"
-    "" \ oai.get ==== thrown[NoSuchElementException]
-    "" \ oai.alt ==== Is(5)
-    "" \ n.get   ==== null
-    "" \ n.alt   ==== thrown[NoSuchElementException] 
-    "" \ m.get   ==== thrown[NoSuchElementException]
-    "" \ m.alt   ==== null    
-    "" \ on.get  ==== null
-    "" \ on.alt  ==== thrown[NoSuchElementException]    
-    "" \ om.get  ==== thrown[NoSuchElementException]
-    "" \ om.alt  ==== null    
-    "" \ oin.get ==== null
-    "" \ oin.alt ==== thrown[NoSuchElementException]    
-    "" \ oim.get ==== Alt(null)
-    "" \ oim.alt ==== thrown[NoSuchElementException]   
-    "" \ oan.get ==== thrown[NoSuchElementException]
-    "" \ oan.alt ==== null    
-    "" \ oam.get ==== thrown[NoSuchElementException]
-    "" \ oam.alt ==== Alt(null)   
-    "" \ p.get   ==== null
-    "" \ p.alt   ==== thrown[NoSuchElementException] 
-    "" \ q.get   ==== thrown[NoSuchElementException]
-    "" \ q.alt   ==== null    
-    "" \ op.get  ==== null
-    "" \ op.alt  ==== thrown[NoSuchElementException]    
-    "" \ oq.get  ==== thrown[NoSuchElementException]
-    "" \ oq.alt  ==== null    
-    "" \ oip.get ==== null
-    "" \ oip.alt ==== thrown[NoSuchElementException]    
-    "" \ oiq.get ==== Alt(null)
-    "" \ oiq.alt ==== thrown[NoSuchElementException]   
-    "" \ oap.get ==== thrown[NoSuchElementException]
-    "" \ oap.alt ==== null    
-    "" \ oaq.get ==== thrown[NoSuchElementException]
-    "" \ oaq.alt ==== Alt(null)   
+    T ~ i.get   ==== 5
+    T ~ a.get   ==== thrown[NoSuchElementException]
+    T ~ i.alt   ==== thrown[NoSuchElementException]
+    T ~ a.alt   ==== "cod"
+    T ~ oi.get  ==== 5
+    T ~ oi.alt  ==== thrown[NoSuchElementException]
+    T ~ oia.get ==== Alt("cod")
+    T ~ oia.alt ==== thrown[NoSuchElementException]
+    T ~ oa.get  ==== thrown[NoSuchElementException]
+    T ~ oa.alt  ==== "cod"
+    T ~ oai.get ==== thrown[NoSuchElementException]
+    T ~ oai.alt ==== Is(5)
+    T ~ n.get   ==== null
+    T ~ n.alt   ==== thrown[NoSuchElementException] 
+    T ~ m.get   ==== thrown[NoSuchElementException]
+    T ~ m.alt   ==== null    
+    T ~ on.get  ==== null
+    T ~ on.alt  ==== thrown[NoSuchElementException]    
+    T ~ om.get  ==== thrown[NoSuchElementException]
+    T ~ om.alt  ==== null    
+    T ~ oin.get ==== null
+    T ~ oin.alt ==== thrown[NoSuchElementException]    
+    T ~ oim.get ==== Alt(null)
+    T ~ oim.alt ==== thrown[NoSuchElementException]   
+    T ~ oan.get ==== thrown[NoSuchElementException]
+    T ~ oan.alt ==== null    
+    T ~ oam.get ==== thrown[NoSuchElementException]
+    T ~ oam.alt ==== Alt(null)   
+    T ~ p.get   ==== null
+    T ~ p.alt   ==== thrown[NoSuchElementException] 
+    T ~ q.get   ==== thrown[NoSuchElementException]
+    T ~ q.alt   ==== null    
+    T ~ op.get  ==== null
+    T ~ op.alt  ==== thrown[NoSuchElementException]    
+    T ~ oq.get  ==== thrown[NoSuchElementException]
+    T ~ oq.alt  ==== null    
+    T ~ oip.get ==== null
+    T ~ oip.alt ==== thrown[NoSuchElementException]    
+    T ~ oiq.get ==== Alt(null)
+    T ~ oiq.alt ==== thrown[NoSuchElementException]   
+    T ~ oap.get ==== thrown[NoSuchElementException]
+    T ~ oap.alt ==== null    
+    T ~ oaq.get ==== thrown[NoSuchElementException]
+    T ~ oaq.alt ==== Alt(null)   
 
-    "" \ i.value      ==== 5
-    "" \ a.value      ==== "cod"
-    "" \ oi.value     ==== 5
-    "" \ oa.value     ==== "cod"
-    "" \ oii.value    ==== Is(5)
-    "" \ oia.value    ==== Alt("cod")
-    "" \ oai.value    ==== Is(5)
-    "" \ oaa.value    ==== Alt("cod")
-    "" \ oa.value     =??= typed[Int | String]
-    "" \ oi.value     =??= typed[Int | String]
-    "" \ n.value      ==== null
-    "" \ m.value      ==== null
-    "" \ on.value     ==== null
-    "" \ om.value     ==== null
-    "" \ oin.value    ==== null
-    "" \ oim.value    ==== Alt(null)
-    "" \ oan.value    ==== null
-    "" \ oam.value    ==== Alt(null)
-    "" \ p.value      ==== null
-    "" \ q.value      ==== null
-    "" \ op.value     ==== null
-    "" \ oq.value     ==== null
-    "" \ oip.value    ==== null
-    "" \ oiq.value    ==== Alt(null)
-    "" \ oap.value    ==== null
-    "" \ oaq.value    ==== Alt(null)
+    T ~ i.value      ==== 5
+    T ~ a.value      ==== "cod"
+    T ~ oi.value     ==== 5
+    T ~ oa.value     ==== "cod"
+    T ~ oii.value    ==== Is(5)
+    T ~ oia.value    ==== Alt("cod")
+    T ~ oai.value    ==== Is(5)
+    T ~ oaa.value    ==== Alt("cod")
+    T ~ oa.value     ==== typed[Int | String]
+    T ~ oi.value     ==== typed[Int | String]
+    T ~ n.value      ==== null
+    T ~ m.value      ==== null
+    T ~ on.value     ==== null
+    T ~ om.value     ==== null
+    T ~ oin.value    ==== null
+    T ~ oim.value    ==== Alt(null)
+    T ~ oan.value    ==== null
+    T ~ oam.value    ==== Alt(null)
+    T ~ p.value      ==== null
+    T ~ q.value      ==== null
+    T ~ op.value     ==== null
+    T ~ oq.value     ==== null
+    T ~ oip.value    ==== null
+    T ~ oiq.value    ==== Alt(null)
+    T ~ oap.value    ==== null
+    T ~ oaq.value    ==== Alt(null)
 
-    "" \ i.isBoxed      ==== false
-    "" \ a.isBoxed      ==== true
-    "" \ oi.isBoxed     ==== false
-    "" \ oa.isBoxed     ==== true
-    "" \ oii.isBoxed    ==== false
-    "" \ oia.isBoxed    ==== true
-    "" \ oai.isBoxed    ==== true
-    "" \ oaa.isBoxed    ==== true
-    "" \ Is(a).isBoxed  ==== true
-    "" \ Alt(a).isBoxed ==== true
-    "" \ n.isBoxed      ==== false
-    "" \ m.isBoxed      ==== true
-    "" \ on.isBoxed     ==== false
-    "" \ om.isBoxed     ==== true
-    "" \ oin.isBoxed    ==== false
-    "" \ oim.isBoxed    ==== true
-    "" \ oan.isBoxed    ==== true
-    "" \ oam.isBoxed    ==== true
-    "" \ p.isBoxed      ==== false
-    "" \ q.isBoxed      ==== true
-    "" \ op.isBoxed     ==== false
-    "" \ oq.isBoxed     ==== true
-    "" \ oip.isBoxed    ==== false
-    "" \ oiq.isBoxed    ==== true
-    "" \ oap.isBoxed    ==== true
-    "" \ oaq.isBoxed    ==== true
+    T ~ i.isBoxed      ==== false
+    T ~ a.isBoxed      ==== true
+    T ~ oi.isBoxed     ==== false
+    T ~ oa.isBoxed     ==== true
+    T ~ oii.isBoxed    ==== false
+    T ~ oia.isBoxed    ==== true
+    T ~ oai.isBoxed    ==== true
+    T ~ oaa.isBoxed    ==== true
+    T ~ Is(a).isBoxed  ==== true
+    T ~ Alt(a).isBoxed ==== true
+    T ~ n.isBoxed      ==== false
+    T ~ m.isBoxed      ==== true
+    T ~ on.isBoxed     ==== false
+    T ~ om.isBoxed     ==== true
+    T ~ oin.isBoxed    ==== false
+    T ~ oim.isBoxed    ==== true
+    T ~ oan.isBoxed    ==== true
+    T ~ oam.isBoxed    ==== true
+    T ~ p.isBoxed      ==== false
+    T ~ q.isBoxed      ==== true
+    T ~ op.isBoxed     ==== false
+    T ~ oq.isBoxed     ==== true
+    T ~ oip.isBoxed    ==== false
+    T ~ oiq.isBoxed    ==== true
+    T ~ oap.isBoxed    ==== true
+    T ~ oaq.isBoxed    ==== true
 
-    "" \ { var x = 0; i.foreach(x = _)                 ; x } ==== 5
-    "" \ { var x = 0; a.foreach(_ => x = 1)            ; x } ==== 0
-    "" \ { var x = 0; oi.foreach(x = _)                ; x } ==== 5
-    "" \ { var x = 0; oa.foreach(x = _)                ; x } ==== 0
-    "" \ { var x = 0; oii.foreach(_.foreach(x = _))    ; x } ==== 5
-    "" \ { var x = 0; oia.foreach(_.foreach(x = _))    ; x } ==== 0
-    "" \ { var x = 0; oai.foreach(c => x = c.toInt)    ; x } ==== 0
-    "" \ { var x = 0; oaa.foreach(c => x = c.toInt)    ; x } ==== 0
-    "" \ { var x = 0; n.foreach(y => x = nullone(y))   ; x } ==== 1
-    "" \ { var x = 0; m.foreach(_ => x = 1)            ; x } ==== 0
-    "" \ { var x = 0; on.foreach(y => x = nullone(y))  ; x } ==== 1
-    "" \ { var x = 0; om.foreach(x = _)                ; x } ==== 0
-    "" \ { var x = 0; oin.foreach(y => x = nullone(y)) ; x } ==== 1
-    "" \ { var x = 0; oim.foreach(y => x = nullone(y)) ; x } ==== -1
-    "" \ { var x = 0; oan.foreach(c => x = c.toInt)    ; x } ==== 0
-    "" \ { var x = 0; oam.foreach(c => x = c.toInt)    ; x } ==== 0
-    "" \ { var x = 0; p.foreach(y => x = nlen(y))      ; x } ==== -1
-    "" \ { var x = 0; q.foreach(_ => x = 1)            ; x } ==== 0
-    "" \ { var x = 0; op.foreach(y => x = nlen(y))     ; x } ==== -1
-    "" \ { var x = 0; oq.foreach(x = _)                ; x } ==== 0
-    "" \ { var x = 0; oip.foreach(y => x = nlen(y.get)); x } ==== -1
-    "" \ { var x = 0; oiq.foreach(y => x = nlen(y.alt)); x } ==== -1
-    "" \ { var x = 0; oap.foreach(c => x = c.toInt)    ; x } ==== 0
-    "" \ { var x = 0; oaq.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; i.foreach(x = _)                 ; x } ==== 5
+    T ~ { var x = 0; a.foreach(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; oi.foreach(x = _)                ; x } ==== 5
+    T ~ { var x = 0; oa.foreach(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oii.foreach(_.foreach(x = _))    ; x } ==== 5
+    T ~ { var x = 0; oia.foreach(_.foreach(x = _))    ; x } ==== 0
+    T ~ { var x = 0; oai.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oaa.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; n.foreach(y => x = nullone(y))   ; x } ==== 1
+    T ~ { var x = 0; m.foreach(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; on.foreach(y => x = nullone(y))  ; x } ==== 1
+    T ~ { var x = 0; om.foreach(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oin.foreach(y => x = nullone(y)) ; x } ==== 1
+    T ~ { var x = 0; oim.foreach(y => x = nullone(y)) ; x } ==== -1
+    T ~ { var x = 0; oan.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oam.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; p.foreach(y => x = nlen(y))      ; x } ==== -1
+    T ~ { var x = 0; q.foreach(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; op.foreach(y => x = nlen(y))     ; x } ==== -1
+    T ~ { var x = 0; oq.foreach(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oip.foreach(y => x = nlen(y.get)); x } ==== -1
+    T ~ { var x = 0; oiq.foreach(y => x = nlen(y.alt)); x } ==== -1
+    T ~ { var x = 0; oap.foreach(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oaq.foreach(c => x = c.toInt)    ; x } ==== 0
 
-    "" \ { var x = 0; i.foreachAlt(_ => x = 1);             ; x } ==== 0
-    "" \ { var x = 0; a.foreachAlt(s => x = s.length)       ; x } ==== 3
-    "" \ { var x = 0; oi.foreachAlt(s => x = s.length)      ; x } ==== 0
-    "" \ { var x = 0; oa.foreachAlt(s => x = s.length)      ; x } ==== 3
-    "" \ { var x = 0; oii.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oia.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oai.foreachAlt(y => x = y.get)        ; x } ==== 5
-    "" \ { var x = 0; oaa.foreachAlt(y => x = y.alt.length) ; x } ==== 3
-    "" \ { var x = 0; n.foreachAlt(_ => x = 1)              ; x } ==== 0
-    "" \ { var x = 0; m.foreachAlt(y => x = nullone(y))     ; x } ==== 1
-    "" \ { var x = 0; on.foreachAlt(x = _)                  ; x } ==== 0
-    "" \ { var x = 0; om.foreachAlt(y => x = nullone(y))    ; x } ==== 1
-    "" \ { var x = 0; oin.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oim.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oan.foreachAlt(y => x = nullone(y))   ; x } ==== 1
-    "" \ { var x = 0; oam.foreachAlt(y => x = nullone(y))   ; x } ==== -1
-    "" \ { var x = 0; p.foreachAlt(_ => x = 1)              ; x } ==== 0
-    "" \ { var x = 0; q.foreachAlt(y => x = nlen(y))        ; x } ==== -1
-    "" \ { var x = 0; op.foreachAlt(x = _)                  ; x } ==== 0
-    "" \ { var x = 0; oq.foreachAlt(y => x = nlen(y))       ; x } ==== -1
-    "" \ { var x = 0; oip.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oiq.foreachAlt(c => x = c.toInt)      ; x } ==== 0
-    "" \ { var x = 0; oap.foreachAlt(y => x = nlen(y.get))  ; x } ==== -1
-    "" \ { var x = 0; oaq.foreachAlt(y => x = nlen(y.alt))  ; x } ==== -1
+    T ~ { var x = 0; i.foreachAlt(_ => x = 1);             ; x } ==== 0
+    T ~ { var x = 0; a.foreachAlt(s => x = s.length)       ; x } ==== 3
+    T ~ { var x = 0; oi.foreachAlt(s => x = s.length)      ; x } ==== 0
+    T ~ { var x = 0; oa.foreachAlt(s => x = s.length)      ; x } ==== 3
+    T ~ { var x = 0; oii.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oia.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oai.foreachAlt(y => x = y.get)        ; x } ==== 5
+    T ~ { var x = 0; oaa.foreachAlt(y => x = y.alt.length) ; x } ==== 3
+    T ~ { var x = 0; n.foreachAlt(_ => x = 1)              ; x } ==== 0
+    T ~ { var x = 0; m.foreachAlt(y => x = nullone(y))     ; x } ==== 1
+    T ~ { var x = 0; on.foreachAlt(x = _)                  ; x } ==== 0
+    T ~ { var x = 0; om.foreachAlt(y => x = nullone(y))    ; x } ==== 1
+    T ~ { var x = 0; oin.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oim.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oan.foreachAlt(y => x = nullone(y))   ; x } ==== 1
+    T ~ { var x = 0; oam.foreachAlt(y => x = nullone(y))   ; x } ==== -1
+    T ~ { var x = 0; p.foreachAlt(_ => x = 1)              ; x } ==== 0
+    T ~ { var x = 0; q.foreachAlt(y => x = nlen(y))        ; x } ==== -1
+    T ~ { var x = 0; op.foreachAlt(x = _)                  ; x } ==== 0
+    T ~ { var x = 0; oq.foreachAlt(y => x = nlen(y))       ; x } ==== -1
+    T ~ { var x = 0; oip.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oiq.foreachAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oap.foreachAlt(y => x = nlen(y.get))  ; x } ==== -1
+    T ~ { var x = 0; oaq.foreachAlt(y => x = nlen(y.alt))  ; x } ==== -1
 
-    "" \ { var x = 0; i.foreachThem(x = _)(_ => x = 4)                                  ; x } ==== 5
-    "" \ { var x = 0; a.foreachThem(_ => x = 4)(s => x = s.length)                      ; x } ==== 3
-    "" \ { var x = 0; oi.foreachThem(x = _)(s => x = s.length)                          ; x } ==== 5
-    "" \ { var x = 0; oa.foreachThem(x = _)(s => x = s.length)                          ; x } ==== 3
-    "" \ { var x = 0; oii.foreachThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 6
-    "" \ { var x = 0; oia.foreachThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 3
-    "" \ { var x = 0; oai.foreachThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 6
-    "" \ { var x = 0; oaa.foreachThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 3
-    "" \ { var x = 0; n.foreachThem(y => x = nullone(y))(_ => x = 4)                    ; x } ==== 1
-    "" \ { var x = 0; m.foreachThem(_ => x = 4)(y => x = nullone(y))                    ; x } ==== 1
-    "" \ { var x = 0; on.foreachThem(y => x = nullone(y))(x = _)                        ; x } ==== 1
-    "" \ { var x = 0; om.foreachThem(x = _)(y => x = nullone(y))                        ; x } ==== 1
-    "" \ { var x = 0; oin.foreachThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== 1
-    "" \ { var x = 0; oim.foreachThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== -1
-    "" \ { var x = 0; oan.foreachThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== 1
-    "" \ { var x = 0; oam.foreachThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== -1
-    "" \ { var x = 0; p.foreachThem(y => x = nlen(y))(_ => x = 4)                       ; x } ==== -1
-    "" \ { var x = 0; q.foreachThem(_ => x = 4)(y => x = nlen(y))                       ; x } ==== -1
-    "" \ { var x = 0; op.foreachThem(y => x = nlen(y))(x = _)                           ; x } ==== -1
-    "" \ { var x = 0; oq.foreachThem(x = _)(y => x = nlen(y))                           ; x } ==== -1
-    "" \ { var x = 0; oip.foreachThem(y => x = nlen(y.get))(c => x = c.toInt)           ; x } ==== -1
-    "" \ { var x = 0; oiq.foreachThem(y => x = nlen(y.alt))(c => x = c.toInt)           ; x } ==== -1
-    "" \ { var x = 0; oap.foreachThem(c => x = c.toInt)(y => x = nlen(y.get))           ; x } ==== -1
-    "" \ { var x = 0; oaq.foreachThem(c => x = c.toInt)(y => x = nlen(y.alt))           ; x } ==== -1
+    T ~ { var x = 0; i.foreachThem(x = _)(_ => x = 4)                                  ; x } ==== 5
+    T ~ { var x = 0; a.foreachThem(_ => x = 4)(s => x = s.length)                      ; x } ==== 3
+    T ~ { var x = 0; oi.foreachThem(x = _)(s => x = s.length)                          ; x } ==== 5
+    T ~ { var x = 0; oa.foreachThem(x = _)(s => x = s.length)                          ; x } ==== 3
+    T ~ { var x = 0; oii.foreachThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 6
+    T ~ { var x = 0; oia.foreachThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 3
+    T ~ { var x = 0; oai.foreachThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 6
+    T ~ { var x = 0; oaa.foreachThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 3
+    T ~ { var x = 0; n.foreachThem(y => x = nullone(y))(_ => x = 4)                    ; x } ==== 1
+    T ~ { var x = 0; m.foreachThem(_ => x = 4)(y => x = nullone(y))                    ; x } ==== 1
+    T ~ { var x = 0; on.foreachThem(y => x = nullone(y))(x = _)                        ; x } ==== 1
+    T ~ { var x = 0; om.foreachThem(x = _)(y => x = nullone(y))                        ; x } ==== 1
+    T ~ { var x = 0; oin.foreachThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== 1
+    T ~ { var x = 0; oim.foreachThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== -1
+    T ~ { var x = 0; oan.foreachThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== 1
+    T ~ { var x = 0; oam.foreachThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== -1
+    T ~ { var x = 0; p.foreachThem(y => x = nlen(y))(_ => x = 4)                       ; x } ==== -1
+    T ~ { var x = 0; q.foreachThem(_ => x = 4)(y => x = nlen(y))                       ; x } ==== -1
+    T ~ { var x = 0; op.foreachThem(y => x = nlen(y))(x = _)                           ; x } ==== -1
+    T ~ { var x = 0; oq.foreachThem(x = _)(y => x = nlen(y))                           ; x } ==== -1
+    T ~ { var x = 0; oip.foreachThem(y => x = nlen(y.get))(c => x = c.toInt)           ; x } ==== -1
+    T ~ { var x = 0; oiq.foreachThem(y => x = nlen(y.alt))(c => x = c.toInt)           ; x } ==== -1
+    T ~ { var x = 0; oap.foreachThem(c => x = c.toInt)(y => x = nlen(y.get))           ; x } ==== -1
+    T ~ { var x = 0; oaq.foreachThem(c => x = c.toInt)(y => x = nlen(y.alt))           ; x } ==== -1
 
-    "" \ { var x = 0; i.use(x = _)                  :==: typedLike(i)  ; x } ==== 5
-    "" \ { var x = 0; a.use(_ => x = 1)             :==: typedLike(a)  ; x } ==== 0
-    "" \ { var x = 0; oi.use(x = _)                 :==: typedLike(oi) ; x } ==== 5
-    "" \ { var x = 0; oa.use(x = _)                 :==: typedLike(oa) ; x } ==== 0
-    "" \ { var x = 0; oii.use(_.use(x = _))         :==: typedLike(oii); x } ==== 5
-    "" \ { var x = 0; oia.use(_.use(x = _))         :==: typedLike(oia); x } ==== 0
-    "" \ { var x = 0; oai.use(c => x = c.toInt)     :==: typedLike(oai); x } ==== 0
-    "" \ { var x = 0; oaa.use(c => x = c.toInt)     :==: typedLike(oaa); x } ==== 0
-    "" \ { var x = 0; n.use(y => x = nullone(y))    :==: typedLike(n)  ; x } ==== 1
-    "" \ { var x = 0; m.use(_ => x = 1)             :==: typedLike(m)  ; x } ==== 0
-    "" \ { var x = 0; on.use(y => x = nullone(y))   :==: typedLike(on) ; x } ==== 1
-    "" \ { var x = 0; om.use(x = _)                 :==: typedLike(om) ; x } ==== 0
-    "" \ { var x = 0; oin.use(y => x = nullone(y))  :==: typedLike(oin); x } ==== 1
-    "" \ { var x = 0; oim.use(y => x = nullone(y))  :==: typedLike(oim); x } ==== -1
-    "" \ { var x = 0; oan.use(c => x = c.toInt)     :==: typedLike(oan); x } ==== 0
-    "" \ { var x = 0; oam.use(c => x = c.toInt)     :==: typedLike(oam); x } ==== 0
-    "" \ { var x = 0; p.use(y => x = nlen(y))       :==: typedLike(p)  ; x } ==== -1
-    "" \ { var x = 0; q.use(_ => x = 1)             :==: typedLike(q)  ; x } ==== 0
-    "" \ { var x = 0; op.use(y => x = nlen(y))      :==: typedLike(op) ; x } ==== -1
-    "" \ { var x = 0; oq.use(x = _)                 :==: typedLike(oq) ; x } ==== 0
-    "" \ { var x = 0; oip.use(y => x = nlen(y.get)) :==: typedLike(oip); x } ==== -1
-    "" \ { var x = 0; oiq.use(y => x = nlen(y.alt)) :==: typedLike(oiq); x } ==== -1
-    "" \ { var x = 0; oap.use(c => x = c.toInt)     :==: typedLike(oap); x } ==== 0
-    "" \ { var x = 0; oaq.use(c => x = c.toInt)     :==: typedLike(oaq); x } ==== 0
+    T ~ { var x = 0; i.use(x = _)                  :==: typedLike(i)  ; x } ==== 5
+    T ~ { var x = 0; a.use(_ => x = 1)             :==: typedLike(a)  ; x } ==== 0
+    T ~ { var x = 0; oi.use(x = _)                 :==: typedLike(oi) ; x } ==== 5
+    T ~ { var x = 0; oa.use(x = _)                 :==: typedLike(oa) ; x } ==== 0
+    T ~ { var x = 0; oii.use(_.use(x = _))         :==: typedLike(oii); x } ==== 5
+    T ~ { var x = 0; oia.use(_.use(x = _))         :==: typedLike(oia); x } ==== 0
+    T ~ { var x = 0; oai.use(c => x = c.toInt)     :==: typedLike(oai); x } ==== 0
+    T ~ { var x = 0; oaa.use(c => x = c.toInt)     :==: typedLike(oaa); x } ==== 0
+    T ~ { var x = 0; n.use(y => x = nullone(y))    :==: typedLike(n)  ; x } ==== 1
+    T ~ { var x = 0; m.use(_ => x = 1)             :==: typedLike(m)  ; x } ==== 0
+    T ~ { var x = 0; on.use(y => x = nullone(y))   :==: typedLike(on) ; x } ==== 1
+    T ~ { var x = 0; om.use(x = _)                 :==: typedLike(om) ; x } ==== 0
+    T ~ { var x = 0; oin.use(y => x = nullone(y))  :==: typedLike(oin); x } ==== 1
+    T ~ { var x = 0; oim.use(y => x = nullone(y))  :==: typedLike(oim); x } ==== -1
+    T ~ { var x = 0; oan.use(c => x = c.toInt)     :==: typedLike(oan); x } ==== 0
+    T ~ { var x = 0; oam.use(c => x = c.toInt)     :==: typedLike(oam); x } ==== 0
+    T ~ { var x = 0; p.use(y => x = nlen(y))       :==: typedLike(p)  ; x } ==== -1
+    T ~ { var x = 0; q.use(_ => x = 1)             :==: typedLike(q)  ; x } ==== 0
+    T ~ { var x = 0; op.use(y => x = nlen(y))      :==: typedLike(op) ; x } ==== -1
+    T ~ { var x = 0; oq.use(x = _)                 :==: typedLike(oq) ; x } ==== 0
+    T ~ { var x = 0; oip.use(y => x = nlen(y.get)) :==: typedLike(oip); x } ==== -1
+    T ~ { var x = 0; oiq.use(y => x = nlen(y.alt)) :==: typedLike(oiq); x } ==== -1
+    T ~ { var x = 0; oap.use(c => x = c.toInt)     :==: typedLike(oap); x } ==== 0
+    T ~ { var x = 0; oaq.use(c => x = c.toInt)     :==: typedLike(oaq); x } ==== 0
 
-    "" \ { var x = 0; i.useAlt(_ => x = 1)              :==: typedLike(i)  ; x } ==== 0
-    "" \ { var x = 0; a.useAlt(s => x = s.length)       :==: typedLike(a)  ; x } ==== 3
-    "" \ { var x = 0; oi.useAlt(s => x = s.length)      :==: typedLike(oi) ; x } ==== 0
-    "" \ { var x = 0; oa.useAlt(s => x = s.length)      :==: typedLike(oa) ; x } ==== 3
-    "" \ { var x = 0; oii.useAlt(c => x = c.toInt)      :==: typedLike(oii); x } ==== 0
-    "" \ { var x = 0; oia.useAlt(c => x = c.toInt)      :==: typedLike(oia); x } ==== 0
-    "" \ { var x = 0; oai.useAlt(y => x = y.get)        :==: typedLike(oai); x } ==== 5
-    "" \ { var x = 0; oaa.useAlt(y => x = y.alt.length) :==: typedLike(oaa); x } ==== 3
-    "" \ { var x = 0; n.useAlt(_ => x = 1)              :==: typedLike(n)  ; x } ==== 0
-    "" \ { var x = 0; m.useAlt(y => x = nullone(y))     :==: typedLike(m)  ; x } ==== 1
-    "" \ { var x = 0; on.useAlt(x = _)                  :==: typedLike(on) ; x } ==== 0
-    "" \ { var x = 0; om.useAlt(y => x = nullone(y))    :==: typedLike(om) ; x } ==== 1
-    "" \ { var x = 0; oin.useAlt(c => x = c.toInt)      :==: typedLike(oin); x } ==== 0
-    "" \ { var x = 0; oim.useAlt(c => x = c.toInt)      :==: typedLike(oim); x } ==== 0
-    "" \ { var x = 0; oan.useAlt(y => x = nullone(y))   :==: typedLike(oan); x } ==== 1
-    "" \ { var x = 0; oam.useAlt(y => x = nullone(y))   :==: typedLike(oam); x } ==== -1
-    "" \ { var x = 0; p.useAlt(_ => x = 1)              :==: typedLike(p)  ; x } ==== 0
-    "" \ { var x = 0; q.useAlt(y => x = nlen(y))        :==: typedLike(q)  ; x } ==== -1
-    "" \ { var x = 0; op.useAlt(x = _)                  :==: typedLike(op) ; x } ==== 0
-    "" \ { var x = 0; oq.useAlt(y => x = nlen(y))       :==: typedLike(oq) ; x } ==== -1
-    "" \ { var x = 0; oip.useAlt(c => x = c.toInt)      :==: typedLike(oip); x } ==== 0
-    "" \ { var x = 0; oiq.useAlt(c => x = c.toInt)      :==: typedLike(oiq); x } ==== 0
-    "" \ { var x = 0; oap.useAlt(y => x = nlen(y.get))  :==: typedLike(oap); x } ==== -1
-    "" \ { var x = 0; oaq.useAlt(y => x = nlen(y.alt))  :==: typedLike(oaq); x } ==== -1
+    T ~ { var x = 0; i.useAlt(_ => x = 1)              :==: typedLike(i)  ; x } ==== 0
+    T ~ { var x = 0; a.useAlt(s => x = s.length)       :==: typedLike(a)  ; x } ==== 3
+    T ~ { var x = 0; oi.useAlt(s => x = s.length)      :==: typedLike(oi) ; x } ==== 0
+    T ~ { var x = 0; oa.useAlt(s => x = s.length)      :==: typedLike(oa) ; x } ==== 3
+    T ~ { var x = 0; oii.useAlt(c => x = c.toInt)      :==: typedLike(oii); x } ==== 0
+    T ~ { var x = 0; oia.useAlt(c => x = c.toInt)      :==: typedLike(oia); x } ==== 0
+    T ~ { var x = 0; oai.useAlt(y => x = y.get)        :==: typedLike(oai); x } ==== 5
+    T ~ { var x = 0; oaa.useAlt(y => x = y.alt.length) :==: typedLike(oaa); x } ==== 3
+    T ~ { var x = 0; n.useAlt(_ => x = 1)              :==: typedLike(n)  ; x } ==== 0
+    T ~ { var x = 0; m.useAlt(y => x = nullone(y))     :==: typedLike(m)  ; x } ==== 1
+    T ~ { var x = 0; on.useAlt(x = _)                  :==: typedLike(on) ; x } ==== 0
+    T ~ { var x = 0; om.useAlt(y => x = nullone(y))    :==: typedLike(om) ; x } ==== 1
+    T ~ { var x = 0; oin.useAlt(c => x = c.toInt)      :==: typedLike(oin); x } ==== 0
+    T ~ { var x = 0; oim.useAlt(c => x = c.toInt)      :==: typedLike(oim); x } ==== 0
+    T ~ { var x = 0; oan.useAlt(y => x = nullone(y))   :==: typedLike(oan); x } ==== 1
+    T ~ { var x = 0; oam.useAlt(y => x = nullone(y))   :==: typedLike(oam); x } ==== -1
+    T ~ { var x = 0; p.useAlt(_ => x = 1)              :==: typedLike(p)  ; x } ==== 0
+    T ~ { var x = 0; q.useAlt(y => x = nlen(y))        :==: typedLike(q)  ; x } ==== -1
+    T ~ { var x = 0; op.useAlt(x = _)                  :==: typedLike(op) ; x } ==== 0
+    T ~ { var x = 0; oq.useAlt(y => x = nlen(y))       :==: typedLike(oq) ; x } ==== -1
+    T ~ { var x = 0; oip.useAlt(c => x = c.toInt)      :==: typedLike(oip); x } ==== 0
+    T ~ { var x = 0; oiq.useAlt(c => x = c.toInt)      :==: typedLike(oiq); x } ==== 0
+    T ~ { var x = 0; oap.useAlt(y => x = nlen(y.get))  :==: typedLike(oap); x } ==== -1
+    T ~ { var x = 0; oaq.useAlt(y => x = nlen(y.alt))  :==: typedLike(oaq); x } ==== -1
 
-    "" \ { var x = 0; i.useThem(x = _)(_ => x = 4)                                  :==: typedLike(i)  ; x } ==== 5
-    "" \ { var x = 0; a.useThem(_ => x = 4)(s => x = s.length)                      :==: typedLike(a)  ; x } ==== 3
-    "" \ { var x = 0; oi.useThem(x = _)(s => x = s.length)                          :==: typedLike(oi) ; x } ==== 5
-    "" \ { var x = 0; oa.useThem(x = _)(s => x = s.length)                          :==: typedLike(oa) ; x } ==== 3
-    "" \ { var x = 0; oii.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oii); x } ==== 6
-    "" \ { var x = 0; oia.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oia); x } ==== 3
-    "" \ { var x = 0; oai.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oai); x } ==== 6
-    "" \ { var x = 0; oaa.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oaa); x } ==== 3
-    "" \ { var x = 0; n.useThem(y => x = nullone(y))(_ => x = 4)                    :==: typedLike(n)  ; x } ==== 1
-    "" \ { var x = 0; m.useThem(_ => x = 4)(y => x = nullone(y))                    :==: typedLike(m)  ; x } ==== 1
-    "" \ { var x = 0; on.useThem(y => x = nullone(y))(x = _)                        :==: typedLike(on) ; x } ==== 1
-    "" \ { var x = 0; om.useThem(x = _)(y => x = nullone(y))                        :==: typedLike(om) ; x } ==== 1
-    "" \ { var x = 0; oin.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oin); x } ==== 1
-    "" \ { var x = 0; oim.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oim); x } ==== -1
-    "" \ { var x = 0; oan.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oan); x } ==== 1
-    "" \ { var x = 0; oam.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oam); x } ==== -1
-    "" \ { var x = 0; p.useThem(y => x = nlen(y))(_ => x = 4)                       :==: typedLike(p)  ; x } ==== -1
-    "" \ { var x = 0; q.useThem(_ => x = 4)(y => x = nlen(y))                       :==: typedLike(q)  ; x } ==== -1
-    "" \ { var x = 0; op.useThem(y => x = nlen(y))(x = _)                           :==: typedLike(op) ; x } ==== -1
-    "" \ { var x = 0; oq.useThem(x = _)(y => x = nlen(y))                           :==: typedLike(oq) ; x } ==== -1
-    "" \ { var x = 0; oip.useThem(y => x = nlen(y.get))(c => x = c.toInt)           :==: typedLike(oip); x } ==== -1
-    "" \ { var x = 0; oiq.useThem(y => x = nlen(y.alt))(c => x = c.toInt)           :==: typedLike(oiq); x } ==== -1
-    "" \ { var x = 0; oap.useThem(c => x = c.toInt)(y => x = nlen(y.get))           :==: typedLike(oap); x } ==== -1
-    "" \ { var x = 0; oaq.useThem(c => x = c.toInt)(y => x = nlen(y.alt))           :==: typedLike(oaq); x } ==== -1
+    T ~ { var x = 0; i.useThem(x = _)(_ => x = 4)                                  :==: typedLike(i)  ; x } ==== 5
+    T ~ { var x = 0; a.useThem(_ => x = 4)(s => x = s.length)                      :==: typedLike(a)  ; x } ==== 3
+    T ~ { var x = 0; oi.useThem(x = _)(s => x = s.length)                          :==: typedLike(oi) ; x } ==== 5
+    T ~ { var x = 0; oa.useThem(x = _)(s => x = s.length)                          :==: typedLike(oa) ; x } ==== 3
+    T ~ { var x = 0; oii.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oii); x } ==== 6
+    T ~ { var x = 0; oia.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oia); x } ==== 3
+    T ~ { var x = 0; oai.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oai); x } ==== 6
+    T ~ { var x = 0; oaa.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oaa); x } ==== 3
+    T ~ { var x = 0; n.useThem(y => x = nullone(y))(_ => x = 4)                    :==: typedLike(n)  ; x } ==== 1
+    T ~ { var x = 0; m.useThem(_ => x = 4)(y => x = nullone(y))                    :==: typedLike(m)  ; x } ==== 1
+    T ~ { var x = 0; on.useThem(y => x = nullone(y))(x = _)                        :==: typedLike(on) ; x } ==== 1
+    T ~ { var x = 0; om.useThem(x = _)(y => x = nullone(y))                        :==: typedLike(om) ; x } ==== 1
+    T ~ { var x = 0; oin.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oin); x } ==== 1
+    T ~ { var x = 0; oim.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oim); x } ==== -1
+    T ~ { var x = 0; oan.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oan); x } ==== 1
+    T ~ { var x = 0; oam.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oam); x } ==== -1
+    T ~ { var x = 0; p.useThem(y => x = nlen(y))(_ => x = 4)                       :==: typedLike(p)  ; x } ==== -1
+    T ~ { var x = 0; q.useThem(_ => x = 4)(y => x = nlen(y))                       :==: typedLike(q)  ; x } ==== -1
+    T ~ { var x = 0; op.useThem(y => x = nlen(y))(x = _)                           :==: typedLike(op) ; x } ==== -1
+    T ~ { var x = 0; oq.useThem(x = _)(y => x = nlen(y))                           :==: typedLike(oq) ; x } ==== -1
+    T ~ { var x = 0; oip.useThem(y => x = nlen(y.get))(c => x = c.toInt)           :==: typedLike(oip); x } ==== -1
+    T ~ { var x = 0; oiq.useThem(y => x = nlen(y.alt))(c => x = c.toInt)           :==: typedLike(oiq); x } ==== -1
+    T ~ { var x = 0; oap.useThem(c => x = c.toInt)(y => x = nlen(y.get))           :==: typedLike(oap); x } ==== -1
+    T ~ { var x = 0; oaq.useThem(c => x = c.toInt)(y => x = nlen(y.alt))           :==: typedLike(oaq); x } ==== -1
 
-    "" \ i.exists(_ == 5)     ==== true
-    "" \ i.exists(_ == 4)     ==== false
-    "" \ a.exists(_ == 5)     ==== false
-    "" \ oi.exists(_ == 5)    ==== true
-    "" \ oi.exists(_ == 4)    ==== false
-    "" \ oa.exists(_ == 5)    ==== false
-    "" \ on.exists(_ eq null) ==== true
-    "" \ on.exists(_ ne null) ==== false
-    "" \ om.exists(_ == 5)    ==== false
+    T ~ i.exists(_ == 5)     ==== true
+    T ~ i.exists(_ == 4)     ==== false
+    T ~ a.exists(_ == 5)     ==== false
+    T ~ oi.exists(_ == 5)    ==== true
+    T ~ oi.exists(_ == 4)    ==== false
+    T ~ oa.exists(_ == 5)    ==== false
+    T ~ on.exists(_ eq null) ==== true
+    T ~ on.exists(_ ne null) ==== false
+    T ~ om.exists(_ == 5)    ==== false
 
-    "" \ i.existsAlt(_ == "eel")   ==== false
-    "" \ a.existsAlt(_ == "cod")   ==== true
-    "" \ a.existsAlt(_ == "eel")   ==== false
-    "" \ oi.existsAlt(_ == "eel")  ==== false
-    "" \ oa.existsAlt(_ == "cod")  ==== true
-    "" \ oa.existsAlt(_ == "eel")  ==== false
-    "" \ on.existsAlt(_ == 5)      ==== false
-    "" \ om.existsAlt(_ eq null)   ==== true
-    "" \ om.existsAlt(_ ne null)   ==== false
+    T ~ i.existsAlt(_ == "eel")   ==== false
+    T ~ a.existsAlt(_ == "cod")   ==== true
+    T ~ a.existsAlt(_ == "eel")   ==== false
+    T ~ oi.existsAlt(_ == "eel")  ==== false
+    T ~ oa.existsAlt(_ == "cod")  ==== true
+    T ~ oa.existsAlt(_ == "eel")  ==== false
+    T ~ on.existsAlt(_ == 5)      ==== false
+    T ~ om.existsAlt(_ eq null)   ==== true
+    T ~ om.existsAlt(_ ne null)   ==== false
 
-    "" \ i.existsThem(_ == 5)(_ => false)     ==== true
-    "" \ i.existsThem(_ == 4)(_ => true)      ==== false
-    "" \ a.existsThem(_ => false)(_ == "cod") ==== true
-    "" \ a.existsThem(_ => true)(_ == "eel")  ==== false
-    "" \ oi.existsThem(_ == 5)(_ == "eel")    ==== true
-    "" \ oi.existsThem(_ == 4)(_ == "eel")    ==== false
-    "" \ oa.existsThem(_ == 5)(_ == "cod")    ==== true
-    "" \ oa.existsThem(_ == 5)(_ == "eel")    ==== false
-    "" \ on.existsThem(_ eq null)(_ == 4)     ==== true
-    "" \ on.existsThem(_ ne null)(_ == 4)     ==== false
-    "" \ om.existsThem(_ == 5)(_ eq null)     ==== true
-    "" \ om.existsThem(_ == 5)(_ ne null)     ==== false
+    T ~ i.existsThem(_ == 5)(_ => false)     ==== true
+    T ~ i.existsThem(_ == 4)(_ => true)      ==== false
+    T ~ a.existsThem(_ => false)(_ == "cod") ==== true
+    T ~ a.existsThem(_ => true)(_ == "eel")  ==== false
+    T ~ oi.existsThem(_ == 5)(_ == "eel")    ==== true
+    T ~ oi.existsThem(_ == 4)(_ == "eel")    ==== false
+    T ~ oa.existsThem(_ == 5)(_ == "cod")    ==== true
+    T ~ oa.existsThem(_ == 5)(_ == "eel")    ==== false
+    T ~ on.existsThem(_ eq null)(_ == 4)     ==== true
+    T ~ on.existsThem(_ ne null)(_ == 4)     ==== false
+    T ~ om.existsThem(_ == 5)(_ eq null)     ==== true
+    T ~ om.existsThem(_ == 5)(_ ne null)     ==== false
 
-    "" \ i.forall(_ == 5)     ==== true
-    "" \ i.forall(_ == 4)     ==== false
-    "" \ a.forall(_ == 5)     ==== true
-    "" \ oi.forall(_ == 5)    ==== true
-    "" \ oi.forall(_ == 4)    ==== false
-    "" \ oa.forall(_ == 5)    ==== true
-    "" \ on.forall(_ eq null) ==== true
-    "" \ on.forall(_ ne null) ==== false
-    "" \ om.forall(_ == 5)    ==== true
+    T ~ i.forall(_ == 5)     ==== true
+    T ~ i.forall(_ == 4)     ==== false
+    T ~ a.forall(_ == 5)     ==== true
+    T ~ oi.forall(_ == 5)    ==== true
+    T ~ oi.forall(_ == 4)    ==== false
+    T ~ oa.forall(_ == 5)    ==== true
+    T ~ on.forall(_ eq null) ==== true
+    T ~ on.forall(_ ne null) ==== false
+    T ~ om.forall(_ == 5)    ==== true
 
-    "" \ i.forallAlt(_ == "eel")   ==== true
-    "" \ a.forallAlt(_ == "cod")   ==== true
-    "" \ a.forallAlt(_ == "eel")   ==== false
-    "" \ oi.forallAlt(_ == "eel")  ==== true
-    "" \ oa.forallAlt(_ == "cod")  ==== true
-    "" \ oa.forallAlt(_ == "eel")  ==== false
-    "" \ on.forallAlt(_ == 5)      ==== true
-    "" \ om.forallAlt(_ eq null)   ==== true
-    "" \ om.forallAlt(_ ne null)   ==== false
+    T ~ i.forallAlt(_ == "eel")   ==== true
+    T ~ a.forallAlt(_ == "cod")   ==== true
+    T ~ a.forallAlt(_ == "eel")   ==== false
+    T ~ oi.forallAlt(_ == "eel")  ==== true
+    T ~ oa.forallAlt(_ == "cod")  ==== true
+    T ~ oa.forallAlt(_ == "eel")  ==== false
+    T ~ on.forallAlt(_ == 5)      ==== true
+    T ~ om.forallAlt(_ eq null)   ==== true
+    T ~ om.forallAlt(_ ne null)   ==== false
 
-    "" \ i.forallThem(_ == 5)(_ => false)     ==== true
-    "" \ i.forallThem(_ == 4)(_ => true)      ==== false
-    "" \ a.forallThem(_ => false)(_ == "cod") ==== true
-    "" \ a.forallThem(_ => true)(_ == "eel")  ==== false
-    "" \ oi.forallThem(_ == 5)(_ == "eel")    ==== true
-    "" \ oi.forallThem(_ == 4)(_ == "eel")    ==== false
-    "" \ oa.forallThem(_ == 5)(_ == "cod")    ==== true
-    "" \ oa.forallThem(_ == 5)(_ == "eel")    ==== false
-    "" \ on.forallThem(_ eq null)(_ == 4)     ==== true
-    "" \ on.forallThem(_ ne null)(_ == 4)     ==== false
-    "" \ om.forallThem(_ == 5)(_ eq null)     ==== true
-    "" \ om.forallThem(_ == 5)(_ ne null)     ==== false
+    T ~ i.forallThem(_ == 5)(_ => false)     ==== true
+    T ~ i.forallThem(_ == 4)(_ => true)      ==== false
+    T ~ a.forallThem(_ => false)(_ == "cod") ==== true
+    T ~ a.forallThem(_ => true)(_ == "eel")  ==== false
+    T ~ oi.forallThem(_ == 5)(_ == "eel")    ==== true
+    T ~ oi.forallThem(_ == 4)(_ == "eel")    ==== false
+    T ~ oa.forallThem(_ == 5)(_ == "cod")    ==== true
+    T ~ oa.forallThem(_ == 5)(_ == "eel")    ==== false
+    T ~ on.forallThem(_ eq null)(_ == 4)     ==== true
+    T ~ on.forallThem(_ ne null)(_ == 4)     ==== false
+    T ~ om.forallThem(_ == 5)(_ eq null)     ==== true
+    T ~ om.forallThem(_ == 5)(_ ne null)     ==== false
 
 
 
@@ -674,403 +678,403 @@ class FlowTest {
     val valueProvider = new ProvideVariousOrValues()
     import valueProvider._
 
-    "" \ i.fold(_+1)(_ => 0)            ==== 6
-    "" \ a.fold(_ => 0)(_.length)       ==== 3
-    "" \ oi.fold(_+1)(_.length)         ==== 6
-    "" \ oa.fold(_+1)(_.length)         ==== 3
-    "" \ oai.fold(_.isDigit)(_.isBoxed) ==== false
-    "" \ oia.fold(_.isBoxed)(_.isDigit) ==== true
-    "" \ n.fold(_ eq null)(_ => false)  ==== true
-    "" \ m.fold(_ => false)(_ eq null)  ==== true
-    "" \ on.fold(_ eq null)(_ == 0)     ==== true
-    "" \ om.fold(_ == 0)(_ eq null)     ==== true
-    "" \ oin.fold(_.isBoxed)(_ == ' ')  ==== false
-    "" \ oim.fold(_.isBoxed)(_ == ' ')  ==== true
-    "" \ oan.fold(_ == ' ')(_.isBoxed)  ==== false
-    "" \ oam.fold(_ == ' ')(_.isBoxed)  ==== true
-    "" \ p.fold(_ eq null)(_ => false)  ==== true
-    "" \ q.fold(_ => false)(_ eq null)  ==== true
-    "" \ op.fold(_ eq null)(_ == 0)     ==== true
-    "" \ oq.fold(_ == 0)(_ eq null)     ==== true
-    "" \ oip.fold(_.isBoxed)(_ == ' ')  ==== false
-    "" \ oiq.fold(_.isBoxed)(_ == ' ')  ==== true
-    "" \ oap.fold(_ == ' ')(_.isBoxed)  ==== false
-    "" \ oaq.fold(_ == ' ')(_.isBoxed)  ==== true
+    T ~ i.fold(_+1)(_ => 0)            ==== 6
+    T ~ a.fold(_ => 0)(_.length)       ==== 3
+    T ~ oi.fold(_+1)(_.length)         ==== 6
+    T ~ oa.fold(_+1)(_.length)         ==== 3
+    T ~ oai.fold(_.isDigit)(_.isBoxed) ==== false
+    T ~ oia.fold(_.isBoxed)(_.isDigit) ==== true
+    T ~ n.fold(_ eq null)(_ => false)  ==== true
+    T ~ m.fold(_ => false)(_ eq null)  ==== true
+    T ~ on.fold(_ eq null)(_ == 0)     ==== true
+    T ~ om.fold(_ == 0)(_ eq null)     ==== true
+    T ~ oin.fold(_.isBoxed)(_ == ' ')  ==== false
+    T ~ oim.fold(_.isBoxed)(_ == ' ')  ==== true
+    T ~ oan.fold(_ == ' ')(_.isBoxed)  ==== false
+    T ~ oam.fold(_ == ' ')(_.isBoxed)  ==== true
+    T ~ p.fold(_ eq null)(_ => false)  ==== true
+    T ~ q.fold(_ => false)(_ eq null)  ==== true
+    T ~ op.fold(_ eq null)(_ == 0)     ==== true
+    T ~ oq.fold(_ == 0)(_ eq null)     ==== true
+    T ~ oip.fold(_.isBoxed)(_ == ' ')  ==== false
+    T ~ oiq.fold(_.isBoxed)(_ == ' ')  ==== true
+    T ~ oap.fold(_ == ' ')(_.isBoxed)  ==== false
+    T ~ oaq.fold(_ == ' ')(_.isBoxed)  ==== true
 
-    "" \ i.getOrElse(_ => 0)                    ==== 5
-    "" \ a.getOrElse(_.length)                  ==== 3
-    "" \ oi.getOrElse(_.length)                 ==== 5
-    "" \ oa.getOrElse(_.length)                 ==== 3
-    "" \ oai.getOrElse(_.toString.head)         ==== '5'
-    "" \ oia.getOrElse(_.toString.isnt[Int])    ==== Alt("cod")
-    "" \ n.getOrElse(_ => throw new Exception)  ==== null
-    "" \ m.getOrElse(_ => 0)                    ==== 0
-    "" \ on.getOrElse(_ => throw new Exception) ==== null
-    "" \ om.getOrElse(_ => 0)                   ==== 0
-    "" \ oin.getOrElse(c => Alt(c.toInt))       ==== null
-    "" \ oim.getOrElse(c => Is(c.toInt))        ==== Alt(null)
-    "" \ oan.getOrElse(_.isBoxed.toString.head) ==== 'f'
-    "" \ oam.getOrElse(_.isBoxed.toString.head) ==== 't'
-    "" \ p.getOrElse(_.toString)                ==== null
-    "" \ q.getOrElse(_ => 0)                    ==== 0
-    "" \ op.getOrElse(_.toString)               ==== null
-    "" \ oq.getOrElse(_ => 0)                   ==== 0
-    "" \ oip.getOrElse(c => Alt(c.toInt))       ==== null
-    "" \ oiq.getOrElse(c => Is(c.toInt))        ==== Alt(null)
-    "" \ oap.getOrElse(_.isBoxed.toString.head) ==== 'f'
-    "" \ oaq.getOrElse(_.isBoxed.toString.head) ==== 't'
+    T ~ i.getOrElse(_ => 0)                    ==== 5
+    T ~ a.getOrElse(_.length)                  ==== 3
+    T ~ oi.getOrElse(_.length)                 ==== 5
+    T ~ oa.getOrElse(_.length)                 ==== 3
+    T ~ oai.getOrElse(_.toString.head)         ==== '5'
+    T ~ oia.getOrElse(_.toString.isnt[Int])    ==== Alt("cod")
+    T ~ n.getOrElse(_ => throw new Exception)  ==== null
+    T ~ m.getOrElse(_ => 0)                    ==== 0
+    T ~ on.getOrElse(_ => throw new Exception) ==== null
+    T ~ om.getOrElse(_ => 0)                   ==== 0
+    T ~ oin.getOrElse(c => Alt(c.toInt))       ==== null
+    T ~ oim.getOrElse(c => Is(c.toInt))        ==== Alt(null)
+    T ~ oan.getOrElse(_.isBoxed.toString.head) ==== 'f'
+    T ~ oam.getOrElse(_.isBoxed.toString.head) ==== 't'
+    T ~ p.getOrElse(_.toString)                ==== null
+    T ~ q.getOrElse(_ => 0)                    ==== 0
+    T ~ op.getOrElse(_.toString)               ==== null
+    T ~ oq.getOrElse(_ => 0)                   ==== 0
+    T ~ oip.getOrElse(c => Alt(c.toInt))       ==== null
+    T ~ oiq.getOrElse(c => Is(c.toInt))        ==== Alt(null)
+    T ~ oap.getOrElse(_.isBoxed.toString.head) ==== 'f'
+    T ~ oaq.getOrElse(_.isBoxed.toString.head) ==== 't'
 
-    "" \ i.altOrElse(_.toString)                ==== "5"
-    "" \ a.altOrElse(_.toString)                ==== "cod"
-    "" \ oi.altOrElse(_.toString)               ==== "5"
-    "" \ oa.altOrElse(_.toString)               ==== "cod"
-    "" \ oai.altOrElse(_.toString.isnt[Int])    ==== Is(5)
-    "" \ oia.altOrElse(_.toString.head)         ==== 'A'
-    "" \ n.altOrElse(_ => "null")               ==== "null"
-    "" \ m.altOrElse(_ => throw new Exception)  ==== null
-    "" \ on.altOrElse(_ => "null")              ==== "null"
-    "" \ om.altOrElse(_ => throw new Exception) ==== null
-    "" \ oin.altOrElse(_.isBoxed.toString.head) ==== 'f'
-    "" \ oim.altOrElse(_.isBoxed.toString.head) ==== 't'
-    "" \ oan.altOrElse(c => Alt(c.toInt))       ==== null
-    "" \ oam.altOrElse(c => Is(c.toInt))        ==== Alt(null)
-    "" \ p.altOrElse(_ => "null")               ==== "null"
-    "" \ q.altOrElse(_.toString)                ==== null
-    "" \ op.altOrElse(_ => "null")              ==== "null"
-    "" \ oq.altOrElse(_.toString)               ==== null
-    "" \ oip.altOrElse(_.isBoxed.toString.head) ==== 'f'
-    "" \ oiq.altOrElse(_.isBoxed.toString.head) ==== 't'
-    "" \ oap.altOrElse(c => Alt(c.toInt))       ==== null
-    "" \ oaq.altOrElse(c => Is(c.toInt))        ==== Alt(null)
+    T ~ i.altOrElse(_.toString)                ==== "5"
+    T ~ a.altOrElse(_.toString)                ==== "cod"
+    T ~ oi.altOrElse(_.toString)               ==== "5"
+    T ~ oa.altOrElse(_.toString)               ==== "cod"
+    T ~ oai.altOrElse(_.toString.isnt[Int])    ==== Is(5)
+    T ~ oia.altOrElse(_.toString.head)         ==== 'A'
+    T ~ n.altOrElse(_ => "null")               ==== "null"
+    T ~ m.altOrElse(_ => throw new Exception)  ==== null
+    T ~ on.altOrElse(_ => "null")              ==== "null"
+    T ~ om.altOrElse(_ => throw new Exception) ==== null
+    T ~ oin.altOrElse(_.isBoxed.toString.head) ==== 'f'
+    T ~ oim.altOrElse(_.isBoxed.toString.head) ==== 't'
+    T ~ oan.altOrElse(c => Alt(c.toInt))       ==== null
+    T ~ oam.altOrElse(c => Is(c.toInt))        ==== Alt(null)
+    T ~ p.altOrElse(_ => "null")               ==== "null"
+    T ~ q.altOrElse(_.toString)                ==== null
+    T ~ op.altOrElse(_ => "null")              ==== "null"
+    T ~ oq.altOrElse(_.toString)               ==== null
+    T ~ oip.altOrElse(_.isBoxed.toString.head) ==== 'f'
+    T ~ oiq.altOrElse(_.isBoxed.toString.head) ==== 't'
+    T ~ oap.altOrElse(c => Alt(c.toInt))       ==== null
+    T ~ oaq.altOrElse(c => Is(c.toInt))        ==== Alt(null)
 
-    "" \ i.map(_ > 0)       ==== true
-    "" \ a.map(_ => 0)      ==== Alt("cod")
-    "" \ oi.map(_ > 0)      ==== true
-    "" \ oa.map(_ > 0)      ==== Alt("cod")
-    "" \ oii.map(_.isBoxed) ==== false
-    "" \ oia.map(_.isBoxed) ==== true
-    "" \ oai.map(_ == ' ')  ==== Alt(5)
-    "" \ oaa.map(_ == ' ')  ==== Alt(Alt("cod"))
-    "" \ n.map(_ eq null)   ==== true
-    "" \ m.map(_ => 0)      ==== Alt(null)
-    "" \ on.map(_ eq null)  ==== true
-    "" \ om.map(_ eq null)  ==== Alt(null)
-    "" \ oin.map(_.isBoxed) ==== false
-    "" \ oim.map(_.isBoxed) ==== true
-    "" \ oan.map(_ == ' ')  ==== Alt(null)
-    "" \ oam.map(_ == ' ')  ==== Alt(Alt(null))
-    "" \ p.map(_ eq null)   ==== true
-    "" \ q.map(_ => 0)      ==== Alt(null)
-    "" \ op.map(_ eq null)  ==== true
-    "" \ oq.map(_ + 7)      ==== Alt(null)
-    "" \ oip.map(_.isBoxed) ==== false
-    "" \ oiq.map(_.isBoxed) ==== true
-    "" \ oap.map(_ == ' ')  ==== Alt(null)
-    "" \ oaq.map(_ == ' ')  ==== Alt(Alt(null))
+    T ~ i.map(_ > 0)       ==== true
+    T ~ a.map(_ => 0)      ==== Alt("cod")
+    T ~ oi.map(_ > 0)      ==== true
+    T ~ oa.map(_ > 0)      ==== Alt("cod")
+    T ~ oii.map(_.isBoxed) ==== false
+    T ~ oia.map(_.isBoxed) ==== true
+    T ~ oai.map(_ == ' ')  ==== Alt(5)
+    T ~ oaa.map(_ == ' ')  ==== Alt(Alt("cod"))
+    T ~ n.map(_ eq null)   ==== true
+    T ~ m.map(_ => 0)      ==== Alt(null)
+    T ~ on.map(_ eq null)  ==== true
+    T ~ om.map(_ eq null)  ==== Alt(null)
+    T ~ oin.map(_.isBoxed) ==== false
+    T ~ oim.map(_.isBoxed) ==== true
+    T ~ oan.map(_ == ' ')  ==== Alt(null)
+    T ~ oam.map(_ == ' ')  ==== Alt(Alt(null))
+    T ~ p.map(_ eq null)   ==== true
+    T ~ q.map(_ => 0)      ==== Alt(null)
+    T ~ op.map(_ eq null)  ==== true
+    T ~ oq.map(_ + 7)      ==== Alt(null)
+    T ~ oip.map(_.isBoxed) ==== false
+    T ~ oiq.map(_.isBoxed) ==== true
+    T ~ oap.map(_ == ' ')  ==== Alt(null)
+    T ~ oaq.map(_ == ' ')  ==== Alt(Alt(null))
 
-    "" \ i.mapAlt(_ => "")     ==== 5
-    "" \ a.mapAlt(_.length)    ==== Alt(3)
-    "" \ oi.mapAlt(_.length)   ==== 5
-    "" \ oa.mapAlt(_.length)   ==== Alt(3)
-    "" \ oii.mapAlt(_ == ' ')  ==== 5
-    "" \ oia.mapAlt(_ == ' ')  ==== Is(Alt("cod"))
-    "" \ oai.mapAlt(_.isBoxed) ==== Alt(false)
-    "" \ oaa.mapAlt(_.isBoxed) ==== Alt(true)
-    "" \ n.mapAlt(_ => ' ')    ==== null
-    "" \ m.mapAlt(_ eq null)   ==== Alt(true)
-    "" \ on.mapAlt(_ + 1)      ==== null
-    "" \ om.mapAlt(_ eq null)  ==== Alt(true)
-    "" \ oin.mapAlt(_.toInt)   ==== null
-    "" \ oim.mapAlt(_.toInt)   ==== Is(Alt(null))
-    "" \ oan.mapAlt(_.isBoxed) ==== Alt(false)
-    "" \ oam.mapAlt(_.isBoxed) ==== Alt(true)
-    "" \ p.mapAlt(_ => ' ')    ==== null
-    "" \ q.mapAlt(_ eq null)   ==== Alt(true)
-    "" \ op.mapAlt(_ + 1)      ==== null
-    "" \ oq.mapAlt(_ eq null)  ==== Alt(true)
-    "" \ oip.mapAlt(_.toInt)   ==== null
-    "" \ oiq.mapAlt(_.toInt)   ==== Is(Alt(null))
-    "" \ oap.mapAlt(_.isBoxed) ==== Alt(false)
-    "" \ oaq.mapAlt(_.isBoxed) ==== Alt(true)
+    T ~ i.mapAlt(_ => "")     ==== 5
+    T ~ a.mapAlt(_.length)    ==== Alt(3)
+    T ~ oi.mapAlt(_.length)   ==== 5
+    T ~ oa.mapAlt(_.length)   ==== Alt(3)
+    T ~ oii.mapAlt(_ == ' ')  ==== 5
+    T ~ oia.mapAlt(_ == ' ')  ==== Is(Alt("cod"))
+    T ~ oai.mapAlt(_.isBoxed) ==== Alt(false)
+    T ~ oaa.mapAlt(_.isBoxed) ==== Alt(true)
+    T ~ n.mapAlt(_ => ' ')    ==== null
+    T ~ m.mapAlt(_ eq null)   ==== Alt(true)
+    T ~ on.mapAlt(_ + 1)      ==== null
+    T ~ om.mapAlt(_ eq null)  ==== Alt(true)
+    T ~ oin.mapAlt(_.toInt)   ==== null
+    T ~ oim.mapAlt(_.toInt)   ==== Is(Alt(null))
+    T ~ oan.mapAlt(_.isBoxed) ==== Alt(false)
+    T ~ oam.mapAlt(_.isBoxed) ==== Alt(true)
+    T ~ p.mapAlt(_ => ' ')    ==== null
+    T ~ q.mapAlt(_ eq null)   ==== Alt(true)
+    T ~ op.mapAlt(_ + 1)      ==== null
+    T ~ oq.mapAlt(_ eq null)  ==== Alt(true)
+    T ~ oip.mapAlt(_.toInt)   ==== null
+    T ~ oiq.mapAlt(_.toInt)   ==== Is(Alt(null))
+    T ~ oap.mapAlt(_.isBoxed) ==== Alt(false)
+    T ~ oaq.mapAlt(_.isBoxed) ==== Alt(true)
 
-    "" \ i.mapThem(_ + 1)(_ => "")         ==== 6
-    "" \ a.mapThem(_ => "")(_.length)      ==== Alt(3)
-    "" \ oi.mapThem(_ + 1)(_ + "!")        ==== 6
-    "" \ oa.mapThem(_ + 1)(_ + "!")        ==== Alt("cod!")
-    "" \ oii.mapThem(_.isBoxed)(_.toUpper) ==== false
-    "" \ oia.mapThem(_.isBoxed)(_.toUpper) ==== true
-    "" \ oai.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
-    "" \ oaa.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
-    "" \ n.mapThem(_ eq null)(_ => "")     ==== true
-    "" \ m.mapThem(_ => "")(_ eq null)     ==== Alt(true)
-    "" \ on.mapThem(_ eq null)(_ + 1)      ==== true
-    "" \ om.mapThem(_ + 1)(_ eq null)      ==== Alt(true)
-    "" \ oin.mapThem(_.isBoxed)(_.toUpper) ==== false
-    "" \ oim.mapThem(_.isBoxed)(_.toUpper) ==== true
-    "" \ oan.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
-    "" \ oam.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
-    "" \ p.mapThem(_ eq null)(_ => "")     ==== true
-    "" \ q.mapThem(_ => "")(_ eq null)     ==== Alt(true)
-    "" \ op.mapThem(_ eq null)(_ + 1)      ==== true
-    "" \ oq.mapThem(_ + 1)(_ eq null)      ==== Alt(true)
-    "" \ oip.mapThem(_.isBoxed)(_.toUpper) ==== false
-    "" \ oiq.mapThem(_.isBoxed)(_.toUpper) ==== true
-    "" \ oap.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
-    "" \ oaq.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
+    T ~ i.mapThem(_ + 1)(_ => "")         ==== 6
+    T ~ a.mapThem(_ => "")(_.length)      ==== Alt(3)
+    T ~ oi.mapThem(_ + 1)(_ + "!")        ==== 6
+    T ~ oa.mapThem(_ + 1)(_ + "!")        ==== Alt("cod!")
+    T ~ oii.mapThem(_.isBoxed)(_.toUpper) ==== false
+    T ~ oia.mapThem(_.isBoxed)(_.toUpper) ==== true
+    T ~ oai.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
+    T ~ oaa.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
+    T ~ n.mapThem(_ eq null)(_ => "")     ==== true
+    T ~ m.mapThem(_ => "")(_ eq null)     ==== Alt(true)
+    T ~ on.mapThem(_ eq null)(_ + 1)      ==== true
+    T ~ om.mapThem(_ + 1)(_ eq null)      ==== Alt(true)
+    T ~ oin.mapThem(_.isBoxed)(_.toUpper) ==== false
+    T ~ oim.mapThem(_.isBoxed)(_.toUpper) ==== true
+    T ~ oan.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
+    T ~ oam.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
+    T ~ p.mapThem(_ eq null)(_ => "")     ==== true
+    T ~ q.mapThem(_ => "")(_ eq null)     ==== Alt(true)
+    T ~ op.mapThem(_ eq null)(_ + 1)      ==== true
+    T ~ oq.mapThem(_ + 1)(_ eq null)      ==== Alt(true)
+    T ~ oip.mapThem(_.isBoxed)(_.toUpper) ==== false
+    T ~ oiq.mapThem(_.isBoxed)(_.toUpper) ==== true
+    T ~ oap.mapThem(_.toUpper)(_.isBoxed) ==== Alt(false)
+    T ~ oaq.mapThem(_.toUpper)(_.isBoxed) ==== Alt(true)
 
-    "" \ i.flatMap(_.isIf(_ > 0))         =&&= 5               -> typed[Int Or Int]
-    "" \ a.flatMap(_ => 0.or[String])     =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oi.flatMap(_.or[String])         =&&= 5               -> typed[Int Or String]
-    "" \ oa.flatMap(_.or[String])         =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oii.flatMap(_.mapAlt(_.head))    =&&= 5               -> typed[Int Or Char]
-    "" \ oia.flatMap(_.mapAlt(_.head))    =&&= Alt('c')        -> typed[Int Or Char]
-    "" \ oai.flatMap(c => Is(c.toInt))    =&&= Alt(5)          -> typed[Int Or (Int Or String)]
-    "" \ oaa.flatMap(c => Is(c.toInt))    =&&= Alt(Alt("cod")) -> typed[Int Or (Int Or String)]
-    "" \ n.flatMap(_.isIf(_ ne null))     =&&= Alt(null)       -> typed[Null Or Null]
-    "" \ m.flatMap(_ => 0.or[Null])       =&&= Alt(null)       -> typed[Int Or Null]
-    "" \ on.flatMap(_.isOr[Int])          =&&= null          :->: typed[Null Or Int]   // null -> stuff doesn't work so used method on typed
-    "" \ om.flatMap(_.or[String])         =&&= Alt(null)       -> typed[Int Or String]
-    "" \ oin.flatMap(_.isBoxed.or[Char])  =&&= false           -> typed[Boolean Or Char]
-    "" \ oim.flatMap(_.isBoxed.or[Char])  =&&= true            -> typed[Boolean Or Char]
-    "" \ oan.flatMap(c => Is(c.toInt))    =&&= Alt(null)       -> typed[Int Or (Null Or Int)]
-    "" \ oam.flatMap(c => Is(c.toInt))    =&&= Alt(Alt(null))  -> typed[Int Or (Int Or Null)]
-    "" \ p.flatMap(_.isIf(_ ne null))     =&&= Alt(null)       -> typed[String Or String]
-    "" \ q.flatMap(_ => 0.or[String])     =&&= Alt(null)       -> typed[Int Or String]
-    "" \ op.flatMap(_.isOr[Int])          =&&= null          :->: typed[String Or Int]   // null -> stuff doesn't work so used method on typed
-    "" \ oq.flatMap(_.or[String])         =&&= Alt(null)       -> typed[Int Or String]
-    "" \ oip.flatMap(_.isBoxed.or[Char])  =&&= false           -> typed[Boolean Or Char]
-    "" \ oiq.flatMap(_.isBoxed.or[Char])  =&&= true            -> typed[Boolean Or Char]
-    "" \ oap.flatMap(c => Is(c.toInt))    =&&= Alt(null)       -> typed[Int Or (String Or Int)]
-    "" \ oaq.flatMap(c => Is(c.toInt))    =&&= Alt(Alt(null))  -> typed[Int Or (Int Or String)]
+    T ~ i.flatMap(_.isIf(_ > 0))         ==== 5               --: typed[Int Or Int]
+    T ~ a.flatMap(_ => 0.or[String])     ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oi.flatMap(_.or[String])         ==== 5               --: typed[Int Or String]
+    T ~ oa.flatMap(_.or[String])         ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oii.flatMap(_.mapAlt(_.head))    ==== 5               --: typed[Int Or Char]
+    T ~ oia.flatMap(_.mapAlt(_.head))    ==== Alt('c')        --: typed[Int Or Char]
+    T ~ oai.flatMap(c => Is(c.toInt))    ==== Alt(5)          --: typed[Int Or (Int Or String)]
+    T ~ oaa.flatMap(c => Is(c.toInt))    ==== Alt(Alt("cod")) --: typed[Int Or (Int Or String)]
+    T ~ n.flatMap(_.isIf(_ ne null))     ==== Alt(null)       --: typed[Null Or Null]
+    T ~ m.flatMap(_ => 0.or[Null])       ==== Alt(null)       --: typed[Int Or Null]
+    T ~ on.flatMap(_.isOr[Int])          ==== null            --: typed[Null Or Int]   // null -> stuff doesn't work so used method on typed
+    T ~ om.flatMap(_.or[String])         ==== Alt(null)       --: typed[Int Or String]
+    T ~ oin.flatMap(_.isBoxed.or[Char])  ==== false           --: typed[Boolean Or Char]
+    T ~ oim.flatMap(_.isBoxed.or[Char])  ==== true            --: typed[Boolean Or Char]
+    T ~ oan.flatMap(c => Is(c.toInt))    ==== Alt(null)       --: typed[Int Or (Null Or Int)]
+    T ~ oam.flatMap(c => Is(c.toInt))    ==== Alt(Alt(null))  --: typed[Int Or (Int Or Null)]
+    T ~ p.flatMap(_.isIf(_ ne null))     ==== Alt(null)       --: typed[String Or String]
+    T ~ q.flatMap(_ => 0.or[String])     ==== Alt(null)       --: typed[Int Or String]
+    T ~ op.flatMap(_.isOr[Int])          ==== null            --: typed[String Or Int]   // null -> stuff doesn't work so used method on typed
+    T ~ oq.flatMap(_.or[String])         ==== Alt(null)       --: typed[Int Or String]
+    T ~ oip.flatMap(_.isBoxed.or[Char])  ==== false           --: typed[Boolean Or Char]
+    T ~ oiq.flatMap(_.isBoxed.or[Char])  ==== true            --: typed[Boolean Or Char]
+    T ~ oap.flatMap(c => Is(c.toInt))    ==== Alt(null)       --: typed[Int Or (String Or Int)]
+    T ~ oaq.flatMap(c => Is(c.toInt))    ==== Alt(Alt(null))  --: typed[Int Or (Int Or String)]
 
-    "" \ i.flatMapAlt(_ => 0.isnt[Int])             =&&= 5               -> typed[Int Or Int]
-    "" \ a.flatMapAlt(_.isIf(_.nonEmpty))           =&&= "cod"           -> typed[String Or String]
-    "" \ oi.flatMapAlt(_.isnt[Int])                 =&&= 5               -> typed[Int Or String]
-    "" \ oa.flatMapAlt(_.isnt[Int])                 =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oii.flatMapAlt(c => Alt(c.toInt))          =&&= 5               -> typed[(Int Or String) Or Int]
-    "" \ oia.flatMapAlt(c => Alt(c.toInt))          =&&= Is(Alt("cod"))  -> typed[(Int Or String) Or Int]
-    "" \ oai.flatMapAlt(_.map(i => ('a'+i).toChar)) =&&= 'f'             -> typed[Char Or String]
-    "" \ oaa.flatMapAlt(_.map(i => ('a'+i).toChar)) =&&= Alt("cod")      -> typed[Char Or String]
-    "" \ n.flatMapAlt(_ => 0.isnt[Null])            =&&= null          :->: typed[Null Or Int]
-    "" \ m.flatMapAlt(_.isIf(_ eq null))            =&&= null          :->: typed[Null Or Null]
-    "" \ on.flatMapAlt(_.isnt[Null])                =&&= null          :->: typed[Null Or Int]
-    "" \ om.flatMapAlt(x => (x eq null).isnt[Int])  =&&= Alt(true)       -> typed[Int Or Boolean]
-    "" \ oin.flatMapAlt(_ => Alt('e'))              =&&= null          :->: typed[(Null Or Int) Or Char]
-    "" \ oim.flatMapAlt(_ => Alt('e'))              =&&= Is(Alt(null)) :->: typed[(Int Or Null) Or Char]
-    "" \ oan.flatMapAlt(_.isBoxed.isnt[Char])       =&&= Alt(false)      -> typed[Char Or Boolean]
-    "" \ oam.flatMapAlt(_.isBoxed.isnt[Char])       =&&= Alt(true)       -> typed[Char Or Boolean]
-    "" \ p.flatMapAlt(_ => 0.isnt[String])          =&&= null          :->: typed[String Or Int]
-    "" \ q.flatMapAlt(_.isIf(_ eq null))            =&&= null          :->: typed[String Or String]
-    "" \ op.flatMapAlt(_.isnt[String])              =&&= null          :->: typed[String Or Int]
-    "" \ oq.flatMapAlt(x => (x eq null).isnt[Int])  =&&= Alt(true)       -> typed[Int Or Boolean]
-    "" \ oip.flatMapAlt(_ => Alt('e'))              =&&= null          :->: typed[(String Or Int) Or Char]
-    "" \ oiq.flatMapAlt(_ => Alt('e'))              =&&= Is(Alt(null)) :->: typed[(Int Or String) Or Char]
-    "" \ oap.flatMapAlt(_.isBoxed.isnt[Char])       =&&= Alt(false)      -> typed[Char Or Boolean]
-    "" \ oaq.flatMapAlt(_.isBoxed.isnt[Char])       =&&= Alt(true)       -> typed[Char Or Boolean]
+    T ~ i.flatMapAlt(_ => 0.isnt[Int])             ==== 5               --: typed[Int Or Int]
+    T ~ a.flatMapAlt(_.isIf(_.nonEmpty))           ==== "cod"           --: typed[String Or String]
+    T ~ oi.flatMapAlt(_.isnt[Int])                 ==== 5               --: typed[Int Or String]
+    T ~ oa.flatMapAlt(_.isnt[Int])                 ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oii.flatMapAlt(c => Alt(c.toInt))          ==== 5               --: typed[(Int Or String) Or Int]
+    T ~ oia.flatMapAlt(c => Alt(c.toInt))          ==== Is(Alt("cod"))  --: typed[(Int Or String) Or Int]
+    T ~ oai.flatMapAlt(_.map(i => ('a'+i).toChar)) ==== 'f'             --: typed[Char Or String]
+    T ~ oaa.flatMapAlt(_.map(i => ('a'+i).toChar)) ==== Alt("cod")      --: typed[Char Or String]
+    T ~ n.flatMapAlt(_ => 0.isnt[Null])            ==== null            --: typed[Null Or Int]
+    T ~ m.flatMapAlt(_.isIf(_ eq null))            ==== null            --: typed[Null Or Null]
+    T ~ on.flatMapAlt(_.isnt[Null])                ==== null            --: typed[Null Or Int]
+    T ~ om.flatMapAlt(x => (x eq null).isnt[Int])  ==== Alt(true)       --: typed[Int Or Boolean]
+    T ~ oin.flatMapAlt(_ => Alt('e'))              ==== null            --: typed[(Null Or Int) Or Char]
+    T ~ oim.flatMapAlt(_ => Alt('e'))              ==== Is(Alt(null))   --: typed[(Int Or Null) Or Char]
+    T ~ oan.flatMapAlt(_.isBoxed.isnt[Char])       ==== Alt(false)      --: typed[Char Or Boolean]
+    T ~ oam.flatMapAlt(_.isBoxed.isnt[Char])       ==== Alt(true)       --: typed[Char Or Boolean]
+    T ~ p.flatMapAlt(_ => 0.isnt[String])          ==== null            --: typed[String Or Int]
+    T ~ q.flatMapAlt(_.isIf(_ eq null))            ==== null            --: typed[String Or String]
+    T ~ op.flatMapAlt(_.isnt[String])              ==== null            --: typed[String Or Int]
+    T ~ oq.flatMapAlt(x => (x eq null).isnt[Int])  ==== Alt(true)       --: typed[Int Or Boolean]
+    T ~ oip.flatMapAlt(_ => Alt('e'))              ==== null            --: typed[(String Or Int) Or Char]
+    T ~ oiq.flatMapAlt(_ => Alt('e'))              ==== Is(Alt(null))   --: typed[(Int Or String) Or Char]
+    T ~ oap.flatMapAlt(_.isBoxed.isnt[Char])       ==== Alt(false)      --: typed[Char Or Boolean]
+    T ~ oaq.flatMapAlt(_.isBoxed.isnt[Char])       ==== Alt(true)       --: typed[Char Or Boolean]
 
-    "" \ i.flatMapThem(_.isIf(_ > 0))(_ => 0.or[Int])                                   =&&= 5         -> typed[Int Or Int]
-    "" \ a.flatMapThem(_ => "eel".or[String])(_.isIf(_.nonEmpty))                       =&&= "cod"     -> typed[String Or String]
-    "" \ oi.flatMapThem(_.isIf(_ > 0))(s => 0.or[Int])                                  =&&= 5         -> typed[Int Or Int]
-    "" \ oa.flatMapThem(_ => "eel".or[String])(_.isIf(_.nonEmpty))                      =&&= "cod"     -> typed[String Or String]
-    "" \ oii.flatMapThem(_.swap)(c => if c < ' ' then Is(c.toString) else Alt(c.toInt)) =&&= Alt(5)    -> typed[String Or Int]
-    "" \ oia.flatMapThem(_.swap)(c => if c < ' ' then Is(c.toString) else Alt(c.toInt)) =&&= "cod"     -> typed[String Or Int]
-    "" \ oai.flatMapThem(c => if c < ' ' then Is(c.toString) else Alt(c.toInt))(_.swap) =&&= Alt(5)    -> typed[String Or Int]
-    "" \ oaa.flatMapThem(c => if c < ' ' then Is(c.toString) else Alt(c.toInt))(_.swap) =&&= "cod"     -> typed[String Or Int]
-    "" \ n.flatMapThem(_.isIf(_ eq null))(_ => null.isnt[Null])                         =&&= null    :->: typed[Null Or Null]
-    "" \ m.flatMapThem(_ => null.isnt[Null])(_.altIf(_ eq null))                        =&&= Alt(null) -> typed[Null Or Null]
-    "" \ on.flatMapThem(_.isIf(_ eq null))(i => null.isIf(_ => i >= 0))                 =&&= null    :->: typed[Null Or Null]
-    "" \ om.flatMapThem(i => null.isIf(_ => i >= 0))(_.isIf(_ ne null))                 =&&= Alt(null) -> typed[Null Or Null]
-    "" \ oin.flatMapThem(_.swap)(c => if c < ' ' then Alt(null) else Is(c.toInt))       =&&= Alt(null) -> typed[Int Or Null]
-    "" \ oim.flatMapThem(_.swap)(c => if c < ' ' then Alt(c.toInt) else Is(null))       =&&= null    :->: typed[Null Or Int]
-    "" \ oan.flatMapThem(c => if c < ' ' then Alt(null) else Is(c.toInt))(_.swap)       =&&= Alt(null) -> typed[Int Or Null]
-    "" \ oam.flatMapThem(c => if c < ' ' then Alt(c.toInt) else Is(null))(_.swap)       =&&= null    :->: typed[Null Or Int]
-    "" \ p.flatMapThem(_.isIf(_ eq null))(_ => "".isnt[String])                         =&&= null    :->: typed[String Or String]
-    "" \ q.flatMapThem(_ => "".isnt[String])(_.altIf(_ eq null))                        =&&= Alt(null) -> typed[String Or String]
-    "" \ op.flatMapThem(_.isIf(_ eq null))(i => "".isIf(_ => i >= 0))                   =&&= null    :->: typed[String Or String]
-    "" \ oq.flatMapThem(i => "".isIf(_ => i >= 0))(_.isIf(_ ne null))                   =&&= Alt(null) -> typed[String Or String]
-    "" \ oip.flatMapThem(_.swap)(c => if c < ' ' then Alt(null) else Is(c.toInt))       =&&= Alt(null) -> typed[Int Or String]
-    "" \ oiq.flatMapThem(_.swap)(c => if c < ' ' then Alt(c.toInt) else Is(null))       =&&= null    :->: typed[String Or Int]
-    "" \ oap.flatMapThem(c => if c < ' ' then Alt(null) else Is(c.toInt))(_.swap)       =&&= Alt(null) -> typed[Int Or String]
-    "" \ oaq.flatMapThem(c => if c < ' ' then Alt(c.toInt) else Is(null))(_.swap)       =&&= null    :->: typed[String Or Int]
+    T ~ i.flatMapThem(_.isIf(_ > 0))(_ => 0.or[Int])                                   ==== 5         --: typed[Int Or Int]
+    T ~ a.flatMapThem(_ => "eel".or[String])(_.isIf(_.nonEmpty))                       ==== "cod"     --: typed[String Or String]
+    T ~ oi.flatMapThem(_.isIf(_ > 0))(s => 0.or[Int])                                  ==== 5         --: typed[Int Or Int]
+    T ~ oa.flatMapThem(_ => "eel".or[String])(_.isIf(_.nonEmpty))                      ==== "cod"     --: typed[String Or String]
+    T ~ oii.flatMapThem(_.swap)(c => if c < ' ' then Is(c.toString) else Alt(c.toInt)) ==== Alt(5)    --: typed[String Or Int]
+    T ~ oia.flatMapThem(_.swap)(c => if c < ' ' then Is(c.toString) else Alt(c.toInt)) ==== "cod"     --: typed[String Or Int]
+    T ~ oai.flatMapThem(c => if c < ' ' then Is(c.toString) else Alt(c.toInt))(_.swap) ==== Alt(5)    --: typed[String Or Int]
+    T ~ oaa.flatMapThem(c => if c < ' ' then Is(c.toString) else Alt(c.toInt))(_.swap) ==== "cod"     --: typed[String Or Int]
+    T ~ n.flatMapThem(_.isIf(_ eq null))(_ => null.isnt[Null])                         ==== null      --: typed[Null Or Null]
+    T ~ m.flatMapThem(_ => null.isnt[Null])(_.altIf(_ eq null))                        ==== Alt(null) --: typed[Null Or Null]
+    T ~ on.flatMapThem(_.isIf(_ eq null))(i => null.isIf(_ => i >= 0))                 ==== null      --: typed[Null Or Null]
+    T ~ om.flatMapThem(i => null.isIf(_ => i >= 0))(_.isIf(_ ne null))                 ==== Alt(null) --: typed[Null Or Null]
+    T ~ oin.flatMapThem(_.swap)(c => if c < ' ' then Alt(null) else Is(c.toInt))       ==== Alt(null) --: typed[Int Or Null]
+    T ~ oim.flatMapThem(_.swap)(c => if c < ' ' then Alt(c.toInt) else Is(null))       ==== null      --: typed[Null Or Int]
+    T ~ oan.flatMapThem(c => if c < ' ' then Alt(null) else Is(c.toInt))(_.swap)       ==== Alt(null) --: typed[Int Or Null]
+    T ~ oam.flatMapThem(c => if c < ' ' then Alt(c.toInt) else Is(null))(_.swap)       ==== null      --: typed[Null Or Int]
+    T ~ p.flatMapThem(_.isIf(_ eq null))(_ => "".isnt[String])                         ==== null      --: typed[String Or String]
+    T ~ q.flatMapThem(_ => "".isnt[String])(_.altIf(_ eq null))                        ==== Alt(null) --: typed[String Or String]
+    T ~ op.flatMapThem(_.isIf(_ eq null))(i => "".isIf(_ => i >= 0))                   ==== null      --: typed[String Or String]
+    T ~ oq.flatMapThem(i => "".isIf(_ => i >= 0))(_.isIf(_ ne null))                   ==== Alt(null) --: typed[String Or String]
+    T ~ oip.flatMapThem(_.swap)(c => if c < ' ' then Alt(null) else Is(c.toInt))       ==== Alt(null) --: typed[Int Or String]
+    T ~ oiq.flatMapThem(_.swap)(c => if c < ' ' then Alt(c.toInt) else Is(null))       ==== null      --: typed[String Or Int]
+    T ~ oap.flatMapThem(c => if c < ' ' then Alt(null) else Is(c.toInt))(_.swap)       ==== Alt(null) --: typed[Int Or String]
+    T ~ oaq.flatMapThem(c => if c < ' ' then Alt(c.toInt) else Is(null))(_.swap)       ==== null      --: typed[String Or Int]
 
-    "" \ i.discard{ case x if x > 0 => "!"*x }                  =&&= Alt("!!!!!")    -> typed[Int Or String]
-    "" \ i.discard{ case x if x < 0 => "@"*(-x) }               =&&= 5               -> typed[Int Or String]
-    "" \ a.discard{ case x => "salmon" }                        ==== Alt("cod")
-    "" \ oi.discard{ case x if x > 0 => "!"*x }                 =&&= Alt("!!!!!")    -> typed[Int Or String]
-    "" \ oi.discard{ case x if x < 0 => "@"*(-x) }              =&&= 5               -> typed[Int Or String]
-    "" \ oa.discard{ case x if x > 0 => "!"*x }                 =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oii.discard{ case Alt(y) if y.nonEmpty => y.head }     =&&= 5               -> typed[(Int Or String) Or Char]
-    "" \ oia.discard{ case Alt(y) if y.nonEmpty => y.head }     =&&= Alt('c')        -> typed[(Int Or String) Or Char]
-    "" \ oai.discard{ case c if c < ' ' => c.toInt.or[String] } =&&= Alt(5)          -> typed[Char Or (Int Or String)]
-    "" \ oaa.discard{ case c if c < ' ' => c.toInt.or[String] } =&&= Alt(Alt("cod")) -> typed[Char Or (Int Or String)]
-    "" \ n.discard{ case x if x eq null => 4 }                  =&&= Alt(4)          -> typed[Null Or Int]
-    "" \ n.discard{ case x if x ne null => 4 }                  =&&= null          :->: typed[Null Or Int]
-    "" \ m.discard{ case x => "salmon" }                        ==== Alt(null)
-    "" \ on.discard{ case x if x eq null => 4 }                 =&&= Alt(4)          -> typed[Null Or Int]
-    "" \ on.discard{ case x if x ne null => 4 }                 =&&= null          :->: typed[Null Or Int]
-    "" \ om.discard{ case x if x > 0 => null }                  =&&= Alt(null)       -> typed[Int Or Null]
-    "" \ oin.discard{ case Alt(y) if y == 0 => '0' }            =&&= null          :->: typed[(Null Or Int) Or Char]
-    "" \ oim.discard{ case Alt(y) if y eq null => '0' }         =&&= Alt('0')        -> typed[(Int Or Null) Or Char]
-    "" \ oan.discard{ case c if c < ' ' => c.toInt.isnt[Null] } =&&= Alt(null)       -> typed[Char Or (Null Or Int)]
-    "" \ oam.discard{ case c if c < ' ' => c.toInt.or[Null] }   =&&= Alt(Alt(null))  -> typed[Char Or (Int Or Null)]
-    "" \ p.discard{ case x if x eq null => 4 }                  =&&= Alt(4)          -> typed[String Or Int]
-    "" \ p.discard{ case x if x ne null => 4 }                  =&&= null          :->: typed[String Or Int]
-    "" \ q.discard{ case x => "salmon" }                        ==== Alt(null)
-    "" \ op.discard{ case x if x eq null => 4 }                 =&&= Alt(4)          -> typed[String Or Int]
-    "" \ op.discard{ case x if x ne null => 4 }                 =&&= null          :->: typed[String Or Int]
-    "" \ oq.discard{ case x if x > 0 => "bass" }                =&&= Alt(null)       -> typed[Int Or String]
-    "" \ oip.discard{ case Alt(y) if y == 0 => '0' }            =&&= null          :->: typed[(String Or Int) Or Char]
-    "" \ oiq.discard{ case Alt(y) if nlen(y) <= 0 => '0' }      =&&= Alt('0')        -> typed[(Int Or String) Or Char]
-    "" \ oan.discard{ case ' ' => 4.isnt[String] }              =&&= Alt(null)       -> typed[Char Or (String Or Int)]
-    "" \ oaq.discard{ case ' ' => 4.or[String] }                =&&= Alt(Alt(null))  -> typed[Char Or (Int Or String)]
+    T ~ i.discard{ case x if x > 0 => "!"*x }                  ==== Alt("!!!!!")    --: typed[Int Or String]
+    T ~ i.discard{ case x if x < 0 => "@"*(-x) }               ==== 5               --: typed[Int Or String]
+    T ~ a.discard{ case x => "salmon" }                        ==== Alt("cod")
+    T ~ oi.discard{ case x if x > 0 => "!"*x }                 ==== Alt("!!!!!")    --: typed[Int Or String]
+    T ~ oi.discard{ case x if x < 0 => "@"*(-x) }              ==== 5               --: typed[Int Or String]
+    T ~ oa.discard{ case x if x > 0 => "!"*x }                 ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oii.discard{ case Alt(y) if y.nonEmpty => y.head }     ==== 5               --: typed[(Int Or String) Or Char]
+    T ~ oia.discard{ case Alt(y) if y.nonEmpty => y.head }     ==== Alt('c')        --: typed[(Int Or String) Or Char]
+    T ~ oai.discard{ case c if c < ' ' => c.toInt.or[String] } ==== Alt(5)          --: typed[Char Or (Int Or String)]
+    T ~ oaa.discard{ case c if c < ' ' => c.toInt.or[String] } ==== Alt(Alt("cod")) --: typed[Char Or (Int Or String)]
+    T ~ n.discard{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[Null Or Int]
+    T ~ n.discard{ case x if x ne null => 4 }                  ==== null            --: typed[Null Or Int]
+    T ~ m.discard{ case x => "salmon" }                        ==== Alt(null)
+    T ~ on.discard{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[Null Or Int]
+    T ~ on.discard{ case x if x ne null => 4 }                 ==== null            --: typed[Null Or Int]
+    T ~ om.discard{ case x if x > 0 => null }                  ==== Alt(null)       --: typed[Int Or Null]
+    T ~ oin.discard{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(Null Or Int) Or Char]
+    T ~ oim.discard{ case Alt(y) if y eq null => '0' }         ==== Alt('0')        --: typed[(Int Or Null) Or Char]
+    T ~ oan.discard{ case c if c < ' ' => c.toInt.isnt[Null] } ==== Alt(null)       --: typed[Char Or (Null Or Int)]
+    T ~ oam.discard{ case c if c < ' ' => c.toInt.or[Null] }   ==== Alt(Alt(null))  --: typed[Char Or (Int Or Null)]
+    T ~ p.discard{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[String Or Int]
+    T ~ p.discard{ case x if x ne null => 4 }                  ==== null            --: typed[String Or Int]
+    T ~ q.discard{ case x => "salmon" }                        ==== Alt(null)
+    T ~ op.discard{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[String Or Int]
+    T ~ op.discard{ case x if x ne null => 4 }                 ==== null            --: typed[String Or Int]
+    T ~ oq.discard{ case x if x > 0 => "bass" }                ==== Alt(null)       --: typed[Int Or String]
+    T ~ oip.discard{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(String Or Int) Or Char]
+    T ~ oiq.discard{ case Alt(y) if nlen(y) <= 0 => '0' }      ==== Alt('0')        --: typed[(Int Or String) Or Char]
+    T ~ oan.discard{ case ' ' => 4.isnt[String] }              ==== Alt(null)       --: typed[Char Or (String Or Int)]
+    T ~ oaq.discard{ case ' ' => 4.or[String] }                ==== Alt(Alt(null))  --: typed[Char Or (Int Or String)]
 
-    "" \ i.reclaim{ case x => 4 }                                 ==== 5
-    "" \ a.reclaim{ case s if s.nonEmpty => s.length }            =&&= 3               -> typed[Int Or String]
-    "" \ a.reclaim{ case s if s.isEmpty => 4 }                    =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oi.reclaim{ case s if s.isEmpty => 4 }                   =&&= 5               -> typed[Int Or String]
-    "" \ oa.reclaim{ case s if s.nonEmpty => s.length }           =&&= 3               -> typed[Int Or String]
-    "" \ oa.reclaim{ case s if s.isEmpty => 4 }                   =&&= Alt("cod")      -> typed[Int Or String]
-    "" \ oii.reclaim{ case c if c < ' ' => c.toInt.or[String] }   =&&= 5               -> typed[(Int Or String) Or Char]
-    "" \ oia.reclaim{ case c if c < ' ' => c.toInt.or[String] }   =&&= Is(Alt("cod"))  -> typed[(Int Or String) Or Char]
-    "" \ oai.reclaim{ case Alt(y) if y.nonEmpty => y.head }       =&&= Alt(5)          -> typed[Char Or (Int Or String)]
-    "" \ oaa.reclaim{ case Alt(y) if y.nonEmpty => y.head }       =&&= 'c'             -> typed[Char Or (Int Or String)]
-    "" \ n.reclaim{ case x => null }                              ==== null
-    "" \ m.reclaim{ case x if x eq null => 4 }                    =&&= 4               -> typed[Int Or Null]
-    "" \ m.reclaim{ case x if x ne null => 4 }                    =&&= Alt(null)       -> typed[Int Or Null]
-    "" \ on.reclaim{ case x if x < 0 => null }                    =&&= null          :->: typed[Null Or Int]
-    "" \ om.reclaim{ case x if x eq null => 4 }                   =&&= 4               -> typed[Int Or Null]
-    "" \ om.reclaim{ case x if x ne null => 4 }                   =&&= Alt(null)       -> typed[Int Or Null]
-    "" \ oin.reclaim{ case c if c < ' ' => c.toInt.isnt[Null] }   =&&= null          :->: typed[(Null Or Int) Or Char]
-    "" \ oim.reclaim{ case c if c < ' ' => c.toInt.or[Null] }     =&&= Is(Alt(null))   -> typed[(Int Or Null) Or Char]
-    "" \ oan.reclaim{ case Alt(y) if y == 0 => '0' }              =&&= Alt(null)       -> typed[Char Or (Null Or Int)]
-    "" \ oam.reclaim{ case Alt(y) if y eq null => '0' }           =&&= '0'             -> typed[Char Or (Int Or Null)]
-    "" \ p.reclaim{ case x => null }                              ==== null
-    "" \ q.reclaim{ case x if x eq null => 4 }                    =&&= 4               -> typed[Int Or String]
-    "" \ q.reclaim{ case x if x ne null => 4 }                    =&&= Alt(null)       -> typed[Int Or String]
-    "" \ op.reclaim{ case x if x < 0 => "eel" }                   =&&= null          :->: typed[String Or Int]
-    "" \ oq.reclaim{ case x if x eq null => 4 }                   =&&= 4               -> typed[Int Or String]
-    "" \ oq.reclaim{ case x if x == "bass" => 4 }                 =&&= Alt(null)       -> typed[Int Or String]
-    "" \ oip.reclaim{ case c if c < ' ' => c.toInt.isnt[String] } =&&= null          :->: typed[(String Or Int) Or Char]
-    "" \ oiq.reclaim{ case c if c < ' ' => c.toInt.or[String] }   =&&= Is(Alt(null))   -> typed[(Int Or String) Or Char]
-    "" \ oap.reclaim{ case Alt(y) if y == 0 => '0' }              =&&= Alt(null)       -> typed[Char Or (String Or Int)]
-    "" \ oaq.reclaim{ case Alt(y) if y != "salmon" => '0' }       =&&= '0'             -> typed[Char Or (Int Or String)]
+    T ~ i.reclaim{ case x => 4 }                                 ==== 5
+    T ~ a.reclaim{ case s if s.nonEmpty => s.length }            ==== 3               --: typed[Int Or String]
+    T ~ a.reclaim{ case s if s.isEmpty => 4 }                    ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oi.reclaim{ case s if s.isEmpty => 4 }                   ==== 5               --: typed[Int Or String]
+    T ~ oa.reclaim{ case s if s.nonEmpty => s.length }           ==== 3               --: typed[Int Or String]
+    T ~ oa.reclaim{ case s if s.isEmpty => 4 }                   ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oii.reclaim{ case c if c < ' ' => c.toInt.or[String] }   ==== 5               --: typed[(Int Or String) Or Char]
+    T ~ oia.reclaim{ case c if c < ' ' => c.toInt.or[String] }   ==== Is(Alt("cod"))  --: typed[(Int Or String) Or Char]
+    T ~ oai.reclaim{ case Alt(y) if y.nonEmpty => y.head }       ==== Alt(5)          --: typed[Char Or (Int Or String)]
+    T ~ oaa.reclaim{ case Alt(y) if y.nonEmpty => y.head }       ==== 'c'             --: typed[Char Or (Int Or String)]
+    T ~ n.reclaim{ case x => null }                              ==== null
+    T ~ m.reclaim{ case x if x eq null => 4 }                    ==== 4               --: typed[Int Or Null]
+    T ~ m.reclaim{ case x if x ne null => 4 }                    ==== Alt(null)       --: typed[Int Or Null]
+    T ~ on.reclaim{ case x if x < 0 => null }                    ==== null            --: typed[Null Or Int]
+    T ~ om.reclaim{ case x if x eq null => 4 }                   ==== 4               --: typed[Int Or Null]
+    T ~ om.reclaim{ case x if x ne null => 4 }                   ==== Alt(null)       --: typed[Int Or Null]
+    T ~ oin.reclaim{ case c if c < ' ' => c.toInt.isnt[Null] }   ==== null            --: typed[(Null Or Int) Or Char]
+    T ~ oim.reclaim{ case c if c < ' ' => c.toInt.or[Null] }     ==== Is(Alt(null))   --: typed[(Int Or Null) Or Char]
+    T ~ oan.reclaim{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)       --: typed[Char Or (Null Or Int)]
+    T ~ oam.reclaim{ case Alt(y) if y eq null => '0' }           ==== '0'             --: typed[Char Or (Int Or Null)]
+    T ~ p.reclaim{ case x => null }                              ==== null
+    T ~ q.reclaim{ case x if x eq null => 4 }                    ==== 4               --: typed[Int Or String]
+    T ~ q.reclaim{ case x if x ne null => 4 }                    ==== Alt(null)       --: typed[Int Or String]
+    T ~ op.reclaim{ case x if x < 0 => "eel" }                   ==== null            --: typed[String Or Int]
+    T ~ oq.reclaim{ case x if x eq null => 4 }                   ==== 4               --: typed[Int Or String]
+    T ~ oq.reclaim{ case x if x == "bass" => 4 }                 ==== Alt(null)       --: typed[Int Or String]
+    T ~ oip.reclaim{ case c if c < ' ' => c.toInt.isnt[String] } ==== null            --: typed[(String Or Int) Or Char]
+    T ~ oiq.reclaim{ case c if c < ' ' => c.toInt.or[String] }   ==== Is(Alt(null))   --: typed[(Int Or String) Or Char]
+    T ~ oap.reclaim{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)       --: typed[Char Or (String Or Int)]
+    T ~ oaq.reclaim{ case Alt(y) if y != "salmon" => '0' }       ==== '0'             --: typed[Char Or (Int Or String)]
 
-    "" \ oi.alsoDiscard{ case x if x > 0 => x > 3 }     =&&= Alt(true)       -> typed[Int Or (Boolean Or String)]
-    "" \ oi.alsoDiscard{ case x if x < 0 => x < -3 }    =&&= 5               -> typed[Int Or (Boolean Or String)]
-    "" \ oa.alsoDiscard{ case 0 => true }               =&&= Alt(Alt("cod")) -> typed[Int Or (Boolean Or String)]
-    "" \ on.alsoDiscard{ case x if x eq null => true }  =&&= Alt(true)       -> typed[Null Or (Boolean Or Int)]
-    "" \ on.alsoDiscard{ case x if x ne null => true }  =&&= null          :->: typed[Null Or (Boolean Or Int)]
-    "" \ om.alsoDiscard{ case 0 => true }               =&&= Alt(Alt(null))  -> typed[Int Or (Boolean Or Null)]
+    T ~ oi.alsoDiscard{ case x if x > 0 => x > 3 }     ==== Alt(true)       --: typed[Int Or (Boolean Or String)]
+    T ~ oi.alsoDiscard{ case x if x < 0 => x < -3 }    ==== 5               --: typed[Int Or (Boolean Or String)]
+    T ~ oa.alsoDiscard{ case 0 => true }               ==== Alt(Alt("cod")) --: typed[Int Or (Boolean Or String)]
+    T ~ on.alsoDiscard{ case x if x eq null => true }  ==== Alt(true)       --: typed[Null Or (Boolean Or Int)]
+    T ~ on.alsoDiscard{ case x if x ne null => true }  ==== null            --: typed[Null Or (Boolean Or Int)]
+    T ~ om.alsoDiscard{ case 0 => true }               ==== Alt(Alt(null))  --: typed[Int Or (Boolean Or Null)]
 
   @Test
   def orReshapingTest(): Unit =
     val valueProvider = new ProvideVariousOrValues()
     import valueProvider._
 
-    "" \ i.swap   =&&= Alt(5)          -> typed[Alt[Int]]
-    "" \ a.swap   =&&= "cod"           -> typed[Is[String]]
-    "" \ oi.swap  =&&= Alt(5)          -> typed[String Or Int]
-    "" \ oa.swap  =&&= "cod"           -> typed[String Or Int]
-    "" \ oii.swap =&&= Alt(5)          -> typed[Char Or (Int Or String)]
-    "" \ oia.swap =&&= Alt(Alt("cod")) -> typed[Char Or (Int Or String)]
-    "" \ oai.swap =&&= 5               -> typed[(Int Or String) Or Char]
-    "" \ oaa.swap =&&= Is(Alt("cod"))  -> typed[(Int Or String) Or Char]
-    "" \ on.swap  =&&= Alt(null)       -> typed[Int Or Null]
-    "" \ om.swap  =&&= null          :->: typed[Null Or Int]
-    "" \ oin.swap =&&= Alt(null)       -> typed[Char Or (Null Or Int)]
-    "" \ oim.swap =&&= Alt(Alt(null))  -> typed[Char Or (Int Or Null)]
-    "" \ oan.swap =&&= null          :->: typed[(Null Or Int) Or Char]
-    "" \ oam.swap =&&= Is(Alt(null))   -> typed[(Int Or Null) Or Char]
-    "" \ op.swap  =&&= Alt(null)       -> typed[Int Or String]
-    "" \ oq.swap  =&&= null          :->: typed[String Or Int]
-    "" \ oip.swap =&&= Alt(null)       -> typed[Char Or (String Or Int)]
-    "" \ oiq.swap =&&= Alt(Alt(null))  -> typed[Char Or (Int Or String)]
-    "" \ oap.swap =&&= null          :->: typed[(String Or Int) Or Char]
-    "" \ oaq.swap =&&= Is(Alt(null))   -> typed[(Int Or String) Or Char]
+    T ~ i.swap   ==== Alt(5)          --: typed[Alt[Int]]
+    T ~ a.swap   ==== "cod"           --: typed[Is[String]]
+    T ~ oi.swap  ==== Alt(5)          --: typed[String Or Int]
+    T ~ oa.swap  ==== "cod"           --: typed[String Or Int]
+    T ~ oii.swap ==== Alt(5)          --: typed[Char Or (Int Or String)]
+    T ~ oia.swap ==== Alt(Alt("cod")) --: typed[Char Or (Int Or String)]
+    T ~ oai.swap ==== 5               --: typed[(Int Or String) Or Char]
+    T ~ oaa.swap ==== Is(Alt("cod"))  --: typed[(Int Or String) Or Char]
+    T ~ on.swap  ==== Alt(null)       --: typed[Int Or Null]
+    T ~ om.swap  ==== null            --: typed[Null Or Int]
+    T ~ oin.swap ==== Alt(null)       --: typed[Char Or (Null Or Int)]
+    T ~ oim.swap ==== Alt(Alt(null))  --: typed[Char Or (Int Or Null)]
+    T ~ oan.swap ==== null            --: typed[(Null Or Int) Or Char]
+    T ~ oam.swap ==== Is(Alt(null))   --: typed[(Int Or Null) Or Char]
+    T ~ op.swap  ==== Alt(null)       --: typed[Int Or String]
+    T ~ oq.swap  ==== null            --: typed[String Or Int]
+    T ~ oip.swap ==== Alt(null)       --: typed[Char Or (String Or Int)]
+    T ~ oiq.swap ==== Alt(Alt(null))  --: typed[Char Or (Int Or String)]
+    T ~ oap.swap ==== null            --: typed[(String Or Int) Or Char]
+    T ~ oaq.swap ==== Is(Alt(null))   --: typed[(Int Or String) Or Char]
 
     val isc = 'e'.isnt[Int Or String]
     val nic = 'e'.isnt[Null Or Int]
     val sic = 'e'.isnt[String Or Int]
-    "" \ oii.pivot =&&= 5             -> typed[Int Or (String Or Char)]
-    "" \ oia.pivot =&&= Alt("cod")    -> typed[Int Or (String Or Char)]
-    "" \ isc.pivot =&&= Alt(Alt('e')) -> typed[Int Or (String Or Char)]
-    "" \ oin.pivot =&&= null        :->: typed[Null Or (Int Or Char)]
-    "" \ oim.pivot =&&= Alt(null)     -> typed[Int Or (Null Or Char)]
-    "" \ nic.pivot =&&= Alt(Alt('e')) -> typed[Null Or (Int Or Char)]
-    "" \ oip.pivot =&&= null        :->: typed[String Or (Int Or Char)]
-    "" \ oiq.pivot =&&= Alt(null)     -> typed[Int Or (String Or Char)]
-    "" \ sic.pivot =&&= Alt(Alt('e')) -> typed[String Or (Int Or Char)]
+    T ~ oii.pivot ==== 5             --: typed[Int Or (String Or Char)]
+    T ~ oia.pivot ==== Alt("cod")    --: typed[Int Or (String Or Char)]
+    T ~ isc.pivot ==== Alt(Alt('e')) --: typed[Int Or (String Or Char)]
+    T ~ oin.pivot ==== null          --: typed[Null Or (Int Or Char)]
+    T ~ oim.pivot ==== Alt(null)     --: typed[Int Or (Null Or Char)]
+    T ~ nic.pivot ==== Alt(Alt('e')) --: typed[Null Or (Int Or Char)]
+    T ~ oip.pivot ==== null          --: typed[String Or (Int Or Char)]
+    T ~ oiq.pivot ==== Alt(null)     --: typed[Int Or (String Or Char)]
+    T ~ sic.pivot ==== Alt(Alt('e')) --: typed[String Or (Int Or Char)]
 
     val cis = 'e'.or[Int Or String]
     val cni = 'e'.or[Null Or Int]
     val csi = 'e'.or[String Or Int]
-    "" \ oai.unpivot =&&= Is(Alt(5))    -> typed[(Char Or Int) Or String]
-    "" \ oaa.unpivot =&&= Alt("cod")    -> typed[(Char Or Int) Or String]
-    "" \ cis.unpivot =&&= 'e'           -> typed[(Char Or Int) Or String]
-    "" \ oan.unpivot =&&= Is(Alt(null)) -> typed[(Char Or Null) Or Int]
-    "" \ oam.unpivot =&&= Alt(null)     -> typed[(Char Or Int) Or Null]
-    "" \ cni.unpivot =&&= 'e'           -> typed[(Char Or Null) Or Int]
-    "" \ oap.unpivot =&&= Is(Alt(null)) -> typed[(Char Or String) Or Int]
-    "" \ oaq.unpivot =&&= Alt(null)     -> typed[(Char Or Int) Or String]
-    "" \ csi.unpivot =&&= 'e'           -> typed[(Char Or String) Or Int]
+    T ~ oai.unpivot ==== Is(Alt(5))    --: typed[(Char Or Int) Or String]
+    T ~ oaa.unpivot ==== Alt("cod")    --: typed[(Char Or Int) Or String]
+    T ~ cis.unpivot ==== 'e'           --: typed[(Char Or Int) Or String]
+    T ~ oan.unpivot ==== Is(Alt(null)) --: typed[(Char Or Null) Or Int]
+    T ~ oam.unpivot ==== Alt(null)     --: typed[(Char Or Int) Or Null]
+    T ~ cni.unpivot ==== 'e'           --: typed[(Char Or Null) Or Int]
+    T ~ oap.unpivot ==== Is(Alt(null)) --: typed[(Char Or String) Or Int]
+    T ~ oaq.unpivot ==== Alt(null)     --: typed[(Char Or Int) Or String]
+    T ~ csi.unpivot ==== 'e'           --: typed[(Char Or String) Or Int]
 
-    "" \ i.toOk  =&&= Yes(5)    -> typed[Yes[Int]]
-    "" \ a.toOk  =&&= No("cod") -> typed[No[String]]
-    "" \ oi.toOk ==== Yes(5)
-    "" \ oa.toOk ==== No("cod")
-    "" \ on.toOk ==== Yes(null)
-    "" \ om.toOk ==== No(null)
-    "" \ op.toOk ==== Yes(null)
-    "" \ oq.toOk ==== No(null)
+    T ~ i.toOk  ==== Yes(5)    --: typed[Yes[Int]]
+    T ~ a.toOk  ==== No("cod") --: typed[No[String]]
+    T ~ oi.toOk ==== Yes(5)
+    T ~ oa.toOk ==== No("cod")
+    T ~ on.toOk ==== Yes(null)
+    T ~ om.toOk ==== No(null)
+    T ~ op.toOk ==== Yes(null)
+    T ~ oq.toOk ==== No(null)
 
-    "" \ i.swapToOk  ==== No(5)
-    "" \ a.swapToOk  ==== Yes("cod")
-    "" \ oi.swapToOk ==== No(5)
-    "" \ oa.swapToOk ==== Yes("cod")
-    "" \ on.swapToOk ==== No(null)
-    "" \ om.swapToOk ==== Yes(null)
+    T ~ i.swapToOk  ==== No(5)
+    T ~ a.swapToOk  ==== Yes("cod")
+    T ~ oi.swapToOk ==== No(5)
+    T ~ oa.swapToOk ==== Yes("cod")
+    T ~ on.swapToOk ==== No(null)
+    T ~ om.swapToOk ==== Yes(null)
 
-    "" \ i.toEither  =&&= Right(5)    -> typed[Either[Nothing, Int]]
-    "" \ a.toEither  =&&= Left("cod") -> typed[Either[String, Nothing]]
-    "" \ oi.toEither =&&= Right(5)    -> typed[Either[String, Int]]
-    "" \ oa.toEither =&&= Left("cod") -> typed[Either[String, Int]]
-    "" \ on.toEither ==== Right(null)
-    "" \ om.toEither ==== Left(null)
+    T ~ i.toEither  ==== Right(5)    --: typed[Either[Nothing, Int]]
+    T ~ a.toEither  ==== Left("cod") --: typed[Either[String, Nothing]]
+    T ~ oi.toEither ==== Right(5)    --: typed[Either[String, Int]]
+    T ~ oa.toEither ==== Left("cod") --: typed[Either[String, Int]]
+    T ~ on.toEither ==== Right(null)
+    T ~ om.toEither ==== Left(null)
 
-    "" \ i.swapToEither  =&&= Left(5)      -> typed[Either[Int, Nothing]]
-    "" \ a.swapToEither  =&&= Right("cod") -> typed[Either[Nothing, String]]
-    "" \ oi.swapToEither =&&= Left(5)      -> typed[Either[Int, String]]
-    "" \ oa.swapToEither =&&= Right("cod") -> typed[Either[Int, String]]
-    "" \ on.swapToEither ==== Left(null)
-    "" \ om.swapToEither ==== Right(null)
+    T ~ i.swapToEither  ==== Left(5)      --: typed[Either[Int, Nothing]]
+    T ~ a.swapToEither  ==== Right("cod") --: typed[Either[Nothing, String]]
+    T ~ oi.swapToEither ==== Left(5)      --: typed[Either[Int, String]]
+    T ~ oa.swapToEither ==== Right("cod") --: typed[Either[Int, String]]
+    T ~ on.swapToEither ==== Left(null)
+    T ~ om.swapToEither ==== Right(null)
 
-    "" \ i.toOption  ==== Some(5)
-    "" \ a.toOption  ==== None
-    "" \ oi.toOption ==== Some(5)
-    "" \ oa.toOption ==== None
-    "" \ on.toOption ==== Some(null)
-    "" \ om.toOption ==== None
+    T ~ i.toOption  ==== Some(5)
+    T ~ a.toOption  ==== None
+    T ~ oi.toOption ==== Some(5)
+    T ~ oa.toOption ==== None
+    T ~ on.toOption ==== Some(null)
+    T ~ om.toOption ==== None
 
-    "" \ i.swapToOption  ==== None
-    "" \ a.swapToOption  ==== Some("cod")
-    "" \ oi.swapToOption ==== None
-    "" \ oa.swapToOption ==== Some("cod")
-    "" \ on.swapToOption ==== None
-    "" \ om.swapToOption ==== Some(null)
+    T ~ i.swapToOption  ==== None
+    T ~ a.swapToOption  ==== Some("cod")
+    T ~ oi.swapToOption ==== None
+    T ~ oa.swapToOption ==== Some("cod")
+    T ~ on.swapToOption ==== None
+    T ~ om.swapToOption ==== Some(null)
 
-    "" \ i.toTry.get  ==== 5
-    "" \ a.toTry.get  ==== thrown[WrongBranchException[_]]
-    "" \ oi.toTry.get ==== 5
-    "" \ oa.toTry.get ==== thrown[WrongBranchException[_]]
-    "" \ on.toTry.get ==== null
-    "" \ om.toTry.get ==== thrown[WrongBranchException[_]]
+    T ~ i.toTry.get  ==== 5
+    T ~ a.toTry.get  ==== thrown[WrongBranchException[_]]
+    T ~ oi.toTry.get ==== 5
+    T ~ oa.toTry.get ==== thrown[WrongBranchException[_]]
+    T ~ on.toTry.get ==== null
+    T ~ om.toTry.get ==== thrown[WrongBranchException[_]]
 
-    "" \ i.swapToTry.get  ==== thrown[WrongBranchException[_]]
-    "" \ a.swapToTry.get  ==== "cod"
-    "" \ oi.swapToTry.get ==== thrown[WrongBranchException[_]]
-    "" \ oa.swapToTry.get ==== "cod"
-    "" \ on.swapToTry.get ==== thrown[WrongBranchException[_]]
-    "" \ om.swapToTry.get ==== null
+    T ~ i.swapToTry.get  ==== thrown[WrongBranchException[_]]
+    T ~ a.swapToTry.get  ==== "cod"
+    T ~ oi.swapToTry.get ==== thrown[WrongBranchException[_]]
+    T ~ oa.swapToTry.get ==== "cod"
+    T ~ on.swapToTry.get ==== thrown[WrongBranchException[_]]
+    T ~ om.swapToTry.get ==== null
 
 
 
@@ -1078,45 +1082,45 @@ class FlowTest {
   def valueTest(): Unit =
     ()
     /*
-    "" \ Ok[Int]()("salmon") ==== Yes("salmon")
-    "" \ Ok[Int]()("salmon") =??= typed[Ok[Int, String]]
-    "" \ Ok(7)[String]()     ==== No(7)
-    "" \ Ok(7)[String]()     =??= typed[Ok[Int, String]]
+    T ~ Ok[Int]()("salmon") ==== Yes("salmon")
+    T ~ Ok[Int]()("salmon") ==== typed[Ok[Int, String]]
+    T ~ Ok(7)[String]()     ==== No(7)
+    T ~ Ok(7)[String]()     ==== typed[Ok[Int, String]]
 
-    "" \ Yes(0) ==== Yes(0)
-    "" \ Yes(0) =!!= No(0)
-    "" \ No(0)  =!!= Yes(0)
-    "" \ No(0)  ==== No(0)
+    T ~ Yes(0) ==== Yes(0)
+    T ~ Yes(0) =!!= No(0)
+    T ~ No(0)  =!!= Yes(0)
+    T ~ No(0)  ==== No(0)
 
-    "" \ Yes(0).isYes ==== true
-    "" \ Yes(0).isNo  ==== false
-    "" \ No(0).isYes  ==== false
-    "" \ No(0).isNo   ==== true
+    T ~ Yes(0).isYes ==== true
+    T ~ Yes(0).isNo  ==== false
+    T ~ No(0).isYes  ==== false
+    T ~ No(0).isNo   ==== true
 
-    "" \ Yes("salmon").yes ==== "salmon"
-    "" \ Yes("salmon").no  ==== thrown[NoSuchElementException]
-    "" \ No("herring").yes ==== thrown[NoSuchElementException]
-    "" \ No("herring").no  ==== "herring"
+    T ~ Yes("salmon").yes ==== "salmon"
+    T ~ Yes("salmon").no  ==== thrown[NoSuchElementException]
+    T ~ No("herring").yes ==== thrown[NoSuchElementException]
+    T ~ No("herring").no  ==== "herring"
 
-    "" \ Yes("salmon").value ==== "salmon"
-    "" \ No("herring").value ==== "herring"
+    T ~ Yes("salmon").value ==== "salmon"
+    T ~ No("herring").value ==== "herring"
 
-    "" \ Yes("salmon").typeNo[Int]    .fold(_.toString, identity) ==== "salmon"
-    "" \ No(47)       .typeYes[String].fold(identity, _.length)   ==== 47
-    "" \ Yes("salmon").yesOr(_ => "minnow") ==== "salmon"
-    "" \ No("herring").yesOr(_ => "minnow") ==== "minnow"
-    "" \ Yes("salmon").noOr( _ => "minnow") ==== "minnow"
-    "" \ No("herring").noOr( _ => "minnow") ==== "herring"
+    T ~ Yes("salmon").typeNo[Int]    .fold(_.toString, identity) ==== "salmon"
+    T ~ No(47)       .typeYes[String].fold(identity, _.length)   ==== 47
+    T ~ Yes("salmon").yesOr(_ => "minnow") ==== "salmon"
+    T ~ No("herring").yesOr(_ => "minnow") ==== "minnow"
+    T ~ Yes("salmon").noOr( _ => "minnow") ==== "minnow"
+    T ~ No("herring").noOr( _ => "minnow") ==== "herring"
     */
 
   @Test
   def mapTest(): Unit =
     ()
     /*
-    "" \ Ok[String]()("salmon").map(_.length)    ==== Yes(6)
-    "" \ Ok("herring")[String]().map(_.length)   ==== No("herring")
-    "" \ Ok[String]()("salmon").mapNo(_.length)  ==== Yes("salmon")
-    "" \ Ok("herring")[String]().mapNo(_.length) ==== No(7)
+    T ~ Ok[String]()("salmon").map(_.length)    ==== Yes(6)
+    T ~ Ok("herring")[String]().map(_.length)   ==== No("herring")
+    T ~ Ok[String]()("salmon").mapNo(_.length)  ==== Yes("salmon")
+    T ~ Ok("herring")[String]().mapNo(_.length) ==== No(7)
     */
 }
 object FlowTest {

@@ -55,8 +55,12 @@ object TestUtilities {
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
+  class TypeGen[B, C](val typed: Typed[B], val gen: () => C) {}
+
   case class Typed[A](unit: Unit = ()) {
-    def :->:[B](b: B) = (b, this)
+    def --:[C](c: => C) = new TypeGen[A, C](this, () => c)
+
+    def :--[B](b: B) = (this, b)
 
     def :==:[B](b: B)(using B =:= A): Unit = {}
   }
@@ -73,7 +77,7 @@ object TestUtilities {
 
     override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
 
-    def ====[B](b: => B): Unit =
+    def isEqual[B](b: => B): Unit =
       val ta = Try{ value() }
       b match
         case t @ Thrown(tag) => ta match
@@ -83,6 +87,17 @@ object TestUtilities {
           case _ => assertEquals(message, ta, Failure(t))
         case _ => assertEquals(message, ta.get, b)
 
+    def ====(n: Null): Unit =
+      isEqual(null)
+
+    def ====[B, C](bc: TypeGen[B, C])(using B =:= A): Unit =
+      isEqual(bc.gen())
+
+    def ====[B](t: Typed[B])(using B =:= A): Unit = {}
+
+    def ====[B](b: => B): Unit =
+      isEqual(b)
+
     def =!!=[B](b: => B): Unit = Try{ value() } match
       case Success(v) => assertNotEquals(message, v, b)
       case Failure(x) => b match
@@ -90,11 +105,6 @@ object TestUtilities {
           if tag.runtimeClass.isAssignableFrom(x.getClass) then
             assertTrue(s"${message}Did not expect $x\nto be a ${t.classname}", false)
         case _ =>
-
-    def =??=[B](t: Typed[B])(using B =:= A): Unit = {}
-
-    def =&&=[B, C](bt: => (C, Typed[B]))(using B =:= A): Unit =
-      this ==== bt._1
 
     def =~~=[B >: A](b: => B)(using apx: Approximation[B]): Unit =
       apx.approx(value(), b)
@@ -134,7 +144,19 @@ object TestUtilities {
       assertTrue(s"${message}collection never passed test", false )
   }
 
-  extension (message: String)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName)
-    def \[A](a: => A): Labeled[A] = Labeled(message, () => a)
-    def \[A](a: => A)(using ii: IsIterable[A]): LabeledCollection[A, ii.type] = LabeledCollection[A, ii.type](message, () => a, ii)
+  trait GenLabeled {
+    def message: String
+
+    def ~[A](a: => A)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): Labeled[A] =
+      Labeled(message, () => a)
+
+    def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): LabeledCollection[A, ii.type] =
+      LabeledCollection[A, ii.type](message, () => a, ii)
+  }
+
+  object T extends GenLabeled {
+    def message = ""
+
+    def apply(msg: String): GenLabeled = new GenLabeled { def message = msg }
+  }
 }
