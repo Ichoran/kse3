@@ -228,6 +228,14 @@ object AorB {
     inline def use(inline f: X => Unit): is.type =
       f(Is unwrap is); is
 
+    /** exists is trivial--just apply predicate */
+    inline def exists(inline p: X => Boolean): Boolean =
+      p(Is unwrap is)
+
+    /** forall is trivial--just apply predicate */
+    inline def forall(inline p: X => Boolean): Boolean =
+      p(Is unwrap is)
+
     /** discard is a handy way to build an Or out of an Is */
     inline def discard[Y](inline pf: PartialFunction[X, Y]): X Or Y =
       pf.applyOrElse(Is unwrap is, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
@@ -477,6 +485,39 @@ object AorB {
         case a: Alt[_] => g(a.alt.asInstanceOf[Y])
         case _ => f(Is unwrap or.asInstanceOf[Is[X]])
       or
+
+    /** Tests whether the favored branch is there and a predicate is true on it */
+    inline def exists(inline p: X => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => false
+      case _ => p(Is unwrap or.asInstanceOf[Is[X]])
+
+    /** Tests whether the disfavored branch is there and a predicate is true on it */
+    inline def existsAlt(inline q: Y => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => q(a.alt.asInstanceOf[Y])
+      case _ => false
+
+    /** Tests a predicate on the favored branch or a second predicate on the disfavored branch, depending on which is there */
+    inline def existsThem(inline p: X => Boolean)(inline q: Y => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => q(a.alt.asInstanceOf[Y])
+      case _ => p(Is unwrap or.asInstanceOf[Is[X]])
+
+    /** Tests whether either the disfavored branch is there, or if the favored branch is there, whether a predicate is true on it */
+    inline def forall(inline p: X => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => true
+      case _ => p(Is unwrap or.asInstanceOf[Is[X]])
+
+    /** Tests whether either the favored branch is there, or if the disfavored branch is there, whether a predicate is true on it */
+    inline def forallAlt(inline q: Y => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => q(a.alt.asInstanceOf[Y])
+      case _ => true
+
+    /** Tests a predicate on the favored branch or a second predicate on the disfavored branch, depending on which is there.
+      * 
+      * Note--this is identical to `existsThem` since one branch does exist.
+      */
+    inline def forallThem(inline p: X => Boolean)(inline q: Y => Boolean): Boolean = (or: X Or Y) match
+      case a: Alt[_] => q(a.alt.asInstanceOf[Y])
+      case _ => p(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Discards some favored values, when a favored value exists, by converting those into disfavored values.
       *

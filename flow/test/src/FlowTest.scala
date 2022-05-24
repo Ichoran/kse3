@@ -601,6 +601,73 @@ class FlowTest {
     "" \ { var x = 0; oap.useThem(c => x = c.toInt)(y => x = nlen(y.get))           :==: typedLike(oap); x } ==== -1
     "" \ { var x = 0; oaq.useThem(c => x = c.toInt)(y => x = nlen(y.alt))           :==: typedLike(oaq); x } ==== -1
 
+    "" \ i.exists(_ == 5)     ==== true
+    "" \ i.exists(_ == 4)     ==== false
+    "" \ a.exists(_ == 5)     ==== false
+    "" \ oi.exists(_ == 5)    ==== true
+    "" \ oi.exists(_ == 4)    ==== false
+    "" \ oa.exists(_ == 5)    ==== false
+    "" \ on.exists(_ eq null) ==== true
+    "" \ on.exists(_ ne null) ==== false
+    "" \ om.exists(_ == 5)    ==== false
+
+    "" \ i.existsAlt(_ == "eel")   ==== false
+    "" \ a.existsAlt(_ == "cod")   ==== true
+    "" \ a.existsAlt(_ == "eel")   ==== false
+    "" \ oi.existsAlt(_ == "eel")  ==== false
+    "" \ oa.existsAlt(_ == "cod")  ==== true
+    "" \ oa.existsAlt(_ == "eel")  ==== false
+    "" \ on.existsAlt(_ == 5)      ==== false
+    "" \ om.existsAlt(_ eq null)   ==== true
+    "" \ om.existsAlt(_ ne null)   ==== false
+
+    "" \ i.existsThem(_ == 5)(_ => false)     ==== true
+    "" \ i.existsThem(_ == 4)(_ => true)      ==== false
+    "" \ a.existsThem(_ => false)(_ == "cod") ==== true
+    "" \ a.existsThem(_ => true)(_ == "eel")  ==== false
+    "" \ oi.existsThem(_ == 5)(_ == "eel")    ==== true
+    "" \ oi.existsThem(_ == 4)(_ == "eel")    ==== false
+    "" \ oa.existsThem(_ == 5)(_ == "cod")    ==== true
+    "" \ oa.existsThem(_ == 5)(_ == "eel")    ==== false
+    "" \ on.existsThem(_ eq null)(_ == 4)     ==== true
+    "" \ on.existsThem(_ ne null)(_ == 4)     ==== false
+    "" \ om.existsThem(_ == 5)(_ eq null)     ==== true
+    "" \ om.existsThem(_ == 5)(_ ne null)     ==== false
+
+    "" \ i.forall(_ == 5)     ==== true
+    "" \ i.forall(_ == 4)     ==== false
+    "" \ a.forall(_ == 5)     ==== true
+    "" \ oi.forall(_ == 5)    ==== true
+    "" \ oi.forall(_ == 4)    ==== false
+    "" \ oa.forall(_ == 5)    ==== true
+    "" \ on.forall(_ eq null) ==== true
+    "" \ on.forall(_ ne null) ==== false
+    "" \ om.forall(_ == 5)    ==== true
+
+    "" \ i.forallAlt(_ == "eel")   ==== true
+    "" \ a.forallAlt(_ == "cod")   ==== true
+    "" \ a.forallAlt(_ == "eel")   ==== false
+    "" \ oi.forallAlt(_ == "eel")  ==== true
+    "" \ oa.forallAlt(_ == "cod")  ==== true
+    "" \ oa.forallAlt(_ == "eel")  ==== false
+    "" \ on.forallAlt(_ == 5)      ==== true
+    "" \ om.forallAlt(_ eq null)   ==== true
+    "" \ om.forallAlt(_ ne null)   ==== false
+
+    "" \ i.forallThem(_ == 5)(_ => false)     ==== true
+    "" \ i.forallThem(_ == 4)(_ => true)      ==== false
+    "" \ a.forallThem(_ => false)(_ == "cod") ==== true
+    "" \ a.forallThem(_ => true)(_ == "eel")  ==== false
+    "" \ oi.forallThem(_ == 5)(_ == "eel")    ==== true
+    "" \ oi.forallThem(_ == 4)(_ == "eel")    ==== false
+    "" \ oa.forallThem(_ == 5)(_ == "cod")    ==== true
+    "" \ oa.forallThem(_ == 5)(_ == "eel")    ==== false
+    "" \ on.forallThem(_ eq null)(_ == 4)     ==== true
+    "" \ on.forallThem(_ ne null)(_ == 4)     ==== false
+    "" \ om.forallThem(_ == 5)(_ eq null)     ==== true
+    "" \ om.forallThem(_ == 5)(_ ne null)     ==== false
+
+
 
   @Test
   def orAlterationTest: Unit =
