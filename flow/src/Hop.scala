@@ -161,7 +161,7 @@ object Hop {
     */
   def alt[Y] = new HopAltDispatcher[Y]()
 
-  class HopAltDispatcher[Y]() {
+  class HopAltDispatcher[Y](private val underlying: scala.Unit = ()) extends AnyVal {
     def apply[X](f: CanHop[Y] ?=> X): X Or Y =
       given ch: AnyImpl[Y] = new AnyImpl[Y]
       try{ Is(f) }
