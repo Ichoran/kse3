@@ -191,10 +191,9 @@ extension [N, Y](ok: Ok[N, Y]) {
 ////////////////////////////////////////////////////////
 
 extension [A](a: A) {
-  inline def hop(using ch: CanHop[A]): Nothing = ch hop a
-  inline def hopMap[B](inline f: A => B)(using ch: CanHop[B]): Nothing = ch hop f(a)
+  inline def hopWith[B](inline f: A => B)(using ch: CanHop[B]): Nothing = ch hop f(a)
   inline def hopIf(inline p: A => Boolean)(using ch: CanHop[A]): A = if (p(a)) ch hop a else a
-  inline def hopOrMap[B](pf: PartialFunction[A, B])(using ch: CanHop[A]): B =
+  inline def hopCase[B](pf: PartialFunction[A, B])(using ch: CanHop[A]): B =
     if pf isDefinedAt a then pf(a)
     else ch hop a
 }

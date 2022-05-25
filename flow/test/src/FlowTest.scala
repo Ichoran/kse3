@@ -1076,6 +1076,133 @@ class FlowTest {
     T ~ om.swapToTry.get ==== null
 
 
+  @Test
+  def hopTest(): Unit =
+
+    T ~ Hop.unit{ () }     ==== ()
+    T ~ Hop.int{ 3 }       ==== 3
+    T ~ Hop.long{ 999L }   ==== 999 --: typed[Long]
+    T ~ Hop.float{ 2.1f }  ==== 2.1f
+    T ~ Hop.double{ 0.6 }  ==== 0.6 
+    T ~ Hop.any[Char]('e') ==== 'e'
+
+    val fish = List("cod", "eel", "salmon", "bass")
+
+    T ~ {
+      var x = 0
+      Hop.unit{
+        fish.foreach{ y =>
+          if y.length > 5 then ().hop
+          x += y.length
+        }
+      }
+      x
+    } ==== 6
+
+    T ~ {
+      Hop.int{
+        fish.foldLeft(0){ (acc, y) =>
+          if y.length > 5 then acc.hop
+          acc + y.length
+        }
+      }
+    } ==== 6
+
+    T ~ {
+      Hop.long{
+        fish.foldLeft(0L){ (acc, y) =>
+          if y.length > 5 then acc.hop
+          (acc + 1) << y.length
+        }
+      }
+    } ==== 72 --: typed[Long]
+
+    T ~ {
+      Hop.float{
+        fish.foldLeft(0f){ (acc, y) =>
+          if y.length > 5 then acc.hop
+          acc + 1f/y.length
+        }
+      }
+    } =~~= 0.66666667f
+
+    T ~ {
+      Hop.double{
+        fish.foldLeft(0.0){ (acc, y) =>
+          if y.length > 5 then acc.hop
+          acc + 1.0/y.length
+        }
+      }
+    } =~~= 0.66666666666666667
+
+    T ~ {
+      Hop.any[String]{
+        fish.foldLeft("fish:"){ (acc, y) =>
+          if y.length > 5 then acc.hop
+          acc + " " + y
+        }
+      }
+    } ==== "fish: cod eel"
+
+    T("Hop by default to inner context") ~ {
+      Hop.int{
+        fish.foldLeft(0){ (acc, y) =>
+          acc + Hop.int{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.hop else bcc + z ) }
+        }
+      }
+    } ==== "ceeba".sum.toInt
+
+    T("Hop to outer context") ~ {
+      Hop.int{ outer ?=>
+        fish.foldLeft(0){ (acc, y) =>
+          acc + Hop.int{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.hop(using outer) else bcc + z ) }
+        }
+      }
+    } ==== 'c'.toInt
+
+    T("Correct type-based dispatch of hops") ~ {
+      var x = 0
+      val s = Hop.any[String]{
+        fish.foldLeft(""){ (acc, y) =>
+          val c = Hop.any[Char]{ 
+            y.foldLeft(0)( (bcc, z) => if z > 'g' then z.hop else if z <= 'a' then s"$bcc $z".hop else bcc + z ).toChar
+          }
+          x += c
+          acc + c.toString
+        }
+      }
+      (x, s)
+    } ==== ("ols".sum.toInt , "98 a")
+
+    T("Mapped hops") ~ {
+      Hop.any[String]{
+        fish.fold(""){ (acc, y) =>
+          if y.length < acc.length then s"Error: got shorter from $acc to $y"
+          else
+            Hop.map((c: Char) => s"Error: bad char '$c'"){ y.foreach(c => if c == 'm' || c == 'n' then c.hop); ' ' }
+            if y.length > acc.length || y > acc then y else acc
+        }
+      }
+    } ==== "Error: bad char 'm'"
+
+    T("Or hop") ~ {
+      Hop.toAlt[String]{
+        fish.foldLeft(0){ (acc, y) =>
+          if y.length > 5 then y.hop
+          else acc max y.length
+        }
+      }
+    } ==== Alt("salmon") --: typed[Int Or String]
+
+    T("Or did not hop") ~ {
+      Hop.toAlt[String]{
+        fish.foldLeft(0){ (acc, y) =>
+          if y.length > 8 then y.hop
+          else acc max y.length
+        }
+      }
+    } ==== Is(6)
+
 
   @Test
   def valueTest(): Unit =
