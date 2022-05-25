@@ -159,7 +159,7 @@ object Hop {
     *   }
     * }}}
     */
-  def toAlt[Y] = new HopAltDispatcher[Y]()
+  def alt[Y] = new HopAltDispatcher[Y]()
 
   class HopAltDispatcher[Y]() {
     def apply[X](f: CanHop[Y] ?=> X): X Or Y =
