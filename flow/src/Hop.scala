@@ -151,7 +151,7 @@ object Hop {
     * Usage:
     * {{{
     * def rooty(d: Double): Double Or String =
-    *   Hop.alt[String].or{
+    *   Hop.on[String]{
     *     val d = getDouble()
     *     if d < 0 then s"Root of negative number: $d".hop
     *     val root = math.sqrt(d)
@@ -159,9 +159,9 @@ object Hop {
     *   }
     * }}}
     */
-  def alt[Y] = new HopAltDispatcher[Y]()
+  def on[Y] = new HopOrDispatcher[Y]()
 
-  class HopAltDispatcher[Y](private val underlying: scala.Unit = ()) extends AnyVal {
+  class HopOrDispatcher[Y](private val underlying: scala.Unit = ()) extends AnyVal {
     def apply[X](f: CanHop[Y] ?=> X): X Or Y =
       given ch: AnyImpl[Y] = new AnyImpl[Y]
       try{ Is(f) }

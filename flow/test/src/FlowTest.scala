@@ -58,6 +58,76 @@ class FlowTest {
     val lines = full.drop(9).count(s => !s.startsWith("| "))
     T ~ short.last ==== s". . . (+$lines lines and 1 more exception)"
 
+    def copeT[E](t: Throwable)(using c: Cope[E]): E = c fromThrowable t
+    def copeS[E](s: String)(using c: Cope[E]): E = c fromString s
+    def copeT2[E](t: Throwable, e: E)(using c: Cope[E]) = c.fromThrowable(t, e)
+    def copeS2[E](s: String, e: E)(using c: Cope[E]) = c.fromString(s, e)
+    def cope2[E](e: E, ee: E)(using c: Cope[E]) = c.fromCope(e, ee)
+
+    val cS = copeS("cod")
+    val cT = copeT(new Exception("salmon"))
+    val cC = cope2(cS, cT)
+    val cST = copeS2("minnow", cT)
+    val cTS = copeT2(new Exception("eel"), cS)
+    T ~ cS                         ==== "cod" --: typed[String]
+    T ~ cT.contains("salmon")      ==== true
+    T ~ cT                         ==== typed[String]
+    T ~ cC.startsWith("cod\n")     ==== true
+    T ~ cC.contains("salmon")      ==== true
+    T ~ cC                         ==== typed[String]
+    T ~ cST.startsWith("minnow\n") ==== true
+    T ~ cST.contains("salmon")     ==== true
+    T ~ cST                        ==== typed[String]
+    T ~ cTS.endsWith("\ncod")      ==== true
+    T ~ cTS.contains("eel")        ==== true
+    T ~ cTS                        ==== typed[String]
+
+    {
+      given Cope[Array[String]] = Cope.fullTrace
+      val fS = copeS("cod")
+      val fT = copeT(new Exception("salmon"))
+      val fC = cope2(fS, fT)
+      T ~ fS                                 =**= Seq("cod")
+      T ~ fS                                 ==== typed[Array[String]]
+      T ~ fT.count(_ contains "salmon")      ==== 1
+      T ~ fT                                 ==== typed[Array[String]]
+      T ~ fC.head                            ==== "cod"
+      T ~ fC.indexWhere(_ contains "salmon") ==== 1 + fT.indexWhere(_ contains "salmon")
+      T ~ fC                                 ==== typed[Array[String]]
+    }
+
+    {
+      given Cope[Throwable] = Cope.asException
+      val eS = copeS("cod")
+      val eT = copeT(new Exception("salmon"))
+      val eC = cope2(eS, eT)
+      T ~ eS.getMessage                  ==== "cod"
+      T ~ ExceptionExplainer.explain(eS) ==== "kse.flow.Cope$StoredMessageException: cod"
+      T ~ eS                             ==== typed[Throwable]
+      T ~ eT.getMessage                  ==== "salmon"
+      T ~ eT                             ==== typed[Throwable]
+      T ~ eC.getMessage                  ==== "cod"
+      T ~ eC.getCause                    ==== eT
+      T ~ eC                             ==== typed[Throwable]
+      val eCmee = eC.asInstanceOf[Cope.MultipleExceptionsException]
+      T ~ eCmee.exceptions               =**= Seq(eS, eT)
+      val eCC = cope2(copeS("minnow"), eC)
+      T ~ eCC.getMessage                 ==== "minnow"
+      T ~ eCC.getCause                   ==== eS
+      T ~ eCC.getSuppressed.head         ==== eT
+    }
+
+    {
+      given Cope[List[String | Throwable]] = Cope.stored
+      val e = new Exception("salmon")
+      val sS = copeS("cod")
+      val sT = copeT(e)
+      val sC = cope2(sS, sT)
+      T ~ sS ==== List("cod")    --: typed[List[String | Throwable]]
+      T ~ sT ==== List(e)        --: typed[List[String | Throwable]]
+      T ~ sC ==== List("cod", e) --: typed[List[String | Throwable]]
+    }
+
 
   @Test
   def repeatTest(): Unit =
@@ -1186,7 +1256,7 @@ class FlowTest {
     } ==== "Error: bad char 'm'"
 
     T("Or hop") ~ {
-      Hop.alt[String]{
+      Hop.on[String]{
         fish.foldLeft(0){ (acc, y) =>
           if y.length > 5 then y.hop
           else acc max y.length
@@ -1195,7 +1265,7 @@ class FlowTest {
     } ==== Alt("salmon") --: typed[Int Or String]
 
     T("Or did not hop") ~ {
-      Hop.alt[String]{
+      Hop.on[String]{
         fish.foldLeft(0){ (acc, y) =>
           if y.length > 8 then y.hop
           else acc max y.length
@@ -1205,39 +1275,272 @@ class FlowTest {
 
 
   @Test
-  def valueTest(): Unit =
-    ()
-    /*
-    T ~ Ok[Int]()("salmon") ==== Yes("salmon")
-    T ~ Ok[Int]()("salmon") ==== typed[Ok[Int, String]]
-    T ~ Ok(7)[String]()     ==== No(7)
-    T ~ Ok(7)[String]()     ==== typed[Ok[Int, String]]
+  def flowTest(): Unit =
+    def orQ1(s: String): Int Or String = Or.Ret{
+      s.isIf(_.forall(_.isDigit)).?.toInt
+    }
+    T ~ orQ1("salmon") ==== Alt("salmon") --: typed[Int Or String]
+    T ~ orQ1("5")      ==== 5             --: typed[Int Or String]
 
-    T ~ Yes(0) ==== Yes(0)
-    T ~ Yes(0) =!!= No(0)
-    T ~ No(0)  =!!= Yes(0)
-    T ~ No(0)  ==== No(0)
+    def orQ2(s: String): Int Or String = Or.FlatRet{
+      s.isIf(_.forall(_.isDigit)).?.isIf(s => s.length >= 1 && s.length <= 9).map(_.toInt)
+    }
+    T ~ orQ2("1234567890") ==== Alt("1234567890") --: typed[Int Or String]
+    T ~ orQ2("4")          ==== 4                 --: typed[Int Or String]
+    T ~ orQ2("cod")        ==== Alt("cod")        --: typed[Int Or String]
 
-    T ~ Yes(0).isYes ==== true
-    T ~ Yes(0).isNo  ==== false
-    T ~ No(0).isYes  ==== false
-    T ~ No(0).isNo   ==== true
+    def orQ3(s: String): Int Or String = Or.Ret{
+      s.altCase{ case x if x.exists(! _.isDigit) => x.exists(_.isDigit) }.?+(b => s"Has digits: $b").toInt
+    }
+    T ~ orQ3("herring") ==== Alt("Has digits: false") --: typed[Int Or String]
+    T ~ orQ3("5 eels")  ==== Alt("Has digits: true")  --: typed[Int Or String]
+    T ~ orQ3("14")      ==== 14                       --: typed[Int Or String]
 
-    T ~ Yes("salmon").yes ==== "salmon"
-    T ~ Yes("salmon").no  ==== thrown[NoSuchElementException]
-    T ~ No("herring").yes ==== thrown[NoSuchElementException]
-    T ~ No("herring").no  ==== "herring"
+    def orQ4(s: String): Int Or String = Or.Ret{
+      given AutoMap[String Or String, String] = _.fold{ x => s"Too long: $x" }{ y => s"Non-numeric: $y" }
 
-    T ~ Yes("salmon").value ==== "salmon"
-    T ~ No("herring").value ==== "herring"
+      s.isIf(_.forall(_.isDigit)).alsoDiscard{ case s if s.length < 1 || s.length > 9 => s}.?*.toInt
+    }
+    T ~ orQ4("perch")      ==== Alt("Non-numeric: perch")   --: typed[Int Or String]
+    T ~ orQ4("1234567890") ==== Alt("Too long: 1234567890") --: typed[Int Or String]
+    T ~ orQ4("225")        ==== 225                         --: typed[Int Or String]
 
-    T ~ Yes("salmon").typeNo[Int]    .fold(_.toString, identity) ==== "salmon"
-    T ~ No(47)       .typeYes[String].fold(identity, _.length)   ==== 47
-    T ~ Yes("salmon").yesOr(_ => "minnow") ==== "salmon"
-    T ~ No("herring").yesOr(_ => "minnow") ==== "minnow"
-    T ~ Yes("salmon").noOr( _ => "minnow") ==== "minnow"
-    T ~ No("herring").noOr( _ => "minnow") ==== "herring"
-    */
+    def orQ5(s: String): Int Or String = Or.Safe(_.getMessage){
+      s.isIf(_.nonEmpty).?.toInt
+    }
+    T ~ orQ5("perch").existsAlt(_ contains "perch") ==== true
+    T ~ orQ5("")                                    ==== Alt("")
+    T ~ orQ5("15")                                  ==== 15      --: typed[Int Or String]
+
+    def orQ6(s: String): Int Or String = Or.Nice{
+      s.isIf(_.nonEmpty).?.toInt
+    }  
+    T ~ orQ6("perch").existsAlt(_ contains "NumberFormatException") ==== true
+    T ~ orQ6("")                                                    ==== Alt("")
+    T ~ orQ6("1815")                                                ==== 1815    --: typed[Int Or String]
+
+    def floatQ(f: Float): Float = Ret[Float]{
+      val g = f.?
+      if g < 0 then -math.sqrt(-g).toFloat
+      else math.sqrt(g - 1).toFloat.? + 1
+    }
+    T ~ floatQ(Float.NaN) =~~= Float.NaN
+    T ~ floatQ(-1f)       =~~= -1f
+    T ~ floatQ(0.5f)      =~~= Float.NaN
+    T ~ floatQ(2f)        =~~= 2f
+
+    def doubleQ(f: Double): Double = Ret[Double]{
+      val g = f.?
+      if g < 0 then -math.sqrt(-g)
+      else math.sqrt(g - 1).? + 1
+    }
+    T ~ doubleQ(Double.NaN) =~~= Double.NaN
+    T ~ doubleQ(-1f)        =~~= -1.0
+    T ~ doubleQ(0.5f)       =~~= Double.NaN
+    T ~ doubleQ(5f)         =~~= 3.0
+
+    def eitherQ1(s: String): Either[String, Int] = Either.Ret{
+      val e: Either[String, Int] =
+        if s.forall(_.isDigit) then Right(s.toInt)
+        else Left(s)
+      e.? + 1
+    }
+    T ~ eitherQ1("minnow") ==== Left("minnow") --: typed[Either[String, Int]]
+    T ~ eitherQ1("55")     ==== Right(56)      --: typed[Either[String, Int]]
+
+    def eitherQ2(s: String): Either[String, Int] = Either.FlatRet{
+      val e: Either[String, Int] =
+        if s.forall(_.isDigit) then Right(s.toInt)
+        else Left(s)
+      e.? match
+        case x if x < 10 => Left(s"Bad $x")
+        case x           => Right(x + 2)
+    }
+    T ~ eitherQ2("minnow") ==== Left("minnow") --: typed[Either[String, Int]]
+    T ~ eitherQ2("55")     ==== Right(57)      --: typed[Either[String, Int]]
+    T ~ eitherQ2("4")      ==== Left("Bad 4")  --: typed[Either[String, Int]]
+
+    def optionQ1(s: String): Option[Int] = Option.Ret[Int]{
+      Option(s).filter(_.forall(_.isDigit)).?.toInt
+    }
+    T ~ optionQ1("herring") ==== None     --: typed[Option[Int]]
+    T ~ optionQ1("8")       ==== Some(8)
+
+    def optionQ2(s: String): Option[Int] = Option.FlatRet{
+      Option(s).filter(_.forall(_.isDigit)).?.toInt match
+        case x if x < 10 => None
+        case x           => Some(x)
+    }
+    T ~ optionQ2("herring") ==== None     --: typed[Option[Int]]
+    T ~ optionQ2("8")       ==== None     --: typed[Option[Int]]
+    T ~ optionQ2("88")      ==== Some(88)
+
+    def tryQ1(s: String): Try[Int] = Try.Ret{
+      Try(s.toInt).? + 1
+    }
+    T ~ tryQ1("11")    ==== Success(12)
+    T ~ tryQ1("e").get ==== thrown[NumberFormatException]
+    T ~ tryQ1("e").isInstanceOf[Failure[_]] ==== true
+
+    class TestTryJumpException() extends Exception("jump") {}
+    def tryQ2(s: String): Try[Int] = Try.FlatRet{
+      val v = Try(s.toInt).?
+      Try(if v < 10 then throw new TestTryJumpException() else 2*v)
+    }
+    T ~ tryQ2("15")      ==== Success(30)
+    T ~ tryQ2("eel").get ==== thrown[NumberFormatException]
+    T ~ tryQ2("7").get   ==== thrown[TestTryJumpException]
+    T ~ tryQ2("7").isInstanceOf[Failure[_]] ==== true
+
+    def tryQ3(s: String): Try[Int] = Try.Safe{
+      val v = Try(s.toInt).?
+      if v < 10 then throw new TestTryJumpException() else 2*v
+    }
+    T ~ tryQ3("15")      ==== Success(30)
+    T ~ tryQ3("eel").get ==== thrown[NumberFormatException]
+    T ~ tryQ3("7").get   ==== thrown[TestTryJumpException]
+    T ~ tryQ3("7").isInstanceOf[Failure[_]] ==== true
+
+    T ~ safe{ "17".toInt }                                              ==== 17 --: typed[Int Or Throwable]
+    T ~ safe{ "e".toInt }.foreachAlt(throw _)                           ==== thrown[NumberFormatException]
+    T ~ safe{ "e".toInt }.isBoxed                                       ==== true
+    T ~ safeWith(_.getMessage.isEmpty){ "17".toInt }                    ==== 17 --: typed[Int Or Boolean]
+    T ~ safeWith(_.getMessage.isEmpty){ "e".toInt }                     ==== Alt(false)
+    T ~ nice{ "17".toInt }                                              ==== 17 --: typed[Int Or String]
+    T ~ nice{ "e".toInt }.existsAlt(_ contains "NumberFormatException") ==== true
+
+    val l = Left("herring")
+    val r = Right(15)
+    val eL: Either[String, Int] = l
+    val eR: Either[String, Int] = r
+    T ~ l.toOr  ==== Alt("herring")  --: typed[Nothing Or String]
+    T ~ r.toOr  ==== 15              --: typed[Int Or Nothing]
+    T ~ eL.toOr ==== Alt("herring")  --: typed[Int Or String]
+    T ~ eR.toOr ==== 15              --: typed[Int Or String]
+
+    val e = new Exception("halibut")
+    val ty = Try{ 5 }
+    val tn = Try{ throw e; 4}
+    T ~ ty.toOr                     ==== 5                   --: typed[Int Or Throwable]
+    T ~ tn.toOr                     ==== Alt(e)              --: typed[Int Or Throwable]
+    T ~ ty.toOrWith(_.getMessage)   ==== 5                   --: typed[Int Or String]
+    T ~ tn.toOrWith(_.getMessage)   ==== Alt("halibut")      --: typed[Int Or String]
+    T ~ ty.niceOr                   ==== 5                   --: typed[Int Or String]
+    T ~ tn.niceOr.mapAlt(_ take 12) ==== Alt("java.lang.Ex") --: typed[Int Or String]
+
+    val s = Some("snapper")
+    val os: Option[String] = s
+    val on: Option[String] = None
+    T ~ s.toOr           ==== "snapper"          --: typed[String Or Unit]
+    T ~ os.toOr          ==== "snapper"          --: typed[String Or Unit]
+    T ~ on.toOr          ==== Alt(())            --: typed[String Or Unit]
+    T ~ s.or(5)          ==== "snapper"          --: typed[String Or Int]
+    T ~ os.or(5)         ==== "snapper"          --: typed[String Or Int]
+    T ~ on.or(5)         ==== Alt(5)             --: typed[String Or Int]
+    T ~ os.toTry         ==== Success("snapper") --: typed[Try[String]]
+    T ~ on.toTry         ==== typed[Try[String]]
+    on.toTry match
+      case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[_]] ==== true
+      case _          => T("Success when failure expected") ~ false  ==== true
+
+    T("hopWith hopped") ~ {
+      val s = "salmon"
+      Hop.int{
+        if !s.forall(_.isDigit) then s.hopWith(x => -x.length)
+        s.toInt
+      }
+    } ==== -6
+
+    T("hopWith didn't hop") ~ {
+      val s = "14"
+      Hop.int{
+        if !s.forall(_.isDigit) then s.hopWith(x => -x.length)
+        s.toInt
+      }
+    } ==== 14
+
+    T("hopIf hopped") ~ {
+      val s = "salmon"
+      Hop.any[String]{
+        s.hopIf(_.length > 4)
+        s.toUpperCase
+      }
+    } ==== "salmon"
+
+    T("hopIf didn't hop") ~ {
+      val s = "cod"
+      Hop.any[String]{
+        s.hopIf(_.length > 4)
+        s.toUpperCase
+      }
+    } ==== "COD"
+
+    T("hopCase hopped") ~ {
+      val s = Option("salmon")
+      Hop.any[String]{
+        s.hopCase{ case Some(x) => x }
+        ""
+      }
+    } ==== "salmon"
+
+    T("hopCase didn't hop") ~ {
+      val s: Option[String] = None
+      Hop.any[String]{
+        s.hopCase{ case Some(x) => x }
+        ""
+      }
+    } ==== ""
+
+    T("hopNotCase hopped") ~ {
+      val s = "salmon"
+      Hop.any[String]{
+        "!" * s.hopNotCase{ case "cod" => 4 }
+      }
+    } ==== "salmon"
+
+    T("hopNotCase didn't hop") ~ {
+      val s = "cod"
+      Hop.any[String]{
+        "!" * s.hopNotCase{ case "cod" => 4 }
+      }
+    } ==== "!!!!"
+
+    T ~ Hop.int{ val o = 7.isnt[String];   o.getOrHop.length } ==== 7
+    T ~ Hop.int{ val o = "minnow".or[Int]; o.getOrHop.length } ==== 6
+    T ~ Hop.int{ val o = 5.or[String];     o.altOrHop.length } ==== 5
+    T ~ Hop.int{ val o = "bass".isnt[Int]; o.altOrHop.length } ==== 4
+    T ~ Hop.int{ val o = "eel".or[Int];    o.hoppit.length }   ==== 3
+    T ~ Hop.int{ val o = 2.isnt[String];   o.hoppit.length }   ==== 2
+
+    val eisL: Either[Int, String] = Left(7)
+    val eisR: Either[Int, String] = Right("minnow")
+    val esiR: Either[String, Int] = Right(5)
+    val esiL: Either[String, Int] = Left("bass")
+    T ~ Hop.int{ eisL.rightOrHop.length } ==== 7
+    T ~ Hop.int{ eisR.rightOrHop.length } ==== 6
+    T ~ Hop.int{ esiR.leftOrHop.length }  ==== 5
+    T ~ Hop.int{ esiL.leftOrHop.length }  ==== 4
+    T ~ Hop.int{ eisL.hoppit.length }     ==== 7
+    T ~ Hop.int{ eisR.hoppit.length }     ==== 6
+
+    val oiS: Option[Int] = Some(2)
+    val oiN: Option[Int] = None
+    T ~ { var x = 0; Hop.unit{ x = oiS.getOrHop }; x } ==== 2
+    T ~ { var x = 0; Hop.unit{ x = oiN.getOrHop }; x } ==== 0
+    T ~ { var x = 0; Hop.unit{ x = oiS.hoppit }; x }   ==== 2
+    T ~ { var x = 0; Hop.unit{ x = oiN.hoppit }; x }   ==== 0
+
+    val e2 = new Exception("perch")
+    val tiS = Try { 3 }
+    val tiE = Try { throw e2; 2 }
+    T ~ Hop.any[Throwable]{ new Exception(tiS.getOrHop.toString) }.getMessage ==== "3"
+    T ~ Hop.any[Throwable]{ new Exception(tiE.getOrHop.toString) }            ==== e2
+    T ~ Hop.int{ tiS.hopIfSuccess.getMessage.length }                         ==== 3
+    T ~ Hop.int{ tiE.hopIfSuccess.getMessage.length }                         ==== 5
+    T ~ Hop.any[Throwable]{ new Exception(tiS.hoppit.toString) }.getMessage   ==== "3"
+    T ~ Hop.any[Throwable]{ new Exception(tiE.hoppit.toString) }              ==== e2
+
+
 
   @Test
   def mapTest(): Unit =
