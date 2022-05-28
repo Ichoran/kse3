@@ -1442,6 +1442,9 @@ class FlowTest {
     on.toTry match
       case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[_]] ==== true
       case _          => T("Success when failure expected") ~ false  ==== true
+    T ~ { var x = ""; ( s.use{ x = _ }, x) } ==== ( s, "snapper")
+    T ~ { var x = ""; (os.use{ x = _ }, x) } ==== (os, "snapper")
+    T ~ { var x = ""; (on.use{ x = _ }, x) } ==== (on, "")
 
     T("hopWith hopped") ~ {
       val s = "salmon"
@@ -1474,6 +1477,22 @@ class FlowTest {
         s.toUpperCase
       }
     } ==== "COD"
+
+    T("hopIfNot hopped") ~ {
+      val s = "cod"
+      Hop.any[String]{
+        s.hopIfNot(_.length > 4)
+        s.toUpperCase
+      }
+    } ==== "cod"
+
+    T("hopIfNot didn't hop") ~ {
+      val s = "salmon"
+      Hop.any[String]{
+        s.hopIfNot(_.length > 4)
+        s.toUpperCase
+      }
+    } ==== "SALMON"
 
     T("hopCase hopped") ~ {
       val s = Option("salmon")
@@ -1540,6 +1559,444 @@ class FlowTest {
     T ~ Hop.any[Throwable]{ new Exception(tiS.hoppit.toString) }.getMessage   ==== "3"
     T ~ Hop.any[Throwable]{ new Exception(tiE.hoppit.toString) }              ==== e2
 
+
+  @Test
+  def mutableDataTest(): Unit =
+    val ab = Array[Byte](1, 2, 3)
+    T ~ ab.copy                     =**= ab
+    T ~ (ab.copy eq ab)             ==== false
+    T ~ ab.copy.tap(_(0) = 4).toSeq =!!= ab.toSeq
+
+    val as = Array[Short](1, 2, 3)
+    T ~ as.copy                     =**= as
+    T ~ (as.copy eq as)             ==== false
+    T ~ as.copy.tap(_(0) = 4).toSeq =!!= as.toSeq
+
+    val ac = Array[Char]('1', '2', '3')
+    T ~ ac.copy                       =**= ac
+    T ~ (ac.copy eq ac)               ==== false
+    T ~ ac.copy.tap(_(0) = '4').toSeq =!!= ac.toSeq
+
+    val ai = Array[Int](1, 2, 3)
+    T ~ ai.copy                     =**= ai
+    T ~ (ai.copy eq ai)             ==== false
+    T ~ ai.copy.tap(_(0) = 4).toSeq =!!= ai.toSeq
+
+    val al = Array[Long](1, 2, 3)
+    T ~ al.copy                     =**= al
+    T ~ (al.copy eq al)             ==== false
+    T ~ al.copy.tap(_(0) = 4).toSeq =!!= al.toSeq
+
+    val af = Array[Float](1, 2, 3)
+    T ~ af.copy                     =**= af
+    T ~ (af.copy eq af)             ==== false
+    T ~ af.copy.tap(_(0) = 4).toSeq =!!= af.toSeq
+
+    val ad = Array[Double](1, 2, 3)
+    T ~ ad.copy                     =**= ad
+    T ~ (ad.copy eq ad)             ==== false
+    T ~ ad.copy.tap(_(0) = 4).toSeq =!!= ad.toSeq
+
+    val aa = Array[String]("1", "2", "3")
+    T ~ aa.copy                       =**= aa
+    T ~ (aa.copy eq aa)               ==== false
+    T ~ aa.copy.tap(_(0) = "4").toSeq =!!= aa.toSeq
+
+    val oab = Option(ab)
+    T ~ oab.copy.get                     =**= oab.get
+    T ~ (oab.copy eq oab)                ==== false
+    T ~ (oab.copy.get eq oab.get)        ==== false
+    T ~ oab.copy.use(_(0) = 4).get.toSeq =!!= oab.get.toSeq
+
+    val aab = Anon(ab)
+    T ~ aab.copy.value                     =**= aab.value
+    T ~ (aab.copy eq aab)                  ==== false
+    T ~ (aab.copy.value eq aab.value)      ==== false
+    T ~ aab.copy.use(_(0) = 4).value.toSeq =!!= aab.value.toSeq
+
+    val m = Mu(5)
+    T ~ m.value            ==== 5
+    T ~ { m set 4 }        ==== Mu(4)
+    T ~ { m.value = 3; m } ==== Mu(3)
+    T ~ m.zap(_ - 1)       ==== Mu(2)
+    T ~ m.toString         ==== "~2"
+    T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
+
+    T ~ Mu(())      .zap(_ => ())           .pipe(x => (x, x.copy.set(())))   .sameOp(_.value) ==== ((), ())
+    T ~ Mu(true)    .zap(z => !z)           .pipe(x => (x, x.copy.set(true))) .sameOp(_.value) ==== (false, true)
+    T ~ Mu(1: Byte ).zap(b => (b+1).toByte) .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
+    T ~ Mu(1: Short).zap(s => (s+1).toShort).pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2: Short, 4: Short) --: typed[(Short, Short)]
+    T ~ Mu('e')     .zap(_.toUpper)         .pipe(x => (x, x.copy.set('f')))  .sameOp(_.value) ==== ('E', 'f')           --: typed[(Char, Char)]
+    T ~ Mu(1)       .zap(_ + 1)             .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2, 4)               --: typed[(Int, Int)]
+    T ~ Mu(1L)      .zap(_ + 1)             .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2L, 4L)             --: typed[(Long, Long)]
+    T ~ Mu(1f)      .zap(_ + 1f)            .pipe(x => (x, x.copy.set(4f)))   .sameOp(_.value) ==== (2f, 4f)             --: typed[(Float, Float)]
+    T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.set(4.0)))  .sameOp(_.value) ==== (2.0, 4.0)           --: typed[(Double, Double)]
+    T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.set("eel"))).sameOp(_.value) ==== ("cod!", "eel")      --: typed[(String, String)]
+
+
+    val ame = Anon(Mu('e'))
+    val ams = Anon(Mu("cod"))
+    T ~ ame.copy             ==== typed[Anon[Mu.MuChar]]
+    T ~ ame.copy.value.value ==== 'e'
+    T ~ ams.copy             ==== typed[Anon[Mu[String]]]
+    T ~ ams.copy.value.value ==== "cod"
+
+    inline def gm[A](a: A): Mu[A] = inline a match
+      case _: Unit    => Mu.MuUnit.asInstanceOf[Mu[A]]
+      case z: Boolean => Mu(z)
+      case b: Byte    => Mu(b)
+      case s: Short   => Mu(s)
+      case c: Char    => Mu(c)
+      case i: Int     => Mu(i)
+      case l: Long    => Mu(l)
+      case f: Float   => Mu(f)
+      case d: Double  => Mu(d)
+      case _          => Mu(a)
+    T ~ Anon(Mu(()))                ==== typed[Anon[Mu.MuUnit.type]]
+    T ~ Anon(gm(()))                ==== typed[Anon[Mu[Unit]]]
+    T ~ Anon(gm(()).specific)       ==== typed[Anon[Mu.MuUnit.type]]
+    T ~ Anon(Mu(true))              ==== typed[Anon[Mu.MuBoolean]]
+    T ~ Anon(gm(true))              ==== typed[Anon[Mu[Boolean]]]
+    T ~ Anon(gm(true).specific)     ==== typed[Anon[Mu.MuBoolean]]
+    T ~ Anon(Mu(1: Byte))           ==== typed[Anon[Mu.MuByte]]
+    T ~ Anon(gm(1: Byte))           ==== typed[Anon[Mu[Byte]]]
+    T ~ Anon(gm(1: Byte).specific)  ==== typed[Anon[Mu.MuByte]]
+    T ~ Anon(Mu(2: Short))          ==== typed[Anon[Mu.MuShort]]
+    T ~ Anon(gm(2: Short))          ==== typed[Anon[Mu[Short]]]
+    T ~ Anon(gm(2: Short).specific) ==== typed[Anon[Mu.MuShort]]
+    T ~ Anon(Mu('e'))               ==== typed[Anon[Mu.MuChar]]
+    T ~ Anon(gm('e'))               ==== typed[Anon[Mu[Char]]]
+    T ~ Anon(gm('e').specific)      ==== typed[Anon[Mu.MuChar]]
+    T ~ Anon(Mu(4))                 ==== typed[Anon[Mu.MuInt]]
+    T ~ Anon(gm(4))                 ==== typed[Anon[Mu[Int]]]
+    T ~ Anon(gm(4).specific)        ==== typed[Anon[Mu.MuInt]]
+    T ~ Anon(Mu(5L))                ==== typed[Anon[Mu.MuLong]]
+    T ~ Anon(gm(5L))                ==== typed[Anon[Mu[Long]]]
+    T ~ Anon(gm(5L).specific)       ==== typed[Anon[Mu.MuLong]]
+    T ~ Anon(Mu(6f))                ==== typed[Anon[Mu.MuFloat]]
+    T ~ Anon(gm(6f))                ==== typed[Anon[Mu[Float]]]
+    T ~ Anon(gm(6f).specific)       ==== typed[Anon[Mu.MuFloat]]
+    T ~ Anon(Mu(7.0))               ==== typed[Anon[Mu.MuDouble]]
+    T ~ Anon(gm(7.0))               ==== typed[Anon[Mu[Double]]]
+    T ~ Anon(gm(7.0).specific)      ==== typed[Anon[Mu.MuDouble]]
+    T ~ Anon(Mu("cod"))             ==== typed[Anon[Mu[String]]]
+    T ~ Anon(gm("cod"))             ==== typed[Anon[Mu[String]]]
+    T ~ Anon(gm("cod").specific)    ==== typed[Anon[Mu[String]]]
+
+
+  @Test
+  def immutableDataTest(): Unit =
+    object Meter extends NewType[Double] {
+      extension (t: Type) {
+        def *(that: Double): Meter.Type = Meter(t.value * that)
+      }
+    }
+    T ~ Meter(3)         ==== 3 --: typed[Meter.Type]
+    T ~ { Meter(2) * 3 } ==== 6 --: typed[Meter.Type]
+
+    T ~ "herring".fn( s => s.length + s.head)                ==== (7 + 'h')
+    T ~ "salmon".pipe(s => s.length + s.head)                ==== (6 + 's')
+    T ~ { var x = 0; "cod".tap(s => x = s.head).length + x } ==== (3 + 'c')
+    T ~ "herring".tup(5)                                     ==== ("herring", 5)
+    T ~ "herring".tupWith(_.length)                          ==== ("herring", 7)
+
+    val f1 = (i: Int) => i+1
+    val f2 = (c: Char) => c > 'e'
+    T ~ (1, 'a')._1to(true)                  ==== (true, 'a')
+    T ~ (1, 'a')._2to(true)                  ==== (1, true)
+    T ~ (1, 'a')._1op(_ < 3)                 ==== (true, 'a')
+    T ~ (1, 'a')._2op(_ < 'e')               ==== (1, true)
+    T ~ (1, 'a').ops(f1, f2)                 ==== (2, false)
+    T ~ (1, 'a').sameOp(_ == 'a')            ==== (false, true)
+    T ~ (1, 'a').merge(_ + _)                ==== (1 + 'a')
+    T ~ (1, 'a').reduce((a, b) => a)         ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a').tup(true)                   ==== (1, 'a', true)
+    T ~ (1, 'a').tup_1(true)                 ==== (true, 1, 'a')
+    T ~ (1, 'a').tup_2(true)                 ==== (1, true, 'a')
+    T ~ (1, 'a').tupWith((a, b) => b + a)    ==== (1, 'a', 'b')
+    T ~ (1, 'a').snip                        ==== 1
+    T ~ (1, 'a').snip_1                      ==== 'a'
+    T ~ (1, 'a').join((2, 3))                ==== (1, 'a', 2, 3)
+    T ~ (1, 'a').join((2, 3, 4))             ==== (1, 'a', 2, 3, 4)
+    T ~ (1, 'a').join((2, 3, 4, 5))          ==== (1, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a').join((2, 3, 4, 5, 6))       ==== (1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a').join((2, 3, 4, 5, 6, 7))    ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a').join((2, 3, 4, 5, 6, 7, 8)) ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+
+    val f3 = (i: Int) => i-1
+    T ~ (1, 'a', 2)._1to(true)                  ==== (true, 'a', 2)
+    T ~ (1, 'a', 2)._2to(true)                  ==== (1, true, 2)
+    T ~ (1, 'a', 2)._3to(true)                  ==== (1, 'a', true)
+    T ~ (1, 'a', 2)._1op(_ < 3)                 ==== (true, 'a', 2)
+    T ~ (1, 'a', 2)._2op(_ < 'e')               ==== (1, true, 2)
+    T ~ (1, 'a', 2)._3op(_ < 3)                 ==== (1, 'a', true)
+    T ~ (1, 'a', 2).ops(f1, f2, f3)             ==== (2, false, 1)
+    T ~ (1, 'a', 2).sameOp(_ == 'a')            ==== (false, true, false)
+    T ~ (1, 'a', 2).merge(_ + _ + _)            ==== (3 + 'a')
+    T ~ (1, 'a', 2).reduce((a, b) => a)         ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2).tup(true)                   ==== (1, 'a', 2, true)
+    T ~ (1, 'a', 2).tup_1(true)                 ==== (true, 1, 'a', 2)
+    T ~ (1, 'a', 2).tup_2(true)                 ==== (1, true, 'a', 2)
+    T ~ (1, 'a', 2).tup_3(true)                 ==== (1, 'a', true, 2)
+    T ~ (1, 'a', 2).tupWith((a, b, c) => b + a) ==== (1, 'a', 2, 'b')
+    T ~ (1, 'a', 2).snip                        ==== (1, 'a')
+    T ~ (1, 'a', 2).snip_1                      ==== ('a', 2)
+    T ~ (1, 'a', 2).snip_2                      ==== (1, 2)
+    T ~ (1, 'a', 2).join((3, 4))                ==== (1, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2).join((3, 4, 5))             ==== (1, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2).join((3, 4, 5, 6))          ==== (1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2).join((3, 4, 5, 6, 7))       ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2).join((3, 4, 5, 6, 7, 8))    ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2).cut1                        ==== (1, ('a', 2))
+    T ~ (1, 'a', 2).cut2                        ==== ((1, 'a'), 2)
+
+    val f4 = (i: Int) => i*i
+    T ~ (1, 'a', 2, 3)._1to(true)                  ==== (true, 'a', 2, 3)
+    T ~ (1, 'a', 2, 3)._2to(true)                  ==== (1, true, 2, 3)
+    T ~ (1, 'a', 2, 3)._3to(true)                  ==== (1, 'a', true, 3)
+    T ~ (1, 'a', 2, 3)._4to(true)                  ==== (1, 'a', 2, true)
+    T ~ (1, 'a', 2, 3)._1op(_ < 3)                 ==== (true, 'a', 2, 3)
+    T ~ (1, 'a', 2, 3)._2op(_ < 'e')               ==== (1, true, 2, 3)
+    T ~ (1, 'a', 2, 3)._3op(_ < 3)                 ==== (1, 'a', true, 3)
+    T ~ (1, 'a', 2, 3)._4op(_ < 3)                 ==== (1, 'a', 2, false)
+    T ~ (1, 'a', 2, 3).ops(f1, f2, f3, f4)         ==== (2, false, 1, 9)
+    T ~ (1, 'a', 2, 3).sameOp(_ == 'a')            ==== (false, true, false, false)
+    T ~ (1, 'a', 2, 3).merge(_ + _ + _ + _)        ==== (6 + 'a')
+    T ~ (1, 'a', 2, 3).reduce((a, b) => a)         ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3).tup(true)                   ==== (1, 'a', 2, 3, true)
+    T ~ (1, 'a', 2, 3).tup_1(true)                 ==== (true, 1, 'a', 2, 3)
+    T ~ (1, 'a', 2, 3).tup_2(true)                 ==== (1, true, 'a', 2, 3)
+    T ~ (1, 'a', 2, 3).tup_3(true)                 ==== (1, 'a', true, 2, 3)
+    T ~ (1, 'a', 2, 3).tup_4(true)                 ==== (1, 'a', 2, true, 3)
+    T ~ (1, 'a', 2, 3)
+          .tupWith((a, b, c, d) => b + a)          ==== (1, 'a', 2, 3, 'b')
+    T ~ (1, 'a', 2, 3).snip                        ==== (1, 'a', 2)
+    T ~ (1, 'a', 2, 3).snip_1                      ==== ('a', 2, 3)
+    T ~ (1, 'a', 2, 3).snip_2                      ==== (1, 2, 3)
+    T ~ (1, 'a', 2, 3).snip_3                      ==== (1, 'a', 3)
+    T ~ (1, 'a', 2, 3).join((4, 5))                ==== (1, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3).join((4, 5, 6))             ==== (1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3).join((4, 5, 6, 7))          ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3).join((4, 5, 6, 7, 8))       ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3).cut1                        ==== (1, ('a', 2, 3))
+    T ~ (1, 'a', 2, 3).cut2                        ==== ((1, 'a'), (2, 3))
+    T ~ (1, 'a', 2, 3).cut3                        ==== ((1, 'a', 2), 3)
+
+    val f5 = (i: Int) => 9-i
+    T ~ (1, 'a', 2, 3, 4)._1to(true)                  ==== (true, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._2to(true)                  ==== (1, true, 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._3to(true)                  ==== (1, 'a', true, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._4to(true)                  ==== (1, 'a', 2, true, 4)
+    T ~ (1, 'a', 2, 3, 4)._5to(true)                  ==== (1, 'a', 2, 3, true)
+    T ~ (1, 'a', 2, 3, 4)._1op(_ < 3)                 ==== (true, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._2op(_ < 'e')               ==== (1, true, 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._3op(_ < 3)                 ==== (1, 'a', true, 3, 4)
+    T ~ (1, 'a', 2, 3, 4)._4op(_ < 3)                 ==== (1, 'a', 2, false, 4)
+    T ~ (1, 'a', 2, 3, 4)._5op(_ < 3)                 ==== (1, 'a', 2, 3, false)
+    T ~ (1, 'a', 2, 3, 4).ops(f1, f2, f3, f4, f5)     ==== (2, false, 1, 9, 5)
+    T ~ (1, 'a', 2, 3, 4).sameOp(_ == 'a')            ==== (false, true, false, false, false)
+    T ~ (1, 'a', 2, 3, 4).merge(_ + _ + _ + _ + _)    ==== (10 + 'a')
+    T ~ (1, 'a', 2, 3, 4).reduce((a, b) => a)         ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3, 4).tup(true)                   ==== (1, 'a', 2, 3, 4, true)
+    T ~ (1, 'a', 2, 3, 4).tup_1(true)                 ==== (true, 1, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).tup_2(true)                 ==== (1, true, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).tup_3(true)                 ==== (1, 'a', true, 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).tup_4(true)                 ==== (1, 'a', 2, true, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).tup_5(true)                 ==== (1, 'a', 2, 3, true, 4)    
+    T ~ (1, 'a', 2, 3, 4)
+          .tupWith((a, b, c, d, e) => b + a)          ==== (1, 'a', 2, 3, 4, 'b')
+    T ~ (1, 'a', 2, 3, 4).snip                        ==== (1, 'a', 2, 3)
+    T ~ (1, 'a', 2, 3, 4).snip_1                      ==== ('a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).snip_2                      ==== (1, 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4).snip_3                      ==== (1, 'a', 3, 4)
+    T ~ (1, 'a', 2, 3, 4).snip_4                      ==== (1, 'a', 2, 4)
+    T ~ (1, 'a', 2, 3, 4).join((5, 6))                ==== (1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4).join((5, 6, 7))             ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4).join((5, 6, 7, 8))          ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4).cut1                        ==== (1, ('a', 2, 3, 4))
+    T ~ (1, 'a', 2, 3, 4).cut2                        ==== ((1, 'a'), (2, 3, 4))
+    T ~ (1, 'a', 2, 3, 4).cut3                        ==== ((1, 'a', 2), (3, 4))
+    T ~ (1, 'a', 2, 3, 4).cut4                        ==== ((1, 'a', 2, 3), 4)
+
+    val f6 = (i: Int) => (i+1)/2
+    T ~ (1, 'a', 2, 3, 4, 5)._1to(true)                  ==== (true, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._2to(true)                  ==== (1, true, 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._3to(true)                  ==== (1, 'a', true, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._4to(true)                  ==== (1, 'a', 2, true, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._5to(true)                  ==== (1, 'a', 2, 3, true, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._6to(true)                  ==== (1, 'a', 2, 3, 4, true)
+    T ~ (1, 'a', 2, 3, 4, 5)._1op(_ < 3)                 ==== (true, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._2op(_ < 'e')               ==== (1, true, 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._3op(_ < 3)                 ==== (1, 'a', true, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._4op(_ < 3)                 ==== (1, 'a', 2, false, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._5op(_ < 3)                 ==== (1, 'a', 2, 3, false, 5)
+    T ~ (1, 'a', 2, 3, 4, 5)._6op(_ < 3)                 ==== (1, 'a', 2, 3, 4, false)
+    T ~ (1, 'a', 2, 3, 4, 5).ops(f1, f2, f3, f4, f5, f6) ==== (2, false, 1, 9, 5, 3)
+    T ~ (1, 'a', 2, 3, 4, 5).sameOp(_ == 'a')            ==== (false, true, false, false, false, false)
+    T ~ (1, 'a', 2, 3, 4, 5).merge(_ + _ + _ + _ + _ + _)==== (15 + 'a')
+    T ~ (1, 'a', 2, 3, 4, 5).reduce((a, b) => a)         ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3, 4, 5).tup(true)                   ==== (1, 'a', 2, 3, 4, 5, true)
+    T ~ (1, 'a', 2, 3, 4, 5).tup_1(true)                 ==== (true, 1, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).tup_2(true)                 ==== (1, true, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).tup_3(true)                 ==== (1, 'a', true, 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).tup_4(true)                 ==== (1, 'a', 2, true, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).tup_5(true)                 ==== (1, 'a', 2, 3, true, 4, 5)    
+    T ~ (1, 'a', 2, 3, 4, 5).tup_6(true)                 ==== (1, 'a', 2, 3, 4, true, 5)    
+    T ~ (1, 'a', 2, 3, 4, 5)
+          .tupWith((a, b, c, d, e, f) => b + a)          ==== (1, 'a', 2, 3, 4, 5, 'b')
+    T ~ (1, 'a', 2, 3, 4, 5).snip                        ==== (1, 'a', 2, 3, 4)
+    T ~ (1, 'a', 2, 3, 4, 5).snip_1                      ==== ('a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).snip_2                      ==== (1, 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).snip_3                      ==== (1, 'a', 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).snip_4                      ==== (1, 'a', 2, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).snip_5                      ==== (1, 'a', 2, 3, 5)
+    T ~ (1, 'a', 2, 3, 4, 5).join((6, 7))                ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5).join((6, 7, 8))             ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5).cut1                        ==== (1, ('a', 2, 3, 4, 5))
+    T ~ (1, 'a', 2, 3, 4, 5).cut2                        ==== ((1, 'a'), (2, 3, 4, 5))
+    T ~ (1, 'a', 2, 3, 4, 5).cut3                        ==== ((1, 'a', 2), (3, 4, 5))
+    T ~ (1, 'a', 2, 3, 4, 5).cut4                        ==== ((1, 'a', 2, 3), (4, 5))
+    T ~ (1, 'a', 2, 3, 4, 5).cut5                        ==== ((1, 'a', 2, 3, 4), 5)
+
+    def f7 = (i: Int) => i+2
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._1to(true)          ==== (true, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._2to(true)          ==== (1, true, 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._3to(true)          ==== (1, 'a', true, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._4to(true)          ==== (1, 'a', 2, true, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._5to(true)          ==== (1, 'a', 2, 3, true, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._6to(true)          ==== (1, 'a', 2, 3, 4, true, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._7to(true)          ==== (1, 'a', 2, 3, 4, 5, true)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._1op(_ < 3)         ==== (true, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._2op(_ < 'e')       ==== (1, true, 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._3op(_ < 3)         ==== (1, 'a', true, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._4op(_ < 3)         ==== (1, 'a', 2, false, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._5op(_ < 3)         ==== (1, 'a', 2, 3, false, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._6op(_ < 3)         ==== (1, 'a', 2, 3, 4, false, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)._7op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)
+          .ops(f1, f2, f3, f4, f5, f6, f7)          ==== (2, false, 1, 9, 5, 3, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).sameOp(_ == 'a')    ==== (false, true, false, false, false, false, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)
+          .merge(_ + _ + _ + _ + _ + _ + _)         ==== (21 + 'a')
+    T ~ (1, 'a', 2, 3, 4, 5, 6).reduce((a, b) => a) ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup(true)           ==== (1, 'a', 2, 3, 4, 5, 6, true)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_1(true)         ==== (true, 1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_2(true)         ==== (1, true, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_3(true)         ==== (1, 'a', true, 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_4(true)         ==== (1, 'a', 2, true, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_5(true)         ==== (1, 'a', 2, 3, true, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_6(true)         ==== (1, 'a', 2, 3, 4, true, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).tup_7(true)         ==== (1, 'a', 2, 3, 4, 5, true, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6)
+          .tupWith((a, b, c, d, e, f, g) => b + a)  ==== (1, 'a', 2, 3, 4, 5, 6, 'b')
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip                ==== (1, 'a', 2, 3, 4, 5)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_1              ==== ('a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_2              ==== (1, 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_3              ==== (1, 'a', 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_4              ==== (1, 'a', 2, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_5              ==== (1, 'a', 2, 3, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).snip_6              ==== (1, 'a', 2, 3, 4, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).join((7, 8))        ==== (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut1                ==== (1, ('a', 2, 3, 4, 5, 6))
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut2                ==== ((1, 'a'), (2, 3, 4, 5, 6))
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut3                ==== ((1, 'a', 2), (3, 4, 5, 6))
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut4                ==== ((1, 'a', 2, 3), (4, 5, 6))
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut5                ==== ((1, 'a', 2, 3, 4), (5, 6))
+    T ~ (1, 'a', 2, 3, 4, 5, 6).cut6                ==== ((1, 'a', 2, 3, 4, 5), 6)
+
+
+    def f8 = (i: Int) => (3*i)/5
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._1to(true)          ==== (true, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._2to(true)          ==== (1, true, 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._3to(true)          ==== (1, 'a', true, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._4to(true)          ==== (1, 'a', 2, true, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._5to(true)          ==== (1, 'a', 2, 3, true, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._6to(true)          ==== (1, 'a', 2, 3, 4, true, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._7to(true)          ==== (1, 'a', 2, 3, 4, 5, true, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._8to(true)          ==== (1, 'a', 2, 3, 4, 5, 6, true)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._1op(_ < 3)         ==== (true, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._2op(_ < 'e')       ==== (1, true, 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._3op(_ < 3)         ==== (1, 'a', true, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._4op(_ < 3)         ==== (1, 'a', 2, false, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._5op(_ < 3)         ==== (1, 'a', 2, 3, false, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._6op(_ < 3)         ==== (1, 'a', 2, 3, 4, false, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._7op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, false, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)._8op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, 6, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)
+          .ops(f1, f2, f3, f4, f5, f6, f7, f8)         ==== (2, false, 1, 9, 5, 3, 8, 4)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).sameOp(_ == 'a')    ==== (false, true, false, false, false, false, false, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)
+          .merge(_ + _ + _ + _ + _ + _ + _ + _)        ==== (28 + 'a')
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).reduce((a, b) => a) ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup(true)           ==== (1, 'a', 2, 3, 4, 5, 6, 7, true)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_1(true)         ==== (true, 1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_2(true)         ==== (1, true, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_3(true)         ==== (1, 'a', true, 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_4(true)         ==== (1, 'a', 2, true, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_5(true)         ==== (1, 'a', 2, 3, true, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_6(true)         ==== (1, 'a', 2, 3, 4, true, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_7(true)         ==== (1, 'a', 2, 3, 4, 5, true, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).tup_8(true)         ==== (1, 'a', 2, 3, 4, 5, 6, true, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7)
+          .tupWith((a, b, c, d, e, f, g, h) => b + a)  ==== (1, 'a', 2, 3, 4, 5, 6, 7, 'b')
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip                ==== (1, 'a', 2, 3, 4, 5, 6)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_1              ==== ('a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_2              ==== (1, 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_3              ==== (1, 'a', 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_4              ==== (1, 'a', 2, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_5              ==== (1, 'a', 2, 3, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_6              ==== (1, 'a', 2, 3, 4, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).snip_7              ==== (1, 'a', 2, 3, 4, 5, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut1                ==== (1, ('a', 2, 3, 4, 5, 6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut2                ==== ((1, 'a'), (2, 3, 4, 5, 6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut3                ==== ((1, 'a', 2), (3, 4, 5, 6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut4                ==== ((1, 'a', 2, 3), (4, 5, 6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut5                ==== ((1, 'a', 2, 3, 4), (5, 6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut6                ==== ((1, 'a', 2, 3, 4, 5), (6, 7))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7).cut7                ==== ((1, 'a', 2, 3, 4, 5, 6), 7)
+
+    def f9 = (i: Int) => 1/i
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._1to(true)          ==== (true, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._2to(true)          ==== (1, true, 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._3to(true)          ==== (1, 'a', true, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._4to(true)          ==== (1, 'a', 2, true, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._5to(true)          ==== (1, 'a', 2, 3, true, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._6to(true)          ==== (1, 'a', 2, 3, 4, true, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._7to(true)          ==== (1, 'a', 2, 3, 4, 5, true, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._8to(true)          ==== (1, 'a', 2, 3, 4, 5, 6, true, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._9to(true)          ==== (1, 'a', 2, 3, 4, 5, 6, 7, true)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._1op(_ < 3)         ==== (true, 'a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._2op(_ < 'e')       ==== (1, true, 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._3op(_ < 3)         ==== (1, 'a', true, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._4op(_ < 3)         ==== (1, 'a', 2, false, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._5op(_ < 3)         ==== (1, 'a', 2, 3, false, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._6op(_ < 3)         ==== (1, 'a', 2, 3, 4, false, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._7op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, false, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._8op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, 6, false, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)._9op(_ < 3)         ==== (1, 'a', 2, 3, 4, 5, 6, 7, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+          .ops(f1, f2, f3, f4, f5, f6, f7, f8, f9)        ==== (2, false, 1, 9, 5, 3, 8, 4, 0)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).sameOp(_ == 'a')    ==== (false, true, false, false, false, false, false, false, false)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8)
+          .merge(_ + _ + _ + _ + _ + _ + _ + _ + _)       ==== (36 + 'a')
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).reduce((a, b) => a) ==== 1 --: typed[Int | Char]
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip                ==== (1, 'a', 2, 3, 4, 5, 6, 7)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_1              ==== ('a', 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_2              ==== (1, 2, 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_3              ==== (1, 'a', 3, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_4              ==== (1, 'a', 2, 4, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_5              ==== (1, 'a', 2, 3, 5, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_6              ==== (1, 'a', 2, 3, 4, 6, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_7              ==== (1, 'a', 2, 3, 4, 5, 7, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).snip_8              ==== (1, 'a', 2, 3, 4, 5, 6, 8)
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut1                ==== (1, ('a', 2, 3, 4, 5, 6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut2                ==== ((1, 'a'), (2, 3, 4, 5, 6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut3                ==== ((1, 'a', 2), (3, 4, 5, 6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut4                ==== ((1, 'a', 2, 3), (4, 5, 6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut5                ==== ((1, 'a', 2, 3, 4), (5, 6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut6                ==== ((1, 'a', 2, 3, 4, 5), (6, 7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut7                ==== ((1, 'a', 2, 3, 4, 5, 6), (7, 8))
+    T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cut8                ==== ((1, 'a', 2, 3, 4, 5, 6, 7), 8)
 
 
   @Test

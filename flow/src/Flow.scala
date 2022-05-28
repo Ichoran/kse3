@@ -281,21 +281,33 @@ extension [L, R](either: Either[L, R]) {
 
 extension [A](`try`: Try[A]) {
   /** Converts to an `Or`, placing a success as the favored branch and a failure as a `Throwable` in the disfavored branch. */
- inline def toOr: A Or Throwable = Or from `try`
+  inline def toOr: A Or Throwable = Or from `try`
 
+  /** Converts to an `Or`, mapping a failure to a disfavored value, or keeping a success as the favored branch. */
   inline def toOrWith[B](f: Throwable => B): A Or B = Or.from(`try`, f)
 
+  /** Converts to an `Or`, mapping a failure automatically to a disfavored value, or keeping a success as the favored branch. */
   inline def niceOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
 }
 
 extension [A](option: Option[A]) {
+  /** Converts to a `Try` by creating a new `None`-containing WrongBranchException if the `Option` is empty. */
   inline def toTry: Try[A] = option match
     case Some(a) => Success(a)
     case _ => Failure(new WrongBranchException(None))
 
+  /** Converts to an Or by using a value as the favored branch and unit as the disfavored branch if there is no value */
   inline def toOr: A Or Unit = Or from option
 
+  /** Converts to an Or by using a default value for the disfavored branch if there is no value */
   inline def or[B](b: => B): A Or B = Or.fromOrElse(option, b)
+
+  /** Do something with a stored value, if present, and keep passing along the Option either way */
+  inline def use(f: A => Unit): option.type =
+    (option: Option[A]) match
+      case Some(a) => f(a)
+      case _       =>
+    option
 }
 
 
@@ -304,12 +316,22 @@ extension [A](option: Option[A]) {
 ////////////////////////////////////////////////////////
 
 extension [A](a: A) {
+  /** Remap this value with a lambda, and then hop that new value */
   inline def hopWith[B](inline f: A => B)(using ch: CanHop[B]): Nothing = ch hop f(a)
-  inline def hopIf(inline p: A => Boolean)(using ch: CanHop[A]): A = if (p(a)) ch hop a else a
+
+  /** Hop this value if a predicate is met, otherwise keep going with the same value */
+  inline def hopIf(inline p: A => Boolean)(using ch: CanHop[A]): A = if p(a) then ch hop a else a
+
+  /** Hop this value if a predicate is not met, otherwise keep going with the same value */
+  inline def hopIfNot(inline p: A => Boolean)(using ch: CanHop[A]): A = if p(a) then a else ch hop a
+
+  /** Remap some of these values and hop if the remap succeeded; otherwise keep going with the same value */
   inline def hopCase[B](pf: PartialFunction[A, B])(using ch: CanHop[B]): A =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => a
       case b => ch hop b.asInstanceOf[B]
+
+  /** Remap some of these values, or hop the value if it wasn't remapped */
   inline def hopNotCase[B](pf: PartialFunction[A, B])(using ch: CanHop[A]): B =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => ch hop a
@@ -317,41 +339,57 @@ extension [A](a: A) {
 }
 
 extension [X, Y](or: X Or Y) {
+  /** Hop the disfavored branch, or keep going with the favored branch's value */
   inline def getOrHop(using ch: CanHop[Y]): X = or.fold{ x => x }{ ch hop _ }
+
+  /** Hop the favored branch, or keep going with the disfavored branch's value */
   inline def altOrHop(using ch: CanHop[X]): Y = or.fold{ ch hop _ }{ y => y }
+
+  /** Hop the disfavored branch, or keep going with the favored branch's value.  Like `.?`, but for hops. */
   inline def hoppit(using ch: CanHop[Y]): X   = or.fold{ x => x }{ ch hop _ }
 }
 
 extension[L, R](either: Either[L, R]) {
+  /** Hop the left branch, or keep going with the right branch's value. */
   inline def rightOrHop(using ch: CanHop[L]): R = either match
     case Right(r) => r
     case Left(l) => ch hop l
+
+  /** Hop the right branch, or keep going with the left branch's value. */
   inline def leftOrHop(using ch: CanHop[R]): L = either match
     case Left(l) => l
     case Right(r) => ch hop r
+
+  /** Hop the left branch, or keep going with the right branch's value.  Like `.?`, but for hops. */
   inline def hoppit(using ch: CanHop[L]): R = either match
     case Right(r) => r
     case Left(l) => ch hop l
 }
 
 extension[A](option: Option[A]) {
+  /** Hop a unit value if the option is empty, or keep going with the option's value. */
   inline def getOrHop(using ch: CanHop[Unit]): A = option match
     case Some(a) => a
     case _ => ch.hop(())
+
+  /** Hop a unit value if the option is empty, or keep going with the option's value. */
   inline def hoppit(using ch: CanHop[Unit]): A = option match
     case Some(a) => a
     case _ => ch.hop(())
 }
 
 extension[A](`try`: Try[A]) {
+  /** Hop the throwable if the Try failed, or keep going with the success's value. */
   inline def getOrHop(using ch: CanHop[Throwable]): A = `try` match
     case Success(a) => a
     case Failure(e) => ch hop e
 
+  /** Hop the success if it worked, or keep going with the `Throwable` from the failure. */
   inline def hopIfSuccess(using ch: CanHop[A]): Throwable = `try` match
     case Success(a) => ch hop a
     case Failure(e) => e
 
+  /** Hop the throwable if the Try failed, or keep going with the success's value. */
   inline def hoppit(using ch: CanHop[Throwable]): A = `try` match
     case Success(a) => a
     case Failure(e) => ch hop e
