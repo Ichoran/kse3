@@ -524,6 +524,23 @@ class FlowTest {
     T ~ oap.isBoxed    ==== true
     T ~ oaq.isBoxed    ==== true
 
+    T ~ i.isIs   ==== true
+    T ~ a.isIs   ==== false
+    T ~ oi.isIs  ==== true
+    T ~ oa.isIs  ==== false
+    T ~ n.isIs   ==== true
+    T ~ m.isIs   ==== false
+    T ~ on.isIs  ==== true
+    T ~ om.isIs  ==== false
+    T ~ i.isAlt  ==== false
+    T ~ a.isAlt  ==== true
+    T ~ oi.isAlt ==== false
+    T ~ oa.isAlt ==== true
+    T ~ n.isAlt  ==== false
+    T ~ m.isAlt  ==== true
+    T ~ on.isAlt ==== false
+    T ~ om.isAlt ==== true
+
     T ~ { var x = 0; i.foreach(x = _)                 ; x } ==== 5
     T ~ { var x = 0; a.foreach(_ => x = 1)            ; x } ==== 0
     T ~ { var x = 0; oi.foreach(x = _)                ; x } ==== 5
@@ -2000,14 +2017,315 @@ class FlowTest {
 
 
   @Test
-  def mapTest(): Unit =
-    ()
-    /*
-    T ~ Ok[String]()("salmon").map(_.length)    ==== Yes(6)
-    T ~ Ok("herring")[String]().map(_.length)   ==== No("herring")
-    T ~ Ok[String]()("salmon").mapNo(_.length)  ==== Yes("salmon")
-    T ~ Ok("herring")[String]().mapNo(_.length) ==== No(7)
-    */
+  def cacheTest(): Unit =
+    var x = 0
+    val l = Lazy{ x += 1; x }
+    val lm = l.map{ v => x += 1; v + x }
+    val lfm = lm.flatMap{ v => x += 1; Lazy{ x *= 2; v + x }}
+    T ~ x         ==== 0
+    T ~ l.value   ==== 1
+    T ~ x         ==== 1
+    T ~ lm.value  ==== 3
+    T ~ x         ==== 2
+    T ~ l.value   ==== 1
+    T ~ lfm.value ==== 9
+    T ~ x         ==== 6
+    T ~ l.value   ==== 1
+    T ~ lm.value  ==== 3
+
+    // Not explicitly testing thread safety, but it should be thread-safe.
+    val w = Worm.of[String]
+    T ~ w.value ==== Alt(()) --: typed[String Or Unit]
+    T ~ w.get   ==== thrown[IllegalStateException]
+    w.set("cod")
+    T ~ w.value ==== "cod" --: typed[String Or Unit]
+    T ~ w.get   ==== "cod"
+    T ~ w.setIfEmpty("herring") ==== false
+    T ~ w.set("herring")        ==== thrown[IllegalStateException]
+
+    // Not explicitly testing soft memory clearance, but it should clear memory
+    var z = 0
+    val s = Soft("salmon"){ s => z += 1; s.length }
+    T ~ z       ==== 0
+    T ~ s.value ==== 6
+    T ~ (z > 0) ==== true
+    var zz = 0
+    val sm = s.map{ v => zz += 1; z += v; v > 4 }
+    T ~ zz ==== 0
+    val z0 = z
+    T ~ sm.value ==== true
+    val z1 = z
+    T ~ { (z1 - z0) >= 6 } ==== true
+    T ~ (zz > 0)           ==== true
+    T ~ s.forget().valueOrValue ==== Alt(6)
+    T ~ (z > z1)                ==== true
+    val z2 = z
+    T ~ s.valueOrValue          ==== Is(6)
+    T ~ z2                      ==== z
+    T ~ s.forget().valueOrUnit ==== Alt.unit
+    T ~ z2                     ==== z
+    T ~ s.value                ==== 6
+    T ~ (z > z2)               ==== true
+
+    val u = Hold.unit
+    T ~ u.getOrUnit   ==== ((), 0) --: typed[(Unit, Long) Or Unit]
+    T ~ u.recompute() ==== ((), 0) --: typed[(Unit, Long)]
+    T ~ u.force()     ==== ((), 0) --: typed[(Unit, Long)]
+
+    val c = Hold.fixed("cod")
+    T ~ c.getOrUnit   ==== ("cod", 0) --: typed[(String, Long) Or Unit]
+    T ~ c.recompute() ==== ("cod", 0) --: typed[(String, Long)]
+    T ~ c.force()     ==== ("cod", 0) --: typed[(String, Long)]
+
+    var dn = -1
+    val d = Hold.unheld{ dn += 1; "dace" }
+    T ~ dn            ==== -1
+    T ~ d.getOrUnit   ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ d.get         ==== ("dace", 0)
+    T ~ d.get         ==== ("dace", 1)
+    T ~ d.recompute() ==== ("dace", 2)
+    T ~ d.force()     ==== ("dace", 3)
+    T ~ d.get         ==== ("dace", dn)
+    T ~ d.getOrUnit   ==== Alt.unit
+
+    var an = -1
+    val a = Hold{ an += 1; "albacore" }
+    T ~ an            ==== -1
+    T ~ a.getOrUnit   ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ a.get         ==== ("albacore", 0)
+    T ~ a.get         ==== ("albacore", 0)
+    T ~ an            ==== 0
+    T ~ a.recompute() ==== ("albacore", 1)
+    T ~ a.force()     ==== ("albacore", 2)
+    T ~ a.get         ==== ("albacore", 2)
+    T ~ a.getOrUnit   ==== ("albacore", 2)
+    a.release()
+    T ~ a.getOrUnit   ==== Alt.unit
+    T ~ a.get         ==== ("albacore", 3)
+
+    val m = Hold.mutable("minnow")
+    val m2 = m.map(_.length)
+    T ~ m.get        ==== ("minnow", 0)
+    T ~ m.getOrUnit  ==== ("minnow", 0)
+    T ~ m2.getOrUnit ==== Alt.unit
+    T ~ m2.get       ==== (6, 0)
+    T ~ m2.force()   ==== (6, 1)
+    m.set("mackarel")
+    T ~ m.getOrUnit  ==== ("mackarel", 1)
+    T ~ m2.getOrUnit ==== Alt.unit
+    T ~ m2.get       ==== (8, 2)
+    T ~ m2.get       ==== (8, 2)
+    m.zap(s => if s == "mackarel" then "minnow" else "mackarel")
+    T ~ m2.get       ==== (6, 3)
+    T ~ m.get        ==== ("minnow", 2)
+
+    val i = Hold.iterate(0)(_ + 2)
+    T ~ i.get         ==== (0, 0)
+    T ~ i.getOrUnit   ==== Alt.unit --: typed[(Int, Long) Or Unit]
+    T ~ i.recompute() ==== (2, 1)
+    T ~ i.force()     ==== (4, 2)
+    T ~ i.get         ==== (6, 3)
+    T ~ i.getOrUnit   ==== Alt.unit
+
+    var shn = -1
+    val sh = Hold.soft{ shn += 1; "shad" }
+    T ~ shn          ==== -1
+    T ~ sh.getOrUnit ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ sh.get       ==== ("shad", 0)
+    T ~ sh.value     ==== "shad"
+    T ~ sh.force()   ==== ("shad", shn)
+    T ~ (shn > 0)    ==== true
+
+    val t2 = Hold.them(i, a)
+    T ~ t2.getOrUnit ==== Alt.unit --: typed[((Int, String), Long) Or Unit]
+    T ~ t2.get       ==== ((8, "albacore"), 0)
+    T ~ t2.get       ==== ((10, "albacore"), 1)
+    T ~ t2.force()   ==== ((12, "albacore"), 2)
+    T ~ a.get        ==== ("albacore", 4)
+
+    val t3 = Hold.them(c, a, m)
+    T ~ t3.getOrUnit ==== Alt.unit --: typed[((String, String, String), Long) Or Unit]
+    T ~ t3.get       ==== (("cod", "albacore", "minnow"), 0)
+    T ~ t3.get       ==== (("cod", "albacore", "minnow"), 0)
+    m.set("mackarel")
+    T ~ t3.get       ==== (("cod", "albacore", "mackarel"), 1)
+    T ~ t3.force()   ==== (("cod", "albacore", "mackarel"), 2)
+    T ~ a.get        ==== ("albacore", 5)
+    T ~ m.get        ==== ("mackarel", 3)
+    m.set("minnow")
+    T ~ t3.get       ==== (("cod", "albacore", "minnow"), 3)
+
+    val t4 = Hold.them(a, a, a, a)
+    T ~ t4.getOrUnit   ==== Alt.unit --: typed[((String, String, String, String), Long) Or Unit]
+    T ~ t4.get         ==== (("albacore", "albacore", "albacore", "albacore"), 0)
+    T ~ t4.get         ==== (("albacore", "albacore", "albacore", "albacore"), 0)
+    T ~ t4.recompute() ==== (("albacore", "albacore", "albacore", "albacore"), 1)
+    T ~ a.get          ==== ("albacore", 5)
+    T ~ t4.force()     ==== (("albacore", "albacore", "albacore", "albacore"), 2)
+    T ~ a.get          ==== ("albacore", 6)
+
+    val t5 = Hold.them(u, c, a, m, m2)
+    T ~ t5.getOrUnit   ==== Alt.unit --: typed[((Unit, String, String, String, Int), Long) Or Unit]
+    T ~ t5.get         ==== (((), "cod", "albacore", "minnow", 6), 0)
+    T ~ m2.get         ==== (6, 4)
+    T ~ t5.get         ==== (((), "cod", "albacore", "minnow", 6), 0)
+    T ~ t5.recompute() ==== (((), "cod", "albacore", "minnow", 6), 1)
+    m2.recompute()
+    T ~ t5.get         ==== (((), "cod", "albacore", "minnow", 6), 2)
+    T ~ m.get          ==== ("minnow", 4)
+    m.set("mackarel")
+    T ~ t5.get         ==== (((), "cod", "albacore", "mackarel", 8), 3)
+    T ~ t5.force()     ==== (((), "cod", "albacore", "mackarel", 8), 4)
+    T ~ m.get          ==== ("mackarel", 5)
+    T ~ m2.get         ==== (8, 7)
+    T ~ t3.get         ==== (("cod", "albacore", "mackarel"), 4)
+    T ~ a.get          ==== ("albacore", 7)
+
+    val t6 = Hold.them(m2, m2, m2, m2, i, u)
+    T ~ t6.getOrUnit ==== Alt.unit --: typed[((Int, Int, Int, Int, Int, Unit), Long) Or Unit]
+    T ~ t6.get       ==== ((8, 8, 8, 8, 14, ()), 0)
+    T ~ t6.get       ==== ((8, 8, 8, 8, 16, ()), 1)
+    T ~ t6.force()   ==== ((8, 8, 8, 8, 18, ()), 2)
+    m.set("minnow")
+    T ~ t6.get       ==== ((6, 6, 6, 6, 20, ()), 3)
+    T ~ t6.getOrUnit ==== Alt.unit
+    T ~ m2.get       ==== (6, 9)
+    T ~ i.get        ==== (22, 11)
+
+    val ah = Hold.array(Array(m2, Hold.fixed(1)))
+    T ~ ah.getOrUnit      ==== Alt.unit --: typed[(Array[Int], Long) Or Unit]
+    T ~ ah.value          =**= Array(6, 1)
+    T ~ ah.get._2         ==== 0
+    T ~ ah.getOrUnit.isIs ==== true
+    T ~ ah.force()._2     ==== 1
+    T ~ ah.value          =**= Array(6, 1)
+    m.set("mackarel")
+    T ~ ah.value          =**= Array(8, 1)
+    T ~ m2.get            ==== (8, 11)
+
+    val ti = i.trust(3)
+    T ~ ti.getOrUnit ==== Alt.unit --: typed[(Int, Long) Or Unit]
+    T ~ ti.get       ==== (24, 0)
+    T ~ ti.get       ==== (24, 0)
+    T ~ ti.getOrUnit ==== (24, 0) --: typed[(Int, Long) Or Unit]
+    T ~ ti.get       ==== (26, 1)
+    T ~ ti.force()   ==== (28, 2)
+    T ~ ti.get       ==== (28, 2)
+    T ~ ti.get       ==== (28, 2)
+    T ~ ti.get       ==== (30, 3)
+    T ~ i.get        ==== (32, 16)
+    T ~ ti.get       ==== (30, 3)
+    T ~ ti.get       ==== (30, 3)
+    T ~ ti.getOrUnit ==== Alt.unit
+    T ~ ti.get       ==== (34, 4)
+
+    val di = i.trust(java.time.Duration.ofMillis(100))
+    T ~ di.getOrUnit ==== Alt.unit --: typed[(Int, Long) Or Unit]
+    T ~ di.get       ==== (36, 0)
+    T ~ di.get       ==== (36, 0)
+    T ~ di.getOrUnit ==== (36, 0) --: typed[(Int, Long) Or Unit]
+    Thread.sleep(200)
+    T ~ di.get       ==== (38, 1)
+    Thread.sleep(200)
+    T ~ di.getOrUnit ==== Alt.unit
+    T ~ di.get       ==== (40, 2)
+    T ~ i.get        ==== (42, 21)
+
+    val tt = i.trust()
+    T ~ tt.getOrUnit   ==== Alt.unit --: typed[(Int, Long) Or Unit]
+    T ~ tt.get         ==== (44, 0)
+    T ~ tt.recompute() ==== (46, 1)
+    T ~ tt.get         ==== (46, 1)
+    T ~ tt.getOrUnit   ==== (46, 1) --: typed[(Int, Long) Or Unit]
+    T ~ i.get          ==== (48, 24)
+
+    val xa = a.expireIn(2)
+    T ~ xa.getOrUnit   ==== ("albacore", 7)
+    T ~ a.get          ==== ("albacore", 7)
+    T ~ xa.get         ==== ("albacore", 7)
+    T ~ a.get          ==== ("albacore", 7)
+    T ~ xa.getOrUnit   ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ xa.get         ==== ("albacore", 8)
+    T ~ a.get          ==== ("albacore", 8)
+    T ~ xa.getOrUnit   ==== ("albacore", 8) --: typed[(String, Long) Or Unit]
+    T ~ xa.get         ==== ("albacore", 9)
+    T ~ xa.recompute() ==== ("albacore", 10)
+    T ~ xa.recompute() ==== ("albacore", 11)
+    T ~ xa.recompute() ==== ("albacore", 12)
+    T ~ a.get          ==== ("albacore", 12)
+    T ~ xa.force()     ==== ("albacore", 13)
+    T ~ a.force()      ==== ("albacore", 14)
+    T ~ xa.get         ==== ("albacore", 14)
+    T ~ xa.get         ==== ("albacore", 15)
+
+    val ya = a.expireIn(java.time.Duration.ofMillis(100))
+    T ~ ya.getOrUnit ==== ("albacore", 15) --: typed[(String, Long) Or Unit]
+    T ~ ya.get       ==== ("albacore", 15)
+    T ~ ya.get       ==== ("albacore", 15)
+    Thread.sleep(200)
+    T ~ ya.getOrUnit ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ ya.get       ==== ("albacore", 16)
+    T ~ a.force()    ==== ("albacore", 17)
+    T ~ ya.get       ==== ("albacore", 17)
+    T ~ ya.get       ==== ("albacore", 17)
+    Thread.sleep(200)
+    T ~ ya.get       ==== ("albacore", 18)
+    T ~ a.get        ==== ("albacore", 18)
+
+    var expirer = "cod"
+    val za = a.expireIf((v, _) => v == expirer)
+    T ~ za.getOrUnit ==== ("albacore", 18) --: typed[(String, Long) Or Unit]
+    T ~ za.get       ==== ("albacore", 18)
+    expirer = "albacore"
+    T ~ za.get       ==== ("albacore", 19)
+    T ~ za.getOrUnit ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ za.get       ==== ("albacore", 20)
+    expirer = "cod"
+    T ~ za.get       ==== ("albacore", 21)
+    T ~ a.get        ==== ("albacore", 21)
+
+    val pa = a.protect()
+    T ~ pa.getOrUnit   ==== ("albacore", 21)
+    T ~ pa.force()     ==== ("albacore", 21)
+    T ~ pa.recompute() ==== ("albacore", 21)
+    T ~ pa.get         ==== ("albacore", 21)
+    T ~ a.get          ==== ("albacore", 21)
+
+    val smm = m.softMap(_.length)
+    T ~ smm.getOrUnit ==== Alt.unit --: typed[(Int, Long) Or Unit]
+    T ~ smm.get       ==== (8, 0)
+    T ~ smm.getOrUnit ==== (8, 0) --: typed[(Int, Long) Or Unit]
+    m.set("salmon")
+    T ~ smm.getOrUnit ==== Alt.unit
+    T ~ smm.get       ==== (6, 1)
+
+    val wm = a.mapWith(m2)((x, y) => x.take(y))
+    T ~ wm.getOrUnit  ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ wm.get        ==== ("albaco", 0)
+    T ~ wm.get        ==== ("albaco", 0)
+    T ~ a.recompute() ==== ("albacore", 22)
+    T ~ wm.get        ==== ("albaco", 1)
+    m.set("mackarel")
+    T ~ wm.getOrUnit  ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ wm.get        ==== ("albacore", 2)
+    T ~ wm.force()    ==== ("albacore", 3)
+    T ~ a.get         ==== ("albacore", 23)
+    m.set("minnow")
+    T ~ m2.get        ==== (6, 15)
+
+    val swm = a.softMapWith(m2)((x, y) => x.take(y))
+    T ~ swm.getOrUnit ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ swm.get       ==== ("albaco", 0)
+    T ~ swm.get       ==== ("albaco", 0)
+    T ~ a.recompute() ==== ("albacore", 24)
+    T ~ swm.get       ==== ("albaco", 1)
+    m.set("mackarel")
+    T ~ swm.getOrUnit ==== Alt.unit --: typed[(String, Long) Or Unit]
+    T ~ swm.get       ==== ("albacore", 2)
+    T ~ swm.force()   ==== ("albacore", 3)
+    T ~ a.get         ==== ("albacore", 25)
+    m.set("minnow")
+    T ~ m2.get        ==== (6, 18)
 }
 object FlowTest {
   // @BeforeClass

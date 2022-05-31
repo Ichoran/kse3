@@ -94,6 +94,12 @@ object AorB {
     /** Extends the type to an `Or` with specified favored branch */
     inline def favor[X]: X Or Y = alt
 
+    /** We're sure this is not the favored branch */
+    inline def isIs: Boolean = false
+
+    /** We're sure this is the disfavored branch */
+    inline def isAlt: Boolean = true
+
     /** Uses a partial function to reclaim some values for the favored branch */
     inline def reclaim[X](pf: PartialFunction[Y, X]): X Or Y =
       pf.applyOrElse(alt.alt, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
@@ -207,6 +213,12 @@ object AorB {
 
     /** Can't get the alternative version of this type */
     inline def alt: Nothing = throw new NoSuchElementException("alt on Is")
+
+    /** We're sure this is the favored branch */
+    inline def isIs: Boolean = true
+
+    /** We're sure this is not the disfavored branch */
+    inline def isAlt: Boolean = false
 
     /** Fold is trivial--ignore the other branch */
     inline def fold[Z](inline f: X => Z)(inline g: Nothing => Z): Z =
@@ -377,6 +389,16 @@ object AorB {
     inline def isBoxed: Boolean = (or: Any) match  // Avoid error on Is(Alt(x))...compiler knows answer but how do we tell it here???
       case _: BoxedOr[_] => true
       case _             => false
+
+    /** Informational method that tells whether this or holds the favored branch. */
+    inline def isIs: Boolean = (or: Any) match
+      case _: Alt[_] => false
+      case _         => true
+
+    /** Informational method that tells whether this or holds the favored branch. */
+    inline def isAlt: Boolean = (or: Any) match
+      case _: Alt[_] => true
+      case _         => false
 
     /** Access to both branches of an `Or`.
       *
