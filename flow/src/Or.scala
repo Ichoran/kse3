@@ -110,14 +110,6 @@ object AorB {
     inline def swap: Is[Y] =
       Is(alt.alt)
 
-    /** Put value into No */
-    inline def toOk: No[Y] =
-      No(alt.alt)
-
-    /** Put value into Yes */
-    inline def swapToOk: Yes[Y] =
-      Yes(alt.alt)
-
     /** Put value into Left */
     inline def toEither: Either[Y, Nothing] =
       Left(alt.alt)
@@ -258,14 +250,6 @@ object AorB {
     inline def swap: Alt[X] =
       Alt(Is unwrap is)
 
-    /** Put value into Yes */
-    inline def toOk: Yes[X] =
-      Yes(Is unwrap is)
-
-    /** Put value into No */
-    inline def swapToOk: No[X] =
-      No(Is unwrap is)
-
     /** Put value into Right */
     inline def toEither: Either[Nothing, X] =
       Right(Is unwrap is)
@@ -311,16 +295,6 @@ object AorB {
     inline def swapFrom[L, R, E <: Either[L, R]](e: E): L Or R = (e: Either[L, R]) match
       case Left(l) => Is(l)
       case Right(r) => Alt(r)
-
-    /** Converts an `Ok` into an `Or`, preserving the favored branch. */
-    inline def from[N, Y](ok: Ok[N, Y]): Y Or N = ok match
-      case No(n) => Alt(n)
-      case Yes(y) => Is(y)
-
-    /** Converts an `Ok` into an `Or`, swapping favored and disfavored branches. */
-    inline def swapFrom[N, Y](ok: Ok[N, Y]): N Or Y = ok match
-      case No(n) => Is(n)
-      case Yes(y) => Alt(y)
 
     /** Converts an `Option` into an `Or`, with a value favored and `None` disfavored and mapping to `Unit`. */
     inline def from[A, O <: Option[A]](o: O): A Or Unit = (o: Option[A]) match
@@ -600,16 +574,6 @@ object AorB {
     inline def swap: Y Or X = or match
       case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)
       case _ => Alt(Is unwrap or.asInstanceOf[Is[X]])
-
-    /** Turns this `Or` into an `Ok` maintaining favored and disfavored branches. */
-    inline def toOk: Ok[Y, X] = or match
-      case a: Alt[_] => No(a.alt.asInstanceOf[Y])
-      case _ => Yes(Is unwrap or.asInstanceOf[Is[X]])
-
-    /** Turns this `Or` into an `Ok` swapping favored and disfavored branches. */
-    inline def swapToOk: Ok[X, Y] = or match
-      case a: Alt[_] => Yes(a.alt.asInstanceOf[Y])
-      case _ => No(Is unwrap or.asInstanceOf[Is[X]])
 
     /** Turns this `Or` into an `Either` maintaining favored and disfavored branches (i.e `Is[X]` becomes `Right[X]`) */
     inline def toEither: Either[Y, X] = or match

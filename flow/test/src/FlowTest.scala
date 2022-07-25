@@ -279,11 +279,6 @@ class FlowTest {
     T ~ Or.swapFrom(Right[Int, String]("cod")) ==== Alt("cod")
     T ~ Or.swapFrom(Left[Int, String](9))      ==== Is(9)
 
-    T ~ Or.from(Yes("herring").typeNo[Int]) ==== Is("herring")
-    T ~ Or.from(No(5).typeYes[String])      ==== Alt(5)
-    T ~ Or.swapFrom(Yes("cod").typeNo[Int]) ==== Alt("cod")
-    T ~ Or.swapFrom(No(9).typeYes[String])  ==== Is(9)
-
     T ~ Or.from(Option("herring"))                  ==== Is("herring")
     T ~ Or.from(Some("herring"))                    ==== Is("herring")
     T ~ Or.from(None: Option[String])               ==== Alt.unit
@@ -1103,22 +1098,6 @@ class FlowTest {
     T ~ oap.unpivot ==== Is(Alt(null)) --: typed[(Char Or String) Or Int]
     T ~ oaq.unpivot ==== Alt(null)     --: typed[(Char Or Int) Or String]
     T ~ csi.unpivot ==== 'e'           --: typed[(Char Or String) Or Int]
-
-    T ~ i.toOk  ==== Yes(5)    --: typed[Yes[Int]]
-    T ~ a.toOk  ==== No("cod") --: typed[No[String]]
-    T ~ oi.toOk ==== Yes(5)
-    T ~ oa.toOk ==== No("cod")
-    T ~ on.toOk ==== Yes(null)
-    T ~ om.toOk ==== No(null)
-    T ~ op.toOk ==== Yes(null)
-    T ~ oq.toOk ==== No(null)
-
-    T ~ i.swapToOk  ==== No(5)
-    T ~ a.swapToOk  ==== Yes("cod")
-    T ~ oi.swapToOk ==== No(5)
-    T ~ oa.swapToOk ==== Yes("cod")
-    T ~ on.swapToOk ==== No(null)
-    T ~ om.swapToOk ==== Yes(null)
 
     T ~ i.toEither  ==== Right(5)    --: typed[Either[Nothing, Int]]
     T ~ a.toEither  ==== Left("cod") --: typed[Either[String, Nothing]]

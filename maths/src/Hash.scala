@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2015-2016, 2021 by Rex Kerr and Calico Life Sciences LLC
+// Copyright (c) 2015-16, 2021-22 by Rex Kerr and Calico Life Sciences LLC
 // Contains code ported from xxHash C source (by Yann Collet, "Cyan5973")
 //   See https://github.com/Cyan4973/xxHash
 // Contains code ported from MurmurHash C++ source (by Austin Appleby)
@@ -11,16 +11,14 @@ import java.lang.Integer.{rotateLeft => rotl32, rotateRight => rotr32 }
 import java.lang.Long.{rotateLeft => rotl64, rotateRight => rotr64 }
 import java.nio.{ByteBuffer, ByteOrder}
 
-import kse.flow.Copy
-
-trait SimpleIncrementalHash extends Copy[SimpleIncrementalHash] {
+trait SimpleIncrementalHash {
   def begin(): this.type
   def append(bb: ByteBuffer): this.type
   def resultAs[R](implicit tag: scala.reflect.ClassTag[R]): Option[R]
   def resultAsLong(): Long
 }
 
-trait IncrementalHash[A, Z] extends SimpleIncrementalHash with Copy[IncrementalHash[A, Z]] {
+trait IncrementalHash[A, Z] extends SimpleIncrementalHash {
   def begin(): this.type
   def begin(seed: A): this.type
   def append(bb: ByteBuffer): this.type
@@ -28,10 +26,11 @@ trait IncrementalHash[A, Z] extends SimpleIncrementalHash with Copy[IncrementalH
   def result(): Z
   def resultAsLong(): Long
   def cached(): CachedIncrementalHash[A, Z] = new CachedIncrementalHash(this)
+  def copy: IncrementalHash[A, Z]
 }
 
 /** Caching with helper methods.  TODO: use this only for hashers that don't contain their own cache. */
-final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) extends IncrementalHash[A, Z] with Copy[CachedIncrementalHash[A, Z]] {
+final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) extends IncrementalHash[A, Z] {
   private[this] val cache = ByteBuffer.wrap(new Array[Byte](16))   // Must never use "mark" or we can't copy faithfully!
   cache.order(ByteOrder.LITTLE_ENDIAN)
 
@@ -45,34 +44,43 @@ final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) exten
     ans.mimicCache(cache)
     ans
 
-  def begin() = { underlying.begin(); this }
-  def begin(seed: A) = { underlying.begin(seed); this }
-  def append(bb: ByteBuffer): this.type = { 
-    if (cache.remaining <= bb.remaining) cache.put(bb)
-    else {
-      cache.flip()
-      underlying.append(cache)
-      cache.clear()
-      underlying.append(bb)
-    }
+  def begin() =
+    underlying.begin()
     this
-  }
-  def resultAs[R](implicit tag: scala.reflect.ClassTag[R]) = {
-    if (cache.position > 0) { cache.flip; underlying.append(cache); cache.clear() }
+
+  def begin(seed: A) =
+    underlying.begin(seed)
+    this
+
+  private[this] inline final def decache(): Unit =
+    cache.flip()
+    underlying append cache
+    cache.clear()
+
+  def append(bb: ByteBuffer): this.type =
+    if cache.remaining <= bb.remaining then cache.put(bb)
+    else
+      decache()
+      underlying append bb
+    this
+  
+  def resultAs[R](implicit tag: scala.reflect.ClassTag[R]) =
+    if cache.position > 0 then decache()
     underlying.resultAs[R](tag)
-  }
-  def result() = {
-    if (cache.position > 0) { cache.flip; underlying.append(cache); cache.clear() }
+  
+  def result() =
+    if cache.position > 0 then decache()
     underlying.result()
-  }
-  def resultAsLong() = {
-    if (cache.position > 0) { cache.flip; underlying.append(cache); cache.clear() }
+  
+  def resultAsLong() =
+    if cache.position > 0 then decache()
     underlying.resultAsLong()
-  }
+  
   override def cached() = this
 
   private[this] final def ensure(n: Int): Unit =
-    if (cache.remaining < n) { cache.flip; underlying.append(cache); cache.clear() }
+    if cache.remaining < n then decache()
+
   def append(z: Boolean): this.type = { ensure(1); cache.put(if (z) (1: Byte) else (0: Byte)); this }
   def append(b: Byte): this.type =    { ensure(1); cache.put(b);                               this }
   def append(s: Short): this.type =   { ensure(2); cache.putShort(s);                          this }
@@ -81,7 +89,12 @@ final class CachedIncrementalHash[A, Z](underlying: IncrementalHash[A, Z]) exten
   def append(l: Long): this.type =    { ensure(8); cache.putLong(l);                           this }
   def append(f: Float): this.type =   { ensure(4); cache.putFloat(f);                          this }
   def append(d: Double): this.type =  { ensure(8); cache.putDouble(d);                         this }
-  def append(s: String): this.type =  { var i = 0; while (i < s.length) { append(s.charAt(i)); i += 1 }; this }
+  def append(s: String): this.type =
+    var i = 0
+    while i < s.length do
+      append(s.charAt(i))
+      i += 1
+    this
 }
 
 trait FullHash32 {
@@ -89,7 +102,7 @@ trait FullHash32 {
   final def hash32(bb: ByteBuffer): Int = hash32(bb, 0)
 }
 
-trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] with Copy[Hash32] {
+trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] {
   def hash32(bb: ByteBuffer, seed: Int): Int = begin(seed).result(bb)
   def begin(): this.type = begin(0)
   def begin(seed: Int): this.type
@@ -111,7 +124,7 @@ trait FullHash64 {
   inline def hash64(bb: ByteBuffer): Long = hash64(bb, 0L)
 }
 
-trait Hash64 extends FullHash64 with IncrementalHash[Long, Long] with Copy[Hash64] {
+trait Hash64 extends FullHash64 with IncrementalHash[Long, Long] {
   def hash64(bb: ByteBuffer, seed: Long): Long = begin(seed).result(bb)
   def begin(): this.type = begin(0L)
   def begin(seed: Long): this.type
@@ -142,7 +155,7 @@ trait FullHash128 {
   inline def hash128(bb: ByteBuffer): HashCode128 = hash128(bb, 0L, 0L)
 }
 
-trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128] with Copy[Hash128] {
+trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128] {
   def hash128(bb: ByteBuffer, seed0: Long, seed1: Long): HashCode128 = begin(seed0, seed1).result(bb)
   def begin(): this.type = begin(0L, 0L)
   def begin(seed0: Long, seed1: Long): this.type
@@ -155,7 +168,7 @@ trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128]
 }
 
 
-final class XxHash32(initialSeed: Int) extends Hash32 with Copy[XxHash32] {
+final class XxHash32(initialSeed: Int) extends Hash32 {
   import XxHash.{Prime32_1, Prime32_2, Prime32_3, Prime32_4, Prime32_5}
   private[this] var v1: Int = 0
   private[this] var v2: Int = 0
@@ -307,7 +320,7 @@ final class XxHash32(initialSeed: Int) extends Hash32 with Copy[XxHash32] {
 }
 
 
-final class XxHash64(initialSeed: Long) extends Hash64 with Copy[XxHash64] {
+final class XxHash64(initialSeed: Long) extends Hash64 {
   import XxHash.{Prime64_1, Prime64_2, Prime64_3, Prime64_4, Prime64_5}
   private[this] var v1: Long = 0
   private[this] var v2: Long = 0
@@ -644,7 +657,7 @@ object XxHash extends FullHash32 with FullHash64 {
 }
 
 /// Austin Appleby's MurmurHash3, commit 92cf370 -- x86 32 bit algorithm
-final class Murmur32 extends Hash32 with Copy[Murmur32] {
+final class Murmur32 extends Hash32 {
   private[this] var state = 0
   private[this] var n = 0
   private[this] var partial = 0
@@ -715,7 +728,7 @@ final class Murmur32 extends Hash32 with Copy[Murmur32] {
     state
 }
 
-final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode128] with Copy[Murmur128] {
+final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode128] {
   private[this] var state0, state1 = 0L
   private[this] var partial0, partial1 = 0L
   private[this] var partialN = 0
@@ -830,7 +843,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
 }
 
 
-final class SumHash32 extends Hash32 with Copy[SumHash32] {
+final class SumHash32 extends Hash32 {
   private[this] var sum = 0
   private[this] var partial = 0
   private[this] var partialN = 0
@@ -880,7 +893,7 @@ final class SumHash32 extends Hash32 with Copy[SumHash32] {
   }
 }
 
-final class SumHash64 extends Hash64 with Copy[SumHash64] {
+final class SumHash64 extends Hash64 {
   private[this] var sum = 0L
   private[this] var partial = 0L
   private[this] var partialN = 0
@@ -930,7 +943,7 @@ final class SumHash64 extends Hash64 with Copy[SumHash64] {
     sum
 }
 
-final class XorHash32 extends Hash32 with Copy[XorHash32] {
+final class XorHash32 extends Hash32 {
   private[this] var xor = 0
   private[this] var partial = 0
   private[this] var partialN = 0
@@ -980,7 +993,7 @@ final class XorHash32 extends Hash32 with Copy[XorHash32] {
     xor
 }
 
-final class XorHash64 extends Hash64 with Copy[XorHash64] {
+final class XorHash64 extends Hash64 {
   private[this] var xor = 0L
   private[this] var partial = 0L
   private[this] var partialN = 0

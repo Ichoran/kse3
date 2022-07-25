@@ -37,12 +37,6 @@ extension [X, Y](or: X Or Y)
   inline def ?*[YY](using tr: TransformsFlow[Alt[YY]], m: Y AutoMap YY) : X =
     or.mapAlt(m).?
 
-extension [N, Y](ok: Ok[N, Y])
-  inline def ?(using TransformsFlow[No[N]]) : Y = ok match
-    case Yes(y) => y
-    case n: No[N] => throw new UntransformedFlowException(n)
-
-
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
   inline def ?(using TransformsFlow[Left[L, R]]) : R = either match
@@ -139,12 +133,6 @@ extension (objectOr: Or.type)
     */
   inline def Nice[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X)(using cope: Cope[Y]): X Or Y =
     ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if NonFatal(t) => Alt(cope fromThrowable t) }; or }) }
-
-extension (objectOk: Ok.type)
-  inline def Ret[N, Y](inline y: TransformsFlow[No[N]] ?=> Y): Ok[N, Y] =
-    ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = Yes(y(using TransformsFlow.of[No[N]])); ok }) }
-  inline def FlatRet[N, Y](inline y: TransformsFlow[No[N]] ?=> Ok[N, Y]): Ok[N, Y] =
-    ${ EarlyReturnMacro.transform('{ val ok: Ok[N, Y] = y(using TransformsFlow.of[No[N]]); ok }) }
 
 extension (objectEither: Either.type)
   /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
@@ -256,18 +244,6 @@ inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y =
   try Is(x)
   catch
     case e if NonFatal(e) => Alt(cope fromThrowable e)
-
-/*
-extension [Y](ok: Ok[Throwable | String, Y])
-  inline def why(inline msg: String, lines: Int = 50): Ok[String, Y] =
-    inline ok match
-      case okt: Ok[Throwable, Y] => okt match
-        case y: Yes[Y] => y
-        case No(e) => No(msg + "\n" + e.explain(lines))
-      case oks: Ok[String, Y] => oks match
-        case y: Yes[Y] => y
-        case No(e) => No(msg + "\n" + e)
-*/
 
 //////////////////////////////////////////
 /// Interconversions between sum types ///
