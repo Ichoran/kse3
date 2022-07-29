@@ -79,13 +79,14 @@ object TestUtilities {
 
     def isEqual[B](b: => B): Unit =
       val ta = Try{ value() }
-      b match
+      val vb = b
+      vb match
         case t @ Thrown(tag) => ta match
           case Failure(x) =>
             if !tag.runtimeClass.isAssignableFrom(x.getClass) then
               assertEquals(message, ta, Failure(t))
           case _ => assertEquals(message, ta, Failure(t))
-        case _ => assertEquals(message, ta.get, b)
+        case _ => assertEquals(message, ta.get, vb)
 
     def ====(n: Null): Unit =
       isEqual(null)

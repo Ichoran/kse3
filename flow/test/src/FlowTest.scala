@@ -128,6 +128,14 @@ class FlowTest {
       T ~ sC ==== List("cod", e) --: typed[List[String | Throwable]]
     }
 
+    // Make sure side-effecting code is called exactly once per comparison
+    var sideA = 0
+    var sideB = 0
+    T ~ { sideA += 1; sideA } ==== { sideB += 1; sideB }
+    T ~ { sideA += 1; sideA } ==== { sideB += 1; sideB }
+    T ~ sideA ==== 2
+    T ~ sideB ==== 2
+
 
   @Test
   def repeatTest(): Unit =

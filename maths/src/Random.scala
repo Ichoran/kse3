@@ -23,23 +23,23 @@ sealed abstract class Prng {
   final def isClean: Boolean = bits == 0
 
   final def Z: Boolean =
-    if bits < 1 then { bits = 63; cache = L } else bits -= 1
+    if bits < 1 then { cache = L; bits = 63 } else bits -= 1
     (cache & (0x1L << bits)) != 0
 
   final def B: Byte =
-    if bits < 8 then { bits = 56; cache = L } else bits -= 8
+    if bits < 8 then { cache = L; bits = 56 } else bits -= 8
     ((cache >>> bits) & 0xFFL).toByte
 
   final def S: Short =
-    if bits < 16 then { bits = 48; cache = L } else bits -= 16
+    if bits < 16 then { cache = L; bits = 48 } else bits -= 16
     ((cache >>> bits) & 0xFFFFL).toShort
 
   final def C: Char =
-    if bits < 16 then { bits = 48; cache = L } else bits -= 16
+    if bits < 16 then { cache = L; bits = 48 } else bits -= 16
     ((cache >>> bits) & 0xFFFFL).toChar
 
   final def I: Int =
-    if bits < 32 then { bits = 32; cache = L } else bits -= 32
+    if bits < 32 then { cache = L; bits = 32 } else bits -= 32
     ((cache >>> bits) & 0xFFFFFFFFL).toInt
 
   def L: Long
@@ -456,7 +456,7 @@ object Prng {
 }
 
 sealed abstract class PrngState64 extends Prng {
- protected final var state64: Long = 0L
+  protected final var state64: Long = 0L
 
   final def stateLength = 1
   final def getState(i: Int): Long = state64
