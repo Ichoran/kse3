@@ -14,6 +14,9 @@ import sourcecode.{Line, given}
 
 @RunWith(classOf[JUnit4])
 class MathTest {
+  import java.nio.ByteBuffer
+  import java.nio.ByteOrder
+
   import kse.testutilities.TestUtilities.{_, given}
   import kse.flow.{_, given}
   import kse.maths.{_, given}
@@ -506,6 +509,37 @@ class MathTest {
       given Prng = rng
       T(name) ~ (40 d 100) ==== r2.arrayModI(100)(40).foldLeft(0)(_ + _ + 1)
     }
+
+    val tfs = rng.stringFrom("FT", 100)
+    T(name) ~ (tfs.count(_ == 'T') > 25) ==== true
+    T(name) ~ (tfs.count(_ == 'T') < 75) ==== true
+    T(name) ~ tfs.forall(c => c == 'T' || c == 'F') ==== true
+    val webs = rng.webString(10000)
+    val wmap = webs.groupBy(identity).map{ case (c, vs) => c -> vs.length }
+    T(name) ~ wmap.forall(Prng.WebCharacters contains _._1) ==== true
+    T(name) ~ Prng.WebCharacters.forall(c => wmap(c) > 0) ==== true
+    val texts = rng.textString(10000)
+    val tmap = texts.groupBy(identity).map{ case (c, vs) => c -> vs.length }
+    T(name) ~ tmap.forall(Prng.TextCharacters contains _._1) ==== true
+    T(name) ~ Prng.TextCharacters.forall(c => tmap(c) > 0) ==== true
+    val asciis = rng.asciiString(10000)
+    val amap = asciis.groupBy(identity).map{ case (c, vs) => c -> vs.length }
+    T(name) ~ amap.forall{ case (c, _) => 0 <= c && c < 256 } ==== true
+    T(name) ~ (0 until 256).forall(i => amap(i.toChar) > 0) ==== true
+    var nsur = 0
+    nFor(1000) { n =>
+      val title = s"Valid string iteration $n"
+      val s = rng.validString(20.roll(rng))
+      var i = 0
+      while i < s.length do
+        if java.lang.Character.isHighSurrogate(s charAt i) then
+          nsur += 1
+          T(title) ~ java.lang.Character.isLowSurrogate(s charAt (i+1)) ==== true
+          i += 1
+        i += 1
+    }
+    T(name) ~ (nsur > 100) ==== true
+    T(name) ~ (nsur < 300) ==== true
     ()
 
   @Test
@@ -519,6 +553,149 @@ class MathTest {
     val pcgr = Pcg64(1276561648165L)
     randomTestWith(pcgr, "Pcg64")
     ()
+
+  sealed trait H {
+    def bytes: Int
+    def addToBuffer(bb: ByteBuffer): Unit
+    def addToArray(ab: Array[Byte], index: Int): Int
+    final def inBuffer: ByteBuffer =
+      val bb = ByteBuffer.wrap(new Array[Byte](bytes))
+      addToBuffer(bb)
+      bb
+    final def inArray: Array[Byte] =
+      val ab = new Array[Byte](bytes)
+      addToArray(ab, 0)
+      ab
+  }
+  case class HZ(z: Boolean) extends H {
+    def bytes = 1
+    def addToBuffer(bb: ByteBuffer): Unit = bb put (if z then 1: Byte else 0: Byte)
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = if z then 1: Byte else 0: Byte
+      index + 1
+  }
+  case class HB(b: Byte) extends H {
+    def bytes = 1
+    def addToBuffer(bb: ByteBuffer): Unit = bb put b
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = b
+      index + 1
+  }
+  case class HS(s: Short) extends H {
+    def bytes = 2
+    def addToBuffer(bb: ByteBuffer): Unit = bb putShort s
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = (s & 0xFF).toByte
+      ab(index + 1) = ((s & 0xFF00) >> 8).toByte
+      index + 2
+  }
+  case class HC(c: Char) extends H {
+    def bytes = 2
+    def addToBuffer(bb: ByteBuffer): Unit = bb putChar c
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = (c & 0xFF).toByte
+      ab(index + 1) = ((c & 0xFF00) >> 8).toByte
+      index + 2
+  }
+  case class HI(i: Int) extends H {
+    def bytes = 4
+    def addToBuffer(bb: ByteBuffer): Unit = bb putInt i
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = (i & 0xFF).toByte
+      ab(index + 1) = ((i & 0xFF00) >> 8).toByte
+      ab(index + 2) = ((i & 0xFF0000) >> 16).toByte
+      ab(index + 3) = ((i & 0xFF000000) >> 24).toByte
+      index + 4
+  }
+  case class HL(l: Long) extends H {
+    def bytes = 8
+    def addToBuffer(bb: ByteBuffer): Unit = bb putLong l
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      ab(index) = (l & 0xFFL).toByte
+      ab(index + 1) = ((l & 0xFF00L) >> 8).toByte
+      ab(index + 2) = ((l & 0xFF0000L) >> 16).toByte
+      ab(index + 3) = ((l & 0xFF000000L) >> 24).toByte
+      ab(index + 4) = ((l & 0xFF00000000L) >> 32).toByte
+      ab(index + 5) = ((l & 0xFF0000000000L) >> 40).toByte
+      ab(index + 6) = ((l & 0xFF000000000000L) >> 48).toByte
+      ab(index + 7) = ((l & 0xFF00000000000000L) >> 56).toByte
+      index + 8
+  }
+  class Hp(proxy: H) extends H {
+    def bytes = proxy.bytes
+    def addToBuffer(bb: ByteBuffer): Unit = proxy.addToBuffer(bb)
+    def addToArray(ab: Array[Byte], index: Int): Int = proxy.addToArray(ab, index)
+  }
+  case class HF(f: Float) extends Hp(HI(java.lang.Float.floatToRawIntBits(f))) {}
+  case class HD(d: Double) extends Hp(HL(java.lang.Double.doubleToRawLongBits(d))) {}
+  case class HA(ab: Array[Byte], i0: Int, iN: Int) extends H {
+    private[this] val j0 = math.max(i0, 0)
+    private[this] val jN = math.min(iN, ab.length)
+    val bytes = math.max(0, jN - j0)
+    def addToBuffer(bb: ByteBuffer): Unit = bb.put(ab, j0, bytes)
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      System.arraycopy(this.ab, j0, ab, index, bytes)
+      index + bytes
+  }
+  case class Hbb(bb: ByteBuffer) extends H {
+    val bytes = bb.position
+    def addToBuffer(bb: ByteBuffer): Unit =
+      val b = ByteBuffer.wrap(this.bb.array, 0, bytes)
+      this.bb put b
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      var i = index
+      val b = ByteBuffer.wrap(this.bb.array, 0, bytes)
+      while b.remaining > 0 do
+        ab(i) = b.get
+        i += 1
+      i
+  }
+  case class Hstr(s: String) extends H {
+    val bytes = 2 * s.length
+    def addToBuffer(bb: ByteBuffer): Unit =
+      var i = 0
+      while i < s.length do
+        bb putChar s.charAt(i)
+        i += 1
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      var i = index
+      var j = 0
+      while j < s.length do
+        val c = s charAt j
+        ab(i) = (c & 0xFF).toByte
+        ab(i+1) = ((c & 0xFF00) >> 8).toByte
+        j += 1
+        i += 2
+      i
+  }
+  case class Hiter(i: scala.collection.Iterable[H]) extends H {
+    def bytes = i.foldLeft(0)(_ + _.bytes)
+    def addToBuffer(bb: ByteBuffer): Unit = for x <- i do x.addToBuffer(bb)
+    def addToArray(ab: Array[Byte], index: Int): Int =
+      var j = index
+      for x <- i do j = x.addToArray(ab, j)
+      j
+  }
+
+  def randomHs(n: Int, lim: Int = 128)(rng: Prng): Hiter =
+    val a = collection.mutable.ArrayBuffer.empty[H]
+    nFor(n){ _ =>
+      val h: H = (rng % 11) match {
+        case 0 => HZ(rng.Z)
+        case 1 => HB(rng.B)
+        case 2 => HS(rng.S)
+        case 3 => HC(rng.C)
+        case 4 => HI(rng.I)
+        case 5 => HL(rng.L)
+        case 6 => HF(rng.F)
+        case 7 => HD(rng.D)
+        case 8 => val k = lim roll rng; val i = rng % k; val j = 1 + rng % (k-i); HA(rng.arrayB(k), i, j)
+        case 9 => Hbb(ByteBuffer wrap rng.arrayB(lim roll rng))
+        case _ => Hstr(rng.validString((lim/2) roll rng))
+      }
+      a += h
+    }
+    Hiter(a)
 }
 object MathsTest {
   // @BeforeClass

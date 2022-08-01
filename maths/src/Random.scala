@@ -422,6 +422,63 @@ sealed abstract class Prng {
   final inline def shuffle(             a: Array[Double] ): Unit = shuffleRange(a, 0, a.length)
   final inline def shuffle[A <: AnyRef](a: Array[A]      ): Unit = shuffleRange(a, 0, a.length)
 
+  final def stringFrom(letters: String, n: Int): String =
+    if n <= 0 then ""
+    else if letters.isEmpty then stringFrom("\u0000", n)
+    else
+      val m = letters.length
+      var i = n
+      val sb = new java.lang.StringBuilder(m)
+      if m == 1 then
+        val c = letters charAt 0
+        while i > 0 do
+          sb append c
+          i -= 1
+      else
+        val mask = 0xFFFFFFFF >>> java.lang.Integer.numberOfLeadingZeros(m)
+        if m <= 256 then
+          while i > 0 do
+            val k = B & mask
+            if k < m then
+              sb append letters.charAt(k)
+              i -= 1
+        else
+          while i > 0 do
+            val k = C & mask
+            if k < m then
+              sb append letters.charAt(k)
+              i -= 1
+      sb.toString
+
+
+
+  final def webString(n: Int): String =
+    stringFrom("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~", n)
+
+  final def textString(n: Int): String =
+    stringFrom(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n", n)
+
+  final def asciiString(n: Int): String =
+    val sb = new java.lang.StringBuilder(math.max(0, n))
+    var i = n
+    while i > 0 do
+      sb append (B & 0xFF).toChar
+      i -= 1
+    sb.toString
+  final def validString(n: Int): String =
+    val sb = new java.lang.StringBuilder(math.max(0, n))
+    var i = n
+    while i > 0 do
+      val c = C
+      if java.lang.Character.isSurrogate(c) then
+        if i > 1 && java.lang.Character.isHighSurrogate(c) then
+          sb append c
+          sb append ((c & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
+          i -= 2
+      else
+        sb append c
+        i -= 1
+    sb.toString
 
   def getState(i: Int): Long
   def stateLength: Int
@@ -453,6 +510,9 @@ object Prng {
 
   def apply(): Prng = new Pcg64()
   def apply(seed: Long): Prng = new Pcg64(seed)
+
+  val WebCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~"   // Note--use literal to avoid object load
+  val TextCharacters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n"
 }
 
 sealed abstract class PrngState64 extends Prng {
