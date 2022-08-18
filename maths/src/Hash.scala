@@ -21,10 +21,8 @@ trait SimpleIncrementalHash {
   def appendChar(c: Char): this.type
   def appendInt(i: Int): this.type
   def appendLong(l: Long): this.type
-  def resultAs[R](implicit tag: scala.reflect.ClassTag[R]): Option[R]
-  def resultAsLong(): Long
 
-  inline final def +=(z: Boolean):      this.type = appendByte(if z then '\u0001' else '\u0000')
+  inline final def +=(z: Boolean):      this.type = appendByte(if z then 1 else 0)
   inline final def +=(b: Byte):         this.type = appendByte(b)
   inline final def +=(s: Short):        this.type = appendChar(s.toChar)
   inline final def +=(c: Char):         this.type = appendChar(c)
@@ -40,68 +38,86 @@ object SimpleIncrementalHash {
   protected[maths] def fzerr(msg: String = ""): Nothing = throw new AlreadyFinalizedException(msg)
 }
 
-trait IncrementalHash[A, Z] extends SimpleIncrementalHash {
-  def begin(seed: A): this.type
+trait HashInto[Z] extends SimpleIncrementalHash {
   def result(bb: ByteBuffer): Z
   def result(ab: Array[Byte], i0: Int, iN: Int): Z
   def result(s: String, i0: Int, iN: Int): Z
   def result(): Z
+  def copy: HashInto[Z]
+}
+
+trait SeededIncrementalHash[A] extends SimpleIncrementalHash {
+  def begin(seed: A): this.type  
+}
+
+trait IncrementalHash[A, Z] extends HashInto[Z] with SeededIncrementalHash[A] {
+  final def freshHash(seed: A, bb: ByteBuffer): Z = begin(seed).result(bb)
+  final def freshHash(bb: ByteBuffer): Z = begin().result(bb)
+  final def freshHash(seed: A, ab: Array[Byte], i0: Int, iN: Int): Z = begin(seed).result(ab, i0, iN)
+  final def freshHash(seed: A, ab: Array[Byte]): Z = begin(seed).result(ab, 0, ab.length)
+  final def freshHash(ab: Array[Byte], i0: Int, iN: Int): Z = begin().result(ab, i0, iN)
+  final def freshHash(ab: Array[Byte]): Z = begin().result(ab, 0, ab.length)
+  final def freshHash(seed: A, s: String, i0: Int, iN: Int): Z = begin(seed).result(s, i0, iN)
+  final def freshHash(seed: A, s: String): Z = begin(seed).result(s, 0, s.length)
+  final def freshHash(s: String, i0: Int, iN: Int): Z = begin().result(s, i0, iN)
+  final def freshHash(s: String): Z = begin().result(s, 0, s.length)
   def copy: IncrementalHash[A, Z]
 }
 
+
 trait FullHash32 {
-  def hash32(ab: Array[Byte], seed: Int, i0: Int, iN: Int): Int
-  inline final def hash32(a: Array[Byte], seed: Int): Int = hash32(a, seed, 0, a.length)
-  inline final def hash32(a: Array[Byte]): Int = hash32(a, 0, 0, a.length)
+  def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int
+  inline final def hash32(seed: Int, a: Array[Byte]): Int = hash32(seed, a, 0, a.length)
+  inline final def hash32(a: Array[Byte], i0: Int, iN: Int): Int = hash32(0, a, i0, iN)
+  inline final def hash32(a: Array[Byte]): Int = hash32(0, a, 0, a.length)
 
-  def hash32(bb: ByteBuffer, seed: Int): Int
-  inline final def hash32(bb: ByteBuffer): Int = hash32(bb, 0)
+  def hash32(seed: Int, bb: ByteBuffer): Int
+  inline final def hash32(bb: ByteBuffer): Int = hash32(0, bb)
 
-  def hash32(s: String, seed: Int, i0: Int, iN: Int): Int
-  inline final def hash32(s: String, seed: Int): Int = hash32(s, seed, 0, s.length)
-  inline final def hash32(s: String): Int = hash32(s, 0, 0, s.length)
+  def hash32(seed: Int, s: String, i0: Int, iN: Int): Int
+  inline final def hash32(seed: Int, s: String): Int = hash32(seed, s, 0, s.length)
+  inline final def hash32(s: String, i0: Int, iN: Int): Int = hash32(0, s, i0, iN)
+  inline final def hash32(s: String): Int = hash32(0, s, 0, s.length)
 }
 
 trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] {
-  def hash32(bb: ByteBuffer, seed: Int): Int = begin(seed).result(bb)
-  def hash32(ab: Array[Byte], seed: Int, i0: Int, iN: Int): Int = begin(seed).result(ab, i0, iN)
-  def hash32(s: String, seed: Int, i0: Int, iN: Int) = begin(seed).result(s, i0, iN)
+  def hash32(seed: Int, bb: ByteBuffer): Int = begin(seed).result(bb)
+  def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int = begin(seed).result(ab, i0, iN)
+  def hash32(seed: Int, s: String, i0: Int, iN: Int) = begin(seed).result(s, i0, iN)
   def begin(): this.type = begin(0)
   def begin(seed: Int): this.type
-  final def resultAsLong() = result() & 0xFFFFFFFFL
-  def resultAs[A](implicit tag: scala.reflect.ClassTag[A]): Option[A] =
-    tag.unapply(0: Int) match
-      case Some(_) => tag.unapply(result())
-      case None    => None
+  def result(bb: ByteBuffer): Int
+  def result(ab: Array[Byte], i0: Int, iN: Int): Int
+  def result(s: String, i0: Int, iN: Int): Int
+  def result(): Int
 }
 
 
 trait FullHash64 {
-  def hash64(ab: Array[Byte], seed: Long, i0: Int, iN: Int): Long
-  inline final def hash64(ab: Array[Byte], seed: Int): Long = hash64(ab, seed, 0, ab.length)
-  inline final def hash64(ab: Array[Byte]): Long = hash64(ab, 0L, 0, ab.length)
+  def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long
+  inline final def hash64(seed: Long, ab: Array[Byte]): Long = hash64(seed, ab, 0, ab.length)
+  inline final def hash64(ab: Array[Byte], i0: Int, iN: Int): Long = hash64(0L, ab, i0, iN)
+  inline final def hash64(ab: Array[Byte]): Long = hash64(0L, ab, 0, ab.length)
 
-  def hash64(bb: ByteBuffer, seed: Long): Long
-  inline def hash64(bb: ByteBuffer): Long = hash64(bb, 0L)
+  def hash64(seed: Long, bb: ByteBuffer): Long
+  inline def hash64(bb: ByteBuffer): Long = hash64(0L, bb)
 
-  def hash64(s: String, seed: Long, i0: Int, iN: Int): Long
-  inline final def hash64(s: String, seed: Long): Long = hash64(s, seed, 0, s.length)
-  inline final def hash64(s: String): Long = hash64(s, 0L, 0, s.length)
+  def hash64(seed: Long, s: String, i0: Int, iN: Int): Long
+  inline final def hash64(seed: Long, s: String): Long = hash64(seed, s, 0, s.length)
+  inline final def hash64(s: String, i0: Int, iN: Int): Long = hash64(0L, s, i0, iN)
+  inline final def hash64(s: String): Long = hash64(0L, s, 0, s.length)
 }
 
 trait Hash64 extends FullHash64 with IncrementalHash[Long, Long] {
-  def hash64(bb: ByteBuffer, seed: Long): Long = begin(seed).result(bb)
-  def hash64(ab: Array[Byte], seed: Long, i0: Int, iN: Int): Long = begin(seed).result(ab, i0, iN)
-  def hash64(s: String, seed: Long, i0: Int, iN: Int): Long = begin(seed).result(s, i0, iN)
+  def hash64(seed: Long, bb: ByteBuffer): Long = begin(seed).result(bb)
+  def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long = begin(seed).result(ab, i0, iN)
+  def hash64(seed: Long, s: String, i0: Int, iN: Int): Long = begin(seed).result(s, i0, iN)
   def begin(): this.type = begin(0L)
   def begin(seed: Long): this.type
   def result(bb: ByteBuffer): Long
+  def result(ab: Array[Byte], i0: Int, iN: Int): Long
+  def result(s: String, i0: Int, iN: Int): Long
   def result(): Long
-  final def resultAsLong() = result()
-  def resultAs[A](implicit tag: scala.reflect.ClassTag[A]): Option[A] =
-    tag.unapply(0: Long) match
-      case Some(_) => tag.unapply(result())
-      case None    => None
 }
 
 
@@ -118,40 +134,39 @@ object HashCode128 {
 }
 
 trait FullHash128 {
-  def hash128(ab: Array[Byte], seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128
-  inline final def hash128(ab: Array[Byte]): HashCode128 = hash128(ab, 0L, 0L, 0, ab.length)
+  def hash128(seed0: Long, seed1: Long, ab: Array[Byte], i0: Int, iN: Int): HashCode128
+  inline final def hash128(seed0: Long, seed1: Long, ab: Array[Byte]): HashCode128 = hash128(seed0, seed1, ab, 0, ab.length)
+  inline final def hash128(ab: Array[Byte], i0: Int, iN: Int): HashCode128 = hash128(0L, 0L, ab, i0, iN)
+  inline final def hash128(ab: Array[Byte]): HashCode128 = hash128(0L, 0L, ab, 0, ab.length)
 
-  def hash128(bb: ByteBuffer, seed0: Long, seed1: Long): HashCode128
-  inline def hash128(bb: ByteBuffer): HashCode128 = hash128(bb, 0L, 0L)
+  def hash128(seed0: Long, seed1: Long, bb: ByteBuffer): HashCode128
+  inline def hash128(bb: ByteBuffer): HashCode128 = hash128(0L, 0L, bb)
 
-  def hash128(s: String, seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128
-  inline final def hash128(s: String): HashCode128 = hash128(s, 0L, 0L, 0, s.length)  
+  def hash128(seed0: Long, seed1: Long, s: String, i0: Int, iN: Int): HashCode128
+  inline final def hash128(seed0: Long, seed1: Long, s: String): HashCode128 = hash128(seed0, seed1, s, 0, s.length)
+  inline final def hash128(s: String, i0: Int, iN: Int): HashCode128 = hash128(0L, 0L, s, i0, iN)
+  inline final def hash128(s: String): HashCode128 = hash128(0L, 0L, s, 0, s.length)  
 }
 
 trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128] {
-  def hash128(bb: ByteBuffer, seed0: Long, seed1: Long): HashCode128 = begin(seed0, seed1).result(bb)
-  def hash128(ab: Array[Byte], seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128 = begin(seed0, seed1).result(ab, i0, iN)
-  def hash128(s: String, seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128 = begin(seed0, seed1).result(s, i0, iN)  
+  def hash128(seed0: Long, seed1: Long, bb: ByteBuffer): HashCode128 = begin(seed0, seed1).result(bb)
+  def hash128(seed0: Long, seed1: Long, ab: Array[Byte], i0: Int, iN: Int): HashCode128 = begin(seed0, seed1).result(ab, i0, iN)
+  def hash128(seed0: Long, seed1: Long, s: String, i0: Int, iN: Int): HashCode128 = begin(seed0, seed1).result(s, i0, iN)  
   def begin(): this.type = begin(0L, 0L)
   def begin(seed0: Long, seed1: Long): this.type
-  def resultAs[A](implicit tag: scala.reflect.ClassTag[A]): Option[A] =
-    tag.unapply(HashCode128.empty).flatMap{ _ => tag.unapply(result()) }
 }
 
 
-final class XxHash32(initialSeed: Int) extends Hash32 {
+final class XxHash32() extends Hash32 {
   import XxHash.{Prime32_1, Prime32_2, Prime32_3, Prime32_4, Prime32_5}
-  private[this] var v1: Int = 0
-  private[this] var v2: Int = 0
+  private[this] var v1: Int = Prime32_1 + Prime32_2
+  private[this] var v2: Int = Prime32_2
   private[this] var v3: Int = 0
-  private[this] var v4: Int = 0
+  private[this] var v4: Int = -Prime32_1
   private[this] var v5: Int = 0
   private[this] var hadBlock: Boolean = false
   private[this] var finalized: Boolean = false
   private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
-  begin(initialSeed)
-
-  def this() = this(0)
 
   private def mimicState(u1: Int, u2: Int, u3: Int, u4: Int, u5: Int, had: Boolean, fz: Boolean, bb: ByteBuffer): Unit =
     v1 = u1
@@ -165,15 +180,17 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
       myBuffer = null
     else
       myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 16))
-      myBuffer.limit(bb.limit)
-      myBuffer.position(bb.limit)
+      myBuffer order ByteOrder.LITTLE_ENDIAN
+      myBuffer limit bb.limit
+      myBuffer position bb.position
 
   def copy: XxHash32 =
-    val ans = new XxHash32(0)
+    val ans = new XxHash32()
     ans.mimicState(v1, v2, v3, v4, v5, hadBlock, finalized, myBuffer)
     ans
 
   def begin(seed: Int): this.type =
+    finalized = false
     v1 = seed + Prime32_1 + Prime32_2
     v2 = seed + Prime32_2
     v3 = seed
@@ -193,7 +210,6 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
   
   private[this] def appendBy16(bb: ByteBuffer): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
-    bb.order(ByteOrder.LITTLE_ENDIAN)
     var x1 = v1
     var x2 = v2
     var x3 = v3
@@ -229,7 +245,6 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
   
   private[this] def counting(extra: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
-    finalized = true
     v1 = if (!hadBlock) v3 + Prime32_5 else rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18)
     v1 += v5 + extra
     this
@@ -257,7 +272,7 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
       v1
   
   def append(bb: ByteBuffer): this.type =
-    bb.order(ByteOrder.LITTLE_ENDIAN)
+    bb order ByteOrder.LITTLE_ENDIAN
     if (myBuffer ne null) && (myBuffer.position > 0) then
       while myBuffer.position <= 12 && bb.remaining >= 4 do myBuffer.putInt(bb.getInt)
       while myBuffer.position <  16 && bb.remaining >= 1 do myBuffer.put(bb.get)
@@ -265,8 +280,8 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
     if bb.remaining >= 16 then appendBy16(bb)
     if bb.remaining > 0 then
       if myBuffer eq null then
-        myBuffer = ByteBuffer.allocate(16)
-        myBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        myBuffer = ByteBuffer allocate 16
+        myBuffer order ByteOrder.LITTLE_ENDIAN
       while bb.remaining >= 4 do myBuffer.putInt(bb.getInt)
       while bb.remaining >= 1 do myBuffer.put(bb.get)
     this
@@ -403,9 +418,9 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
         myBuffer.flip
         if (myBuffer.remaining == 16) appendIx4(myBuffer.getInt, myBuffer.getInt, myBuffer.getInt, myBuffer.getInt)
         myBuffer
-      else 
+      else
+        bb order ByteOrder.LITTLE_ENDIAN
         if bb.remaining >= 16 then appendBy16(bb)
-        else bb order ByteOrder.LITTLE_ENDIAN
         bb
     counting(terminal.remaining)
     while terminal.remaining >= 4 do trailing(terminal.getInt)
@@ -436,20 +451,17 @@ final class XxHash32(initialSeed: Int) extends Hash32 {
 }
 
 
-final class XxHash64(initialSeed: Long) extends Hash64 {
+final class XxHash64() extends Hash64 {
   import XxHash.{Prime64_1, Prime64_2, Prime64_3, Prime64_4, Prime64_5}
-  private[this] var v1: Long = 0
-  private[this] var v2: Long = 0
+  private[this] var v1: Long = Prime64_1 + Prime64_2
+  private[this] var v2: Long = Prime64_2
   private[this] var v3: Long = 0
-  private[this] var v4: Long = 0
+  private[this] var v4: Long = -Prime64_1
   private[this] var v5: Long = 0
   private[this] var hadBlock: Boolean = false
   private[this] var finalized: Boolean = false
   private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
-  begin(initialSeed)
 
-  def this() = this(0)
-  
   private def mimicState(u1: Long, u2: Long, u3: Long, u4: Long, u5: Long, had: Boolean, fz: Boolean, bb: ByteBuffer): Unit =
     v1 = u1
     v2 = u2
@@ -461,15 +473,17 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
     if bb eq null then myBuffer = null
     else
       myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 32))
+      myBuffer order ByteOrder.LITTLE_ENDIAN
       myBuffer limit bb.limit
-      myBuffer position bb.limit
+      myBuffer position bb.position
 
   def copy: XxHash64 =
-    val ans = new XxHash64(0)
+    val ans = new XxHash64()
     ans.mimicState(v1, v2, v3, v4, v5, hadBlock, finalized, myBuffer)
     ans
 
   def begin(seed: Long): this.type =
+    finalized = false
     v1 = seed + Prime64_1 + Prime64_2
     v2 = seed + Prime64_2
     v3 = seed
@@ -489,7 +503,6 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
   
   private[this] def appendBy32(bb: ByteBuffer): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
-    bb order ByteOrder.LITTLE_ENDIAN
     var x1 = v1
     var x2 = v2
     var x3 = v3
@@ -579,8 +592,8 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
     if bb.remaining >= 32 then appendBy32(bb)
     if bb.remaining > 0 then
       if myBuffer eq null then
-        myBuffer = ByteBuffer.allocate(32)
-        myBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        myBuffer = ByteBuffer allocate 32
+        myBuffer order ByteOrder.LITTLE_ENDIAN
       while bb.remaining >= 8 do myBuffer.putLong(bb.getLong)
       while bb.remaining >= 1 do myBuffer.put(bb.get)
     this
@@ -727,8 +740,8 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
         if (myBuffer.remaining == 36) appendLx4(myBuffer.getLong, myBuffer.getLong, myBuffer.getLong, myBuffer.getLong)
         myBuffer
       else 
+        bb order ByteOrder.LITTLE_ENDIAN
         if bb.remaining >= 32 then appendBy32(bb)
-        else bb order ByteOrder.LITTLE_ENDIAN
         bb
     counting(terminal.remaining)
     while terminal.remaining >= 8 do trailing(terminal.getLong)
@@ -762,20 +775,21 @@ final class XxHash64(initialSeed: Long) extends Hash64 {
 
 
 object XxHash extends FullHash32 with FullHash64 {
-  final val Prime32_1 = 0x9e3779b1 // 2654435761
-  final val Prime32_2 = 0x85ebca77 // 2246822519
-  final val Prime32_3 = 0xc2b2ae3d // 3266489917
-  final val Prime32_4 = 0x27d4eb2f //  668265263
-  final val Prime32_5 = 0x165667b1 //  374761393
-  final val Prime64_1 = 0x9e3779b185ebca87L // 11400714785074694791L
-  final val Prime64_2 = 0xc2b2ae3d27d4eb4fL // 14029467366897019727L
-  final val Prime64_3 = 0x165667b19e3779f9L //  1609587929392839161L
-  final val Prime64_4 = 0x85ebca77c2b2ae63L //  9650029242287828579L
-  final val Prime64_5 = 0x27d4eb2f165667c5L //  2870177450012600261L
+  inline val Prime32_1 = 0x9e3779b1 // 2654435761
+  inline val Prime32_2 = 0x85ebca77 // 2246822519
+  inline val Prime32_3 = 0xc2b2ae3d // 3266489917
+  inline val Prime32_4 = 0x27d4eb2f //  668265263
+  inline val Prime32_5 = 0x165667b1 //  374761393
+  inline val Prime64_1 = 0x9e3779b185ebca87L // 11400714785074694791L
+  inline val Prime64_2 = 0xc2b2ae3d27d4eb4fL // 14029467366897019727L
+  inline val Prime64_3 = 0x165667b19e3779f9L //  1609587929392839161L
+  inline val Prime64_4 = 0x85ebca77c2b2ae63L //  9650029242287828579L
+  inline val Prime64_5 = 0x27d4eb2f165667c5L //  2870177450012600261L
 
-  def hash32(a: Array[Byte], seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, a: Array[Byte], i0: Int, iN: Int): Int =
     val iM = math.min(a.length, iN)
     var i = math.max(0, i0)
+    val len = math.max(iM - i, 0)
     var h32 =
       if i > iM - 16 then seed + Prime32_5
       else
@@ -803,7 +817,7 @@ object XxHash extends FullHash32 with FullHash64 {
           i += 4
           more = i <= iM - 16
         rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18)
-    h32 += (iM - i0)
+    h32 += len
     while i <= iM - 4 do
       h32 += ((a(i)&0xFF) | ((a(i+1)&0xFF) << 8 ) | ((a(i+2)&0xFF) << 16) | (a(i+3) << 24)) * Prime32_3
       h32 = rotl32(h32, 17) * Prime32_4
@@ -818,9 +832,10 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 *= Prime32_3
     h32 ^ (h32 >>> 16)
 
-  def hash32(s: String, seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, s: String, i0: Int, iN: Int): Int =
     val iM = math.min(s.length, iN)
     var i = math.max(0, i0)
+    val len = math.max(iM - i, 0)
     var h32 =
       if iM - i < 8 then seed + Prime32_5
       else
@@ -846,7 +861,7 @@ object XxHash extends FullHash32 with FullHash64 {
           v4 *= Prime32_1
           i += 2
         rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18)
-    h32 += (iM - i0)
+    h32 += 2*len
     while iM - i >= 2 do
       h32 += (s.charAt(i) | (s.charAt(i+1) << 16)) * Prime32_3
       h32 = rotl32(h32, 17) * Prime32_4
@@ -864,8 +879,8 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 *= Prime32_3
     h32 ^ (h32 >>> 16)
 
-  def hash32(bb: ByteBuffer, seed: Int): Int =
-    bb.order(ByteOrder.LITTLE_ENDIAN)
+  def hash32(seed: Int, bb: ByteBuffer): Int =
+    bb order ByteOrder.LITTLE_ENDIAN
     val len = bb.remaining
     var h32 =
       if bb.remaining < 16 then seed + Prime32_5
@@ -903,8 +918,8 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 *= Prime32_3
     h32 ^ (h32 >>> 16)
 
-  def hash64(bb: ByteBuffer, seed: Long): Long =
-    bb.order(ByteOrder.LITTLE_ENDIAN)
+  def hash64(seed: Long, bb: ByteBuffer): Long =
+    bb order ByteOrder.LITTLE_ENDIAN
     val len = bb.remaining
     var h64 =
       if bb.remaining < 32 then seed + Prime64_5
@@ -953,10 +968,10 @@ object XxHash extends FullHash32 with FullHash64 {
     h64 *= Prime64_3
     h64 ^ (h64 >>> 32)
 
-  def hash64(ab: Array[Byte], seed: Long, i0: Int, iN: Int): Long = 
+  def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long = 
     val iM = math.min(ab.length, iN)
     var i = math.max(0, i0)
-    val len = iM - i
+    val len = math.max(iM - i, 0)
     var h64 =
       if iM - i < 32 then seed + Prime64_5
       else
@@ -1016,10 +1031,10 @@ object XxHash extends FullHash32 with FullHash64 {
     h64 *= Prime64_3
     h64 ^ (h64 >>> 32)
 
-  def hash64(s: String, seed: Long, i0: Int, iN: Int): Long = 
+  def hash64(seed: Long, s: String, i0: Int, iN: Int): Long = 
     val iM = math.min(s.length, iN)
     var i = math.max(0, i0)
-    val len = iM - i
+    val len = math.max(iM - i, 0)
     var h64 =
       if iM - i < 16 then seed + Prime64_5
       else
@@ -1053,7 +1068,7 @@ object XxHash extends FullHash32 with FullHash64 {
         x = x*Prime64_1 + Prime64_4
         x ^= rotl64(v4 * Prime64_2, 31) * Prime64_1
         x*Prime64_1 + Prime64_4
-    h64 += len
+    h64 += 2*len
     while iM - i >= 4 do
       val v = s.charAt(i) | (s.charAt(i+1).toLong << 16) | (s.charAt(i+2).toLong << 32) | (s.charAt(i+3).toLong << 48)
       h64 ^= rotl64(v * Prime64_2, 31) * Prime64_1
@@ -1078,8 +1093,11 @@ object XxHash extends FullHash32 with FullHash64 {
     h64 ^ (h64 >>> 32)
 }
 
+
+
+
 /// Austin Appleby's MurmurHash3, commit 92cf370 -- x86 32 bit algorithm
-final class Murmur32 extends Hash32 {
+final class MurmurHash32() extends Hash32 {
   private[this] var state = 0
   private[this] var n = 0
   private[this] var partial = 0
@@ -1093,20 +1111,20 @@ final class Murmur32 extends Hash32 {
     partialN = pN
     finalized = fz
 
-  def copy: Murmur32 =
-    val ans = new Murmur32
+  def copy: MurmurHash32 =
+    val ans = new MurmurHash32
     ans.mimicState(state, n, partial, partialN, finalized)
     ans
 
   private[this] def appendI(i: Int): this.type =
-    if finalized then SimpleIncrementalHash.fzerr("Murmur32 hasher finalized (use begin() or begin(seed) to reuse)")
+    if finalized then SimpleIncrementalHash.fzerr("MurmurHash32 hasher finalized (use begin() or begin(seed) to reuse)")
     n += 4
     val x = state ^ (0x1B873593 * rotl32(i * 0xCC9E2D51, 15))
     state = (5 * rotl32(x, 13)) + 0xE6546B64
     this
 
   private[this] def appendLastI(i: Int, bytes: Int): this.type =
-    if finalized then SimpleIncrementalHash.fzerr("Murmur32 hasher finalized (use begin() or begin(seed) to reuse)")
+    if finalized then SimpleIncrementalHash.fzerr("MurmurHash32 hasher finalized (use begin() or begin(seed) to reuse)")
     n += (bytes&3)
     state = state ^ (0x1B873593 * rotl32(i * 0xCC9E2D51, 15))
     this
@@ -1120,6 +1138,7 @@ final class Murmur32 extends Hash32 {
       finalized = true
 
   def begin(seed: Int): this.type =
+    finalized = false
     state = seed
     n = 0
     partial = 0
@@ -1127,23 +1146,20 @@ final class Murmur32 extends Hash32 {
     this
 
   def append(bb: ByteBuffer): this.type =
-    bb.order(ByteOrder.LITTLE_ENDIAN)
-    if (partialN > 0) {
-      while (partialN < 4 && bb.hasRemaining) {
+    bb order ByteOrder.LITTLE_ENDIAN
+    if partialN > 0 then
+      while partialN < 4 && bb.hasRemaining do
         partial |= (bb.get & 0xFF) << (partialN*8)
         partialN += 1
-      }
-      if (partialN == 4) {
+      if partialN == 4 then
         appendI(partial)
         partialN = 0
         partial = 0
-      }
-    }
-    while (bb.remaining >= 4) appendI(bb.getInt)
-    while (bb.hasRemaining) {
+    while bb.remaining >= 4 do
+      appendI(bb.getInt)
+    while bb.hasRemaining do
       partial |= (bb.get & 0xFF) << (partialN*8)
       partialN += 1
-    }
     this
 
   def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
@@ -1159,7 +1175,7 @@ final class Murmur32 extends Hash32 {
       i += 1
     while j - i >= 4 do
       appendI((ab(i  )&0xFF) | ((ab(i+1)&0xFF)<<8) | ((ab(i+2)&0xFF)<<16) | ((ab(i+3)&0xFF)<<24))
-      i += 1
+      i += 4
     while i < j do
       partial = partial | ((ab(i) & 0xFF) << (8 * partialN))
       partialN += 1
@@ -1192,19 +1208,19 @@ final class Murmur32 extends Hash32 {
       appendI((l & 0xFFFFFFFFL).toInt)
       appendI((l >>> 32).toInt)
     else
-      val sh = 8 * (4 - partialN)
+      val sh = 8 * partialN
       appendI(partial | ((l & (0xFFFFFFFFL >>> sh)).toInt << sh))
-      appendI(((l >>> (8 * partialN)) & 0xFFFFFFFFL).toInt)
-      partial = (l >>> (32 + sh)).toInt
+      appendI(((l >>> (32 - sh)) & 0xFFFFFFFFL).toInt)
+      partial = (l >>> (64 - sh)).toInt
     this
 
   def appendInt(i: Int): this.type =
     if partialN == 0 then
       appendI(i)
     else
-      val sh = 8 * (4 - partialN)
-      appendI(partial | ((i & (0xFFFFFFFF >>> sh)) << sh))
-      partial = i >>> sh
+      val sh = 8 * partialN
+      appendI(partial | (i << sh))
+      partial = i >>> (32 - sh)
     this
 
   def appendChar(c: Char): this.type =
@@ -1253,7 +1269,8 @@ final class Murmur32 extends Hash32 {
     state
 }
 
-final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode128] {
+
+final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, HashCode128] {
   private[this] var state0, state1 = 0L
   private[this] var partial0, partial1 = 0L
   private[this] var partialN = 0
@@ -1269,9 +1286,9 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
     n = m
     finalized = fz
 
-  def copy: Murmur128 =
-    val ans = new Murmur128
-    mimicState(state0, state1, partial0, partial1, partialN, n, finalized)
+  def copy: MurmurHash128 =
+    val ans = new MurmurHash128
+    ans.mimicState(state0, state1, partial0, partial1, partialN, n, finalized)
     ans
 
   override def begin(): this.type = begin(0L, 0L)
@@ -1288,7 +1305,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
     this
 
   private[this] def appendLx2(la: Long, lb: Long) =
-    if finalized then SimpleIncrementalHash.fzerr("Murmur128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
+    if finalized then SimpleIncrementalHash.fzerr("MurmurHash128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
     n += 16
     val x0 = state0 ^ (0x4CF5AD432745937FL * rotl64(la * 0x87C37B91114253D5L, 31))
     state0 = ((rotl64(x0, 27) + state1) * 5) + 0x52DCE729
@@ -1297,7 +1314,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
     this
   
   private[this] def appendLastLx2(la: Long, lb: Long, bytes: Int): this.type =
-    if finalized then SimpleIncrementalHash.fzerr("Murmur128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
+    if finalized then SimpleIncrementalHash.fzerr("MurmurHash128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
     val m = bytes & 0xF
     n += m
     if (m > 8) state1 = state1 ^ (0x87C37B91114253D5L * rotl64(lb * 0x4CF5AD432745937FL, 33))
@@ -1353,7 +1370,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
         partialN += 1
         i += 1
       while i < j && partialN < 16 do
-        partial1 |= ((ab(i) & 0xFFL) << (partialN*8))
+        partial1 |= ((ab(i) & 0xFFL) << ((partialN - 8)*8))
         partialN += 1
         i += 1
       if partialN == 16 then
@@ -1373,7 +1390,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
       partialN += 1
       i += 1
     while i < j do
-      partial1 |= ((ab(i) & 0xFFL) << (partialN*8))
+      partial1 |= ((ab(i) & 0xFFL) << ((partialN - 8)*8))
       partialN += 1
       i += 1
     this
@@ -1392,7 +1409,7 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
         partialN += 2
         i += 1
       while i < iM && partialN < 16 do
-        partial1 |= s.charAt(i).toLong << (8 * partialN)
+        partial1 |= s.charAt(i).toLong << (8 * (partialN - 8))
         partialN += 2
         i += 1
       if partialN == 16 then
@@ -1407,11 +1424,11 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
      )
      i += 8
     while i < iM && partialN < 8 do
-      partial0 |= s.charAt(i) << (8 * partialN)
+      partial0 |= s.charAt(i).toLong << (8 * partialN)
       partialN += 2
       i += 1
     while i < iM do
-      partial1 |= s.charAt(i) << (8 * partialN)
+      partial1 |= s.charAt(i).toLong << (8 * (partialN - 8))
       partialN += 2
       i += 1
     this
@@ -1425,14 +1442,15 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
       partial0 = 0
       partialN = 0
     else if partialN < 8 then
-      val sh = 8 * (8 - partialN)
-      partial0 = partial0 | ((l & (0xFFFFFFFFFFFFFFFFL >>> sh)) << sh)
-      partial1 = (l >>> sh)
+      val sh = 8 * partialN
+      partial0 = partial0 | (l << sh)
+      partial1 = l >>> (64 - sh)
       partialN += 8
     else
-      val sh = 8 * (16 - partialN)
-      appendLx2(partial0, partial1 | ((l & (0xFFFFFFFFFFFFFFFFL >>> sh)) << sh))
-      partial0 = (l >>> sh)
+      val sh = 8 * (partialN - 8)
+      appendLx2(partial0, partial1 | (l << sh))
+      partial0 = l >>> (64 - sh)
+      partial1 = 0
       partialN -= 8
     this
 
@@ -1459,23 +1477,23 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
 
   def appendChar(c: Char): this.type =
     if partialN < 8 then
-      partial0 = partial0 | (c.toLong << (8 * partialN))
+      partial0 |= c.toLong << (8 * partialN)
       if partialN == 7 then
         partial1 = c.toLong >>> 8
       partialN += 2
     else
-      partial1 = partial1 | (c.toLong << (8 * (partialN - 8)))
+      partial1 |= c.toLong << (8 * (partialN - 8))
       if partialN >= 14 then
         appendLx2(partial0, partial1)
         partial1 = 0
         if partialN == 15 then
           partial0 = c.toLong >>> 8
-          partialN -= 14
+          partialN = 1
         else
           partial0 = 0
           partialN = 0
       else
-        partialN += 1
+        partialN += 2
     this
 
   def appendByte(b: Byte): this.type =
@@ -1507,67 +1525,60 @@ final class Murmur128 extends Hash128 with IncrementalHash[HashCode128, HashCode
       partialN = 0
     finalizer()
     new HashCode128(state0, state1)
-  
-  def resultAsLong(): Long =
-    if partialN > 0 then
-      appendLastLx2(partial0, partial1, partialN)
-      partial0 = 0
-      partial1 = 0
-      partialN = 0
-    finalizer()
-    state0
 }
 
-object Murmur extends FullHash32 with FullHash128 {
-  private[this] val cached32 = new AtomicReference[Murmur32]()
 
-  def hash32(bb: ByteBuffer, seed: Int): Int =
+object MurmurHash extends FullHash32 with FullHash128 {
+  private[this] val cached32 = new AtomicReference[MurmurHash32]()
+
+  def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
-    val h = if c eq null then new Murmur32() else c
-    val result = h.hash32(bb, seed)
+    val h = if c eq null then new MurmurHash32() else c
+    val result = h.hash32(seed, bb)
     cached32.set(h)
     result
 
-  def hash32(ab: Array[Byte], seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
-    val h = if c eq null then new Murmur32() else c
-    val result = h.hash32(ab, seed, i0, iN)
+    val h = if c eq null then new MurmurHash32() else c
+    val result = h.hash32(seed, ab, i0, iN)
     cached32.set(h)
     result
 
-  def hash32(s: String, seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, s: String, i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
-    val h = if c eq null then new Murmur32() else c
-    val result = h.hash32(s, seed, i0, iN)
+    val h = if c eq null then new MurmurHash32() else c
+    val result = h.hash32(seed, s, i0, iN)
     cached32.set(h)
     result
 
-  private[this] val cached128 = new AtomicReference[Murmur128]()
+  private[this] val cached128 = new AtomicReference[MurmurHash128]()
 
-  def hash128(bb: ByteBuffer, seed0: Long, seed1: Long): HashCode128 =
+  def hash128(seed0: Long, seed1: Long, bb: ByteBuffer): HashCode128 =
     val c = cached128.getAndSet(null)
-    val h = if c eq null then new Murmur128() else c
-    val result = h.hash128(bb, seed0, seed1)
+    val h = if c eq null then new MurmurHash128() else c
+    val result = h.hash128(seed0, seed1, bb)
     cached128.set(h)
     result
 
-  def hash128(ab: Array[Byte], seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128 =
+  def hash128(seed0: Long, seed1: Long, ab: Array[Byte], i0: Int, iN: Int): HashCode128 =
     val c = cached128.getAndSet(null)
-    val h = if c eq null then new Murmur128() else c
-    val result = h.hash128(ab, seed0, seed1, i0, iN)
+    val h = if c eq null then new MurmurHash128() else c
+    val result = h.hash128(seed0, seed1, ab, i0, iN)
     cached128.set(h)
     result
 
-  def hash128(s: String, seed0: Long, seed1: Long, i0: Int, iN: Int): HashCode128 =
+  def hash128(seed0: Long, seed1: Long, s: String, i0: Int, iN: Int): HashCode128 =
     val c = cached128.getAndSet(null)
-    val h = if c eq null then new Murmur128() else c
-    val result = h.hash128(s, seed0, seed1, i0, iN)
+    val h = if c eq null then new MurmurHash128() else c
+    val result = h.hash128(seed0, seed1, s, i0, iN)
     cached128.set(h)
     result
 }
 
 
-final class SumHash32 extends Hash32 {
+
+final class SumHash32() extends Hash32 {
   private[this] var sum = 0
   private[this] var partial = 0
   private[this] var partialN = 0
@@ -1579,7 +1590,7 @@ final class SumHash32 extends Hash32 {
 
   def copy: SumHash32 =
     val ans = new SumHash32
-    mimicState(sum, partial, partialN)
+    ans.mimicState(sum, partial, partialN)
     ans
 
   def begin(seed: Int): this.type =
@@ -1617,7 +1628,7 @@ final class SumHash32 extends Hash32 {
       i += 1
     while j - i >= 4 do
       sum += (ab(i  )&0xFF) | ((ab(i+1)&0xFF)<<8) | ((ab(i+2)&0xFF)<<16) | ((ab(i+3)&0xFF)<<24)
-      i += 1
+      i += 4
     while i < j do
       partial = partial | ((ab(i) & 0xFF) << (8 * partialN))
       partialN += 1
@@ -1650,29 +1661,31 @@ final class SumHash32 extends Hash32 {
       sum += (l & 0xFFFFFFFFL).toInt
       sum += (l >>> 32).toInt
     else
-      sum += partial | ((l & (0xFFFFFFFFL >>> (8 * partialN))).toInt << (8 * partialN))
-      sum += ((l & (0xFFFFFFFFL << (8 * partialN))) >>> (8*partialN)).toInt
-      partial = (l >>> ((8 - partialN) * 8)).toInt
+      val sh = 8 * partialN
+      sum += partial | ((l & (0xFFFFFFFFL >>> sh)).toInt << sh)
+      sum += ((l >>> (32 - sh)) & 0xFFFFFFFFL).toInt
+      partial = (l >>> (64 - sh)).toInt
     this
 
   def appendInt(i: Int): this.type =
     if partialN == 0 then
       sum += i
     else
-      sum += partial | ((i & (0xFFFFFFFF >>> (8 * partialN))) << (8*partialN))
-      partial = (i >>> ((8 - partialN) * 8))
+      val sh = 8 * partialN
+      sum += partial | (i << sh)
+      partial = i >>> (32 - sh)
     this
 
   def appendChar(c: Char): this.type =
     if partialN < 2 then
       partial = partial | (c.toInt << (8 * partialN))
-      partialN += 1
+      partialN += 2
     else if partialN == 2 then
       sum += partial | (c.toInt << 16)
       partial = 0
       partialN = 0
     else
-      sum += partial | ((c & 0xFF00) << 16)
+      sum += partial | ((c & 0xFF) << 24)
       partial = (c >>> 8)
       partialN = 1
     this
@@ -1698,7 +1711,8 @@ final class SumHash32 extends Hash32 {
   def result(): Int = sum + partial
 }
 
-final class SumHash64 extends Hash64 {
+
+final class SumHash64() extends Hash64 {
   private[this] var sum = 0L
   private[this] var partial = 0L
   private[this] var partialN = 0
@@ -1710,7 +1724,7 @@ final class SumHash64 extends Hash64 {
 
   def copy: SumHash64 =
     val ans = new SumHash64
-    mimicState(sum, partial, partialN)
+    ans.mimicState(sum, partial, partialN)
     ans
 
   def begin(seed: Long): this.type =
@@ -1749,10 +1763,10 @@ final class SumHash64 extends Hash64 {
     while j - i >= 8 do
       sum +=
         ((ab(i  )&0xFFL)    ) | ((ab(i+1)&0xFFL)<< 8) | ((ab(i+2)&0xFFL)<<16) | ((ab(i+3)&0xFFL)<<24) |
-        ((ab(i  )&0xFFL)<<32) | ((ab(i+1)&0xFFL)<<40) | ((ab(i+2)&0xFFL)<<48) | ((ab(i+3)&0xFFL)<<56)
-      i += 1
+        ((ab(i+4)&0xFFL)<<32) | ((ab(i+5)&0xFFL)<<40) | ((ab(i+6)&0xFFL)<<48) | ((ab(i+7)&0xFFL)<<56)
+      i += 8
     while i < j do
-      partial = partial | ((ab(i) & 0xFF) << (8 * partialN))
+      partial = partial | ((ab(i) & 0xFFL) << (8 * partialN))
       partialN += 1
       i += 1
     this
@@ -1772,32 +1786,35 @@ final class SumHash64 extends Hash64 {
         sum += partial
         partial = 0
         partialN = 0
-      i += 2
+      i += 1
     while iM - i >= 4 do
       sum += s.charAt(i) | (s.charAt(i+1).toLong << 16) | (s.charAt(i+2).toLong << 32) | (s.charAt(i+3).toLong << 48)
       i += 4
     while i < iM do
-      partial |= s.charAt(i) << (8 * partialN)
+      partial |= s.charAt(i).toLong << (8 * partialN)
       partialN += 2
+      i += 1
     this
 
   def appendLong(l: Long): this.type =
     if partialN == 0 then
       sum += l
     else
-      val sh = 8 * (8 - partialN)
-      sum += partial | ((l & (0xFFFFFFFFFFFFFFFFL >>> sh)) << sh)
-      partial = l >>> sh
+      val sh = 8 * partialN
+      sum += partial | (l << sh)
+      partial = l >>> (64 - sh)
     this
 
   def appendInt(i: Int): this.type =
-    partial = partial | ((i & 0xFFFFFFFFL) << (8 * partialN))
+    val sh = 8 * partialN
+    partial = partial | ((i & 0xFFFFFFFFL) << sh)
     partialN += 4
     if partialN >= 8 then
       sum += partial
       partialN -= 8
-      if partialN > 0 then
-        partial = (i & 0xFFFFFFFFL) >>> (8 * (4 - partialN))
+      partial =
+        if partialN > 0 then (i & 0xFFFFFFFFL) >>> (8 * (4 - partialN))
+        else 0
     this
 
   def appendChar(c: Char): this.type =
@@ -1806,14 +1823,16 @@ final class SumHash64 extends Hash64 {
     if partialN >= 8 then
       sum += partial
       partialN -= 8
-      if partialN > 0 then
-        partial = c.toLong >>> 8
+      partial =
+        if partialN > 0 then c.toLong >>> 8
+        else 0
     this
 
   def appendByte(b: Byte): this.type =
     partial = partial | ((b & 0xFFL) << (8 * partialN))
     if partialN >= 7 then
       sum += partial
+      partial = 0
       partialN = 0
     else
       partialN += 1
@@ -1831,64 +1850,61 @@ final class SumHash64 extends Hash64 {
     append(s, i0, iN)
     result()
   
-  def result(): Long =
-    if (partialN > 0) {
-      sum += partial
-      partialN = 0
-      partial = 0
-    }
-    sum
+  def result(): Long = sum + partial
 }
+
 
 object SumHash extends FullHash32 with FullHash64 {
   private[this] val cached32 = new AtomicReference[SumHash32]()
 
-  def hash32(bb: ByteBuffer, seed: Int): Int =
+  def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new SumHash32() else c
-    val result = h.hash32(bb, seed)
+    val result = h.hash32(seed, bb)
     cached32.set(h)
     result
 
-  def hash32(ab: Array[Byte], seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new SumHash32() else c
-    val result = h.hash32(ab, seed, i0, iN)
+    val result = h.hash32(seed, ab, i0, iN)
     cached32.set(h)
     result
 
-  def hash32(s: String, seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, s: String, i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new SumHash32() else c
-    val result = h.hash32(s, seed, i0, iN)
+    val result = h.hash32(seed, s, i0, iN)
     cached32.set(h)
     result
 
   private[this] val cached64 = new AtomicReference[SumHash64]()
 
-  def hash64(bb: ByteBuffer, seed: Long): Long =
+  def hash64(seed: Long, bb: ByteBuffer): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new SumHash64() else c
-    val result = h.hash64(bb, seed)
+    val result = h.hash64(seed, bb)
     cached64.set(h)
     result
 
-  def hash64(ab: Array[Byte], seed: Long, i0: Int, iN: Int): Long =
+  def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new SumHash64() else c
-    val result = h.hash64(ab, seed, i0, iN)
+    val result = h.hash64(seed, ab, i0, iN)
     cached64.set(h)
     result
 
-  def hash64(s: String, seed: Long, i0: Int, iN: Int): Long =
+  def hash64(seed: Long, s: String, i0: Int, iN: Int): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new SumHash64() else c
-    val result = h.hash64(s, seed, i0, iN)
+    val result = h.hash64(seed, s, i0, iN)
     cached64.set(h)
     result
 }
 
-final class XorHash32 extends Hash32 {
+
+
+final class XorHash32() extends Hash32 {
   private[this] var xor = 0
   private[this] var partial = 0
   private[this] var partialN = 0
@@ -1900,7 +1916,7 @@ final class XorHash32 extends Hash32 {
 
   def copy: XorHash32 =
     val ans = new XorHash32
-    mimicState(xor, partial, partialN)
+    ans.mimicState(xor, partial, partialN)
     ans
 
   def begin(seed: Int): this.type =
@@ -1938,7 +1954,7 @@ final class XorHash32 extends Hash32 {
       i += 1
     while j - i >= 4 do
       xor ^= (ab(i  )&0xFF) | ((ab(i+1)&0xFF)<<8) | ((ab(i+2)&0xFF)<<16) | ((ab(i+3)&0xFF)<<24)
-      i += 1
+      i += 4
     while i < j do
       partial = partial | ((ab(i) & 0xFF) << (8 * partialN))
       partialN += 1
@@ -1971,29 +1987,31 @@ final class XorHash32 extends Hash32 {
       xor ^= (l & 0xFFFFFFFFL).toInt
       xor ^= (l >>> 32).toInt
     else
-      xor ^= partial | ((l & (0xFFFFFFFFL >>> (8 * partialN))).toInt << (8 * partialN))
-      xor ^= ((l & (0xFFFFFFFFL << (8 * partialN))) >>> (8*partialN)).toInt
-      partial = (l >>> ((8 - partialN) * 8)).toInt
+      val sh = 8 * partialN
+      xor ^= partial | ((l & (0xFFFFFFFFL >>> sh)).toInt << sh)
+      xor ^= ((l >>> (32 - sh)) & 0xFFFFFFFFL).toInt
+      partial = (l >>> (64 - sh)).toInt
     this
 
   def appendInt(i: Int): this.type =
     if partialN == 0 then
       xor ^= i
     else
-      xor ^= partial | ((i & (0xFFFFFFFF >>> (8 * partialN))) << (8*partialN))
-      partial = (i >>> ((8 - partialN) * 8))
+      val sh = 8 * partialN
+      xor ^= partial | (i << sh)
+      partial = i >>> (32 - sh)
     this
 
   def appendChar(c: Char): this.type =
     if partialN < 2 then
       partial = partial | (c.toInt << (8 * partialN))
-      partialN += 1
+      partialN += 2
     else if partialN == 2 then
       xor ^= partial | (c.toInt << 16)
       partial = 0
       partialN = 0
     else
-      xor ^= partial | ((c & 0xFF00) << 16)
+      xor ^= partial | ((c & 0xFF) << 24)
       partial = (c >>> 8)
       partialN = 1
     this
@@ -2024,7 +2042,8 @@ final class XorHash32 extends Hash32 {
     xor ^ partial
 }
 
-final class XorHash64 extends Hash64 {
+
+final class XorHash64() extends Hash64 {
   private[this] var xor = 0L
   private[this] var partial = 0L
   private[this] var partialN = 0
@@ -2036,7 +2055,7 @@ final class XorHash64 extends Hash64 {
 
   def copy: XorHash64 =
     val ans = new XorHash64
-    mimicState(xor, partial, partialN)
+    ans.mimicState(xor, partial, partialN)
     ans
 
   def begin(seed: Long): this.type = { xor = seed; partial = 0; partialN = 0; this }
@@ -2071,10 +2090,10 @@ final class XorHash64 extends Hash64 {
     while j - i >= 8 do
       xor ^=
         ((ab(i  )&0xFFL)    ) | ((ab(i+1)&0xFFL)<< 8) | ((ab(i+2)&0xFFL)<<16) | ((ab(i+3)&0xFFL)<<24) |
-        ((ab(i  )&0xFFL)<<32) | ((ab(i+1)&0xFFL)<<40) | ((ab(i+2)&0xFFL)<<48) | ((ab(i+3)&0xFFL)<<56)
-      i += 1
+        ((ab(i+4)&0xFFL)<<32) | ((ab(i+5)&0xFFL)<<40) | ((ab(i+6)&0xFFL)<<48) | ((ab(i+7)&0xFFL)<<56)
+      i += 8
     while i < j do
-      partial = partial | ((ab(i) & 0xFF) << (8 * partialN))
+      partial = partial | ((ab(i) & 0xFFL) << (8 * partialN))
       partialN += 1
       i += 1
     this
@@ -2094,32 +2113,35 @@ final class XorHash64 extends Hash64 {
         xor ^= partial
         partial = 0
         partialN = 0
-      i += 2
+      i += 1
     while iM - i >= 4 do
       xor ^= s.charAt(i) | (s.charAt(i+1).toLong << 16) | (s.charAt(i+2).toLong << 32) | (s.charAt(i+3).toLong << 48)
       i += 4
     while i < iM do
-      partial |= s.charAt(i) << (8 * partialN)
+      partial |= s.charAt(i).toLong << (8 * partialN)
       partialN += 2
+      i += 1
     this
 
   def appendLong(l: Long): this.type =
     if partialN == 0 then
       xor ^= l
     else
-      val sh = 8 * (8 - partialN)
-      xor ^= partial | ((l & (0xFFFFFFFFFFFFFFFFL >>> sh)) << sh)
-      partial = l >>> sh
+      val sh = 8 * partialN
+      xor ^= partial | (l << sh)
+      partial = l >>> (64 - sh)
     this
 
   def appendInt(i: Int): this.type =
-    partial = partial | ((i & 0xFFFFFFFFL) << (8 * partialN))
+   val sh = 8 * partialN
+    partial = partial | ((i & 0xFFFFFFFFL) << sh)
     partialN += 4
     if partialN >= 8 then
       xor ^= partial
       partialN -= 8
-      if partialN > 0 then
-        partial = (i & 0xFFFFFFFFL) >>> (8 * (4 - partialN))
+      partial =
+        if partialN > 0 then (i & 0xFFFFFFFFL) >>> (64 - sh)
+        else 0
     this
 
   def appendChar(c: Char): this.type =
@@ -2128,14 +2150,16 @@ final class XorHash64 extends Hash64 {
     if partialN >= 8 then
       xor ^= partial
       partialN -= 8
-      if partialN > 0 then
-        partial = c.toLong >>> 8
+      partial =
+        if partialN > 0 then c.toLong >>> 8
+        else 0
     this
 
   def appendByte(b: Byte): this.type =
     partial = partial | ((b & 0xFFL) << (8 * partialN))
     if partialN >= 7 then
       xor ^= partial
+      partial = 0
       partialN = 0
     else
       partialN += 1
@@ -2157,50 +2181,355 @@ final class XorHash64 extends Hash64 {
     xor ^ partial
 }
 
+
 object XorHash extends FullHash32 with FullHash64 {
   private[this] val cached32 = new AtomicReference[XorHash32]()
 
-  def hash32(bb: ByteBuffer, seed: Int): Int =
+  def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new XorHash32() else c
-    val result = h.hash32(bb, seed)
+    val result = h.hash32(seed, bb)
     cached32.set(h)
     result
 
-  def hash32(ab: Array[Byte], seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new XorHash32() else c
-    val result = h.hash32(ab, seed, i0, iN)
+    val result = h.hash32(seed, ab, i0, iN)
     cached32.set(h)
     result
 
-  def hash32(s: String, seed: Int, i0: Int, iN: Int): Int =
+  def hash32(seed: Int, s: String, i0: Int, iN: Int): Int =
     val c = cached32.getAndSet(null)
     val h = if c eq null then new XorHash32() else c
-    val result = h.hash32(s, seed, i0, iN)
+    val result = h.hash32(seed, s, i0, iN)
     cached32.set(h)
     result
 
   private[this] val cached64 = new AtomicReference[XorHash64]()
 
-  def hash64(bb: ByteBuffer, seed: Long): Long =
+  def hash64(seed: Long, bb: ByteBuffer): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new XorHash64() else c
-    val result = h.hash64(bb, seed)
+    val result = h.hash64(seed, bb)
     cached64.set(h)
     result
 
-  def hash64(ab: Array[Byte], seed: Long, i0: Int, iN: Int): Long =
+  def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new XorHash64() else c
-    val result = h.hash64(ab, seed, i0, iN)
+    val result = h.hash64(seed, ab, i0, iN)
     cached64.set(h)
     result
 
-  def hash64(s: String, seed: Long, i0: Int, iN: Int): Long =
+  def hash64(seed: Long, s: String, i0: Int, iN: Int): Long =
     val c = cached64.getAndSet(null)
     val h = if c eq null then new XorHash64() else c
-    val result = h.hash64(s, seed, i0, iN)
+    val result = h.hash64(seed, s, i0, iN)
     cached64.set(h)
     result
+}
+
+
+
+object MakeHasher {
+  def x32 = new XxHash32()
+  def x64 = new XxHash64()
+  def m32 = new MurmurHash32()
+  def m128 = new MurmurHash128()
+  def s32 = new SumHash32()
+  def s64 = new SumHash64()
+  def o32 = new XorHash32()
+  def o64 = new XorHash64()
+}
+
+
+final class PairHash[A, B, Z, Y](h1: IncrementalHash[A, Z], h2: IncrementalHash[B, Y])
+extends IncrementalHash[(A, B), (Z, Y)] {
+  def copy: PairHash[A, B, Z, Y] =
+    new PairHash(h1.copy, h2.copy)
+
+  def result(bb: ByteBuffer): (Z, Y) =
+    (h1 result bb.asReadOnlyBuffer, h2 result bb)
+
+  def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y) = (h1.result(ab, i0, iN), h2.result(ab, i0, iN))
+
+  def result(s: String, i0: Int, iN: Int): (Z, Y) = (h1.result(s, i0, iN), h2.result(s, i0, iN))
+
+  def result(): (Z, Y) = (h1.result(), h2.result())
+
+  def begin(seed: (A, B)): this.type =
+    h1.begin(seed._1)
+    h2.begin(seed._2)
+    this
+
+  def begin(): this.type =
+    h1.begin()
+    h2.begin()
+    this
+
+  def append(bb: ByteBuffer): this.type =
+    h1 append bb.asReadOnlyBuffer
+    h2 append bb
+    this
+
+  def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
+    h1.append(ab, i0, iN)
+    h2.append(ab, i0, iN)
+    this
+
+  def append(s: String, i0: Int, iN: Int): this.type =
+    h1.append(s, i0, iN)
+    h2.append(s, i0, iN)
+    this
+
+  def appendLong(l: Long): this.type =
+    h1 appendLong l
+    h2 appendLong l
+    this
+
+  def appendInt(i: Int): this.type =
+    h1 appendInt i
+    h2 appendInt i
+    this
+
+  def appendChar(c: Char): this.type =
+    h1 appendChar c
+    h2 appendChar c
+    this
+
+  def appendByte(b: Byte): this.type =
+    h1 appendByte b
+    h2 appendByte b
+    this
+}
+object PairHash {
+  def of[A, B, Z, Y](h1: IncrementalHash[A, Z], h2: IncrementalHash[B, Y]): PairHash[A, B, Z, Y] =
+    new PairHash(h1.begin(), h2.begin())
+}
+
+
+final class TrioHash[A, B, C, Z, Y, X](h1: IncrementalHash[A, Z], h2: IncrementalHash[B, Y], h3: IncrementalHash[C, X])
+extends IncrementalHash[(A, B, C), (Z, Y, X)] {
+  def copy: TrioHash[A, B, C, Z, Y, X] =
+    new TrioHash(h1.copy, h2.copy, h3.copy)
+
+  def result(bb: ByteBuffer): (Z, Y, X) =
+    (h1 result bb.asReadOnlyBuffer, h2 result bb.asReadOnlyBuffer, h3 result bb)
+
+  def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y, X) =
+    (h1.result(ab, i0, iN), h2.result(ab, i0, iN), h3.result(ab, i0, iN))
+
+  def result(s: String, i0: Int, iN: Int): (Z, Y, X) =
+    (h1.result(s, i0, iN), h2.result(s, i0, iN), h3.result(s, i0, iN))
+
+  def result(): (Z, Y, X) = (h1.result(), h2.result(), h3.result())
+
+  def begin(seed: (A, B, C)): this.type =
+    h1.begin(seed._1)
+    h2.begin(seed._2)
+    h3.begin(seed._3)
+    this
+
+  def begin(): this.type =
+    h1.begin()
+    h2.begin()
+    h3.begin()
+    this
+
+  def append(bb: ByteBuffer): this.type =
+    h1 append bb.asReadOnlyBuffer
+    h2 append bb.asReadOnlyBuffer
+    h3 append bb
+    this
+
+  def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
+    h1.append(ab, i0, iN)
+    h2.append(ab, i0, iN)
+    h3.append(ab, i0, iN)
+    this
+
+  def append(s: String, i0: Int, iN: Int): this.type =
+    h1.append(s, i0, iN)
+    h2.append(s, i0, iN)
+    h3.append(s, i0, iN)
+    this
+
+  def appendLong(l: Long): this.type =
+    h1 appendLong l
+    h2 appendLong l
+    h3 appendLong l
+    this
+
+  def appendInt(i: Int): this.type =
+    h1 appendInt i
+    h2 appendInt i
+    h3 appendInt i
+    this
+
+  def appendChar(c: Char): this.type =
+    h1 appendChar c
+    h2 appendChar c
+    h3 appendChar c
+    this
+
+  def appendByte(b: Byte): this.type =
+    h1 appendByte b
+    h2 appendByte b
+    h3 appendByte b
+    this
+}
+object TrioHash {
+  def of[A, B, C, Z, Y, X](h1: IncrementalHash[A, Z], h2: IncrementalHash[B, Y], h3: IncrementalHash[C, X]): TrioHash[A, B, C, Z, Y, X] =
+    new TrioHash(h1.begin(), h2.begin(), h3.begin())
+}
+
+
+
+final class QuadHash[A, B, C, D, Z, Y, X, W](
+  h1: IncrementalHash[A, Z],
+  h2: IncrementalHash[B, Y],
+  h3: IncrementalHash[C, X],
+  h4: IncrementalHash[D, W]
+)
+extends IncrementalHash[(A, B, C, D), (Z, Y, X, W)] {
+  def copy: QuadHash[A, B, C, D, Z, Y, X, W] =
+    new QuadHash(h1.copy, h2.copy, h3.copy, h4.copy)
+
+  def result(bb: ByteBuffer): (Z, Y, X, W) =
+    (h1 result bb.asReadOnlyBuffer, h2 result bb.asReadOnlyBuffer, h3 result bb.asReadOnlyBuffer, h4 result bb)
+
+  def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y, X, W) =
+    (h1.result(ab, i0, iN), h2.result(ab, i0, iN), h3.result(ab, i0, iN), h4.result(ab, i0, iN))
+
+  def result(s: String, i0: Int, iN: Int): (Z, Y, X, W) =
+    (h1.result(s, i0, iN), h2.result(s, i0, iN), h3.result(s, i0, iN), h4.result(s, i0, iN))
+
+  def result(): (Z, Y, X, W) = (h1.result(), h2.result(), h3.result(), h4.result())
+
+  def begin(seed: (A, B, C, D)): this.type =
+    h1.begin(seed._1)
+    h2.begin(seed._2)
+    h3.begin(seed._3)
+    h4.begin(seed._4)
+    this
+
+  def begin(): this.type =
+    h1.begin()
+    h2.begin()
+    h3.begin()
+    h4.begin()
+    this
+
+  def append(bb: ByteBuffer): this.type =
+    h1 append bb.asReadOnlyBuffer
+    h2 append bb.asReadOnlyBuffer
+    h3 append bb.asReadOnlyBuffer
+    h4 append bb
+    this
+
+  def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
+    h1.append(ab, i0, iN)
+    h2.append(ab, i0, iN)
+    h3.append(ab, i0, iN)
+    h4.append(ab, i0, iN)
+    this
+
+  def append(s: String, i0: Int, iN: Int): this.type =
+    h1.append(s, i0, iN)
+    h2.append(s, i0, iN)
+    h3.append(s, i0, iN)
+    h4.append(s, i0, iN)
+    this
+
+  def appendLong(l: Long): this.type =
+    h1 appendLong l
+    h2 appendLong l
+    h3 appendLong l
+    h4 appendLong l
+    this
+
+  def appendInt(i: Int): this.type =
+    h1 appendInt i
+    h2 appendInt i
+    h3 appendInt i
+    h4 appendInt i
+    this
+
+  def appendChar(c: Char): this.type =
+    h1 appendChar c
+    h2 appendChar c
+    h3 appendChar c
+    h4 appendChar c
+    this
+
+  def appendByte(b: Byte): this.type =
+    h1 appendByte b
+    h2 appendByte b
+    h3 appendByte b
+    h4 appendByte b
+    this
+}
+object QuadHash {
+  def of[A, B, C, D, Z, Y, X, W](
+    h1: IncrementalHash[A, Z],
+    h2: IncrementalHash[B, Y],
+    h3: IncrementalHash[C, X],
+    h4: IncrementalHash[D, W]
+  ): QuadHash[A, B, C, D, Z, Y, X, W] =
+    new QuadHash(h1.begin(), h2.begin(), h3.begin(), h4.begin())
+}
+
+
+final class PreseededHash[A, Z](seed: A, h: IncrementalHash[A, Z]) extends IncrementalHash[Unit, Z] {
+  def copy: PreseededHash[A, Z] =
+    new PreseededHash[A, Z](seed, h.copy)
+
+  def result(bb: ByteBuffer): Z = h.result(bb)
+
+  def result(ab: Array[Byte], i0: Int, iN: Int): Z = h.result(ab, i0, iN)
+
+  def result(s: String, i0: Int, iN: Int): Z = h.result(s, i0, iN)
+
+  def result(): Z = h.result()
+
+  def begin(seed: Unit): this.type =
+    h.begin(this.seed)
+    this
+
+  def begin(): this.type =
+    h.begin(this.seed)
+    this
+
+  def append(bb: ByteBuffer): this.type =
+    h append bb
+    this
+
+  def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
+    h.append(ab, i0, iN)
+    this  
+
+  def append(s: String, i0: Int, iN: Int): this.type =
+    h.append(s, i0, iN)
+    this
+
+  def appendLong(l: Long): this.type =
+    h appendLong l
+    this 
+
+  def appendInt(i: Int): this.type =
+    h appendInt i
+    this 
+
+  def appendChar(c: Char): this.type =
+    h appendChar c
+    this 
+
+  def appendByte(b: Byte): this.type =
+    h appendByte b
+    this 
+}
+object PreseededHash {
+  def of[A, Z](seed: A, h: IncrementalHash[A, Z]): PreseededHash[A, Z] =
+    new PreseededHash(seed, h begin seed)
 }

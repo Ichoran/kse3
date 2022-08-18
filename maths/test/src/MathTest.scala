@@ -502,11 +502,10 @@ class MathTest {
       T(title) ~ ds1 =**= ds2
     }
 
-    T(name) ~ 1500 .roll(rng) ==== 1 + r2 % 1500
-    T(name) ~ 1500L.roll(rng) ==== 1 + r2 % 1500L
-
     {
       given Prng = rng
+      T(name) ~ 1500 .roll ==== 1 + r2 % 1500
+      T(name) ~ 1500L.roll ==== 1 + r2 % 1500L
       T(name) ~ (40 d 100) ==== r2.arrayModI(100)(40).foldLeft(0)(_ + _ + 1)
     }
 
@@ -529,7 +528,7 @@ class MathTest {
     var nsur = 0
     nFor(1000) { n =>
       val title = s"Valid string iteration $n"
-      val s = rng.validString(20.roll(rng))
+      val s = rng.validString(20.roll(using rng))
       var i = 0
       while i < s.length do
         if java.lang.Character.isHighSurrogate(s charAt i) then
@@ -559,13 +558,15 @@ class MathTest {
     def addToBuffer(bb: ByteBuffer): Unit
     def addToArray(ab: Array[Byte], index: Int): Int
     final def inBuffer: ByteBuffer =
-      val bb = ByteBuffer.wrap(new Array[Byte](bytes))
+      val bb = ByteBuffer.wrap(new Array[Byte](bytes)).order(ByteOrder.LITTLE_ENDIAN)
       addToBuffer(bb)
+      bb.flip()
       bb
     final def inArray: Array[Byte] =
       val ab = new Array[Byte](bytes)
       addToArray(ab, 0)
       ab
+    def hashInto(h: SimpleIncrementalHash): h.type
   }
   case class HZ(z: Boolean) extends H {
     def bytes = 1
@@ -573,6 +574,7 @@ class MathTest {
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = if z then 1: Byte else 0: Byte
       index + 1
+    def hashInto(h: SimpleIncrementalHash): h.type = h += z
   }
   case class HB(b: Byte) extends H {
     def bytes = 1
@@ -580,6 +582,7 @@ class MathTest {
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = b
       index + 1
+    def hashInto(h: SimpleIncrementalHash): h.type = h += b
   }
   case class HS(s: Short) extends H {
     def bytes = 2
@@ -588,6 +591,7 @@ class MathTest {
       ab(index) = (s & 0xFF).toByte
       ab(index + 1) = ((s & 0xFF00) >> 8).toByte
       index + 2
+    def hashInto(h: SimpleIncrementalHash): h.type = h += s
   }
   case class HC(c: Char) extends H {
     def bytes = 2
@@ -596,6 +600,7 @@ class MathTest {
       ab(index) = (c & 0xFF).toByte
       ab(index + 1) = ((c & 0xFF00) >> 8).toByte
       index + 2
+    def hashInto(h: SimpleIncrementalHash): h.type = h += c
   }
   case class HI(i: Int) extends H {
     def bytes = 4
@@ -606,6 +611,7 @@ class MathTest {
       ab(index + 2) = ((i & 0xFF0000) >> 16).toByte
       ab(index + 3) = ((i & 0xFF000000) >> 24).toByte
       index + 4
+    def hashInto(h: SimpleIncrementalHash): h.type = h += i
   }
   case class HL(l: Long) extends H {
     def bytes = 8
@@ -620,15 +626,17 @@ class MathTest {
       ab(index + 6) = ((l & 0xFF000000000000L) >> 48).toByte
       ab(index + 7) = ((l & 0xFF00000000000000L) >> 56).toByte
       index + 8
+    def hashInto(h: SimpleIncrementalHash): h.type = h += l
   }
-  class Hp(proxy: H) extends H {
+  class Hp(val proxy: H) extends H {
     def bytes = proxy.bytes
     def addToBuffer(bb: ByteBuffer): Unit = proxy.addToBuffer(bb)
     def addToArray(ab: Array[Byte], index: Int): Int = proxy.addToArray(ab, index)
+    def hashInto(h: SimpleIncrementalHash): h.type = proxy.hashInto(h)
   }
   case class HF(f: Float) extends Hp(HI(java.lang.Float.floatToRawIntBits(f))) {}
   case class HD(d: Double) extends Hp(HL(java.lang.Double.doubleToRawLongBits(d))) {}
-  case class HA(ab: Array[Byte], i0: Int, iN: Int) extends H {
+  case class Harr(ab: Array[Byte], i0: Int, iN: Int) extends H {
     private[this] val j0 = math.max(i0, 0)
     private[this] val jN = math.min(iN, ab.length)
     val bytes = math.max(0, jN - j0)
@@ -636,19 +644,32 @@ class MathTest {
     def addToArray(ab: Array[Byte], index: Int): Int =
       System.arraycopy(this.ab, j0, ab, index, bytes)
       index + bytes
+    def hashInto(h: SimpleIncrementalHash): h.type =
+      if i0 == 0 && iN == ab.length then h += ab
+      else
+        h.append(ab, i0, iN)
+        h
   }
   case class Hbb(bb: ByteBuffer) extends H {
-    val bytes = bb.position
-    def addToBuffer(bb: ByteBuffer): Unit =
-      val b = ByteBuffer.wrap(this.bb.array, 0, bytes)
-      this.bb put b
+    val origin = bb.position
+    val bytes = bb.remaining
+    def addToBuffer(bbb: ByteBuffer): Unit =
+      val b = bb.asReadOnlyBuffer
+      b order ByteOrder.LITTLE_ENDIAN
+      bbb put b
     def addToArray(ab: Array[Byte], index: Int): Int =
       var i = index
-      val b = ByteBuffer.wrap(this.bb.array, 0, bytes)
+      val b = bb.asReadOnlyBuffer
+      b order ByteOrder.LITTLE_ENDIAN
       while b.remaining > 0 do
         ab(i) = b.get
         i += 1
       i
+    def hashInto(h: SimpleIncrementalHash): h.type =
+      val b = bb.asReadOnlyBuffer
+      b order ByteOrder.LITTLE_ENDIAN
+      h append b
+      h
   }
   case class Hstr(s: String) extends H {
     val bytes = 2 * s.length
@@ -667,6 +688,7 @@ class MathTest {
         j += 1
         i += 2
       i
+    def hashInto(h: SimpleIncrementalHash): h.type = h += s
   }
   case class Hiter(i: scala.collection.Iterable[H]) extends H {
     def bytes = i.foldLeft(0)(_ + _.bytes)
@@ -675,10 +697,17 @@ class MathTest {
       var j = index
       for x <- i do j = x.addToArray(ab, j)
       j
+    def hashInto(h: SimpleIncrementalHash): h.type =
+      i.iterator.foreach(_.hashInto(h))
+      h
+    def take(n: Int): Hiter = new Hiter(i take n)
+    def drop(n: Int): Hiter = new Hiter(i drop n)
+    def noprox: Hiter = new Hiter(i.map{ case p: Hp => p.proxy; case h => h })
   }
 
   def randomHs(n: Int, lim: Int = 128)(rng: Prng): Hiter =
     val a = collection.mutable.ArrayBuffer.empty[H]
+    given Prng = rng
     nFor(n){ _ =>
       val h: H = (rng % 11) match {
         case 0 => HZ(rng.Z)
@@ -689,13 +718,340 @@ class MathTest {
         case 5 => HL(rng.L)
         case 6 => HF(rng.F)
         case 7 => HD(rng.D)
-        case 8 => val k = lim roll rng; val i = rng % k; val j = 1 + rng % (k-i); HA(rng.arrayB(k), i, j)
-        case 9 => Hbb(ByteBuffer wrap rng.arrayB(lim roll rng))
-        case _ => Hstr(rng.validString((lim/2) roll rng))
+        case 8 => val k = lim.roll; val i = rng % (k+1); val j = rng % (k+1); Harr(rng.arrayB(k), i, j)
+        case 9 => Hbb(ByteBuffer wrap rng.arrayB(lim.roll))
+        case _ => Hstr(rng.validString((lim/2).roll))
       }
       a += h
     }
     Hiter(a)
+
+  def hash32test(
+    h: (HZ, HB, HS, HC, HI, HL, HF, HD, Hstr, Harr, Hbb, Hiter),
+    title: String,
+    i32a: IncrementalHash[Int, Int],
+    i32b: IncrementalHash[Int, Int],
+    f32: FullHash32
+  ): Unit =
+    import java.lang.Float.{floatToRawIntBits => f2i}
+    import java.lang.Double.{doubleToRawLongBits => d2l}
+    val (hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx) = h
+
+    T(title) ~ i32a.begin().appendByte(if hz.z then 1 else 0).result() ==== i32b.begin().append(hz.inBuffer).result()
+    T(title) ~ { i32a.begin() += hz.z; i32a.result() } ==== i32b.begin().append(hz.inArray, 0, hz.bytes).result()
+    T(title) ~ i32a.begin().result(hz.inBuffer) ==== f32.hash32(hz.inArray)
+    T(title) ~ i32a.begin().result(hz.inArray, 0, hz.bytes) ==== f32.hash32(hz.inBuffer)
+
+    T(title) ~ i32a.begin().appendByte(hb.b).result() ==== i32b.begin().append(hb.inBuffer).result()
+    T(title) ~ { i32a.begin() += hb.b; i32a.result() } ==== i32b.begin().append(hb.inArray, 0, hb.bytes).result()
+    T(title) ~ i32a.begin().result(hb.inBuffer) ==== f32.hash32(hb.inArray)
+    T(title) ~ i32a.begin().result(hb.inArray, 0, hb.bytes) ==== f32.hash32(hb.inBuffer)
+
+    T(title) ~ i32a.begin().appendChar((hs.s & 0xFFFF).toChar).result() ==== i32b.begin().append(hs.inBuffer).result()
+    T(title) ~ { i32a.begin() += hs.s; i32a.result() } ==== i32b.begin().append(hs.inArray, 0, hs.bytes).result()
+    T(title) ~ i32a.begin().result(hs.inBuffer) ==== f32.hash32(hs.inArray)
+    T(title) ~ i32a.begin().result(hs.inArray, 0, hs.bytes) ==== f32.hash32(hs.inBuffer)
+
+    T(title) ~ i32a.begin().appendChar(hc.c).result() ==== i32b.begin().append(hc.inBuffer).result()
+    T(title) ~ { i32a.begin() += hc.c; i32a.result() } ==== i32b.begin().append(hc.inArray, 0, hc.bytes).result()
+    T(title) ~ i32a.begin().result(hc.inBuffer) ==== f32.hash32(hc.inArray)
+    T(title) ~ i32a.begin().result(hc.inArray, 0, hc.bytes) ==== f32.hash32(hc.inBuffer)
+
+    T(title) ~ i32a.begin().appendInt(hi.i).result() ==== i32b.begin().append(hi.inBuffer).result()
+    T(title) ~ { i32a.begin() += hi.i; i32a.result() } ==== i32b.begin().append(hi.inArray, 0, hi.bytes).result()
+    T(title) ~ i32a.begin().result(hi.inBuffer) ==== f32.hash32(hi.inArray)
+    T(title) ~ i32a.begin().result(hi.inArray, 0, hi.bytes) ==== f32.hash32(hi.inBuffer)
+
+    T(title) ~ i32a.begin().appendLong(hl.l).result() ==== i32b.begin().append(hl.inBuffer).result()
+    T(title) ~ { i32a.begin() += hl.l; i32a.result() } ==== i32b.begin().append(hl.inArray, 0, hl.bytes).result()
+    T(title) ~ i32a.begin().result(hl.inBuffer) ==== f32.hash32(hl.inArray)
+    T(title) ~ i32a.begin().result(hl.inArray, 0, hl.bytes) ==== f32.hash32(hl.inBuffer)
+
+    T(title) ~ i32a.begin().appendInt(f2i(hf.f)).result() ==== i32b.begin().append(hf.inBuffer).result()
+    T(title) ~ { i32a.begin() += hf.f; i32a.result() } ==== i32b.begin().append(hf.inArray, 0, hf.bytes).result()
+    T(title) ~ i32a.begin().result(hf.inBuffer) ==== f32.hash32(hf.inArray)
+    T(title) ~ i32a.begin().result(hf.inArray, 0, hf.bytes) ==== f32.hash32(hf.inBuffer)
+
+    T(title) ~ i32a.begin().appendLong(d2l(hd.d)).result() ==== i32b.begin().append(hd.inBuffer).result()
+    T(title) ~ { i32a.begin() += hd.d; i32a.result() } ==== i32b.begin().append(hd.inArray, 0, hd.bytes).result()
+    T(title) ~ i32a.begin().result(hd.inBuffer) ==== f32.hash32(hd.inArray)
+    T(title) ~ i32a.begin().result(hd.inArray, 0, hd.bytes) ==== f32.hash32(hd.inBuffer)
+
+    T(title) ~ i32a.begin().result(hh.s, 0, hh.s.length) ==== hh.hashInto(i32b.begin()).result()
+    T(title) ~ i32a.begin().append(hh.s, 0, hh.s.length).result() ==== i32b.begin().append(hh.inBuffer).result()
+    T(title) ~ hh.hashInto(i32a.begin()).result() ==== i32b.begin().append(hh.inArray, 0, hh.bytes).result()
+    T(title) ~ i32a.begin().result(hh.inBuffer) ==== f32.hash32(hh.inArray)
+    T(title) ~ i32a.begin().result(hh.inArray, 0, hh.bytes) ==== f32.hash32(hh.inBuffer)
+    T(title) ~ hh.hashInto(i32a.begin()).result() ==== f32.hash32(hh.s)
+    T(title) ~ i32a.begin(185162).result(hh.s, 0, hh.s.length) ==== f32.hash32(185162, hh.s)
+
+    T(title) ~ i32a.begin().result(hr.ab, hr.i0, hr.iN) ==== hr.hashInto(i32b.begin()).result()
+    T(title) ~ i32a.begin().append(hr.ab, hr.i0, hr.iN).result() ==== i32b.begin().append(hr.inBuffer).result()
+    T(title) ~ hr.hashInto(i32a.begin()).result() ==== i32b.begin().append(hr.inArray, 0, hr.bytes).result()
+    T(title) ~ i32a.begin().result(hr.inBuffer) ==== f32.hash32(hr.inArray)
+    T(title) ~ i32a.begin().result(hr.inArray, 0, hr.bytes) ==== f32.hash32(hr.inBuffer)
+    T(title) ~ i32a.begin(82351).result(hr.ab, hr.i0, hr.iN) ==== f32.hash32(82351, hr.ab, hr.i0, hr.iN)
+
+    T(title) ~ hq.hashInto(i32a.begin()).result() ==== i32b.begin().append(hq.inBuffer).result()
+    T(title) ~ hq.hashInto(i32a.begin()).result() ==== i32b.begin().append(hq.inArray, 0, hq.bytes).result()
+    T(title) ~ i32a.begin().result(hq.inBuffer) ==== f32.hash32(hq.inArray)
+    T(title) ~ i32a.begin().result(hq.inArray, 0, hq.bytes) ==== f32.hash32(hq.inBuffer)
+    T(title) ~ i32a.begin(98158).result(hq.inArray, 0, hq.bytes) ==== f32.hash32(98158, hq.inBuffer)
+
+    T(title) ~ hx.hashInto(i32a.begin()).result() ==== i32b.begin().append(hx.inBuffer).result()
+    T(title) ~ hx.hashInto(i32a.begin()).result() ==== i32b.begin().append(hx.inArray, 0, hx.bytes).result()
+    T(title) ~ i32a.begin().result(hx.inBuffer) ==== f32.hash32(hx.inArray)
+    T(title) ~ i32a.begin().result(hx.inArray, 0, hx.bytes) ==== f32.hash32(hx.inBuffer)
+
+    hx.hashInto(i32a.begin())
+    T(title) ~ hx.hashInto(i32a.copy).result() ==== hx.hashInto(i32a).result()
+
+
+  def hash64test(
+    h: (HZ, HB, HS, HC, HI, HL, HF, HD, Hstr, Harr, Hbb, Hiter),
+    title: String,
+    i64a: IncrementalHash[Long, Long],
+    i64b: IncrementalHash[Long, Long],
+    f64: FullHash64
+  ): Unit =
+    import java.lang.Float.{floatToRawIntBits => f2i}
+    import java.lang.Double.{doubleToRawLongBits => d2l}
+    val (hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx) = h
+
+    T(title) ~ i64a.begin().appendByte(if hz.z then 1 else 0).result() ==== i64b.begin().append(hz.inBuffer).result()
+    T(title) ~ { i64a.begin() += hz.z; i64a.result() } ==== i64b.begin().append(hz.inArray, 0, hz.bytes).result()
+    T(title) ~ i64a.begin().result(hz.inBuffer) ==== f64.hash64(hz.inArray)
+    T(title) ~ i64a.begin().result(hz.inArray, 0, hz.bytes) ==== f64.hash64(hz.inBuffer)
+
+    T(title) ~ i64a.begin().appendByte(hb.b).result() ==== i64b.begin().append(hb.inBuffer).result()
+    T(title) ~ { i64a.begin() += hb.b; i64a.result() } ==== i64b.begin().append(hb.inArray, 0, hb.bytes).result()
+    T(title) ~ i64a.begin().result(hb.inBuffer) ==== f64.hash64(hb.inArray)
+    T(title) ~ i64a.begin().result(hb.inArray, 0, hz.bytes) ==== f64.hash64(hb.inBuffer)
+
+    T(title) ~ i64a.begin().appendChar((hs.s & 0xFFFF).toChar).result() ==== i64b.begin().append(hs.inBuffer).result()
+    T(title) ~ { i64a.begin() += hs.s; i64a.result() } ==== i64b.begin().append(hs.inArray, 0, hs.bytes).result()
+    T(title) ~ i64a.begin().result(hs.inBuffer) ==== f64.hash64(hs.inArray)
+    T(title) ~ i64a.begin().result(hs.inArray, 0, hs.bytes) ==== f64.hash64(hs.inBuffer)
+
+    T(title) ~ i64a.begin().appendChar(hc.c).result() ==== i64b.begin().append(hc.inBuffer).result()
+    T(title) ~ { i64a.begin() += hc.c; i64a.result() } ==== i64b.begin().append(hc.inArray, 0, hc.bytes).result()
+    T(title) ~ i64a.begin().result(hc.inBuffer) ==== f64.hash64(hc.inArray)
+    T(title) ~ i64a.begin().result(hc.inArray, 0, hc.bytes) ==== f64.hash64(hc.inBuffer)
+
+    T(title) ~ i64a.begin().appendInt(hi.i).result() ==== i64b.begin().append(hi.inBuffer).result()
+    T(title) ~ { i64a.begin() += hi.i; i64a.result() } ==== i64b.begin().append(hi.inArray, 0, hi.bytes).result()
+    T(title) ~ i64a.begin().result(hi.inBuffer) ==== f64.hash64(hi.inArray)
+    T(title) ~ i64a.begin().result(hi.inArray, 0, hi.bytes) ==== f64.hash64(hi.inBuffer)
+
+    T(title) ~ i64a.begin().appendLong(hl.l).result() ==== i64b.begin().append(hl.inBuffer).result()
+    T(title) ~ { i64a.begin() += hl.l; i64a.result() } ==== i64b.begin().append(hl.inArray, 0, hl.bytes).result()
+    T(title) ~ i64a.begin().result(hl.inBuffer) ==== f64.hash64(hl.inArray)
+    T(title) ~ i64a.begin().result(hl.inArray, 0, hl.bytes) ==== f64.hash64(hl.inBuffer)
+
+    T(title) ~ i64a.begin().appendInt(f2i(hf.f)).result() ==== i64b.begin().append(hf.inBuffer).result()
+    T(title) ~ { i64a.begin() += hf.f; i64a.result() } ==== i64b.begin().append(hf.inArray, 0, hf.bytes).result()
+    T(title) ~ i64a.begin().result(hf.inBuffer) ==== f64.hash64(hf.inArray)
+    T(title) ~ i64a.begin().result(hf.inArray, 0, hf.bytes) ==== f64.hash64(hf.inBuffer)
+
+    T(title) ~ i64a.begin().appendLong(d2l(hd.d)).result() ==== i64b.begin().append(hd.inBuffer).result()
+    T(title) ~ { i64a.begin() += hd.d; i64a.result() } ==== i64b.begin().append(hd.inArray, 0, hd.bytes).result()
+    T(title) ~ i64a.begin().result(hd.inBuffer) ==== f64.hash64(hd.inArray)
+    T(title) ~ i64a.begin().result(hd.inArray, 0, hd.bytes) ==== f64.hash64(hd.inBuffer)
+
+    T(title) ~ i64a.begin().result(hh.s, 0, hh.s.length) ==== hh.hashInto(i64b.begin()).result()
+    T(title) ~ i64a.begin().append(hh.s, 0, hh.s.length).result() ==== i64b.begin().append(hh.inBuffer).result()
+    T(title) ~ hh.hashInto(i64a.begin()).result() ==== i64b.begin().append(hh.inArray, 0, hh.bytes).result()
+    T(title) ~ i64a.begin().result(hh.inBuffer) ==== f64.hash64(hh.inArray)
+    T(title) ~ i64a.begin().result(hh.inArray, 0, hh.bytes) ==== f64.hash64(hh.inBuffer)
+    T(title) ~ hh.hashInto(i64a.begin()).result() ==== f64.hash64(hh.s)
+    T(title) ~ i64a.begin(81951752315L).result(hh.inBuffer) ==== f64.hash64(81951752315L, hh.s)
+
+    T(title) ~ i64a.begin().result(hr.ab, hr.i0, hr.iN) ==== hr.hashInto(i64b.begin()).result()
+    T(title) ~ i64a.begin().append(hr.ab, hr.i0, hr.iN).result() ==== i64b.begin().append(hr.inBuffer).result()
+    T(title) ~ hr.hashInto(i64a.begin()).result() ==== i64b.begin().append(hr.inArray, 0, hr.bytes).result()
+    T(title) ~ i64a.begin().result(hr.inBuffer) ==== f64.hash64(hr.inArray)
+    T(title) ~ i64a.begin().result(hr.inArray, 0, hr.bytes) ==== f64.hash64(hr.inBuffer)
+    T(title) ~ i64a.begin(4856718238451L).result(hr.inBuffer) ==== f64.hash64(4856718238451L, hr.ab, hr.i0, hr.iN)
+
+    T(title) ~ hq.hashInto(i64a.begin()).result() ==== i64b.begin().append(hq.inBuffer).result()
+    T(title) ~ hq.hashInto(i64a.begin()).result() ==== i64b.begin().append(hq.inArray, 0, hq.bytes).result()
+    T(title) ~ i64a.begin().result(hq.inBuffer) ==== f64.hash64(hq.inArray)
+    T(title) ~ i64a.begin().result(hq.inArray, 0, hq.bytes) ==== f64.hash64(hq.inBuffer)
+    T(title) ~ i64a.begin(998342571158L).result(hq.inBuffer) ==== f64.hash64(998342571158L, hq.inBuffer)
+
+    T(title) ~ hx.hashInto(i64a.begin()).result() ==== i64b.begin().append(hx.inBuffer).result()
+    T(title) ~ hx.hashInto(i64a.begin()).result() ==== i64b.begin().append(hx.inArray, 0, hx.bytes).result()
+    T(title) ~ i64a.begin().result(hx.inBuffer) ==== f64.hash64(hx.inArray)
+    T(title) ~ i64a.begin().result(hx.inArray, 0, hx.bytes) ==== f64.hash64(hx.inBuffer)
+
+    hx.hashInto(i64a.begin())
+    T(title) ~ hx.hashInto(i64a.copy).result() ==== hx.hashInto(i64a).result()
+
+
+  def hash128test(
+    h: (HZ, HB, HS, HC, HI, HL, HF, HD, Hstr, Harr, Hbb, Hiter),
+    title: String,
+    i128a: IncrementalHash[HashCode128, HashCode128],
+    i128b: IncrementalHash[HashCode128, HashCode128],
+    f128: FullHash128
+  ): Unit =
+    import java.lang.Float.{floatToRawIntBits => f2i}
+    import java.lang.Double.{doubleToRawLongBits => d2l}
+    val (hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx) = h
+
+    T(title) ~ i128a.begin().appendByte(if hz.z then 1 else 0).result() ==== i128b.begin().append(hz.inBuffer).result()
+    T(title) ~ { i128a.begin() += hz.z; i128a.result() } ==== i128b.begin().append(hz.inArray, 0, hz.bytes).result()
+    T(title) ~ i128a.begin().result(hz.inBuffer) ==== f128.hash128(hz.inArray)
+    T(title) ~ i128a.begin().result(hz.inArray, 0, hz.bytes) ==== f128.hash128(hz.inBuffer)
+
+    T(title) ~ i128a.begin().appendByte(hb.b).result() ==== i128b.begin().append(hb.inBuffer).result()
+    T(title) ~ { i128a.begin() += hb.b; i128a.result() } ==== i128b.begin().append(hb.inArray, 0, hb.bytes).result()
+    T(title) ~ i128a.begin().result(hb.inBuffer) ==== f128.hash128(hb.inArray)
+    T(title) ~ i128a.begin().result(hb.inArray, 0, hz.bytes) ==== f128.hash128(hb.inBuffer)
+
+    T(title) ~ i128a.begin().appendChar((hs.s & 0xFFFF).toChar).result() ==== i128b.begin().append(hs.inBuffer).result()
+    T(title) ~ { i128a.begin() += hs.s; i128a.result() } ==== i128b.begin().append(hs.inArray, 0, hs.bytes).result()
+    T(title) ~ i128a.begin().result(hs.inBuffer) ==== f128.hash128(hs.inArray)
+    T(title) ~ i128a.begin().result(hs.inArray, 0, hs.bytes) ==== f128.hash128(hs.inBuffer)
+
+    T(title) ~ i128a.begin().appendChar(hc.c).result() ==== i128b.begin().append(hc.inBuffer).result()
+    T(title) ~ { i128a.begin() += hc.c; i128a.result() } ==== i128b.begin().append(hc.inArray, 0, hc.bytes).result()
+    T(title) ~ i128a.begin().result(hc.inBuffer) ==== f128.hash128(hc.inArray)
+    T(title) ~ i128a.begin().result(hc.inArray, 0, hc.bytes) ==== f128.hash128(hc.inBuffer)
+
+    T(title) ~ i128a.begin().appendInt(hi.i).result() ==== i128b.begin().append(hi.inBuffer).result()
+    T(title) ~ { i128a.begin() += hi.i; i128a.result() } ==== i128b.begin().append(hi.inArray, 0, hi.bytes).result()
+    T(title) ~ i128a.begin().result(hi.inBuffer) ==== f128.hash128(hi.inArray)
+    T(title) ~ i128a.begin().result(hi.inArray, 0, hi.bytes) ==== f128.hash128(hi.inBuffer)
+
+    T(title) ~ i128a.begin().appendLong(hl.l).result() ==== i128b.begin().append(hl.inBuffer).result()
+    T(title) ~ { i128a.begin() += hl.l; i128a.result() } ==== i128b.begin().append(hl.inArray, 0, hl.bytes).result()
+    T(title) ~ i128a.begin().result(hl.inBuffer) ==== f128.hash128(hl.inArray)
+    T(title) ~ i128a.begin().result(hl.inArray, 0, hl.bytes) ==== f128.hash128(hl.inBuffer)
+
+    T(title) ~ i128a.begin().appendInt(f2i(hf.f)).result() ==== i128b.begin().append(hf.inBuffer).result()
+    T(title) ~ { i128a.begin() += hf.f; i128a.result() } ==== i128b.begin().append(hf.inArray, 0, hf.bytes).result()
+    T(title) ~ i128a.begin().result(hf.inBuffer) ==== f128.hash128(hf.inArray)
+    T(title) ~ i128a.begin().result(hf.inArray, 0, hf.bytes) ==== f128.hash128(hf.inBuffer)
+
+    T(title) ~ i128a.begin().appendLong(d2l(hd.d)).result() ==== i128b.begin().append(hd.inBuffer).result()
+    T(title) ~ { i128a.begin() += hd.d; i128a.result() } ==== i128b.begin().append(hd.inArray, 0, hd.bytes).result()
+    T(title) ~ i128a.begin().result(hd.inBuffer) ==== f128.hash128(hd.inArray)
+    T(title) ~ i128a.begin().result(hd.inArray, 0, hd.bytes) ==== f128.hash128(hd.inBuffer)
+
+    T(title) ~ i128a.begin().result(hh.s, 0, hh.s.length) ==== hh.hashInto(i128b.begin()).result()
+    T(title) ~ hh.hashInto(i128a.begin()).result() ==== i128b.begin().append(hh.inArray, 0, hh.bytes).result()
+    T(title) ~ i128a.begin().append(hh.s, 0, hh.s.length).result() ==== i128b.begin().append(hh.inBuffer).result()
+    T(title) ~ i128a.begin().result(hh.inBuffer) ==== f128.hash128(hh.inArray)
+    T(title) ~ i128a.begin().result(hh.inArray, 0, hh.bytes) ==== f128.hash128(hh.inBuffer)
+    T(title) ~ hh.hashInto(i128a.begin()).result() ==== f128.hash128(hh.s)
+    T(title) ~ i128a.begin(HashCode128(8197531982571L, 818758916852L)).result(hh.inBuffer) ==== f128.hash128(8197531982571L, 818758916852L, hh.s)
+
+    T(title) ~ i128a.begin().result(hr.ab, hr.i0, hr.iN) ==== hr.hashInto(i128b.begin()).result()
+    T(title) ~ i128a.begin().append(hr.ab, hr.i0, hr.iN).result() ==== i128b.begin().append(hr.inBuffer).result()
+    T(title) ~ hr.hashInto(i128a.begin()).result() ==== i128b.begin().append(hr.inArray, 0, hr.bytes).result()
+    T(title) ~ i128a.begin().result(hr.inBuffer) ==== f128.hash128(hr.inArray)
+    T(title) ~ i128a.begin().result(hr.inArray, 0, hr.bytes) ==== f128.hash128(hr.inBuffer)
+    T(title) ~ i128a.begin(HashCode128(18957L, 9581L)).result(hr.inArray, 0, hr.bytes) ==== f128.hash128(18957L, 9581L, hr.ab, hr.i0, hr.iN)
+
+    T(title) ~ hq.hashInto(i128a.begin()).result() ==== i128b.begin().append(hq.inBuffer).result()
+    T(title) ~ hq.hashInto(i128a.begin()).result() ==== i128b.begin().append(hq.inArray, 0, hq.bytes).result()
+    T(title) ~ i128a.begin().result(hq.inBuffer) ==== f128.hash128(hq.inArray)
+    T(title) ~ i128a.begin().result(hq.inArray, 0, hq.bytes) ==== f128.hash128(hq.inBuffer)
+    T(title) ~ i128a.begin(HashCode128(89247L, 8923467981375L)).result(hq.inBuffer) ==== f128.hash128(89247L, 8923467981375L, hq.inBuffer)
+
+    T(title) ~ hx.hashInto(i128a.begin()).result() ==== i128b.begin().append(hx.inBuffer).result()
+    T(title) ~ hx.hashInto(i128a.begin()).result() ==== i128b.begin().append(hx.inArray, 0, hx.bytes).result()
+    T(title) ~ i128a.begin().result(hx.inBuffer) ==== f128.hash128(hx.inArray)
+    T(title) ~ i128a.begin().result(hx.inArray, 0, hx.bytes) ==== f128.hash128(hx.inBuffer)
+
+    hx.hashInto(i128a.begin())
+    T(title) ~ hx.hashInto(i128a.copy).result() ==== hx.hashInto(i128a).result()
+
+
+  @Test
+  def hashTest(): Unit =
+    val r = Prng(812795113489L)
+
+    val x32a = new XxHash32
+    val x32b = MakeHasher.x32
+    val x64a = new XxHash64
+    val x64b = MakeHasher.x64
+    val m32a = new MurmurHash32
+    val m32b = MakeHasher.m32
+    val m128a = new MurmurHash128
+    val m128b = MakeHasher.m128
+    val s32a = new SumHash32
+    val s32b = MakeHasher.s32
+    val s64a = new SumHash64
+    val s64b = MakeHasher.s64
+    val o32a = new XorHash32
+    val o32b = MakeHasher.o32
+    val o64a = new XorHash64
+    val o64b = MakeHasher.o64
+
+    nFor(200) { n =>
+      def t(x: String) = s"Iteration $n of $x"
+
+      val hz = HZ(r.Z)
+      val hb = HB(r.B)
+      val hs = HS(r.S)
+      val hc = HC(r.C)
+      val hi = HI(r.I)
+      val hl = HL(r.L)
+      val hf = HF(r.F)
+      val hd = HD(r.D)
+
+      given Prng = r
+
+      val hh = Hstr(
+        4.roll match
+          case 1 => r webString 64.roll
+          case 2 => r textString 64.roll
+          case 3 => r asciiString 64.roll
+          case _ => r validString 64.roll
+      )
+      T ~ hh.inBuffer.array =**= hh.inArray
+
+      val hr = {
+        val a = r.arrayB(64.roll)
+        val i = r % a.length
+        val j = r % (1 + a.length - i)
+        Harr(a, i, j)
+      }
+      T ~ hr.inBuffer.array =**= hr.inArray
+
+      val hq = Hbb(ByteBuffer.wrap(r.arrayB(64.roll)).order(ByteOrder.LITTLE_ENDIAN))
+      T ~ hq.inBuffer.array =**= hq.inArray
+
+      val hx = randomHs(24.roll, 64)(r)
+      T ~ hx.inBuffer.array =**= hx.inArray
+
+      hash32test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("x32"), x32a, x32b, XxHash)
+      hash32test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("m32"), m32a, m32b, MurmurHash)
+      hash32test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("s32"), s32a, s32b, SumHash)
+      hash32test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("o32"), o32a, o32b, XorHash)
+
+      hash64test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("x64"), x64a, x64b, XxHash)
+      hash64test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("s64"), s64a, s64b, SumHash)
+      hash64test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("o64"), o64a, o64b, XorHash)
+
+      hash128test((hz, hb, hs, hc, hi, hl, hf, hd, hh, hr, hq, hx), t("m128"), m128a, m128b, MurmurHash)
+
+      T ~ { (hx.hashInto(x32a.begin()).result(), hx.hashInto(x64a.begin()).result()) } ==== hx.hashInto(PairHash.of(x32b, x64b)).result()
+      T ~ {
+        (hx.hashInto(x32a.begin()).result(), hx.hashInto(x64a.begin()).result(), hx.hashInto(m32a.begin()).result())
+      } ==== hx.hashInto(TrioHash.of(x32b, x64b, m32b)).result()
+      T ~ {
+        (
+          hx.hashInto(x32a.begin()).result(),
+          hx.hashInto(x64a.begin()).result(),
+          hx.hashInto(m32a.begin()).result(),
+          hx.hashInto(m128a.begin()).result()
+        )
+      } ==== hx.hashInto(QuadHash.of(x32b, x64b, m32b, m128b)).result()
+      T ~ hx.hashInto(x32a.begin(82351)).result() ==== hx.hashInto(PreseededHash.of(82351, x32b).begin()).result()
+    }
 }
 object MathsTest {
   // @BeforeClass

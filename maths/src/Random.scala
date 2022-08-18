@@ -453,10 +453,10 @@ sealed abstract class Prng {
 
 
   final def webString(n: Int): String =
-    stringFrom("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~", n)
+    stringFrom(Prng.WebCharacters, n)
 
   final def textString(n: Int): String =
-    stringFrom(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n", n)
+    stringFrom(Prng.TextCharacters, n)
 
   final def asciiString(n: Int): String =
     val sb = new java.lang.StringBuilder(math.max(0, n))
@@ -511,8 +511,8 @@ object Prng {
   def apply(): Prng = new Pcg64()
   def apply(seed: Long): Prng = new Pcg64(seed)
 
-  val WebCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~"   // Note--use literal to avoid object load
-  val TextCharacters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n"
+  inline val WebCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._~"
+  inline val TextCharacters = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\n"
 }
 
 sealed abstract class PrngState64 extends Prng {
@@ -618,7 +618,7 @@ extension [A <: AnyRef](a: Array[A])
   inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
 
 extension (i: Int)
-  inline def roll(r: Prng): Int = 1 + (r % i)
+  inline def roll(using r: Prng): Int = 1 + (r % i)
   inline def d(m: Int)(using r: Prng): Int =
     var sum = 0
     var j = 0
@@ -635,4 +635,4 @@ extension (i: Int)
     sum
 
 extension (l: Long)
-  inline def roll(r: Prng): Long = 1L + (r % l)
+  inline def roll(using r: Prng): Long = 1L + (r % l)

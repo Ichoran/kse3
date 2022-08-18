@@ -114,6 +114,8 @@ object TestUtilities {
   class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {
     import asr._
 
+    override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
+
     def =**=[D, J <: IsIterable[D]](d: => D)(using jj: J): Unit =
       var i = 0
       val ia = ii(value()).iterator
