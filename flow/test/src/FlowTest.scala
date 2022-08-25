@@ -198,7 +198,7 @@ class FlowTest {
     val ad = Array[Double](0.01, 0.03, 0.05, 0.07, 0.09)
     var sumad = 0.0
     aFor(ad)((d, i) => sumad += d*(i+1))
-    T("double aFor") ~ sumad =~~= 9.5
+    T("double aFor") ~ sumad =~~= 0.95
 
     val aa = Array[Option[String]](None, Some("cod"), Some("salmon"))
     val sumaa = new StringBuilder

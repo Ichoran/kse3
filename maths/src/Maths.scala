@@ -48,9 +48,11 @@ object NumericConstants {
 }
 
 object NumericFunctions {
-  inline def log2(d: Double) = jm.log(d) * NumericConstants.OverLnTwo
+  import NumericConstants._
 
-  def entropy(d: Double) = if (d == 0) 0 else d * jm.log(d) * NumericConstants.NegOverLnTwo
+  inline def log2(d: Double) = jm.log(d) * OverLnTwo
+
+  def entropy(d: Double) = if (d == 0) 0 else d * jm.log(d) * NegOverLnTwo
 
   // Functions useful in computing statistical distributions
   // Gamma functions and their ilk (including complete beta)
@@ -92,36 +94,30 @@ object NumericFunctions {
   final def lnGamma(z: Double): Double = lanczosLogGTerm(z) + jm.log(lanczosApproximationRatio(z))
 
   // Takes ~15-30 ns for integer z <= 21, 20-70 ns for integer 22 <= z <= 60, 110 ns for real z > 0, 210 ns for z < 0  (3.33GHz Intel Xeon X5680)
-  final def gamma(z: Double): Double = {
-    if (z > 0) {
-      if (z <= 60.5 && jm.abs(z-jm.rint(z)) < 100*jm.ulp(z)) {
+  final def gamma(z: Double): Double =
+    if z > 0 then
+      if z <= 60.5 && jm.abs(z-jm.rint(z)) < 100*jm.ulp(z) then
         val n = jm.round(z).toInt
-        if (n <= 21) {
+        if n <= 21 then
           var p = 1L
           var i = 2
-          while (i < n) {
+          while i < n do
             p *= i
             i += 1
-          }
           p.toDouble
-        }
-        else {
-          var q = NumericConstants.GammaTwentyTwo
+        else
+          var q = GammaTwentyTwo
           var i = 23
-          while (i < n) {
+          while i < n do
             q *= i
             i += 1
-          }
           q
-        }
-      }
       else jm.exp(lanczosLogGTerm(z))*lanczosApproximationRatio(z)
-    }
-    else {
+    else
+      // Reflection formula, Gamma(z)*Gamma(1-z) = pi / sin(pi * z)
       val d = jm.sin(jm.PI * z)
-      if (d==0) Double.NaN else -jm.PI/(z*d*jm.exp(lanczosLogGTerm(1-z))*lanczosApproximationRatio(1-z))
-    }
-  }
+      if d == 0 then Double.NaN
+      else jm.PI / (d * jm.exp(lanczosLogGTerm(1-z)) * lanczosApproximationRatio(1-z))
 
   final def lnGammaRat(z: Double, w: Double): Double = 
     lanczosLogGTerm(z) - lanczosLogGTerm(w) + jm.log(lanczosApproximationRatio(z)/lanczosApproximationRatio(w))
@@ -131,43 +127,43 @@ object NumericFunctions {
 
   // lnBeta is lnGamma(a) + lnGamma(b) - lnGamma(a+b) but we'll take it apart to calculate more efficiently
   // Takes ~150 ns on a 3.33GHz Intel Xeon X5680
-  final def lnBeta(a: Double, b: Double): Double = if (a < b) lnBeta(b,a) else if (a <= 0 || b <= 0) Double.NaN else {
-    val c = a+b
-    lanczosLogGTerm(a) + lanczosLogGTerm(b) - lanczosLogGTerm(c) + 
-    log(lanczosApproximationRatio(a)*lanczosApproximationRatio(b)/lanczosApproximationRatio(c))
-  }
+  final def lnBeta(a: Double, b: Double): Double =
+    if a < b then lnBeta(b, a)
+    else if a <= 0 || b <= 0 then Double.NaN
+    else
+      val c = a+b
+      lanczosLogGTerm(a) + lanczosLogGTerm(b) - lanczosLogGTerm(c) 
+      + log(lanczosApproximationRatio(a)*lanczosApproximationRatio(b)/lanczosApproximationRatio(c))
 
-  // beta is gamma(a+b)/(gamma(a)*gamma(b)) but we'll take it apart to calculate more efficiently
+  // beta is gamma(a)gamma(b)/gamma(a+b) but we'll take it apart to calculate more efficiently
   // Takes 40-110 ns for small integer a,b, 200 ns for general case (large integer or real) (3.33GHz Intel Xeon X5680)
-  final def beta(a: Double, b: Double): Double = if (a < b) beta(b,a) else if (a <= 0 || b <= 0) Double.NaN else {
-    val c = a+b
-    if (b < 40.5 && c < 1024.5 && jm.abs(a-jm.rint(a)) + jm.abs(b-jm.rint(b)) < 100*jm.ulp(c)) {
-      var n = jm.round(c).toInt
-      var m = jm.round(b).toInt
-      var p = 1.0
-      var q = 1.0
-      while (m >= 1) {
-        p *= n
-        q *= m
-        m -= 1
-        n -= 1
-      }
-      q/p
-    }
-    else {
-      jm.exp(lanczosLogGTerm(a)*lanczosLogGTerm(b)/lanczosLogGTerm(c)) *
-      lanczosApproximationRatio(a)*lanczosApproximationRatio(b)/lanczosApproximationRatio(c)
-    }
-  }
-
+  final def beta(a: Double, b: Double): Double =
+    if a < b then beta(b, a)
+    else if a <= 0 || b <= 0 then Double.NaN
+    else
+      val c = a+b
+      if b < 40.5 && c < 1024.5 && jm.abs(a-jm.rint(a)) + jm.abs(b-jm.rint(b)) < 100*jm.ulp(c) then
+        var n = jm.round(c).toInt - 1
+        var m = jm.round(b).toInt - 1
+        var p = 1.0
+        var q = 1.0
+        while m >= 1 do
+          p *= n
+          q *= m
+          m -= 1
+          n -= 1
+        q/(p * n)
+      else
+        jm.exp(lanczosLogGTerm(a) + lanczosLogGTerm(b) - lanczosLogGTerm(c))
+        * lanczosApproximationRatio(a)*lanczosApproximationRatio(b)/lanczosApproximationRatio(c)
 
   // Reasonably high-quality error/inverse error functions for general use
   // Based on Applied Statistics 37:477-484 (1988), alg. AS241
   // Takes ~45 ns on a 3.33 GHz Intel Xeon X5680
-  def icdfNormal(p: Double) = {
+  def icdfNormal(p: Double): Double =
     val h = p-0.5
     val x = 0.180625 - h*h
-    if (x>=0) {
+    if x >= 0 then
       h*
       (((((((2.5090809287301226727e3*x + 3.3430575583588128105e4
             )*x + 6.7265770927008700853e4
@@ -185,12 +181,13 @@ object NumericFunctions {
         )*x + 4.2313330701600911252e1
        )*x + 1.0e0
       )
-    }
-    else {
-      val hh = (if (h<=0) -1.0 else 1.0)
-      val y = (if (h<=0) p else 1.0-p)
+    else
+      val hh = if h <= 0 then -1.0 else 1.0
+      val y = 
+        if h <= 0 then { if p == 0 then return Double.NegativeInfinity; p }
+        else           { if p == 1 then return Double.PositiveInfinity; 1.0-p }
       val z = jm.sqrt(-jm.log(y))
-      if (z<=5.0) {
+      if z <= 5.0 then
         val x = z - 1.6
         hh*
         (((((((7.74545014278341407640e-4*x + 2.27238449892691845833e-2
@@ -209,8 +206,7 @@ object NumericFunctions {
           )*x + 2.05319162663775882187e0
          )*x + 1.0
         )
-      }
-      else {
+      else
         val x = z - 5.0
         hh*
         (((((((2.01033439929228813265e-7*x + 2.71155556874348757815e-5
@@ -228,242 +224,234 @@ object NumericFunctions {
            )*x + 1.36929880922735805310e-1
           )*x + 5.99832206555887937690e-1
          )*x + 1.0
-        );
-      }
-    }
-  }
+        )
 
-  inline def erfInv(x: Double) = NumericConstants.OverSqrtTwo * icdfNormal(0.5+0.5*x)
+  inline def erfInv(x: Double) = OverSqrtTwo * icdfNormal(0.5+0.5*x)
 
-  inline def erfcInv(x: Double) = NumericConstants.OverSqrtTwo * icdfNormal(1.0-0.5*x)
+  inline def erfcInv(x: Double) = OverSqrtTwo * icdfNormal(1.0-0.5*x)
 
   // Piecewise rational function approximation of CDF for Normal distribution (courtesy of Mathematica 7)
   // Should be full double precision
   // Takes ~100ns on a 3.33 GHz Intel Xeon X5680 for moderate values
-  def cdfNormal(y: Double) = {
-    if (y > 8.3) 1.0 else if (y < - 38.5) 0.0 else {
-      val x = if (y<0) -y else y
-      val f = {
-        if (x < 3) jm.exp(
-          -0.5*x*x -
-          (((((((-3.6271830621274548308e-6*x - 6.2054577195631746255e-5
-                )*x + 0.0020555154846807655013
-               )*x + 0.032099345474574417685
-              )*x + 0.21504119632351847003
-             )*x + 0.73055326515392090713
-            )*x + 1.3812898842892215850
-           )*x + 0.69314718055994526146
-          ) /
-          (((((((-5.8186829446354815108e-7*x - 2.2135273033157240657e-5
-                )*x + 3.6576165145176352643e-4
-               )*x + 0.0094667294072793799548
-              )*x + 0.078740088812851505927
-             )*x + 0.34723234319509102797
-            )*x + 0.84167596702197143827
-           )*x + 1.0
+  def cdfNormal(y: Double) =
+    if y > 8.3 then 1.0
+    else if y < -38.5 then 0.0
+    else
+      val x = if y < 0 then -y else y
+      val f =
+        if x < 3 then
+          jm.exp(
+            -0.5*x*x -
+            (((((((-3.6271830621274548308e-6*x - 6.2054577195631746255e-5
+                  )*x + 0.0020555154846807655013
+                 )*x + 0.032099345474574417685
+                )*x + 0.21504119632351847003
+               )*x + 0.73055326515392090713
+              )*x + 1.3812898842892215850
+             )*x + 0.69314718055994526146
+            ) /
+            (((((((-5.8186829446354815108e-7*x - 2.2135273033157240657e-5
+                  )*x + 3.6576165145176352643e-4
+                 )*x + 0.0094667294072793799548
+                )*x + 0.078740088812851505927
+               )*x + 0.34723234319509102797
+              )*x + 0.84167596702197143827
+             )*x + 1.0
+            )
           )
-        )
-        else if (x < 16) (jm.exp( -0.5*x*x ) *
-          ((((((0.00118089255719362346624*x + 0.0136334301130162766315
-               )*x + 0.086474160844062169269
-              )*x + 0.33993667920309143168
-             )*x + 0.86339167691367313008
-            )*x + 1.3345326346191572297
-           )*x + 1
-          ) /
-          (((((((0.0029600586715196076372*x + 0.034173941597530707646
-                )*x + 0.21971862448906668587
-               )*x + 0.88626919617829879773
-              )*x + 2.3750320592403537542
-             )*x + 4.1290652702771203918
-            )*x + 4.2651316245967753927
-           )*x + 1.9999244808870340017
-          )
-        )
-        else {
-          val f0 = jm.exp(-0.5*x*x) * NumericConstants.OverSqrtTwoPi
+        else if x < 16 then
+          (jm.exp( -0.5*x*x )
+          * ((((((0.00118089255719362346624*x + 0.0136334301130162766315
+                   )*x + 0.086474160844062169269
+                  )*x + 0.33993667920309143168
+                 )*x + 0.86339167691367313008
+                )*x + 1.3345326346191572297
+               )*x + 1
+              ) /
+              (((((((0.0029600586715196076372*x + 0.034173941597530707646
+                    )*x + 0.21971862448906668587
+                   )*x + 0.88626919617829879773
+                  )*x + 2.3750320592403537542
+                 )*x + 4.1290652702771203918
+                )*x + 4.2651316245967753927
+               )*x + 1.9999244808870340017
+              )
+            )
+        else
+          val f0 = jm.exp(-0.5*x*x) * OverSqrtTwoPi
           val z = 1/(x*x)
           var g, sum = 1/x
           var i = -1
-          while (i >= -20) { g *= i*z; sum += g; i -= 2 }
+          while i >= -20 do
+            g *= i * z
+            sum += g
+            i -= 2
           f0 * sum
-        }
-      }
-      if (y>0) 1.0-f else f
-    }
-  }
+      if y > 0 then 1.0 - f else f
 
-  inline def erf(x: Double) = 2.0*cdfNormal(NumericConstants.SqrtTwo * x) - 1.0
 
-  inline def erfc(x: Double) = -2.0*cdfNormal(-NumericConstants.SqrtTwo * x)
+  inline def erf(x: Double) = 2.0*cdfNormal(SqrtTwo * x) - 1.0
+
+  inline def erfc(x: Double) = 2.0 - 2.0*cdfNormal(SqrtTwo * x)
 
 
   @annotation.tailrec
-  private def nestCosS(n: Int, ib: Double, x: Double): Double = if (n<4) x else nestCosS(n-2, ib, 1 + (x*ib*(n-3))/(n-2))
+  private def nestCosS(n: Int, ib: Double, x: Double): Double =
+    if n < 4 then x
+    else nestCosS(n-2, ib, 1 + (x*ib*(n-3))/(n-2))
 
   // Student's T test distribution functions (special case of incomplete regularized beta)
   // Approximations from Hill, Comm. ACM, Algorithm 395 & 396, v13 pp 617-620 (1970)
   // Takes no more than about 180 ns on a 3.33 GHz Intel Xeon X5680 (df = 18)
-  def cdfStudentT(df: Long, t0: Double): Double = {
+  def cdfStudentT(df: Long, t0: Double): Double =
     val t = jm.abs(t0)
-    val p = {
-      if (df == 1) 0.5*(1 - NumericConstants.TwoOverPi * jm.atan(t))
-      else {
+    val p =
+      if df == 1 then
+        0.5*(1 - TwoOverPi * jm.atan(t))
+      else
         val y = t*t/df
-        if (df >= 20) {
+        if df >= 20 then
           val dg = df - 0.5
           val b = 48*dg*dg
-          val z = if (y > 1e-6) dg * jm.log(1+y) else dg * y
+          val z = if y > 1e-6 then dg * jm.log(1+y) else dg * y
           cdfNormal( -jm.sqrt(z)*(((((-0.4*z - 3.3)*z - 24.0)*z - 85.5)/(0.8*z*z+100+b) + z + 3)/b + 1) )
-        }
-        else {
+        else
           val iy1 = 1/(1+y)
-          val cs = if (df < 4) 1.0 else nestCosS(df.toInt, iy1, 1.0)
-          val q2 = if ((df & 1) == 0) jm.sqrt(y/(1+y))*cs else { var yrt = jm.sqrt(y); NumericConstants.TwoOverPi*(jm.atan(yrt) + yrt*iy1*cs) }
+          val cs = if df < 4 then 1.0 else nestCosS(df.toInt, iy1, 1.0)
+          val q2 =
+            if (df & 1) == 0 then jm.sqrt(y/(1+y))*cs
+            else
+              var yrt = jm.sqrt(y)
+              TwoOverPi*(jm.atan(yrt) + yrt*iy1*cs)
           0.5*jm.max(0 , 1 - q2)
-        }
-      }
-    }
-    if (t0 < 0) p else 1-p
-  }
+    if t0 < 0 then p else 1-p
 
   // Takes about 350 ns on a 3.33 GHz Intel Xeon X5680 (df = 12)
-  def icdfStudentT(df: Long, p0: Double): Double = {
-    val p = if (p0 > 0.5) 2*(1-p0) else 2*p0
-    val t = {
-      if (df < 2) 1.0/jm.tan(p * NumericConstants.PiOverTwo)
-      else if (df == 2) jm.sqrt(2/(p*(2-p)) - 2)
-      else {
+  def icdfStudentT(df: Long, p0: Double): Double =
+    val p = if p0 > 0.5 then 2*(1 - p0) else 2*p0
+    val t =
+      if df < 2 then
+        1.0/jm.tan(p * PiOverTwo)
+      else if df == 2 then
+        jm.sqrt(2/(p*(2-p)) - 2)
+      else
         val dg = df - 0.5
         val idg = 1/dg
         val b = 48*dg*dg
         val ib = 1/b
         val c = ((20700*idg*ib - 98)*idg-16)*idg + 96.36
-        val d = ((94.5/(b+c)-3)*ib+1)*jm.sqrt(idg * NumericConstants.PiOverTwo)*df
+        val d = ((94.5/(b+c)-3)*ib+1)*jm.sqrt(idg * PiOverTwo)*df
         val y = jm.pow(d*p, 2.0/df)
-        val z = {
-          if (y > 0.05 + idg) {
+        val z =
+          if y > 0.05 + idg then
             val in = icdfNormal(p*0.5)
             val insq = in*in
-            val e = if (df < 5) c + 0.3*(df - 4.5)*(in+0.6) else c
+            val e = if df < 5 then c + 0.3*(df - 4.5)*(in+0.6) else c
             val f = (((0.05*d*in-5)*in-7)*in-2)*in + b + e
             val g = (((((0.4*insq + 6.3)*insq + 36)*insq + 94.5)/f - insq - 3)*ib + 1)*in
             val h = idg*g*g
-            (if (h > 0.002) exp(h)-1 else 0.5*h*h+h)
-          }
+            if h > 0.002 then exp(h) - 1 else 0.5*h*h + h
           else ((1/(((df + 6)/(df*y) - 0.089*d - 0.822)*(df+2)*3) + 0.5/(df+4))*y-1)*(df+1)/(df+2.0) + 1/y
-        }
         jm.sqrt(df*z)
-      }
-    }
-    if (p0>0.5) t else -t
-  }
+    if p0 > 0.5 then t else -t
 
   // Regularized incomplete gamma functions and chi squared distributions
   // $\gamma (s,x) = \frac{1}{\Gamma (s)} \cdot \int_{0}^{x} t^{s-1} e^{-t} dt$
   // Using standard form found in Cuyt & Peterson's "Handbook of Continued Fractions for Special Functions"
   // unless x is small so the series form should do better.  Assumes s>0,x>0.
   // A better split could be found for s,x >> 1000
-  private final def igammaLowerTaylorTerm(s: Double, x: Double): Double = {
+  private final def igammaLowerTaylorTerm(s: Double, x: Double): Double =
     var taylor = 1.0/s;
     var sum = taylor;
     var denom = 1.0+s
-    while (taylor > 100*ulp(sum)) {
+    while taylor > 100*ulp(sum) do
       taylor *= x/denom
       sum += taylor
       denom += 1.0
-    }
     sum
-  }
 
-  private final def igammaUpperContFracTerm(s: Double, x: Double): Double = {
-    import NumericConstants._
+  private final def igammaUpperContFracTerm(s: Double, x: Double): Double =
     var cont = x + 1.0 - s
     var lentzC = OverSqrtTiniestDouble
-    var lentzD = (if (jm.abs(cont) < SqrtTiniestDouble) OverSqrtTiniestDouble else 1.0/cont)
+    var lentzD = if jm.abs(cont) < SqrtTiniestDouble then OverSqrtTiniestDouble else 1.0/cont
     var factor = 2.0
     var prod = lentzD
     var i = 1
-    while (jm.abs(factor-1) > EpsDouble100x) {
+    while jm.abs(factor-1) > EpsDouble100x do
       val a = i*(s-i)
       cont += 2.0
       lentzC = cont + a/lentzC
-      if (jm.abs(lentzC) < SqrtTiniestDouble) lentzC = SqrtTiniestDouble * jm.signum(lentzC)
+      if jm.abs(lentzC) < SqrtTiniestDouble then lentzC = SqrtTiniestDouble * jm.signum(lentzC)
       lentzD = cont + a*lentzD
-      if (jm.abs(lentzD) < SqrtTiniestDouble) lentzD = OverSqrtTiniestDouble * jm.signum(lentzD) else lentzD = 1.0/lentzD
+      if jm.abs(lentzD) < SqrtTiniestDouble then lentzD = OverSqrtTiniestDouble * jm.signum(lentzD) else lentzD = 1.0/lentzD
       factor = lentzC*lentzD
       prod *= factor
       i += 1
-    }
     prod
-  }
 
   private final def igammaRegShapeApprox(s: Double, x: Double) = exp(-x + s*log(x) - lnGamma(s))
 
   // Takes about 300 ns on a 3.33 GHz Intel Xeon X5680
-  def igammaRegL(s: Double, x: Double) =
-    if (x < s+1) igammaLowerTaylorTerm(s,x)*igammaRegShapeApprox(s,x)
-    else 1.0 - igammaUpperContFracTerm(s,x)*igammaRegShapeApprox(s,x)
+  def regularizedLowerIncompleteGamma(s: Double, x: Double) =
+    if x < s+1 then igammaLowerTaylorTerm(s, x) * igammaRegShapeApprox(s, x)
+    else 1.0 - igammaUpperContFracTerm(s, x) * igammaRegShapeApprox(s, x)
 
   // Takes about 300 ns on a 3.33 GHz Intel Xeon X5680
-  def igammaRegU(s: Double, x: Double) =
-    if (x < s+1) 1.0 - igammaLowerTaylorTerm(s,x)*igammaRegShapeApprox(s,x)
-    else igammaUpperContFracTerm(s,x)*igammaRegShapeApprox(s,x)
+  def regularizedUpperIncompleteGamma(s: Double, x: Double) =
+    if x < s+1 then 1.0 - igammaLowerTaylorTerm(s, x) * igammaRegShapeApprox(s, x)
+    else igammaUpperContFracTerm(s, x) * igammaRegShapeApprox(s, x)
 
-  // Runtime equal to igammaRegL
-  inline def cdfChiSq(df: Double, chisq: Double) = igammaRegL(0.5*df, 0.5*chisq)
+  // Runtime equal to regularizedLowerIncompleteGamma
+  inline def cdfChiSq(df: Double, chisq: Double) = regularizedLowerIncompleteGamma(0.5*df, 0.5*chisq)
 
 
   // Incomplete beta functions and F distribution based on DiDonato & Morris, ACM Trans Math Soft v18 pp360-373 (1992)
   // Additional inspiration taken from bratio.f90 by DD & M, and Boost 1.53 implementation and documentation also based on DD & M
-  private def ddmMethodBPSER(a: Double, b: Double, x: Double) = {
+  private def ddmMethodBPSER(a: Double, b: Double, x: Double) =
     var nu = a
     var de = 1.0
-    var term = NumericConstants.EpsDouble100x
+    var term = EpsDouble100x
     var sum = 1.0
     var j = 0
-    while (jm.abs(term) >= sum * NumericConstants.EpsDouble100x) {
+    while jm.abs(term) >= sum * EpsDouble100x do
       j += 1
       nu *= (j-b)*x
       de *= j
       term = nu/(de*(a+j))
       sum += term
-    }
-    exp(a * log(x) - lnBeta(a, b))*sum/a
-  }
-  private def ddmMethodBUP(a: Double, b: Double, x: Double, n: Int) = {
+    exp(a * log(x) - lnBeta(a, b)) * sum / a
+  
+  private def ddmMethodBUP(a: Double, b: Double, x: Double, n: Int) =
     var term = jm.exp(a*log(x) + b*log(1-x) - lnBeta(a,b))/a
     var sum = term
     var j = 1
     val ab1 = a+b-1
-    val earliable = (if (b <= 1) 1 else jm.ceil((b-1)*x/(1-x) - a).toInt)
-    while (j < n && (j <= earliable || sum * NumericConstants.EpsDouble100x < term)) {
+    val earliable = if b <= 1 then 1 else jm.ceil((b-1)*x/(1-x) - a).toInt
+    while j < n && (j <= earliable || sum * EpsDouble100x < term) do
       term *= (ab1+j)*x/(a+j)
       sum += term
       j += 1
-    }
     sum
-  }
 
   // Only gives about 9 digits accuracy
-  private def ddmMethodBGRAT(a: Double, b: Double, x: Double, w: Double = 0.0) = {
+  private def ddmMethodBGRAT(a: Double, b: Double, x: Double, w: Double = 0.0) =
     val t = a + 0.5*(b-1)
     val lx = jm.log(x)
     val u = -t*lx
     val lh = -u + b*jm.log(u) - lnGamma(b)
     val m = jm.exp(lh - b*jm.log(t) + lnGammaRat(a+b,a))
-    val ew = jm.abs(w/m)*NumericConstants.EpsDouble100x
+    val ew = jm.abs(w/m)*EpsDouble100x
     var p = new Array[Double](8); p(0) = 1
     val i4tsq = 1/(4*t*t)
     val lx2sq = 0.25*lx*lx
-    var j = igammaRegU(b, u)*exp(-lh)
+    var j = regularizedUpperIncompleteGamma(b, u)*exp(-lh)
     var term = j
     var sum = term
     var n = 0
     val ub = u + b
     var q = b-1
     var g = 1.0
-    while (jm.max(ew, sum*NumericConstants.EpsDouble100x) < jm.abs(term)) {
+    while jm.max(ew, sum*EpsDouble100x) < jm.abs(term) do
       j = i4tsq*(g*(ub+(2*n+1)) + (b+2*n)*(b+2*n+1)*j)
       g *= lx2sq
       n += 1
@@ -471,20 +459,17 @@ object NumericFunctions {
       var m = 1
       var s = 0.0
       var r = 1.0
-      while (m < n) {
+      while m < n do
         r *= (m*b-n)/(2*m*(2*m+1))
         s += r*p(n-m)
         m += 1
-      }
-      if (n >= p.length) { val pp = new Array[Double](p.length*2); System.arraycopy(p,0,pp,0,p.length); p = pp }
+      if n >= p.length then p = java.util.Arrays.copyOf(p, p.length*2)
       p(n) = q + s/n
       term = p(n)*j
       sum += term
-    }
     m * sum
-  }
 
-  private def ddmMethodBFRAC(a: Double, b: Double, x: Double) = {
+  private def ddmMethodBFRAC(a: Double, b: Double, x: Double) =
     val lam1 = 1 + a - (a+b)*x
     val ia = 1/a
     var p = 1.0
@@ -494,13 +479,13 @@ object NumericFunctions {
     var bn1 = lam1/(1 + ia)
     var r = (1 + ia)/lam1
     var n = 1
-    while (n != 0) {
+    while n != 0 do
       val w = n*(b - n)*x
       val ia2n1 = 1/(a + (2*n - 1))
       val e = a*ia2n1
       val alph = (p*(p + b*ia)*e*e)*(w*x)
-      if (alph <= 0) n = 0
-      else {
+      if alph <= 0 then n = 0
+      else
         p = 1 + n*ia
         val bet = n + w*ia2n1 + (p/(1+ia*(2*n+1)))*(lam1 + n*(2 - x))
         val aa = alph*an + bet*an1; an = an1; an1 = aa
@@ -508,103 +493,217 @@ object NumericFunctions {
         val r0 = r
         val ibn1 = 1/bn1
         r = an1*ibn1
-        if (jm.abs(r-r0) <= NumericConstants.EpsDouble100x*r) n = 0
-        else {
+        if jm.abs(r - r0) <= EpsDouble100x * r then n = 0
+        else
           an *= ibn1
           an1 = r
           bn *= ibn1
           bn1 = 1
           n += 1
-        }
-      }
-    }
     r * jm.exp(a*jm.log(x) + b*jm.log(1-x) - lnBeta(a,b))
-  }
 
   // Incomplete regularized beta.  At least 9 digits of accuracy almost everywhere.
   // ~1000 ns for most values, except for large a,b with x near a/(a+b), which takes ~2000*log10((a+b)/1000) ns (all on a 3.33 GHz Intel Xeon X5680)
-  def ibetaReg(a: Double, b: Double)(x: Double): Double = {
-    if (a <= 0 || b <= 0) return Double.NaN
+  def regularizedIncompleteBeta(a: Double, b: Double)(x: Double): Double =
+    if a <= 0 || b <= 0 then return Double.NaN
     val y = 1-x
-    if (x <= 0 || y <= 0) return (if (jm.min(x,y) > -NumericConstants.EpsDouble100x) { if (x < 0.5) 0 else 1 } else Double.NaN)
+    if x <= 0 || y <= 0 then
+      return if jm.min(x,y) > -EpsDouble100x then (if x < 0.5 then 0 else 1) else Double.NaN
     val abm = jm.min(a, b)
     val abM = jm.max(a, b)
-    if (abm < 1) {
-      if (x > 0.5) 1 - ibetaReg(b, a)(1-x)
-      else if (abM <= 1) {
-        if (a >= jm.min(0.2,b) || (a*jm.log(x) <= -0.1053605156578263 /* log(0.9) */)) ddmMethodBPSER(a, b, x)
-        else if (x >= 0.3) 1 - ddmMethodBPSER(b, a, 1-x)
-        else { val w = ddmMethodBUP(b, a, 1-x, 20); 1 - (w + ddmMethodBGRAT(b + 20, a, 1-x, w)) }
-      }
-      else if (b <= 1) ddmMethodBPSER(a, b, x)
-      else {
-        if (x >= 0.3) 1 - ddmMethodBPSER(b, a, 1-x)
-        else if (x < 0.1 && a*jm.log(x*b) <= -0.35667494393873238 /* log(0.7) */) ddmMethodBPSER(a, b, x)
-        else { val (n,w) = (if (b<=15) (20, ddmMethodBUP(b, a, 1-x, 20)) else (0, 0.0)); 1 - (w + ddmMethodBGRAT(b + n, a, 1-x, w)) }
-      }
-    }
-    else if (x*(a+b) > a) 1 - ibetaReg(b, a)(1-x)
-    else if (b >= 40) ddmMethodBFRAC(a, b, x)
-    else {
+    if abm < 1 then
+      if x > 0.5 then 1 - regularizedIncompleteBeta(b, a)(1-x)
+      else if abM <= 1 then
+        if a >= jm.min(0.2,b) || (a*jm.log(x) <= -0.1053605156578263 /* log(0.9) */) then ddmMethodBPSER(a, b, x)
+        else if x >= 0.3 then 1 - ddmMethodBPSER(b, a, 1-x)
+        else
+          val w = ddmMethodBUP(b, a, 1-x, 20)
+          1 - (w + ddmMethodBGRAT(b + 20, a, 1-x, w))
+      else if b <= 1 then ddmMethodBPSER(a, b, x)
+      else
+        if x >= 0.3 then 1 - ddmMethodBPSER(b, a, 1-x)
+        else if x < 0.1 && a*jm.log(x*b) <= -0.35667494393873238 /* log(0.7) */ then ddmMethodBPSER(a, b, x)
+        else
+          val n = if b <= 15 then 20                          else 0
+          val w = if b <= 15 then ddmMethodBUP(b, a, 1-x, 20) else 0.0
+          1 - (w + ddmMethodBGRAT(b + n, a, 1-x, w))
+    else if x*(a+b) > a then 1 - regularizedIncompleteBeta(b, a)(1-x)
+    else if b >= 40 then ddmMethodBFRAC(a, b, x)
+    else
       val m = jm.ceil(b).toInt - 1
-      if (b*x < 0.7) ddmMethodBPSER(a, b, x)
-      else if (x <= 0.7) ddmMethodBUP(b-m, a, 1-x, m) + ddmMethodBPSER(a, b-m, x)
-      else {
+      if b*x < 0.7 then ddmMethodBPSER(a, b, x)
+      else if x <= 0.7 then ddmMethodBUP(b-m, a, 1-x, m) + ddmMethodBPSER(a, b-m, x)
+      else
         val w = ddmMethodBUP(b-m, a, 1-x, m)
-        val (n,v) = (if (a<=15) (20, ddmMethodBUP(a, b-m, x,20)) else (0, 0.0))
+        val n = if a <= 15 then 20                         else 0
+        val v = if a <= 15 then ddmMethodBUP(a, b-m, x,20) else 0.0
         w + v + ddmMethodBGRAT(a+n, b-m, x, w+v)
-      }
-    }
-  }
 
   // F distribution from  incomplete regularized beta
-  def cdfFDistribution(F: Double)(n: Int, m: Int) = ibetaReg(0.5*n, 0.5*m)(n*F/(n*F+m))
+  def cdfFDist(n: Int, m: Int)(f: Double) = regularizedIncompleteBeta(0.5*n, 0.5*m)(n*f/(n*f+m))
 }
 
-
-extension (z: Boolean) {
-  inline def <==(inline c: Boolean) = z || !c
-  inline def ==>(inline c: Boolean) = !z || c
-}
 
 extension (b: Byte) {
-  inline def clamp(lo: Byte, hi: Byte) = if (lo <= b & b <= hi) b else if (b < lo & lo <= hi) lo else hi
+  inline def clamp(lo: Byte, hi: Byte) =
+    if lo <= b then
+      if b <= hi then b
+      else if lo <= hi then hi
+      else lo
+    else lo
   inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
   inline def toUInt: Int = b & 0xFF
-  final def hex: String =
+  inline def toULong: Long = b & 0xFFL
+  final def hiHex: String =
     val ans = new Array[Char](2)
     var v = b & 0xFF
     var i = 1
-    while (i >= 0) {
+    while i >= 0 do
       val digit = v & 0xF
       ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
       v = v >>> 4
       i -= 1
-    }
     new String(ans)
+  final def loHex: String =
+    val ans = new Array[Char](2)
+    var v = b & 0xFF
+    var i = 1
+    while i >= 0 do
+      val digit = v & 0xF
+      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
+      v = v >>> 4
+      i -= 1
+    new String(ans)
+  inline def hex: String = hiHex
 }
 
 extension (s: Short) {
-  inline def clamp(lo: Short, hi: Short) = if (lo <= s & s <= hi) s else if (s < lo & lo <= hi) lo else hi
+  inline def clamp(lo: Short, hi: Short) =
+    if lo <= s then
+      if s <= hi then s
+      else if lo <= hi then hi
+      else lo
+    else lo
   inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
   inline def toUInt: Int = s & 0xFFFF
+  inline def toULong: Long = s & 0xFFFFL
+  final def hiHex: String =
+    val ans = new Array[Char](4)
+    var v = s & 0xFFFF
+    var i = 3
+    while i >= 0 do
+      val digit = v & 0xF
+      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
+      v = v >>> 4
+      i -= 1
+    new String(ans)
+  final def loHex: String =
+    val ans = new Array[Char](4)
+    var v = s & 0xFFFF
+    var i = 3
+    while i >= 0 do
+      val digit = v & 0xF
+      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
+      v = v >>> 4
+      i -= 1
+    new String(ans)
+  inline def hex: String = hiHex
 }
 
 extension (c: Char) {
-  inline def clamp(lo: Char, hi: Char) = if (lo <= c & c <= hi) c else if (c < lo & lo <= hi) lo else hi
+  inline def clamp(lo: Char, hi: Char) =
+    if lo <= c then
+      if c <= hi then c
+      else if lo <= hi then hi
+      else lo
+    else lo
   inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
+  final def hiHex: String =
+    val ans = new Array[Char](4)
+    var v = c.toInt
+    var i = 3
+    while i >= 0 do
+      val digit = v & 0xF
+      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
+      v = v >>> 4
+      i -= 1
+    new String(ans)
+  final def loHex: String =
+    val ans = new Array[Char](4)
+    var v = c.toInt
+    var i = 3
+    while i >= 0 do
+      val digit = v & 0xF
+      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
+      v = v >>> 4
+      i -= 1
+    new String(ans)
+  inline def hex: String = hiHex
 }
 
 extension (i: Int) {
-  inline def clamp(lo: Int, hi: Int) = if (lo <= i & i <= hi) i else if (i < lo & lo <= hi) lo else hi
+  inline def clamp(lo: Int, hi: Int) =
+    if lo <= i then
+      if i <= hi then i
+      else if lo <= hi then hi
+      else lo
+    else lo
   inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
-  inline def bitsAsF = java.lang.Float.intBitsToFloat(i)
+  inline def toULong: Long = i & 0xFFFFFFFFL
+  inline def bitsF = java.lang.Float.intBitsToFloat(i)
+  final def hiHex: String =
+    val ans = new Array[Char](8)
+    var v = i
+    var j = 7
+    while j >= 0 do
+      val digit = v & 0xF
+      ans(j) = (digit + (if (digit < 10) '0' else '7')).toChar
+      v = v >>> 4
+      j -= 1
+    new String(ans)
+  final def loHex: String =
+    val ans = new Array[Char](8)
+    var v = i
+    var j = 7
+    while j >= 0 do
+      val digit = v & 0xF
+      ans(j) = (digit + (if (digit < 10) '0' else 'W')).toChar
+      v = v >>> 4
+      j -= 1
+    new String(ans)
+  inline def hex: String = hiHex
 }
 
 extension (l: Long) {
-  inline def clamp(lo: Long, hi: Long) = if (lo <= l & l <= hi) l else if (l < lo & lo <= hi) lo else hi
+  inline def clamp(lo: Long, hi: Long) =
+    if lo <= l then
+      if l <= hi then l
+      else if lo <= hi then hi
+      else lo
+    else lo
   inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
-  inline def bitsAsD = java.lang.Double.longBitsToDouble(l)
+  inline def bitsD = java.lang.Double.longBitsToDouble(l)
+  final def hiHex: String =
+    val ans = new Array[Char](16)
+    var v = l
+    var j = 15
+    while j >= 0 do
+      val digit = v & 0xF
+      ans(j) = (digit + (if (digit < 10) '0' else '7')).toChar
+      v = v >>> 4
+      j -= 1
+    new String(ans)
+  final def loHex: String =
+    val ans = new Array[Char](16)
+    var v = l
+    var j = 15
+    while j >= 0 do
+      val digit = v & 0xF
+      ans(j) = (digit + (if (digit < 10) '0' else 'W')).toChar
+      v = v >>> 4
+      j -= 1
+    new String(ans)
+  inline def hex: String = hiHex
 }
 
 extension (f: Float) {
@@ -614,7 +713,13 @@ extension (f: Float) {
   inline def nan = java.lang.Float.isNaN(f)
   inline def inf = java.lang.Float.isInfinite(f)
   inline def finite = (java.lang.Float.floatToRawIntBits(f) & 0x7F800000) != 0x7F800000
-  inline def clamp(lo: Float, hi: Float) = jm.max(lo, jm.min(hi, f))
+  inline def clamp(lo: Float, hi: Float) =
+    if lo <= f && f <= hi then f
+    else if f < lo then lo
+    else if f > hi then
+      if lo <= hi then hi
+      else lo
+    else Float.NaN
   inline def in(lo: Float, hi: Float) = lo <= f && f <= hi
 
   final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
@@ -625,7 +730,7 @@ extension (f: Float) {
       case _ => false
   inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
 
-  inline def bitsAsI = java.lang.Float.floatToRawIntBits(f)
+  inline def bitsI = java.lang.Float.floatToRawIntBits(f)
   inline def f64: Double = f.toDouble
 
   inline def rad2deg: Float = (f * NumericConstants.DegreesPerRadian).toFloat
@@ -679,7 +784,13 @@ extension (d: Double) {
   inline def nan = java.lang.Double.isNaN(d)
   inline def inf = java.lang.Double.isInfinite(d)
   inline def finite = (java.lang.Double.doubleToRawLongBits(d) & 0x7FF0000000000000L) != 0x7FF0000000000000L
-  inline def clamp(lo: Double, hi: Double) = jm.max(lo, jm.min(hi, d))
+  inline def clamp(lo: Double, hi: Double) =
+    if lo <= d && d <= hi then d
+    else if d < lo then lo
+    else if d > hi then
+      if lo <= hi then hi
+      else lo
+    else Double.NaN
   inline def in(lo: Double, hi: Double) = lo <= d && d <= hi
   final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
     math.abs(d - that) match
@@ -688,7 +799,7 @@ extension (d: Double) {
         big <= 1 || x <= big*fractol
       case _ => false
 
-  inline def bitsAsL = java.lang.Double.doubleToRawLongBits(d)
+  inline def bitsL = java.lang.Double.doubleToRawLongBits(d)
   inline def f32 = d.toFloat
 }
 

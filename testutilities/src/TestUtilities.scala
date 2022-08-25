@@ -27,29 +27,35 @@ object TestUtilities {
     def approx(a0: A, a1: A): Boolean
   }
   object Approximation {
-    given Approximation[Float] = new {
+    class OfFloat(eps: Float, thresh: Float, tol: Float) extends Approximation[Float] {
       def approx(a0: Float, a1: Float) =
         (a0 == a1) ||
         (a0.isNaN && a1.isNaN) ||
         {
           val delta = math.abs(a0 - a1)
           val a = math.abs(a0) max math.abs(a1)
-          if a > 1 then delta < 1e-6*a
-          else delta < 1e-6
+          if a > thresh then delta < eps*a
+          else delta < tol
         }
     }
 
-    given Approximation[Double] = new {
+    class OfDouble(eps: Double, thresh: Double, tol: Double) extends Approximation[Double] {
       def approx(a0: Double, a1: Double) =
         (a0 == a1) ||
         (a0.isNaN && a1.isNaN) ||
         {
           val delta = math.abs(a0 - a1)
           val a = math.abs(a0) max math.abs(a1)
-          if a > 1 then delta < 1e-9*a
-          else delta < 1e-9
+          val ans =
+            if a > thresh then delta < eps*a
+            else delta < tol
+          ans
         }
     }
+
+    given defaultFloatApprox: Approximation[Float] = new OfFloat(1e-6f, 1f, 1e-6f)
+
+    given defaultDoubleApprox: Approximation[Double] = new OfDouble(1e-9, 1.0, 1e-9)
   }
 
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
@@ -108,7 +114,9 @@ object TestUtilities {
         case _ =>
 
     def =~~=[B >: A](b: => B)(using apx: Approximation[B]): Unit =
-      apx.approx(value(), b)
+      val va = value()
+      val vb = b
+      if !apx.approx(va, vb) then assertEquals(message, va, vb)
   }
 
   class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {

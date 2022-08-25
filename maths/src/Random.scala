@@ -617,16 +617,16 @@ extension [A <: AnyRef](a: Array[A])
   inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
   inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
 
-extension (i: Int)
-  inline def roll(using r: Prng): Int = 1 + (r % i)
-  inline def d(m: Int)(using r: Prng): Int =
+extension (i: Int)(using r: Prng)
+  inline def roll: Int = 1 + (r % i)
+  inline def d(m: Int): Int =
     var sum = 0
     var j = 0
     while j < i do
       sum += 1 + (r % m)
       j += 1
     sum
-  inline def d(m: Long)(using r: Prng): Long =
+  inline def d(m: Long): Long =
     var sum = 0L
     var j = 0
     while j < i do
@@ -634,5 +634,5 @@ extension (i: Int)
       j += 1
     sum
 
-extension (l: Long)
-  inline def roll(using r: Prng): Long = 1L + (r % l)
+extension (l: Long)(using r: Prng)
+  inline def roll: Long = 1L + (r % l)

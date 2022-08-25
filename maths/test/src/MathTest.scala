@@ -1052,6 +1052,225 @@ class MathTest {
       } ==== hx.hashInto(QuadHash.of(x32b, x64b, m32b, m128b)).result()
       T ~ hx.hashInto(x32a.begin(82351)).result() ==== hx.hashInto(PreseededHash.of(82351, x32b).begin()).result()
     }
+
+  @Test
+  def functionsTest(): Unit =
+    import NumericFunctions._
+    // Expected value computed to 20 digits by Mathematica 12.2
+    T ~ log2(2) ==== 1.0
+    T ~ log2(65536) =~~= 16.0
+    T ~ entropy(0.5) ==== 0.5
+    T ~ entropy(0.1) =~~= 0.33219280948873623479
+    T ~ lnGamma(0.017)   =~~= 4.0649650153354890666
+    T ~ lnGamma(1)       ==== 0.0
+    T ~ lnGamma(4.1779)  =~~= 2.0196407862685896019
+    T ~ lnGamma(41.6)    =~~= 112.54585857443697738
+    T ~ lnGamma(92.222)  =~~= 323.66639657465140139
+    T ~ lnGamma(19581.1) =~~= 173921.57578088239597
+    T ~ gamma(-0.9991) =~~= -1111.5351665121232688
+    T ~ gamma(-0.3)    =~~= -4.3268511088251926189
+    T ~ gamma(0.017)   =~~= 58.262870179930133017
+    T ~ gamma(1)       ==== 1.0
+    T ~ gamma(4.1779)  =~~= 7.5356175501277003717
+    T ~ gamma(12)      ==== 39916800.0
+    T ~ gamma(41.6)    =~~= 7.5517106270987740135e48
+    T ~ gamma(92.222)  =~~= 3.6857850985958019759e140
+    T ~ lnGammaRat(17.2157, 5.191) =~~= 27.808277449776492112
+    T ~ gammaRat(17.2157, 5.191) =~~= 1.1939371003966004721e12
+    T ~ lnBeta(17.2157, 5.191) ==== lnBeta(5.191, 17.2157)
+    T ~ lnBeta(17.2157, 5.191) =~~= -11.884089449418134043
+    T ~ beta(17.2157, 5.191) ==== beta(5.191, 17.2157)
+    T ~ beta(4.2157, 2.1) =~~= 0.039940384587432869204
+    T ~ beta(16, 12) ==== 1.0/208606320
+    T ~ icdfNormal(-0.01) ==== Double.NaN
+    T ~ icdfNormal(0)     ==== Double.NegativeInfinity
+    T ~ icdfNormal(3e-17) =~~= -8.3652256215814373860
+    T ~ icdfNormal(1e-11) =~~= -6.7060231554951362873
+    T ~ icdfNormal(2e-11) =~~= -6.6040775904056342687
+    T ~ icdfNormal(0.217) =~~= -0.78236516485538705104
+    T ~ icdfNormal(0.487) =~~= -0.032591936696663045330
+    T ~ icdfNormal(0.501) =~~= 0.0025066308995717640054
+    T ~ icdfNormal(0.999) =~~= 3.0902323061678135415
+    T ~ icdfNormal(1)     =~~= Double.PositiveInfinity
+    T ~ icdfNormal(1.001) =~~= Double.NaN
+    T ~ erfInv(-0.999) =~~= -2.3267537655135246706
+    T ~ erfInv(1.1e-7) =~~= 9.7484961799803690312e-8
+    T ~ erfInv(0.7271) =~~= 0.77527795939043935376
+    T ~ erfcInv(1e-6)  =~~= erfInv(0.999999)
+    T ~ cdfNormal(-40) ==== 0.0
+    {
+      given Approximation[Double] = Approximation.OfDouble(1e-12, 1e-86, 1e-86)
+      T ~ cdfNormal(-18) ==== 9.7409489189371504826e-73
+    }
+    T ~ cdfNormal(-4)     =~~= 0.000031671241833119921254
+    T ~ cdfNormal(-0.715) =~~= 0.23730452163984734223
+    T ~ cdfNormal(0.1111) =~~= 0.54423147562860594608
+    T ~ cdfNormal(3.3333) =~~= 0.99957088825464711767
+    T ~ cdfNormal(5)      =~~= 0.99999971334842812081
+    T ~ cdfNormal(9)      ==== 1.0
+    T ~ erf(-2.1919) =~~= -0.99806358259078677079
+    T ~ erf(0.71571) =~~= 0.68854168727754878624
+    T ~ erfc(0.5715) =~~= 1 - erf(0.5715)
+    T ~ cdfStudentT( 1, -31) =~~= 0.010264501477747753863
+    T ~ cdfStudentT( 1,  -2) =~~= 0.14758361765043327418
+    T ~ cdfStudentT( 1, 0.3) =~~= 0.59277357907774234356
+    T ~ cdfStudentT( 1,   5) =~~= 0.93716704181099881619
+    T ~ cdfStudentT( 1, 111) =~~= 0.99713242094575090823
+    T ~ cdfStudentT( 2, 0.3) =~~= 0.60375716957991119835
+    T ~ cdfStudentT( 3, 0.3) =~~= 0.60811835398004048270
+    T ~ cdfStudentT( 8, 4.7) =~~= 0.99922926941847198643
+    T ~ cdfStudentT(11, 4.7) =~~= 0.99967492880381236615
+    T ~ cdfStudentT(21, 1.7) =~~= 0.94805198599193684428
+    T ~ cdfStudentT(47, 1.7) =~~= 0.95212972951603268371
+    T ~ cdfStudentT(99,2e-3) =~~= 0.50079587174090755526
+    T ~ cdfStudentT(99999,1) =~~= 0.84134353620584639525
+    T ~ cdfStudentT(99,-5.3) =~~= 3.5169564560858694488e-7
+    T ~ icdfStudentT( 1, 0.01) =~~= -31.820515953773958039
+    T ~ icdfStudentT( 1, 0.51) =~~= 0.031426266043351147819
+    T ~ icdfStudentT( 2, 0.01) =~~= -6.9645567342832741871
+    T ~ icdfStudentT( 2, 0.51) =~~= 0.028289929799333551690
+    {
+      given Approximation[Double] = Approximation.OfDouble(1e-5, 1e-5, 1e-10)
+      T ~ icdfStudentT( 4, 0.01) =~~= -3.7469473879791968366
+    }
+    T ~ icdfStudentT( 4, 0.51) =~~= 0.026670618302639006373
+    {
+      given Approximation[Double] = Approximation.OfDouble(1e-7, 1e-7, 1e-14)
+      T ~ icdfStudentT( 8, 0.01) =~~= -2.8964594477096223339
+    }
+    T ~ icdfStudentT( 8, 0.51) =~~= 0.025863148428696671896
+    T ~ icdfStudentT(99, 0.99) =~~= 2.3646058617869433839
+    T ~ icdfStudentT(999, 0.6) =~~= 0.25341458333036736702
+    T ~ icdfStudentT(99, 1e-9) =~~= -6.6055176089570498209
+
+    T ~ regularizedLowerIncompleteGamma(0.07, 1e-20) =~~= 0.041290911908887717448
+    T ~ regularizedLowerIncompleteGamma(0.07, 0.033) =~~= 0.81511672149112283015
+    T ~ regularizedLowerIncompleteGamma(0.07, 4)     =~~= 0.99969382652440138059
+    {
+      given Approximation[Double] = Approximation.OfDouble(1e-9, 1e-12, 1e-21)
+      T ~ regularizedLowerIncompleteGamma(0.47, 1e-20) =~~= 4.4951703002588139673e-10
+    }
+    T ~ regularizedLowerIncompleteGamma(0.47, 4)     =~~= 0.99580336476430854842
+    T ~ regularizedLowerIncompleteGamma(0.47, 9)     =~~= 0.99998060282772796934
+    {
+      given Approximation[Double] = Approximation.OfDouble(1e-9, 1e-12, 1e-21)
+      T ~ regularizedLowerIncompleteGamma(13.2, 0.883) =~~= 8.1273845027969892735e-12
+      T ~ regularizedLowerIncompleteGamma(13.2, 2.583) =~~= 2.4160993315339546571e-6
+    }
+    T ~ regularizedLowerIncompleteGamma(13.2, 3.142) =~~= 0.000019232466583370270554
+    T ~ regularizedLowerIncompleteGamma(13.2, 11.18) =~~= 0.31063267851575332291
+    T ~ regularizedLowerIncompleteGamma(13.2, 23)    =~~= 0.98955644244159926579
+    T ~ regularizedLowerIncompleteGamma(1201, 1135)  =~~= 0.026750925047326441730
+    T ~ regularizedLowerIncompleteGamma(1201, 1203)  =~~= 0.52682710399911528314
+    T ~ regularizedLowerIncompleteGamma(1201, 1341)  =~~= 0.99995233982626005229
+    T ~ (regularizedUpperIncompleteGamma(0.07, 0.033) + regularizedLowerIncompleteGamma(0.07, 0.033)) =~~= 1.0
+    T ~ (regularizedUpperIncompleteGamma(0.47, 4.000) + regularizedLowerIncompleteGamma(0.47, 4.000)) =~~= 1.0
+    T ~ (regularizedUpperIncompleteGamma(13.2, 11.18) + regularizedLowerIncompleteGamma(13.2, 11.18)) =~~= 1.0
+    T ~ (regularizedUpperIncompleteGamma(1201, 1341 ) + regularizedLowerIncompleteGamma(1201, 1341 )) =~~= 1.0
+    T ~ cdfChiSq(1.5, 2.19) =~~= 0.76688085944971560316
+    T ~ cdfChiSq(18, 12.91) =~~= 0.20310828640315452276
+
+    T ~ regularizedIncompleteBeta(0.07, 0.02)(0.071) =~~= 0.18593534106366527947
+    T ~ regularizedIncompleteBeta(0.07, 0.02)(0.371) =~~= 0.21397610838266902617
+    T ~ regularizedIncompleteBeta(0.07, 0.02)(0.914) =~~= 0.25664695068689865766
+    T ~ regularizedIncompleteBeta(0.07, 0.22)(0.071) =~~= 0.64617485077966580454
+    T ~ regularizedIncompleteBeta(0.07, 0.22)(0.371) =~~= 0.73952089487991753006
+    T ~ regularizedIncompleteBeta(0.07, 0.22)(0.914) =~~= 0.85414522525020009779
+    T ~ regularizedIncompleteBeta(1.41, 0.22)(0.071) =~~= 0.0042908987496014291472
+    T ~ regularizedIncompleteBeta(1.41, 0.22)(0.371) =~~= 0.052269750631912289345
+    T ~ regularizedIncompleteBeta(1.41, 0.22)(0.914) =~~= 0.35825787195523729569
+    T ~ regularizedIncompleteBeta(1.41, 1.47)(0.071) =~~= 0.038150936089382751716
+    T ~ regularizedIncompleteBeta(1.41, 1.47)(0.371) =~~= 0.35638900943325702726
+    T ~ regularizedIncompleteBeta(1.41, 1.47)(0.914) =~~= 0.95868177007335130767
+    T ~ regularizedIncompleteBeta(9.41, 7.77)(0.071) =~~= 1.1715491684031259097e-7
+    T ~ regularizedIncompleteBeta(9.41, 7.77)(0.371) =~~= 0.069515424418849154010
+    T ~ regularizedIncompleteBeta(9.41, 7.77)(0.914) =~~= 0.99996117847935196603
+    T ~ regularizedIncompleteBeta(94.1, 94.2)(0.384) =~~= 0.00064973938015974858055
+    T ~ regularizedIncompleteBeta(94.1, 94.2)(0.501) =~~= 0.51384518267594726173
+    T ~ regularizedIncompleteBeta(94.1, 94.2)(0.599) =~~= 0.99700121042712086905
+    T ~ cdfFDist(5, 7)(14.142) =~~= 0.99847312214627792997
+    T ~ cdfFDist(18, 11)(0.29) =~~= 0.0097966801396012063383
+
+    val b: Byte = -8
+    T ~ b.clamp(-12, -4) ==== (-8: Byte)
+    T ~ b.clamp(13, 100) ==== (13: Byte)
+    T ~ b.clamp(-99, -9) ==== (-9: Byte)
+    T ~ b.clamp(55, -99) ==== (55: Byte)
+    T ~ b.in(-12, 4)     ==== true
+    T ~ b.in(13, 100)    ==== false
+    T ~ b.in(-99, -9)    ==== false
+    T ~ b.in(44, -12)    ==== false
+    T ~ b.toUInt         ==== 248
+    T ~ b.toUInt         ==== typed[Int]
+    T ~ b.toULong        ==== 248L
+    T ~ b.toULong        ==== typed[Long]
+    T ~ b.hex            ==== "F8"
+    T ~ b.hiHex          ==== "F8"
+    T ~ b.loHex          ==== "f8"
+    T ~ (1: Byte).hex    ==== "01"
+
+    val s: Short = -88
+    T ~ s.clamp(-915, -4) ==== (-88: Short)
+    T ~ s.clamp(-44, 333) ==== (-44: Short)
+    T ~ s.clamp(-99, -91) ==== (-91: Short)
+    T ~ s.clamp(333, -44) ==== (333: Short)
+    T ~ s.in(-915, -4)    ==== true
+    T ~ s.in(-44, 333)    ==== false
+    T ~ s.in(-99, -91)    ==== false
+    T ~ s.in(-4, -915)    ==== false
+    T ~ s.toUInt          ==== 65448
+    T ~ s.toUInt          ==== typed[Int]
+    T ~ s.toULong         ==== 65448L
+    T ~ s.toULong         ==== typed[Long]
+    T ~ s.hex             ==== "FFA8"
+    T ~ s.hiHex           ==== "FFA8"
+    T ~ s.loHex           ==== "ffa8"
+    T ~ (1: Short).hex    ==== "0001"
+
+    val c = 'n'
+    T ~ c.clamp('a', 'w') ==== 'n'
+    T ~ c.clamp('A', 'W') ==== 'W'
+    T ~ c.clamp('q', 'z') ==== 'q'
+    T ~ c.clamp('z', 'A') ==== 'z'
+    T ~ c.in('a', 'w')    ==== true
+    T ~ c.in('A', 'W')    ==== false
+    T ~ c.in('q', 'z')    ==== false
+    T ~ c.in('w', 'a')    ==== false
+    T ~ c.hex             ==== "006E"
+    T ~ c.hiHex           ==== "006E"
+    T ~ c.loHex           ==== "006e"
+
+    val i = -8888
+    T ~ i.clamp(-9999, -7777) ==== -8888
+    T ~ i.clamp(-9999, -9876) ==== -9876
+    T ~ i.clamp(-7777, 12345) ==== -7777
+    T ~ i.clamp(-7777, -9999) ==== -7777
+    T ~ i.in(-9999, -7777)    ==== true
+    T ~ i.in(-9999, -9876)    ==== false
+    T ~ i.in(-7777, 12345)    ==== false
+    T ~ i.in(-7777, -9999)    ==== false
+    T ~ i.toULong             ==== 4294958408L
+    T ~ i.toULong             ==== typed[Long]
+    T ~ i.hex                 ==== "FFFFDD48"
+    T ~ i.hiHex               ==== "FFFFDD48"
+    T ~ i.loHex               ==== "ffffdd48"
+    T ~ 11.hex                ==== "0000000B"
+    T ~ 1067030938.bitsF      ==== 1.2f
+
+
+    val l = 42L
+    T ~ l.clamp(-100L, 100L)       ==== 42L
+    T ~ l.clamp(-100L, -10L)       ==== -10L
+    T ~ l.clamp(72L, 43210L)       ==== 72L
+    T ~ l.clamp(100L, -100L)       ==== 100L
+    T ~ l.in(-100L, 100L)          ==== true
+    T ~ l.in(-100L, -10L)          ==== false
+    T ~ l.in(72L, 43210L)          ==== false
+    T ~ l.in(100L, -100L)          ==== false
+    T ~ l.hex                      ==== "000000000000002A"
+    T ~ l.hiHex                    ==== "000000000000002A"
+    T ~ l.loHex                    ==== "000000000000002a"
+    T ~ 4608083138725491507L.bitsD ==== 1.2
 }
 object MathsTest {
   // @BeforeClass
