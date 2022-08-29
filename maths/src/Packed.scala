@@ -1083,12 +1083,15 @@ extension (pm: kse.maths.packed.PlusMinus) {
     val xf = if (f == 0) 0.0 else f/u
     PlusMinus.of(a.toFloat, (a * jm.sqrt(xe*xe + xf*xf)).toFloat)
 
+/*
   final def sq: kse.maths.packed.PlusMinus =
     val v = pm.value.toDouble
     val e = pm.error.toDouble
     if (e == 0) PlusMinus.of((v*v).toFloat, 0f)
     else        PlusMinus.of((v*v).toFloat, (e * kse.maths.NumericConstants.SqrtTwo).toFloat)
+*/
 
+/*
   final def sqrt: kse.maths.packed.PlusMinus =
     val v = pm.value.toDouble
     val e = pm.error.toDouble
@@ -1100,6 +1103,7 @@ extension (pm: kse.maths.packed.PlusMinus) {
     val e = pm.error.toDouble
     if (e == 0) PlusMinus.of(jm.pow(v, exponent).toFloat, 0f)
     else        PlusMinus.of(jm.pow(v, exponent).toFloat, (e * jm.sqrt(exponent)).toFloat)
+*/
 }
 extension (pm: kse.maths.packed.PlusMinus) {
   @targetName("PlusMinus_pr") def pr: String =

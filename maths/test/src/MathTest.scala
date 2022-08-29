@@ -1271,6 +1271,130 @@ class MathTest {
     T ~ l.hiHex                    ==== "000000000000002A"
     T ~ l.loHex                    ==== "000000000000002a"
     T ~ 4608083138725491507L.bitsD ==== 1.2
+
+    val f = 1.2f
+    val fnan = Float.NaN
+    T ~ f.sq                ==== 1.44f
+    T ~ f.sign              ==== 1f
+    T ~ f.ulp               ==== java.lang.Math.ulp(f)
+    T ~ f.next              ==== f + java.lang.Math.ulp(f)
+    T ~ f.prev              ==== f - java.lang.Math.ulp(f)
+    T ~ f.nan               ==== false
+    T ~ fnan.nan            ==== true
+    T ~ f.inf               ==== false
+    T ~ fnan.inf            ==== false
+    T ~ (f/0f).inf          ==== true
+    T ~ (-f/0f).inf         ==== true
+    T ~ f.finite            ==== true
+    T ~ fnan.finite         ==== false
+    T ~ (f/0f).finite       ==== false
+    T ~ (-f/0f).finite      ==== false
+    T ~ f.clamp(0.7f, 3.5f) ==== 1.2f
+    T ~ f.clamp(0.1f, 0.2f) ==== 0.2f
+    T ~ f.clamp(2.3f, 3.4f) ==== 2.3f
+    T ~ f.clamp(5.6f, 0.4f) ==== 5.6f
+    T ~ f.clamp(0.7f, fnan) ==== fnan
+    T ~ f.clamp(fnan, 3.5f) ==== fnan
+    T ~ f.clamp(fnan, fnan) ==== fnan
+    T ~ fnan.clamp(1f, 32f) ==== fnan
+    T ~ fnan.clamp(32f, 1f) ==== fnan
+    T ~ f.in(0.7f, 3.5f)    ==== true
+    T ~ f.in(0.1f, 0.2f)    ==== false
+    T ~ f.in(2.3f, 3.4f)    ==== false
+    T ~ f.in(5.6f, 0.4f)    ==== false
+    T ~ f.in(0.7f, fnan)    ==== false
+    T ~ f.in(fnan, 3.5f)    ==== false
+    T ~ f.in(fnan, fnan)    ==== false
+    T ~ fnan.in(1f, 32f)    ==== false
+    T ~ fnan.in(32f, 1f)    ==== false
+    T ~ f.closeTo(f+1e-7f)  ==== true
+    T ~ f.closeTo(f+1e-5f)  ==== false
+    T ~ f.closeTo(1f,1f,1f) ==== true
+    T ~ f.bitsI             ==== 1067030938
+    T ~ f.f64               ==== 1.2f.toDouble
+    T ~ f.f64               ==== typed[Double]
+    T ~ f.rad2deg           =~~= 68.7549354157f
+    T ~ f.rad2rev           =~~= 0.1909859317f
+    T ~ f.deg2rad           =~~= 0.020943951f
+    T ~ f.rev2rad           =~~= 7.5398223686f
+
+    val d = 1.2
+    val dnan = Double.NaN
+    T ~ d.sq             ==== 1.44
+    T ~ d.cube           ==== 1.728
+    T ~ d.sqrt           =~~= 1.0954451150103322269
+    T ~ d.cbrt           =~~= 1.0626585691826110660
+    T ~ d.hypot(1/d)     =~~= 1.4609738000540750438
+    T ~ d.pow(d)         =~~= 1.2445647472039777218
+    T ~ d.log            =~~= 0.18232155679395462621
+    T ~ d.log2           =~~= 0.26303440583379383358
+    T ~ d.log10          =~~= 0.079181246047624827723
+    T ~ d.exp            =~~= 3.3201169227365474895
+    T ~ d.exp2           =~~= 2.2973967099940700136
+    T ~ d.exp10          =~~= 15.848931924611134852
+    T ~ (1/d).entropy    =~~= 0.21919533819482819465
+    T ~ d.sin            =~~= 0.93203908596722634967
+    T ~ d.cos            =~~= 0.36235775447667357764
+    T ~ d.tan            =~~= 2.5721516221263189354
+    T ~ (1/d).asin       =~~= 0.98511078333774565961
+    T ~ (1/d).acos       =~~= 0.58568554345715095962
+    T ~ d.atan           =~~= 0.87605805059819342311
+    T ~ d.atan2(1/d)     =~~= 0.96380866274848865959
+    T ~ d.sinh           =~~= 1.5094613554121726964
+    T ~ d.cosh           =~~= 1.8106555673243747931
+    T ~ d.tanh           =~~= 0.83365460701215525867
+    T ~ d.rad2deg        =~~= 68.754935415698785052
+    T ~ d.rad2rev        =~~= 0.19098593171027440292
+    T ~ d.deg2rad        =~~= 0.020943951023931954923
+    T ~ d.rev2rad        =~~= 7.5398223686155037723
+    T ~ d.gamma          =~~= 0.91816874239976061064
+    T ~ d.lnGamma        =~~= -0.085374090003315849720
+    T ~ d.erf            =~~= 0.91031397822963538024
+    T ~ d.erfc           =~~= 0.089686021770364619762
+    T ~ (1/d).erfInv     =~~= 0.97792452561403138647
+    T ~ (1/d).erfcInv    =~~= 0.14879534452690386305
+    T ~ d.cdfNormal      =~~= 0.88493032977829173198
+    T ~ (1/d).icdfNormal =~~= 0.96742156610170103955
+    T ~ d.sign           ==== 1.0
+    T ~ d.rint           ==== 1.0
+    T ~ d.ulp            ==== java.lang.Math.ulp(d)
+    T ~ d.next           ==== d + java.lang.Math.ulp(d)
+    T ~ d.prev           ==== d - java.lang.Math.ulp(d)
+    T ~ d.nan            ==== false
+    T ~ (d/0.0).nan      ==== false
+    T ~ dnan.nan         ==== true
+    T ~ d.inf            ==== false
+    T ~ (d/0.0).inf      ==== true
+    T ~ ((-d)/0.0).inf   ==== true
+    T ~ dnan.inf         ==== false
+    T ~ d.finite         ==== true
+    T ~ (d/0.0).finite   ==== false
+    T ~ dnan.finite      ==== false
+    T ~ d.clamp(0.7, 3.5)     ==== 1.2
+    T ~ d.clamp(0.1, 0.2)     ==== 0.2
+    T ~ d.clamp(2.3, 3.4)     ==== 2.3
+    T ~ d.clamp(5.6, 0.4)     ==== 5.6
+    T ~ d.clamp(0.7, dnan)    ==== dnan
+    T ~ d.clamp(dnan, 3.5)    ==== dnan
+    T ~ d.clamp(dnan, dnan)   ==== dnan
+    T ~ dnan.clamp(1.0, 32.0) ==== dnan
+    T ~ dnan.clamp(32.0, 1.0) ==== dnan
+    T ~ d.in(0.7, 3.5)        ==== true
+    T ~ d.in(0.1, 0.2)        ==== false
+    T ~ d.in(2.3, 3.4)        ==== false
+    T ~ d.in(5.6, 0.4)        ==== false
+    T ~ d.in(0.7, dnan)       ==== false
+    T ~ d.in(dnan, 3.5)       ==== false
+    T ~ d.in(dnan, dnan)      ==== false
+    T ~ fnan.in(1.0, 32.0)    ==== false
+    T ~ fnan.in(32.0, 1.0)    ==== false
+    T ~ d.closeTo(d+1e-13)    ==== true
+    T ~ d.closeTo(d+1e-8)     ==== false
+    T ~ d.closeTo(1.0,1,1)    ==== true
+    T ~ d.bitsL               ==== 4608083138725491507L
+    T ~ d.f32                 ==== 1.2f
+    T ~ d.f32                 ==== typed[Float]
+
 }
 object MathsTest {
   // @BeforeClass

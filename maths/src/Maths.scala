@@ -20,8 +20,8 @@ object NumericConstants {
   inline val OverSqrtEight = 0.3535533905932737622
   inline val QuarterSqrtPi = 0.44311346272637900682
 
-  inline val DegreesPerRadian = 0.017453292519943295769
-  inline val RadiansPerDegree = 57.295779513082320877
+  inline val DegreesPerRadian = 57.295779513082320877
+  inline val RadiansPerDegree = 0.017453292519943295769
 
   // Logarithmic and exponential constants
   inline val OverLnTwo = 1.4426950408889634079
@@ -710,6 +710,8 @@ extension (f: Float) {
   inline def sq = f * f
   inline def sign = jm.signum(f)
   inline def ulp = jm.ulp(f)
+  inline def next = jm.nextUp(f)
+  inline def prev = jm.nextDown(f)
   inline def nan = java.lang.Float.isNaN(f)
   inline def inf = java.lang.Float.isInfinite(f)
   inline def finite = (java.lang.Float.floatToRawIntBits(f) & 0x7F800000) != 0x7F800000
@@ -744,6 +746,7 @@ extension (d: Double) {
   inline def cube = d * d * d
   inline def sqrt = jm.sqrt(d)
   inline def cbrt = jm.cbrt(d)
+  inline def hypot(e: Double) = jm.hypot(d, e)
   inline def pow(e: Double) = jm.pow(d, e)
   inline def log = jm.log(d)
   inline def log2 = jm.log(d) * NumericConstants.OverLnTwo
@@ -781,6 +784,8 @@ extension (d: Double) {
   inline def sign = jm.signum(d)
   inline def rint = jm.rint(d)
   inline def ulp = jm.ulp(d)
+  inline def next = jm.nextUp(d)
+  inline def prev = jm.nextDown(d)
   inline def nan = java.lang.Double.isNaN(d)
   inline def inf = java.lang.Double.isInfinite(d)
   inline def finite = (java.lang.Double.doubleToRawLongBits(d) & 0x7FF0000000000000L) != 0x7FF0000000000000L
