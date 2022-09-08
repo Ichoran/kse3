@@ -473,32 +473,32 @@ class FlowTest {
     T ~ oaq.get ==== thrown[NoSuchElementException]
     T ~ oaq.alt ==== Alt(null)   
 
-    T ~ i.value      ==== 5
-    T ~ a.value      ==== "cod"
-    T ~ oi.value     ==== 5
-    T ~ oa.value     ==== "cod"
-    T ~ oii.value    ==== Is(5)
-    T ~ oia.value    ==== Alt("cod")
-    T ~ oai.value    ==== Is(5)
-    T ~ oaa.value    ==== Alt("cod")
-    T ~ oa.value     ==== typed[Int | String]
-    T ~ oi.value     ==== typed[Int | String]
-    T ~ n.value      ==== null
-    T ~ m.value      ==== null
-    T ~ on.value     ==== null
-    T ~ om.value     ==== null
-    T ~ oin.value    ==== null
-    T ~ oim.value    ==== Alt(null)
-    T ~ oan.value    ==== null
-    T ~ oam.value    ==== Alt(null)
-    T ~ p.value      ==== null
-    T ~ q.value      ==== null
-    T ~ op.value     ==== null
-    T ~ oq.value     ==== null
-    T ~ oip.value    ==== null
-    T ~ oiq.value    ==== Alt(null)
-    T ~ oap.value    ==== null
-    T ~ oaq.value    ==== Alt(null)
+    T ~ i.union      ==== 5
+    T ~ a.union      ==== "cod"
+    T ~ oi.union     ==== 5
+    T ~ oa.union     ==== "cod"
+    T ~ oii.union    ==== Is(5)
+    T ~ oia.union    ==== Alt("cod")
+    T ~ oai.union    ==== Is(5)
+    T ~ oaa.union    ==== Alt("cod")
+    T ~ oa.union     ==== typed[Int | String]
+    T ~ oi.union     ==== typed[Int | String]
+    T ~ n.union      ==== null
+    T ~ m.union      ==== null
+    T ~ on.union     ==== null
+    T ~ om.union     ==== null
+    T ~ oin.union    ==== null
+    T ~ oim.union    ==== Alt(null)
+    T ~ oan.union    ==== null
+    T ~ oam.union    ==== Alt(null)
+    T ~ p.union      ==== null
+    T ~ q.union      ==== null
+    T ~ op.union     ==== null
+    T ~ oq.union     ==== null
+    T ~ oip.union    ==== null
+    T ~ oiq.union    ==== Alt(null)
+    T ~ oap.union    ==== null
+    T ~ oaq.union    ==== Alt(null)
 
     T ~ i.isBoxed      ==== false
     T ~ a.isBoxed      ==== true

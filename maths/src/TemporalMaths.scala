@@ -222,7 +222,7 @@ object TemporalMaths {
     val s = d.getSeconds * f
     var n = d.getNano * f
     var s0 = s.floor
-    n = (n + (s - s0) * 1e9).rint
+    n = java.lang.Math.rint(n + (s - s0) * 1e9)
     while (n >= 1e9) { n -= 1e9; s0 += 1 }
     val x = Duration.ofSeconds(s0.toLong, n.toInt)
     if (factor < 0 != duration.getSeconds < 0) x.negated else x
@@ -233,7 +233,7 @@ object TemporalMaths {
     val s = d.getSeconds / f
     var n = d.getNano / f
     var s0 = s.floor
-    n = (n + (s - s0) * 1e9).rint
+    n = java.lang.Math.rint(n + (s - s0) * 1e9)
     while (n >= 1e9) { n -= 1e9; s0 += 1 }
     val x = Duration.ofSeconds(s0.toLong, n.toInt)
     if (factor < 0 != duration.getSeconds < 0) x.negated else x

@@ -353,7 +353,7 @@ object AorB {
       case _         => throw new NoSuchElementException(s"alt when Or is Is")
 
     /** Either value of an `Or`, returned as a type union of the two branches. */
-    inline def value: X | Y = (or: Any) match    // Avoid error on Is(null)...compiler knows answer but how do we tell it here???
+    inline def union: X | Y = (or: Any) match    // Avoid error on Is(null)...compiler knows answer but how do we tell it here???
       case w: BoxedOr[_] => w.value.asInstanceOf[X | Y]
       case x             => x.asInstanceOf[X]
 
@@ -616,7 +616,7 @@ object AorB {
     /** Uses a value as the favored branch of an `Or` while specifying the type of a disfavored branch.  Generally use `or` intsead. */
     inline def isOr[Y]: A Or Y = Is(a)
 
-    /** Usese a value as the disfavored branch of an `Or` while specifying the type of a favored branch.  Generally use `isnt` instead. */
+    /** Uses a value as the disfavored branch of an `Or` while specifying the type of a favored branch.  Generally use `isnt` instead. */
     inline def altOr[X]: X Or A = Alt(a)
 
     /** Separates values into favored and disfavored based on a predicate; true means favored. */

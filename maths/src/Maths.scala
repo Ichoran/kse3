@@ -2,6 +2,8 @@ package kse.maths
 
 import java.lang.{Math => jm}
 
+import scala.annotation.targetName
+
 object NumericConstants {
   // Common constants involving Pi or roots
   inline val OneOverPi = 0.31830988618379067154
@@ -554,27 +556,6 @@ extension (b: Byte) {
   inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
   inline def toUInt: Int = b & 0xFF
   inline def toULong: Long = b & 0xFFL
-  final def hiHex: String =
-    val ans = new Array[Char](2)
-    var v = b & 0xFF
-    var i = 1
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  final def loHex: String =
-    val ans = new Array[Char](2)
-    var v = b & 0xFF
-    var i = 1
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  inline def hex: String = hiHex
 }
 
 extension (s: Short) {
@@ -587,27 +568,6 @@ extension (s: Short) {
   inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
   inline def toUInt: Int = s & 0xFFFF
   inline def toULong: Long = s & 0xFFFFL
-  final def hiHex: String =
-    val ans = new Array[Char](4)
-    var v = s & 0xFFFF
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  final def loHex: String =
-    val ans = new Array[Char](4)
-    var v = s & 0xFFFF
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  inline def hex: String = hiHex
 }
 
 extension (c: Char) {
@@ -618,27 +578,6 @@ extension (c: Char) {
       else lo
     else lo
   inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
-  final def hiHex: String =
-    val ans = new Array[Char](4)
-    var v = c.toInt
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  final def loHex: String =
-    val ans = new Array[Char](4)
-    var v = c.toInt
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-  inline def hex: String = hiHex
 }
 
 extension (i: Int) {
@@ -651,27 +590,6 @@ extension (i: Int) {
   inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
   inline def toULong: Long = i & 0xFFFFFFFFL
   inline def bitsF = java.lang.Float.intBitsToFloat(i)
-  final def hiHex: String =
-    val ans = new Array[Char](8)
-    var v = i
-    var j = 7
-    while j >= 0 do
-      val digit = v & 0xF
-      ans(j) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      j -= 1
-    new String(ans)
-  final def loHex: String =
-    val ans = new Array[Char](8)
-    var v = i
-    var j = 7
-    while j >= 0 do
-      val digit = v & 0xF
-      ans(j) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      j -= 1
-    new String(ans)
-  inline def hex: String = hiHex
 }
 
 extension (l: Long) {
@@ -683,27 +601,6 @@ extension (l: Long) {
     else lo
   inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
   inline def bitsD = java.lang.Double.longBitsToDouble(l)
-  final def hiHex: String =
-    val ans = new Array[Char](16)
-    var v = l
-    var j = 15
-    while j >= 0 do
-      val digit = v & 0xF
-      ans(j) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      j -= 1
-    new String(ans)
-  final def loHex: String =
-    val ans = new Array[Char](16)
-    var v = l
-    var j = 15
-    while j >= 0 do
-      val digit = v & 0xF
-      ans(j) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      j -= 1
-    new String(ans)
-  inline def hex: String = hiHex
 }
 
 extension (f: Float) {
@@ -808,4 +705,333 @@ extension (d: Double) {
   inline def f32 = d.toFloat
 }
 
+
+
+opaque type Vc = Long
+object Vc {
+  inline def wrap(l: Long): kse.maths.Vc = l
+  inline def apply(x: Float, y: Float): kse.maths.Vc = 
+    (java.lang.Float.floatToRawIntBits(x) & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(y).toLong << 32)
+  inline def F(x: Float, y: Float): kse.maths.Vc =
+    apply(x, y)
+  inline def D(x: Double, y: Double): kse.maths.Vc = 
+    apply(x.toFloat, y.toFloat)
+
+  inline def zero: kse.maths.Vc = 0L
+  final val NaN: kse.maths.Vc = apply(Float.NaN, Float.NaN)
+}
+extension (v: Vc) {
+  inline def x: Float = java.lang.Float.intBitsToFloat((v & 0xFFFFFFFFL).toInt)
+  inline def y: Float = java.lang.Float.intBitsToFloat((v >>> 32).toInt)
+
+  inline def xTo(f: Float): kse.maths.Vc =
+    (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f) & 0xFFFFFFFFL)
+  inline def xFn(inline f: Float => Float): kse.maths.Vc =
+    (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(v.x)) & 0xFFFFFFFFL)
+
+  inline def yTo(f: Float): kse.maths.Vc =
+    (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f).toLong << 32)
+  inline def yFn(inline f: Float => Float): kse.maths.Vc =
+    (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f(v.y)).toLong << 32)
+
+  inline def isZero = (v & 0x7FFFFFFF7FFFFFFFL) == 0
+  inline def isFinite = { val a = v & 0x7F8000007F800000L; (a.toInt != 0x7F800000) && ((a >> 32) != 0x7F800000) }
+  inline def isNaN = java.lang.Float.isNaN(v.x) || java.lang.Float.isNaN(v.y)
+
+  inline def swapped: kse.maths.Vc = (v >>> 32) | (v << 32)
+  inline def cw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x8000000000000000L
+  inline def ccw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x80000000L
+
+  @targetName("Vc_unary_minus")
+  inline def unary_- : kse.maths.Vc = v ^ 0x8000000080000000L
+}
+extension (v: kse.maths.Vc) {
+  final def rotate(angle: Float): kse.maths.Vc =
+    val x = v.x
+    val y = v.y
+    val ca = math.cos(angle)
+    val sa = math.sin(angle)
+    Vc.D(x*ca - y*sa, y*ca + x*sa)
+  inline def theta: Double = math.atan2(v.y, v.x)
+
+  final def lenSq: Double = { val a = v.x.toDouble; val b = v.y.toDouble; a*a + b*b }
+  inline def len: Double = math.sqrt(v.lenSq)
+
+  @targetName("Vc_plus") inline def +(f: Float): kse.maths.Vc = Vc(v.x + f, v.y + f)
+  @targetName("Vc_plus") inline def +(f: Float, g: Float): kse.maths.Vc = Vc(v.x + f, v.y + g)
+  @targetName("Vc_plus") final def +(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x + u.x, v.y + u.y)
+
+  @targetName("Vc_minus") inline def -(f: Float): kse.maths.Vc = Vc(v.x - f, v.y - f)
+  @targetName("Vc_minus") inline def -(f: Float, g: Float): kse.maths.Vc = Vc(v.x - f, v.y - g)
+  @targetName("Vc_minus") final def -(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x - u.x, v.y - u.y)
+
+  @targetName("Vc_times") inline def *(f: Float): kse.maths.Vc = Vc(v.x*f, v.y*f)
+  @targetName("Vc_dot") inline def *(f: Float, g: Float): Double = v.x*f + v.y*g
+  @targetName("Vc_dot") inline def *(u: kse.maths.Vc): Double = v.x*u.x + v.y*u.y
+  inline def X(f: Float, g: Float): Double = v.x*g - v.y*f
+  inline def X(u: kse.maths.Vc): Double = v.x*u.y - v.y*u.x
+
+  def proj(f: Float, g: Float): kse.maths.Vc =
+    val a = v.x
+    val b = v.y
+    val e = (a*f + b*g)/(f*f + g*g)
+    Vc(f*e, g*e)
+  def proj(u: kse.maths.Vc): kse.maths.Vc =
+    val a = v.x
+    val b = v.y
+    val c = u.x
+    val d = u.y
+    val e = (a*c + b*d)/(c*c + d*d)
+    Vc(c*e, d*e)
+
+  def orth(f: Float, g: Float): kse.maths.Vc =
+    val a = v.x
+    val b = v.y
+    val e = (a*f + b*g)/(f*f + g*g)
+    Vc(a - f*e, b - g*e)
+  def orth(u: kse.maths.Vc): kse.maths.Vc =
+    val a = v.x
+    val b = v.y
+    val c = u.x
+    val d = u.y
+    val e = (a*c + b*d)/(c*c + d*d)
+    Vc(a - c*e, b - d*e)
+
+  def hat: kse.maths.Vc =
+    val a = v.x.toDouble
+    val b = v.y.toDouble
+    val l2 = a*a + b*b
+    if math.abs(l2-1) < 3e-7f then v
+    else if l2 == 0 then 0L
+    else 
+      val il = 1.0/math.sqrt(l2)
+      Vc.D(a*il, b*il)
+
+  def normDot(f: Float, g: Float): Double =
+    val a = v.x
+    val b = v.y
+    (a*f + b*g) / math.sqrt((a*a + b*b)*(f*f + g*g)) match
+      case w if w < -1 => -1
+      case w if w > 1  =>  1
+      case w           =>  w
+  def normDot(u: kse.maths.Vc): Double =
+    val a = v.x
+    val b = v.y
+    val c = u.x
+    val d = u.y
+    (a*c + b*d) / math.sqrt((a*a + b*b)*(c*c + d*d)) match
+      case w if w < -1 => -1
+      case w if w > 1  =>  1
+      case w           =>  w
+
+  def distSq(f: Float, g: Float): Double =
+    val a = (v.x - f).toDouble
+    val b = (v.y - g).toDouble
+    a*a + b*b
+  def distSq(u: kse.maths.Vc): Double =
+    val a = (v.x - u.x).toDouble
+    val b = (v.y - u.y).toDouble
+    a*a + b*b
+  inline def dist(f: Float, g: Float): Float = jm.sqrt(v.distSq(f, g)).toFloat
+  inline def dist(u: kse.maths.Vc): Float = jm.sqrt(v.distSq(u)).toFloat
+
+  def angle(f: Float, g: Float): Double =
+    val a = v.x.toDouble
+    val b = v.y.toDouble
+    val p = f.toDouble
+    val q = g.toDouble
+    val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+      case c if c < -1 => -1
+      case c if c > 1  =>  1
+      case c           =>  c
+    jm.acos(d) * jm.signum(a*q - b*p)
+  def angle(u: kse.maths.Vc): Double =
+    val a = v.x.toDouble
+    val b = v.y.toDouble
+    val p = u.x.toDouble
+    val q = u.y.toDouble
+    val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+      case c if c < -1 => -1
+      case c if c > 1  =>  1
+      case c           =>  c
+    jm.acos(d) * jm.signum(a*q - b*p)
+
+  @targetName("Vc_equals")
+  final def ===(u: kse.maths.Vc): Boolean =
+    v.x == u.x && v.y == u.y
+
+  @targetName("Vc_pr")
+  def pr: String =
+    val sb = new java.lang.StringBuilder
+    sb append '['
+    sb append v.x
+    sb append ' '
+    sb append v.y
+    sb append ']'
+    sb.toString
+
+  @targetName("Vc_prf")
+  def prf(fmt: String): String =
+    val sb = new java.lang.StringBuilder
+    sb append '['
+    sb append fmt.format(v.x)
+    sb append ' '
+    sb append fmt.format(v.y)
+    sb append ']'
+    sb.toString
+}
+extension (value: Float) {
+  @targetName("Vc_prefix_add")
+  inline def +(v: kse.maths.Vc): kse.maths.Vc = Vc(value + v.x, value + v.y)
+
+  @targetName("Vc_prefix_sub")
+  inline def -(v: kse.maths.Vc): kse.maths.Vc = Vc(value - v.x, value - v.y)
+
+  @targetName("Vc_prefix_times")
+  inline def *(v: kse.maths.Vc): kse.maths.Vc = Vc(value * v.x, value * v.y)
+
+  inline def ~>(y: Float): kse.maths.Vc = Vc(value, y)
+}
+
+
+opaque type PlusMinus = Long
+object PlusMinus {
+  inline def wrap(l: Long): kse.maths.PlusMinus = l
+  inline def apply(value: Float, error: Float): kse.maths.PlusMinus =
+    (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL) | (java.lang.Float.floatToRawIntBits(value).toLong << 32)
+  inline def D(value: Double, error: Double): kse.maths.PlusMinus =
+    apply(value.toFloat, error.toFloat)
+  inline def exact(value: Float): kse.maths.PlusMinus =
+    java.lang.Float.floatToRawIntBits(value).toLong << 32
+}
+extension (pm: PlusMinus) {
+  @targetName("PlusMinus_value")
+  inline def value: Float = java.lang.Float.intBitsToFloat((pm >>> 32).toInt)
+  inline def valueTo(value: Float): kse.maths.PlusMinus =
+    (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32)
+  inline def valueFn(f: Float => Float): kse.maths.PlusMinus =
+    (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm >>> 32).toInt))) & 0xFFFFFFFFL) << 32)
+
+  inline def error: Float = java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt)
+  inline def errorTo(error: Float): kse.maths.PlusMinus =
+    (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL)
+  inline def errorFn(f: Float => Float): kse.maths.PlusMinus =
+    (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt))) & 0x7FFFFFFFL)
+
+  @targetName("PlusMinus_unary_minus")
+  inline def unary_- : kse.maths.PlusMinus = pm ^ 0x8000000000000000L
+}
+extension (pm: kse.maths.PlusMinus) {
+  @targetName("PlusMinus_add")
+  def +(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value + f, pm.error)
+
+  @targetName("PlusMinus_add")
+  def +(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val v = pm.value
+    val u = qm.value
+    val e = pm.error.toDouble
+    val f = qm.error.toDouble
+    PlusMinus(v + u, jm.sqrt((e*e + f*f).toDouble).toFloat)
+
+  @targetName("PlusMinus_sub")
+  def -(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value - f, pm.error)
+
+  @targetName("PlusMinus_sub")
+  def -(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val v = pm.value
+    val u = qm.value
+    val e = pm.error.toDouble
+    val f = qm.error.toDouble
+    PlusMinus(v - u, jm.sqrt(e*e + f*f).toFloat)
+
+  @targetName("PlusMinus_mul")
+  def *(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value * f, pm.error * f)
+
+  @targetName("PlusMinus_mul")
+  def *(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val v = pm.value.toDouble
+    val u = qm.value.toDouble
+    val e = pm.error.toDouble
+    val f = qm.error.toDouble
+    val a = v * u
+    val vf = v * f
+    val ue = u * e
+    PlusMinus.D(a, jm.sqrt(vf*vf + ue*ue))
+
+  @targetName("PlusMinus_reciprocal")
+  def reciprocal: kse.maths.PlusMinus =
+    val r = 1.0 / pm.value.toDouble
+    PlusMinus.D(r, pm.error*r*r)
+
+  @targetName("PlusMinus_div")
+  def /(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value / f, pm.error / f)
+
+  @targetName("PlusMinus_div")
+  def /(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val iu = 1.0 / qm.value.toDouble
+    val r = pm.value.toDouble * iu
+    val e = pm.error.toDouble
+    val f = qm.error.toDouble
+    PlusMinus.D(r, jm.sqrt(e*e + f*f*r*r) * iu)
+
+  @targetName("PlusMinus_sq")
+  def sq: kse.maths.PlusMinus =
+    val v = pm.value.toDouble
+    val e = pm.error.toDouble
+    if e == 0 then PlusMinus((v*v).toFloat, 0f)
+    else           PlusMinus.D(v * v, v * e * kse.maths.NumericConstants.SqrtTwo)
+
+  @targetName("PlusMinus_sqrt")
+  def sqrt: kse.maths.PlusMinus =
+    val r = jm.sqrt(pm.value.toDouble)
+    val e = pm.error.toDouble
+    if e == 0 then PlusMinus(r.toFloat, 0f)
+    else           PlusMinus.D(r, 0.5*e/r)
+
+  @targetName("PlusMinus_pow")
+  def pow(exponent: Float): kse.maths.PlusMinus =
+    val v = pm.value.toDouble
+    val e = pm.error.toDouble
+    val p = jm.pow(v, exponent)
+    if e == 0 then      PlusMinus(p.toFloat, 0f)
+    else if v != 0 then PlusMinus.D(p, e * jm.abs(exponent) * p / v)
+    else                PlusMinus.D(p, e * jm.abs(exponent) * jm.pow(v, exponent - 1))
+
+  @targetName("PlusMinus_equals")
+  def ===(qm: kse.maths.PlusMinus): Boolean =
+    pm.value == qm.value && pm.error == qm.error
+
+  @targetName("PlusMinus_pr") def pr: String =
+    val sb = new java.lang.StringBuilder
+    sb append pm.value
+    sb append " +- "
+    sb append pm.error
+    sb.toString
+
+  @targetName("PlusMinus_prf") def prf(fmt: String): String =
+    val sb = new java.lang.StringBuilder
+    sb append fmt.format(pm.value)
+    sb append " +- "
+    sb append fmt.format(pm.error)
+    sb.toString
+}
+extension (value: Float) {
+  @targetName("PlusMinus_prefix_add")
+  inline def +(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo(value + pm.value)
+
+  @targetName("PlusMinus_prefix_sub")
+  inline def -(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo(value - pm.value)
+
+  @targetName("PlusMinus_prefix_times")
+  inline def *(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = PlusMinus(value * pm.value, value * pm.error)
+
+  @targetName("PlusMinus_prefix_div")
+  inline def /(pm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val v = pm.value.toDouble
+    val u = value.toDouble
+    val r = 1.0/v
+    PlusMinus.D(u*r, pm.error.toDouble*u*r*r)
+
+  inline def +-(error: Float): kse.maths.PlusMinus = PlusMinus(value, error)
+}
 

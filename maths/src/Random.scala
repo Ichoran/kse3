@@ -82,14 +82,14 @@ sealed abstract class Prng {
       cache = java.lang.Double.doubleToRawLongBits(y * scale)
       x * scale
 
-  final def gaussianVc: kse.maths.packed.Vc =
+  final def gaussianVc: kse.maths.Vc =
     val x = D*2 - 1
     val y = D*2 - 1
     val rr = x*x + y*y
     if rr >= 1 then gaussianVc
     else 
       val scale = jm.sqrt( (-2 * jm.log(rr)) / rr )
-      kse.maths.packed.Vc.from(x * scale, y * scale)
+      kse.maths.Vc.D(x * scale, y * scale)
 
   final def gaussianPair(f: (Double, Double) => Unit): Unit =
     val x = D*2 - 1

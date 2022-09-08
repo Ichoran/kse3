@@ -1204,28 +1204,24 @@ class MathTest {
     T ~ b.toUInt         ==== typed[Int]
     T ~ b.toULong        ==== 248L
     T ~ b.toULong        ==== typed[Long]
-    T ~ b.hex            ==== "F8"
-    T ~ b.hiHex          ==== "F8"
-    T ~ b.loHex          ==== "f8"
-    T ~ (1: Byte).hex    ==== "01"
 
     val s: Short = -88
-    T ~ s.clamp(-915, -4) ==== (-88: Short)
-    T ~ s.clamp(-44, 333) ==== (-44: Short)
-    T ~ s.clamp(-99, -91) ==== (-91: Short)
-    T ~ s.clamp(333, -44) ==== (333: Short)
-    T ~ s.in(-915, -4)    ==== true
-    T ~ s.in(-44, 333)    ==== false
-    T ~ s.in(-99, -91)    ==== false
-    T ~ s.in(-4, -915)    ==== false
-    T ~ s.toUInt          ==== 65448
-    T ~ s.toUInt          ==== typed[Int]
-    T ~ s.toULong         ==== 65448L
-    T ~ s.toULong         ==== typed[Long]
-    T ~ s.hex             ==== "FFA8"
-    T ~ s.hiHex           ==== "FFA8"
-    T ~ s.loHex           ==== "ffa8"
-    T ~ (1: Short).hex    ==== "0001"
+    T ~ s.clamp(-915, -4)    ==== (-88: Short)
+    T ~ s.clamp(-44, 333)    ==== (-44: Short)
+    T ~ s.clamp(-99, -91)    ==== (-91: Short)
+    T ~ s.clamp(333, -44)    ==== (333: Short)
+    T ~ s.in(-915, -4)       ==== true
+    T ~ s.in(-44, 333)       ==== false
+    T ~ s.in(-99, -91)       ==== false
+    T ~ s.in(-4, -915)       ==== false
+    T ~ s.toUInt             ==== 65448
+    T ~ s.toUInt             ==== typed[Int]
+    T ~ s.toULong            ==== 65448L
+    T ~ s.toULong            ==== typed[Long]
+    T ~ s.hexString          ==== "FFA8"
+    T ~ s.hiHexString        ==== "FFA8"
+    T ~ s.loHexString        ==== "ffa8"
+    T ~ (1: Short).hexString ==== "0001"
 
     val c = 'n'
     T ~ c.clamp('a', 'w') ==== 'n'
@@ -1236,9 +1232,9 @@ class MathTest {
     T ~ c.in('A', 'W')    ==== false
     T ~ c.in('q', 'z')    ==== false
     T ~ c.in('w', 'a')    ==== false
-    T ~ c.hex             ==== "006E"
-    T ~ c.hiHex           ==== "006E"
-    T ~ c.loHex           ==== "006e"
+    T ~ c.hexString       ==== "006E"
+    T ~ c.hiHexString     ==== "006E"
+    T ~ c.loHexString     ==== "006e"
 
     val i = -8888
     T ~ i.clamp(-9999, -7777) ==== -8888
@@ -1251,10 +1247,10 @@ class MathTest {
     T ~ i.in(-7777, -9999)    ==== false
     T ~ i.toULong             ==== 4294958408L
     T ~ i.toULong             ==== typed[Long]
-    T ~ i.hex                 ==== "FFFFDD48"
-    T ~ i.hiHex               ==== "FFFFDD48"
-    T ~ i.loHex               ==== "ffffdd48"
-    T ~ 11.hex                ==== "0000000B"
+    T ~ i.hexString           ==== "FFFFDD48"
+    T ~ i.hiHexString         ==== "FFFFDD48"
+    T ~ i.loHexString         ==== "ffffdd48"
+    T ~ 11.hexString          ==== "0000000B"
     T ~ 1067030938.bitsF      ==== 1.2f
 
 
@@ -1267,9 +1263,9 @@ class MathTest {
     T ~ l.in(-100L, -10L)          ==== false
     T ~ l.in(72L, 43210L)          ==== false
     T ~ l.in(100L, -100L)          ==== false
-    T ~ l.hex                      ==== "000000000000002A"
-    T ~ l.hiHex                    ==== "000000000000002A"
-    T ~ l.loHex                    ==== "000000000000002a"
+    T ~ l.hexString                ==== "000000000000002A"
+    T ~ l.hiHexString              ==== "000000000000002A"
+    T ~ l.loHexString              ==== "000000000000002a"
     T ~ 4608083138725491507L.bitsD ==== 1.2
 
     val f = 1.2f
@@ -1395,6 +1391,313 @@ class MathTest {
     T ~ d.f32                 ==== 1.2f
     T ~ d.f32                 ==== typed[Float]
 
+    val v = 1.2f ~> 3.1f
+    val u = -1.5f ~> 0.7f
+    T ~ (v == Vc.F(1.2f, 3.1f))    ==== true
+    T ~ (v === Vc.D(1.2, 3.1))     ==== true
+    T ~ (1.0f ~> 0.0f)             ==== Vc.wrap(0x000000003F800000L)
+    T ~ (0.0f ~> 1.0f)             ==== Vc.wrap(0x3F80000000000000L)
+    T ~ Vc(0, 0)                   ==== Vc.zero
+    T ~ Vc.NaN.x.nan               ==== true
+    T ~ Vc.NaN.y.nan               ==== true
+    T ~ v.x                        ==== 1.2f
+    T ~ v.y                        ==== 3.1f
+    T ~ v.xTo(5.4f).x              ==== 5.4f
+    T ~ v.xTo(5.4f).y              ==== 3.1f
+    T ~ v.xFn(_ + 1).x             ==== 2.2f
+    T ~ v.xFn(_ + 1).y             ==== 3.1f
+    T ~ v.yTo(0.3f).x              ==== 1.2f
+    T ~ v.yTo(0.3f).y              ==== 0.3f
+    T ~ v.yFn(_ - 1).x             ==== 1.2f
+    T ~ v.yFn(_ - 1).y             ==== 2.1f
+    T ~ Vc.zero.isZero             ==== true
+    T ~ Vc(-0f, 0f).isZero         ==== true
+    T ~ Vc(0f, -0f).isZero         ==== true
+    T ~ Vc.wrap(1).isZero          ==== false
+    T ~ Vc.NaN.isZero              ==== false
+    T ~ v.isZero                   ==== false
+    T ~ Vc.zero.isFinite           ==== true
+    T ~ v.isFinite                 ==== true
+    T ~ Vc.NaN.isFinite            ==== false
+    T ~ Vc(Float.NaN, 0f).isFinite ==== false
+    T ~ Vc(0f, Float.NaN).isFinite ==== false
+    T ~ Vc( 1.0f/0f, 0f).isFinite  ==== false
+    T ~ Vc(-1.0f/0f, 0f).isFinite  ==== false
+    T ~ Vc(0f,  1.0f/0f).isFinite  ==== false
+    T ~ Vc(0f, -1.0f/0f).isFinite  ==== false
+    T ~ v.isNaN                    ==== false
+    T ~ Vc.NaN.isNaN               ==== true
+    T ~ Vc(Float.NaN, 0f).isNaN    ==== true
+    T ~ Vc(0f, Float.NaN).isNaN    ==== true
+    T ~ Vc( 1.0f/0f, 0f).isNaN     ==== false
+    T ~ Vc(-1.0f/0f, 0f).isNaN     ==== false
+    T ~ Vc(0f,  1.0f/0f).isNaN     ==== false
+    T ~ Vc(0f, -1.0f/0f).isNaN     ==== false
+    T ~ v.swapped.x                ==== 3.1f
+    T ~ v.swapped.y                ==== 1.2f
+    T ~ v.cw.x                     ==== 3.1f
+    T ~ v.cw.y                     ==== -1.2f
+    T ~ v.ccw.x                    ==== -3.1f
+    T ~ v.ccw.y                    ==== 1.2f
+    T ~ (-v).x                     ==== -1.2f
+    T ~ (-v).y                     ==== -3.1f
+    T ~ v.rotate(0.37f).x          =~~= -0.00221502436414f
+    T ~ v.rotate(0.37f).y          =~~= 3.32415328974f
+    T ~ v.theta.f32                =~~= 1.20146266912f
+    T ~ v.lenSq.f32                =~~= 11.05f
+    T ~ v.len.f32                  =~~= 3.32415402772f
+    T ~ (v + 2f).x                 =~~= 3.2f
+    T ~ (v + 2f).y                 =~~= 5.1f
+    T ~ (v + 2f)                   ==== (2f + v)
+    T ~ v.+(1f, -1f).x             =~~= 2.2f
+    T ~ v.+(1f, -1f).y             =~~= 2.1f
+    T ~ (v + Vc(1, -1)).x          =~~= 2.2f
+    T ~ (v + Vc(1, -1)).y          =~~= 2.1f
+    T ~ (v - 2f).x                 =~~= -0.8f
+    T ~ (v - 2f).y                 =~~= 1.1f
+    T ~ (v - 2f)                   ==== -(2f - v)
+    T ~ v.-(-1, 1).x               =~~= 2.2f
+    T ~ v.-(-1, 1).y               =~~= 2.1f
+    T ~ (v - Vc(-1, 1)).x          =~~= 2.2f
+    T ~ (v - Vc(-1, 1)).y          =~~= 2.1f
+    T ~ (v * 2f).x                 =~~= 2.4f
+    T ~ (v * 2f).y                 =~~= 6.2f
+    T ~ (v * 2f)                   ==== (2f * v)
+    T ~ v.*(-1.5f, 0.7f).f32       =~~= 0.37f
+    T ~ (v * u)                    ==== v.*(-1.5f, 0.7f)
+    T ~ v.X(-1.5f, 0.7f).f32       =~~= 5.49f
+    T ~ (v X u)                    ==== v.X(-1.5f, 0.7f)
+    T ~ v.proj(-1.5f, 0.7f).x      =~~= -0.202554744525f
+    T ~ v.proj(-1.5f, 0.7f).y      =~~= 0.0945255474453f
+    T ~ (v proj u)                 ==== v.proj(-1.5f, 0.7f)
+    T ~ v.orth(-1.5f, 0.7f).x      =~~= 1.40255474453f
+    T ~ v.orth(-1.5f, 0.7f).y      =~~= 3.00547445255f
+    T ~ (v orth u)                 ==== v.orth(-1.5f, 0.7f)
+    T ~ v.hat.x                    =~~= 0.360994102558f
+    T ~ v.hat.y                    =~~= 0.932568098274f
+    T ~ v.normDot(-1.5f, 0.7f).f32 =~~= 0.0672427248161f
+    T ~ (v normDot u)              ==== v.normDot(-1.5f, 0.7f)
+    T ~ v.distSq(-1.5f, 0.7f).f32  =~~= 13.05f
+    T ~ (v distSq u)               ==== v.distSq(-1.5f, 0.7f)
+    T ~ v.dist(-1.5f, 0.7f).f32    =~~= 3.61247837364f
+    T ~ (v dist u)                 ==== v.dist(-1.5f, 0.7f)
+    T ~ v.angle(-1.5f, 0.7f).f32   =~~= 1.50350282465f
+    T ~ (v angle u)                ==== v.angle(-1.5f, 0.7f)
+    T ~ (u angle v)                ==== -(v angle u)
+    T ~ v.pr                       ==== "[1.2 3.1]"
+    T ~ v.prf("%.2e")              ==== "[1.20e+00 3.10e+00]"
+
+    val pm = 3.5f +- 0.2f
+    val qm = 1.9f +- 0.5f
+    T ~ pm                      ==== PlusMinus(3.5f, 0.2f)
+    T ~ (pm === (3.5f +- -0.2f))==== true
+    T ~ (1f +- 0f)              ==== PlusMinus.wrap(0x3F80000000000000L)
+    T ~ (0f +- 1f)              ==== PlusMinus.wrap(0x000000003F800000L)
+    T ~ pm                      ==== PlusMinus.D(3.5, 0.2)
+    T ~ (1f +- 0f)              ==== PlusMinus.exact(1f)
+    T ~ pm.value                ==== 3.5f
+    T ~ pm.error                ==== 0.2f
+    T ~ pm.valueTo(1.9f).value  ==== 1.9f
+    T ~ pm.valueTo(1.9f).error  ==== 0.2f
+    T ~ pm.valueFn(_ + 1).value ==== 4.5f
+    T ~ pm.valueFn(_ + 1).error ==== 0.2f
+    T ~ pm.errorTo(0.6f).value  ==== 3.5f
+    T ~ pm.errorTo(0.6f).error  ==== 0.6f
+    T ~ pm.errorFn(_ - 1).value ==== 3.5f
+    T ~ pm.errorFn(_ - 1).error ==== 0.8f
+    T ~ (-pm).value             ==== -3.5f
+    T ~ (-pm).error             ==== 0.2f
+    T ~ (pm + 1).value          ==== 4.5f
+    T ~ (pm + 1).error          ==== 0.2f
+    T ~ (1 + pm)                ==== (pm + 1)
+    T ~ (pm + qm).value         ==== 5.4f
+    T ~ (pm + qm).error         =~~= 0.538516480713f
+    T ~ (pm - 1).value          ==== 2.5f
+    T ~ (pm - 1).error          ==== 0.2f
+    T ~ (1 - pm)                ==== -(pm - 1)
+    T ~ (pm - qm).value         ==== 1.6f
+    T ~ (pm - qm).error         ==== (pm + qm).error
+    T ~ (pm * 2f).value         ==== 7.0f
+    T ~ (pm * 2f).error         ==== 0.4f
+    T ~ (2f * pm)               ==== (pm * 2f)
+    T ~ (pm * qm).value         =~~= 6.65f
+    T ~ (pm * qm).error         =~~= 1.79078195211f
+    T ~ (pm / 2f).value         ==== 1.75f
+    T ~ (pm / 2f).error         ==== 0.1f
+    T ~ (2f / pm).value         =~~= 0.571428571429f
+    T ~ (2f / pm).error         =~~= 0.0326531f
+    T ~ (pm / qm).value         =~~= 1.84210526316f
+    T ~ (pm / qm).error         =~~= 0.496061f
+    T ~ pm.sq.value             =~~= (pm * pm).value
+    T ~ pm.sq.error             =~~= (pm * pm).error
+    T ~ pm.sqrt.value           =~~= 1.87082869339f
+    T ~ pm.sqrt.error           =~~= 0.0534522f
+    T ~ pm.pow(1.7f).value      =~~= 8.41231788372f
+    T ~ pm.pow(1.7f).error      =~~= 0.817197f
+    T ~ pm.pr                   ==== "3.5 +- 0.2"
+    T ~ pm.prf("%.2e")          ==== "3.50e+00 +- 2.00e-01"
+
+/*
+  @Test
+  def packedTest: Unit =
+    T ~ Bit(false)  ==== 0
+    T ~ Bit(true)   ==== 1
+    T ~ Bit.flip(1) ==== 0
+    T ~ Bit.flip(0) ==== 1
+
+    T ~ Bits.B(                     0) ==== 0x00.toByte
+    T ~ Bits.B(                  1, 0) ==== 0x02.toByte
+    T ~ Bits.B(               1, 1, 0) ==== 0x06.toByte
+    T ~ Bits.B(            1, 1, 1, 0) ==== 0x0E.toByte
+    T ~ Bits.B(         0, 1, 1, 1, 0) ==== 0x0E.toByte
+    T ~ Bits.B(      1, 0, 1, 1, 1, 0) ==== 0x2E.toByte
+    T ~ Bits.B(   1, 1, 0, 1, 1, 1, 0) ==== 0x6E.toByte
+    T ~ Bits.B(0, 1, 1, 0, 1, 1, 1, 0) ==== 0x6E.toByte
+    T ~ Bits.S(                                             0) ==== 0x0000.toShort
+    T ~ Bits.S(                                          1, 0) ==== 0x0002.toShort
+    T ~ Bits.S(                                       1, 1, 0) ==== 0x0006.toShort
+    T ~ Bits.S(                                    1, 1, 1, 0) ==== 0x000E.toShort
+    T ~ Bits.S(                                 0, 1, 1, 1, 0) ==== 0x000E.toShort
+    T ~ Bits.S(                              1, 0, 1, 1, 1, 0) ==== 0x002E.toShort
+    T ~ Bits.S(                           1, 1, 0, 1, 1, 1, 0) ==== 0x006E.toShort
+    T ~ Bits.S(                        0, 1, 1, 0, 1, 1, 1, 0) ==== 0x006E.toShort
+    T ~ Bits.S(                     0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x006E.toShort
+    T ~ Bits.S(                  0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x006E.toShort
+    T ~ Bits.S(               1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x046E.toShort
+    T ~ Bits.S(            1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x0C6E.toShort
+    T ~ Bits.S(         1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x1C6E.toShort
+    T ~ Bits.S(      0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x1C6E.toShort
+    T ~ Bits.S(   1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0x5C6E.toShort
+    T ~ Bits.S(1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0) ==== 0xDC6E.toShort
+
+    T ~ Hex.flip(15)  ==== 0
+    T ~ Hex.flip(5)   ==== 10
+    T ~ Hex.zero      ==== 0
+    T ~ Hex.from('0') ==== 0
+    T ~ Hex.from('1') ==== 1
+    T ~ Hex.from('2') ==== 2
+    T ~ Hex.from('3') ==== 3
+    T ~ Hex.from('4') ==== 4
+    T ~ Hex.from('5') ==== 5
+    T ~ Hex.from('6') ==== 6
+    T ~ Hex.from('7') ==== 7
+    T ~ Hex.from('8') ==== 8
+    T ~ Hex.from('9') ==== 9
+    T ~ Hex.from('A') ==== 10
+    T ~ Hex.from('B') ==== 11
+    T ~ Hex.from('C') ==== 12
+    T ~ Hex.from('D') ==== 13
+    T ~ Hex.from('E') ==== 14
+    T ~ Hex.from('F') ==== 15
+    T ~ Hex.from('a') ==== 10
+    T ~ Hex.from('b') ==== 11
+    T ~ Hex.from('c') ==== 12
+    T ~ Hex.from('d') ==== 13
+    T ~ Hex.from('e') ==== 14
+    T ~ Hex.from('f') ==== 15
+
+    T ~ Hex.B(     'B') ==== 0x0B.toByte
+    T ~ Hex.B('a', 'b') ==== 0xAB.toByte
+    T ~ Hex.B(      11) ==== 0x0B.toByte
+    T ~ Hex.B( 10,  11) ==== 0xAB.toByte
+    T ~ Hex.S(               'B') ==== 0x000B.toShort
+    T ~ Hex.S(          'a', 'b') ==== 0x00AB.toShort
+    T ~ Hex.S(     '6', 'A', 'b') ==== 0x06AB.toShort
+    T ~ Hex.S('f', '6', 'A', 'b') ==== 0xF6AB.toShort
+    T ~ Hex.S(                11) ==== 0x000B.toShort
+    T ~ Hex.S(           10,  11) ==== 0x00AB.toShort
+    T ~ Hex.S(       6,  10,  11) ==== 0x06AB.toShort
+    T ~ Hex.S( 15,   6,  10,  11) ==== 0xF6AB.toShort
+
+    T ~ Bytes.S(      0x74) ==== 0x0074.toShort
+    T ~ Bytes.S(0x1E, 0x74) ==== 0x1E74.toShort
+
+
+    val b: Byte = -39
+    val p: Byte = (~b).toByte
+    T ~ b                       ==== Bits.B(1, 1, 0, 1, 1, 0, 0, 1)
+    T ~ p                       ==== Bits.B(0, 0, 1, 0, 0, 1, 1, 0)
+    T ~ (b.bit0 + 10*p.bit0)    ==== 1
+    T ~ (b.bit1 + 10*p.bit1)    ==== 10
+    T ~ (b.bit2 + 10*p.bit2)    ==== 10
+    T ~ (b.bit3 + 10*p.bit3)    ==== 1
+    T ~ (b.bit4 + 10*p.bit4)    ==== 1
+    T ~ (b.bit5 + 10*p.bit5)    ==== 10
+    T ~ (b.bit6 + 10*p.bit6)    ==== 1
+    T ~ (b.bit7 + 10*p.bit7)    ==== 1
+    T ~ (b.bit(0) + 2*p.bit(0)) ==== 1
+    T ~ (b.bit(1) + 2*p.bit(1)) ==== 2
+    T ~ (b.bit(2) + 2*p.bit(2)) ==== 2
+    T ~ (b.bit(3) + 2*p.bit(3)) ==== 1
+    T ~ (b.bit(4) + 2*p.bit(4)) ==== 1
+    T ~ (b.bit(5) + 2*p.bit(5)) ==== 2
+    T ~ (b.bit(6) + 2*p.bit(6)) ==== 1
+    T ~ (b.bit(7) + 2*p.bit(7)) ==== 1
+    T ~ b.bits(3, 4)            ==== Bits.B(1, 0, 1, 1)
+    T ~ b.bitString             ==== "11011001"
+    T ~ b.reverseBits           ==== Bits.B(1, 0, 0, 1, 1, 0, 1, 1)
+    T ~ b.hex0                  ==== 9
+    T ~ b.hex1                  ==== Hex.from('D')
+    T ~ b.reverseHex            ==== 0x9D.toByte
+    T ~ b.bit0To(0)             ==== 0xD8.toByte
+    T ~ b.bit0To(1)             ==== 0xD9.toByte
+    T ~ b.bit1To(0)             ==== 0xD9.toByte
+    T ~ b.bit1To(1)             ==== 0xDB.toByte
+    T ~ b.bit2To(0)             ==== 0xD9.toByte
+    T ~ b.bit2To(1)             ==== 0xDD.toByte
+    T ~ b.bit3To(0)             ==== 0xD1.toByte
+    T ~ b.bit3To(1)             ==== 0xD9.toByte
+    T ~ b.bit4To(0)             ==== 0xC9.toByte
+    T ~ b.bit4To(1)             ==== 0xD9.toByte
+    T ~ b.bit5To(0)             ==== 0xD9.toByte
+    T ~ b.bit5To(1)             ==== 0xF9.toByte
+    T ~ b.bit6To(0)             ==== 0x99.toByte
+    T ~ b.bit6To(1)             ==== 0xD9.toByte
+    T ~ b.bit7To(0)             ==== 0x59.toByte
+    T ~ b.bit7To(1)             ==== 0xD9.toByte 
+    T ~ b.bitTo(0)(0)           ==== 0xD8.toByte
+    T ~ b.bitTo(0)(1)           ==== 0xD9.toByte
+    T ~ b.bitTo(1)(0)           ==== 0xD9.toByte
+    T ~ b.bitTo(1)(1)           ==== 0xDB.toByte
+    T ~ b.bitTo(2)(0)           ==== 0xD9.toByte
+    T ~ b.bitTo(2)(1)           ==== 0xDD.toByte
+    T ~ b.bitTo(3)(0)           ==== 0xD1.toByte
+    T ~ b.bitTo(3)(1)           ==== 0xD9.toByte
+    T ~ b.bitTo(4)(0)           ==== 0xC9.toByte
+    T ~ b.bitTo(4)(1)           ==== 0xD9.toByte
+    T ~ b.bitTo(5)(0)           ==== 0xD9.toByte
+    T ~ b.bitTo(5)(1)           ==== 0xF9.toByte
+    T ~ b.bitTo(6)(0)           ==== 0x99.toByte
+    T ~ b.bitTo(6)(1)           ==== 0xD9.toByte
+    T ~ b.bitTo(7)(0)           ==== 0x59.toByte
+    T ~ b.bitTo(7)(1)           ==== 0xD9.toByte
+    T ~ b.bitsTo(3,4)(4)        ==== Bits.B(1, 0, 1, 0, 0, 0, 0, 1)
+    T ~ b.hexString             ==== "D9"
+    T ~ b.loHexString           ==== "d9"
+    T ~ b.hiHexString           ==== "D9"
+    T ~ p.hexString             ==== "26"
+
+    val s: Short = 0x6ED9
+    val z = (s ^ 0xFFFF).toShort
+    T ~ s ==== Bits.S(0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1)
+    T ~ z ==== Bits.S(1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0)
+    T ~ (s.bit0  + 10*z.bit0  + 2*s.bit( 0) + 20*z.bit( 0))    ==== 3
+    T ~ (s.bit1  + 10*z.bit1  + 2*s.bit( 1) + 20*z.bit( 1))    ==== 30
+    T ~ (s.bit2  + 10*z.bit2  + 2*s.bit( 2) + 20*z.bit( 2))    ==== 30
+    T ~ (s.bit3  + 10*z.bit3  + 2*s.bit( 3) + 20*z.bit( 3))    ==== 3
+    T ~ (s.bit4  + 10*z.bit4  + 2*s.bit( 4) + 20*z.bit( 4))    ==== 3
+    T ~ (s.bit5  + 10*z.bit5  + 2*s.bit( 5) + 20*z.bit( 5))    ==== 30
+    T ~ (s.bit6  + 10*z.bit6  + 2*s.bit( 6) + 20*z.bit( 6))    ==== 3
+    T ~ (s.bit7  + 10*z.bit7  + 2*s.bit( 7) + 20*z.bit( 7))    ==== 3
+    T ~ (s.bit8  + 10*z.bit8  + 2*s.bit( 8) + 20*z.bit( 8))    ==== 30
+    T ~ (s.bit9  + 10*z.bit9  + 2*s.bit( 9) + 20*z.bit( 9))    ==== 3
+    T ~ (s.bit10 + 10*z.bit10 + 2*s.bit(10) + 20*z.bit(10))    ==== 3
+    T ~ (s.bit11 + 10*z.bit11 + 2*s.bit(11) + 20*z.bit(11))    ==== 3
+    T ~ (s.bit12 + 10*z.bit12 + 2*s.bit(12) + 20*z.bit(12))    ==== 30
+    T ~ (s.bit13 + 10*z.bit13 + 2*s.bit(13) + 20*z.bit(13))    ==== 3
+    T ~ (s.bit14 + 10*z.bit14 + 2*s.bit(14) + 20*z.bit(14))    ==== 3
+    T ~ (s.bit15 + 10*z.bit15 + 2*s.bit(15) + 20*z.bit(15))    ==== 30
+*/
 }
 object MathsTest {
   // @BeforeClass
