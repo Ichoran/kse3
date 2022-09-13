@@ -1,5 +1,6 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2015-16, 2021-22 by Rex Kerr and Calico Life Sciences LLC
+//
 // Contains code ported from xxHash C source (by Yann Collet, "Cyan5973")
 //   See https://github.com/Cyan4973/xxHash
 // Contains code ported from MurmurHash C++ source (by Austin Appleby)
