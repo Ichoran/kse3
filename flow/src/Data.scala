@@ -1,7 +1,6 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2011-15, 2021-22 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
 
-
 package kse.flow
 
 ////////////////////////////////////////////////

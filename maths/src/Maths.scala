@@ -592,7 +592,6 @@ extension (i: Int) {
     else lo
   inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
   inline def toULong: Long = i & 0xFFFFFFFFL
-  inline def bitsF = java.lang.Float.intBitsToFloat(i)
 }
 
 extension (l: Long) {
@@ -603,18 +602,25 @@ extension (l: Long) {
       else lo
     else lo
   inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
-  inline def bitsD = java.lang.Double.longBitsToDouble(l)
+}
+
+extension (inline x: Byte | Short | Int | Long) {
+  transparent inline def bitsF = inline x match
+    case i: Int => java.lang.Float.intBitsToFloat(i)
+
+  transparent inline def bitsD = inline x match
+    case l: Long => java.lang.Double.longBitsToDouble(l)
+
+  transparent inline def leadingZeros: Int = inline x match
+    case i: Int  => java.lang.Integer.numberOfLeadingZeros(i)
+    case l: Long => java.lang.Long.   numberOfLeadingZeros(l)
+
+  transparent inline def trailingZeros: Int = inline x match
+    case i: Int  => java.lang.Integer.numberOfTrailingZeros(i)
+    case l: Long => java.lang.Long.   numberOfTrailingZeros(l)
 }
 
 extension (f: Float) {
-  inline def sq = f * f
-  inline def sign = jm.signum(f)
-  inline def ulp = jm.ulp(f)
-  inline def next = jm.nextUp(f)
-  inline def prev = jm.nextDown(f)
-  inline def nan = java.lang.Float.isNaN(f)
-  inline def inf = java.lang.Float.isInfinite(f)
-  inline def finite = (java.lang.Float.floatToRawIntBits(f) & 0x7F800000) != 0x7F800000
   inline def clamp(lo: Float, hi: Float) =
     if lo <= f && f <= hi then f
     else if f < lo then lo
@@ -622,6 +628,7 @@ extension (f: Float) {
       if lo <= hi then hi
       else lo
     else Float.NaN
+
   inline def in(lo: Float, hi: Float) = lo <= f && f <= hi
 
   final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
@@ -631,18 +638,9 @@ extension (f: Float) {
         big <= 1 || x <= big*fractol
       case _ => false
   inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
-
-  inline def bitsI = java.lang.Float.floatToRawIntBits(f)
-  inline def f64: Double = f.toDouble
-
-  inline def rad2deg: Float = (f * NumericConstants.DegreesPerRadian).toFloat
-  inline def rad2rev: Float = (f * NumericConstants.OverTwoPi).toFloat
-  inline def deg2rad: Float = (f * NumericConstants.RadiansPerDegree).toFloat
-  inline def rev2rad: Float = (f * NumericConstants.TwoPi).toFloat
 }
 
 extension (d: Double) {
-  inline def sq = d * d
   inline def cube = d * d * d
   inline def sqrt = jm.sqrt(d)
   inline def cbrt = jm.cbrt(d)
@@ -681,14 +679,8 @@ extension (d: Double) {
   inline def cdfNormal = NumericFunctions.cdfNormal(d)
   inline def icdfNormal = NumericFunctions.icdfNormal(d)
 
-  inline def sign = jm.signum(d)
   inline def rint = jm.rint(d)
-  inline def ulp = jm.ulp(d)
-  inline def next = jm.nextUp(d)
-  inline def prev = jm.nextDown(d)
-  inline def nan = java.lang.Double.isNaN(d)
-  inline def inf = java.lang.Double.isInfinite(d)
-  inline def finite = (java.lang.Double.doubleToRawLongBits(d) & 0x7FF0000000000000L) != 0x7FF0000000000000L
+
   inline def clamp(lo: Double, hi: Double) =
     if lo <= d && d <= hi then d
     else if d < lo then lo
@@ -696,19 +688,70 @@ extension (d: Double) {
       if lo <= hi then hi
       else lo
     else Double.NaN
+
   inline def in(lo: Double, hi: Double) = lo <= d && d <= hi
+
   final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
     math.abs(d - that) match
       case x if x <= abstol =>
         val big = math.max(math.abs(d), math.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
-
-  inline def bitsL = java.lang.Double.doubleToRawLongBits(d)
-  inline def f32 = d.toFloat
 }
 
+extension (inline x: Byte | Short | Int | Long | Float | Double) {
+  transparent inline def bitsI = inline x match
+    case f: Float => java.lang.Float.floatToRawIntBits(f)
 
+  transparent inline def bitsL = inline x match
+    case d: Double => java.lang.Double.doubleToRawLongBits(d)
+
+  transparent inline def f64: Double = inline x match
+    case f: Float => f.toDouble
+
+  transparent inline def f32: Float = inline x match
+    case d: Double => d.toFloat
+
+  transparent inline def sq = inline x match
+    case b: Byte   => val d = b.toDouble; d * d
+    case s: Short  => val d = s.toDouble; d * d
+    case i: Int    => val d = i.toDouble; d * d
+    case l: Long   => val d = l.toDouble; d * d
+    case f: Float  => f * f
+    case d: Double => d * d
+
+  transparent inline def sign = inline x match
+    case b: Byte   => if b > 0 then 1 else -(b >>> 31)
+    case s: Short  => if s > 0 then 1 else -(s >>> 31)
+    case i: Int    => if i > 0 then 1 else -(i >>> 31)
+    case l: Long   => if l > 0 then 1L else -(l >>> 63)
+    case f: Float  => jm.signum(f)
+    case d: Double => jm.signum(d)
+
+  transparent inline def ulp = inline x match
+    case f: Float  => jm.ulp(f)
+    case d: Double => jm.ulp(d)
+
+  transparent inline def next = inline x match
+    case f: Float  => jm.nextUp(f)
+    case d: Double => jm.nextUp(d)
+
+  transparent inline def prev = inline x match
+    case f: Float  => jm.nextDown(f)
+    case d: Double => jm.nextDown(d)
+
+  transparent inline def nan = inline x match
+    case f: Float  => java.lang.Float.isNaN(f)
+    case d: Double => java.lang.Double.isNaN(d)
+
+  transparent inline def inf = inline x match
+    case f: Float  => java.lang.Float.isInfinite(f)
+    case d: Double => java.lang.Double.isInfinite(d)
+
+  transparent inline def finite = inline x match
+    case f: Float  => (java.lang.Float.floatToRawIntBits(f) & 0x7F800000) != 0x7F800000
+    case d: Double => (java.lang.Double.doubleToRawLongBits(d) & 0x7FF0000000000000L) != 0x7FF0000000000000L
+}
 
 opaque type Vc = Long
 object Vc {
@@ -722,166 +765,167 @@ object Vc {
 
   inline def zero: kse.maths.Vc = 0L
   final val NaN: kse.maths.Vc = apply(Float.NaN, Float.NaN)
-}
-extension (v: Vc) {
-  inline def x: Float = java.lang.Float.intBitsToFloat((v & 0xFFFFFFFFL).toInt)
-  inline def y: Float = java.lang.Float.intBitsToFloat((v >>> 32).toInt)
 
-  inline def xTo(f: Float): kse.maths.Vc =
-    (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f) & 0xFFFFFFFFL)
-  inline def xFn(inline f: Float => Float): kse.maths.Vc =
-    (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(v.x)) & 0xFFFFFFFFL)
 
-  inline def yTo(f: Float): kse.maths.Vc =
-    (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f).toLong << 32)
-  inline def yFn(inline f: Float => Float): kse.maths.Vc =
-    (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f(v.y)).toLong << 32)
+  extension (v: Vc) {
+    inline def x: Float = java.lang.Float.intBitsToFloat((v & 0xFFFFFFFFL).toInt)
+    inline def y: Float = java.lang.Float.intBitsToFloat((v >>> 32).toInt)
 
-  inline def isZero = (v & 0x7FFFFFFF7FFFFFFFL) == 0
-  inline def isFinite = { val a = v & 0x7F8000007F800000L; (a.toInt != 0x7F800000) && ((a >> 32) != 0x7F800000) }
-  inline def isNaN = java.lang.Float.isNaN(v.x) || java.lang.Float.isNaN(v.y)
+    inline def xTo(f: Float): kse.maths.Vc =
+      (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f) & 0xFFFFFFFFL)
+    inline def xFn(inline f: Float => Float): kse.maths.Vc =
+      (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(v.x)) & 0xFFFFFFFFL)
 
-  inline def swapped: kse.maths.Vc = (v >>> 32) | (v << 32)
-  inline def cw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x8000000000000000L
-  inline def ccw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x80000000L
+    inline def yTo(f: Float): kse.maths.Vc =
+      (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f).toLong << 32)
+    inline def yFn(inline f: Float => Float): kse.maths.Vc =
+      (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f(v.y)).toLong << 32)
 
-  @targetName("Vc_unary_minus")
-  inline def unary_- : kse.maths.Vc = v ^ 0x8000000080000000L
-}
-extension (v: kse.maths.Vc) {
-  final def rotate(angle: Float): kse.maths.Vc =
-    val x = v.x
-    val y = v.y
-    val ca = math.cos(angle)
-    val sa = math.sin(angle)
-    Vc.D(x*ca - y*sa, y*ca + x*sa)
-  inline def theta: Double = math.atan2(v.y, v.x)
+    inline def isZero = (v & 0x7FFFFFFF7FFFFFFFL) == 0
+    inline def isFinite = { val a = v & 0x7F8000007F800000L; (a.toInt != 0x7F800000) && ((a >> 32) != 0x7F800000) }
+    inline def isNaN = java.lang.Float.isNaN(v.x) || java.lang.Float.isNaN(v.y)
 
-  final def lenSq: Double = { val a = v.x.toDouble; val b = v.y.toDouble; a*a + b*b }
-  inline def len: Double = math.sqrt(v.lenSq)
+    inline def swapped: kse.maths.Vc = (v >>> 32) | (v << 32)
+    inline def cw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x8000000000000000L
+    inline def ccw: kse.maths.Vc = ((v >>> 32) | (v << 32)) ^ 0x80000000L
 
-  @targetName("Vc_plus") inline def +(f: Float): kse.maths.Vc = Vc(v.x + f, v.y + f)
-  @targetName("Vc_plus") inline def +(f: Float, g: Float): kse.maths.Vc = Vc(v.x + f, v.y + g)
-  @targetName("Vc_plus") final def +(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x + u.x, v.y + u.y)
+    inline def unary_- : kse.maths.Vc = v ^ 0x8000000080000000L
 
-  @targetName("Vc_minus") inline def -(f: Float): kse.maths.Vc = Vc(v.x - f, v.y - f)
-  @targetName("Vc_minus") inline def -(f: Float, g: Float): kse.maths.Vc = Vc(v.x - f, v.y - g)
-  @targetName("Vc_minus") final def -(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x - u.x, v.y - u.y)
+    inline def unwrap: Long = v
+  }
 
-  @targetName("Vc_times") inline def *(f: Float): kse.maths.Vc = Vc(v.x*f, v.y*f)
-  @targetName("Vc_dot") inline def *(f: Float, g: Float): Double = v.x*f + v.y*g
-  @targetName("Vc_dot") inline def *(u: kse.maths.Vc): Double = v.x*u.x + v.y*u.y
-  inline def X(f: Float, g: Float): Double = v.x*g - v.y*f
-  inline def X(u: kse.maths.Vc): Double = v.x*u.y - v.y*u.x
+  extension (v: kse.maths.Vc) {
+    final def rotate(angle: Float): kse.maths.Vc =
+      val x = v.x
+      val y = v.y
+      val ca = math.cos(angle)
+      val sa = math.sin(angle)
+      Vc.D(x*ca - y*sa, y*ca + x*sa)
+    inline def theta: Double = math.atan2(v.y, v.x)
 
-  def proj(f: Float, g: Float): kse.maths.Vc =
-    val a = v.x
-    val b = v.y
-    val e = (a*f + b*g)/(f*f + g*g)
-    Vc(f*e, g*e)
-  def proj(u: kse.maths.Vc): kse.maths.Vc =
-    val a = v.x
-    val b = v.y
-    val c = u.x
-    val d = u.y
-    val e = (a*c + b*d)/(c*c + d*d)
-    Vc(c*e, d*e)
+    final def lenSq: Double = { val a = v.x.toDouble; val b = v.y.toDouble; a*a + b*b }
+    inline def len: Float = math.sqrt(v.lenSq).toFloat
 
-  def orth(f: Float, g: Float): kse.maths.Vc =
-    val a = v.x
-    val b = v.y
-    val e = (a*f + b*g)/(f*f + g*g)
-    Vc(a - f*e, b - g*e)
-  def orth(u: kse.maths.Vc): kse.maths.Vc =
-    val a = v.x
-    val b = v.y
-    val c = u.x
-    val d = u.y
-    val e = (a*c + b*d)/(c*c + d*d)
-    Vc(a - c*e, b - d*e)
+    inline def +(f: Float): kse.maths.Vc = Vc(v.x + f, v.y + f)
+    inline def +(f: Float, g: Float): kse.maths.Vc = Vc(v.x + f, v.y + g)
+    final def +(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x + u.x, v.y + u.y)
 
-  def hat: kse.maths.Vc =
-    val a = v.x.toDouble
-    val b = v.y.toDouble
-    val l2 = a*a + b*b
-    if math.abs(l2-1) < 3e-7f then v
-    else if l2 == 0 then 0L
-    else 
-      val il = 1.0/math.sqrt(l2)
-      Vc.D(a*il, b*il)
+    inline def -(f: Float): kse.maths.Vc = Vc(v.x - f, v.y - f)
+    inline def -(f: Float, g: Float): kse.maths.Vc = Vc(v.x - f, v.y - g)
+    final def -(u: kse.maths.Vc): kse.maths.Vc = Vc(v.x - u.x, v.y - u.y)
 
-  def normDot(f: Float, g: Float): Double =
-    val a = v.x
-    val b = v.y
-    (a*f + b*g) / math.sqrt((a*a + b*b)*(f*f + g*g)) match
-      case w if w < -1 => -1
-      case w if w > 1  =>  1
-      case w           =>  w
-  def normDot(u: kse.maths.Vc): Double =
-    val a = v.x
-    val b = v.y
-    val c = u.x
-    val d = u.y
-    (a*c + b*d) / math.sqrt((a*a + b*b)*(c*c + d*d)) match
-      case w if w < -1 => -1
-      case w if w > 1  =>  1
-      case w           =>  w
+    inline def *(f: Float): kse.maths.Vc = Vc(v.x*f, v.y*f)
+    inline def *(f: Float, g: Float): Double = v.x*f + v.y*g
+    inline def *(u: kse.maths.Vc): Double = v.x*u.x + v.y*u.y
+    inline def X(f: Float, g: Float): Double = v.x*g - v.y*f
+    inline def X(u: kse.maths.Vc): Double = v.x*u.y - v.y*u.x
 
-  def distSq(f: Float, g: Float): Double =
-    val a = (v.x - f).toDouble
-    val b = (v.y - g).toDouble
-    a*a + b*b
-  def distSq(u: kse.maths.Vc): Double =
-    val a = (v.x - u.x).toDouble
-    val b = (v.y - u.y).toDouble
-    a*a + b*b
-  inline def dist(f: Float, g: Float): Float = jm.sqrt(v.distSq(f, g)).toFloat
-  inline def dist(u: kse.maths.Vc): Float = jm.sqrt(v.distSq(u)).toFloat
+    def proj(f: Float, g: Float): kse.maths.Vc =
+      val a = v.x
+      val b = v.y
+      val e = (a*f + b*g)/(f*f + g*g)
+      Vc(f*e, g*e)
+    def proj(u: kse.maths.Vc): kse.maths.Vc =
+      val a = v.x
+      val b = v.y
+      val c = u.x
+      val d = u.y
+      val e = (a*c + b*d)/(c*c + d*d)
+      Vc(c*e, d*e)
 
-  def angle(f: Float, g: Float): Double =
-    val a = v.x.toDouble
-    val b = v.y.toDouble
-    val p = f.toDouble
-    val q = g.toDouble
-    val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
-      case c if c < -1 => -1
-      case c if c > 1  =>  1
-      case c           =>  c
-    jm.acos(d) * jm.signum(a*q - b*p)
-  def angle(u: kse.maths.Vc): Double =
-    val a = v.x.toDouble
-    val b = v.y.toDouble
-    val p = u.x.toDouble
-    val q = u.y.toDouble
-    val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
-      case c if c < -1 => -1
-      case c if c > 1  =>  1
-      case c           =>  c
-    jm.acos(d) * jm.signum(a*q - b*p)
+    def orth(f: Float, g: Float): kse.maths.Vc =
+      val a = v.x
+      val b = v.y
+      val e = (a*f + b*g)/(f*f + g*g)
+      Vc(a - f*e, b - g*e)
+    def orth(u: kse.maths.Vc): kse.maths.Vc =
+      val a = v.x
+      val b = v.y
+      val c = u.x
+      val d = u.y
+      val e = (a*c + b*d)/(c*c + d*d)
+      Vc(a - c*e, b - d*e)
 
-  @targetName("Vc_equals")
-  final def ===(u: kse.maths.Vc): Boolean =
-    v.x == u.x && v.y == u.y
+    def hat: kse.maths.Vc =
+      val a = v.x.toDouble
+      val b = v.y.toDouble
+      val l2 = a*a + b*b
+      if math.abs(l2-1) < 3e-7f then v
+      else if l2 == 0 then 0L
+      else 
+        val il = 1.0/math.sqrt(l2)
+        Vc.D(a*il, b*il)
 
-  @targetName("Vc_pr")
-  def pr: String =
-    val sb = new java.lang.StringBuilder
-    sb append '['
-    sb append v.x
-    sb append ' '
-    sb append v.y
-    sb append ']'
-    sb.toString
+    def normDot(f: Float, g: Float): Double =
+      val a = v.x
+      val b = v.y
+      (a*f + b*g) / math.sqrt((a*a + b*b)*(f*f + g*g)) match
+        case w if w < -1 => -1
+        case w if w > 1  =>  1
+        case w           =>  w
+    def normDot(u: kse.maths.Vc): Double =
+      val a = v.x
+      val b = v.y
+      val c = u.x
+      val d = u.y
+      (a*c + b*d) / math.sqrt((a*a + b*b)*(c*c + d*d)) match
+        case w if w < -1 => -1
+        case w if w > 1  =>  1
+        case w           =>  w
 
-  @targetName("Vc_prf")
-  def prf(fmt: String): String =
-    val sb = new java.lang.StringBuilder
-    sb append '['
-    sb append fmt.format(v.x)
-    sb append ' '
-    sb append fmt.format(v.y)
-    sb append ']'
-    sb.toString
+    def distSq(f: Float, g: Float): Double =
+      val a = (v.x - f).toDouble
+      val b = (v.y - g).toDouble
+      a*a + b*b
+    def distSq(u: kse.maths.Vc): Double =
+      val a = (v.x - u.x).toDouble
+      val b = (v.y - u.y).toDouble
+      a*a + b*b
+    inline def dist(f: Float, g: Float): Float = jm.sqrt(v.distSq(f, g)).toFloat
+    inline def dist(u: kse.maths.Vc): Float = jm.sqrt(v.distSq(u)).toFloat
+
+    def angle(f: Float, g: Float): Double =
+      val a = v.x.toDouble
+      val b = v.y.toDouble
+      val p = f.toDouble
+      val q = g.toDouble
+      val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+        case c if c < -1 => -1
+        case c if c > 1  =>  1
+        case c           =>  c
+      jm.acos(d) * jm.signum(a*q - b*p)
+    def angle(u: kse.maths.Vc): Double =
+      val a = v.x.toDouble
+      val b = v.y.toDouble
+      val p = u.x.toDouble
+      val q = u.y.toDouble
+      val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+        case c if c < -1 => -1
+        case c if c > 1  =>  1
+        case c           =>  c
+      jm.acos(d) * jm.signum(a*q - b*p)
+
+    final def ===(u: kse.maths.Vc): Boolean =
+      v.x == u.x && v.y == u.y
+
+    def pr: String =
+      val sb = new java.lang.StringBuilder
+      sb append '['
+      sb append v.x
+      sb append ' '
+      sb append v.y
+      sb append ']'
+      sb.toString
+
+    def prf(fmt: String): String =
+      val sb = new java.lang.StringBuilder
+      sb append '['
+      sb append fmt.format(v.x)
+      sb append ' '
+      sb append fmt.format(v.y)
+      sb append ']'
+      sb.toString
+  }
 }
 extension (value: Float) {
   @targetName("Vc_prefix_add")
@@ -906,117 +950,106 @@ object PlusMinus {
     apply(value.toFloat, error.toFloat)
   inline def exact(value: Float): kse.maths.PlusMinus =
     java.lang.Float.floatToRawIntBits(value).toLong << 32
-}
-extension (pm: PlusMinus) {
-  @targetName("PlusMinus_value")
-  inline def value: Float = java.lang.Float.intBitsToFloat((pm >>> 32).toInt)
-  inline def valueTo(value: Float): kse.maths.PlusMinus =
-    (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32)
-  inline def valueFn(f: Float => Float): kse.maths.PlusMinus =
-    (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm >>> 32).toInt))) & 0xFFFFFFFFL) << 32)
 
-  inline def error: Float = java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt)
-  inline def errorTo(error: Float): kse.maths.PlusMinus =
-    (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL)
-  inline def errorFn(f: Float => Float): kse.maths.PlusMinus =
-    (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt))) & 0x7FFFFFFFL)
+  extension (pm: PlusMinus) {
+    inline def value: Float = java.lang.Float.intBitsToFloat((pm >>> 32).toInt)
+    inline def valueTo(value: Float): kse.maths.PlusMinus =
+      (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32)
+    inline def valueFn(f: Float => Float): kse.maths.PlusMinus =
+      (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm >>> 32).toInt))) & 0xFFFFFFFFL) << 32)
 
-  @targetName("PlusMinus_unary_minus")
-  inline def unary_- : kse.maths.PlusMinus = pm ^ 0x8000000000000000L
-}
-extension (pm: kse.maths.PlusMinus) {
-  @targetName("PlusMinus_add")
-  def +(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value + f, pm.error)
+    inline def error: Float = java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt)
+    inline def errorTo(error: Float): kse.maths.PlusMinus =
+      (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL)
+    inline def errorFn(f: Float => Float): kse.maths.PlusMinus =
+      (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt))) & 0x7FFFFFFFL)
 
-  @targetName("PlusMinus_add")
-  def +(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
-    val v = pm.value
-    val u = qm.value
-    val e = pm.error.toDouble
-    val f = qm.error.toDouble
-    PlusMinus(v + u, jm.sqrt((e*e + f*f).toDouble).toFloat)
+    inline def unary_- : kse.maths.PlusMinus = pm ^ 0x8000000000000000L
 
-  @targetName("PlusMinus_sub")
-  def -(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value - f, pm.error)
+    inline def unwrap: Long = pm
+  }
 
-  @targetName("PlusMinus_sub")
-  def -(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
-    val v = pm.value
-    val u = qm.value
-    val e = pm.error.toDouble
-    val f = qm.error.toDouble
-    PlusMinus(v - u, jm.sqrt(e*e + f*f).toFloat)
+  extension (pm: kse.maths.PlusMinus) {
+    def +(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value + f, pm.error)
 
-  @targetName("PlusMinus_mul")
-  def *(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value * f, pm.error * f)
+    def +(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+      val v = pm.value
+      val u = qm.value
+      val e = pm.error.toDouble
+      val f = qm.error.toDouble
+      PlusMinus(v + u, jm.sqrt((e*e + f*f).toDouble).toFloat)
 
-  @targetName("PlusMinus_mul")
-  def *(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
-    val v = pm.value.toDouble
-    val u = qm.value.toDouble
-    val e = pm.error.toDouble
-    val f = qm.error.toDouble
-    val a = v * u
-    val vf = v * f
-    val ue = u * e
-    PlusMinus.D(a, jm.sqrt(vf*vf + ue*ue))
+    def -(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value - f, pm.error)
 
-  @targetName("PlusMinus_reciprocal")
-  def reciprocal: kse.maths.PlusMinus =
-    val r = 1.0 / pm.value.toDouble
-    PlusMinus.D(r, pm.error*r*r)
+    def -(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+      val v = pm.value
+      val u = qm.value
+      val e = pm.error.toDouble
+      val f = qm.error.toDouble
+      PlusMinus(v - u, jm.sqrt(e*e + f*f).toFloat)
 
-  @targetName("PlusMinus_div")
-  def /(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value / f, pm.error / f)
+    def *(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value * f, pm.error * f)
 
-  @targetName("PlusMinus_div")
-  def /(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
-    val iu = 1.0 / qm.value.toDouble
-    val r = pm.value.toDouble * iu
-    val e = pm.error.toDouble
-    val f = qm.error.toDouble
-    PlusMinus.D(r, jm.sqrt(e*e + f*f*r*r) * iu)
+    def *(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+      val v = pm.value.toDouble
+      val u = qm.value.toDouble
+      val e = pm.error.toDouble
+      val f = qm.error.toDouble
+      val a = v * u
+      val vf = v * f
+      val ue = u * e
+      PlusMinus.D(a, jm.sqrt(vf*vf + ue*ue))
 
-  @targetName("PlusMinus_sq")
-  def sq: kse.maths.PlusMinus =
-    val v = pm.value.toDouble
-    val e = pm.error.toDouble
-    if e == 0 then PlusMinus((v*v).toFloat, 0f)
-    else           PlusMinus.D(v * v, v * e * kse.maths.NumericConstants.SqrtTwo)
+    def reciprocal: kse.maths.PlusMinus =
+      val r = 1.0 / pm.value.toDouble
+      PlusMinus.D(r, pm.error*r*r)
 
-  @targetName("PlusMinus_sqrt")
-  def sqrt: kse.maths.PlusMinus =
-    val r = jm.sqrt(pm.value.toDouble)
-    val e = pm.error.toDouble
-    if e == 0 then PlusMinus(r.toFloat, 0f)
-    else           PlusMinus.D(r, 0.5*e/r)
+    def /(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value / f, pm.error / f)
 
-  @targetName("PlusMinus_pow")
-  def pow(exponent: Float): kse.maths.PlusMinus =
-    val v = pm.value.toDouble
-    val e = pm.error.toDouble
-    val p = jm.pow(v, exponent)
-    if e == 0 then      PlusMinus(p.toFloat, 0f)
-    else if v != 0 then PlusMinus.D(p, e * jm.abs(exponent) * p / v)
-    else                PlusMinus.D(p, e * jm.abs(exponent) * jm.pow(v, exponent - 1))
+    def /(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+      val iu = 1.0 / qm.value.toDouble
+      val r = pm.value.toDouble * iu
+      val e = pm.error.toDouble
+      val f = qm.error.toDouble
+      PlusMinus.D(r, jm.sqrt(e*e + f*f*r*r) * iu)
 
-  @targetName("PlusMinus_equals")
-  def ===(qm: kse.maths.PlusMinus): Boolean =
-    pm.value == qm.value && pm.error == qm.error
+    def sq: kse.maths.PlusMinus =
+      val v = pm.value.toDouble
+      val e = pm.error.toDouble
+      if e == 0 then PlusMinus((v*v).toFloat, 0f)
+      else           PlusMinus.D(v * v, v * e * kse.maths.NumericConstants.SqrtTwo)
 
-  @targetName("PlusMinus_pr") def pr: String =
-    val sb = new java.lang.StringBuilder
-    sb append pm.value
-    sb append " +- "
-    sb append pm.error
-    sb.toString
+    def sqrt: kse.maths.PlusMinus =
+      val r = jm.sqrt(pm.value.toDouble)
+      val e = pm.error.toDouble
+      if e == 0 then PlusMinus(r.toFloat, 0f)
+      else           PlusMinus.D(r, 0.5*e/r)
 
-  @targetName("PlusMinus_prf") def prf(fmt: String): String =
-    val sb = new java.lang.StringBuilder
-    sb append fmt.format(pm.value)
-    sb append " +- "
-    sb append fmt.format(pm.error)
-    sb.toString
+    def pow(exponent: Float): kse.maths.PlusMinus =
+      val v = pm.value.toDouble
+      val e = pm.error.toDouble
+      val p = jm.pow(v, exponent)
+      if e == 0 then      PlusMinus(p.toFloat, 0f)
+      else if v != 0 then PlusMinus.D(p, e * jm.abs(exponent) * p / v)
+      else                PlusMinus.D(p, e * jm.abs(exponent) * jm.pow(v, exponent - 1))
+
+    def ===(qm: kse.maths.PlusMinus): Boolean =
+      pm.value == qm.value && pm.error == qm.error
+
+    def pr: String =
+      val sb = new java.lang.StringBuilder
+      sb append pm.value
+      sb append " +- "
+      sb append pm.error
+      sb.toString
+
+    def prf(fmt: String): String =
+      val sb = new java.lang.StringBuilder
+      sb append fmt.format(pm.value)
+      sb append " +- "
+      sb append fmt.format(pm.error)
+      sb.toString
+  }
 }
 extension (value: Float) {
   @targetName("PlusMinus_prefix_add")
@@ -1038,3 +1071,31 @@ extension (value: Float) {
   inline def +-(error: Float): kse.maths.PlusMinus = PlusMinus(value, error)
 }
 
+/*
+opaque type Frac = Long
+object Frac {
+  inline def wrap(f: Long): Frac = f
+
+  def apply(num: Int, denom: Int): Frac =
+    var n = num
+    var d = if denom < 0 then { n = -n; -denom } else denom
+
+  extension (f: Frac) {
+    inline def unwrap: Long = f
+    inline def overflowed: Boolean = ((f: Long) & 0x80000000L) != 0
+    inline def numerator: Int = ((f: Long) >>> 32).toInt
+    inline def denominator: Int = ((f: Long) & 0x7FFFFFFFL).toInt
+  }
+
+  extension (f: kse.maths.Frac) {
+    def +(i: Int): kse.maths.Frac =
+      val n = f.numerator
+      val d = f.denominator
+      val ans =
+  }
+}
+extension (value: Int) {
+  @targetName("Frac_over")
+  inline def over(walue: Int): kse.maths.Frac = Frac(value, walue)
+}
+*/

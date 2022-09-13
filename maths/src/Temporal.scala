@@ -8,6 +8,77 @@ import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
 
+opaque type NanoTime = Long
+object NanoTime {
+  inline def apply(nanos: Long): NanoTime = nanos
+  inline def now: NanoTime = System.nanoTime
+
+  extension (nt: NanoTime) {
+    inline def value: Long = nt
+  }
+
+  extension (nt: kse.maths.NanoTime) {
+    inline def +(dt: kse.maths.NanoTimeDelta): kse.maths.NanoTime = NanoTime(nt.value + dt.value)
+
+    @targetName("timeSubDelta")
+    inline def -(dt: kse.maths.NanoTimeDelta): kse.maths.NanoTime = NanoTime(nt.value - dt.value)
+
+    @targetName("timeDiffTime")
+    inline def -(mt: kse.maths.NanoTime): kse.maths.NanoTimeDelta = NanoTimeDelta(nt.value - mt.value)
+
+    inline def <( mt: kse.maths.NanoTime): Boolean = nt.value <  mt.value
+    inline def <=(mt: kse.maths.NanoTime): Boolean = nt.value <= mt.value
+    inline def >=(mt: kse.maths.NanoTime): Boolean = nt.value >= mt.value
+    inline def >( mt: kse.maths.NanoTime): Boolean = nt.value >  mt.value
+
+    inline def max(mt: kse.maths.NanoTime): kse.maths.NanoTime = if nt.value < mt.value then mt else nt
+    inline def min(mt: kse.maths.NanoTime): kse.maths.NanoTime = if nt.value > mt.value then mt else nt
+
+    inline def elapsed: kse.maths.NanoTimeDelta = NanoTimeDelta since nt
+  }
+
+  given Ordering[NanoTime] = new {
+    def compare(a: NanoTime, b: NanoTime) = a.value compareTo b.value
+  }
+}
+
+opaque type NanoTimeDelta = Long
+object NanoTimeDelta {
+  inline def apply(nanos: Long): NanoTimeDelta = nanos
+  inline def since(nt: kse.maths.NanoTime): NanoTimeDelta = NanoTime(System.nanoTime - nt.value)
+
+  extension (dt: NanoTimeDelta) {
+    inline def value: Long = dt
+  }
+
+  extension (dt: kse.maths.NanoTimeDelta) {
+    @targetName("deltaPlusDelta")
+    inline def +(et: kse.maths.NanoTimeDelta): NanoTimeDelta = NanoTimeDelta(dt.value + et.value)
+
+    @targetName("deltaPlusTime")
+    inline def +(nt: kse.maths.NanoTime): NanoTime = NanoTime(nt.value + dt.value)
+
+    inline def -(et: kse.maths.NanoTimeDelta): NanoTimeDelta = NanoTimeDelta(dt.value - et.value)
+
+    inline def *(factor: Long): NanoTimeDelta = NanoTimeDelta(dt.value * factor)
+
+    inline def /(factor: Long): NanoTimeDelta = NanoTimeDelta(dt.value / factor)
+
+    inline def <( et: kse.maths.NanoTimeDelta): Boolean = dt.value <  et.value
+    inline def <=(et: kse.maths.NanoTimeDelta): Boolean = dt.value <= et.value
+    inline def >=(et: kse.maths.NanoTimeDelta): Boolean = dt.value >= et.value
+    inline def >( et: kse.maths.NanoTimeDelta): Boolean = dt.value >  et.value
+
+    inline def max(et: kse.maths.NanoTimeDelta): kse.maths.NanoTimeDelta = if dt.value < et.value then et else dt
+    inline def min(et: kse.maths.NanoTimeDelta): kse.maths.NanoTimeDelta = if dt.value > et.value then et else dt
+  }
+
+  given Ordering[NanoTimeDelta] = new {
+    def compare(a: NanoTimeDelta, b: NanoTimeDelta) = a.value compareTo b.value
+  }
+}
+
+/*
 class NanoTime(val time: Long) extends AnyVal {
   def <(that: NanoTime) = time < that.time
   def <=(that: NanoTime) = time <= that.time
@@ -27,6 +98,9 @@ object NanoTime {
     def compare(a: NanoTime, b: NanoTime) = a.time compareTo b.time
   }
 }
+*/
+
+/*
 
 class DoubleAsDeltaT private (val time: Double) extends AnyVal {
   def <(that: DoubleAsDeltaT) = time < that.time
@@ -179,7 +253,7 @@ object DoubleAsEpoch {
   def apply(datetime: OffsetDateTime): DoubleAsEpoch = apply(datetime.toEpochSecond, datetime.getNano)
 }
 
-object TemporalMaths {
+object Temporal {
   def toInstant(datetime: LocalDateTime): Instant = datetime.atZone(ZoneId.systemDefault).toInstant
 
   def toLocal(instant: Instant): LocalDateTime = instant.atZone(ZoneId.systemDefault).toLocalDateTime
@@ -536,3 +610,4 @@ extension (filetime: FileTime) {
   def local = TemporalMaths.toLocal(filetime.toInstant)
   def instant = filetime.toInstant
 }
+*/

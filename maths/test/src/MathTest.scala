@@ -1195,18 +1195,24 @@ class MathTest {
     T ~ cdfFDist(18, 11)(0.29) =~~= 0.0097966801396012063383
 
     val b: Byte = -8
-    T ~ b.clamp(-12, -4) ==== (-8: Byte)
-    T ~ b.clamp(13, 100) ==== (13: Byte)
-    T ~ b.clamp(-99, -9) ==== (-9: Byte)
-    T ~ b.clamp(55, -99) ==== (55: Byte)
-    T ~ b.in(-12, 4)     ==== true
-    T ~ b.in(13, 100)    ==== false
-    T ~ b.in(-99, -9)    ==== false
-    T ~ b.in(44, -12)    ==== false
-    T ~ b.toUInt         ==== 248
-    T ~ b.toUInt         ==== typed[Int]
-    T ~ b.toULong        ==== 248L
-    T ~ b.toULong        ==== typed[Long]
+    T ~ b.clamp(-12, -4)   ==== (-8: Byte)
+    T ~ b.clamp(13, 100)   ==== (13: Byte)
+    T ~ b.clamp(-99, -9)   ==== (-9: Byte)
+    T ~ b.clamp(55, -99)   ==== (55: Byte)
+    T ~ b.in(-12, 4)       ==== true
+    T ~ b.in(13, 100)      ==== false
+    T ~ b.in(-99, -9)      ==== false
+    T ~ b.in(44, -12)      ==== false
+    T ~ b.toUInt           ==== 248
+    T ~ b.toUInt           ==== typed[Int]
+    T ~ b.toULong          ==== 248L
+    T ~ b.toULong          ==== typed[Long]
+    T ~ b.sq               ==== 64.0
+    T ~ b.sq               ==== typed[Double]
+    T ~ b.sign             ==== -1
+    T ~ (-b).toByte.sign   ==== 1
+    T ~ (b/10).toByte.sign ==== 0
+    T ~ b.sign             ==== typed[Int]
 
     val s: Short = -88
     T ~ s.clamp(-915, -4)    ==== (-88: Short)
@@ -1225,6 +1231,12 @@ class MathTest {
     T ~ s.hiHexString        ==== "FFA8"
     T ~ s.loHexString        ==== "ffa8"
     T ~ (1: Short).hexString ==== "0001"
+    T ~ s.sq                 ==== 7744.0
+    T ~ s.sq                 ==== typed[Double]
+    T ~ s.sign               ==== -1
+    T ~ (-s).toShort.sign    ==== 1
+    T ~ (s/100).toShort.sign ==== 0
+    T ~ s.sign               ==== typed[Int]
 
     val c = 'n'
     T ~ c.clamp('a', 'w') ==== 'n'
@@ -1255,6 +1267,12 @@ class MathTest {
     T ~ i.loHexString         ==== "ffffdd48"
     T ~ 11.hexString          ==== "0000000B"
     T ~ 1067030938.bitsF      ==== 1.2f
+    T ~ i.sq                  ==== 78996544.0
+    T ~ i.sq                  ==== typed[Double]
+    T ~ i.sign                ==== -1
+    T ~ (-i).sign             ==== 1
+    T ~ (i/10000).sign        ==== 0
+    T ~ i.sign                ==== typed[Int]
 
 
     val l = 42L
@@ -1270,6 +1288,12 @@ class MathTest {
     T ~ l.hiHexString              ==== "000000000000002A"
     T ~ l.loHexString              ==== "000000000000002a"
     T ~ 4608083138725491507L.bitsD ==== 1.2
+    T ~ l.sq                       ==== 1764.0
+    T ~ l.sq                       ==== typed[Double]
+    T ~ l.sign                     ==== 1
+    T ~ (-l).sign                  ==== -1
+    T ~ (l/100).sign               ==== 0
+    T ~ l.sign                     ==== typed[Long]
 
     val f = 1.2f
     val fnan = Float.NaN
@@ -1312,10 +1336,6 @@ class MathTest {
     T ~ f.bitsI             ==== 1067030938
     T ~ f.f64               ==== 1.2f.toDouble
     T ~ f.f64               ==== typed[Double]
-    T ~ f.rad2deg           =~~= 68.7549354157f
-    T ~ f.rad2rev           =~~= 0.1909859317f
-    T ~ f.deg2rad           =~~= 0.020943951f
-    T ~ f.rev2rad           =~~= 7.5398223686f
 
     val d = 1.2
     val dnan = Double.NaN
@@ -1400,6 +1420,7 @@ class MathTest {
     T ~ (v === Vc.D(1.2, 3.1))     ==== true
     T ~ (1.0f ~> 0.0f)             ==== Vc.wrap(0x000000003F800000L)
     T ~ (0.0f ~> 1.0f)             ==== Vc.wrap(0x3F80000000000000L)
+    T ~ (1.0f ~> 0.0f).unwrap      ==== 0x000000003F800000L
     T ~ Vc(0, 0)                   ==== Vc.zero
     T ~ Vc.NaN.x.nan               ==== true
     T ~ Vc.NaN.y.nan               ==== true
@@ -1448,7 +1469,7 @@ class MathTest {
     T ~ v.rotate(0.37f).y          =~~= 3.32415328974f
     T ~ v.theta.f32                =~~= 1.20146266912f
     T ~ v.lenSq.f32                =~~= 11.05f
-    T ~ v.len.f32                  =~~= 3.32415402772f
+    T ~ v.len                      =~~= 3.32415402772f
     T ~ (v + 2f).x                 =~~= 3.2f
     T ~ (v + 2f).y                 =~~= 5.1f
     T ~ (v + 2f)                   ==== (2f + v)
@@ -1482,7 +1503,7 @@ class MathTest {
     T ~ (v normDot u)              ==== v.normDot(-1.5f, 0.7f)
     T ~ v.distSq(-1.5f, 0.7f).f32  =~~= 13.05f
     T ~ (v distSq u)               ==== v.distSq(-1.5f, 0.7f)
-    T ~ v.dist(-1.5f, 0.7f).f32    =~~= 3.61247837364f
+    T ~ v.dist(-1.5f, 0.7f)        =~~= 3.61247837364f
     T ~ (v dist u)                 ==== v.dist(-1.5f, 0.7f)
     T ~ v.angle(-1.5f, 0.7f).f32   =~~= 1.50350282465f
     T ~ (v angle u)                ==== v.angle(-1.5f, 0.7f)
@@ -1496,6 +1517,7 @@ class MathTest {
     T ~ (pm === (3.5f +- -0.2f))==== true
     T ~ (1f +- 0f)              ==== PlusMinus.wrap(0x3F80000000000000L)
     T ~ (0f +- 1f)              ==== PlusMinus.wrap(0x000000003F800000L)
+    T ~ (1f +- 0f).unwrap       ==== 0x3F80000000000000L
     T ~ pm                      ==== PlusMinus.D(3.5, 0.2)
     T ~ (1f +- 0f)              ==== PlusMinus.exact(1f)
     T ~ pm.value                ==== 3.5f
@@ -3111,6 +3133,11 @@ class MathTest {
     T ~ lp.intTo(0)(0x87EAD223) ==== 0xD30AB6E887EAD223L
     T ~ lp.intTo(1)(0xBEEFDEAD) ==== 0xBEEFDEAD2CF54917L
     T ~ lp.reverseInts ==== 0x2CF54917D30AB6E8L
+
+  @Test
+  def temporalTest(): Unit =
+    T ~ NanoTime(5L)      ==== 5L
+    T ~ NanoTimeDelta(5L) ==== 5L
 }
 object MathsTest {
   // @BeforeClass
