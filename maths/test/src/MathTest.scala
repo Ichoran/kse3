@@ -1534,12 +1534,12 @@ class MathTest {
     T ~ (-pm).error             ==== 0.2f
     T ~ (pm + 1).value          ==== 4.5f
     T ~ (pm + 1).error          ==== 0.2f
-    T ~ (1 + pm)                ==== (pm + 1)
+    T ~ (1f + pm)               ==== (pm + 1f)
     T ~ (pm + qm).value         ==== 5.4f
     T ~ (pm + qm).error         =~~= 0.538516480713f
     T ~ (pm - 1).value          ==== 2.5f
     T ~ (pm - 1).error          ==== 0.2f
-    T ~ (1 - pm)                ==== -(pm - 1)
+    T ~ (1f - pm)               ==== -(pm - 1f)
     T ~ (pm - qm).value         ==== 1.6f
     T ~ (pm - qm).error         ==== (pm + qm).error
     T ~ (pm * 2f).value         ==== 7.0f
@@ -1561,6 +1561,228 @@ class MathTest {
     T ~ pm.pow(1.7f).error      =~~= 0.817197f
     T ~ pm.pr                   ==== "3.5 +- 0.2"
     T ~ pm.prf("%.2e")          ==== "3.50e+00 +- 2.00e-01"
+
+    val fr = 20 over 3
+    val f2 = -36 over 70
+    val badf = Int.MinValue over 1
+    val ovrf = (1 over 2).overflowed
+    T ~ fr             ==== ((20L << 32) | 3)
+    T ~ Frac(20, 3)    ==== fr
+    T ~ Frac(-18, 35)  ==== f2
+    T ~ fr.unwrap      ==== ((20L << 32) | 3)
+    T ~ fr.unwrap      ==== typed[Long]
+    T ~ fr.numerator   ==== 20
+    T ~ fr.denominator ==== 3
+    T ~ fr.numer       ==== 20
+    T ~ fr.denom       ==== 3
+    T ~ fr.numer       ==== typed[Int]
+    T ~ fr.denom       ==== typed[Int]
+    T ~ fr.numerL      ==== 20
+    T ~ fr.denomL      ==== 3
+    T ~ fr.numerL      ==== typed[Long]
+    T ~ fr.denomL      ==== typed[Long]
+    T ~ fr.isExact               ==== true
+    T ~ badf.isExact             ==== false
+    T ~ fr.inexact               ==== false
+    T ~ badf.inexact             ==== true
+    T ~ fr.overflowBit           ==== 0L
+    T ~ badf.overflowBit         ==== 0x80000000L
+    T ~ fr.overflowed.numer      ==== 20
+    T ~ fr.overflowed.denom      ==== 3
+    T ~ fr.overflowed.isExact    ==== false
+    T ~ fr.noOverflow            ==== fr
+    T ~ badf.noOverflow.isExact  ==== true
+    T ~ badf.overflowed          ==== badf
+    T ~ fr.toDouble ==== 6.66666666666666666666
+    T ~ fr.toFloat  ==== 6.6666666666666f
+    T ~ fr.f64      ==== fr.toDouble
+    T ~ fr.f32      ==== fr.toFloat
+    T ~ fr.abs           ==== fr
+    T ~ (f2.abs != f2)   ==== true
+    T ~ f2.abs.numer     ==== -f2.numer
+    T ~ f2.abs.denom     ==== f2.denom
+    T ~ badf.abs.numer   ==== -badf.numer
+    T ~ badf.abs.inexact ==== true
+    T ~ ovrf.abs.inexact ==== true
+    T ~ (-fr).numer      ==== -fr.numer
+    T ~ (-fr).denom      ==== fr.denom
+    T ~ (-f2)            ==== (18 over 35)
+    T ~ (-badf).numer    ==== -badf.numer
+    T ~ (-badf).inexact  ==== true
+    T ~ (-ovrf).inexact  ==== true
+    T ~ fr.toInt         ==== 6
+    T ~ f2.toInt         ==== 0
+    T ~ fr.floor         ==== 6
+    T ~ f2.floor         ==== -1
+    T ~ fr.ceil          ==== 7
+    T ~ f2.ceil          ==== 0
+    T ~ fr.round         ==== 7
+    T ~ f2.round         ==== -1
+    T ~ (fr + 2)            ==== (26 over 3)
+    T ~ (2 + fr)            ==== (fr + 2)
+    T ~ (fr + f2)           ==== (646 over 105)
+    T ~ ((9 over 20) + f2)  ==== (-9 over 140)
+    T ~ (badf + f2)         ==== badf
+    T ~ (fr + ovrf).inexact ==== true
+    T ~ (ovrf + fr).inexact ==== true
+    T ~ (ovrf + 2).inexact  ==== true
+    T ~ (2 + ovrf).inexact  ==== true
+    val bigplus = (2000000000 over 1) + (2000000001 over 2)
+    T ~ bigplus.inexact  ==== true
+    T ~ bigplus.numer    ==== Int.MaxValue
+    val largeplus = (2000000000 over 3) + (2000000001 over 4)
+    T ~ (largeplus.numer < Int.MaxValue) ==== true
+    T ~ largeplus.denom                  ==== 1
+    T ~ largeplus.inexact                ==== true
+    val impreciseplus = (1293815714 over 318571605) + (781517561 over 2018675117)
+    T ~ impreciseplus.inexact        ==== true
+    T ~ impreciseplus.denom          ==== 299463314
+    T ~ (impreciseplus + fr).inexact ==== true
+    T ~ (fr + impreciseplus).inexact ==== true
+    val bittyplus = (3 over 2000000000) + (2 over 2000000001)
+    T ~ (bittyplus.denom < Int.MaxValue) ==== true
+    T ~ bittyplus.numer                  ==== 1
+    T ~ bittyplus.inexact                ==== true
+    val zeroplus = (1 over 2000000000) + (-1 over 2000000001)
+    T ~ zeroplus ==== (0 over 1).overflowed
+    val bigplusinrange = (2000000000 over 1) + Int.MinValue
+    T ~ bigplusinrange         ==== (-147483648 over 1)
+    T ~ bigplusinrange.inexact ==== false
+    T ~ (fr - 2)            ==== (14 over 3)
+    T ~ (2 - fr)            ==== (-14 over 3)
+    T ~ ((9 over 20) - f2)  ==== (27 over 28)
+    T ~ (badf - f2)         ==== badf
+    T ~ (fr - ovrf).inexact ==== true
+    T ~ (ovrf - fr).inexact ==== true
+    T ~ (ovrf - 2).inexact  ==== true
+    T ~ (2 - ovrf).inexact  ==== true
+    val bigminus = (2000000000 over 1) - (-2000000001 over 2)
+    T ~ bigminus.inexact  ==== true
+    T ~ bigminus.numer    ==== Int.MaxValue
+    val largeminus = (-2000000000 over 3) - (2000000001 over 4)
+    T ~ (largeminus.numer > -Int.MaxValue) ==== true
+    T ~ largeminus.denom                   ==== 1
+    T ~ largeminus.inexact                 ==== true
+    T ~ (largeplus + largeminus)           ==== 0x80000001L
+    val impreciseminus = (1293815714 over 318571605) - (781517561 over 2018675117)
+    T ~ impreciseminus.inexact        ==== true
+    T ~ impreciseminus.denom          ==== 299463314
+    T ~ (impreciseminus - fr).inexact ==== true
+    T ~ (fr - impreciseminus).inexact ==== true
+    val bittyminus = (3 over 2000000000) - (-2 over 2000000001)
+    T ~ (bittyminus.denom < Int.MaxValue) ==== true
+    T ~ bittyminus.numer                  ==== 1
+    T ~ bittyminus.inexact                ==== true
+    val zerominus = (1 over 2000000000) - (1 over 2000000001)
+    T ~ zerominus ==== (0 over 1).overflowed
+    val bigminusinrange = (-2000000000 over 1) - Int.MinValue
+    T ~ bigminusinrange         ==== (147483648 over 1)
+    T ~ bigminusinrange.inexact ==== false
+    T ~ (fr * 2)            ==== (40 over 3)
+    T ~ (f2 * 5)            ==== (-18 over 7)
+    T ~ (5 * fr)            ==== (fr * 5)
+    T ~ (fr * f2)           ==== (-24 over 7)
+    T ~ (badf * fr)         ==== badf
+    T ~ (fr * ovrf).inexact ==== true
+    T ~ (ovrf * fr).inexact ==== true
+    T ~ (ovrf * 2).inexact  ==== true
+    T ~ (2 * ovrf).inexact  ==== true
+    val bigmuli = fr * 1000000000
+    T ~ bigmuli ==== (Int.MaxValue over 1).overflowed
+    val bigmulf = fr * (2000000001 over 2)
+    T ~ bigmulf ==== (Int.MaxValue over 1).overflowed
+    val largemul = fr * (400000000 over 3)
+    T ~ (largemul.numer < Int.MaxValue) ==== true
+    T ~ largemul.denom                  ==== 1
+    T ~ largemul.inexact                ==== true
+    val imprecisemul = (1293815714 over 318571605) * (781517561 over 2018675117)
+    T ~ imprecisemul.inexact        ==== true
+    T ~ imprecisemul.denom          ==== 871166007
+    T ~ (imprecisemul * fr).inexact ==== true
+    T ~ (fr * imprecisemul).inexact ==== true
+    val bittymul = f2 * (2 over 1917918581)
+    T ~ (bittymul.denom < Int.MaxValue) ==== true
+    T ~ bittymul.numer                  ==== -1
+    T ~ bittymul.inexact                ==== true
+    val zeromul = (1 over 10100101) * (-1 over 10101001)
+    T ~ zeromul ==== (0 over 1).overflowed
+    T ~ (fr / 2)            ==== (10 over 3)
+    T ~ (f2 / 2)            ==== (-9 over 35)
+    T ~ (2 / fr)            ==== (3 over 10)
+    T ~ (fr / f2)           ==== (-350 over 27)
+    T ~ (badf / -f2)        ==== badf
+    T ~ (fr / ovrf).inexact ==== true
+    T ~ (ovrf / fr).inexact ==== true
+    T ~ (ovrf / 2).inexact  ==== true
+    T ~ (2 / ovrf).inexact  ==== true
+    val tinydivi = f2 / -2000000000
+    T ~ tinydivi ==== (0 over 1).overflowed
+    val bigdivf = (1000000 over 3) / (3 over 2000000)
+    T ~ bigdivf ==== (Int.MaxValue over 1).overflowed
+    val largediv = fr / (3 over 200000000)
+    T ~ (largediv.numer < Int.MaxValue) ==== true
+    T ~ largediv.denom                  ==== 1
+    T ~ largediv.inexact                ==== true
+    val imprecisediv = (1293815714 over 318571605) / (2018675117 over 781517561)
+    T ~ imprecisediv ==== imprecisemul
+    val bittydiv = f2 / (1917918581 over 2)
+    T ~ bittydiv ==== bittymul
+    val zerodiv = (1 over 10100101) / (-10101001 over 1)
+    T ~ zerodiv ==== zeromul
+    val f3 = 91271528 over 19857151
+    val f4 = 91956397 over 20006152
+    T ~ (fr =~= fr)           ==== true
+    T ~ (ovrf =~= (1 over 2)) ==== true
+    T ~ !(fr =~= f2)          ==== true
+    T ~ !(f3 =~= f4)          ==== true
+    T ~ (f2 < fr)             ==== true
+    T ~ (fr < fr)             ==== false
+    T ~ (fr < f2)             ==== false
+    T ~ (f3 < f4)             ==== false
+    T ~ (f4 < f3)             ==== true
+    T ~ (-f3 < -f4)           ==== true
+    T ~ (-f4 < -f3)           ==== false
+    T ~ (f2 <= fr)            ==== true
+    T ~ (fr <= fr)            ==== true
+    T ~ (fr <= f2)            ==== false
+    T ~ (f3 <= f4)            ==== false
+    T ~ (f4 <= f3)            ==== true
+    T ~ (-f3 <= -f4)          ==== true
+    T ~ (-f4 <= -f3)          ==== false
+    T ~ (f2 >= fr)            ==== false
+    T ~ (fr >= fr)            ==== true
+    T ~ (fr >= f2)            ==== true
+    T ~ (f3 >= f4)            ==== true
+    T ~ (f4 >= f3)            ==== false
+    T ~ (-f3 >= -f4)          ==== false
+    T ~ (-f4 >= -f3)          ==== true
+    T ~ (f2 > fr)             ==== false
+    T ~ (fr > fr)             ==== false
+    T ~ (fr > f2)             ==== true
+    T ~ (f3 > f4)             ==== true
+    T ~ (f4 > f3)             ==== false
+    T ~ (-f3 > -f4)           ==== false
+    T ~ (-f4 > -f3)           ==== true
+    T ~ (f2 max fr)           ==== fr
+    T ~ (fr max f2)           ==== fr
+    T ~ (f2 max ovrf)         ==== ovrf
+    T ~ (fr max ovrf)         ==== fr.overflowed
+    T ~ (ovrf max f2)         ==== ovrf
+    T ~ (ovrf max fr)         ==== fr.overflowed
+    T ~ (f3 max f4)           ==== f3
+    T ~ (f4 max f3)           ==== f3
+    T ~ (f2 min fr)           ==== f2
+    T ~ (fr min f2)           ==== f2
+    T ~ (f2 min ovrf)         ==== f2.overflowed
+    T ~ (fr min ovrf)         ==== ovrf
+    T ~ (ovrf min f2)         ==== f2.overflowed
+    T ~ (ovrf min fr)         ==== ovrf
+    T ~ (f3 min f4)           ==== f4
+    T ~ (f4 min f3)           ==== f4
+    T ~ fr.pr                 ==== "20/3"
+    T ~ f2.pr                 ==== "-18/35"
+    T ~ ovrf.pr               ==== "~(1/2)"
+    T ~ List(fr, f2, f3, f4, ovrf).sorted ==== List(f2, ovrf, f4, f3, fr)
 
 
   @Test
