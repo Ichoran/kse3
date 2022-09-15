@@ -1071,31 +1071,261 @@ extension (value: Float) {
   inline def +-(error: Float): kse.maths.PlusMinus = PlusMinus(value, error)
 }
 
-/*
+
 opaque type Frac = Long
 object Frac {
   inline def wrap(f: Long): Frac = f
 
   def apply(num: Int, denom: Int): Frac =
+    if denom == 0 then
+      if num == Int.MinValue then 0x7FFFFFFF80000000L
+      else (num.toLong << 32) | 0x80000000L
+    else
+      val sh = java.lang.Integer.numberOfTrailingZeros(num | denom)
+      if sh == 0 && (num == Int.MinValue || denom == Int.MinValue) then
+        overflowApprox(num.toLong, denom.toLong)
+      else
+        val n = if denom < 0 then -(num   >> sh) else num   >> sh
+        val d = if denom < 0 then -(denom >> sh) else denom >> sh
+        gcdReduce(n, d)
+
+  private[this] def gcdReduce(num: Int, den: Int): Long =
+    val n = if num < 0 then -num else num
+    var a = if n < den then den else n
+    var b = if n < den then n else den
+    var r = a % b
+    while r > 1 do
+      a = b
+      b = r
+      r = a % b
+    if r == 0 && b > 1 then
+      ((num / b).toLong << 32) | (den / b)
+    else
+      (num.toLong << 32) | den
+
+  private[this] def gcdReduceBig(num: Long, den: Long): Long =
+    val n = if num < 0 then -num else num
+    var a = if n < den then den else n
+    var b = if n < den then n else den
+    var r = a % b
+    while r > 1 do
+      a = b
+      b = r
+      r = a % b
+    if r == 0 && b > 1 then
+      a = num / b
+      b = den / b
+      if a > Int.MinValue && a <= Int.MaxValue || b <= Int.MaxValue then
+        (a << 32) | b
+      else overflowApprox(a, b)
+    else overflowApprox(num, den)
+
+  private[this] def gcdReduceAny(num: Long, den: Long): Long =
+    println(s"GCD of $num $den")
     var n = num
-    var d = if denom < 0 then { n = -n; -denom } else denom
+    var d = den
+    val sh = java.lang.Long.numberOfTrailingZeros(n | d)
+    if sh > 0 then
+      n = n >> sh
+      d = d >> sh
+    if n > Int.MinValue && n <= Int.MaxValue && d <= Int.MaxValue then
+      gcdReduce(n.toInt, d.toInt)
+    else
+      gcdReduceBig(n, d)
+
+  private[this] def overflowApprox(num: Long, den: Long): Long =
+    println(s"Overflowing $num / $den")
+    val n = if num < 0 then -num else num
+    var a = if n < den then den else n
+    var b = if n < den then n else den
+    val f = a/b
+    if f > 0x60000000L then
+      if n < den then
+        if f > 0xC0000000L then 0x80000001L
+        else
+          a = if num < 0 then -1 else 1
+          b = if f > Int.MaxValue then Int.MaxValue else f
+          (a << 32) | b | 0x80000000L
+      else
+        if num < 0 then 0x8000000180000001L
+        else            0x7FFFFFFF80000001L
+    else
+      val x = a.toDouble / b.toDouble
+      val sh = (64 - java.lang.Long.numberOfLeadingZeros(a)) - 31
+      val yb = java.lang.Long.numberOfLeadingZeros(b)
+      a = a >> sh
+      b = b >> sh
+      val g = a.toDouble / b.toDouble
+      val better = jm.abs(x - f) - jm.abs(x - g)
+      if !(better >= 0.0) then
+        a = f
+        b = 1
+      if num < 0 then
+        if n < den then b = -b
+        else            a = -a
+      if n < den then (b << 32) | (a & 0x7FFFFFFFL) | 0x80000000L
+      else            (a << 32) | (b & 0x7FFFFFFFL) | 0x80000000L
 
   extension (f: Frac) {
     inline def unwrap: Long = f
-    inline def overflowed: Boolean = ((f: Long) & 0x80000000L) != 0
+    inline def isExact: Boolean = ((f: Long) & 0x80000000L) == 0
+    inline def inexact: Boolean = ((f: Long) & 0x80000000L) != 0
+
     inline def numerator: Int = ((f: Long) >>> 32).toInt
     inline def denominator: Int = ((f: Long) & 0x7FFFFFFFL).toInt
+    inline def overflowBit: Long = (f: Long) & 0x80000000L
+
+    inline def numer: Int = ((f: Long) >>> 32).toInt
+    inline def denom: Int = ((f: Long) & 0x7FFFFFFFL).toInt
+    inline def numerL: Long = (f: Long) >> 32
+    inline def denomL: Long = (f: Long) & 0x7FFFFFFFL
+
+    inline def overflowed: Frac = (f: Long) | 0x80000000L
+    inline def noOverflow: Frac = (f: Long) & 0xFFFFFFFF7FFFFFFFL
+
+    inline def toDouble: Double = ((f: Long) >> 32).toDouble / ((f: Long) & 0x7FFFFFFFL).toDouble
+    inline def toFloat:  Float  = ((f: Long) >> 32).toFloat  / ((f: Long) & 0x7FFFFFFFL).toFloat
+    inline def f64: Double = ((f: Long) >> 32).toDouble / ((f: Long) & 0x7FFFFFFFL).toDouble
+    inline def f32: Double = ((f: Long) >> 32).toDouble / ((f: Long) & 0x7FFFFFFFL).toDouble
   }
 
   extension (f: kse.maths.Frac) {
+    def abs: kse.maths.Frac =
+      Frac.wrap(((-f.numerL) << 32) | (f.unwrap & 0xFFFFFFFFL))
+
+    def toInt: Int = f.numerator / f.denominator
+
+    def floor: Int =
+      val n = f.numerator
+      val d = f.denominator
+      if      d == 1 then n
+      else if n >= 0 then n / d
+      else               (n / d) - 1
+
+    def ceil: Int =
+      val n = f.numerator
+      val d = f.denominator
+      if      d == 1 then n
+      else if n < 0  then n / d
+      else               (n / d) + 1
+
+    def round: Int =
+      val n = f.numerator
+      val d = f.denominator
+      val v = n/d
+      val e = 2*(n - v*d)
+      if      e >  d then v+1
+      else if e < -d then v-1
+      else                v
+
     def +(i: Int): kse.maths.Frac =
       val n = f.numerator
       val d = f.denominator
+      val ans = n + i.toLong * d
+      if ans > Int.MaxValue || ans <= Int.MinValue then overflowApprox(ans, d)
+      else Frac.wrap((ans << 32) | f.overflowBit | d.toLong)
+
+    def +(g: Frac): kse.maths.Frac =
+      val nf = f.numerL
+      val df = f.denomL
+      val ng = g.numerL
+      val dg = g.denomL
       val ans =
+        if df == dg then
+          val n = nf + ng
+          if n > Int.MinValue && n <= Int.MaxValue then gcdReduce(n.toInt, df.toInt)
+          else gcdReduceAny(n, df)
+        else
+          val n = nf*dg + ng*df
+          val d = df * dg
+          gcdReduceAny(n, d)
+      ans | f.overflowBit | g.overflowBit
+
+    def -(i: Int): kse.maths.Frac =
+      if i == Int.MinValue then overflowApprox(f.numerator + i.toLong*f.denominator, f.denominator)
+      else f + (-i)
+
+    def -(g: Frac): kse.maths.Frac =
+      f + Frac.wrap(((-g.numerator).toLong << 32) | (g.unwrap & 0xFFFFFFFFL))
+
+    def *(i: Int): kse.maths.Frac =
+      gcdReduceAny(f.numerL * i, f.denomL) | f.overflowBit
+
+    def *(g: Frac): kse.maths.Frac =
+      gcdReduceAny(f.numerL * g.numerL, f.denomL * g.denomL) | f.overflowBit | g.overflowBit
+
+    def /(i: Int): kse.maths.Frac =
+      val ans =
+        if i == 0 then apply(f.numer, 0)
+        else if i < 0 then gcdReduceAny(-f.numerL, -f.denomL * i.toLong)
+        else               gcdReduceAny( f.numerL,  f.denomL * i)
+      ans | f.overflowBit
+
+    def /(g: Frac): kse.maths.Frac =
+      val ng = g.numerL
+      val ans =
+        if ng == 0 then apply(f.numer, 0)
+        else if ng < 0 then gcdReduceAny(-f.numerL * g.denomL, -ng * f.denomL) 
+        else               gcdReduceAny( f.numerL * g.denomL,  ng * f.denomL)
+      ans | f.overflowBit | g.overflowBit
+
+    def unary_- : kse.maths.Frac =
+      Frac.wrap(((-f.numerL) << 32) | (f.unwrap & 0xFFFFFFFFL))
+
+    def <(g: kse.maths.Frac): Boolean =
+      f.numerL * g.denomL < g.numerL * f.denomL
+
+    def <=(g: kse.maths.Frac): Boolean =
+      f.numerL * g.denomL <= g.numerL * f.denomL
+
+    def >=(g: kse.maths.Frac): Boolean =
+      f.numerL * g.denomL >= g.numerL * f.denomL
+
+    def >(g: kse.maths.Frac): Boolean =
+      f.numerL * g.denomL > g.numerL * f.denomL
+
+    def max(g: kse.maths.Frac): kse.maths.Frac =
+      Frac.wrap(if f < g then g.unwrap | f.overflowBit else f.unwrap | g.overflowBit)
+
+    def min(g: kse.maths.Frac): kse.maths.Frac =
+      Frac.wrap(if f > g then g.unwrap | f.overflowBit else f.unwrap | g.overflowBit)
+
+    def pr: String =
+      if f.isExact then s"${f.numerator}/${f.denominator}"
+      else            s"~(${f.numerator}/${f.denominator})"
+  }
+
+  def divide(value: Int, f: kse.maths.Frac): kse.maths.Frac =
+    val n = f.numerL
+    val ans =
+      if n == 0 then apply(value, 0)
+      else if n < 0 then gcdReduceAny(-(value.toLong) * f.denomL, -n)
+      else               gcdReduceAny(  value.toLong  * f.denomL,  n)
+    ans | f.overflowBit
+
+  given Ordering[kse.maths.Frac] = new {
+    def compare(f: kse.maths.Frac, g: kse.maths.Frac) =
+      if f == g then 0
+      else if f.numerL * g.denomL < g.numerL * f.denomL then -1
+      else 1
   }
 }
 extension (value: Int) {
   @targetName("Frac_over")
-  inline def over(walue: Int): kse.maths.Frac = Frac(value, walue)
+  inline def over(denom: Int): kse.maths.Frac = Frac(value, denom)
+
+  @targetName("Frac_plus")
+  inline def +(f: kse.maths.Frac): kse.maths.Frac = f + value
+
+  @targetName("Frac_minus")
+  inline def -(f: kse.maths.Frac): kse.maths.Frac =
+    (-f) + value
+
+  @targetName("Frac_times")
+  inline def *(f: kse.maths.Frac): kse.maths.Frac =
+    f * value
+
+  @targetName("Frac_divide")
+  inline def /(f: kse.maths.Frac): kse.maths.Frac =
+    Frac.divide(value, f)
 }
-*/
