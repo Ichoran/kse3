@@ -1783,6 +1783,15 @@ class MathTest {
     T ~ f2.pr                 ==== "-18/35"
     T ~ ovrf.pr               ==== "~(1/2)"
     T ~ List(fr, f2, f3, f4, ovrf).sorted ==== List(f2, ovrf, f4, f3, fr)
+    T ~ Frac.approx(fr.f64) ==== fr
+    T ~ Frac.approx(f2.f64) ==== f2
+    T ~ Frac.approx(2.5)    ==== (5 over 2)
+    T ~ Frac.approx(1e20)   ==== (Int.MaxValue over 1)
+    T ~ Frac.approx(-1e20)  ==== (-Int.MaxValue over 1)
+    T ~ Frac.approx(Int.MaxValue.toDouble - 0.7, markInexact = true) ==== (Int.MaxValue - 1 over 1).overflowed
+    T ~ Frac.approx(0.3125) ==== (10 over 32)
+    T ~ Frac.approx(-1.0/0) ==== (-1 over 0)
+    T ~ Frac.approx(0.0/0)  ==== (0 over 1).overflowed
 
 
   @Test

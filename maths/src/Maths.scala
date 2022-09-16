@@ -1306,11 +1306,127 @@ object Frac {
       else               gcdReduceAny(  value.toLong  * f.denomL,  n)
     ans | f.overflowBit
 
+  private[this] def uncheckedApply(a: Int, b: Int, negative: Boolean, flip: Boolean): kse.maths.Frac =
+    if flip then
+      if negative then Frac.wrap(((-b).toLong << 32) | a.toLong)
+      else             Frac.wrap((  b .toLong << 32) | a.toLong)
+    else
+      if negative then Frac.wrap(((-a).toLong << 32) | b.toLong)
+      else             Frac.wrap((  a .toLong << 32) | b.toLong)
+
+  def approx(d: Double, maxSteps: Int = 40, tolerance: Double = 1e-12, markInexact: Boolean = false): kse.maths.Frac =
+    if d.nan then return Frac.wrap(0x80000001L)
+    val e = d.abs
+    if e < 2.3283064365386963E-10 then
+      if markInexact && e > tolerance then return Frac.wrap(0x80000001L)
+      else return Frac.wrap(0x1L)
+    if e > Int.MaxValue then
+      if e.inf then
+        if d > 0 then return Frac.wrap(0x0000000180000000L)
+        else          return Frac.wrap(0xFFFFFFFF80000000L)
+      else
+        val n = if d > 0 then Int.MaxValue else -Int.MaxValue
+        if markInexact then
+          val err = (1 - Int.MaxValue/e).abs
+          if err > tolerance then return Frac.wrap((n.toLong << 32) | 0x80000001L)
+          else                    return Frac.wrap((n.toLong << 32) | 0x1L)
+    val f = if e < 1.0 then 1.0/e else e
+    val fi = if e < 1.0 then e else 1.0/e
+    var u = f.floor.toInt
+    var v = 1
+    var x = f.ceil.toInt
+    var y = 1
+    if x == u then return uncheckedApply(u, 1, d < 0, f != e)
+    if (1 - x*fi).abs <= tolerance then return uncheckedApply(x, 1, d < 0, f != e)
+    if (1 - u*fi).abs <= tolerance then return uncheckedApply(u, 1, d < 0, f != e)
+    // At this point we're sure that the approximation is nontrivial: not just a simple integer or reciprocal thereof.
+    // We traverse the >= 1 half of the Stern-Brocot tree (see Wikipedia and Bhavsar & Thaker, Int. J. Res. Rev 8:130 (2019))
+    // with the observation that the tree is willow-shaped: when traversing mediants between a/b and c/d, you
+    // only approach one or the other at 1/x-like speed because your steps are, for example (a+c)/(b+d), (2a+c)/(2b+d),
+    // (3a+c)/(3b+d) and so on.  To avoid this, we solve (a+k*c)/(b+k*d) = f, where f is the value we want to approximate.
+    // This gives k = (f*b-a)/(c-f*d).  If k > 1, we will keep traversing rightwards until we get to k+ = ceil(k) which
+    // will then be too big; so our bounding values will then be (a + c*k-)/(b + d*k-) and (a + c*k+)/(b + d*k+)
+    // where k- = k+ - 1; and in the leftward direction we can let j = 1/k and do the same with (a*j + c)/(b*j + d).
+    // This reduces the 1/x-like part of the tree to constant time, allowing us to accumulate digits at a roughly
+    // constant rate.  (A similar scheme appears to be defined in the Wikipedia entry on Farey sequences, but I
+    // have not checked to see if it is equivalent.)
+    var i = maxSteps
+    var inrange = true
+    while i > 0 && inrange do
+      i -= 1
+      val k = (f*v - u)/(x - f*y)
+      if (k - 1).abs <= tolerance then
+        if u.toLong + x.toLong <= Int.MaxValue then return uncheckedApply(u + x, v + y, d < 0, f != e)
+        else inrange = false
+      else if k > 1 then
+        val kp = k.ceil
+        if u + kp*x > Int.MaxValue then
+          inrange = false
+          if u.toLong + x.toLong <= Int.MaxValue then
+            val m = ((Int.MaxValue.toLong - u)/x).toInt
+            u += x*m
+            v += y*m
+          else
+            {}  // Do nothing: keep existing values
+        else
+          val n = kp.toInt
+          val m = n-1
+          val tu = u
+          val tv = v
+          u += m*x
+          v += m*y
+          x = tu + n*x
+          y = tv + n*y
+          val erxy = (1 - x*fi/y).abs
+          val eruv = (1 - u*fi/v).abs
+          if erxy < eruv then
+            if erxy <= tolerance then return uncheckedApply(x, y, d < 0, f != e)
+          else
+            if eruv <= tolerance then return uncheckedApply(u, v, d < 0, f != e)
+      else
+        val j = 1.0/k
+        val jp = j.ceil
+        if jp*u + x > Int.MaxValue then
+          inrange = false
+          if u.toLong + x.toLong <= Int.MaxValue then
+            val m = ((Int.MaxValue.toLong - x)/u).toInt
+            x += u*m
+            y += v*m
+          else
+            {}  // Do nothing: keep existing values
+        else
+          val n = jp.toInt
+          val m = n-1
+          val tx = x
+          val ty = y
+          x += m*u
+          y += m*v
+          u = tx + n*u
+          v = ty + n*v
+          val erxy = (1 - x*fi/y).abs
+          val eruv = (1 - u*fi/v).abs
+          if erxy < eruv then
+            if erxy <= tolerance then return uncheckedApply(x, y, d < 0, f != e)
+          else
+            if eruv <= tolerance then return uncheckedApply(u, v, d < 0, f != e)
+    val erxy = (1 - x*fi/y).abs
+    val eruv = (1 - u*fi/v).abs
+    if erxy < eruv then
+      val ans = uncheckedApply(x, y, d < 0, f != e)
+      if markInexact && erxy > tolerance then ans.overflowed else ans
+    else
+      val ans = uncheckedApply(u, v, d < 0, f != e)
+      if markInexact && eruv > tolerance then ans.overflowed else ans
+
   given Ordering[kse.maths.Frac] = new {
     def compare(f: kse.maths.Frac, g: kse.maths.Frac) =
       if f == g then 0
-      else if f.numerL * g.denomL < g.numerL * f.denomL then -1
-      else 1
+      else
+        val a = f.numerL * g.denomL
+        val b = g.numerL * f.denomL
+        if      a == b then  0
+        else if a < b  then -1
+        else                 1
   }
 }
 extension (value: Int) {
