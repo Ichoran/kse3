@@ -9,7 +9,8 @@ trait Base extends ScalaModule {
   def scalaVersion = "3.1.2"
 
   def scalaOptions = T{Seq(
-    "-opt"
+    "-opt",
+    "-deprecation"
   )}
 }
 

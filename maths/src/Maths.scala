@@ -632,9 +632,9 @@ extension (f: Float) {
   inline def in(lo: Float, hi: Float) = lo <= f && f <= hi
 
   final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
-    math.abs(f - that) match
+    jm.abs(f - that) match
       case x if x <= abstol =>
-        val big = math.max(math.abs(f), math.abs(that))
+        val big = jm.max(jm.abs(f), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
   inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
@@ -692,9 +692,9 @@ extension (d: Double) {
   inline def in(lo: Double, hi: Double) = lo <= d && d <= hi
 
   final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
-    math.abs(d - that) match
+    jm.abs(d - that) match
       case x if x <= abstol =>
-        val big = math.max(math.abs(d), math.abs(that))
+        val big = jm.max(jm.abs(d), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
 }
@@ -753,6 +753,101 @@ extension (inline x: Byte | Short | Int | Long | Float | Double) {
     case d: Double => (java.lang.Double.doubleToRawLongBits(d) & 0x7FF0000000000000L) != 0x7FF0000000000000L
 }
 
+opaque type UByte = Byte
+object UByte {
+  // The compiler is sometimes grumpy if we give it a 256-way type union all in one go.
+  // So split it up 16 at a time.  Note that there is also a scala.compiletime.ops.int
+  // solution (courtesy of Aly#7777 on Discord) but it overflows the stack:
+  //   type ValidUpTo[Max] = Max match
+  //     case 0 => Max
+  //     case S[n] => Max | ValidUpTo[Max-1]
+  type ValidIntValues0 = 0x00 | 0x01 | 0x02 | 0x03 | 0x04 | 0x05 | 0x06 | 0x07 | 0x08 | 0x09 | 0x0A | 0x0B | 0x0C | 0x0D | 0x0E | 0x0F
+  type ValidIntValues1 = 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1A | 0x1B | 0x1C | 0x1D | 0x1E | 0x1F
+  type ValidIntValues2 = 0x20 | 0x21 | 0x22 | 0x23 | 0x24 | 0x25 | 0x26 | 0x27 | 0x28 | 0x29 | 0x2A | 0x2B | 0x2C | 0x2D | 0x2E | 0x2F
+  type ValidIntValues3 = 0x30 | 0x31 | 0x32 | 0x33 | 0x34 | 0x35 | 0x36 | 0x37 | 0x38 | 0x39 | 0x3A | 0x3B | 0x3C | 0x3D | 0x3E | 0x3F
+  type ValidIntValues4 = 0x40 | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x47 | 0x48 | 0x49 | 0x4A | 0x4B | 0x4C | 0x4D | 0x4E | 0x4F
+  type ValidIntValues5 = 0x50 | 0x51 | 0x52 | 0x53 | 0x54 | 0x55 | 0x56 | 0x57 | 0x58 | 0x59 | 0x5A | 0x5B | 0x5C | 0x5D | 0x5E | 0x5F
+  type ValidIntValues6 = 0x60 | 0x61 | 0x62 | 0x63 | 0x64 | 0x65 | 0x66 | 0x67 | 0x68 | 0x69 | 0x6A | 0x6B | 0x6C | 0x6D | 0x6E | 0x6F
+  type ValidIntValues7 = 0x70 | 0x71 | 0x72 | 0x73 | 0x74 | 0x75 | 0x76 | 0x77 | 0x78 | 0x79 | 0x7A | 0x7B | 0x7C | 0x7D | 0x7E | 0x7F
+  type ValidIntValues8 = 0x80 | 0x81 | 0x82 | 0x83 | 0x84 | 0x85 | 0x86 | 0x87 | 0x88 | 0x89 | 0x8A | 0x8B | 0x8C | 0x8D | 0x8E | 0x8F
+  type ValidIntValues9 = 0x90 | 0x91 | 0x92 | 0x93 | 0x94 | 0x95 | 0x96 | 0x97 | 0x98 | 0x99 | 0x9A | 0x9B | 0x9C | 0x9D | 0x9E | 0x9F
+  type ValidIntValuesA = 0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5 | 0xA6 | 0xA7 | 0xA8 | 0xA9 | 0xAA | 0xAB | 0xAC | 0xAD | 0xAE | 0xAF
+  type ValidIntValuesB = 0xB0 | 0xB1 | 0xB2 | 0xB3 | 0xB4 | 0xB5 | 0xB6 | 0xB7 | 0xB8 | 0xB9 | 0xBA | 0xBB | 0xBC | 0xBD | 0xBE | 0xBF
+  type ValidIntValuesC = 0xC0 | 0xC1 | 0xC2 | 0xC3 | 0xC4 | 0xC5 | 0xC6 | 0xC7 | 0xC8 | 0xC9 | 0xCA | 0xCB | 0xCC | 0xCD | 0xCE | 0xCF
+  type ValidIntValuesD = 0xD0 | 0xD1 | 0xD2 | 0xD3 | 0xD4 | 0xD5 | 0xD6 | 0xD7 | 0xD8 | 0xD9 | 0xDA | 0xDB | 0xDC | 0xDD | 0xDE | 0xDF
+  type ValidIntValuesE = 0xE0 | 0xE1 | 0xE2 | 0xE3 | 0xE4 | 0xE5 | 0xE6 | 0xE7 | 0xE8 | 0xE9 | 0xEA | 0xEB | 0xEC | 0xED | 0xEE | 0xEF
+  type ValidIntValuesF = 0xF0 | 0xF1 | 0xF2 | 0xF3 | 0xF4 | 0xF5 | 0xF6 | 0xF7 | 0xF8 | 0xF9 | 0xFA | 0xFB | 0xFC | 0xFD | 0xFE | 0xFF
+  type ValidIntValues =
+    ValidIntValues0 | ValidIntValues1 | ValidIntValues2 | ValidIntValues3 |
+    ValidIntValues4 | ValidIntValues5 | ValidIntValues6 | ValidIntValues7 |
+    ValidIntValues8 | ValidIntValues9 | ValidIntValuesA | ValidIntValuesB |
+    ValidIntValuesC | ValidIntValuesD | ValidIntValuesE | ValidIntValuesF
+
+  inline def wrap(b: Byte): UByte = b
+
+  inline def wrap(i: ValidIntValues): UByte = i.toByte
+
+  extension (b: UByte) {
+    inline def unwrap: Byte = b
+    inline def signed: Byte = b
+  }
+
+  extension (b: kse.maths.UByte) {
+    inline def +(c: kse.maths.UByte): kse.maths.UInt = UInt.wrap( (b.signed & 0xFF) + (c.signed & 0xFF) )
+    @targetName("signedIntPlus")
+    inline def +(j: Int): Int = (b.signed & 0xFF) + j
+    @targetName("unsignedIntPlus")
+    inline def +(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( (b.signed & 0xFF) + j.signed )
+
+    def pr: String = (b.signed & 0xFF).toString
+  }
+}
+
+opaque type UInt = Int
+object UInt {
+  inline def wrap(i: Int): UInt = i
+
+  extension (i: UInt) {
+    inline def unwrap: Int = i
+    inline def signed: Int = i
+  }
+
+  extension (i: kse.maths.UInt) {
+    inline def +(c: kse.maths.UByte): kse.maths.UInt = UInt.wrap( i.signed + (c.signed & 0xFF) )
+    inline def +(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( i.signed + j.signed )
+    inline def -(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( i.signed - j.signed )
+    inline def *(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( i.signed * j.signed )
+    inline def /(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( java.lang.Integer.divideUnsigned(i.signed, j.signed) )
+    inline def %(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap( java.lang.Integer.remainderUnsigned(i.signed, j.signed) )
+    inline def unary_~ : kse.maths.UInt = UInt.wrap(~i.signed)
+    inline def |(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap(i.signed | j.signed)
+    inline def &(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap(i.signed & j.signed)
+    inline def ^(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap(i.signed ^ j.signed)
+
+    inline def <( j: kse.maths.UInt): Boolean = java.lang.Integer.compareUnsigned(i.signed, j.signed) < 0
+    inline def <=(j: kse.maths.UInt): Boolean = java.lang.Integer.compareUnsigned(i.signed, j.signed) <= 0
+    inline def >=(j: kse.maths.UInt): Boolean = java.lang.Integer.compareUnsigned(i.signed, j.signed) >= 0
+    inline def >( j: kse.maths.UInt): Boolean = java.lang.Integer.compareUnsigned(i.signed, j.signed) > 0
+
+    transparent inline def >>(inline j: Int | kse.maths.UInt): kse.maths.UInt = inline j match
+      case x: Int => UInt.wrap(i.signed >>> x)
+      case y: kse.maths.UInt => UInt.wrap(i.signed >>> y.signed)
+
+    transparent inline def <<(inline j: Int | kse.maths.UInt): kse.maths.UInt = inline j match
+      case x: Int => UInt.wrap(i.signed << x)
+      case y: kse.maths.UInt => UInt.wrap(i.signed << y.signed)
+
+    inline def max(j: kse.maths.UInt): kse.maths.UInt = if java.lang.Integer.compareUnsigned(i.signed, j.signed) < 0 then j else i
+    inline def min(j: kse.maths.UInt): kse.maths.UInt = if java.lang.Integer.compareUnsigned(i.signed, j.signed) > 0 then j else i
+
+    inline def pr: String = java.lang.Integer.toUnsignedString(i.signed)
+  }
+
+  given Ordering[kse.maths.UInt] = new {
+    def compare(i: kse.maths.UInt, j: kse.maths.UInt): Int = java.lang.Integer.compareUnsigned(i.signed, j.signed)
+  }
+}
+
 opaque type Vc = Long
 object Vc {
   inline def wrap(l: Long): kse.maths.Vc = l
@@ -798,13 +893,13 @@ object Vc {
     final def rotate(angle: Float): kse.maths.Vc =
       val x = v.x
       val y = v.y
-      val ca = math.cos(angle)
-      val sa = math.sin(angle)
+      val ca = jm.cos(angle)
+      val sa = jm.sin(angle)
       Vc.D(x*ca - y*sa, y*ca + x*sa)
-    inline def theta: Double = math.atan2(v.y, v.x)
+    inline def theta: Double = jm.atan2(v.y, v.x)
 
     final def lenSq: Double = { val a = v.x.toDouble; val b = v.y.toDouble; a*a + b*b }
-    inline def len: Float = math.sqrt(v.lenSq).toFloat
+    inline def len: Float = jm.sqrt(v.lenSq).toFloat
 
     inline def +(f: Float): kse.maths.Vc = Vc(v.x + f, v.y + f)
     inline def +(f: Float, g: Float): kse.maths.Vc = Vc(v.x + f, v.y + g)
@@ -850,16 +945,16 @@ object Vc {
       val a = v.x.toDouble
       val b = v.y.toDouble
       val l2 = a*a + b*b
-      if math.abs(l2-1) < 3e-7f then v
+      if jm.abs(l2-1) < 3e-7f then v
       else if l2 == 0 then 0L
       else 
-        val il = 1.0/math.sqrt(l2)
+        val il = 1.0/jm.sqrt(l2)
         Vc.D(a*il, b*il)
 
     def normDot(f: Float, g: Float): Double =
       val a = v.x
       val b = v.y
-      (a*f + b*g) / math.sqrt((a*a + b*b)*(f*f + g*g)) match
+      (a*f + b*g) / jm.sqrt((a*a + b*b)*(f*f + g*g)) match
         case w if w < -1 => -1
         case w if w > 1  =>  1
         case w           =>  w
@@ -868,7 +963,7 @@ object Vc {
       val b = v.y
       val c = u.x
       val d = u.y
-      (a*c + b*d) / math.sqrt((a*a + b*b)*(c*c + d*d)) match
+      (a*c + b*d) / jm.sqrt((a*a + b*b)*(c*c + d*d)) match
         case w if w < -1 => -1
         case w if w > 1  =>  1
         case w           =>  w
@@ -889,7 +984,7 @@ object Vc {
       val b = v.y.toDouble
       val p = f.toDouble
       val q = g.toDouble
-      val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+      val d = (a*p + b*q)/jm.sqrt((a*a + b*b)*(p*p + q*q)) match
         case c if c < -1 => -1
         case c if c > 1  =>  1
         case c           =>  c
@@ -899,7 +994,7 @@ object Vc {
       val b = v.y.toDouble
       val p = u.x.toDouble
       val q = u.y.toDouble
-      val d = (a*p + b*q)/math.sqrt((a*a + b*b)*(p*p + q*q)) match
+      val d = (a*p + b*q)/jm.sqrt((a*a + b*b)*(p*p + q*q)) match
         case c if c < -1 => -1
         case c if c > 1  =>  1
         case c           =>  c
@@ -1271,6 +1366,13 @@ object Frac {
         else if ng < 0 then gcdReduceAny(-f.numerL * g.denomL, -ng * f.denomL) 
         else                gcdReduceAny( f.numerL * g.denomL,  ng * f.denomL)
       ans | f.overflowBit | g.overflowBit
+
+    def reciprocal: kse.maths.Frac =
+      val n = f.numerL
+      val d = f.denomL
+      val ob = if n == 0 then 0x80000000L else f.overflowBit
+      if n < 0 then ((-d) << 32) | (-n) | ob
+      else          (  d  << 32) |   n  | ob
 
     def =~=(g: kse.maths.Frac): Boolean =
       f.numerL * g.denomL == g.numerL * f.denomL

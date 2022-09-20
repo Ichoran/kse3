@@ -3,105 +3,591 @@
 
 package kse.maths
 
+import java.lang.{Math => jm}
 import java.time._
+import java.util.concurrent.TimeUnit
 import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
 
-opaque type NanoTime = Long
-object NanoTime {
-  inline def apply(nanos: Long): NanoTime = nanos
-  inline def now: NanoTime = System.nanoTime
+opaque type NanoInstant = Long
+object NanoInstant {
+  inline def apply(nanos: Long): NanoInstant = nanos
+  inline def now: NanoInstant = System.nanoTime
 
-  extension (nt: NanoTime) {
-    inline def value: Long = nt
+  extension (nt: NanoInstant) {
+    inline def unwrap: Long = nt
   }
 
-  extension (nt: kse.maths.NanoTime) {
-    inline def +(dt: kse.maths.NanoTimeDelta): kse.maths.NanoTime = NanoTime(nt.value + dt.value)
+  extension (nt: kse.maths.NanoInstant) {
+    inline def +(dt: kse.maths.NanoDuration): kse.maths.NanoInstant = NanoInstant(nt.unwrap + dt.unwrap)
 
-    @targetName("timeSubDelta")
-    inline def -(dt: kse.maths.NanoTimeDelta): kse.maths.NanoTime = NanoTime(nt.value - dt.value)
+    @targetName("instant_minus_duration")
+    inline def -(dt: kse.maths.NanoDuration): kse.maths.NanoInstant = NanoInstant(nt.unwrap - dt.unwrap)
 
-    @targetName("timeDiffTime")
-    inline def -(mt: kse.maths.NanoTime): kse.maths.NanoTimeDelta = NanoTimeDelta(nt.value - mt.value)
+    @targetName("instant_minus_instant")
+    inline def -(mt: kse.maths.NanoInstant): kse.maths.NanoDuration = NanoDuration(nt.unwrap - mt.unwrap)
 
-    inline def <( mt: kse.maths.NanoTime): Boolean = nt.value <  mt.value
-    inline def <=(mt: kse.maths.NanoTime): Boolean = nt.value <= mt.value
-    inline def >=(mt: kse.maths.NanoTime): Boolean = nt.value >= mt.value
-    inline def >( mt: kse.maths.NanoTime): Boolean = nt.value >  mt.value
+    inline def to(mt: kse.maths.NanoInstant): kse.maths.NanoDuration = NanoDuration(mt.unwrap - nt.unwrap)
 
-    inline def max(mt: kse.maths.NanoTime): kse.maths.NanoTime = if nt.value < mt.value then mt else nt
-    inline def min(mt: kse.maths.NanoTime): kse.maths.NanoTime = if nt.value > mt.value then mt else nt
+    inline def <( mt: kse.maths.NanoInstant): Boolean = nt.unwrap <  mt.unwrap
+    inline def <=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap <= mt.unwrap
+    inline def >=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap >= mt.unwrap
+    inline def >( mt: kse.maths.NanoInstant): Boolean = nt.unwrap >  mt.unwrap
 
-    inline def elapsed: kse.maths.NanoTimeDelta = NanoTimeDelta since nt
+    inline def max(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap < mt.unwrap then mt else nt
+    inline def min(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap > mt.unwrap then mt else nt
+
+    def toNow: kse.maths.NanoDuration = NanoDuration since nt
+
+    def pr: String =
+      s"timestamp ${nt.unwrap} ns"
   }
 
-  given Ordering[NanoTime] = new {
-    def compare(a: NanoTime, b: NanoTime) = a.value compareTo b.value
+  given Ordering[NanoInstant] = new {
+    def compare(a: NanoInstant, b: NanoInstant) = a.unwrap compareTo b.unwrap
   }
 }
 
-opaque type NanoTimeDelta = Long
-object NanoTimeDelta {
-  inline def apply(nanos: Long): NanoTimeDelta = nanos
-  inline def since(nt: kse.maths.NanoTime): NanoTimeDelta = NanoTime(System.nanoTime - nt.value)
+opaque type NanoDuration = Long
+object NanoDuration {
+  inline def apply(nanos: Long): NanoDuration = nanos
+  inline def since(nt: kse.maths.NanoInstant): NanoDuration = NanoDuration(System.nanoTime - nt.unwrap)
 
-  extension (dt: NanoTimeDelta) {
-    inline def value: Long = dt
+  extension (dt: NanoDuration) {
+    inline def unwrap: Long = dt
   }
 
-  extension (dt: kse.maths.NanoTimeDelta) {
-    @targetName("deltaPlusDelta")
-    inline def +(et: kse.maths.NanoTimeDelta): NanoTimeDelta = NanoTimeDelta(dt.value + et.value)
+  extension (dt: kse.maths.NanoDuration) {
+    @targetName("duration_plus_duration")
+    inline def +(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap + et.unwrap)
 
-    @targetName("deltaPlusTime")
-    inline def +(nt: kse.maths.NanoTime): NanoTime = NanoTime(nt.value + dt.value)
+    @targetName("duration_plus_instant")
+    inline def +(nt: kse.maths.NanoInstant): kse.maths.NanoInstant = NanoInstant(nt.unwrap + dt.unwrap)
 
-    inline def -(et: kse.maths.NanoTimeDelta): NanoTimeDelta = NanoTimeDelta(dt.value - et.value)
+    inline def -(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap - et.unwrap)
 
-    inline def *(factor: Long): NanoTimeDelta = NanoTimeDelta(dt.value * factor)
+    inline def unary_- : kse.maths.NanoDuration = NanoDuration(-dt.unwrap)
 
-    inline def /(factor: Long): NanoTimeDelta = NanoTimeDelta(dt.value / factor)
+    @targetName("long_mul")
+    inline def *(factor: Long): kse.maths.NanoDuration = NanoDuration(dt.unwrap * factor)
 
-    inline def <( et: kse.maths.NanoTimeDelta): Boolean = dt.value <  et.value
-    inline def <=(et: kse.maths.NanoTimeDelta): Boolean = dt.value <= et.value
-    inline def >=(et: kse.maths.NanoTimeDelta): Boolean = dt.value >= et.value
-    inline def >( et: kse.maths.NanoTimeDelta): Boolean = dt.value >  et.value
+    @targetName("frac_mul")
+    def *(frac: kse.maths.Frac): kse.maths.NanoDuration =
+      val t = dt.unwrap
+      if Int.MinValue < t && t <= Int.MaxValue then
+        NanoDuration((t * frac.numerL) / frac.denomL)
+      else
+        val n = frac.numerL
+        val d = frac.denomL
+        NanoDuration((t/d)*n + ((t%d)*n)/d)
 
-    inline def max(et: kse.maths.NanoTimeDelta): kse.maths.NanoTimeDelta = if dt.value < et.value then et else dt
-    inline def min(et: kse.maths.NanoTimeDelta): kse.maths.NanoTimeDelta = if dt.value > et.value then et else dt
+    @targetName("long_div")
+    inline def /(factor: Long): kse.maths.NanoDuration = NanoDuration(dt.unwrap / factor)
+
+    @targetName("frac_div")
+    inline def /(frac: kse.maths.Frac): kse.maths.NanoDuration = dt * frac.reciprocal
+
+    inline def <( et: kse.maths.NanoDuration): Boolean = dt.unwrap <  et.unwrap
+    inline def <=(et: kse.maths.NanoDuration): Boolean = dt.unwrap <= et.unwrap
+    inline def >=(et: kse.maths.NanoDuration): Boolean = dt.unwrap >= et.unwrap
+    inline def >( et: kse.maths.NanoDuration): Boolean = dt.unwrap >  et.unwrap
+
+    inline def abs: kse.maths.NanoDuration = if dt.unwrap < 0 then NanoDuration(-dt.unwrap) else dt
+    inline def max(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap < et.unwrap then et else dt
+    inline def min(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap > et.unwrap then et else dt
+
+    inline def D: kse.maths.DoubleDuration = DoubleDuration(dt)
+    def duration: Duration =
+      val s = dt.unwrap/1000000000
+      val n = dt.unwrap - s
+      if n >= 0 then Duration.ofSeconds(s, n)
+      else           Duration.ofSeconds(s-1, 1000000000+n)
+
+    inline def in: kse.maths.NanoDuration.In       = dt.unwrap
+
+    def pr: String =
+      s"${dt.unwrap} ns"
   }
 
-  given Ordering[NanoTimeDelta] = new {
-    def compare(a: NanoTimeDelta, b: NanoTimeDelta) = a.value compareTo b.value
+  opaque type In = Long
+  object In {
+    extension (in: In) {
+      inline def ns: Long = in
+      inline def us: Long = in/1000
+      inline def ms: Long = in/1000000
+      inline def  s: Long = in/1000000000
+
+      inline def round: InRound = in
+      inline def floor: InFloor = in
+      inline def ceil: InCeil   = in
+    }
   }
+
+  opaque type InRound = Long
+  object InRound {
+    extension (round: InRound) {
+      def us: Long =
+        val l: Long = round
+        val ans = l / 1000
+        val e = l - 1000 * ans
+        if      e >  500 then ans + 1
+        else if e < -500 then ans - 1
+        else                  ans
+      def ms: Long =
+        val l: Long = round
+        val ans = l / 1000000
+        val e = l - 1000000 * ans
+        if      e >  500000 then ans + 1
+        else if e < -500000 then ans - 1
+        else                  ans
+      def s: Long =
+        val l: Long = round
+        val ans = l / 1000000000
+        val e = l - 1000000000 * ans
+        if      e >  500000000 then ans + 1
+        else if e < -500000000 then ans - 1
+        else                  ans
+    }
+  }
+
+  opaque type InFloor = Long
+  object InFloor {
+    extension (floor: InFloor) {
+      def us: Long =
+        val l: Long = floor
+        if l >= 0 then l / 1000
+        else
+          val ans = l / 1000
+          if ans * 1000 == l then ans else ans-1
+      def ms: Long =
+        val l: Long = floor
+        if l >= 0 then l / 1000000
+        else
+          val ans = l / 1000000
+          if ans * 1000000 == l then ans else ans-1
+      def s: Long =
+        val l: Long = floor
+        if l >= 0 then l / 1000000000
+        else
+          val ans = l / 1000000000
+          if ans * 1000000000 == l then ans else ans-1
+    }
+  }
+
+  opaque type InCeil = Long
+  object InCeil {
+    extension (ceil: InCeil) {
+      def us: Long =
+        val l: Long = ceil
+        if l <= 0 then l / 1000
+        else
+          val ans = l / 1000
+          if ans * 1000 == l then ans else ans+1
+      def ms: Long =
+        val l: Long = ceil
+        if l <= 0 then l / 1000000
+        else
+          val ans = l / 1000000
+          if ans * 1000000 == l then ans else ans+1
+      def s: Long =
+        val l: Long = ceil
+        if l <= 0 then l / 1000000000
+        else
+          val ans = l / 1000000000
+          if ans * 1000000000 == l then ans else ans+1
+    }
+  }
+
+  given Ordering[kse.maths.NanoDuration] = new {
+    def compare(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration) = a.unwrap compareTo b.unwrap
+  }
+}
+
+
+opaque type DoubleInstant = Double
+object DoubleInstant {
+  inline def apply(t: Double): DoubleInstant = t
+  inline def apply(i: Instant): DoubleInstant = i.getEpochSecond + i.getNano/1e9
+
+  def from(seconds: Long, nanos: Int): DoubleInstant =
+    if nanos == 0 then seconds.toDouble
+    else if nanos % 1000000 == 0 && jm.abs(seconds) < 9223372036854775L then (1000*seconds + nanos/1000000)/1e3
+    else seconds + nanos/1e9
+
+  inline def now: DoubleInstant = apply(Instant.now)
+
+  extension (t: DoubleInstant) {
+    inline def unwrap: Double = t
+  }
+
+  extension (t: kse.maths.DoubleInstant) {
+    inline def +(dt: kse.maths.DoubleDuration): DoubleInstant = DoubleInstant(t.unwrap + dt.unwrap)
+
+    @targetName("instant_minus_duration")
+    inline def -(dt: kse.maths.DoubleDuration): DoubleInstant = DoubleInstant(t.unwrap - dt.unwrap)
+
+    @targetName("instant_minus_instant")
+    inline def -(u: kse.maths.DoubleInstant): DoubleDuration = DoubleDuration(t.unwrap - u.unwrap)
+
+    inline def to(u: kse.maths.DoubleInstant): DoubleDuration = DoubleDuration(u.unwrap - t.unwrap)
+
+    def <( u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) < 0
+    def <=(u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) <= 0
+    def >=(u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) >= 0
+    def >( u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) > 0
+
+    inline def max(u: kse.maths.DoubleInstant): kse.maths.DoubleInstant = if DoubleInstant.<(t)(u) then u else t
+    inline def min(u: kse.maths.DoubleInstant): kse.maths.DoubleInstant = if DoubleInstant.>(t)(u) then u else t
+
+    def toNow: DoubleDuration = DoubleDuration since t
+
+    def instant: Instant =
+      val b = t.unwrap
+      if java.lang.Double.isNaN(b) then Instant.ofEpochSecond(Long.MaxValue) // Will probably throw an exception
+      else if b >= MaxInstantDouble then Instant.MAX
+      else if b <= MinInstantDouble then Instant.MIN
+      else
+        val a = jm.abs(b)
+        if a < 4.19e6 then
+          val ns = jm.rint(b*1e9).toLong
+          if ns % 1000000 == 0 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
+          else
+            val s = ns/1000000000
+            Instant.ofEpochSecond(s, ns - 1000000000*s)
+        else if a < 4.29e9 then
+          val us = jm.rint(b*1e6).toLong
+          if us % 1000 == 0 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
+          else
+            val s = us/1000000
+            Instant.ofEpochSecond(s, (us - 1000000*s)*1000)
+        else if a < 4.39e12 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
+        else Instant.ofEpochSecond(jm.rint(b).toLong)
+    def filetime: FileTime =
+      val b = t.unwrap
+      val a = jm.abs(b)
+      if      a < 4.29e9  then
+        val us = jm.rint(b*1e6).toLong
+        if us % 1000 == 0 then FileTime.fromMillis(jm.rint(b*1e3).toLong)
+        else FileTime.from(us, TimeUnit.MICROSECONDS)
+      else if a < 4.39e12 then FileTime.fromMillis(jm.rint(b*1e3).toLong)
+      else                    FileTime.from(jm.rint(b).toLong, TimeUnit.SECONDS)
+    inline def local: LocalDateTime   = TemporalConversions.toLocal( DoubleInstant.instant(t))
+    inline def offset: OffsetDateTime = TemporalConversions.toOffset(DoubleInstant.instant(t))
+    inline def utc: OffsetDateTime    = TemporalConversions.toUTC(   DoubleInstant.instant(t))
+    inline def zoned: ZonedDateTime   = TemporalConversions.toZoned( DoubleInstant.instant(t))
+
+    def pr: String = s"epoch + ${t.unwrap} sec"
+  }
+
+  given Ordering[kse.maths.DoubleInstant] = new {
+    def compare(t: kse.maths.DoubleInstant, u: kse.maths.DoubleInstant) = java.lang.Double.compare(t.unwrap, u.unwrap)
+  }
+
+  val MaxInstantDouble = Instant.MAX.getEpochSecond.toDouble
+  val MinInstantDouble = Instant.MIN.getEpochSecond.toDouble
+}
+
+opaque type DoubleDuration = Double
+object DoubleDuration {
+  inline def apply(dt: Double): DoubleDuration = dt
+  inline def apply(d: Duration): DoubleDuration = d.getSeconds + d.getNano/1e9
+  inline def apply(n: kse.maths.NanoDuration): DoubleDuration = n.unwrap/1e9
+
+  def since(dt: kse.maths.DoubleInstant): DoubleDuration = DoubleDuration(DoubleInstant(Instant.now).unwrap - dt)
+
+  extension (dt: DoubleDuration) {
+    inline def unwrap: Double = dt
+  }
+
+  extension (dt: kse.maths.DoubleDuration) {
+    @targetName("duration_plus_instant")
+    inline def +(t: kse.maths.DoubleInstant): kse.maths.DoubleInstant = DoubleInstant(t.unwrap + dt.unwrap)
+
+    @targetName("duration_plus_duration")
+    inline def +(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap + du.unwrap)
+
+    inline def -(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap - du.unwrap)
+
+    inline def unary_- : kse.maths.DoubleDuration = DoubleDuration(-dt.unwrap)
+
+    inline def *(scale: Double): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap * scale)
+
+    inline def /(scale: Double): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap / scale)
+
+    inline def <( du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) < 0
+    inline def <=(du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) <= 0
+    inline def >=(du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) >= 0
+    inline def >( du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) > 0
+
+    inline def abs: kse.maths.DoubleDuration = if dt.unwrap < 0 then DoubleDuration(-dt.unwrap) else dt
+    inline def max(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = if DoubleDuration.<(dt)(du) then du else dt
+    inline def min(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = if DoubleDuration.>(dt)(du) then du else dt
+
+    def nano: kse.maths.NanoDuration = NanoDuration(jm.rint(dt.unwrap * 1e9).toLong)
+    def duration: Duration =
+      val t = jm.floor(dt.unwrap)
+      val n = jm.rint((dt.unwrap - t)*1e9)
+      Duration.ofSeconds(t.toLong, n.toInt)
+
+    inline def in: kse.maths.DoubleDuration.In = dt.unwrap
+    inline def long: kse.maths.DoubleDuration.InLong = dt.unwrap
+
+    inline def round: kse.maths.DoubleDuration.Round = dt.unwrap
+    inline def floor: kse.maths.DoubleDuration.Floor = dt.unwrap
+    inline def ceil:  kse.maths.DoubleDuration.Ceil  = dt.unwrap
+
+    def pr: String =
+      s"${dt.unwrap} sec"
+  }
+
+  opaque type In = Double
+  object In {
+    extension (in: In) {
+      inline def ns: Double  = in * 1e9
+      inline def us: Double  = in * 1e6
+      inline def ms: Double  = in * 1e3
+      inline def s: Double   = in
+      inline def m: Double   = in / 60.0
+      inline def h: Double   = in / 3600.0
+      inline def d: Double   = in / 86400.0
+
+      inline def long:  InLong  = in
+      inline def round: InRound = in
+      inline def floor: InFloor = in
+      inline def ceil:  InCeil  = in
+    }
+  }
+
+  opaque type InLong = Double
+  object InLong {
+    extension (in: InLong) {
+      inline def ns: Long  = (in * 1e9).toLong
+      inline def us: Long  = (in * 1e6).toLong
+      inline def ms: Long  = (in * 1e3).toLong
+      inline def s: Long   = in.toLong
+      inline def m: Long   = (in / 60.0).toLong
+      inline def h: Long   = (in / 3600.0).toLong
+      inline def d: Long   = (in / 86400.0).toLong
+
+      inline def round: InRound = in
+      inline def floor: InRound = in
+      inline def ceil: InRound  = in
+    }
+  }
+
+  opaque type InRound = Double
+  object InRound {
+    extension (in: InRound) {
+      inline def ns: Long  = jm.rint(in * 1e9).toLong
+      inline def us: Long  = jm.rint(in * 1e6).toLong
+      inline def ms: Long  = jm.rint(in * 1e3).toLong
+      inline def s: Long   = jm.rint(in).toLong
+      inline def m: Long   = jm.rint(in / 60.0).toLong
+      inline def h: Long   = jm.rint(in / 3600.0).toLong
+      inline def d: Long   = jm.rint(in / 86400.0).toLong
+    }
+  }
+
+  opaque type InFloor = Double
+  object InFloor {
+    extension (in: InFloor) {
+      inline def ns: Long  = jm.floor(in * 1e9).toLong
+      inline def us: Long  = jm.floor(in * 1e6).toLong
+      inline def ms: Long  = jm.floor(in * 1e3).toLong
+      inline def s: Long   = jm.floor(in).toLong
+      inline def m: Long   = jm.floor(in / 60).toLong
+      inline def h: Long   = jm.floor(in / 3600).toLong
+      inline def d: Long   = jm.floor(in / 86400).toLong
+    }
+  }
+
+  opaque type InCeil = Double
+  object InCeil {
+    extension (in: InCeil) {
+      inline def ns: Long  = jm.ceil(in * 1e9).toLong
+      inline def us: Long  = jm.ceil(in * 1e6).toLong
+      inline def ms: Long  = jm.ceil(in * 1e3).toLong
+      inline def s: Long   = jm.ceil(in).toLong
+      inline def m: Long   = jm.ceil(in / 60.0).toLong
+      inline def h: Long   = jm.ceil(in / 3600.0).toLong
+      inline def d: Long   = jm.ceil(in / 86400.0).toLong
+    }
+  }
+
+  opaque type Round = Double
+  object Round {
+    extension (round: Round) {
+      inline def ns: kse.maths.DoubleDuration = DoubleDuration( jm.rint(round * 1e9) / 1e9 )
+      inline def us: kse.maths.DoubleDuration = DoubleDuration( jm.rint(round * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleDuration = DoubleDuration( jm.rint(round * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleDuration = DoubleDuration( jm.rint(round) )
+      inline def m:  kse.maths.DoubleDuration = DoubleDuration( jm.rint(round / 60) * 60 )
+      inline def h:  kse.maths.DoubleDuration = DoubleDuration( jm.rint(round / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.rint(round / 86400) * 86400 )
+    }
+  }
+
+  opaque type Floor = Double
+  object Floor {
+    extension (floor: Floor) {
+      inline def ns: kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor * 1e9) / 1e9 )
+      inline def us: kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor) )
+      inline def m:  kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor / 60) * 60 )
+      inline def h:  kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor / 86400) * 86400 )
+    }
+  }
+
+  opaque type Ceil = Double
+  object Ceil {
+    extension (ceil: Ceil) {
+      inline def ns: kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil * 1e9) / 1e9 )
+      inline def us: kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil) )
+      inline def m:  kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil / 60) * 60 )
+      inline def h:  kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil / 86400) * 86400 )
+    }
+  }
+
+  given Ordering[kse.maths.DoubleDuration] = new {
+    def compare(dt: kse.maths.DoubleDuration, du: kse.maths.DoubleDuration) = java.lang.Double.compare(dt.unwrap, du.unwrap)
+  }
+}
+
+
+object TemporalConversions {
+  def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
+  def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
+  def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.from(datetime.toEpochSecond, datetime.getNano)
+  def toDouble(datetime: ZonedDateTime): kse.maths.DoubleInstant = DoubleInstant.from(datetime.toEpochSecond, datetime.getNano)
+
+  def toInstant(datetime: LocalDateTime): Instant = datetime.atZone(ZoneId.systemDefault).toInstant
+
+  def toLocal(instant: Instant): LocalDateTime = instant.atZone(ZoneId.systemDefault).toLocalDateTime
+  def toLocal(datetime: ZonedDateTime): LocalDateTime = datetime.withZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
+  def toLocal(datetime: OffsetDateTime): LocalDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
+
+  def toUTC(instant: Instant): OffsetDateTime = instant.atOffset(ZoneOffset.UTC)
+  def toUTC(datetime: LocalDateTime): OffsetDateTime = datetime.atZone(ZoneId.systemDefault).toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
+  def toUTC(datetime: ZonedDateTime): OffsetDateTime = datetime.toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
+
+  def toZoned(instant: Instant): ZonedDateTime = instant.atZone(ZoneId.systemDefault)
+  def toZoned(datetime: LocalDateTime): ZonedDateTime = datetime.atZone(ZoneId.systemDefault)
+  def toZoned(datetime: OffsetDateTime): ZonedDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault)
+
+  def toOffset(instant: Instant): OffsetDateTime = toZoned(instant).toOffsetDateTime
+  def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
 }
 
 /*
-class NanoTime(val time: Long) extends AnyVal {
-  def <(that: NanoTime) = time < that.time
-  def <=(that: NanoTime) = time <= that.time
-  def >=(that: NanoTime) = time >= that.time
-  def >(that: NanoTime) = time > that.time
-  def min(that: NanoTime) = if (that.time < time) that else this
-  def max(that: NanoTime) = if (that.time > time) that else this
+extension (instant: Instant) {
+  inline def double: kse.maths.DoubleInstant = DoubleInstant(instant)
+  inline def local: LocalDateTime            = TemporalConversions.toLocal(instant)
+  inline def offset: OffsetDateTime          = TemporalConversions.toOffset(instant)
+  inline def utc: OffsetDateTime             = TemporalConversions.toUTC(instant)
+  inline def zoned: ZonedDateTime            = TemporalConversions.toZoned(instant)
 
-  def -(that: NanoTime): DoubleAsDeltaT = DoubleAsDeltaT.apply((time - that.time)/1e9)
+  inline def +(duration: Duration): Instant = instant plus duration
 
-  def elapsed: DoubleAsDeltaT = NanoTime.now - this
+  inline def -(inst: Instant): Duration = Duration.between(inst, instant)
+
+  inline def to(inst: Instant): Duration = Duration.between(instant,inst)
+
+  inline def <( inst: Instant): Boolean = instant.compareTo(inst) < 0
+  inline def <=(inst: Instant): Boolean = instant.compareTo(inst) <= 0
+  inline def >=(inst: Instant): Boolean = instant.compareTo(inst) >= 0
+  inline def >( inst: Instant): Boolean = instant.compareTo(inst) > 0
+
+  inline def max(inst: Instant): Instant = if instant.compareTo(inst) < 0 then inst else instant
+  inline def min(inst: Instant): Instant = if instant.compareTo(inst) > 0 then inst else instant
 }
-object NanoTime {
-  def now: NanoTime = new NanoTime(System.nanoTime)
 
-  given Ordering[NanoTime] = new {
-    def compare(a: NanoTime, b: NanoTime) = a.time compareTo b.time
-  }
+extension (zoned: ZonedDateTime) {
+  inline def double: kse.maths.DoubleInstant = TemporalConversions.toDouble(zoned)
+  inline def instant: Instant                = zoned.toInstant
+  inline def local: LocalDateTime            = TemporalConversions.toLocal(zoned)
+  inline def offset: OffsetDateTime          = zoned.toOffsetDateTime
+  inline def utc: OffsetDateTime             = TemporalConversions.toUTC(zoned)
+
+  inline def +(duration: Duration): ZonedDateTime = zoned plus duration
+
+  inline def -(z: ZonedDateTime): DeltaDateTime = DeltaDateTime.between(z, zoned)
+
+  inline def to(z: ZonedDateTime): DeltaDateTime = DeltaDateTime.between(zoned, z)
+
+  inline def <( z: ZonedDateTime): Boolean = zoned.compareTo(z) < 0
+  inline def <=(z: ZonedDateTime): Boolean = zoned.compareTo(z) <= 0
+  inline def >=(z: ZonedDateTime): Boolean = zoned.compareTo(z) >= 0
+  inline def >( z: ZonedDateTime): Boolean = zoned.compareTo(z) > 0
+
+  inline def max(z: ZonedDateTime): ZonedDateTime = if zoned.compareTo(z) < 0 then z else zoned
+  inline def min(z: ZonedDateTime): ZonedDateTime = if zoned.compareTo(z) > 0 then z else zoned
 }
 */
 
-/*
+class DeltaDateTime private (val years: Int, val months: Int, val days: Int, val seconds: Int, val nanos: Int) {
+  override def toString =
+    val b = new java.lang.StringBuilder
+    if years != 0 then
+      if years > 0 then b append '+'
+      b append years
+      b append 'Y'
+    if months != 0 then
+      if months > 0 then b append '+'
+      b append months
+      b append 'M'
+    if days != 0 then
+      if days > 0 then b append '+'
+      b append days
+      b append 'D'
+    if seconds != 0 || nanos != 0 then
+      var v = seconds
+      val h = v/3600
+      if h != 0 then
+        if h > 0 then b append '+'
+        b append h
+        b append 'h'
+      v = v - 3600 * h
+      val m = v/60
+      if m != 0 then
+        if m > 0 then b append '+'
+        b append m
+        b append 'm'
+      v = v - 60 * m
+      if v != 0 || nanos != 0 then
+        if v >= 0 then b append '+'
+        b append v
+        b append 's'
+        if nanos % 1000 != 0 then
+          if v > 0 then b append '+'
+          b append nanos
+          b append "ns"
+        else if nanos % 1000_000 != 0 then
+          if nanos > 0 then b append '+'
+          b append nanos/1000
+          b append "us"
+        else
+          if nanos > 0 then b append '+'
+          b append nanos/1000000
+          b append "ms"
+    if b.length == 0 then b append "+0s"
+    b.toString
+}
+object DeltaDateTime {
+  def apply(yr: Int, mo: Int, d: Int, h: Int, m: Int, s: Int, ns: Int) =
+    val mm = yr.toLong*12 + mo
+    var ss = d.toLong*86400 + h.toLong*3600 + m.toLong*60 + s.toLong + (ns/1000000000)
+    val nn = ns % 1000000000
+    new DeltaDateTime((mm / 12).toInt, (mm % 12).toInt, (ss/86400).toInt, (ss % 86400).toInt, nn)
 
+  def between(a: ZonedDateTime, b: ZonedDateTime): DeltaDateTime = ???
+}
+/*
 class DoubleAsDeltaT private (val time: Double) extends AnyVal {
   def <(that: DoubleAsDeltaT) = time < that.time
   def <=(that: DoubleAsDeltaT) = time <= that.time

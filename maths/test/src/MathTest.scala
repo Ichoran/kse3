@@ -1731,6 +1731,12 @@ class MathTest {
     T ~ zerodiv ==== zeromul
     val f3 = 91271528 over 19857151
     val f4 = 91956397 over 20006152
+    T ~ fr.reciprocal            ==== (3 over 20)
+    T ~ f2.reciprocal            ==== (-35 over 18)
+    T ~ badf.reciprocal.inexact  ==== true
+    T ~ ovrf.reciprocal.inexact  ==== true
+    T ~ f2.reciprocal.reciprocal ==== f2
+    T ~ (0 over 1).reciprocal    ==== (1 over 0)
     T ~ (fr =~= fr)           ==== true
     T ~ (ovrf =~= (1 over 2)) ==== true
     T ~ !(fr =~= f2)          ==== true
@@ -3367,8 +3373,9 @@ class MathTest {
 
   @Test
   def temporalTest(): Unit =
-    T ~ NanoTime(5L)      ==== 5L
-    T ~ NanoTimeDelta(5L) ==== 5L
+    T ~ NanoInstant(5L)    ==== 5L
+    T ~ NanoDuration(5L)   ==== 5L
+    T ~ NanoDuration(5L).D ==== 5e-9
 }
 object MathsTest {
   // @BeforeClass
