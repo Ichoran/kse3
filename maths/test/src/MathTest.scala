@@ -1204,9 +1204,9 @@ class MathTest {
     T ~ b.in(-99, -9)      ==== false
     T ~ b.in(44, -12)      ==== false
     T ~ b.toUInt           ==== 248
-    T ~ b.toUInt           ==== typed[Int]
+    T ~ b.toUInt           ==== typed[UInt]
     T ~ b.toULong          ==== 248L
-    T ~ b.toULong          ==== typed[Long]
+    T ~ b.toULong          ==== typed[ULong]
     T ~ b.sq               ==== 64.0
     T ~ b.sq               ==== typed[Double]
     T ~ b.sign             ==== -1
@@ -1224,9 +1224,9 @@ class MathTest {
     T ~ s.in(-99, -91)       ==== false
     T ~ s.in(-4, -915)       ==== false
     T ~ s.toUInt             ==== 65448
-    T ~ s.toUInt             ==== typed[Int]
+    T ~ s.toUInt             ==== typed[UInt]
     T ~ s.toULong            ==== 65448L
-    T ~ s.toULong            ==== typed[Long]
+    T ~ s.toULong            ==== typed[ULong]
     T ~ s.hexString          ==== "FFA8"
     T ~ s.hiHexString        ==== "FFA8"
     T ~ s.loHexString        ==== "ffa8"
@@ -1261,7 +1261,7 @@ class MathTest {
     T ~ i.in(-7777, 12345)    ==== false
     T ~ i.in(-7777, -9999)    ==== false
     T ~ i.toULong             ==== 4294958408L
-    T ~ i.toULong             ==== typed[Long]
+    T ~ i.toULong             ==== typed[ULong]
     T ~ i.hexString           ==== "FFFFDD48"
     T ~ i.hiHexString         ==== "FFFFDD48"
     T ~ i.loHexString         ==== "ffffdd48"

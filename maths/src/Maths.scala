@@ -559,6 +559,8 @@ extension (b: Byte) {
   def *!(c: Byte): Byte =
     val x = b * c
     if x < -128 then (-128: Byte) else if x > 127 then (127: Byte) else x.toByte
+  inline def /!(c: Byte): Byte = (b / c).toByte
+  inline def %!(c: Byte): Byte = (b % c).toByte
   inline def clamp(lo: Byte, hi: Byte) =
     if lo <= b then
       if b <= hi then b
@@ -566,8 +568,6 @@ extension (b: Byte) {
       else lo
     else lo
   inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
-  inline def toUInt: Int = b & 0xFF
-  inline def toULong: Long = b & 0xFFL
 }
 
 extension (s: Short) {
@@ -580,6 +580,8 @@ extension (s: Short) {
   def *!(t: Short): Short =
     val x = s * t
     if x < -32768 then (-32768: Short) else if x > 32767 then (32767: Short) else x.toShort
+  inline def /!(t: Short): Short = (s / t).toShort
+  inline def %!(t: Short): Short = (s % t).toShort
   inline def clamp(lo: Short, hi: Short) =
     if lo <= s then
       if s <= hi then s
@@ -587,8 +589,6 @@ extension (s: Short) {
       else lo
     else lo
   inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
-  inline def toUInt: Int = s & 0xFFFF
-  inline def toULong: Long = s & 0xFFFFL
 }
 
 extension (c: Char) {
@@ -618,7 +618,6 @@ extension (i: Int) {
       else lo
     else lo
   inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
-  inline def toULong: Long = i & 0xFFFFFFFFL
 }
 
 extension (l: Long) {
@@ -869,21 +868,37 @@ object UByte {
     inline def +(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) + j.signed )
     inline def +(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) + k.signed)
 
+    def +!(c: kse.maths.UByte): kse.maths.UByte =
+      val ans = (b.signed & 0xFF) + (c.signed & 0xFF)
+      UByte.wrap(if ans > 0xFF then (-1: Byte) else ans.toByte)
+
     inline def -(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) - (c.signed & 0xFF) )
     inline def -(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) - j.signed )
     inline def -(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) - k.signed)
+
+    def -!(c: kse.maths.UByte): kse.maths.UByte =
+      val ans = (b.signed & 0xFF) - (c.signed & 0xFF)
+      UByte.wrap(if ans < 0 then (0: Byte) else ans.toByte)
 
     inline def *(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) * (c.signed & 0xFF) )
     inline def *(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) * j.signed )
     inline def *(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) * k.signed)
 
+    def *!(c: kse.maths.UByte): kse.maths.UByte =
+      val ans = (b.signed & 0xFF) * (c.signed & 0xFF)
+      UByte.wrap(if ans > 0xFF then (-1: Byte) else ans.toByte)
+
     inline def /(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / UInt.wrap(c.signed & 0xFF)
     inline def /(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / j
     inline def /(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap(b.signed & 0xFF) / k
 
+    inline def /!(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) / (c.signed & 0xFF)).toByte)
+
     inline def %(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % UInt.wrap(c.signed & 0xFF)
     inline def %(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % j
     inline def %(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap(b.signed & 0xFF) % k
+
+    inline def %!(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) % (c.signed & 0xFF)).toByte)
 
     inline def |(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) | (c.signed & 0xFF) )
     inline def |(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) | j.signed )
@@ -963,21 +978,37 @@ object UInt {
     inline def +(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed +  j.signed )
     inline def +(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong + l.signed)
 
+    def +!(j: kse.maths.UInt): kse.maths.UInt =
+      val ans = (i & 0xFFFFFFFFL) + (j & 0xFFFFFFFFL)
+      UInt.wrap(if ans > 0xFFFFFFFFL then -1 else ans.toInt)
+
     inline def -(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed - (c.signed & 0xFF))
     inline def -(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed -  j.signed )
     inline def -(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong -  l.signed)
+
+    def -!(j: kse.maths.UInt): kse.maths.UInt =
+      val ans = (i & 0xFFFFFFFFL) - (j & 0xFFFFFFFFL)
+      UInt.wrap(if ans < 0L then 0 else ans.toInt)
 
     inline def *(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed * (c.signed & 0xFF))
     inline def *(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed *  j.signed )
     inline def *(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong *  l.signed)
 
+    def *!(j: kse.maths.UInt): kse.maths.UInt =
+      val ans = (i & 0xFFFFFFFFL) * (j & 0xFFFFFFFFL)
+      UInt.wrap(if ans < 0L || ans > 0xFFFFFFFFL then -1 else ans.toInt)
+
     inline def /(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed, (c.signed & 0xFF)))
     inline def /(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed,  j.signed))
     inline def /(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divUnsignedL(i.toLong, l.signed))
 
+    inline def /!(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap(divideUnsigned(i.signed,  j.signed))
+
     inline def %(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed, (c.signed & 0xFF)))
     inline def %(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed,  j.signed))
     inline def %(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(modUnsignedL(i.toLong, l.signed))
+
+    inline def %!(j: kse.maths.UInt): kse.maths.UInt = UInt.wrap(remainderUnsigned(i.signed,  j.signed))
 
     inline def |(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed | (c.signed & 0xFF))
     inline def |(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed |  j.signed )
@@ -1028,7 +1059,7 @@ extension (i: Int) {
   @targetName("int_unsigned") inline def unsigned: kse.maths.UInt = UInt.wrap(i)
   @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((i & 0xFF).toByte)
   @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
-  @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFF)
+  @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
 }
 
 opaque type ULong = Long
@@ -1048,22 +1079,61 @@ object ULong {
     inline def +(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed + (j.signed & 0xFFFFFFFFL))
     inline def +(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed + j.signed)
 
+    def +!(j: kse.maths.ULong): kse.maths.ULong =
+      if      ((i.signed | j.signed) & 0x8000000000000000L) == 0 then ULong.wrap(i.signed + j.signed)
+      else if ((i.signed & j.signed) & 0x8000000000000000L) != 0 then ULong.wrap(-1L)
+      else
+        val ans = i.signed + j.signed
+        ULong.wrap(if ans >= 0 then -1L else ans)
+
     inline def -(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed - (c.signed & 0xFF))
     inline def -(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed - (j.signed & 0xFFFFFFFFL))
     inline def -(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed - j.signed)
     
+    def -!(j: kse.maths.ULong): kse.maths.ULong =
+      if ((i.signed | j.signed) & 0x8000000000000000L) == 0 then
+        val ans = i.signed + j.signed
+        ULong.wrap(if ans < 0 then 0L else ans)
+      else if ((i.signed & j.signed) & 0x8000000000000000L) != 0 then
+        val ans = (i.signed & 0x7FFFFFFFFFFFFFFFL) - (i.signed & 0x7FFFFFFFFFFFFFFFL)
+        ULong.wrap(if ans < 0 then 0L else ans)
+      else
+        ULong.wrap(if j.signed < 0 then 0L else i.signed + j.signed)
+
     inline def *(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed * (c.signed & 0xFF))
     inline def *(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed * (j.signed & 0xFFFFFFFFL))
     inline def *(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed * j.signed)
+
+    def *!(j: kse.maths.ULong): kse.maths.ULong =
+      if j.signed < 0 then
+        if i.signed == 1 then j else ULong.wrap(if i.signed == 0 then 0L else -1L)
+      else if i.signed < 0 then
+        if j.signed == 1 then i else ULong.wrap(if j.signed == 0 then 0L else -1L)
+      else
+        val zi = java.lang.Long.numberOfLeadingZeros(i.signed)
+        val zj = java.lang.Long.numberOfLeadingZeros(j.signed)
+        if zi+zj >= 64 then ULong.wrap(i.signed * j.signed)
+        else if zi+zj < 62 then ULong.wrap(-1L)
+        else
+          val a = if i.signed < j.signed then j.signed else i.signed
+          val b = if i.signed < j.signed then i.signed else j.signed
+          val hi = (a >>> 32) * b
+          val lo = (a & 0xFFFFFFFFL) * b
+          val hip = hi + (lo >>> 32)
+          ULong.wrap(if hip > 0xFFFFFFFFL then -1L else lo + (hi << 32))
     
     inline def /(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, c.signed & 0xFF))
     inline def /(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
     inline def /(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
+
+    inline def /!(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
     
-    inline def %(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, c.signed & 0xFF))
-    inline def %(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
-    inline def %(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
-    
+    inline def %(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, c.signed & 0xFF))
+    inline def %(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
+    inline def %(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed))
+
+    inline def %!(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed))    
+
     inline def |(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed | (c.signed & 0xFF))
     inline def |(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed | (j.signed & 0xFFFFFFFFL))
     inline def |(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed | j.signed)
