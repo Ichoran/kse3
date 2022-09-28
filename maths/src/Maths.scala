@@ -559,7 +559,9 @@ extension (b: Byte) {
   def *!(c: Byte): Byte =
     val x = b * c
     if x < -128 then (-128: Byte) else if x > 127 then (127: Byte) else x.toByte
-  inline def /!(c: Byte): Byte = (b / c).toByte
+  def /!(c: Byte): Byte =
+    if c == -1 && b == Byte.MinValue then Byte.MaxValue
+    else (b / c).toByte
   inline def %!(c: Byte): Byte = (b % c).toByte
   inline def clamp(lo: Byte, hi: Byte) =
     if lo <= b then
@@ -580,7 +582,9 @@ extension (s: Short) {
   def *!(t: Short): Short =
     val x = s * t
     if x < -32768 then (-32768: Short) else if x > 32767 then (32767: Short) else x.toShort
-  inline def /!(t: Short): Short = (s / t).toShort
+  def /!(t: Short): Short = 
+    if t == -1 && s == Short.MinValue then Short.MaxValue
+    else (s / t).toShort
   inline def %!(t: Short): Short = (s % t).toShort
   inline def clamp(lo: Short, hi: Short) =
     if lo <= s then
@@ -611,6 +615,10 @@ extension (i: Int) {
   def *!(j: Int): Int =
     val x = i.toLong * j.toLong
     if x < Int.MinValue then Int.MinValue else if x > Int.MaxValue then Int.MaxValue else x.toInt
+  def /!(j: Int): Int =
+    if j == -1 && i == Int.MinValue then Int.MaxValue
+    else i / j
+  inline def %!(j: Int): Int = i % j
   inline def clamp(lo: Int, hi: Int) =
     if lo <= i then
       if i <= hi then i
@@ -622,7 +630,7 @@ extension (i: Int) {
 
 extension (l: Long) {
   def +!(k: Long): Long =
-    if (l < 0) != (k < 0) then k+l
+    if (l < 0) != (k < 0) then l + k
     else
       val x = l + k
       if x >= 0 then
@@ -632,7 +640,7 @@ extension (l: Long) {
         if l <= 0 && k <= 0 then x
         else Long.MaxValue
   def -!(k: Long): Long =
-    if (l < 0) == (k < 0) then k+l
+    if (l < 0) == (k < 0) then l - k
     else
       val x = l - k
       if x >= 0 then
@@ -665,6 +673,10 @@ extension (l: Long) {
         else Long.MinValue
       else if (l < 0) == (k < 0) then Long.MaxValue
       else Long.MinValue
+  def /!(k: Long): Long =
+    if k == -1L && l == Long.MinValue then Long.MaxValue
+    else l / k
+  inline def %!(k: Long): Long = l % k
   inline def clamp(lo: Long, hi: Long) =
     if lo <= l then
       if l <= hi then l
@@ -855,7 +867,7 @@ object UByte {
 
   inline def wrap(b: Byte): UByte = b
 
-  inline def wrap(i: ValidIntValues): UByte = i.toByte
+  inline def apply(i: ValidIntValues): UByte = i.toByte
 
   extension (b: UByte) {
     inline def unwrap: Byte = b
@@ -967,6 +979,8 @@ object UInt {
 
   inline def wrap(i: Int): UInt = i
 
+  inline def apply(i: Int): UInt = i
+
   extension (i: UInt) {
     inline def unwrap: Int = i
     inline def signed: Int = i
@@ -1067,6 +1081,10 @@ object ULong {
   import java.lang.Long.{divideUnsigned, remainderUnsigned, compareUnsigned, toUnsignedString}
 
   inline def wrap(i: Long): ULong = i
+
+  inline def apply(i: Long): ULong = i
+
+  inline def apply(i: Int): ULong = (i & 0xFFFFFFFFL)
 
   extension (i: ULong) {
     inline def unwrap: Long = i

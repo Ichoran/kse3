@@ -31,6 +31,7 @@ class MathTest {
     assertTrue _
   )
 
+
   def nlen(s: String) = if s eq null then -1 else s.length
   def nullone[N >: Null](n: N) = if n == null then 1 else -1
 
@@ -544,6 +545,7 @@ class MathTest {
     T(name) ~ (nsur < 300) ==== true
     ()
 
+
   @Test
   def randomTest(): Unit =
     val prng = Prng(9825719879125879L)
@@ -555,6 +557,7 @@ class MathTest {
     val pcgr = Pcg64(1276561648165L)
     randomTestWith(pcgr, "Pcg64")
     ()
+
 
   sealed trait H {
     def bytes: Int
@@ -728,6 +731,7 @@ class MathTest {
       a += h
     }
     Hiter(a)
+
 
   def hash32test(
     h: (HZ, HB, HS, HC, HI, HL, HF, HD, Hstr, Harr, Hbb, Hiter),
@@ -1056,6 +1060,7 @@ class MathTest {
       T ~ hx.hashInto(x32a.begin(82351)).result() ==== hx.hashInto(PreseededHash.of(82351, x32b).begin()).result()
     }
 
+
   @Test
   def functionsTest(): Unit =
     import NumericFunctions._
@@ -1194,64 +1199,103 @@ class MathTest {
     T ~ cdfFDist(5, 7)(14.142) =~~= 0.99847312214627792997
     T ~ cdfFDist(18, 11)(0.29) =~~= 0.0097966801396012063383
 
+
+  @Test
+  def extensionsTest(): Unit =
     val b: Byte = -8
-    T ~ b.clamp(-12, -4)   ==== (-8: Byte)
-    T ~ b.clamp(13, 100)   ==== (13: Byte)
-    T ~ b.clamp(-99, -9)   ==== (-9: Byte)
-    T ~ b.clamp(55, -99)   ==== (55: Byte)
+    T ~ (b +! b)                 ==== -16  --: typed[Byte]
+    T ~ (b +! (-125: Byte))      ==== -128 --: typed[Byte]
+    T ~ (99.toByte +! 99.toByte) ==== 127  --: typed[Byte]
+    T ~ (b -! b)                 ==== 0    --: typed[Byte]
+    T ~ (b -! (125: Byte))       ==== -128 --: typed[Byte]
+    T ~ (125.toByte -! b)        ==== 127  --: typed[Byte]
+    T ~ (b *! b)                 ==== 64   --: typed[Byte]
+    T ~ (b *! (40: Byte))        ==== -128 --: typed[Byte]
+    T ~ (b *! (-30: Byte))       ==== 127  --: typed[Byte]
+    T ~ (b /! (2: Byte))         ==== -4   --: typed[Byte]
+    T ~ ((-128: Byte)/!(-1:Byte))==== 127  --: typed[Byte]
+    T ~ (b %! (3: Byte))         ==== -2   --: typed[Byte]
+    T ~ b.clamp(-12, -4)   ==== -8         --: typed[Byte]
+    T ~ b.clamp(13, 100)   ==== 13         --: typed[Byte]
+    T ~ b.clamp(-99, -9)   ==== -9         --: typed[Byte]
+    T ~ b.clamp(55, -99)   ==== 55        
     T ~ b.in(-12, 4)       ==== true
     T ~ b.in(13, 100)      ==== false
     T ~ b.in(-99, -9)      ==== false
     T ~ b.in(44, -12)      ==== false
-    T ~ b.toUInt           ==== 248
-    T ~ b.toUInt           ==== typed[UInt]
-    T ~ b.toULong          ==== 248L
-    T ~ b.toULong          ==== typed[ULong]
-    T ~ b.sq               ==== 64.0
-    T ~ b.sq               ==== typed[Double]
-    T ~ b.sign             ==== -1
+    T ~ b.sq               ==== 64.0       --: typed[Double]
+    T ~ b.sign             ==== -1         --: typed[Int]
     T ~ (-b).toByte.sign   ==== 1
     T ~ (b/10).toByte.sign ==== 0
-    T ~ b.sign             ==== typed[Int]
+    T ~ b.unsigned         ==== b          --: typed[UByte]
+    T ~ b.toUByte          ==== b          --: typed[UByte]
+    T ~ b.toUInt           ==== 248        --: typed[UInt]
+    T ~ b.toULong          ==== 248L       --: typed[ULong]
 
     val s: Short = -88
-    T ~ s.clamp(-915, -4)    ==== (-88: Short)
-    T ~ s.clamp(-44, 333)    ==== (-44: Short)
-    T ~ s.clamp(-99, -91)    ==== (-91: Short)
-    T ~ s.clamp(333, -44)    ==== (333: Short)
+    T ~ (s +! s)                        ==== -176   --: typed[Short]
+    T ~ (s +! (-32760: Short))          ==== -32768 --: typed[Short]
+    T ~ (29999.toShort +! 9999.toShort) ==== 32767  --: typed[Short]
+    T ~ (s -! s)                        ==== 0      --: typed[Short]
+    T ~ (s -! (32760: Short))           ==== -32768 --: typed[Short]
+    T ~ (32760.toShort -! s)            ==== 32767  --: typed[Short]
+    T ~ (s *! s)                        ==== 7744   --: typed[Short]
+    T ~ (s *! (400: Short))             ==== -32768 --: typed[Short]
+    T ~ (s *! (-400: Short))            ==== 32767  --: typed[Short]
+    T ~ (s /! (2: Short))               ==== -44    --: typed[Short]
+    T ~ (Short.MinValue /! (-1: Short)) ==== 32767  --: typed[Short]
+    T ~ (s %! (3: Short))               ==== -1     --: typed[Short]
+    T ~ s.clamp(-915, -4)    ==== -88               --: typed[Short]
+    T ~ s.clamp(-44, 333)    ==== -44               --: typed[Short]
+    T ~ s.clamp(-99, -91)    ==== -91               --: typed[Short]
+    T ~ s.clamp(333, -44)    ==== 333               --: typed[Short]
     T ~ s.in(-915, -4)       ==== true
     T ~ s.in(-44, 333)       ==== false
     T ~ s.in(-99, -91)       ==== false
     T ~ s.in(-4, -915)       ==== false
-    T ~ s.toUInt             ==== 65448
-    T ~ s.toUInt             ==== typed[UInt]
-    T ~ s.toULong            ==== 65448L
-    T ~ s.toULong            ==== typed[ULong]
+    T ~ s.sq                 ==== 7744.0            --: typed[Double]
+    T ~ s.sign               ==== -1                --: typed[Int]
+    T ~ (-s).toShort.sign    ==== 1
+    T ~ (s/100).toShort.sign ==== 0
+    T ~ s.toUInt             ==== 65448             --: typed[UInt]
+    T ~ s.toULong            ==== 65448L            --: typed[ULong]
+
     T ~ s.hexString          ==== "FFA8"
     T ~ s.hiHexString        ==== "FFA8"
     T ~ s.loHexString        ==== "ffa8"
     T ~ (1: Short).hexString ==== "0001"
-    T ~ s.sq                 ==== 7744.0
-    T ~ s.sq                 ==== typed[Double]
-    T ~ s.sign               ==== -1
-    T ~ (-s).toShort.sign    ==== 1
-    T ~ (s/100).toShort.sign ==== 0
-    T ~ s.sign               ==== typed[Int]
 
     val c = 'n'
-    T ~ c.clamp('a', 'w') ==== 'n'
-    T ~ c.clamp('A', 'W') ==== 'W'
-    T ~ c.clamp('q', 'z') ==== 'q'
-    T ~ c.clamp('z', 'A') ==== 'z'
+    T ~ c.clamp('a', 'w') ==== 'n' --: typed[Char]
+    T ~ c.clamp('A', 'W') ==== 'W' --: typed[Char]
+    T ~ c.clamp('q', 'z') ==== 'q' --: typed[Char]
+    T ~ c.clamp('z', 'A') ==== 'z' --: typed[Char]
     T ~ c.in('a', 'w')    ==== true
     T ~ c.in('A', 'W')    ==== false
     T ~ c.in('q', 'z')    ==== false
     T ~ c.in('w', 'a')    ==== false
+
     T ~ c.hexString       ==== "006E"
     T ~ c.hiHexString     ==== "006E"
     T ~ c.loHexString     ==== "006e"
 
     val i = -8888
+    T ~ (i +! i)                       ==== -17776       --: typed[Int]
+    T ~ (i +! -2147480000)             ==== Int.MinValue --: typed[Int]
+    T ~ (2000000000 +! 150000000)      ==== Int.MaxValue --: typed[Int]
+    T ~ (i -! i)                       ==== 0            --: typed[Int]
+    T ~ (i -! 2147480000)              ==== Int.MinValue --: typed[Int]
+    T ~ (2147480000 -! i)              ==== Int.MaxValue --: typed[Int]
+    T ~ (i *! i)                       ==== 78996544     --: typed[Int]
+    T ~ (i *! 241617)                  ==== Int.MinValue --: typed[Int]
+    T ~ (i *! (-241617))               ==== Int.MaxValue --: typed[Int]
+    T ~ (Int.MinValue *! Int.MinValue) ==== Int.MaxValue --: typed[Int]
+    T ~ (Int.MaxValue *! Int.MinValue) ==== Int.MinValue --: typed[Int]
+    T ~ (Int.MinValue *! Int.MaxValue) ==== Int.MinValue --: typed[Int]
+    T ~ (Int.MaxValue *! Int.MaxValue) ==== Int.MaxValue --: typed[Int]
+    T ~ (i /! 2)                       ==== -4444        --: typed[Int]
+    T ~ (Int.MinValue /! -1)           ==== Int.MaxValue --: typed[Int]
+    T ~ (i %! 3)                       ==== -2           --: typed[Int]
     T ~ i.clamp(-9999, -7777) ==== -8888
     T ~ i.clamp(-9999, -9876) ==== -9876
     T ~ i.clamp(-7777, 12345) ==== -7777
@@ -1260,22 +1304,60 @@ class MathTest {
     T ~ i.in(-9999, -9876)    ==== false
     T ~ i.in(-7777, 12345)    ==== false
     T ~ i.in(-7777, -9999)    ==== false
-    T ~ i.toULong             ==== 4294958408L
-    T ~ i.toULong             ==== typed[ULong]
+    T ~ 1067030938.bitsF      ==== 1.2f
+    T ~ i.sq                  ==== 78996544.0  --: typed[Double]
+    T ~ i.sign                ==== -1          --: typed[Int]
+    T ~ (-i).sign             ==== 1
+    T ~ (i/10000).sign        ==== 0
+    T ~ i.unsigned            ==== i           --: typed[UInt]
+    T ~ i.toUInt              ==== i           --: typed[UInt]
+    T ~ i.toULong             ==== 4294958408L --: typed[ULong]
+
     T ~ i.hexString           ==== "FFFFDD48"
     T ~ i.hiHexString         ==== "FFFFDD48"
     T ~ i.loHexString         ==== "ffffdd48"
     T ~ 11.hexString          ==== "0000000B"
-    T ~ 1067030938.bitsF      ==== 1.2f
-    T ~ i.sq                  ==== 78996544.0
-    T ~ i.sq                  ==== typed[Double]
-    T ~ i.sign                ==== -1
-    T ~ (-i).sign             ==== 1
-    T ~ (i/10000).sign        ==== 0
-    T ~ i.sign                ==== typed[Int]
-
 
     val l = 42L
+    val lbiga = 77158763929L
+    val lbigb = 119537721L
+    val loka = 14197294936951L
+    val lokb = 649657L
+    val ldna = 4294967298L
+    val ldnb = 2147483647L
+    T ~ (l +! l)                          ==== 84L
+    T ~ (l +! 9223372036854775800L)       ==== Long.MaxValue
+    T ~ (-9223372036854775800L +! -10L)   ==== Long.MinValue
+    T ~ (l -! l)                          ==== 0L
+    T ~ (l -! (-9223372036854775800L))    ==== Long.MaxValue
+    T ~ ((-9223372036854775800L) -! l)    ==== Long.MinValue
+    T ~ (l *! l)                          ==== 1764L
+    T ~ (219604096115589901L *! l)        ==== Long.MaxValue
+    T ~ ((-219604096115589901L) *! l)     ==== Long.MinValue
+    T ~ (lbiga *! lbigb)                  ==== Long.MaxValue
+    T ~ (lbigb *! lbiga)                  ==== Long.MaxValue
+    T ~ (lbiga *! -lbigb)                 ==== Long.MinValue
+    T ~ (-lbiga *! lbigb)                 ==== Long.MinValue
+    T ~ (-lbiga *! -lbigb)                ==== Long.MaxValue
+    T ~ (loka *! lokb)                    ==== Long.MaxValue
+    T ~ (lokb *! loka)                    ==== Long.MaxValue
+    T ~ (-loka *! lokb)                   ==== -Long.MaxValue
+    T ~ (loka *! -lokb)                   ==== -Long.MaxValue
+    T ~ (-lokb *! loka)                   ==== -Long.MaxValue
+    T ~ (lokb *! -loka)                   ==== -Long.MaxValue
+    T ~ (-loka *! -lokb)                  ==== Long.MaxValue
+    T ~ (-lokb *! -loka)                  ==== Long.MaxValue
+    T ~ (ldna *! ldnb)                    ==== Long.MaxValue - 1
+    T ~ (ldnb *! ldna)                    ==== Long.MaxValue - 1
+    T ~ (-ldna *! ldnb)                   ==== 1 - Long.MaxValue
+    T ~ (-ldnb *! ldna)                   ==== 1 - Long.MaxValue
+    T ~ (ldna *! -ldnb)                   ==== 1 - Long.MaxValue
+    T ~ (ldnb *! -ldna)                   ==== 1 - Long.MaxValue
+    T ~ (-ldna *! -ldnb)                  ==== Long.MaxValue - 1
+    T ~ (-ldnb *! -ldna)                  ==== Long.MaxValue - 1
+    T ~ (l /! l)                          ==== 1L
+    T ~ (Long.MinValue /! -1L)            ==== Long.MaxValue
+    T ~ (l %! 5L)                         ==== 2L
     T ~ l.clamp(-100L, 100L)       ==== 42L
     T ~ l.clamp(-100L, -10L)       ==== -10L
     T ~ l.clamp(72L, 43210L)       ==== 72L
@@ -1284,16 +1366,15 @@ class MathTest {
     T ~ l.in(-100L, -10L)          ==== false
     T ~ l.in(72L, 43210L)          ==== false
     T ~ l.in(100L, -100L)          ==== false
+    T ~ 4608083138725491507L.bitsD ==== 1.2
+    T ~ l.sq                       ==== 1764.0 --: typed[Double]
+    T ~ l.sign                     ==== 1      --: typed[Long]
+    T ~ (-l).sign                  ==== -1
+    T ~ (l/100).sign               ==== 0
+
     T ~ l.hexString                ==== "000000000000002A"
     T ~ l.hiHexString              ==== "000000000000002A"
     T ~ l.loHexString              ==== "000000000000002a"
-    T ~ 4608083138725491507L.bitsD ==== 1.2
-    T ~ l.sq                       ==== 1764.0
-    T ~ l.sq                       ==== typed[Double]
-    T ~ l.sign                     ==== 1
-    T ~ (-l).sign                  ==== -1
-    T ~ (l/100).sign               ==== 0
-    T ~ l.sign                     ==== typed[Long]
 
     val f = 1.2f
     val fnan = Float.NaN
@@ -1414,6 +1495,32 @@ class MathTest {
     T ~ d.f32                 ==== 1.2f
     T ~ d.f32                 ==== typed[Float]
 
+
+  @Test
+  def unsignedMathTest(): Unit =
+    val b = UByte(200)
+    val c = UByte(14)
+    T ~ b               ==== UByte.wrap(-56: Byte)
+    T ~ b.unwrap        ==== b           --: typed[Byte]
+    T ~ b.signed        ==== b           --: typed[Byte]
+    T ~ b.toByte        ==== b           --: typed[Byte]
+    T ~ (b + UByte(9))  ==== UInt(209)   --: typed[UInt]
+    T ~ (b + UInt(99))  ==== UInt(299)   --: typed[UInt]
+    T ~ (b + ULong(99)) ==== ULong(299)  --: typed[ULong]
+    T ~ (b +! UByte(9)) ==== UByte(209)  --: typed[UByte]
+    T ~ (b +! b)        ==== UByte(255)  --: typed[UByte]
+    T ~ (b - UByte(9))  ==== UInt(191)   --: typed[UInt]
+    T ~ (b - UInt(9))   ==== UInt(191)   --: typed[UInt]
+    T ~ (b - ULong(9))  ==== ULong(191)  --: typed[ULong]
+    T ~ (b -! UByte(2)) ==== UByte(198)  --: typed[UByte]
+    T ~ (UByte(2) -! b) ==== UByte(0)    --: typed[UByte]
+    T ~ (c * c)         ==== UInt(196)   --: typed[UInt]
+    T ~ (b * UInt(9))   ==== UInt(1800)  --: typed[UInt]
+    T ~ (b * ULong(9))  ==== ULong(1800) --: typed[ULong]
+
+
+  @Test
+  def dualvaluedMathTest(): Unit =
     val v = 1.2f ~> 3.1f
     val u = -1.5f ~> 0.7f
     T ~ (v == Vc.F(1.2f, 3.1f))    ==== true
