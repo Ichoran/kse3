@@ -1257,6 +1257,7 @@ class MathTest {
     T ~ s.sign               ==== -1                --: typed[Int]
     T ~ (-s).toShort.sign    ==== 1
     T ~ (s/100).toShort.sign ==== 0
+    T ~ s.toUByte            ==== UByte(168)        --: typed[UByte]
     T ~ s.toUInt             ==== 65448             --: typed[UInt]
     T ~ s.toULong            ==== 65448L            --: typed[ULong]
 
@@ -1266,14 +1267,17 @@ class MathTest {
     T ~ (1: Short).hexString ==== "0001"
 
     val c = 'n'
-    T ~ c.clamp('a', 'w') ==== 'n' --: typed[Char]
-    T ~ c.clamp('A', 'W') ==== 'W' --: typed[Char]
-    T ~ c.clamp('q', 'z') ==== 'q' --: typed[Char]
-    T ~ c.clamp('z', 'A') ==== 'z' --: typed[Char]
+    T ~ c.clamp('a', 'w') ==== 'n'       --: typed[Char]
+    T ~ c.clamp('A', 'W') ==== 'W'       --: typed[Char]
+    T ~ c.clamp('q', 'z') ==== 'q'       --: typed[Char]
+    T ~ c.clamp('z', 'A') ==== 'z'       --: typed[Char]
     T ~ c.in('a', 'w')    ==== true
     T ~ c.in('A', 'W')    ==== false
     T ~ c.in('q', 'z')    ==== false
     T ~ c.in('w', 'a')    ==== false
+    T ~ c.toUByte         ==== c.toByte  --: typed[UByte]
+    T ~ c.toUInt          ==== c.toInt   --: typed[UInt]
+    T ~ c.toULong         ==== c.toLong  --: typed[ULong]
 
     T ~ c.hexString       ==== "006E"
     T ~ c.hiHexString     ==== "006E"
@@ -1310,6 +1314,7 @@ class MathTest {
     T ~ (-i).sign             ==== 1
     T ~ (i/10000).sign        ==== 0
     T ~ i.unsigned            ==== i           --: typed[UInt]
+    T ~ i.toUByte             ==== (i & 0xFF)  --: typed[UByte]
     T ~ i.toUInt              ==== i           --: typed[UInt]
     T ~ i.toULong             ==== 4294958408L --: typed[ULong]
 
@@ -1371,7 +1376,10 @@ class MathTest {
     T ~ l.sign                     ==== 1      --: typed[Long]
     T ~ (-l).sign                  ==== -1
     T ~ (l/100).sign               ==== 0
-
+    T ~ lbiga.unsigned             ==== lbiga            --: typed[ULong]
+    T ~ lbiga.toUByte              ==== UByte(153)       --: typed[UByte]
+    T ~ lbiga.toUInt               ==== UInt(0xF7054D99) --: typed[UInt]
+    T ~ lbiga.toULong              ==== lbiga            --: typed[ULong]
     T ~ l.hexString                ==== "000000000000002A"
     T ~ l.hiHexString              ==== "000000000000002A"
     T ~ l.loHexString              ==== "000000000000002a"
@@ -1501,6 +1509,7 @@ class MathTest {
     val b = UByte(200)
     val c = UByte(14)
     T ~ b               ==== UByte.wrap(-56: Byte)
+    T ~ UByte.MaxValue  ==== UByte(255)  --: typed[UByte]
     T ~ b.unwrap        ==== b           --: typed[Byte]
     T ~ b.signed        ==== b           --: typed[Byte]
     T ~ b.toByte        ==== b           --: typed[Byte]
@@ -1517,6 +1526,108 @@ class MathTest {
     T ~ (c * c)         ==== UInt(196)   --: typed[UInt]
     T ~ (b * UInt(9))   ==== UInt(1800)  --: typed[UInt]
     T ~ (b * ULong(9))  ==== ULong(1800) --: typed[ULong]
+    T ~ (c *! c)        ==== UByte(196)  --: typed[UByte]
+    T ~ (b *! c)        ==== UByte(255)  --: typed[UByte]
+    T ~ (b / c)         ==== UInt(14)    --: typed[UInt]
+    T ~ (b / UInt(14))  ==== UInt(14)    --: typed[UInt]
+    T ~ (b / ULong(9L)) ==== ULong(22)   --: typed[ULong]
+    T ~ (b /! c)        ==== UByte(14)   --: typed[UByte]
+    T ~ (b % c)         ==== UInt(4)     --: typed[UInt]
+    T ~ (b % UInt(14))  ==== UInt(4)     --: typed[UInt]
+    T ~ (b % ULong(14)) ==== ULong(4)    --: typed[ULong]
+    T ~ (b %! c)        ==== UByte(4)    --: typed[UByte]
+    T ~ (b | c)         ==== UByte(206)  --: typed[UByte]
+    T ~ (b & c)         ==== UByte(8)    --: typed[UByte]
+    T ~ (b ^ c)         ==== UByte(198)  --: typed[UByte]
+    T ~ (b < c)         ==== false
+    T ~ (b < b)         ==== false
+    T ~ (c < b)         ==== true
+    T ~ (b <= c)        ==== false
+    T ~ (b <= b)        ==== true
+    T ~ (c <= b)        ==== true
+    T ~ (b >= c)        ==== true
+    T ~ (b >= b)        ==== true
+    T ~ (c >= b)        ==== false
+    T ~ (b > c)         ==== true
+    T ~ (b > b)         ==== false
+    T ~ (c > b)         ==== false
+    T ~ (b >> 2)        ==== UInt(50)    --: typed[UInt]
+    T ~ (b >> UInt(2))  ==== UInt(50)    --: typed[UInt]
+    T ~ (b << 2)        ==== UInt(800)   --: typed[UInt]
+    T ~ (b << UInt(2))  ==== UInt(800)   --: typed[UInt]
+    T ~ (b max c)       ==== b           --: typed[UByte]
+    T ~ (c max b)       ==== b           --: typed[UByte]
+    T ~ (b min c)       ==== c           --: typed[UByte]
+    T ~ (c min b)       ==== c           --: typed[UByte]
+    T ~ b.toShort       ==== 200         --: typed[Short]
+    T ~ b.toChar        ==== '\u00C8'    --: typed[Char]
+    T ~ b.toInt         ==== 200         --: typed[Int]
+    T ~ b.toUInt        ==== 200         --: typed[UInt]
+    T ~ b.toLong        ==== 200L        --: typed[Long]
+    T ~ b.toULong       ==== 200L        --: typed[ULong]
+    T ~ b.pr            ==== "200"
+
+    val h = UInt(0x22000070)
+    val i = UInt(0xA0000000)
+    val j = UInt(51810)
+    T ~ i                ==== UInt.wrap(-1610612736)
+    T ~ UInt.MaxValue    ==== UInt(0xFFFFFFFF)    --: typed[UInt]
+    T ~ (i + j)          ==== UInt(0xA000CA62)    --: typed[UInt]
+    T ~ (i + UByte(200)) ==== UInt(0xA00000C8)    --: typed[UInt]
+    T ~ (i + ULong(200)) ==== ULong(0xA00000C8L)  --: typed[ULong]
+    T ~ (i +! j)         ==== (i + j)             --: typed[UInt]
+    T ~ (i +! i)         ==== UInt.MaxValue       --: typed[UInt]
+    T ~ (i - j)          ==== UInt(0x9FFF359E)    --: typed[UInt]
+    T ~ (i - UByte(200)) ==== UInt(0x9FFFFF38)    --: typed[UInt]
+    T ~ (i - ULong(200)) ==== ULong(0x9FFFFF38L)  --: typed[ULong]
+    T ~ (i -! j)         ==== (i - j)             --: typed[UInt]
+    T ~ (j -! i)         ==== 0                   --: typed[UInt]
+    T ~ (j * j)          ==== UInt(0x9FFECD84)    --: typed[UInt]
+    T ~ (j * UByte(200)) ==== UInt(10362000)      --: typed[UInt]
+    T ~ (j * ULong(200)) ==== ULong(10362000)     --: typed[ULong]
+    T ~ (j *! j)         ==== (j * j)             --: typed[UInt]
+    T ~ (j *! i)         ==== UInt.MaxValue       --: typed[UInt]
+    T ~ (i / j)          ==== UInt(51811)         --: typed[UInt]
+    T ~ (j / UByte(200)) ==== UInt(259)           --: typed[UInt]
+    T ~ (j / ULong(200)) ==== ULong(259)          --: typed[ULong]
+    T ~ (i /! j)         ==== (i / j)             --: typed[UInt]
+    T ~ (i % j)          ==== UInt(26650)         --: typed[UInt]
+    T ~ (i % UByte(200)) ==== UInt(160)           --: typed[UInt]
+    T ~ (i % ULong(200)) ==== ULong(160)          --: typed[ULong]
+    T ~ (i %! j)         ==== (i % j)             --: typed[UInt]
+    T ~ (i | h)          ==== UInt(0xA2000070)    --: typed[UInt]
+    T ~ (i & h)          ==== UInt(0x20000000)    --: typed[UInt]
+    T ~ (i ^ h)          ==== UInt(0x82000070)    --: typed[UInt]
+    T ~ (i < j)          ==== false
+    T ~ (i < i)          ==== false
+    T ~ (j < i)          ==== true
+    T ~ (i <= j)         ==== false
+    T ~ (i <= i)         ==== true
+    T ~ (j <= i)         ==== true
+    T ~ (i >= j)         ==== true
+    T ~ (i >= i)         ==== true
+    T ~ (j >= i)         ==== false
+    T ~ (i > j)          ==== true
+    T ~ (i > i)          ==== false
+    T ~ (j > i)          ==== false
+    T ~ (i >> 3)         ==== UInt(0x14000000)    --: typed[UInt]
+    T ~ (i >> UInt(3))   ==== UInt(0x14000000)    --: typed[UInt]
+    T ~ (j << 17)        ==== UInt(0x94C40000)    --: typed[UInt]
+    T ~ (j << UInt(17))  ==== UInt(0x94C40000)    --: typed[UInt]
+    T ~ (i max j)        ==== i
+    T ~ (j max i)        ==== i
+    T ~ (i min j)        ==== j
+    T ~ (j min i)        ==== j
+    T ~ (i + j).toByte         ==== 0x62                --: typed[Byte]
+    T ~ (i + j).toUByte        ==== UByte(0x62)         --: typed[UByte]
+    T ~ (i + j).toShort        ==== -13726              --: typed[Short]
+    T ~ (i + j).toChar         ==== '\uCA62'            --: typed[Char]
+    T ~ (i + j).toInt          ==== -1610560926         --: typed[Int]
+    T ~ (i + j).toLong         ==== 0xA000CA62L         --: typed[Long]
+    T ~ (i + j).toULong        ==== ULong(0xA000CA62)   --: typed[ULong]
+    T ~ i.pr                   ==== "2684354560"
+
+
 
 
   @Test

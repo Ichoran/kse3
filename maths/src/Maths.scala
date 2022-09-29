@@ -570,6 +570,11 @@ extension (b: Byte) {
       else lo
     else lo
   inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
+
+  @targetName("byte_unsigned") inline def unsigned: kse.maths.UByte = UByte.wrap(b)
+  @targetName("byte_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap(b)
+  @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
+  @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
 }
 
 extension (s: Short) {
@@ -593,6 +598,10 @@ extension (s: Short) {
       else lo
     else lo
   inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
+
+  @targetName("short_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((s & 0xFF).toByte)
+  @targetName("short_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
+  @targetName("short_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(s & 0xFFFFL)
 }
 
 extension (c: Char) {
@@ -603,6 +612,10 @@ extension (c: Char) {
       else lo
     else lo
   inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
+
+  @targetName("char_toUByte") inline def toUByte: kse.maths.UByte = UByte.wrap((c & 0xFF).toByte)
+  @targetName("char_toUInt")  inline def toUInt: kse.maths.UInt   = UInt.wrap(c)
+  @targetName("char_toULong") inline def toULong: kse.maths.ULong = ULong.wrap(c)
 }
 
 extension (i: Int) {
@@ -626,6 +639,11 @@ extension (i: Int) {
       else lo
     else lo
   inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
+
+  @targetName("int_unsigned") inline def unsigned: kse.maths.UInt = UInt.wrap(i)
+  @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((i & 0xFF).toByte)
+  @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
+  @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
 }
 
 extension (l: Long) {
@@ -684,6 +702,11 @@ extension (l: Long) {
       else lo
     else lo
   inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
+
+  @targetName("long_unsigned") inline def unsigned: kse.maths.ULong = ULong.wrap(l)
+  @targetName("long_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap((l & 0xFFL).toByte)
+  @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap((l & 0xFFFFFFFFL).toInt)
+  @targetName("long_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(l)
 }
 
 extension (inline x: Byte | Short | Int | Long) {
@@ -865,6 +888,8 @@ object UByte {
     ValidIntValues8 | ValidIntValues9 | ValidIntValuesA | ValidIntValuesB |
     ValidIntValuesC | ValidIntValuesD | ValidIntValuesE | ValidIntValuesF
 
+  inline def MaxValue: UByte = (-1: Byte)
+
   inline def wrap(b: Byte): UByte = b
 
   inline def apply(i: ValidIntValues): UByte = i.toByte
@@ -912,17 +937,11 @@ object UByte {
 
     inline def %!(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) % (c.signed & 0xFF)).toByte)
 
-    inline def |(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) | (c.signed & 0xFF) )
-    inline def |(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) | j.signed )
-    inline def |(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) | k.signed)
+    inline def |(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) | (c.signed & 0xFF)).toByte)
 
-    inline def &(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) & (c.signed & 0xFF) )
-    inline def &(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) & j.signed )
-    inline def &(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) & k.signed)
+    inline def &(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) & (c.signed & 0xFF)).toByte)
 
-    inline def ^(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) ^ (c.signed & 0xFF) )
-    inline def ^(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) ^ j.signed )
-    inline def ^(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) ^ k.signed)
+    inline def ^(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) ^ (c.signed & 0xFF)).toByte)
 
     inline def <( c: kse.maths.UByte): Boolean = (b.signed & 0xFF) <  (c.signed & 0xFF)
     inline def <=(c: kse.maths.UByte): Boolean = (b.signed & 0xFF) <= (c.signed & 0xFF)
@@ -951,31 +970,13 @@ object UByte {
   }
 }
 
-extension (b: Byte) {
-  @targetName("byte_unsigned") inline def unsigned: kse.maths.UByte = UByte.wrap(b)
-  @targetName("byte_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap(b)
-  @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
-  @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
-}
-
-
-extension (s: Short) {
-  @targetName("short_unsigned") inline def unsigned: kse.maths.UInt = UInt.wrap(s & 0xFFFF)
-  @targetName("short_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((s & 0xFF).toByte)
-  @targetName("short_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
-  @targetName("short_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(s & 0xFFFFL)
-}
-
-extension (c: Char) {
-  @targetName("char_toUByte") inline def toUByte: kse.maths.UByte = UByte.wrap((c & 0xFF).toByte)
-  @targetName("char_toUInt")  inline def toUInt: kse.maths.UInt   = UInt.wrap(c)
-  @targetName("char_toULong") inline def toULong: kse.maths.ULong = ULong.wrap(c)
-}
 
 opaque type UInt = Int
 object UInt {
   import java.lang.Integer.{divideUnsigned, remainderUnsigned, compareUnsigned, toUnsignedString}
   import java.lang.Long.{divideUnsigned => divUnsignedL, remainderUnsigned => modUnsignedL}
+
+  inline def MaxValue: UInt = -1
 
   inline def wrap(i: Int): UInt = i
 
@@ -993,7 +994,7 @@ object UInt {
     inline def +(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong + l.signed)
 
     def +!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans = (i & 0xFFFFFFFFL) + (j & 0xFFFFFFFFL)
+      val ans: Long = (i & 0xFFFFFFFFL) + (j & 0xFFFFFFFFL)
       UInt.wrap(if ans > 0xFFFFFFFFL then -1 else ans.toInt)
 
     inline def -(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed - (c.signed & 0xFF))
@@ -1001,7 +1002,7 @@ object UInt {
     inline def -(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong -  l.signed)
 
     def -!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans = (i & 0xFFFFFFFFL) - (j & 0xFFFFFFFFL)
+      val ans: Long = (i & 0xFFFFFFFFL) - (j & 0xFFFFFFFFL)
       UInt.wrap(if ans < 0L then 0 else ans.toInt)
 
     inline def *(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed * (c.signed & 0xFF))
@@ -1009,7 +1010,7 @@ object UInt {
     inline def *(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong *  l.signed)
 
     def *!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans = (i & 0xFFFFFFFFL) * (j & 0xFFFFFFFFL)
+      val ans: Long = (i & 0xFFFFFFFFL) * (j & 0xFFFFFFFFL)
       UInt.wrap(if ans < 0L || ans > 0xFFFFFFFFL then -1 else ans.toInt)
 
     inline def /(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed, (c.signed & 0xFF)))
@@ -1069,16 +1070,12 @@ object UInt {
   }
 }
 
-extension (i: Int) {
-  @targetName("int_unsigned") inline def unsigned: kse.maths.UInt = UInt.wrap(i)
-  @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((i & 0xFF).toByte)
-  @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
-  @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
-}
 
 opaque type ULong = Long
 object ULong {
   import java.lang.Long.{divideUnsigned, remainderUnsigned, compareUnsigned, toUnsignedString}
+
+  inline def MaxValue = -1L
 
   inline def wrap(i: Long): ULong = i
 
@@ -1197,13 +1194,6 @@ object ULong {
   given Ordering[kse.maths.ULong] = new {
     def compare(i: kse.maths.ULong, j: kse.maths.ULong): Int = java.lang.Long.compareUnsigned(i.signed, j.signed)
   }
-}
-
-extension (l: Long) {
-  @targetName("long_unsigned") inline def unsigned: kse.maths.ULong = ULong.wrap(l)
-  @targetName("long_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap((l & 0xFFL).toByte)
-  @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap((l & 0xFFFFFFFFL).toInt)
-  @targetName("long_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(l)
 }
 
 
