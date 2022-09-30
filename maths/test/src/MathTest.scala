@@ -1227,6 +1227,7 @@ class MathTest {
     T ~ b.sign             ==== -1         --: typed[Int]
     T ~ (-b).toByte.sign   ==== 1
     T ~ (b/10).toByte.sign ==== 0
+    T ~ b.u                ==== b          --: typed[UByte]
     T ~ b.unsigned         ==== b          --: typed[UByte]
     T ~ b.toUByte          ==== b          --: typed[UByte]
     T ~ b.toUInt           ==== 248        --: typed[UInt]
@@ -1313,6 +1314,7 @@ class MathTest {
     T ~ i.sign                ==== -1          --: typed[Int]
     T ~ (-i).sign             ==== 1
     T ~ (i/10000).sign        ==== 0
+    T ~ i.u                   ==== i           --: typed[UInt]
     T ~ i.unsigned            ==== i           --: typed[UInt]
     T ~ i.toUByte             ==== (i & 0xFF)  --: typed[UByte]
     T ~ i.toUInt              ==== i           --: typed[UInt]
@@ -1376,6 +1378,7 @@ class MathTest {
     T ~ l.sign                     ==== 1      --: typed[Long]
     T ~ (-l).sign                  ==== -1
     T ~ (l/100).sign               ==== 0
+    T ~ lbiga.u                    ==== lbiga            --: typed[ULong]
     T ~ lbiga.unsigned             ==== lbiga            --: typed[ULong]
     T ~ lbiga.toUByte              ==== UByte(153)       --: typed[UByte]
     T ~ lbiga.toUInt               ==== UInt(0xF7054D99) --: typed[UInt]
@@ -1572,6 +1575,9 @@ class MathTest {
     val j = UInt(51810)
     T ~ i                ==== UInt.wrap(-1610612736)
     T ~ UInt.MaxValue    ==== UInt(0xFFFFFFFF)    --: typed[UInt]
+    T ~ i.unwrap         ==== i                   --: typed[Int]
+    T ~ i.signed         ==== i                   --: typed[Int]
+    T ~ i.toInt          ==== i                   --: typed[Int]
     T ~ (i + j)          ==== UInt(0xA000CA62)    --: typed[UInt]
     T ~ (i + UByte(200)) ==== UInt(0xA00000C8)    --: typed[UInt]
     T ~ (i + ULong(200)) ==== ULong(0xA00000C8L)  --: typed[ULong]
@@ -1627,7 +1633,54 @@ class MathTest {
     T ~ (i + j).toULong        ==== ULong(0xA000CA62)   --: typed[ULong]
     T ~ i.pr                   ==== "2684354560"
 
-
+    val l = ULong(0xA2D03579B4E6FC81L)
+    val k = ULong(3425191356L)
+    val m = ULong.MaxValue
+    val lsm = ULong(0x7FFFFFFFFFFFFFFDL)
+    val lbg = ULong(0x8000000000000001L)
+    val lba = ULong(67280421310721L)
+    val lbb = ULong(274177L)
+    val lsa = ULong(28394589873902L)
+    val lsb = ULong(649657L)
+    T ~ l            ==== ULong.wrap(-6714808247567057791L)
+    T ~ l.unwrap     ==== l                    --: typed[Long]
+    T ~ l.signed     ==== l                    --: typed[Long]
+    T ~ l.toLong     ==== l                    --: typed[Long]
+    T ~ (l + k)      ==== 0xA2D0357A810F423DL  --: typed[ULong]
+    T ~ (l + i)      ==== 0xA2D0357A54E6FC81L  --: typed[ULong]
+    T ~ (l + b)      ==== 0xA2D03579B4E6FD49L  --: typed[ULong]
+    T ~ (l +! k)     ==== (l + k)              --: typed[ULong]
+    T ~ (lsm +! lbg) ==== ((-1L).u - 1L.u)     --: typed[ULong]
+    T ~ (lbg +! lsm) ==== ((-1L).u - 1L.u)     --: typed[ULong]
+    T ~ (k +! k)     ==== (2 * k.signed)       --: typed[ULong] 
+    T ~ (l +! l)     ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (l +! lsm)   ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (lsm +! l)   ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (l - k)      ==== 0xA2D03578E8BEB6C5L  --: typed[ULong]
+    T ~ (l - i)      ==== 0xA2D0357914E6FC81L  --: typed[ULong]
+    T ~ (l - b)      ==== 0xA2D03579B4E6FBB9L  --: typed[ULong]
+    T ~ (l -! k)     ==== (l - k)              --: typed[ULong]
+    T ~ (k -! l)     ==== 0L                   --: typed[ULong]
+    T ~ (lsm -! lbg) ==== 0L                   --: typed[ULong]
+    T ~ (lbg -! lsm) ==== 4L                   --: typed[ULong]
+    T ~ (1L.u -! k)  ==== 0L                   --: typed[ULong]
+    T ~ (k -! 1L.u)  ==== 3425191355L          --: typed[ULong]
+    T ~ (k * k)      ==== 0xA2D035797DBEE210L  --: typed[ULong]
+    T ~ (k * i)      ==== 0x7F992B9580000000L  --: typed[ULong]
+    T ~ (k * b)      ==== 0x9F7F767AE0L        --: typed[ULong]
+    T ~ (k *! k)     ==== (k * k)              --: typed[ULong]
+    T ~ (k *! l)     ==== ULong.MaxValue
+    T ~ (l *! k)     ==== ULong.MaxValue
+    T ~ (l *! l)     ==== ULong.MaxValue
+    T ~ (k *! 1L.u)  ==== k
+    T ~ (lba *! lbb) ==== ULong.MaxValue
+    T ~ (lbb *! lba) ==== ULong.MaxValue
+    T ~ (lsa *! lsb) ==== (ULong.MaxValue - 1.u)
+    T ~ (lsb *! lsa) ==== (ULong.MaxValue - 1.u)
+    T ~ (l / k)      ==== k                    --: typed[ULong]
+    T ~ (l / i)      ==== 4370486671L          --: typed[ULong]
+    T ~ (l / b)      ==== 58659679130712469L   --: typed[ULong]
+    T ~ (l /! k)     ==== k                    --: typed[ULong]
 
 
   @Test

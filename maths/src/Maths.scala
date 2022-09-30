@@ -575,6 +575,11 @@ extension (b: Byte) {
   @targetName("byte_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap(b)
   @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
   @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
+
+  @targetName("byte_clampUByte") inline def clampToUByte: kse.maths.UByte = UByte.clamp(b)
+  @targetName("byte_clampChar")  inline def clampToChar: Char             = if b < 0 then '\u0000' else b.toChar
+  @targetName("byte_clampUInt")  inline def clampToUInt: kse.maths.UInt   = if b < 0 then UInt(0) else UInt(b.toInt)
+  @targetName("byte_clampULong") inline def clampToULong: kse.maths.ULong = if b < 0 then ULong(0L) else ULong(b.toLong)
 }
 
 extension (s: Short) {
@@ -602,6 +607,12 @@ extension (s: Short) {
   @targetName("short_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((s & 0xFF).toByte)
   @targetName("short_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
   @targetName("short_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(s & 0xFFFFL)
+
+  @targetName("short_clampByte")  def clampToByte: Byte             = if s < -128 then -128 else if s > 127 then 127 else s.toByte
+  @targetName("short_clampUByte") def clampToUByte: kse.maths.UByte = if s < 0 then UByte(0) else if s > 255 then UByte(255) else UByte(s.toByte)
+  @targetName("short_clampChar")  def clampToChar: Char             = if s < 0 then '\u0000' else s.toChar
+  @targetName("short_clampUInt")  def clampToUInt: kse.maths.UInt   = if s < 0 then UInt(0) else UInt(s.toInt)
+  @targetName("short_clampULong") def clampToULong: kse.maths.ULong = if s < 0 then ULong(0L) else ULong(s.toLong)
 }
 
 extension (c: Char) {
@@ -616,6 +627,10 @@ extension (c: Char) {
   @targetName("char_toUByte") inline def toUByte: kse.maths.UByte = UByte.wrap((c & 0xFF).toByte)
   @targetName("char_toUInt")  inline def toUInt: kse.maths.UInt   = UInt.wrap(c)
   @targetName("char_toULong") inline def toULong: kse.maths.ULong = ULong.wrap(c)
+
+  @targetName("char_clampByte")  def clampToByte: Byte             = if c > '\u007F' then 127 else c.toByte
+  @targetName("char_clampUByte") def clampToUByte: kse.maths.UByte = if c > '\u00FF' then UByte.MaxValue else UByte(c.toByte)
+  @targetName("char_clampShort") def clampToShort: Short           = if c > '\u7FFF' then Short.MaxValue else c.toShort
 }
 
 extension (i: Int) {
@@ -644,6 +659,13 @@ extension (i: Int) {
   @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((i & 0xFF).toByte)
   @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
   @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
+
+  @targetName("int_clampByte")  def clampToByte: Byte             = if i < -128 then -128 else if i > 127 then 127 else i.toByte
+  @targetName("int_clampUByte") def clampToUByte: kse.maths.UByte = if i < 0 then UByte(0) else if i > 255 then UByte(255) else UByte(i.toByte)
+  @targetName("int_clampShort") def clampToShort: Short           = if i < Short.MinValue then Short.MinValue else if i > Short.MaxValue then Short.MaxValue else i.toShort
+  @targetName("int_clampChar")  def clampToChar: Char             = if i < 0 then '\u0000' else if i > 0xFFFF then '\uFFFF' else i.toChar
+  @targetName("int_clampUInt")  def clampToUInt: kse.maths.UInt   = if i < 0 then UInt(0) else UInt(i)
+  @targetName("int_clampULong") def clampToULong: kse.maths.ULong = if i < 0 then ULong(0L) else ULong(i.toLong)
 }
 
 extension (l: Long) {
@@ -707,6 +729,14 @@ extension (l: Long) {
   @targetName("long_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap((l & 0xFFL).toByte)
   @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap((l & 0xFFFFFFFFL).toInt)
   @targetName("long_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(l)
+
+  @targetName("long_clampByte")  def clampToByte: Byte             = if l < -128 then -128 else if l > 127 then 127 else l.toByte
+  @targetName("long_clampUByte") def clampToUByte: kse.maths.UByte = if l < 0 then UByte(0) else if l > 255 then UByte(255) else UByte(l.toByte)
+  @targetName("long_clampShort") def clampToShort: Short           = if l < Short.MinValue then Short.MinValue else if l > Short.MaxValue then Short.MaxValue else l.toShort
+  @targetName("long_clampChar")  def clampToChar: Char             = if l < 0 then '\u0000' else if l > 0xFFFF then '\uFFFF' else l.toChar
+  @targetName("long_clampInt")   def clampToInt: Int               = if l < Int.MinValue then Int.MinValue else if l > Int.MaxValue then Int.MaxValue else l.toInt
+  @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else UInt(l.toInt)
+  @targetName("long_clampULong") def clampToULong: kse.maths.ULong = if l < 0 then ULong(0L) else ULong(l)
 }
 
 extension (inline x: Byte | Short | Int | Long) {
@@ -723,6 +753,11 @@ extension (inline x: Byte | Short | Int | Long) {
   transparent inline def trailingZeros: Int = inline x match
     case i: Int  => java.lang.Integer.numberOfTrailingZeros(i)
     case l: Long => java.lang.Long.   numberOfTrailingZeros(l)
+
+  transparent inline def u: UByte | UInt | ULong = inline x match
+    case b: Byte => UByte(b)
+    case i: Int  => UInt(i)
+    case l: Long => ULong(l)
 }
 
 extension (f: Float) {
@@ -892,7 +927,10 @@ object UByte {
 
   inline def wrap(b: Byte): UByte = b
 
+  inline def apply(b: Byte): UByte = b
   inline def apply(i: ValidIntValues): UByte = i.toByte
+
+  inline def clamp(b: Byte): UByte = if b < 0 then 0: Byte else b
 
   extension (b: UByte) {
     inline def unwrap: Byte = b
@@ -981,6 +1019,8 @@ object UInt {
   inline def wrap(i: Int): UInt = i
 
   inline def apply(i: Int): UInt = i
+
+  inline def clamp(i: Int): UInt = if i < 0 then 0 else i
 
   extension (i: UInt) {
     inline def unwrap: Int = i
@@ -1075,13 +1115,14 @@ opaque type ULong = Long
 object ULong {
   import java.lang.Long.{divideUnsigned, remainderUnsigned, compareUnsigned, toUnsignedString}
 
-  inline def MaxValue = -1L
+  inline def MaxValue: ULong = -1L
 
   inline def wrap(i: Long): ULong = i
 
   inline def apply(i: Long): ULong = i
-
   inline def apply(i: Int): ULong = (i & 0xFFFFFFFFL)
+
+  inline def clamp(l: Long): ULong = if l < 0 then 0L else l
 
   extension (i: ULong) {
     inline def unwrap: Long = i
@@ -1107,13 +1148,13 @@ object ULong {
     
     def -!(j: kse.maths.ULong): kse.maths.ULong =
       if ((i.signed | j.signed) & 0x8000000000000000L) == 0 then
-        val ans = i.signed + j.signed
+        val ans = i.signed - j.signed
         ULong.wrap(if ans < 0 then 0L else ans)
       else if ((i.signed & j.signed) & 0x8000000000000000L) != 0 then
         val ans = (i.signed & 0x7FFFFFFFFFFFFFFFL) - (i.signed & 0x7FFFFFFFFFFFFFFFL)
         ULong.wrap(if ans < 0 then 0L else ans)
       else
-        ULong.wrap(if j.signed < 0 then 0L else i.signed + j.signed)
+        ULong.wrap(if j.signed < 0 then 0L else i.signed - j.signed)
 
     inline def *(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed * (c.signed & 0xFF))
     inline def *(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed * (j.signed & 0xFFFFFFFFL))
