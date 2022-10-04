@@ -735,7 +735,7 @@ extension (l: Long) {
   @targetName("long_clampShort") def clampToShort: Short           = if l < Short.MinValue then Short.MinValue else if l > Short.MaxValue then Short.MaxValue else l.toShort
   @targetName("long_clampChar")  def clampToChar: Char             = if l < 0 then '\u0000' else if l > 0xFFFF then '\uFFFF' else l.toChar
   @targetName("long_clampInt")   def clampToInt: Int               = if l < Int.MinValue then Int.MinValue else if l > Int.MaxValue then Int.MaxValue else l.toInt
-  @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else UInt(l.toInt)
+  @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
   @targetName("long_clampULong") def clampToULong: kse.maths.ULong = if l < 0 then ULong(0L) else ULong(l)
 }
 
@@ -1004,6 +1004,8 @@ object UByte {
     inline def toLong:  Long            =           (b.signed & 0xFF).toLong
     inline def toULong: kse.maths.ULong = ULong.wrap(b.signed & 0xFF)
 
+    def clampToByte: Byte = if b.signed < 0 then 127 else b.signed
+
     def pr: String = (b.signed & 0xFF).toString
   }
 }
@@ -1101,6 +1103,12 @@ object UInt {
     inline def toChar:  Char            =            i.signed.toChar
     inline def toLong:  Long            =           (i.signed & 0xFFFFFFFFL)
     inline def toULong: kse.maths.ULong = ULong.wrap(i.signed & 0xFFFFFFFFL)
+
+    def clampToByte: Byte             = if i.signed < 0 || i.signed > 127 then 127 else i.toByte
+    def clampToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.toByte)
+    def clampToShort: Short           = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.toShort
+    def clampToChar: Char             = if i.signed < 0 || i.signed > 0xFFFF then '\uFFFF' else i.toChar
+    def clampToInt: Int               = if i.signed < 0 then Int.MaxValue else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
   }
@@ -1228,6 +1236,14 @@ object ULong {
     inline def toChar:  Char            =            i.signed.toChar
     inline def toInt:   Int             =            i.signed.toInt
     inline def toUInt:  kse.maths.UInt  =  UInt.wrap(i.signed.toInt)
+
+    def clampToByte: Byte             = if i.signed < 0 || i.signed > 127 then 127 else i.toByte
+    def clampToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.toByte)
+    def clampToShort: Short           = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.toShort
+    def clampToChar: Char             = if i.signed < 0 || i.signed > 0xFFFFL then '\uFFFF' else i.toChar
+    def clampToInt: Int               = if i.signed < 0 || i.signed > Int.MaxValue then Int.MaxValue else i.toInt
+    def clampToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL then UInt.MaxValue else UInt(i.toInt)
+    def clampToLong                   = if i.signed < 0 then Long.MaxValue else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
   }
