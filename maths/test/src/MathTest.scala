@@ -1204,22 +1204,36 @@ class MathTest {
   def extensionsTest(): Unit =
     val b: Byte = -8
     val b2: Byte = 32
+    T ~ (b +# b)                 ==== -16  --: typed[Byte]
+    T ~ (b +# (-125: Byte))      ==== -128 --: typed[Byte]
+    T ~ (99.toByte +# 99.toByte) ==== 127  --: typed[Byte]
+    T ~ (b -# b)                 ==== 0    --: typed[Byte]
+    T ~ (b -# (125: Byte))       ==== -128 --: typed[Byte]
+    T ~ (125.toByte -# b)        ==== 127  --: typed[Byte]
+    T ~ (b *# b)                 ==== 64   --: typed[Byte]
+    T ~ (b *# (40: Byte))        ==== -128 --: typed[Byte]
+    T ~ (b *# (-30: Byte))       ==== 127  --: typed[Byte]
+    T ~ (b /# (2: Byte))         ==== -4   --: typed[Byte]
+    T ~ (b /# (0: Byte))         ==== Byte.MinValue
+    T ~ (b2 /# (0: Byte))        ==== Byte.MaxValue
+    T ~ ((0: Byte) /# (0: Byte)) ==== 0
+    T ~ ((-128:Byte)/#(-1:Byte)) ==== 127  --: typed[Byte]
+    T ~ (b %# (3: Byte))         ==== -2   --: typed[Byte]
+    T ~ (b %# (0: Byte))         ==== 0
     T ~ (b +! b)                 ==== -16  --: typed[Byte]
-    T ~ (b +! (-125: Byte))      ==== -128 --: typed[Byte]
-    T ~ (99.toByte +! 99.toByte) ==== 127  --: typed[Byte]
+    T ~ (b +! (-125: Byte))      ==== thrown[ArithmeticException]
     T ~ (b -! b)                 ==== 0    --: typed[Byte]
-    T ~ (b -! (125: Byte))       ==== -128 --: typed[Byte]
-    T ~ (125.toByte -! b)        ==== 127  --: typed[Byte]
+    T ~ (b -! (125: Byte))       ==== thrown[ArithmeticException]
     T ~ (b *! b)                 ==== 64   --: typed[Byte]
-    T ~ (b *! (40: Byte))        ==== -128 --: typed[Byte]
-    T ~ (b *! (-30: Byte))       ==== 127  --: typed[Byte]
-    T ~ (b /! (2: Byte))         ==== -4   --: typed[Byte]
-    T ~ ((-128: Byte)/!(-1:Byte))==== 127  --: typed[Byte]
-    T ~ (b %! (3: Byte))         ==== -2   --: typed[Byte]
+    T ~ (b2 *! b2)               ==== thrown[ArithmeticException]
+    T ~ (b2 /! b)                ==== -4   --: typed[Byte]
+    T ~ ((-128:Byte)/!(-1:Byte)) ==== thrown[ArithmeticException]
     T ~ b.clamp(-12, -4)   ==== -8         --: typed[Byte]
     T ~ b.clamp(13, 100)   ==== 13         --: typed[Byte]
     T ~ b.clamp(-99, -9)   ==== -9         --: typed[Byte]
-    T ~ b.clamp(55, -99)   ==== 55        
+    T ~ b.clamp(55, -99)   ==== 55
+    T ~ b.exact(-12, -4)   ==== -8         --: typed[Byte]
+    T ~ b.exact(13, 100)   ==== thrown[ArithmeticException]        
     T ~ b.in(-12, 4)       ==== true
     T ~ b.in(13, 100)      ==== false
     T ~ b.in(-99, -9)      ==== false
@@ -1241,27 +1255,52 @@ class MathTest {
     T ~ b2.clampToUInt     ==== b2         --: typed[UInt]
     T ~ b.clampToULong     ==== 0          --: typed[ULong]
     T ~ b2.clampToULong    ==== b2         --: typed[ULong]
+    T ~ b2.exactToUByte    ==== b2         --: typed[UByte]
+    T ~ b.exactToUByte     ==== thrown[ArithmeticException]
+    T ~ b2.exactToChar     ==== b2.toChar  --: typed[Char]
+    T ~ b.exactToChar      ==== thrown[ArithmeticException]
+    T ~ b2.exactToUInt     ==== b2         --: typed[UInt]
+    T ~ b.exactToUInt      ==== thrown[ArithmeticException]
+    T ~ b2.exactToULong    ==== b2         --: typed[ULong]
+    T ~ b.exactToULong     ==== thrown[ArithmeticException]
+    T ~ b.hexString        ==== "F8"
+    T ~ b.hiHexString      ==== "F8"
+    T ~ b.loHexString      ==== "f8"
 
     val s: Short = -88
     val s2: Short = -888
     val s3: Short = 200
     val s4: Short = 2000
+    T ~ (s +# s)                        ==== -176   --: typed[Short]
+    T ~ (s +# (-32760: Short))          ==== -32768 --: typed[Short]
+    T ~ (29999.toShort +# 9999.toShort) ==== 32767  --: typed[Short]
+    T ~ (s -# s)                        ==== 0      --: typed[Short]
+    T ~ (s -# (32760: Short))           ==== -32768 --: typed[Short]
+    T ~ (32760.toShort -# s)            ==== 32767  --: typed[Short]
+    T ~ (s *# s)                        ==== 7744   --: typed[Short]
+    T ~ (s *# (400: Short))             ==== -32768 --: typed[Short]
+    T ~ (s *# (-400: Short))            ==== 32767  --: typed[Short]
+    T ~ (s /# (2: Short))               ==== -44    --: typed[Short]
+    T ~ (Short.MinValue /# (-1: Short)) ==== 32767  --: typed[Short]
+    T ~ (s /# (0: Short))               ==== Short.MinValue
+    T ~ (s3 /# (0: Short))              ==== Short.MaxValue
+    T ~ ((0: Short) /# (0: Short))      ==== 0
+    T ~ (s %# (3: Short))               ==== -1     --: typed[Short]
+    T ~ (s %# (0: Short))               ==== 0
     T ~ (s +! s)                        ==== -176   --: typed[Short]
-    T ~ (s +! (-32760: Short))          ==== -32768 --: typed[Short]
-    T ~ (29999.toShort +! 9999.toShort) ==== 32767  --: typed[Short]
-    T ~ (s -! s)                        ==== 0      --: typed[Short]
-    T ~ (s -! (32760: Short))           ==== -32768 --: typed[Short]
-    T ~ (32760.toShort -! s)            ==== 32767  --: typed[Short]
+    T ~ (s +! (-32760: Short))          ==== thrown[ArithmeticException]
+    T ~ (s -! s2)                       ==== 800    --: typed[Short]
+    T ~ (s -! (32760: Short))           ==== thrown[ArithmeticException]
     T ~ (s *! s)                        ==== 7744   --: typed[Short]
-    T ~ (s *! (400: Short))             ==== -32768 --: typed[Short]
-    T ~ (s *! (-400: Short))            ==== 32767  --: typed[Short]
+    T ~ (s2 *! s4)                      ==== thrown[ArithmeticException]
     T ~ (s /! (2: Short))               ==== -44    --: typed[Short]
-    T ~ (Short.MinValue /! (-1: Short)) ==== 32767  --: typed[Short]
-    T ~ (s %! (3: Short))               ==== -1     --: typed[Short]
+    T ~ (Short.MinValue /! (-1: Short)) ==== thrown[ArithmeticException]
     T ~ s.clamp(-915, -4)    ==== -88               --: typed[Short]
     T ~ s.clamp(-44, 333)    ==== -44               --: typed[Short]
     T ~ s.clamp(-99, -91)    ==== -91               --: typed[Short]
     T ~ s.clamp(333, -44)    ==== 333               --: typed[Short]
+    T ~ s.exact(-915, -4)    ==== -88               --: typed[Short]
+    T ~ s.exact(-44, 333)    ==== thrown[ArithmeticException]
     T ~ s.in(-915, -4)       ==== true
     T ~ s.in(-44, 333)       ==== false
     T ~ s.in(-99, -91)       ==== false
@@ -1285,7 +1324,16 @@ class MathTest {
     T ~ s4.clampToUInt       ==== 2000              --: typed[UInt]
     T ~ s.clampToULong       ==== 0                 --: typed[ULong]
     T ~ s4.clampToULong      ==== 2000              --: typed[ULong]
-
+    T ~ s.exactToByte        ==== s                 --: typed[Byte]
+    T ~ s2.exactToByte       ==== thrown[ArithmeticException]
+    T ~ s3.exactToUByte      ==== UByte(200)        --: typed[UByte]
+    T ~ s.exactToUByte       ==== thrown[ArithmeticException]
+    T ~ s4.exactToChar       ==== '\u07D0'          --: typed[Char]
+    T ~ s.exactToChar        ==== thrown[ArithmeticException]
+    T ~ s4.exactToUInt       ==== s4                --: typed[UInt]
+    T ~ s.exactToUInt        ==== thrown[ArithmeticException]
+    T ~ s4.exactToULong      ==== s4                --: typed[ULong]
+    T ~ s.exactToULong       ==== thrown[ArithmeticException]
     T ~ s.hexString          ==== "FFA8"
     T ~ s.hiHexString        ==== "FFA8"
     T ~ s.loHexString        ==== "ffa8"
@@ -1299,6 +1347,8 @@ class MathTest {
     T ~ c.clamp('A', 'W') ==== 'W'        --: typed[Char]
     T ~ c.clamp('q', 'z') ==== 'q'        --: typed[Char]
     T ~ c.clamp('z', 'A') ==== 'z'        --: typed[Char]
+    T ~ c.exact('a', 'w') ==== 'n'        --: typed[Char]
+    T ~ c.exact('A', 'W') ==== thrown[ArithmeticException]
     T ~ c.in('a', 'w')    ==== true
     T ~ c.in('A', 'W')    ==== false
     T ~ c.in('q', 'z')    ==== false
@@ -1316,7 +1366,12 @@ class MathTest {
     T ~ c4.clampToShort   ==== 0x7FFF     --: typed[Short]
     T ~ c.clampToUInt     ==== UInt(110)  --: typed[UInt]
     T ~ c.clampToULong    ==== ULong(110) --: typed[ULong]
-
+    T ~ c.exactToByte     ==== 110        --: typed[Byte]
+    T ~ c2.exactToByte    ==== thrown[ArithmeticException]
+    T ~ c.exactToUByte    ==== 110        --: typed[UByte]
+    T ~ c3.exactToUByte   ==== thrown[ArithmeticException]
+    T ~ c.exactToShort    ==== 110        --: typed[Short]
+    T ~ c4.exactToShort   ==== thrown[ArithmeticException]
     T ~ c.hexString       ==== "006E"
     T ~ c.hiHexString     ==== "006E"
     T ~ c.loHexString     ==== "006e"
@@ -1327,26 +1382,40 @@ class MathTest {
     val i4 = 200
     val i5 = 2000
     val i6 = 200000
+    T ~ (i +# i)                       ==== -17776       --: typed[Int]
+    T ~ (i +# -2147480000)             ==== Int.MinValue --: typed[Int]
+    T ~ (2000000000 +# 150000000)      ==== Int.MaxValue --: typed[Int]
+    T ~ (i -# i)                       ==== 0            --: typed[Int]
+    T ~ (i -# 2147480000)              ==== Int.MinValue --: typed[Int]
+    T ~ (2147480000 -# i)              ==== Int.MaxValue --: typed[Int]
+    T ~ (i *# i)                       ==== 78996544     --: typed[Int]
+    T ~ (i *# 241617)                  ==== Int.MinValue --: typed[Int]
+    T ~ (i *# (-241617))               ==== Int.MaxValue --: typed[Int]
+    T ~ (Int.MinValue *# Int.MinValue) ==== Int.MaxValue --: typed[Int]
+    T ~ (Int.MaxValue *# Int.MinValue) ==== Int.MinValue --: typed[Int]
+    T ~ (Int.MinValue *# Int.MaxValue) ==== Int.MinValue --: typed[Int]
+    T ~ (Int.MaxValue *# Int.MaxValue) ==== Int.MaxValue --: typed[Int]
+    T ~ (i /# 2)                       ==== -4444        --: typed[Int]
+    T ~ (Int.MinValue /# -1)           ==== Int.MaxValue --: typed[Int]
+    T ~ (i /# 0)                       ==== Int.MinValue
+    T ~ (i4 /# 0)                      ==== Int.MaxValue
+    T ~ (0 /# 0)                       ==== 0
+    T ~ (i %# 3)                       ==== -2           --: typed[Int]
+    T ~ (i %# 0)                       ==== 0
     T ~ (i +! i)                       ==== -17776       --: typed[Int]
-    T ~ (i +! -2147480000)             ==== Int.MinValue --: typed[Int]
-    T ~ (2000000000 +! 150000000)      ==== Int.MaxValue --: typed[Int]
-    T ~ (i -! i)                       ==== 0            --: typed[Int]
-    T ~ (i -! 2147480000)              ==== Int.MinValue --: typed[Int]
-    T ~ (2147480000 -! i)              ==== Int.MaxValue --: typed[Int]
+    T ~ (2000000000 +! 150000000)      ==== thrown[ArithmeticException]
+    T ~ (i -! i2)                      ==== -8800        --: typed[Int]
+    T ~ (2147480000 -! i)              ==== thrown[ArithmeticException]
     T ~ (i *! i)                       ==== 78996544     --: typed[Int]
-    T ~ (i *! 241617)                  ==== Int.MinValue --: typed[Int]
-    T ~ (i *! (-241617))               ==== Int.MaxValue --: typed[Int]
-    T ~ (Int.MinValue *! Int.MinValue) ==== Int.MaxValue --: typed[Int]
-    T ~ (Int.MaxValue *! Int.MinValue) ==== Int.MinValue --: typed[Int]
-    T ~ (Int.MinValue *! Int.MaxValue) ==== Int.MinValue --: typed[Int]
-    T ~ (Int.MaxValue *! Int.MaxValue) ==== Int.MaxValue --: typed[Int]
+    T ~ (i *! 241617)                  ==== thrown[ArithmeticException]
     T ~ (i /! 2)                       ==== -4444        --: typed[Int]
-    T ~ (Int.MinValue /! -1)           ==== Int.MaxValue --: typed[Int]
-    T ~ (i %! 3)                       ==== -2           --: typed[Int]
+    T ~ (Int.MinValue /! -1)           ==== thrown[ArithmeticException]
     T ~ i.clamp(-9999, -7777) ==== -8888
     T ~ i.clamp(-9999, -9876) ==== -9876
     T ~ i.clamp(-7777, 12345) ==== -7777
     T ~ i.clamp(-7777, -9999) ==== -7777
+    T ~ i.exact(-9999, -7777) ==== -8888
+    T ~ i.exact(-9999, -9876) ==== thrown[ArithmeticException]
     T ~ i.in(-9999, -7777)    ==== true
     T ~ i.in(-9999, -9876)    ==== false
     T ~ i.in(-7777, 12345)    ==== false
@@ -1377,11 +1446,29 @@ class MathTest {
     T ~ i6.clampToUInt        ==== i6             --: typed[UInt]
     T ~ i.clampToULong        ==== 0              --: typed[ULong]
     T ~ i6.clampToULong       ==== i6             --: typed[ULong]
-
-    T ~ i.hexString           ==== "FFFFDD48"
-    T ~ i.hiHexString         ==== "FFFFDD48"
-    T ~ i.loHexString         ==== "ffffdd48"
-    T ~ 11.hexString          ==== "0000000B"
+    T ~ i2.exactToByte        ==== i2             --: typed[Byte]
+    T ~ i.exactToByte         ==== thrown[ArithmeticException]
+    T ~ i4.exactToUByte       ==== UByte(200)     --: typed[UByte]
+    T ~ i.exactToUByte        ==== thrown[ArithmeticException]
+    T ~ i.exactToShort        ==== i              --: typed[Short]
+    T ~ i3.exactToShort       ==== thrown[ArithmeticException]
+    T ~ i5.exactToChar        ==== '\u07D0'       --: typed[Char]
+    T ~ i.exactToChar         ==== thrown[ArithmeticException]
+    T ~ i6.exactToUInt        ==== i6             --: typed[UInt]
+    T ~ i.exactToUInt         ==== thrown[ArithmeticException]
+    T ~ i6.exactToULong       ==== i6             --: typed[ULong]
+    T ~ i.exactToULong        ==== thrown[ArithmeticException]
+    val ix = 0x12345DCA
+    T ~ ix.leadingZeros  ==== 3
+    T ~ ix.trailingZeros ==== 1
+    T ~ ix.bitCount      ==== 14
+    T ~ ix.highBit       ==== 0x10000000
+    T ~ ix.lowBit        ==== 0x00000002
+    T ~ ix.rotl(8)       ==== 0x345DCA12
+    T ~ ix.rotr(12)      ==== 0xDCA12345
+    T ~ ix.hexString     ==== "12345DCA"
+    T ~ ix.hiHexString   ==== "12345DCA"
+    T ~ ix.loHexString   ==== "12345dca"
 
     val l = 42L
     val l2 = -88L
@@ -1398,43 +1485,57 @@ class MathTest {
     val lokb = 649657L
     val ldna = 4294967298L
     val ldnb = 2147483647L
+    T ~ (l +# l)                          ==== 84L
+    T ~ (l +# 9223372036854775800L)       ==== Long.MaxValue
+    T ~ (-9223372036854775800L +# -10L)   ==== Long.MinValue
+    T ~ (l -# l)                          ==== 0L
+    T ~ (l -# (-9223372036854775800L))    ==== Long.MaxValue
+    T ~ ((-9223372036854775800L) -# l)    ==== Long.MinValue
+    T ~ (l *# l)                          ==== 1764L
+    T ~ (219604096115589901L *# l)        ==== Long.MaxValue
+    T ~ ((-219604096115589901L) *# l)     ==== Long.MinValue
+    T ~ (lbiga *# lbigb)                  ==== Long.MaxValue
+    T ~ (lbigb *# lbiga)                  ==== Long.MaxValue
+    T ~ (lbiga *# -lbigb)                 ==== Long.MinValue
+    T ~ (-lbiga *# lbigb)                 ==== Long.MinValue
+    T ~ (-lbiga *# -lbigb)                ==== Long.MaxValue
+    T ~ (loka *# lokb)                    ==== Long.MaxValue
+    T ~ (lokb *# loka)                    ==== Long.MaxValue
+    T ~ (-loka *# lokb)                   ==== -Long.MaxValue
+    T ~ (loka *# -lokb)                   ==== -Long.MaxValue
+    T ~ (-lokb *# loka)                   ==== -Long.MaxValue
+    T ~ (lokb *# -loka)                   ==== -Long.MaxValue
+    T ~ (-loka *# -lokb)                  ==== Long.MaxValue
+    T ~ (-lokb *# -loka)                  ==== Long.MaxValue
+    T ~ (ldna *# ldnb)                    ==== Long.MaxValue - 1
+    T ~ (ldnb *# ldna)                    ==== Long.MaxValue - 1
+    T ~ (-ldna *# ldnb)                   ==== 1 - Long.MaxValue
+    T ~ (-ldnb *# ldna)                   ==== 1 - Long.MaxValue
+    T ~ (ldna *# -ldnb)                   ==== 1 - Long.MaxValue
+    T ~ (ldnb *# -ldna)                   ==== 1 - Long.MaxValue
+    T ~ (-ldna *# -ldnb)                  ==== Long.MaxValue - 1
+    T ~ (-ldnb *# -ldna)                  ==== Long.MaxValue - 1
+    T ~ (l /# l)                          ==== 1L
+    T ~ (Long.MinValue /# -1L)            ==== Long.MaxValue
+    T ~ (l /# 0L)                         ==== Long.MaxValue
+    T ~ (l2 /# 0L)                        ==== Long.MinValue
+    T ~ (0L /# 0L)                        ==== 0L
+    T ~ (l %# 5L)                         ==== 2L
+    T ~ (l %# 0L)                         ==== 0L
     T ~ (l +! l)                          ==== 84L
-    T ~ (l +! 9223372036854775800L)       ==== Long.MaxValue
-    T ~ (-9223372036854775800L +! -10L)   ==== Long.MinValue
-    T ~ (l -! l)                          ==== 0L
-    T ~ (l -! (-9223372036854775800L))    ==== Long.MaxValue
-    T ~ ((-9223372036854775800L) -! l)    ==== Long.MinValue
+    T ~ (l +! 9223372036854775800L)       ==== thrown[ArithmeticException]
+    T ~ (l2 -! l3)                        ==== 800L
+    T ~ ((-9223372036854775800L) -! l)    ==== thrown[ArithmeticException]
     T ~ (l *! l)                          ==== 1764L
-    T ~ (219604096115589901L *! l)        ==== Long.MaxValue
-    T ~ ((-219604096115589901L) *! l)     ==== Long.MinValue
-    T ~ (lbiga *! lbigb)                  ==== Long.MaxValue
-    T ~ (lbigb *! lbiga)                  ==== Long.MaxValue
-    T ~ (lbiga *! -lbigb)                 ==== Long.MinValue
-    T ~ (-lbiga *! lbigb)                 ==== Long.MinValue
-    T ~ (-lbiga *! -lbigb)                ==== Long.MaxValue
-    T ~ (loka *! lokb)                    ==== Long.MaxValue
-    T ~ (lokb *! loka)                    ==== Long.MaxValue
-    T ~ (-loka *! lokb)                   ==== -Long.MaxValue
-    T ~ (loka *! -lokb)                   ==== -Long.MaxValue
-    T ~ (-lokb *! loka)                   ==== -Long.MaxValue
-    T ~ (lokb *! -loka)                   ==== -Long.MaxValue
-    T ~ (-loka *! -lokb)                  ==== Long.MaxValue
-    T ~ (-lokb *! -loka)                  ==== Long.MaxValue
-    T ~ (ldna *! ldnb)                    ==== Long.MaxValue - 1
-    T ~ (ldnb *! ldna)                    ==== Long.MaxValue - 1
-    T ~ (-ldna *! ldnb)                   ==== 1 - Long.MaxValue
-    T ~ (-ldnb *! ldna)                   ==== 1 - Long.MaxValue
-    T ~ (ldna *! -ldnb)                   ==== 1 - Long.MaxValue
-    T ~ (ldnb *! -ldna)                   ==== 1 - Long.MaxValue
-    T ~ (-ldna *! -ldnb)                  ==== Long.MaxValue - 1
-    T ~ (-ldnb *! -ldna)                  ==== Long.MaxValue - 1
-    T ~ (l /! l)                          ==== 1L
-    T ~ (Long.MinValue /! -1L)            ==== Long.MaxValue
-    T ~ (l %! 5L)                         ==== 2L
+    T ~ (lbiga *! lbigb)                  ==== thrown[ArithmeticException]
+    T ~ (l /! 2)                          ==== 21L
+    T ~ (Long.MinValue /! -1L)            ==== thrown[ArithmeticException]
     T ~ l.clamp(-100L, 100L)       ==== 42L
     T ~ l.clamp(-100L, -10L)       ==== -10L
     T ~ l.clamp(72L, 43210L)       ==== 72L
     T ~ l.clamp(100L, -100L)       ==== 100L
+    T ~ l.exact(-100L, 100L)       ==== 42L
+    T ~ l.exact(-100L, -10L)       ==== thrown[ArithmeticException]
     T ~ l.in(-100L, 100L)          ==== true
     T ~ l.in(-100L, -10L)          ==== false
     T ~ l.in(72L, 43210L)          ==== false
@@ -1476,13 +1577,36 @@ class MathTest {
     T ~ l.clampToULong             ==== l                --: typed[ULong]
     T ~ l2.clampToULong            ==== 0L               --: typed[ULong]
     T ~ l9.clampToULong            ==== l9               --: typed[ULong]
-
-    T ~ l.hexString                ==== "000000000000002A"
-    T ~ l.hiHexString              ==== "000000000000002A"
-    T ~ l.loHexString              ==== "000000000000002a"
+    T ~ l.exactToByte              ==== 42               --: typed[Byte]
+    T ~ l3.exactToByte             ==== thrown[ArithmeticException]
+    T ~ l6.exactToUByte            ==== UByte(200)       --: typed[UByte]
+    T ~ l2.exactToUByte            ==== thrown[ArithmeticException]
+    T ~ l2.exactToShort            ==== l2               --: typed[Short]
+    T ~ l4.exactToShort            ==== thrown[ArithmeticException]
+    T ~ l.exactToChar              ==== '*'              --: typed[Char]
+    T ~ l2.exactToChar             ==== thrown[ArithmeticException]
+    T ~ l4.exactToInt              ==== l4               --: typed[Int]
+    T ~ l5.exactToInt              ==== thrown[ArithmeticException]
+    T ~ l8.exactToUInt             ==== l8               --: typed[UInt]
+    T ~ l9.exactToUInt             ==== thrown[ArithmeticException]
+    T ~ l9.exactToULong            ==== l9               --: typed[ULong]
+    T ~ l2.exactToULong            ==== thrown[ArithmeticException]
+    val lx = 0x123456789AB0FEDCL
+    T ~ lx.leadingZeros  ==== 3
+    T ~ lx.trailingZeros ==== 2
+    T ~ lx.bitCount      ==== 32
+    T ~ lx.highBit       ==== 0x1000000000000000L
+    T ~ lx.lowBit        ==== 0x0000000000000004L
+    T ~ lx.rotl(8)       ==== 0x3456789AB0FEDC12L
+    T ~ lx.rotr(12)      ==== 0xEDC123456789AB0FL
+    T ~ lx.hexString     ==== "123456789AB0FEDC"
+    T ~ lx.hiHexString   ==== "123456789AB0FEDC"
+    T ~ lx.loHexString   ==== "123456789ab0fedc"
 
     val f = 1.2f
     val fnan = Float.NaN
+    T ~ f.trunc             ==== 1f
+    T ~ (-f).trunc          ==== -1f
     T ~ f.sq                ==== 1.44f
     T ~ f.sign              ==== 1f
     T ~ f.ulp               ==== java.lang.Math.ulp(f)
@@ -1525,6 +1649,8 @@ class MathTest {
 
     val d = 1.2
     val dnan = Double.NaN
+    T ~ d.trunc          ==== 1.0
+    T ~ (-d).trunc       ==== -1.0
     T ~ d.sq             ==== 1.44
     T ~ d.cube           ==== 1.728
     T ~ d.sqrt           =~~= 1.0954451150103322269
@@ -1605,6 +1731,7 @@ class MathTest {
   def unsignedMathTest(): Unit =
     val b = UByte(200)
     val c = UByte(14)
+    val bz = UByte(0)
     T ~ b               ==== UByte.wrap(-56: Byte)
     T ~ UByte.MaxValue  ==== UByte(255)  --: typed[UByte]
     T ~ b.unwrap        ==== b           --: typed[Byte]
@@ -1613,26 +1740,36 @@ class MathTest {
     T ~ (b + UByte(9))  ==== UInt(209)   --: typed[UInt]
     T ~ (b + UInt(99))  ==== UInt(299)   --: typed[UInt]
     T ~ (b + ULong(99)) ==== ULong(299)  --: typed[ULong]
+    T ~ (b +# UByte(9)) ==== UByte(209)  --: typed[UByte]
+    T ~ (b +# b)        ==== UByte(255)  --: typed[UByte]
     T ~ (b +! UByte(9)) ==== UByte(209)  --: typed[UByte]
-    T ~ (b +! b)        ==== UByte(255)  --: typed[UByte]
+    T ~ (b +! b)        ==== thrown[ArithmeticException]
     T ~ (b - UByte(9))  ==== UInt(191)   --: typed[UInt]
     T ~ (b - UInt(9))   ==== UInt(191)   --: typed[UInt]
     T ~ (b - ULong(9))  ==== ULong(191)  --: typed[ULong]
+    T ~ (b -# UByte(2)) ==== UByte(198)  --: typed[UByte]
+    T ~ (UByte(2) -# b) ==== UByte(0)    --: typed[UByte]
     T ~ (b -! UByte(2)) ==== UByte(198)  --: typed[UByte]
-    T ~ (UByte(2) -! b) ==== UByte(0)    --: typed[UByte]
+    T ~ (UByte(2) -! b) ==== thrown[ArithmeticException]
     T ~ (c * c)         ==== UInt(196)   --: typed[UInt]
     T ~ (b * UInt(9))   ==== UInt(1800)  --: typed[UInt]
     T ~ (b * ULong(9))  ==== ULong(1800) --: typed[ULong]
+    T ~ (c *# c)        ==== UByte(196)  --: typed[UByte]
+    T ~ (b *# c)        ==== UByte(255)  --: typed[UByte]
     T ~ (c *! c)        ==== UByte(196)  --: typed[UByte]
-    T ~ (b *! c)        ==== UByte(255)  --: typed[UByte]
+    T ~ (b *! c)        ==== thrown[ArithmeticException]
     T ~ (b / c)         ==== UInt(14)    --: typed[UInt]
     T ~ (b / UInt(14))  ==== UInt(14)    --: typed[UInt]
     T ~ (b / ULong(9L)) ==== ULong(22)   --: typed[ULong]
+    T ~ (b /# c)        ==== UByte(14)   --: typed[UByte]
+    T ~ (b /# bz)       ==== UByte(255)
+    T ~ (bz /# bz)      ==== bz
     T ~ (b /! c)        ==== UByte(14)   --: typed[UByte]
     T ~ (b % c)         ==== UInt(4)     --: typed[UInt]
     T ~ (b % UInt(14))  ==== UInt(4)     --: typed[UInt]
     T ~ (b % ULong(14)) ==== ULong(4)    --: typed[ULong]
-    T ~ (b %! c)        ==== UByte(4)    --: typed[UByte]
+    T ~ (b %# c)        ==== UByte(4)    --: typed[UByte]
+    T ~ (b %# bz)       ==== bz
     T ~ (b | c)         ==== UByte(206)  --: typed[UByte]
     T ~ (b & c)         ==== UByte(8)    --: typed[UByte]
     T ~ (b ^ c)         ==== UByte(198)  --: typed[UByte]
@@ -1656,15 +1793,31 @@ class MathTest {
     T ~ (c max b)       ==== b           --: typed[UByte]
     T ~ (b min c)       ==== c           --: typed[UByte]
     T ~ (c min b)       ==== c           --: typed[UByte]
+    T ~ c.clamp(bz, b)  ==== c           --: typed[UByte]
+    T ~ b.clamp(c, bz)  ==== c
+    T ~ b.clamp(bz, c)  ==== c
+    T ~ bz.clamp(c, b)  ==== c
+    T ~ c.exact(bz, b)  ==== c           --: typed[UByte]
+    T ~ bz.exact(c, b)  ==== thrown[ArithmeticException]
+    T ~ c.in(bz, b)     ==== true
+    T ~ b.in(bz, c)     ==== false
+    T ~ bz.in(b, c)     ==== false
     T ~ b.toShort       ==== 200         --: typed[Short]
     T ~ b.toChar        ==== '\u00C8'    --: typed[Char]
     T ~ b.toInt         ==== 200         --: typed[Int]
     T ~ b.toUInt        ==== 200         --: typed[UInt]
     T ~ b.toLong        ==== 200L        --: typed[Long]
     T ~ b.toULong       ==== 200L        --: typed[ULong]
+    T ~ b.toFloat       ==== 200f        --: typed[Float]
+    T ~ b.toDouble      ==== 200.0       --: typed[Double]
     T ~ b.clampToByte   ==== 127         --: typed[Byte]
     T ~ c.clampToByte   ==== c           --: typed[Byte]
+    T ~ c.exactToByte   ==== c           --: typed[Byte]
+    T ~ b.exactToByte   ==== thrown[ArithmeticException]
     T ~ b.pr            ==== "200"
+    T ~ b.hexString     ==== "C8"
+    T ~ b.hiHexString   ==== "C8"
+    T ~ b.loHexString   ==== "c8"
 
     val h = UInt(0x22000070)
     val i = UInt(0xA0000000)
@@ -1673,6 +1826,7 @@ class MathTest {
     val i3 = UInt(200)
     val i4 = UInt(4200)
     val i5 = UInt(42000)
+    val iz = UInt(0)
     T ~ i                ==== UInt.wrap(-1610612736)
     T ~ UInt.MaxValue    ==== UInt(0xFFFFFFFF)    --: typed[UInt]
     T ~ i.unwrap         ==== i                   --: typed[Int]
@@ -1681,26 +1835,36 @@ class MathTest {
     T ~ (i + j)          ==== UInt(0xA000CA62)    --: typed[UInt]
     T ~ (i + UByte(200)) ==== UInt(0xA00000C8)    --: typed[UInt]
     T ~ (i + ULong(200)) ==== ULong(0xA00000C8L)  --: typed[ULong]
+    T ~ (i +# j)         ==== (i + j)             --: typed[UInt]
+    T ~ (i +# i)         ==== UInt.MaxValue       --: typed[UInt]
     T ~ (i +! j)         ==== (i + j)             --: typed[UInt]
-    T ~ (i +! i)         ==== UInt.MaxValue       --: typed[UInt]
+    T ~ (i +! i)         ==== thrown[ArithmeticException]
     T ~ (i - j)          ==== UInt(0x9FFF359E)    --: typed[UInt]
     T ~ (i - UByte(200)) ==== UInt(0x9FFFFF38)    --: typed[UInt]
     T ~ (i - ULong(200)) ==== ULong(0x9FFFFF38L)  --: typed[ULong]
+    T ~ (i -# j)         ==== (i - j)             --: typed[UInt]
+    T ~ (j -# i)         ==== 0                   --: typed[UInt]
     T ~ (i -! j)         ==== (i - j)             --: typed[UInt]
-    T ~ (j -! i)         ==== 0                   --: typed[UInt]
+    T ~ (j -! i)         ==== thrown[ArithmeticException]
     T ~ (j * j)          ==== UInt(0x9FFECD84)    --: typed[UInt]
     T ~ (j * UByte(200)) ==== UInt(10362000)      --: typed[UInt]
     T ~ (j * ULong(200)) ==== ULong(10362000)     --: typed[ULong]
+    T ~ (j *# j)         ==== (j * j)             --: typed[UInt]
+    T ~ (j *# i)         ==== UInt.MaxValue       --: typed[UInt]
     T ~ (j *! j)         ==== (j * j)             --: typed[UInt]
-    T ~ (j *! i)         ==== UInt.MaxValue       --: typed[UInt]
+    T ~ (j *! i)         ==== thrown[ArithmeticException]
     T ~ (i / j)          ==== UInt(51811)         --: typed[UInt]
     T ~ (j / UByte(200)) ==== UInt(259)           --: typed[UInt]
     T ~ (j / ULong(200)) ==== ULong(259)          --: typed[ULong]
+    T ~ (i /# j)         ==== (i / j)             --: typed[UInt]
+    T ~ (i /# iz)        ==== UInt.MaxValue
+    T ~ (iz /# iz)       ==== UInt(0)
     T ~ (i /! j)         ==== (i / j)             --: typed[UInt]
     T ~ (i % j)          ==== UInt(26650)         --: typed[UInt]
     T ~ (i % UByte(200)) ==== UInt(160)           --: typed[UInt]
     T ~ (i % ULong(200)) ==== ULong(160)          --: typed[ULong]
-    T ~ (i %! j)         ==== (i % j)             --: typed[UInt]
+    T ~ (i %# j)         ==== (i % j)             --: typed[UInt]
+    T ~ (i %# iz)        ==== UInt(0)
     T ~ (i | h)          ==== UInt(0xA2000070)    --: typed[UInt]
     T ~ (i & h)          ==== UInt(0x20000000)    --: typed[UInt]
     T ~ (i ^ h)          ==== UInt(0x82000070)    --: typed[UInt]
@@ -1724,6 +1888,18 @@ class MathTest {
     T ~ (j max i)        ==== i
     T ~ (i min j)        ==== j
     T ~ (j min i)        ==== j
+    T ~ j.clamp(iz, i)   ==== j                   --: typed[UInt]
+    T ~ j.clamp(i, iz)   ==== i
+    T ~ iz.clamp(j, i)   ==== j
+    T ~ i.clamp(iz, j)   ==== j
+    T ~ j.exact(iz, i)   ==== j                   --: typed[UInt]
+    T ~ j.exact(i, iz)   ==== thrown[ArithmeticException]
+    T ~ i.exact(iz, j)   ==== thrown[ArithmeticException]
+    T ~ iz.exact(j, i)   ==== thrown[ArithmeticException]
+    T ~ j.in(iz, i)      ==== true
+    T ~ j.in(i, iz)      ==== false
+    T ~ iz.in(j, i)      ==== false
+    T ~ i.in(iz, j)      ==== false
     T ~ (i + j).toByte         ==== 0x62                --: typed[Byte]
     T ~ (i + j).toUByte        ==== UByte(0x62)         --: typed[UByte]
     T ~ (i + j).toShort        ==== -13726              --: typed[Short]
@@ -1731,6 +1907,8 @@ class MathTest {
     T ~ (i + j).toInt          ==== -1610560926         --: typed[Int]
     T ~ (i + j).toLong         ==== 0xA000CA62L         --: typed[Long]
     T ~ (i + j).toULong        ==== ULong(0xA000CA62)   --: typed[ULong]
+    T ~ i.toFloat              ==== 2.68435456e9f       --: typed[Float]
+    T ~ i.toDouble             ==== 2.68435456e9        --: typed[Double]
     T ~ i2.clampToByte         ==== i2                  --: typed[Byte]
     T ~ i3.clampToByte         ==== Byte.MaxValue       --: typed[Byte]
     T ~ i.clampToByte          ==== Byte.MaxValue       --: typed[Byte]
@@ -1745,7 +1923,20 @@ class MathTest {
     T ~ i.clampToChar          ==== '\uFFFF'            --: typed[Char]
     T ~ i5.clampToInt          ==== i5                  --: typed[Int]
     T ~ i.clampToInt           ==== Int.MaxValue        --: typed[Int]
+    T ~ i2.exactToByte         ==== i2                  --: typed[Byte]
+    T ~ i3.exactToByte         ==== thrown[ArithmeticException]
+    T ~ i3.exactToUByte        ==== UByte(200)          --: typed[UByte]
+    T ~ i4.exactToUByte        ==== thrown[ArithmeticException]
+    T ~ i4.exactToShort        ==== i4                  --: typed[Short]
+    T ~ i5.exactToShort        ==== thrown[ArithmeticException]
+    T ~ i5.exactToChar         ==== '\uA410'            --: typed[Char]
+    T ~ h.exactToChar          ==== thrown[ArithmeticException]
+    T ~ i5.exactToInt          ==== i5                  --: typed[Int]
+    T ~ i.exactToInt           ==== thrown[ArithmeticException]
     T ~ i.pr                   ==== "2684354560"
+    T ~ i.hexString            ==== "A0000000"
+    T ~ i.hiHexString          ==== "A0000000"
+    T ~ i.loHexString          ==== "a0000000"
 
     val l = ULong(0xA2D03579B4E6FC81L)
     val k = ULong(3425191356L)
@@ -1761,6 +1952,7 @@ class MathTest {
     val l4 = ULong(40000)
     val l5 = ULong(4000000000L)
     val l6 = ULong(2000000000000L)
+    val lz = ULong(0)
     T ~ l            ==== ULong.wrap(-6714808247567057791L)
     T ~ l.unwrap     ==== l                    --: typed[Long]
     T ~ l.signed     ==== l                    --: typed[Long]
@@ -1768,42 +1960,55 @@ class MathTest {
     T ~ (l + k)      ==== 0xA2D0357A810F423DL  --: typed[ULong]
     T ~ (l + i)      ==== 0xA2D0357A54E6FC81L  --: typed[ULong]
     T ~ (l + b)      ==== 0xA2D03579B4E6FD49L  --: typed[ULong]
+    T ~ (l +# k)     ==== (l + k)              --: typed[ULong]
+    T ~ (lsm +# lbg) ==== ((-1L).u - 1L.u)     --: typed[ULong]
+    T ~ (lbg +# lsm) ==== ((-1L).u - 1L.u)     --: typed[ULong]
+    T ~ (k +# k)     ==== (2 * k.signed)       --: typed[ULong] 
+    T ~ (l +# l)     ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (l +# lsm)   ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (lsm +# l)   ==== ULong.MaxValue       --: typed[ULong]
     T ~ (l +! k)     ==== (l + k)              --: typed[ULong]
-    T ~ (lsm +! lbg) ==== ((-1L).u - 1L.u)     --: typed[ULong]
-    T ~ (lbg +! lsm) ==== ((-1L).u - 1L.u)     --: typed[ULong]
-    T ~ (k +! k)     ==== (2 * k.signed)       --: typed[ULong] 
-    T ~ (l +! l)     ==== ULong.MaxValue       --: typed[ULong]
-    T ~ (l +! lsm)   ==== ULong.MaxValue       --: typed[ULong]
-    T ~ (lsm +! l)   ==== ULong.MaxValue       --: typed[ULong]
+    T ~ (l +! l)     ==== thrown[ArithmeticException]
+    T ~ (lsm +! l)   ==== thrown[ArithmeticException]
     T ~ (l - k)      ==== 0xA2D03578E8BEB6C5L  --: typed[ULong]
     T ~ (l - i)      ==== 0xA2D0357914E6FC81L  --: typed[ULong]
     T ~ (l - b)      ==== 0xA2D03579B4E6FBB9L  --: typed[ULong]
+    T ~ (l -# k)     ==== (l - k)              --: typed[ULong]
+    T ~ (k -# l)     ==== 0L                   --: typed[ULong]
+    T ~ (lsm -# lbg) ==== 0L                   --: typed[ULong]
+    T ~ (lbg -# lsm) ==== 4L                   --: typed[ULong]
+    T ~ (1L.u -# k)  ==== 0L                   --: typed[ULong]
+    T ~ (k -# 1L.u)  ==== 3425191355L          --: typed[ULong]
     T ~ (l -! k)     ==== (l - k)              --: typed[ULong]
-    T ~ (k -! l)     ==== 0L                   --: typed[ULong]
-    T ~ (lsm -! lbg) ==== 0L                   --: typed[ULong]
-    T ~ (lbg -! lsm) ==== 4L                   --: typed[ULong]
-    T ~ (1L.u -! k)  ==== 0L                   --: typed[ULong]
-    T ~ (k -! 1L.u)  ==== 3425191355L          --: typed[ULong]
+    T ~ (k -! l)     ==== thrown[ArithmeticException]
     T ~ (k * k)      ==== 0xA2D035797DBEE210L  --: typed[ULong]
     T ~ (k * i)      ==== 0x7F992B9580000000L  --: typed[ULong]
     T ~ (k * b)      ==== 0x9F7F767AE0L        --: typed[ULong]
+    T ~ (k *# k)     ==== (k * k)              --: typed[ULong]
+    T ~ (k *# l)     ==== ULong.MaxValue
+    T ~ (l *# k)     ==== ULong.MaxValue
+    T ~ (l *# l)     ==== ULong.MaxValue
+    T ~ (k *# 1L.u)  ==== k
+    T ~ (lba *# lbb) ==== ULong.MaxValue
+    T ~ (lbb *# lba) ==== ULong.MaxValue
+    T ~ (lsa *# lsb) ==== (ULong.MaxValue - 1.u)
+    T ~ (lsb *# lsa) ==== (ULong.MaxValue - 1.u)
     T ~ (k *! k)     ==== (k * k)              --: typed[ULong]
-    T ~ (k *! l)     ==== ULong.MaxValue
-    T ~ (l *! k)     ==== ULong.MaxValue
-    T ~ (l *! l)     ==== ULong.MaxValue
-    T ~ (k *! 1L.u)  ==== k
-    T ~ (lba *! lbb) ==== ULong.MaxValue
-    T ~ (lbb *! lba) ==== ULong.MaxValue
-    T ~ (lsa *! lsb) ==== (ULong.MaxValue - 1.u)
-    T ~ (lsb *! lsa) ==== (ULong.MaxValue - 1.u)
+    T ~ (k *! l)     ==== thrown[ArithmeticException]
+    T ~ (lba *! lbb) ==== thrown[ArithmeticException]
+    T ~ (lsb *! lsa) ==== (lsb * lsa)
     T ~ (l / k)      ==== k                    --: typed[ULong]
     T ~ (l / i)      ==== 4370486671L          --: typed[ULong]
     T ~ (l / b)      ==== 58659679130712469L   --: typed[ULong]
-    T ~ (l /! k)     ==== k                    --: typed[ULong]
+    T ~ (l /# k)     ==== k                    --: typed[ULong]
+    T ~ (l /# lz)    ==== ULong.MaxValue
+    T ~ (lz /# lz)   ==== lz
+    T ~ (l /! k)     ==== (l / k)              --: typed[ULong]
     T ~ (l % k)      ==== 925375089L           --: typed[ULong]
     T ~ (l % b)      ==== 25L                  --: typed[ULong]
     T ~ (l % i3)     ==== 25L                  --: typed[ULong]
-    T ~ (l %! k)     ==== (l % k)              --: typed[ULong]
+    T ~ (l %# k)     ==== (l % k)              --: typed[ULong]
+    T ~ (l %# lz)    ==== lz
     T ~ (l | k)      ==== 0xA2D03579FCEEFDBDL  --: typed[ULong]
     T ~ (l & k)      ==== 0x84204480L          --: typed[ULong]
     T ~ (l ^ k)      ==== 0xA2D0357978CEB93DL  --: typed[ULong]
@@ -1823,16 +2028,29 @@ class MathTest {
     T ~ (l>>UInt(8)) ==== 0xA2D03579B4E6FCL    --: typed[ULong]
     T ~ (l << 8)     ==== 0xD03579B4E6FC8100L  --: typed[ULong]
     T ~ (l<<UInt(4)) ==== 0x2D03579B4E6FC810L  --: typed[ULong]
-    T ~ (l max k)    ==== l                    --: typed[ULong]
-    T ~ (k max l)    ==== l                    --: typed[ULong]
-    T ~ (l min k)    ==== k                    --: typed[ULong]
-    T ~ (k min l)    ==== k                    --: typed[ULong]
-    T ~ l.toByte     ==== 0x81.toByte          --: typed[Byte]
-    T ~ l.toUByte    ==== UByte(0x81)          --: typed[UByte]
-    T ~ l.toShort    ==== 0xFC81.toShort       --: typed[Short]
-    T ~ l.toChar     ==== '\uFC81'             --: typed[Char]
-    T ~ l.toInt      ==== 0xB4E6FC81.toInt     --: typed[Int]
-    T ~ l.toUInt     ==== UInt(0xB4E6FC81)     --: typed[UInt]
+    T ~ (l max k)       ==== l                 --: typed[ULong]
+    T ~ (k max l)       ==== l                 --: typed[ULong]
+    T ~ (l min k)       ==== k                 --: typed[ULong]
+    T ~ (k min l)       ==== k                 --: typed[ULong]
+    T ~ k.clamp(lz, l)  ==== k                 --: typed[ULong]
+    T ~ lz.clamp(k, l)  ==== k
+    T ~ lz.clamp(l, k)  ==== l
+    T ~ l.clamp(lz, k)  ==== k
+    T ~ k.exact(lz, l)  ==== k                 --: typed[ULong]
+    T ~ lz.exact(k, l)  ==== thrown[ArithmeticException]
+    T ~ l.exact(lz, k)  ==== thrown[ArithmeticException]
+    T ~ k.in(lz, l)     ==== true
+    T ~ lz.in(k, l)     ==== false
+    T ~ l.in(lz, k)     ==== false
+    T ~ k.in(l, lz)     ==== false
+    T ~ l.toByte        ==== 0x81.toByte       --: typed[Byte]
+    T ~ l.toUByte       ==== UByte(0x81)       --: typed[UByte]
+    T ~ l.toShort       ==== 0xFC81.toShort    --: typed[Short]
+    T ~ l.toChar        ==== '\uFC81'          --: typed[Char]
+    T ~ l.toInt         ==== 0xB4E6FC81.toInt  --: typed[Int]
+    T ~ l.toUInt        ==== UInt(0xB4E6FC81)  --: typed[UInt]
+    T ~ l.toFloat       ==== 1.1731935826142495E19f --: typed[Float]
+    T ~ l.toDouble      ==== 1.1731935826142495E19  --: typed[Double]
     T ~ l2.clampToByte  ==== l2                --: typed[Byte]
     T ~ l3.clampToByte  ==== Byte.MaxValue     --: typed[Byte]
     T ~ l.clampToByte   ==== Byte.MaxValue     --: typed[Byte]
@@ -1853,7 +2071,24 @@ class MathTest {
     T ~ l.clampToUInt   ==== UInt.MaxValue     --: typed[UInt]
     T ~ l6.clampToLong  ==== l6                --: typed[Long]
     T ~ l.clampToLong   ==== Long.MaxValue     --: typed[Long]
+    T ~ l2.exactToByte  ==== l2                --: typed[Byte]
+    T ~ l3.exactToByte  ==== thrown[ArithmeticException]
+    T ~ l3.exactToUByte ==== UByte(200)        --: typed[UByte]
+    T ~ l4.exactToUByte ==== thrown[ArithmeticException]
+    T ~ l3.exactToShort ==== l3                --: typed[Short]
+    T ~ l4.exactToShort ==== thrown[ArithmeticException]
+    T ~ l4.exactToChar  ==== '\u9C40'          --: typed[Char]
+    T ~ l5.exactToChar  ==== thrown[ArithmeticException]
+    T ~ l4.exactToInt   ==== l4                --: typed[Int]
+    T ~ l5.exactToInt   ==== thrown[ArithmeticException]
+    T ~ l5.exactToUInt  ==== UInt(0xEE6B2800)  --: typed[UInt]
+    T ~ l6.exactToUInt  ==== thrown[ArithmeticException]
+    T ~ l6.exactToLong  ==== l6                --: typed[Long]
+    T ~ l.exactToLong   ==== thrown[ArithmeticException]
     T ~ l.pr            ==== "11731935826142493825"
+    T ~ l.hexString     ==== "A2D03579B4E6FC81"
+    T ~ l.hiHexString   ==== "A2D03579B4E6FC81"
+    T ~ l.loHexString   ==== "a2d03579b4e6fc81"
 
 
   @Test
@@ -2242,6 +2477,9 @@ class MathTest {
     T ~ Frac.approx(0.3125) ==== (10 over 32)
     T ~ Frac.approx(-1.0/0) ==== (-1 over 0)
     T ~ Frac.approx(0.0/0)  ==== (0 over 1).overflowed
+    T ~ Frac.scaleClamped(100000000000L, -15 over 15)         ==== -100000000000L
+    T ~ Frac.scaleClamped(100000000000L, Int.MaxValue over 1) ==== Long.MaxValue
+    T ~ Frac.scaleClamped(100000000000L, Int.MinValue over 1) ==== Long.MinValue
 
 
   @Test
@@ -3814,6 +4052,7 @@ class MathTest {
     T ~ lp.intTo(0)(0x87EAD223) ==== 0xD30AB6E887EAD223L
     T ~ lp.intTo(1)(0xBEEFDEAD) ==== 0xBEEFDEAD2CF54917L
     T ~ lp.reverseInts ==== 0x2CF54917D30AB6E8L
+
 
   @Test
   def temporalTest(): Unit =

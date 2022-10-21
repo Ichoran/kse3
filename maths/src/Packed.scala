@@ -1727,24 +1727,6 @@ extension (z8: Byte) {
 
   inline def reverseHex: Byte =
     (((z8 & 0xF0) >> 4) | ((z8 & 0xF) << 4)).toByte
-
-  def hiHexString: String =
-    val ans = new Array[Char](2)
-    val hi = (z8 & 0xF0) >> 4
-    ans(0) = (hi + (if hi < 10 then '0' else '7')).toChar
-    val lo = z8 & 0xF
-    ans(1) = (lo + (if lo < 10 then '0' else '7')).toChar
-    new String(ans)
-
-  def loHexString: String =
-    val ans = new Array[Char](2)
-    val hi = (z8 & 0xF0) >> 4
-    ans(0) = (hi + (if hi < 10 then '0' else 'W')).toChar
-    val lo = z8 & 0xF
-    ans(1) = (lo + (if lo < 10 then '0' else 'W')).toChar
-    new String(ans)
-
-  inline def hexString: String = hiHexString
 }
 
 
@@ -1788,30 +1770,6 @@ extension (z16: Short) {
   inline def reverseHex: Short =
     val b = ((z16 & 0xFF00) >> 8) | ((z16 & 0xFF) << 8)
     (((b & 0xF0F0) >> 4) | ((b & 0x0F0F) << 4)).toShort
-
-  def hiHexString: String =
-    val ans = new Array[Char](4)
-    var v = z16 & 0xFFFF
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  def loHexString: String =
-    val ans = new Array[Char](4)
-    var v = z16 & 0xFFFF
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  inline def hexString: String = hiHexString
 
   inline def byte(index: ByteIndices.S): Byte =
     ((z16 >>> 8*index) & 0xFF).toByte
@@ -1864,30 +1822,6 @@ extension (z16: Char) {
     val b = ((z16 & 0xFF00) >> 8) | ((z16 & 0xFF) << 8)
     (((b & 0xF0F0) >> 4) | ((b & 0x0F0F) << 4)).toChar
 
-  def hiHexString: String =
-    val ans = new Array[Char](4)
-    var v = z16.toInt
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  def loHexString: String =
-    val ans = new Array[Char](4)
-    var v = z16.toInt
-    var i = 3
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  inline def hexString: String = hiHexString
-
   inline def byte(index: ByteIndices.C): Byte =
     ((z16 >>> 8*index) & 0xFF).toByte
 
@@ -1913,12 +1847,7 @@ extension (z32: Int) {
     val m = (0xFFFFFFFF << i0) & (0xFFFFFFFF >>> (32-iN))
     (z32 & ~m) | ((value << i0) & m)
 
-  def reverseBits: Int =
-    val s = ((z32 & 0xFFFF0000) >>> 16) | ((z32 & 0xFFFF) << 16)
-    val b = ((s & 0xFF00FF00) >>> 8) | ((s & 0x00FF00FF) << 8)
-    val h = ((b & 0xF0F0F0F0) >>> 4) | ((b & 0x0F0F0F0F) << 4)
-    val q = ((h & 0xCCCCCCCC) >>> 2) | ((h & 0x33333333) << 2)
-    ((q & 0xAAAAAAAA) >>> 1) | ((q & 0x55555555) << 1)
+  def reverseBits: Int = java.lang.Integer.reverse(z32)
 
   def bitString: String =
     val ans = new Array[Char](32)
@@ -1941,39 +1870,13 @@ extension (z32: Int) {
     val b = ((s & 0xFF00FF00) >>> 8) | ((s & 0x00FF00FF) << 8)
     ((b & 0xF0F0F0F0) >>> 4) | ((b & 0x0F0F0F0F) << 4)
 
-  def hiHexString: String =
-    val ans = new Array[Char](8)
-    var v = z32
-    var i = 7
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  def loHexString: String =
-    val ans = new Array[Char](8)
-    var v = z32
-    var i = 7
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  inline def hexString: String = hiHexString
-
   inline def byte(index: ByteIndices.I): Byte =
     ((z32 >>> 8*index) & 0xFF).toByte
 
   inline def byteTo(index: ByteIndices.I)(value: Byte): Int =
     (z32 & ~(0xFF << 8*index)) | ((value & 0xFF) << 8*index)
 
-  inline def reverseBytes: Int =
-    val s = ((z32 & 0xFFFF0000) >>> 16) | ((z32 & 0xFFFF) << 16)
-    ((s & 0xFF00FF00) >>> 8) | ((s & 0x00FF00FF) << 8)
+  inline def reverseBytes: Int = java.lang.Integer.reverseBytes(z32)
 
   inline def short(index: ShortIndices.I): Short =
     ((z32 >>> 16*index) & 0xFFFF).toShort
@@ -2008,13 +1911,7 @@ extension (z64: Long) {
     val m = (0xFFFFFFFFFFFFFFFFL << i0) & (0xFFFFFFFFFFFFFFFFL >>> (64-iN))
     (z64 & ~m) | (((value+0L) << i0) & m)
 
-  def reverseBits: Long =
-    val i = ((z64 & 0xFFFFFFFF00000000L) >>> 32) | ((z64 & 0x00000000FFFFFFFFL) << 32)
-    val s = (( i  & 0xFFFF0000FFFF0000L) >>> 16) | (( i  & 0x0000FFFF0000FFFFL) << 16)
-    val b = (( s  & 0xFF00FF00FF00FF00L) >>>  8) | (( s  & 0x00FF00FF00FF00FFL) <<  8)
-    val h = (( b  & 0xF0F0F0F0F0F0F0F0L) >>>  4) | (( b  & 0x0F0F0F0F0F0F0F0FL) <<  4)
-    val q = (( h  & 0xCCCCCCCCCCCCCCCCL) >>>  2) | (( h  & 0x3333333333333333L) <<  2)
-    (       (( q  & 0xAAAAAAAAAAAAAAAAL) >>>  1) | (( q  & 0x5555555555555555L) <<  1) )
+  def reverseBits: Long = java.lang.Long.reverse(z64)
 
   def bitString: String =
     val ans = new Array[Char](64)
@@ -2038,40 +1935,13 @@ extension (z64: Long) {
     val b = (( s  & 0xFF00FF00FF00FF00L) >>>  8) | (( s  & 0x00FF00FF00FF00FFL) <<  8)
     (       (( b  & 0xF0F0F0F0F0F0F0F0L) >>>  4) | (( b  & 0x0F0F0F0F0F0F0F0FL) <<  4) )
 
-  def hiHexString: String =
-    val ans = new Array[Char](16)
-    var v = z64
-    var i = 15
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else '7')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  def loHexString: String =
-    val ans = new Array[Char](16)
-    var v = z64
-    var i = 15
-    while i >= 0 do
-      val digit = v & 0xF
-      ans(i) = (digit + (if (digit < 10) '0' else 'W')).toChar
-      v = v >>> 4
-      i -= 1
-    new String(ans)
-
-  inline def hexString: String = hiHexString
-
   inline def byte(index: ByteIndices.L): Byte =
     ((z64 >>> 8*index) & 0xFF).toByte
 
   inline def byteTo(index: ByteIndices.L)(value: Byte): Long =
     (z64 & ~(0xFFL << 8*index)) | ((value & 0xFFL) << 8*index)
 
-  def reverseBytes: Long =
-    val i = ((z64 & 0xFFFFFFFF00000000L) >>> 32) | ((z64 & 0x00000000FFFFFFFFL) << 32)
-    val s = (( i  & 0xFFFF0000FFFF0000L) >>> 16) | (( i  & 0x0000FFFF0000FFFFL) << 16)
-    (       (( s  & 0xFF00FF00FF00FF00L) >>>  8) | (( s  & 0x00FF00FF00FF00FFL) <<  8) )
+  def reverseBytes: Long = java.lang.Long.reverseBytes(z64)
 
   inline def short(index: ShortIndices.L): Short =
     ((z64 >>> 16*index) & 0xFFFF).toShort
