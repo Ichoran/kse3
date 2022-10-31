@@ -672,21 +672,10 @@ extension (b: Byte) {
     else if c == -1 && b == Byte.MinValue then Byte.MaxValue
     else (b / c).toByte
   inline def %#(c: Byte): Byte = if c == 0 then 0 else (b % c).toByte
-  def +!(c: Byte): Byte =
-    val x = b + c
-    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
-    else x.toByte
-  def -!(c: Byte): Byte =
-    val x = b - c
-    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
-    else x.toByte
-  def *!(c: Byte): Byte =
-    val x = b * c
-    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
-    else x.toByte
-  def /!(c: Byte): Byte =
-    if c == -1 && b == Byte.MinValue then throw new ArithmeticException("byte overflow")
-    else (b/c).toByte
+  // +! moved to OverloadedExtensions
+  // -! moved to OverloadedExtensions
+  // *! moved to OverloadedExtensions
+  // /! moved to OverloadedExtensions
   inline def clamp(lo: Byte, hi: Byte) =
     if lo <= b then
       if b <= hi then b
@@ -733,21 +722,10 @@ extension (s: Short) {
     else if t == -1 && s == Short.MinValue then Short.MaxValue
     else (s / t).toShort
   inline def %#(t: Short): Short = if t == 0 then 0 else (s % t).toShort
-  def +!(t: Short): Short =
-    val x = s + t
-    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
-    else x.toShort
-  def -!(t: Short): Short =
-    val x = s - t
-    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
-    else x.toShort
-  def *!(t: Short): Short =
-    val x = s * t
-    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
-    else x.toShort
-  def /!(t: Short): Short =
-    if t == -1 && s == Short.MinValue then throw new ArithmeticException("short overflow")
-    else (s/t).toShort
+  // +! moved to OverloadedExtensions
+  // -! moved to OverloadedExtensions
+  // *! moved to OverloadedExtensions
+  // /! moved to OverloadedExtensions
   inline def clamp(lo: Short, hi: Short) =
     if lo <= s then
       if s <= hi then s
@@ -825,10 +803,10 @@ extension (i: Int) {
     else if j == -1 && i == Int.MinValue then Int.MaxValue
     else i / j
   inline def %#(j: Int): Int = if j == 0 then 0 else i % j
-  inline def +!(j: Int) = jm.addExact(i, j)
-  inline def -!(j: Int) = jm.subtractExact(i, j)
-  inline def *!(j: Int) = jm.multiplyExact(i, j)
-  inline def /!(j: Int) = if j == -1 && i == Int.MinValue then throw new ArithmeticException("int overflow") else i/j
+  // +! moved to OverloadedExtensions
+  // -! moved to OverloadedExtensions
+  // *! moved to OverloadedExtensions
+  // /! moved to OverloadedExtensions
   inline def clamp(lo: Int, hi: Int) =
     if lo <= i then
       if i <= hi then i
@@ -914,10 +892,10 @@ extension (l: Long) {
     else if k == -1L && l == Long.MinValue then Long.MaxValue
     else l / k
   inline def %#(k: Long): Long = if k == 0 then 0 else l % k
-  inline def +!(k: Long): Long = jm.addExact(l, k)
-  inline def -!(k: Long): Long = jm.subtractExact(l, k)
-  inline def *!(k: Long): Long = jm.multiplyExact(l, k)
-  inline def /!(k: Long): Long = if k == -1 && l == Long.MinValue then throw new ArithmeticException("long overflow") else l / k
+  // +! moved to OverloadedExtensions
+  // -! moved to OverloadedExtensions
+  // *! moved to OverloadedExtensions
+  // /! moved to OverloadedExtensions
   inline def clamp(lo: Long, hi: Long) =
     if lo <= l then
       if l <= hi then l
@@ -1026,6 +1004,24 @@ extension (f: Float) {
         big <= 1 || x <= big*fractol
       case _ => false
   inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
+
+  def toUByte: kse.maths.UByte =
+    if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
+  def toUInt: kse.maths.UInt =
+    if f < 0 then UInt(0)
+    else
+      val l = f.toLong
+      if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
+  def toULong: kse.maths.ULong =
+    if      f < 0              then ULong(0)
+    else if f <   9.223372e18f then ULong(f.toLong)
+    else if f >= 1.8446744e19f then ULong.MaxValue
+    else
+      val fbits = java.lang.Float.floatToRawIntBits(f)
+      val frac = (fbits & 0x7FFFFF) | 0x800000
+      val exp  = (fbits >>> 23) & 0xFF
+      if exp == 0xFF then ULong(0)  // NaN
+      else ULong(frac.toLong << (exp-150))
 }
 
 extension (d: Double) {
@@ -1087,6 +1083,24 @@ extension (d: Double) {
         val big = jm.max(jm.abs(d), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
+
+  def toUByte: kse.maths.UByte =
+    if d < 0 then UByte(0) else if d > 255 then UByte(255) else UByte((d.toInt & 0xFF).toByte)
+  def toUInt: kse.maths.UInt =
+    if d < 0 then UInt(0)
+    else
+      val l = d.toLong
+      if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
+  def toULong: kse.maths.ULong =
+    if      d < 0                      then ULong(0)
+    else if d <   9.223372036854776e18 then ULong(d.toLong)
+    else if d >= 1.8446744073709552e19 then ULong.MaxValue
+    else
+      val dbits = java.lang.Double.doubleToRawLongBits(d)
+      val frac = (dbits & 0xFFFFFFFFFFFFFL) | 0x10000000000000L
+      val exp  = (dbits >>> 52) & 0x7FF
+      if exp == 0x7FF then ULong(0)  // NaN
+      else ULong(frac.toLong << (exp-1075))
 }
 
 extension (inline x: Byte | Short | Int | Long | Float | Double) {

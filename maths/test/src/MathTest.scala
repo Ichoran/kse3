@@ -8,6 +8,8 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
+import java.time._
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -4056,9 +4058,78 @@ class MathTest {
 
   @Test
   def temporalTest(): Unit =
+    T ~ 2.days             ==== Duration.ofSeconds(172800)
+    T ~ 3.h                ==== Duration.ofSeconds(10800)
+    T ~ 4.m                ==== Duration.ofSeconds(240)
+    T ~ 5.s                ==== Duration.ofSeconds(5)
+    T ~ 6.ms               ==== Duration.ofSeconds(0, 6000000)
+    T ~ 7.us               ==== Duration.ofSeconds(0, 7000)
+    T ~ 8.ns               ==== Duration.ofSeconds(0, 8)
+    T ~ 2.0.days           ==== DoubleDuration(86400*2)
+    T ~ 3.0.h              ==== DoubleDuration(10.8e3)
+    T ~ 4.0.m              ==== DoubleDuration(240.0)
+    T ~ 5.0.s              ==== DoubleDuration(5)
+    T ~ 6.0.ms             ==== DoubleDuration(0.006)
+    T ~ 7.0.us             ==== DoubleDuration(0.000007)
+    T ~ 8.0.ns             ==== DoubleDuration(8e-9)
+
+    val dmin = DurationCompanion.MIN
+    val dmax = DurationCompanion.MAX
+    val twoB = 2000000000
+    val sfrac = 10985802 + (1 over 3)
+    val bfrac = 10985802 + (3 over 7)
+    val d = Duration.ofSeconds(839571998156L, 875114185)
+    T ~ -(2.days)          ==== (-2).days
+    T ~ -dmin              ==== DurationCompanion.MAX
+    T ~ (5.h + 1.days)     ==== 29.h
+    T ~ (twoB.days + 1.ns) ==== Duration.ofSeconds(172800000000000L, 1)
+    T ~ (dmax + 1.ns)      ==== dmax
+    T ~ (dmin + (-1).h)    ==== dmin
+    T ~ (5.h +! 1.days)    ==== 29.h
+    T ~ (dmax +! 1.ns)     ==== thrown[ArithmeticException]
+    T ~ (dmin +! (-1).h)   ==== thrown[ArithmeticException]
+    T ~ (5.h - 1.day)      ==== -19.h
+    T ~ (twoB.days - 1.ns) ==== Duration.ofSeconds(172799999999999L, 999999999)
+    T ~ (dmin - 1.ns)      ==== dmin
+    T ~ (dmax - (-1).ns)   ==== dmax
+    T ~ (5.h -! 1.day)     ==== -19.h
+    T ~ (dmin -! 1.ns)     ==== thrown[ArithmeticException]
+    T ~ (dmax -! (-1.ns))  ==== thrown[ArithmeticException]
+    T ~ (10.us * 10000000) ==== 100.s
+    T ~ (99999.h * twoB)   ==== Duration.ofSeconds(199998000000000L * 3600)
+    T ~ (-999.h*twoB*twoB) ==== dmin
+    T ~ ( 999.h*twoB*twoB) ==== dmax
+    T ~ (d * 1234567890)   ==== dmax
+    T ~ (d * 10985802)     ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
+    T ~ (d * -10985802)    ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
+    T ~ (-d * 10985802)    ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
+    T ~ (-d * -10985802)   ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
+    T ~ (d * 10985803)     ==== dmax
+    T ~ (d * -10985803)    ==== dmin
+    T ~ (-d * 10985803)    ==== dmin
+    T ~ (-d * -10985803)   ==== dmax
+    T ~ (10.us *! 1000000) ==== 10.s
+    T ~ (d *! 10985802)    ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
+    T ~ (d *! -10985802)   ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
+    T ~ (-d *! 10985802)   ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
+    T ~ (-d *! -10985802)  ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
+    T ~ (d *! 10985803)    ==== thrown[ArithmeticException]
+    T ~ (d *! -10985803)   ==== thrown[ArithmeticException]
+    T ~ (-d *! 10985803)   ==== thrown[ArithmeticException]
+    T ~ (-d *! -10985803)  ==== thrown[ArithmeticException]
+    T ~ (d * sfrac)        ==== Duration.ofSeconds( 9223372016353127662L, 122172765)
+    T ~ (d * -sfrac)       ==== Duration.ofSeconds(-9223372016353127663L, 877827235)
+    T ~ (-d * sfrac)       ==== Duration.ofSeconds(-9223372016353127663L, 877827235)
+    T ~ (-d * -sfrac)      ==== Duration.ofSeconds( 9223372016353127662L, 122172765)
+    T ~ (d * bfrac)        ==== dmax
+    T ~ (d * -bfrac)       ==== dmin
+    T ~ (-d * bfrac)       ==== dmin
+    T ~ (-d * -bfrac)      ==== dmax
+    /*
     T ~ NanoInstant(5L)    ==== 5L
     T ~ NanoDuration(5L)   ==== 5L
     T ~ NanoDuration(5L).D ==== 5e-9
+    */
 }
 object MathsTest {
   // @BeforeClass

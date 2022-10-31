@@ -12,6 +12,52 @@ import scala.annotation.targetName
 
 import kse.maths._
 
+
+
+extension (inline t: Byte | Short | Int | Long | Float | Double) {
+  transparent inline def days: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofDays(i)
+    case d: Double => DoubleDuration(d * 86400)
+    case _ => compiletime.error("Use .days on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
+
+  transparent inline def day: Duration | DoubleDuration = inline t match
+    case _: 1   => Duration.ofDays(1)
+    case _: 1.0 => DoubleDuration(86400.0)
+    case _      => compiletime.error("Use .day on 1 to get a Duration or on 1.0 to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
+
+  transparent inline def h: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofHours(i)
+    case d: Double => DoubleDuration(d * 3600)
+    case _ => compiletime.error("Use .h on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.hr or .toDouble.hr to specify which.")
+
+  transparent inline def m: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofMinutes(i)
+    case d: Double => DoubleDuration(d * 60)
+    case _ => compiletime.error("Use .m on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.m or .toDouble.m to specify which.")
+
+  transparent inline def s: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofSeconds(i)
+    case d: Double => DoubleDuration(d)
+    case _ => compiletime.error("Use .s on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.s or .toDouble.s to specify which.")
+
+  transparent inline def ms: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofMillis(i)
+    case d: Double => DoubleDuration(d / 1e3)
+    case _ => compiletime.error("Use .ms on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ms or .toDouble.ms to specify which.")
+
+  transparent inline def us: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofNanos(i*1000L)
+    case d: Double => DoubleDuration(d / 1e6)
+    case _ => compiletime.error("Use .us on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.us or .toDouble.us to specify which.")
+
+  transparent inline def ns: Duration | DoubleDuration = inline t match
+    case i: Int => Duration.ofNanos(i)
+    case d: Double => DoubleDuration(d / 1e9)
+    case _ => compiletime.error("Use .ns on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ns or .toDouble.ns to specify which.")
+}
+
+
+
 object FileTimeCompanion {
   val MAX = FileTime.from(Long.MaxValue, TimeUnit.SECONDS)
   val MIN = FileTime.from(Long.MinValue, TimeUnit.SECONDS)
@@ -22,6 +68,8 @@ object DurationCompanion {
 
   val MaxMicros: Duration  = Duration.ofSeconds(Long.MaxValue, 999000)
   val MaxMillis: Duration  = Duration.ofSeconds(Long.MaxValue, 900000)
+  val MaxSeconds: Duration = Duration.ofSeconds(Long.MaxValue)
+  val MinSeconds: Duration = MIN
   val MaxMinutes: Duration = Duration.ofSeconds( 9223372036854775800L)
   val MinMinutes: Duration = Duration.ofSeconds(-9223372036854775800L)
   val MaxHours: Duration   = Duration.ofSeconds( 9223372036854774000L)
@@ -102,10 +150,19 @@ object DurationCompanion {
     else
       robustFileTimeFrom(ft.to(TimeUnit.SECONDS), 0, ds, dn, subtract, 1000000000)
 
+  def exactAddition(ft: FileTime, d: Duration, subtract: Boolean): FileTime =
+    val ft2 = robustAddition(ft, d, subtract)
+    val ft0 = robustAddition(ft2, d, !subtract)
+    if ft0 == ft then ft2
+    else throw new ArithmeticException("overflow or loss of precision in FileTime")
+
   def add(d: Duration, dd: Duration): Duration =
     val ns = d.getNano + dd.getNano
     val cs = d.getSeconds +# dd.getSeconds
-    if ns == 0 then Duration.ofSeconds(cs)
+    if ns == 0 then
+      if cs < Long.MaxValue then Duration.ofSeconds(cs)
+      else if (d.getSeconds + dd.getSeconds) == Long.MaxValue then DurationCompanion.MaxSeconds
+      else DurationCompanion.MAX
     else if cs > Long.MinValue && cs < Long.MaxValue then
       if ns <= 1000000000 then Duration.ofSeconds(cs, ns)
       else Duration.ofSeconds(cs + 1, ns - 1000000000)
@@ -122,7 +179,10 @@ object DurationCompanion {
   def sub(d: Duration, dd: Duration): Duration =
     val ns = d.getNano - dd.getNano
     val cs = d.getSeconds -# dd.getSeconds
-    if ns == 0 then Duration.ofSeconds(cs)
+    if ns == 0 then
+      if cs < Long.MaxValue then Duration.ofSeconds(cs)
+      else if (d.getSeconds - dd.getSeconds) == Long.MaxValue then DurationCompanion.MaxSeconds
+      else DurationCompanion.MAX
     else if cs > Long.MinValue && cs < Long.MaxValue then
       if ns >= 0 then Duration.ofSeconds(cs, ns)
       else Duration.ofSeconds(cs - 1, ns + 1000000000)
@@ -137,40 +197,48 @@ object DurationCompanion {
         else if ss != Long.MinValue || ns >= 0 then DurationCompanion.MAX
         else Duration.ofSeconds(Long.MaxValue, ns + 1000000000)
   def mul(d: Duration, scale: Int): Duration =
-    if d.getNano == 0 || scale == 0 then Duration.ofSeconds(d.getSeconds *# scale)
+    if scale == 0 then return Duration.ZERO
+    var ns = d.getNano
+    var ds = d.getSeconds
+    if ns == 0 then
+      val ds = d.getSeconds
+      val s = ds *# scale
+      if s < Long.MaxValue || (s == ds * scale) then Duration.ofSeconds(s)
+      else DurationCompanion.MAX
+    else if ds > Int.MinValue && ds <= Int.MaxValue then d.multipliedBy(scale)
     else if scale == 1 then d
     else if scale == -1 then
-      if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX
+      if ds == Long.MinValue && ns == 0 then DurationCompanion.MAX
       else d.negated
+    else if ds == Long.MinValue then
+      if scale < 0 then DurationCompanion.MAX
+      else DurationCompanion.MIN
     else
-      val ds = d.getSeconds
-      if ds > Int.MinValue && ds <= Int.MaxValue then d.multipliedBy(scale)
-      else if ds == Long.MinValue then
-        if scale > 0 then DurationCompanion.MIN else DurationCompanion.MAX
+      val neg = scale < 0 == ds >= 0
+      if ds < 0 then
+        ds = -(ds + 1)
+        ns = 1000000000 - ns
+      val sc = if scale < 0 then -scale.toLong else scale.toLong
+      var hi = (ds >>> 32) * sc
+      var md = ((ds >>> 1) & 0x7FFFFFFFL) * sc
+      var lo = ((1000000000 * (ds&1)) + ns) * sc
+      val lover = lo / 2000000000
+      if lover > 0 then
+        lo -= 2000000000*lover
+        md += lover
+      val mover = md >>> 31
+      if mover > 0 then
+        md = md & 0x7FFFFFFFL
+        hi += mover
+      if (hi & 0x7FFFFFFFL) != hi then
+        if neg then DurationCompanion.MIN else DurationCompanion.MAX
       else
-        val neg = scale < 0 == ds >= 0
-        val as = if ds < 0 then -ds else ds
-        val sc = if scale < 0 then -scale.toLong else scale.toLong
-        var hi = (as >>> 32) * sc
-        var md = ((as >>> 1) & 0x7FFFFFFFL) * sc
-        var lo = ((1000000000 * (as&1)) + d.getNano) * sc
-        val lover = lo / 2000000000
-        if lover > 0 then
-          lo -= 2000000000*lover
-          md += lover
-        var mover = md >>> 31
-        if mover > 0 then
-          mover = mover & 0x7FFFFFFFL
-          hi += mover
-        if (hi & 0x7FFFFFFFL) != hi then
-          if neg then DurationCompanion.MIN else DurationCompanion.MAX
-        else
-          var s = (hi << 32) + (md << 1) + (if lo >= 1000000000 then 1 else 0)
-          var ns = (if lo >= 1000000000 then lo - 1000000000 else lo).toInt
-          if neg then
-            if ns == 0 then Duration.ofSeconds(-s)
-            else Duration.ofSeconds(-s - 1, 1000000000 - ns)
-          else Duration.ofSeconds(s, ns)
+        var s = (hi << 32) + (md << 1) + (if lo >= 1000000000 then 1 else 0)
+        var ns = (if lo >= 1000000000 then lo - 1000000000 else lo).toInt
+        if neg then
+          if ns == 0 then Duration.ofSeconds(-s)
+          else Duration.ofSeconds(-s - 1, 1000000000 - ns)
+        else Duration.ofSeconds(s, ns)
   def mul(d: Duration, frac: Frac): Duration =
     var hi = 0L
     var md = d.getSeconds
@@ -728,6 +796,14 @@ extension (d: Duration) {
   // +(OffsetDateTime) in OverloadedExtensions
   // +(ZonedDateTime) in OverloadedExtensions
   // +(FileTime) in OverloadedExtensions
+  // +!(Duration) in OverloadedExtensions
+  // -!(Duration) in OverloadedExtensions
+  // *!(Int) in OverloadedExtensions
+  // +!(Instant) in OverloadedExtensions
+  // +!(LocalDateTime) in OverloadedExtensions
+  // +!(OffsetDateTime) in OverloadedExtensions
+  // +!(ZonedDateTime) in OverloadedExtensions
+  // +!(FileTime) in OverloadedExtensions
   // trunc in OverloadedExtensions
 
   def nano: kse.maths.NanoDuration =
@@ -737,53 +813,12 @@ extension (d: Duration) {
       else NanoDuration((d.getSeconds + 1) *# 1000000000L +# (d.getNano - 1000000000L))
     else
       NanoDuration(d.getSeconds *# 1000000000L +# d.getNano)
-  inline def D: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
+  inline def double: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
 
   inline def into:  kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
   inline def round: kse.maths.DurationCompanion.Round = DurationCompanion.Round(d)
   inline def floor: kse.maths.DurationCompanion.Floor = DurationCompanion.Floor(d)
   inline def ceil:  kse.maths.DurationCompanion.Ceil  = DurationCompanion.Ceil (d)
-}
-extension (inline t: Byte | Short | Int | Long | Float | Double) {
-  transparent inline def days: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofDays(i)
-    case d: Double => DoubleDuration(d * 86400)
-    case _ => compiletime.error("Use .days on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
-
-  transparent inline def day: Duration | DoubleDuration = inline t match
-    case _: 1   => Duration.ofDays(1)
-    case _: 1.0 => DoubleDuration(86400.0)
-    case _      => compiletime.error("Use .day on 1 to get a Duration or on 1.0 to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
-
-  transparent inline def h: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofHours(i)
-    case d: Double => DoubleDuration(d * 3600)
-    case _ => compiletime.error("Use .h on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.hr or .toDouble.hr to specify which.")
-
-  transparent inline def m: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofMinutes(i)
-    case d: Double => DoubleDuration(d * 60)
-    case _ => compiletime.error("Use .m on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.m or .toDouble.m to specify which.")
-
-  transparent inline def s: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofSeconds(i)
-    case d: Double => DoubleDuration(d)
-    case _ => compiletime.error("Use .s on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.s or .toDouble.s to specify which.")
-
-  transparent inline def ms: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofMillis(i)
-    case d: Double => DoubleDuration(d / 1e3)
-    case _ => compiletime.error("Use .ms on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ms or .toDouble.ms to specify which.")
-
-  transparent inline def us: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofNanos(i*1000L)
-    case d: Double => DoubleDuration(d / 1e6)
-    case _ => compiletime.error("Use .us on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.us or .toDouble.us to specify which.")
-
-  transparent inline def ns: Duration | DoubleDuration = inline t match
-    case i: Int => Duration.ofNanos(i)
-    case d: Double => DoubleDuration(d / 1e9)
-    case _ => compiletime.error("Use .ns on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ns or .toDouble.ns to specify which.")
 }
 
 /*
@@ -904,7 +939,7 @@ object NanoDuration {
     inline def max(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap < et.unwrap then et else dt
     inline def min(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap > et.unwrap then et else dt
 
-    inline def D: kse.maths.DoubleDuration = DoubleDuration(dt)
+    inline def double: kse.maths.DoubleDuration = DoubleDuration(dt)
     def duration: Duration =
       val s = dt.unwrap/1000000000
       val n = dt.unwrap - s
@@ -2050,3 +2085,18 @@ extension (filetime: FileTime) {
   def instant = filetime.toInstant
 }
 */
+
+
+opaque type Tic = Long
+object Tic {
+  def apply(): kse.maths.Tic = NanoInstant.now.unwrap
+
+  extension (t: Tic) {
+    inline def unwrap: Long = t
+  }
+  extension (t: kse.maths.Tic) {
+    inline def toc: kse.maths.NanoDuration = NanoInstant(t.unwrap).age
+  }
+}
+
+inline def tic: kse.maths.Tic = Tic()

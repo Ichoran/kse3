@@ -25,7 +25,61 @@ import java.nio.file.attribute.FileTime
 import scala.annotation.targetName
 
 
+extension (value: Byte) {
+  /////////////////////////////////
+  // Overflow-throwing operators //
+  /////////////////////////////////
+  def +!(b: Byte): Byte =
+    val x = value + b
+    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
+    else x.toByte
+  def -!(b: Byte): Byte =
+    val x = value - b
+    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
+    else x.toByte
+  def *!(b: Byte): Byte =
+    val x = value * b
+    if x < -128 || x > 127 then throw new ArithmeticException("byte overflow")
+    else x.toByte
+  def /!(b: Byte): Byte =
+    if b == -1 && value == Byte.MinValue then throw new ArithmeticException("byte overflow")
+    else (value/b).toByte
+}
+
+
+extension (value: Short) {
+  /////////////////////////////////
+  // Overflow-throwing operators //
+  /////////////////////////////////
+  def +!(s: Short): Short =
+    val x = value + s
+    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
+    else x.toShort
+  def -!(s: Short): Short =
+    val x = value - s
+    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
+    else x.toShort
+  def *!(s: Short): Short =
+    val x = value * s
+    if x < -32768 || x > 32767 then throw new ArithmeticException("short overflow")
+    else x.toShort
+  def /!(s: Short): Short =
+    if s == -1 && value == Short.MinValue then throw new ArithmeticException("short overflow")
+    else (value/s).toShort
+}
+
+
 extension (value: Int) {
+  /////////////////////////////////
+  // Overflow-throwing operators //
+  /////////////////////////////////
+  inline def +!(i: Int) = jm.addExact(value, i)
+  inline def -!(i: Int) = jm.subtractExact(value, i)
+  inline def *!(i: Int) = jm.multiplyExact(value, i)
+  inline def /!(i: Int) =
+    if i == -1 && value == Int.MinValue then throw new ArithmeticException("int overflow")
+    else value / i
+
   ////////////////////////////////////////
   // Int _ Frac Operators (Maths.scala) //
   ////////////////////////////////////////
@@ -58,6 +112,16 @@ extension (value: Int) {
 
 
 extension (value: Long) {
+  /////////////////////////////////
+  // Overflow-throwing operators //
+  /////////////////////////////////
+  inline def +!(l: Long): Long = jm.addExact(value, l)
+  inline def -!(l: Long): Long = jm.subtractExact(value, l)
+  inline def *!(l: Long): Long = jm.multiplyExact(value, l)
+  inline def /!(l: Long): Long =
+    if l == -1 && value == Long.MinValue then throw new ArithmeticException("long overflow")
+    else value / l
+
   /////////////////////////////////////
   // Time operators (Temporal.scala) //
   /////////////////////////////////////
@@ -169,6 +233,15 @@ extension (d: Duration) {
   @targetName("Duration_add_FileTime")
   def +(ft: FileTime): FileTime =
     DurationCompanion.robustAddition(ft, d, subtract = false)
+
+  inline def +!(dd: Duration): Duration = d plus dd
+  inline def -!(dd: Duration): Duration = d minus dd
+  inline def *!(scale: Int): Duration = d multipliedBy scale
+  inline def +!(i: Instant): Instant = i plus d
+  inline def +!(ldt: LocalDateTime): LocalDateTime = ldt plus d
+  inline def +!(odt: OffsetDateTime): OffsetDateTime = odt plus d
+  inline def +!(zdt: ZonedDateTime): ZonedDateTime = zdt plus d
+  inline def +!(ft: FileTime): FileTime = DurationCompanion.exactAddition(ft, d, subtract = false)
 
 
   ////////////////////////////////////////
