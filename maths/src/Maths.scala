@@ -682,10 +682,10 @@ extension (b: Byte) {
       else if lo <= hi then hi
       else lo
     else lo
-  inline def exact(lo: Byte, hi: Byte) =
+  inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
+  inline def checkIn(lo: Byte, hi: Byte) =
     if b < lo || b > hi then throw new ArithmeticException("byte out of range")
     else b
-  inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
 
   @targetName("byte_hiHex") inline def hiHexString: String = ToHexString.hi(b)
   @targetName("byte_loHex") inline def loHexString: String = ToHexString.lo(b)
@@ -732,10 +732,10 @@ extension (s: Short) {
       else if lo <= hi then hi
       else lo
     else lo
-  inline def exact(lo: Short, hi: Short): Short =
+  inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
+  inline def checkIn(lo: Short, hi: Short): Short =
     if s < lo || s > hi then throw new ArithmeticException("short out of range")
     else s
-  inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
 
   @targetName("short_hiHex") inline def hiHexString: String = ToHexString.hi(s)
   @targetName("short_loHex") inline def loHexString: String = ToHexString.lo(s)
@@ -766,10 +766,10 @@ extension (c: Char) {
       else if lo <= hi then hi
       else lo
     else lo
-  inline def exact(lo: Char, hi: Char) =
+  inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
+  inline def checkIn(lo: Char, hi: Char) =
     if c < lo || c > hi then throw new ArithmeticException("char out of range")
     else c
-  inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
 
   @targetName("char_hiHex") inline def hiHexString: String = ToHexString.hi(c)
   @targetName("char_loHex") inline def loHexString: String = ToHexString.lo(c)
@@ -813,10 +813,10 @@ extension (i: Int) {
       else if lo <= hi then hi
       else lo
     else lo
-  inline def exact(lo: Int, hi: Int) =
+  inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
+  inline def checkIn(lo: Int, hi: Int) =
     if i < lo || i > hi then throw new ArithmeticException("int out of range")
     else i
-  inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
 
   @targetName("int_hiHex") inline def hiHexString: String = ToHexString.hi(i)
   @targetName("int_loHex") inline def loHexString: String = ToHexString.lo(i)
@@ -902,10 +902,10 @@ extension (l: Long) {
       else if lo <= hi then hi
       else lo
     else lo
-  inline def exact(lo: Long, hi: Long) =
+  inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
+  inline def checkIn(lo: Long, hi: Long) =
     if l < lo || l > hi then throw new ArithmeticException("long overflow")
     else l
-  inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
 
   @targetName("long_hiHex") inline def hiHexString: String = ToHexString.hi(l)
   @targetName("long_loHex") inline def loHexString: String = ToHexString.lo(l)
@@ -1299,12 +1299,12 @@ object UByte {
         else lo
       else lo
 
-    def exact(lo: kse.maths.UByte, hi: kse.maths.UByte): kse.maths.UByte =
-      if (b.signed & 0xFF) < (lo.signed & 0xFF) || (b.signed & 0xFF) > (hi.signed & 0xFF) then throw new ArithmeticException("UByte out of range")
-      else b
-
     def in(lo: kse.maths.UByte, hi: kse.maths.UByte): Boolean =
       (lo.signed & 0xFF) <= (b.signed & 0xFF) && (b.signed & 0xFF) <= (hi.signed & 0xFF)
+
+    def checkIn(lo: kse.maths.UByte, hi: kse.maths.UByte): kse.maths.UByte =
+      if (b.signed & 0xFF) < (lo.signed & 0xFF) || (b.signed & 0xFF) > (hi.signed & 0xFF) then throw new ArithmeticException("UByte out of range")
+      else b
 
     inline def toShort:  Short           =           (b.signed & 0xFF).toShort
     inline def toChar:   Char            =           (b.signed & 0xFF).toChar
@@ -1438,12 +1438,12 @@ object UInt {
         else lo
       else lo
 
-    def exact(lo: kse.maths.UInt, hi: kse.maths.UInt): kse.maths.UInt =
-      if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("UInt out of range")
-      else i
-
     def in(lo: kse.maths.UInt, hi: kse.maths.UInt): Boolean =
       compareUnsigned(lo.signed, i.signed) <= 0 && compareUnsigned(i.signed, hi.signed) <= 0
+
+    def checkIn(lo: kse.maths.UInt, hi: kse.maths.UInt): kse.maths.UInt =
+      if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("UInt out of range")
+      else i
 
     inline def toByte:   Byte            =            i.signed.toByte
     inline def toUByte:  kse.maths.UByte = UByte.wrap(i.signed.toByte)
@@ -1618,12 +1618,12 @@ object ULong {
         else lo
       else lo
 
-    def exact(lo: kse.maths.ULong, hi: kse.maths.ULong): kse.maths.ULong =
-      if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("ULong out of range")
-      else i
-
     def in(lo: kse.maths.ULong, hi: kse.maths.ULong): Boolean =
       compareUnsigned(lo.signed, i.signed) <= 0 && compareUnsigned(i.signed, hi.signed) <= 0
+
+    def checkIn(lo: kse.maths.ULong, hi: kse.maths.ULong): kse.maths.ULong =
+      if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("ULong out of range")
+      else i
 
     inline def toByte:  Byte            =            i.signed.toByte
     inline def toUByte: kse.maths.UByte = UByte.wrap(i.signed.toByte)
@@ -1853,7 +1853,7 @@ object PlusMinus {
     (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL) | (java.lang.Float.floatToRawIntBits(value).toLong << 32)
   inline def D(value: Double, error: Double): kse.maths.PlusMinus =
     apply(value.toFloat, error.toFloat)
-  inline def exact(value: Float): kse.maths.PlusMinus =
+  inline def exactly(value: Float): kse.maths.PlusMinus =
     java.lang.Float.floatToRawIntBits(value).toLong << 32
 
   extension (pm: PlusMinus) {
@@ -1968,14 +1968,17 @@ extension (value: Float) {
 
 opaque type Frac = Long
 object Frac {
-  inline def wrap(f: Long): Frac = f
+  inline def wrap(f: Long): kse.maths.Frac = f
 
-  def apply(num: Int, denom: Int): Frac =
+  final val MinValue: kse.maths.Frac = 0x8000000100000001L
+  final val MaxValue: kse.maths.Frac = 0x7FFFFFFF00000001L
+
+  def apply(num: Int, denom: Int): kse.maths.Frac =
     if denom == 0 then
-      if num == Int.MinValue then 0x7FFFFFFF80000000L
-      else (num.toLong << 32) | 0x80000000L
-    else if num == 0 then
-      0x1L
+      if num > 0 then 0x180000000L
+      else if num == 0 then 0x80000000L
+      else 0xFFFFFFFF80000000L
+    else if num == 0 then 0x1L
     else
       val sh = java.lang.Integer.numberOfTrailingZeros(num | denom)
       if sh == 0 && (num == Int.MinValue || denom == Int.MinValue) then
@@ -2152,19 +2155,21 @@ object Frac {
       gcdReduceAny(f.numerL * g.numerL, f.denomL * g.denomL) | f.overflowBit | g.overflowBit
 
     def /(i: Int): kse.maths.Frac =
-      val ans =
-        if i == 0 then apply(f.numer, 0)
-        else if i < 0 then gcdReduceAny(-f.numerL, -f.denomL * i.toLong)
-        else               gcdReduceAny( f.numerL,  f.denomL * i)
-      ans | f.overflowBit
+      if i == 0 then apply(f.numer, 0)
+      else
+        val ans =
+          if i < 0 then gcdReduceAny(-f.numerL, -f.denomL * i.toLong)
+          else          gcdReduceAny( f.numerL,  f.denomL * i)
+        ans | f.overflowBit
 
     def /(g: Frac): kse.maths.Frac =
       val ng = g.numerL
-      val ans =
-        if ng == 0 then apply(f.numer, 0)
-        else if ng < 0 then gcdReduceAny(-f.numerL * g.denomL, -ng * f.denomL) 
-        else                gcdReduceAny( f.numerL * g.denomL,  ng * f.denomL)
-      ans | f.overflowBit | g.overflowBit
+      if ng == 0 then apply(f.numer, 0)
+      else
+        val ans =
+          if ng < 0 then gcdReduceAny(-f.numerL * g.denomL, -ng * f.denomL) 
+          else           gcdReduceAny( f.numerL * g.denomL,  ng * f.denomL)
+        ans | f.overflowBit | g.overflowBit
 
     def reciprocal: kse.maths.Frac =
       val n = f.numerL
@@ -2201,11 +2206,12 @@ object Frac {
 
   def divide(value: Int, f: kse.maths.Frac): kse.maths.Frac =
     val n = f.numerL
-    val ans =
-      if n == 0 then apply(value, 0)
-      else if n < 0 then gcdReduceAny(-(value.toLong) * f.denomL, -n)
-      else               gcdReduceAny(  value.toLong  * f.denomL,  n)
-    ans | f.overflowBit
+    if n == 0 then apply(value, 0)
+    else
+      val ans =
+        if n < 0 then gcdReduceAny(-(value.toLong) * f.denomL, -n)
+        else          gcdReduceAny(  value.toLong  * f.denomL,  n)
+      ans | f.overflowBit
 
   private[this] def uncheckedApply(a: Int, b: Int, negative: Boolean, flip: Boolean): kse.maths.Frac =
     if flip then

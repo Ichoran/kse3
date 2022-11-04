@@ -204,7 +204,7 @@ extension (d: Duration) {
   inline def /(factor: Int): Duration = DurationCompanion.div(d, factor)
 
   @targetName("Duration_div_Frac")
-  inline def /(frac: Frac): Duration = DurationCompanion.div(d, frac)
+  inline def /(frac: Frac): Duration = DurationCompanion.mul(d, frac.reciprocal)
 
   @targetName("Duration_add_Instant")
   def +(i: Instant): Instant =
@@ -237,6 +237,8 @@ extension (d: Duration) {
   inline def +!(dd: Duration): Duration = d plus dd
   inline def -!(dd: Duration): Duration = d minus dd
   inline def *!(scale: Int): Duration = d multipliedBy scale
+  inline def /!(factor: Int): Duration = d dividedBy factor
+
   inline def +!(i: Instant): Instant = i plus d
   inline def +!(ldt: LocalDateTime): LocalDateTime = ldt plus d
   inline def +!(odt: OffsetDateTime): OffsetDateTime = odt plus d

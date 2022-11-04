@@ -66,8 +66,8 @@ object DurationCompanion {
   val MAX: Duration = Duration.ofSeconds(Long.MaxValue, 999999999)
   val MIN: Duration = Duration.ofSeconds(Long.MinValue)
 
-  val MaxMicros: Duration  = Duration.ofSeconds(Long.MaxValue, 999000)
-  val MaxMillis: Duration  = Duration.ofSeconds(Long.MaxValue, 900000)
+  val MaxMicros: Duration  = Duration.ofSeconds(Long.MaxValue, 999999000)
+  val MaxMillis: Duration  = Duration.ofSeconds(Long.MaxValue, 999000000)
   val MaxSeconds: Duration = Duration.ofSeconds(Long.MaxValue)
   val MinSeconds: Duration = MIN
   val MaxMinutes: Duration = Duration.ofSeconds( 9223372036854775800L)
@@ -76,6 +76,13 @@ object DurationCompanion {
   val MinHours: Duration   = Duration.ofSeconds(-9223372036854774000L)
   val MaxDays: Duration    = Duration.ofSeconds( 9223372036854720000L)
   val MinDays: Duration    = Duration.ofSeconds(-9223372036854720000L)
+
+  val MaxLongNanos:  Duration = Duration.ofSeconds( 9223372036L, 854775807)
+  val MinLongNanos:  Duration = Duration.ofSeconds(-9223372036L,-854775808)
+  val MaxLongMicros: Duration = Duration.ofSeconds( 9223372036854L, 775807000)
+  val MinLongMicros: Duration = Duration.ofSeconds(-9223372036854L,-775808000)
+  val MaxLongMillis: Duration = Duration.ofSeconds( 9223372036854775L, 807000000)
+  val MinLongMillis: Duration = Duration.ofSeconds(-9223372036854775L,-808000000)
 
   private[this] def robustFileTimeFrom(as: Long, an: Int, bs: Long, bn: Int, sub: Boolean, sig: Int): FileTime =
     // Note: as and bs are seconds (any value)
@@ -196,118 +203,201 @@ object DurationCompanion {
         if cs == Long.MinValue then DurationCompanion.MIN
         else if ss != Long.MinValue || ns >= 0 then DurationCompanion.MAX
         else Duration.ofSeconds(Long.MaxValue, ns + 1000000000)
-  def mul(d: Duration, scale: Int): Duration =
-    if scale == 0 then return Duration.ZERO
-    var ns = d.getNano
-    var ds = d.getSeconds
-    if ns == 0 then
-      val ds = d.getSeconds
-      val s = ds *# scale
-      if s < Long.MaxValue || (s == ds * scale) then Duration.ofSeconds(s)
+  def mul(d: Duration, scale: Int): Duration = scale match
+    case  0 => Duration.ZERO
+    case  1 => d
+    case -1 => if d == DurationCompanion.MIN then DurationCompanion.MAX else d.negated
+    case  _ =>
+      var ns = d.getNano
+      var ds = d.getSeconds
+      if ns == 0 then
+        val ds = d.getSeconds
+        val s = ds *# scale
+        if s < Long.MaxValue || (s == ds * scale) then Duration.ofSeconds(s)
+        else DurationCompanion.MAX
+      else if ds > Int.MinValue && ds <= Int.MaxValue then d.multipliedBy(scale)
+      else if ds == Long.MinValue then
+        if scale < 0 then DurationCompanion.MAX
+        else DurationCompanion.MIN
+      else
+        val neg = scale < 0 == ds >= 0
+        if ds < 0 then
+          ds = -(ds + 1)
+          ns = 1000000000 - ns
+        val sc = if scale < 0 then -scale.toLong else scale.toLong
+        var hi = (ds >>> 32) * sc
+        var md = ((ds >>> 1) & 0x7FFFFFFFL) * sc
+        var lo = ((1000000000 * (ds&1)) + ns) * sc
+        val lover = lo / 2000000000
+        if lover > 0 then
+          lo -= 2000000000*lover
+          md += lover
+        val mover = md >>> 31
+        if mover > 0 then
+          md = md & 0x7FFFFFFFL
+          hi += mover
+        if (hi & 0x7FFFFFFFL) != hi then
+          if neg then DurationCompanion.MIN else DurationCompanion.MAX
+        else
+          var s = (hi << 32) + (md << 1) + (if lo >= 1000000000 then 1 else 0)
+          var ns = (if lo >= 1000000000 then lo - 1000000000 else lo).toInt
+          if neg then
+            if ns == 0 then Duration.ofSeconds(-s)
+            else Duration.ofSeconds(-s - 1, 1000000000 - ns)
+          else Duration.ofSeconds(s, ns)
+  def mul(d: Duration, frac: Frac): Duration =
+    var md = d.getSeconds
+    val numer = frac.numer
+    val denom = frac.denom
+    val neg = md < 0 != numer < 0
+    if denom == 0 then
+      if d == Duration.ZERO then d
+      else if neg then DurationCompanion.MIN
       else DurationCompanion.MAX
-    else if ds > Int.MinValue && ds <= Int.MaxValue then d.multipliedBy(scale)
-    else if scale == 1 then d
-    else if scale == -1 then
-      if ds == Long.MinValue && ns == 0 then DurationCompanion.MAX
-      else d.negated
-    else if ds == Long.MinValue then
-      if scale < 0 then DurationCompanion.MAX
-      else DurationCompanion.MIN
     else
-      val neg = scale < 0 == ds >= 0
-      if ds < 0 then
-        ds = -(ds + 1)
-        ns = 1000000000 - ns
-      val sc = if scale < 0 then -scale.toLong else scale.toLong
-      var hi = (ds >>> 32) * sc
-      var md = ((ds >>> 1) & 0x7FFFFFFFL) * sc
-      var lo = ((1000000000 * (ds&1)) + ns) * sc
-      val lover = lo / 2000000000
-      if lover > 0 then
-        lo -= 2000000000*lover
-        md += lover
-      val mover = md >>> 31
-      if mover > 0 then
+      var hi = 0L
+      var lo = d.getNano.toLong
+      if md >= 0 then
+        hi = md >>> 32
+        if (md & 1) == 1 then lo += 1000000000
+        md = (md >> 1) & 0x7FFFFFFFL
+      else
+        if lo == 0 then
+          if (md & 1) == 1 then lo += 1000000000
+          if md == Long.MinValue then
+            hi = 0x80000000L
+            md = 0
+          else
+            hi = ((-md) >>> 32)
+            md = ((-md) >>> 1) & 0x7FFFFFFFL
+        else
+          md += 1
+          lo = 1000000000 - lo
+          hi = ((-md) >>> 32)
+          if (md & 1) == 1 then lo += 1000000000
+          md = ((-md) >>> 1) & 0x7FFFFFFFL
+      if numer == Int.MinValue then
+        hi = hi << 31
+        md = md << 31
+        lo = lo << 31
+      else
+        val nm = if numer < 0 then -numer else numer
+        hi *= nm
+        md *= nm
+        lo *= nm
+      val hr = hi % denom
+      hi /= denom
+      md += hr << 31
+      val mr = md % denom
+      md /= denom
+      lo += mr * 2000000000
+      lo /= denom
+      if lo >= 2000000000 then
+        md += lo / 2000000000
+        lo = lo % 2000000000
+      if md >= 0x7FFFFFFFL then
+        hi += (md >> 31)
         md = md & 0x7FFFFFFFL
-        hi += mover
-      if (hi & 0x7FFFFFFFL) != hi then
+      if hi > Int.MaxValue then
         if neg then DurationCompanion.MIN else DurationCompanion.MAX
       else
         var s = (hi << 32) + (md << 1) + (if lo >= 1000000000 then 1 else 0)
         var ns = (if lo >= 1000000000 then lo - 1000000000 else lo).toInt
         if neg then
-          if ns == 0 then Duration.ofSeconds(-s)
-          else Duration.ofSeconds(-s - 1, 1000000000 - ns)
-        else Duration.ofSeconds(s, ns)
-  def mul(d: Duration, frac: Frac): Duration =
-    var hi = 0L
-    var md = d.getSeconds
-    var lo = d.getNano.toLong
-    val numer = frac.numer
-    val denom = frac.denom
-    val neg = md < 0 != numer < 0
-    if md >= 0 then
-      hi = md >>> 32
-      if (md & 1) == 1 then lo += 1000000000
-      md = (md >> 1) & 0x7FFFFFFFL
+          s = -s
+          if ns > 0 then
+            s -= 1
+            ns = 1000000000 - ns
+        Duration.ofSeconds(s, ns)
+  def div(d: Duration, factor: Int): Duration = factor match
+    case  1 => d
+    case -1 => if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX else d.negated
+    case  0 => if d == Duration.ZERO then d else if d.getSeconds < 0 then DurationCompanion.MIN else DurationCompanion.MAX
+    case  _ => d dividedBy factor
+
+  private def durationAdjustSmall(
+    d: Duration, max: Duration,
+    base: Int, neg: Int, pos: Int
+  ): Duration =
+    var nano = d.getNano
+    if nano == 0 then d
     else
-      if lo == 0 then
-        if (md & 1) == 1 then lo += 1000000000
-        if md == Long.MinValue then
-          hi = 0x80000000L
-          md = 0
-        else
-          hi = ((-md) >>> 32)
-          md = ((-md) >>> 1) & 0x7FFFFFFFL
+      var sec = d.getSeconds
+      if sec < 0 then
+        if nano > 0 then
+          nano -= 1000000000
+          sec += 1
+        val x = (nano + neg) / base
+        val ns = x * base
+        if nano == ns then d else Duration.ofSeconds(sec, ns)
       else
-        md += 1
-        lo = 1000000000 - lo
-        hi = ((-md) >>> 32)
-        if (md & 1) == 1 then lo += 1000000000
-        md = ((-md) >>> 1) & 0x7FFFFFFFL
-    if numer == Int.MinValue then
-      hi = hi << 31
-      md = md << 31
-      lo = lo << 31
+        val x = (nano + pos) / base
+        val ns = x * base
+        if sec < Long.MaxValue || ns <= max.getNano then
+          if nano == ns then d else Duration.ofSeconds(sec, ns)
+        else max
+
+  private def durationAdjustLarge(
+    d: Duration, min: Duration, max: Duration,
+    base: Int, sneg: Int, nneg: Int, spos: Int, npos: Int
+  ): Duration =
+    var nano = d.getNano
+    var sec = d.getSeconds
+    if sec < 0 then
+      if nano > 0 then
+        sec += 1
+        nano += nneg - 1000000000
+      val q = sec / base
+      val s = q * base
+      val r = sec - s
+      if r == 0 && nano == 0 then d
+      else if (r + sneg + (if nano <= -1000000000 then -1 else 0)) <= -base then
+        if s > min.getSeconds then Duration.ofSeconds(s - base)
+        else min
+      else Duration.ofSeconds(s)
     else
-      val nm = if numer < 0 then -numer else numer
-      hi *= nm
-      md *= nm
-      lo *= nm
-    val hr = hi % denom
-    hi /= denom
-    md += hr << 31
-    val mr = md % denom
-    md /= denom
-    lo += mr * 2000000000
-    lo /= denom
-    if lo >= 2000000000 then
-      md += lo / 2000000000
-      lo = lo % 2000000000
-    if md >= 0x7FFFFFFFL then
-      hi += (md >> 31)
-      md = md & 0x7FFFFFFFL
-    if hi > Int.MaxValue then
-      if neg then DurationCompanion.MIN else DurationCompanion.MAX
+      val q = sec / base
+      val s = q * base
+      val r = sec - s
+      if r == 0 && nano == 0 then d
+      else if (r + spos + (if nano + npos < 1000000000 then 0 else 1)) >= base then
+        if s < max.getSeconds then Duration.ofSeconds(s + base)
+        else max
+      else Duration.ofSeconds(s)
+
+  private def durationSmallToLong(
+    d: Duration, min: Duration, max: Duration,
+    base: Int, neg: Int, pos: Int,
+    die: Boolean
+  ): Long =
+    var sec = d.getSeconds
+    var nano = d.getNano
+    if sec < 0 then
+      if nano > 0 then
+        sec += 1
+        nano -= 1000000000
+      if d.compareTo(min) > 0 then sec * (1000000000/base) + (nano + neg)/base
+      else if !die then Long.MinValue
+      else if sec == min.getSeconds + 1 && (nano + neg)/base == (min.getNano - 1000000000)/base then Long.MinValue
+      else throw new ArithmeticException("long overflow")
     else
-      var s = (hi << 32) + (md << 1) + (if lo >= 1000000000 then 1 else 0)
-      var ns = (if lo >= 1000000000 then lo - 1000000000 else lo).toInt
-      if neg then
-        s = -s
-        if ns > 0 then
-          s -= 1
-          ns = 1000000000 - ns
-      Duration.ofSeconds(s, ns)
-  def div(d: Duration, factor: Int): Duration =
-    if factor == 1 then d
-    else if factor == -1 then
-      if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX
-      else d.negated
-    else d.dividedBy(factor)
-  def div(d: Duration, frac: Frac): Duration =
-    if frac.numer == Int.MinValue then
-      ???
-    else mul(d, frac.reciprocal)
+      if d.compareTo(max) < 0 then sec * (1000000000/base) + (nano + pos)/base
+      else if !die || (sec == max.getSeconds && (nano + pos)/base == max.getNano/base) then Long.MaxValue
+      else throw new ArithmeticException("long overflow")
+
+  private def durationLargeToLong(
+    d: Duration,
+    base: Int, sneg: Int, nneg: Int, spos: Int, npos: Int
+  ): Long =
+    var sec = d.getSeconds
+    var nano = d.getNano
+    val neg = sec < 0
+    if neg && nano > 0 then
+      sec += 1
+      nano -= 1000000000
+    val q = sec / base
+    val r = sec - q * base + (if neg then sneg + (nano + nneg)/1000000000 else spos + (nano + npos)/1000000000)
+    q + (if r <= -base then -1 else if r >= base then 1 else 0)
 
   opaque type Into = Duration
   object Into {
@@ -316,33 +406,25 @@ object DurationCompanion {
     extension (in: Into) {
       def ns: Long =
         var sec = in.getSeconds
-        if sec < 0 then
-          var nano = in.getNano
-          if nano > 0 then
-            nano -= 1000000000
-            sec += 1
-          (sec *# 1000000000) +# nano
-        else
-          sec *# 1000000000 +# in.getNano
+        var nano = in.getNano
+        if sec < 0 && nano > 0 then
+          nano -= 1000000000
+          sec += 1
+        (sec *# 1000000000) +# nano
       def us: Long =
         var sec = in.getSeconds
-        if sec < 0 then
-          var nano = in.getNano
-          if nano > 0 then
-            nano -= 1000000000
-            sec += 1
-          (sec *# 1000000) +# nano/1000
-        else
-          sec *# 1000000 +# in.getNano/1000
+        var nano = in.getNano
+        if sec < 0 && nano > 0 then
+          nano -= 1000000000
+          sec += 1
+        (sec *# 1000000) +# nano/1000
       def ms: Long =
         var sec = in.getSeconds
-        if sec < 0 then
-          var nano = in.getNano
-          if nano > 0 then
-            nano -= 1000000000
-            sec += 1
-          (sec *# 1000) +# nano/1000000
-        else sec *# 1000 +# in.getNano/1000000
+        var nano = in.getNano
+        if sec < 0 && nano > 0 then
+          nano -= 1000000000
+          sec += 1
+        (sec *# 1000) +# nano/1000000
       def s:  Long =
         val ans = in.getSeconds
         if ans < 0 && in.getNano > 0 then ans + 1 else ans
@@ -372,83 +454,38 @@ object DurationCompanion {
     }
   }
 
+  opaque type Exact = Duration
+  object Exact {
+    def apply(d: Duration): kse.maths.DurationCompanion.Exact = d
+
+    extension (in: Exact) {
+      def ns: Long = (in: Duration).exactNano.unwrap
+      def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 0, true)
+      def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 0, true)
+
+      inline def round: kse.maths.DurationCompanion.ExactRound = in
+      inline def floor: kse.maths.DurationCompanion.ExactFloor = in
+      inline def ceil:  kse.maths.DurationCompanion.ExactCeil  = in
+    }
+
+  }
+
   opaque type Round = Duration
   object Round {
     def apply(d: Duration): kse.maths.DurationCompanion.Round = d
 
     extension (round: Round) {
-      def us: Duration =
-        val nano = round.getNano
-        if nano == 0 then round
-        else
-          val mod = nano % 1000
-          if mod == 0 then round
-          else
-            val sec = round.getSeconds
-            if sec > 0 then
-              if sec < Long.MaxValue || nano < 999999000 then
-                Duration.ofSeconds(sec, if mod <= 500 then nano - mod else nano + (1000 - mod))
-              else MaxMicros
-            else
-              Duration.ofSeconds(sec, if mod >= 500 then nano + (1000 - mod) else nano - mod)
-      def ms: Duration =
-        val nano = round.getNano
-        if nano == 0 then round
-        else
-          val mod = nano % 1000000
-          if mod == 0 then round
-          else
-            val sec = round.getSeconds
-            if sec > 0 then
-              if sec < Long.MaxValue || nano < 999000000 then
-                Duration.ofSeconds(sec, if mod <= 500000 then nano - mod else nano + (1000000 - mod))
-              else MaxMillis
-            else
-              Duration.ofSeconds(sec, if mod >= 500000 then nano + (1000000 - mod) else nano - mod)
-      def s: Duration =
-        val nano = round.getNano
-        if nano == 0 then round
-        else
-          val sec = round.getSeconds
-          if sec < 0 then Duration.ofSeconds(sec + (if sec < 500000000 then 0 else 1))
-          else Duration.ofSeconds(sec +# (if sec > 500000000 then 1 else 0))
-      def m: Duration =
-        val nano = round.getNano
-        val sec = round.getSeconds
-        val mod = sec % 60
-        if nano == 0 && mod == 0 then round
-        else if sec < 0 then
-          if sec <= MinMinutes.getSeconds then MinMinutes
-          else Duration.ofSeconds(if mod < -30 then sec - (60 + mod) else sec - mod)
-        else
-          if sec >= MaxMinutes.getSeconds then MaxMinutes
-          else Duration.ofSeconds(if mod < 30 || (mod == 30 && nano == 0) then sec - mod else sec + (60 - mod))
-      def h: Duration =
-        val nano = round.getNano
-        val sec = round.getSeconds
-        val mod = sec % 3600
-        if nano == 0 && mod == 0 then round
-        else if sec < 0 then
-          if sec <= MinHours.getSeconds then MinHours
-          else Duration.ofSeconds(if mod < -1800 then sec - (3600 + mod) else sec - mod)
-        else
-          if sec >= MaxHours.getSeconds then MaxHours
-          else Duration.ofSeconds(if mod < 1800 || (mod == 1800 && nano == 0) then sec - mod else sec + (3600 - mod))
-      def d: Duration =
-        val nano = round.getNano
-        val sec = round.getSeconds
-        val mod = sec % 86400
-        if nano == 0 && mod == 0 then round
-        else if sec < 0 then
-          if sec <= MinDays.getSeconds then MinDays
-          else Duration.ofSeconds(if mod < -43200 then sec - (86400 + mod) else sec - mod)
-        else
-          if sec >= MaxDays.getSeconds then MaxDays
-          else Duration.ofSeconds(if mod < 43200 || (mod == 43200 && nano == 0) then sec - mod else sec + (86400 - mod))
+      def us: Duration = durationAdjustSmall(round, MaxMicros, 1000, -499, 499)
+      def ms: Duration = durationAdjustSmall(round, MaxMillis, 1000000, -499999, 499999)
+      def  s: Duration = durationAdjustSmall(round, MaxSeconds, 1000000000, -499999999, 499999999)
+      def  m: Duration = durationAdjustLarge(round, MinMinutes, MaxMinutes, 60, -29, 999999999, 29, 999999999)
+      def  h: Duration = durationAdjustLarge(round, MinHours, MaxHours, 3600, -1799, 999999999, 1799, 999999999)
+      def  d: Duration = durationAdjustLarge(round, MinDays, MaxDays, 86400, -43199, 999999999, 43199, 999999999)
       inline def days = round.d
 
 
-      inline def into: kse.maths.DurationCompanion.InRound = round
+      inline def into:  kse.maths.DurationCompanion.InRound    = round
+      inline def exact: kse.maths.DurationCompanion.ExactRound = round
     }
   }
 
@@ -457,47 +494,16 @@ object DurationCompanion {
     def apply(d: Duration): kse.maths.DurationCompanion.Floor = d
 
     extension (floor: Floor) {
-      def us: Duration =
-        val nano = floor.getNano
-        if nano == 0 then floor
-        else
-          val mod = nano % 1000
-          if mod == 0 then floor else Duration.ofSeconds(floor.getSeconds, nano - mod)
-      def ms: Duration =
-        val nano = floor.getNano
-        if nano == 0 then floor
-        else
-          val mod = nano % 1000000
-          if mod == 0 then floor else Duration.ofSeconds(floor.getSeconds, nano - mod)
-      def s: Duration =
-        if floor.getNano == 0 then floor else Duration.ofSeconds(floor.getSeconds)
-      def m: Duration =
-        val sec = floor.getSeconds
-        val mod = sec % 60
-        if mod == 0 then
-          if floor.getNano == 0 then floor else Duration.ofSeconds(sec)
-        else if sec >= 0 then Duration.ofSeconds(sec - mod)
-        else if sec > MinMinutes.getSeconds then Duration.ofSeconds((sec - mod) - 60)
-        else MinMinutes
-      def h: Duration =
-        val sec = floor.getSeconds
-        val mod = sec % 3600
-        if mod == 0 then
-          if floor.getNano == 0 then floor else Duration.ofSeconds(sec)
-        else if sec >= 0 then Duration.ofSeconds(sec - mod)
-        else if sec > MinHours.getSeconds then Duration.ofSeconds((sec - mod) - 3600)
-        else MinHours
-      def d: Duration =
-        val sec = floor.getSeconds
-        val mod = sec % 86400
-        if mod == 0 then
-          if floor.getNano == 0 then floor else Duration.ofSeconds(sec)
-        else if sec >= 0 then Duration.ofSeconds(sec - mod)
-        else if sec > MinDays.getSeconds then Duration.ofSeconds((sec - mod) - 86400)
-        else MinDays
+      def us: Duration = durationAdjustSmall(floor, MaxMicros, 1000, -999, 0)
+      def ms: Duration = durationAdjustSmall(floor, MaxMillis, 1000000, -999999, 0)
+      def  s: Duration = if floor.getNano == 0 then floor else Duration.ofSeconds(floor.getSeconds)
+      def  m: Duration = durationAdjustLarge(floor, MinMinutes, MaxMinutes, 60, -59, 999999999, 0, 0)
+      def  h: Duration = durationAdjustLarge(floor, MinHours, MaxHours, 3600, -3599, 999999999, 0, 0)
+      def  d: Duration = durationAdjustLarge(floor, MinDays, MaxDays, 86400, -86399, 999999999, 0, 0)
       inline def days = floor.d
 
-      inline def into: kse.maths.DurationCompanion.InFloor = floor
+      inline def into:  kse.maths.DurationCompanion.InFloor    = floor
+      inline def exact: kse.maths.DurationCompanion.ExactFloor = floor
     }
   }
 
@@ -506,55 +512,16 @@ object DurationCompanion {
     def apply(d: Duration): kse.maths.DurationCompanion.Ceil = d
 
     extension (ceil: Ceil) {
-      def us: Duration =
-        val nano = ceil.getNano
-        if nano == 0 then ceil
-        else
-          val mod = nano % 1000
-          if mod == 0 then ceil
-          else
-            val sec = ceil.getSeconds
-            if sec < Long.MaxValue || nano < 999999000 then Duration.ofSeconds(ceil.getSeconds, nano + (1000 - mod))
-            else MaxMicros
-      def ms: Duration =
-        val nano = ceil.getNano
-        if nano == 0 then ceil
-        else
-          val mod = nano % 1000000
-          if mod == 0 then ceil
-          else
-            val sec = ceil.getSeconds
-            if sec < Long.MaxValue || nano < 999000000 then Duration.ofSeconds(ceil.getSeconds, nano + (1000000 - mod))
-            else MaxMillis
-      def s: Duration =
-        if ceil.getNano == 0 then ceil else Duration.ofSeconds(ceil.getSeconds +# 1)
-      def m: Duration =
-        val sec = ceil.getSeconds
-        val mod = sec % 60
-        if mod == 0 then
-          if ceil.getNano == 0 then ceil else Duration.ofSeconds((sec +# 60) min 9223372036854775800L)
-        else if sec < 0 then Duration.ofSeconds(sec - mod)
-        else if sec < MaxMinutes.getSeconds then Duration.ofSeconds(sec + (60 - mod))
-        else MaxMinutes
-      def h: Duration =
-        val sec = ceil.getSeconds
-        val mod = sec % 3600
-        if mod == 0 then
-          if ceil.getNano == 0 then ceil else Duration.ofSeconds((sec +# 3600) min 9223372036854774000L)
-        else if sec < 0 then Duration.ofSeconds(sec - mod)
-        else if sec < MaxHours.getSeconds then Duration.ofSeconds(sec + (3600 - mod))
-        else MaxHours
-      def d: Duration =
-        val sec = ceil.getSeconds
-        val mod = sec % 86400
-        if mod == 0 then
-          if ceil.getNano == 0 then ceil else Duration.ofSeconds((sec +# 86400) min 9223372036854720000L)
-        else if sec < 0 then Duration.ofSeconds(sec - mod)
-        else if sec < MaxDays.getSeconds then Duration.ofSeconds(sec + (86400 - mod))
-        else MaxDays
+      def us: Duration = durationAdjustSmall(ceil, MaxMicros, 1000, 0, 999)
+      def ms: Duration = durationAdjustSmall(ceil, MaxMillis, 1000000, 0, 999999)
+      def  s: Duration = durationAdjustSmall(ceil, MaxSeconds, 1000000000, 0, 999999999)
+      def  m: Duration = durationAdjustLarge(ceil, MinMinutes, MaxMinutes, 60, 0, 0, 59, 999999999)
+      def  h: Duration = durationAdjustLarge(ceil, MinHours, MaxHours, 3600, 0, 0, 3599, 999999999)
+      def  d: Duration = durationAdjustLarge(ceil, MinDays, MaxDays, 86400, 0, 0, 86399, 999999999)
       inline def days: Duration = ceil.d
 
-      inline def into: kse.maths.DurationCompanion.InCeil = ceil
+      inline def into:  kse.maths.DurationCompanion.InCeil    = ceil
+      inline def exact: kse.maths.DurationCompanion.ExactCeil = ceil
     }
   }
 
@@ -563,48 +530,12 @@ object DurationCompanion {
     def apply(d: Duration): kse.maths.DurationCompanion.Trunc = d
 
     extension (trunc: Trunc) {
-      def us: Duration =
-        val nano = trunc.getNano
-        if nano == 0 then trunc
-        else
-          val mod = nano % 1000
-          if mod == 0 then trunc
-          else
-            val sec = trunc.getSeconds
-            Duration.ofSeconds(sec, if sec < 0 then nano + (1000 - mod) else nano - mod)
-      def ms: Duration =
-        val nano = trunc.getNano
-        if nano == 0 then trunc
-        else
-          val mod = nano % 1000000
-          if mod == 0 then trunc
-          else
-            val sec = trunc.getSeconds
-            Duration.ofSeconds(sec, if sec < 0 then nano + (1000000 - mod) else nano - mod)
-      def s: Duration =
-        val nano = trunc.getNano
-        if nano == 0 then trunc
-        else
-          val sec = trunc.getSeconds
-          Duration.ofSeconds(if sec < 0 then sec + 1 else sec)
-      def m: Duration =
-        val nano = trunc.getNano
-        val sec = trunc.getSeconds
-        val mod = sec % 60
-        if nano == 0 && mod == 0 then trunc
-        else Duration.ofSeconds(if sec < 0 then sec + (60 + mod) else sec - mod)
-      def h: Duration =
-        val nano = trunc.getNano
-        val sec = trunc.getSeconds
-        val mod = sec % 3600
-        if nano == 0 && mod == 0 then trunc
-        else Duration.ofSeconds(if sec < 0 then sec + (3600 + mod) else sec - mod)
-      def d: Duration =
-        val nano = trunc.getNano
-        val sec = trunc.getSeconds
-        val mod = sec % 86400
-        if nano == 0 && mod == 0 then trunc
-        else Duration.ofSeconds(if sec < 0 then sec + (86400 + mod) else sec - mod)
+      def us: Duration = durationAdjustSmall(trunc, MaxMicros, 1000, 0, 0)
+      def ms: Duration = durationAdjustSmall(trunc, MaxMillis, 1000000, 0, 0)
+      def  s: Duration = durationAdjustSmall(trunc, MaxSeconds, 1000000000, 0, 0)
+      def  m: Duration = durationAdjustLarge(trunc, MinMinutes, MaxMinutes, 60, 0, 0, 0, 0)
+      def  h: Duration = durationAdjustLarge(trunc, MinHours, MaxHours, 3600, 0, 0, 0, 0)
+      def  d: Duration = durationAdjustLarge(trunc, MinDays, MaxDays, 86400, 0, 0, 0, 0)
       inline def days = trunc.d
     }
   }
@@ -612,25 +543,9 @@ object DurationCompanion {
   opaque type InRound = Duration
   object InRound {
     extension (round: InRound) {
-      def us: Long =
-        var sec = round.getSeconds
-        if sec == Long.MinValue then Long.MinValue
-        else
-          var nano = round.getNano
-          if sec < 0 && nano != 0 then
-            sec += 1
-            nano -= 1000000000
-          (sec *# 1000000) +# (nano + (if sec < 0 then -499 else 499))/1000
-      def ms: Long =
-        var sec = round.getSeconds
-        if sec == Long.MinValue then Long.MinValue
-        else
-          var nano = round.getNano
-          if sec < 0 && nano != 0 then
-            sec += 1
-            nano -= 1000000000
-          (sec *# 1000) +# (nano + (if sec < 0 then -499999 else 499999))/1000000
-      def s: Long =
+      def us: Long = durationSmallToLong(round, MinLongMicros, MaxLongMicros, 1000, -499, 499, false)
+      def ms: Long = durationSmallToLong(round, MinLongMillis, MaxLongMillis, 1000000, -499999, 499999, false)
+      def  s: Long =
         val sec = round.getSeconds
         val nano = round.getNano
         if sec < 0 then
@@ -639,39 +554,9 @@ object DurationCompanion {
         else
           if nano > 500000000 && sec < Long.MaxValue then sec + 1
           else sec
-      def m: Long =
-        val sec = round.getSeconds
-        if sec < MinMinutes.getSeconds then MinMinutes.getSeconds/60
-        else if sec > MaxMinutes.getSeconds then MaxMinutes.getSeconds/60
-        else
-          val minutes = sec/60
-          val err = sec - minutes*60
-          if sec < 0 then
-            if err < -30 then minutes - 1 else minutes
-          else
-            if err > 30 || (err == 30 && round.getNano > 0) then minutes + 1 else minutes
-      def h: Long =
-        val sec = round.getSeconds
-        if sec < MinHours.getSeconds then MinHours.getSeconds/3600
-        else if sec > MaxHours.getSeconds then MaxHours.getSeconds/3600
-        else
-          val hours = sec/3600
-          val err = sec - hours*3600
-          if sec < 0 then
-            if err < -1800 then hours - 1 else hours
-          else
-            if err > 1800 || (err == 1800 && round.getNano > 0) then hours + 1 else hours
-      def d: Long =
-        val sec = round.getSeconds
-        if sec < MinDays.getSeconds then MinDays.getSeconds/86400
-        else if sec > MaxDays.getSeconds then MaxDays.getSeconds/86400
-        else
-          val dayz = sec/86400
-          val err = sec - dayz*86400
-          if sec < 0 then
-            if err < -43200 then dayz - 1 else dayz
-          else
-            if err > 43200 || (err == 43200 && round.getNano > 0) then dayz + 1 else dayz
+      def  m: Long = durationLargeToLong(round, 60, -29, 999999999, 29, 999999999)
+      def  h: Long = durationLargeToLong(round, 3600, -1799, 999999999, 1799, 999999999)
+      def  d: Long = durationLargeToLong(round, 86400, -43199, 999999999, 43199, 999999999)
       def days: Long = round.d
     }
   }
@@ -679,52 +564,12 @@ object DurationCompanion {
   opaque type InFloor = Duration
   object InFloor {
     extension (floor: InFloor) {
-      def us: Long =
-        var sec = floor.getSeconds
-        if sec == Long.MinValue then Long.MinValue
-        else
-          var nano = floor.getNano
-          if sec < 0 && nano != 0 then
-            sec += 1
-            nano -= 1000000000
-          (sec *# 1000000) +# nano/1000
-      def ms: Long =
-        var sec = floor.getSeconds
-        if sec == Long.MinValue then Long.MinValue
-        else
-          var nano = floor.getNano
-          if sec < 0 && nano != 0 then
-            sec += 1
-            nano -= 1000000000
-          (sec *# 1000) +# nano/1000000
-      def s: Long = floor.getSeconds
-      def m: Long =
-        val sec = floor.getSeconds
-        if sec <= MinMinutes.getSeconds then MinMinutes.getSeconds/60
-        else if sec > MaxMinutes.getSeconds then MaxMinutes.getSeconds/60
-        else if sec >= 0 then sec/60
-        else
-          val minutes = sec/60
-          val error = sec - minutes*60
-          if error == 0 then minutes else minutes - 1
-      def h: Long =
-        val sec = floor.getSeconds
-        if sec <= MinHours.getSeconds then MinHours.getSeconds/3600
-        else if sec > MaxHours.getSeconds then MaxHours.getSeconds/3600
-        else if sec >= 0 then sec/3600
-        else
-          val hours = sec/3600
-          val error = sec - hours*3600
-          if error == 0 then hours else hours - 1
-      def d: Long =
-        val sec = floor.getSeconds
-        if sec <= MinDays.getSeconds then MinDays.getSeconds/86400
-        else if sec > MaxDays.getSeconds then MaxDays.getSeconds/86400
-        else if sec >= 0 then sec/86400
-        else
-          val dayz = sec/86400
-          val error = sec - dayz*86400
-          if error == 0 then dayz else dayz - 1
+      def us: Long = durationSmallToLong(floor, MinLongMicros, MaxLongMicros, 1000, -999, 0, false)
+      def ms: Long = durationSmallToLong(floor, MinLongMillis, MaxLongMillis, 1000000, -999999, 0, false)
+      def  s: Long = floor.getSeconds
+      def  m: Long = durationLargeToLong(floor, 60, -59, -999999999, 0, 0)
+      def  h: Long = durationLargeToLong(floor, 3600, -3599, -999999999, 0, 0)
+      def  d: Long = durationLargeToLong(floor, 86400, -86399, -999999999, 0, 0)
       inline def days = floor.d
     }
   }
@@ -732,51 +577,51 @@ object DurationCompanion {
   opaque type InCeil = Duration
   object InCeil {
     extension (ceil: InCeil) {
-      def us: Long =
-        val sec = ceil.getSeconds
-        if sec == Long.MaxValue then Long.MaxValue
-        else
-          (sec *# 1000000) +# (ceil.getNano + 999)/1000
-      def ms: Long =
-        val sec = ceil.getSeconds
-        if sec == Long.MaxValue then Long.MaxValue
-        else
-          (sec *# 1000) +# (ceil.getNano + 999999)/1000000
-      def s: Long =
-        val sec = ceil.getSeconds
-        if sec == Long.MaxValue then Long.MaxValue
-        else sec + (if ceil.getNano > 0 then 1 else 0)
-      def m: Long =
-        val sec = ceil.getSeconds
-        if sec >= MaxMinutes.getSeconds then MaxMinutes.getSeconds / 60
-        else
-          val minutes = sec / 60
-          val err = sec - minutes*60
-          if sec < 0 then
-            if err == 0 && ceil.getNano > 0 then minutes + 1 else minutes
-          else
-            if err == 0 && ceil.getNano == 0 then minutes else minutes + 1
-      def h: Long =
-        val sec = ceil.getSeconds
-        if sec >= MaxHours.getSeconds then MaxHours.getSeconds / 3600
-        else
-          val hours = sec / 3600
-          val err = sec - hours*3600
-          if sec < 0 then
-            if err == 0 && ceil.getNano > 0 then hours + 1 else hours
-          else
-            if err == 0 && ceil.getNano == 0 then hours else hours + 1
-      def d: Long =
-        val sec = ceil.getSeconds
-        if sec >= MaxDays.getSeconds then MaxDays.getSeconds / 86400
-        else
-          val dayz = sec / 86400
-          val err = sec - dayz*86400
-          if sec < 0 then
-            if err == 0 && ceil.getNano > 0 then dayz + 1 else dayz
-          else
-            if err == 0 && ceil.getNano == 0 then dayz else dayz + 1        
+      def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 999, false)
+      def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 999999, false)
+      def  s: Long = ceil.getSeconds + (if ceil.getNano > 0 && ceil.getSeconds < Long.MaxValue then 1 else 0)
+      def  m: Long = durationLargeToLong(ceil, 60, 0, 0, 59, 999999999)
+      def  h: Long = durationLargeToLong(ceil, 3600, 0, 0, 3599, 999999999)
+      def  d: Long = durationLargeToLong(ceil, 86400, 0, 0, 86399, 999999999)
       inline def days: Long = ceil.d
+    }
+  }
+
+  opaque type ExactRound = Duration
+  object ExactRound {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactRound = d
+    extension (round: ExactRound) {
+      def us: Long = durationSmallToLong(round, MinLongMicros, MaxLongMicros, 1000, -499, 499, true)
+      def ms: Long = durationSmallToLong(round, MinLongMillis, MaxLongMillis, 1000000, -499999, 499999, true)
+      def s: Long =
+        val sec = round.getSeconds
+        val nano = round.getNano
+        if sec < 0 then
+          if nano < 500000000 then sec
+          else sec + 1
+        else
+          if nano > 500000000 then
+            if sec < Long.MaxValue then sec + 1
+            else throw new ArithmeticException("long overflow")
+          else sec
+    }
+  }
+
+  opaque type ExactFloor = Duration
+  object ExactFloor {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactFloor = d
+    extension (floor: ExactFloor) {
+      def us: Long = durationSmallToLong(floor, MinLongMicros, MaxLongMicros, 1000, -999, 0, true)
+      def ms: Long = durationSmallToLong(floor, MinLongMillis, MaxLongMillis, 1000000, -999999, 0, true)
+    }
+  }
+
+  opaque type ExactCeil = Duration
+  object ExactCeil {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactCeil = d
+    extension (ceil: ExactCeil) {
+      def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 999, true)
+      def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 999999, true)
     }
   }
 }
@@ -799,6 +644,7 @@ extension (d: Duration) {
   // +!(Duration) in OverloadedExtensions
   // -!(Duration) in OverloadedExtensions
   // *!(Int) in OverloadedExtensions
+  // /!(Int) in OverloadedExtensions
   // +!(Instant) in OverloadedExtensions
   // +!(LocalDateTime) in OverloadedExtensions
   // +!(OffsetDateTime) in OverloadedExtensions
@@ -813,9 +659,17 @@ extension (d: Duration) {
       else NanoDuration((d.getSeconds + 1) *# 1000000000L +# (d.getNano - 1000000000L))
     else
       NanoDuration(d.getSeconds *# 1000000000L +# d.getNano)
+  inline def exactNano: kse.maths.NanoDuration =
+    if d.getSeconds < 0 then
+      if d.getSeconds == Long.MinValue then NanoDuration(Long.MinValue)
+      else if d.getNano == 0 then NanoDuration(d.getSeconds *! 1000000000L)
+      else NanoDuration((d.getSeconds + 1) *! 1000000000L +! (d.getNano - 1000000000L))
+    else
+      NanoDuration(d.getSeconds *! 1000000000L +! d.getNano)
   inline def double: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
 
   inline def into:  kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
+  inline def exact: kse.maths.DurationCompanion.Exact = DurationCompanion.Exact(d)
   inline def round: kse.maths.DurationCompanion.Round = DurationCompanion.Round(d)
   inline def floor: kse.maths.DurationCompanion.Floor = DurationCompanion.Floor(d)
   inline def ceil:  kse.maths.DurationCompanion.Ceil  = DurationCompanion.Ceil (d)
@@ -902,6 +756,9 @@ opaque type NanoDuration = Long
 object NanoDuration {
   inline def apply(nanos: Long): kse.maths.NanoDuration = nanos
   inline def since(nt: kse.maths.NanoInstant): kse.maths.NanoDuration = nt.age
+
+  final val MinValue: kse.maths.NanoDuration = apply(Long.MinValue)
+  final val MaxValue: kse.maths.NanoDuration = apply(Long.MaxValue)
 
   extension (dt: NanoDuration) {
     inline def unwrap: Long = dt
