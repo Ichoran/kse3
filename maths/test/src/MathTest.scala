@@ -4256,6 +4256,143 @@ class MathTest {
     T ~ (-dua - 501.ns).round.exact.us ==== Long.MinValue
     T ~ (-dub - 500.ns).round.exact.us ==== Long.MinValue
     T ~ (-dub - 501.ns).round.exact.us ==== thrown[ArithmeticException]
+    T ~ 185198.ns.ceil.into.us         ==== 186 --: typed[Long]
+    T ~ dua.ceil.into.us               ==== Long.MaxValue
+    T ~ (dua - 999.ns).ceil.into.us    ==== Long.MaxValue
+    T ~ (dua - 1000.ns).ceil.into.us   ==== Long.MaxValue - 1
+    T ~ (dua + 1.ns).ceil.into.us      ==== Long.MaxValue
+    T ~ -981581.ns.ceil.into.us        ==== -981
+    T ~ (-dub).ceil.into.us            ==== Long.MinValue
+    T ~ (-dua - 999.ns).ceil.into.us   ==== Long.MinValue + 1
+    T ~ (-dub - 999.ns).ceil.into.us   ==== Long.MinValue
+    T ~ (-dub - 1000.ns).ceil.into.us  ==== Long.MinValue
+    T ~ 185198.ns.ceil.exact.us        ==== 186 --: typed[Long]
+    T ~ dua.ceil.exact.us              ==== Long.MaxValue
+    T ~ (dua - 999.ns).ceil.exact.us   ==== Long.MaxValue
+    T ~ (dua - 1000.ns).ceil.exact.us  ==== Long.MaxValue - 1
+    T ~ (dua + 1.ns).ceil.exact.us     ==== thrown[ArithmeticException]
+    T ~ -981581.ns.ceil.exact.us       ==== -981
+    T ~ (-dub).ceil.exact.us           ==== Long.MinValue
+    T ~ (-dua - 999.ns).ceil.exact.us  ==== Long.MinValue + 1
+    T ~ (-dub - 999.ns).ceil.exact.us  ==== Long.MinValue
+    T ~ (-dub - 1000.ns).ceil.exact.us ==== thrown[ArithmeticException]
+    T ~ 185198.ns.floor.into.us      ==== 185 --: typed[Long]
+    T ~ dua.floor.into.us            ==== Long.MaxValue
+    T ~ (dua - 1.ns).floor.into.us   ==== Long.MaxValue - 1
+    T ~ (dub + 1.ns).floor.into.us   ==== Long.MaxValue
+    T ~ -981581.ns.floor.into.us     ==== -982
+    T ~ (-dub).floor.into.us         ==== Long.MinValue
+    T ~ (-dua).floor.into.us         ==== Long.MinValue + 1
+    T ~ (-dua - 1.ns).floor.into.us  ==== Long.MinValue
+    T ~ (-dub - 1.ns).floor.into.us  ==== Long.MinValue
+    T ~ 185198.ns.floor.exact.us     ==== 185 --: typed[Long]
+    T ~ dua.floor.exact.us           ==== Long.MaxValue
+    T ~ (dua - 1.ns).floor.exact.us  ==== Long.MaxValue - 1
+    T ~ (dub + 1.ns).floor.exact.us  ==== thrown[ArithmeticException]
+    T ~ -981581.ns.floor.exact.us    ==== -982
+    T ~ (-dub).floor.exact.us        ==== Long.MinValue
+    T ~ (-dua).floor.exact.us        ==== Long.MinValue + 1
+    T ~ (-dua - 1.ns).floor.exact.us ==== Long.MinValue
+    T ~ (-dub - 1.ns).floor.exact.us ==== thrown[ArithmeticException]
+
+    val dma = Duration.ofSeconds(9223372036854775L, 807000000)
+    val dmb = Duration.ofSeconds(9223372036854775L, 808000000)
+    T ~ d.floor.ms    ==== Duration.ofSeconds(839571998156L, 875000000)
+    T ~ d.ceil.ms     ==== Duration.ofSeconds(839571998156L, 876000000)
+    T ~ d.round.ms    ==== d.floor.ms
+    T ~ d.trunc.ms    ==== d.floor.ms
+    T ~ d2.floor.ms   ==== Duration.ofSeconds(839572005792L, 499000000)
+    T ~ d2.ceil.ms    ==== Duration.ofSeconds(839572005792L, 500000000)
+    T ~ d2.round.ms   ==== d2.ceil.ms
+    T ~ d2.trunc.ms   ==== d2.floor.ms
+    T ~ (-d).floor.ms ==== -(d.ceil.ms)
+    T ~ (-d).ceil.ms  ==== -(d.floor.ms)
+    T ~ (-d).round.ms ==== -(d.round.ms)
+    T ~ (-d).trunc.ms ==== (-d).ceil.ms
+    T ~ dmax.round.ms ==== dmax.floor.ms
+    T ~ dmax.ceil.ms  ==== dmax.floor.ms
+    T ~ 5.s.into.ms                 ==== 5000 --: typed[Long]
+    T ~ dma.into.ms                 ==== Long.MaxValue
+    T ~ (dma - 1.ns).into.ms        ==== Long.MaxValue - 1
+    T ~ dmb.into.ms                 ==== Long.MaxValue
+    T ~ (-5).s.into.ms              ==== -5000 --: typed[Long]
+    T ~ (-dma).into.ms              ==== -Long.MaxValue
+    T ~ (-dma - 999999.ns).into.ms  ==== -Long.MaxValue
+    T ~ (-dmb).into.ms              ==== Long.MinValue
+    T ~ (-dmb - 999999.ns).into.ms  ==== Long.MinValue
+    T ~ (-dmb - 1.ms).into.ms       ==== Long.MinValue
+    T ~ 5.s.exact.ms                ==== 5000 --: typed[Long]
+    T ~ dma.exact.ms                ==== Long.MaxValue
+    T ~ (dma - 1.ns).exact.ms       ==== Long.MaxValue - 1
+    T ~ dmb.exact.ms                ==== thrown[ArithmeticException]
+    T ~ (-5).s.exact.ms             ==== -5000 --: typed[Long]
+    T ~ (-dma).exact.ms             ==== -Long.MaxValue
+    T ~ (-dma - 999999.ns).exact.ms ==== -Long.MaxValue
+    T ~ (-dmb).exact.ms             ==== Long.MinValue
+    T ~ (-dmb - 999999.ns).exact.ms ==== Long.MinValue
+    T ~ (-dmb - 1.ms).exact.ms      ==== thrown[ArithmeticException]
+    T ~ 185198.us.round.into.ms           ==== 185 --: typed[Long]
+    T ~ dma.round.into.ms                 ==== Long.MaxValue
+    T ~ (dma - 1.ns).round.into.ms        ==== Long.MaxValue
+    T ~ (dma - 499999.ns).round.into.ms   ==== Long.MaxValue
+    T ~ (dma - 500000.ns).round.into.ms   ==== Long.MaxValue - 1
+    T ~ (dma + 500001.ns).round.into.ms   ==== Long.MaxValue
+    T ~ -981581.us.round.into.ms          ==== -982
+    T ~ (-dmb).round.into.ms              ==== Long.MinValue
+    T ~ (-dma - 500000.ns).round.into.ms  ==== Long.MinValue + 1
+    T ~ (-dma - 500001.ns).round.into.ms  ==== Long.MinValue
+    T ~ (-dmb - 500000.ns).round.into.ms  ==== Long.MinValue
+    T ~ (-dmb - 500001.ns).round.into.ms  ==== Long.MinValue
+    T ~ 185198.us.round.exact.ms          ==== 185 --: typed[Long]
+    T ~ dma.round.exact.ms                ==== Long.MaxValue
+    T ~ (dma - 1.ns).round.exact.ms       ==== Long.MaxValue
+    T ~ (dma - 499999.ns).round.exact.ms  ==== Long.MaxValue
+    T ~ (dma - 500000.ns).round.exact.ms  ==== Long.MaxValue - 1
+    T ~ (dma + 500001.ns).round.exact.ms  ==== thrown[ArithmeticException]
+    T ~ -981581.us.round.exact.ms         ==== -982
+    T ~ (-dmb).round.exact.ms             ==== Long.MinValue
+    T ~ (-dma - 500000.ns).round.exact.ms ==== Long.MinValue + 1
+    T ~ (-dma - 500001.ns).round.exact.ms ==== Long.MinValue
+    T ~ (-dmb - 500000.ns).round.exact.ms ==== Long.MinValue
+    T ~ (-dmb - 500001.ns).round.exact.ms ==== thrown[ArithmeticException]
+    T ~ 185198.us.ceil.into.ms            ==== 186 --: typed[Long]
+    T ~ dma.ceil.into.ms                  ==== Long.MaxValue
+    T ~ (dma - 999999.ns).ceil.into.ms    ==== Long.MaxValue
+    T ~ (dma - 1000000.ns).ceil.into.ms   ==== Long.MaxValue - 1
+    T ~ (dma + 1.ns).ceil.into.ms         ==== Long.MaxValue
+    T ~ -981581.us.ceil.into.ms           ==== -981
+    T ~ (-dmb).ceil.into.ms               ==== Long.MinValue
+    T ~ (-dma - 999999.ns).ceil.into.ms   ==== Long.MinValue + 1
+    T ~ (-dmb - 999999.ns).ceil.into.ms   ==== Long.MinValue
+    T ~ (-dmb - 1000000.ns).ceil.into.ms  ==== Long.MinValue
+    T ~ 185198.us.ceil.exact.ms           ==== 186 --: typed[Long]
+    T ~ dma.ceil.exact.ms                 ==== Long.MaxValue
+    T ~ (dma - 999999.ns).ceil.exact.ms   ==== Long.MaxValue
+    T ~ (dma - 1000.us).ceil.exact.ms     ==== Long.MaxValue - 1
+    T ~ (dma + 1.ns).ceil.exact.ms        ==== thrown[ArithmeticException]
+    T ~ -981581.us.ceil.exact.ms          ==== -981
+    T ~ (-dmb).ceil.exact.ms              ==== Long.MinValue
+    T ~ (-dma - 999999.ns).ceil.exact.ms  ==== Long.MinValue + 1
+    T ~ (-dmb - 999999.ns).ceil.exact.ms  ==== Long.MinValue
+    T ~ (-dmb - 1000000.ns).ceil.exact.ms ==== thrown[ArithmeticException]
+    T ~ 185198.us.floor.into.ms      ==== 185 --: typed[Long]
+    T ~ dma.floor.into.ms            ==== Long.MaxValue
+    T ~ (dma - 1.ns).floor.into.ms   ==== Long.MaxValue - 1
+    T ~ (dmb + 1.ns).floor.into.ms   ==== Long.MaxValue
+    T ~ -981581.us.floor.into.ms     ==== -982
+    T ~ (-dmb).floor.into.ms         ==== Long.MinValue
+    T ~ (-dma).floor.into.ms         ==== Long.MinValue + 1
+    T ~ (-dma - 1.ns).floor.into.ms  ==== Long.MinValue
+    T ~ (-dmb - 1.ns).floor.into.ms  ==== Long.MinValue
+    T ~ 185198.us.floor.exact.ms     ==== 185 --: typed[Long]
+    T ~ dma.floor.exact.ms           ==== Long.MaxValue
+    T ~ (dma - 1.ns).floor.exact.ms  ==== Long.MaxValue - 1
+    T ~ (dmb + 1.ns).floor.exact.ms  ==== thrown[ArithmeticException]
+    T ~ -981581.us.floor.exact.ms    ==== -982
+    T ~ (-dmb).floor.exact.ms        ==== Long.MinValue
+    T ~ (-dma).floor.exact.ms        ==== Long.MinValue + 1
+    T ~ (-dma - 1.ns).floor.exact.ms ==== Long.MinValue
+    T ~ (-dmb - 1.ns).floor.exact.ms ==== thrown[ArithmeticException]
 }
 object MathsTest {
   // @BeforeClass
