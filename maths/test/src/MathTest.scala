@@ -4393,6 +4393,405 @@ class MathTest {
     T ~ (-dma).floor.exact.ms        ==== Long.MinValue + 1
     T ~ (-dma - 1.ns).floor.exact.ms ==== Long.MinValue
     T ~ (-dmb - 1.ns).floor.exact.ms ==== thrown[ArithmeticException]
+
+    val dsp = DurationCompanion.MaxSeconds
+    val dsn = DurationCompanion.MinSeconds
+    val dsx = DurationCompanion.MAX
+    T ~ dsx.floor.s                   ==== dsp
+    T ~ dsx.ceil.s                    ==== dsp
+    T ~ dsx.round.s                   ==== dsp
+    T ~ dsx.trunc.s                   ==== dsp
+    T ~ dsp.floor.s                   ==== dsp
+    T ~ dsp.ceil.s                    ==== dsp
+    T ~ dsp.round.s                   ==== dsp
+    T ~ dsp.trunc.s                   ==== dsp
+    T ~ (5.s + 999999999.ns).floor.s  ==== 5.s
+    T ~ (5.s + 999999999.ns).ceil.s   ==== 6.s
+    T ~ (5.s + 999999999.ns).round.s  ==== 6.s
+    T ~ (5.s + 999999999.ns).trunc.s  ==== 5.s
+    T ~ (5.s + 500000001.ns).floor.s  ==== 5.s
+    T ~ (5.s + 500000001.ns).ceil.s   ==== 6.s
+    T ~ (5.s + 500000001.ns).round.s  ==== 6.s
+    T ~ (5.s + 500000001.ns).trunc.s  ==== 5.s
+    T ~ (5.s + 500000000.ns).floor.s  ==== 5.s
+    T ~ (5.s + 500000000.ns).ceil.s   ==== 6.s
+    T ~ (5.s + 500000000.ns).round.s  ==== 5.s
+    T ~ (5.s + 500000000.ns).trunc.s  ==== 5.s
+    T ~ (5.s + 1.ns).floor.s          ==== 5.s
+    T ~ (5.s + 1.ns).ceil.s           ==== 6.s
+    T ~ (5.s + 1.ns).round.s          ==== 5.s
+    T ~ (5.s + 1.ns).trunc.s          ==== 5.s
+    T ~ dsn.floor.s                   ==== dsn
+    T ~ dsn.ceil.s                    ==== dsn
+    T ~ dsn.round.s                   ==== dsn
+    T ~ dsn.trunc.s                   ==== dsn
+    T ~ (dsn + 1.ns).floor.s          ==== dsn
+    T ~ (dsn + 1.ns).ceil.s           ==== -dsp
+    T ~ (dsn + 1.ns).round.s          ==== dsn
+    T ~ (dsn + 1.ns).trunc.s          ==== -dsp
+    T ~ (-5.s - 999999999.ns).floor.s ==== -6.s
+    T ~ (-5.s - 999999999.ns).ceil.s  ==== -5.s
+    T ~ (-5.s - 999999999.ns).round.s ==== -6.s
+    T ~ (-5.s - 999999999.ns).trunc.s ==== -5.s
+    T ~ (-5.s - 500000001.ns).floor.s ==== -6.s
+    T ~ (-5.s - 500000001.ns).ceil.s  ==== -5.s
+    T ~ (-5.s - 500000001.ns).round.s ==== -6.s
+    T ~ (-5.s - 500000001.ns).trunc.s ==== -5.s
+    T ~ (-5.s - 500000000.ns).floor.s ==== -6.s
+    T ~ (-5.s - 500000000.ns).ceil.s  ==== -5.s
+    T ~ (-5.s - 500000000.ns).round.s ==== -5.s
+    T ~ (-5.s - 500000000.ns).trunc.s ==== -5.s
+    T ~ (-5.s - 1.ns).floor.s         ==== -6.s
+    T ~ (-5.s - 1.ns).ceil.s          ==== -5.s
+    T ~ (-5.s - 1.ns).round.s         ==== -5.s
+    T ~ (-5.s - 1.ns).trunc.s         ==== -5.s
+    T ~ 1751851951.ns.into.s                ==== 1   --: typed[Long]
+    T ~ 1751851951.ns.round.into.s          ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.floor.into.s          ==== 1   --: typed[Long]
+    T ~ 1751851951.ns.ceil.into.s           ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.round.exact.s         ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.ceil.exact.s          ==== 2   --: typed[Long]
+    T ~ -1751851951.ns.into.s               ==== -1  --: typed[Long]
+    T ~ -1751851951.ns.round.into.s         ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.floor.into.s         ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.ceil.into.s          ==== -1  --: typed[Long]
+    T ~ -1751851951.ns.round.exact.s        ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.ceil.exact.s         ==== -1  --: typed[Long]
+    T ~ (dsp + 1.ns).into.s                 ==== Long.MaxValue
+    T ~ (dsp + 1.ns).round.into.s           ==== Long.MaxValue
+    T ~ (dsp + 1.ns).round.exact.s          ==== Long.MaxValue
+    T ~ (dsp + 1.ns).floor.into.s           ==== Long.MaxValue
+    T ~ (dsp + 1.ns).ceil.into.s            ==== Long.MaxValue
+    T ~ (dsp + 1.ns).ceil.exact.s           ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000000.ns).into.s         ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).round.into.s   ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).round.exact.s  ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).floor.into.s   ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).ceil.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).ceil.exact.s   ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000001.ns).into.s         ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).round.into.s   ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).round.exact.s  ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000001.ns).floor.into.s   ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).ceil.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).ceil.exact.s   ==== thrown[ArithmeticException]
+    T ~ (dsn + 1.ns).into.s                 ==== Long.MinValue + 1
+    T ~ (dsn + 1.ns).round.into.s           ==== Long.MinValue
+    T ~ (dsn + 1.ns).round.exact.s          ==== Long.MinValue
+    T ~ (dsn + 1.ns).floor.into.s           ==== Long.MinValue
+    T ~ (dsn + 1.ns).ceil.into.s            ==== Long.MinValue + 1
+    T ~ (dsn + 1.ns).ceil.exact.s           ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).into.s         ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).round.into.s   ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).round.exact.s  ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).floor.into.s   ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).ceil.into.s    ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).ceil.exact.s   ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).into.s         ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).round.into.s   ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).round.exact.s  ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).floor.into.s   ==== Long.MinValue
+    T ~ (dsn + 500000000.ns).ceil.into.s    ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).ceil.exact.s   ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).into.s         ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).round.into.s   ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).round.exact.s  ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).floor.into.s   ==== Long.MinValue
+    T ~ (dsn + 999999999.ns).ceil.into.s    ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).ceil.exact.s   ==== Long.MinValue + 1
+
+    val minxd = 600.s
+    val mincu = Duration.ofSeconds(600, 1)
+    val minrd = Duration.ofSeconds(630, 0)
+    val minru = Duration.ofSeconds(630, 1)
+    val minfd = Duration.ofSeconds(659, 999999999)
+    val minxu = 660.s
+    T ~ minxd.round.m     ==== minxd
+    T ~ minxd.ceil.m      ==== minxd
+    T ~ minxd.floor.m     ==== minxd
+    T ~ minxd.trunc.m     ==== minxd
+    T ~ mincu.round.m     ==== minxd
+    T ~ mincu.ceil.m      ==== minxu
+    T ~ mincu.floor.m     ==== minxd
+    T ~ mincu.trunc.m     ==== minxd
+    T ~ minrd.round.m     ==== minxd
+    T ~ minrd.ceil.m      ==== minxu
+    T ~ minrd.floor.m     ==== minxd
+    T ~ minrd.trunc.m     ==== minxd
+    T ~ minru.round.m     ==== minxu
+    T ~ minru.ceil.m      ==== minxu
+    T ~ minru.floor.m     ==== minxd
+    T ~ minru.trunc.m     ==== minxd
+    T ~ minfd.round.m     ==== minxu
+    T ~ minfd.ceil.m      ==== minxu
+    T ~ minfd.floor.m     ==== minxd
+    T ~ minfd.trunc.m     ==== minxd
+    T ~ minxu.round.m     ==== minxu
+    T ~ minxu.ceil.m      ==== minxu
+    T ~ minxu.floor.m     ==== minxu
+    T ~ minxu.trunc.m     ==== minxu
+    T ~ (-minxd).round.m  ==== -minxd
+    T ~ (-minxd).ceil.m   ==== -minxd
+    T ~ (-minxd).floor.m  ==== -minxd
+    T ~ (-minxd).trunc.m  ==== -minxd
+    T ~ (-mincu).round.m  ==== -minxd
+    T ~ (-mincu).ceil.m   ==== -minxd
+    T ~ (-mincu).floor.m  ==== -minxu
+    T ~ (-mincu).trunc.m  ==== -minxd
+    T ~ (-minrd).round.m  ==== -minxd
+    T ~ (-minrd).ceil.m   ==== -minxd
+    T ~ (-minrd).floor.m  ==== -minxu
+    T ~ (-minrd).trunc.m  ==== -minxd
+    T ~ (-minru).round.m  ==== -minxu
+    T ~ (-minru).ceil.m   ==== -minxd
+    T ~ (-minru).floor.m  ==== -minxu
+    T ~ (-minru).trunc.m  ==== -minxd
+    T ~ (-minfd).round.m  ==== -minxu
+    T ~ (-minfd).ceil.m   ==== -minxd
+    T ~ (-minfd).floor.m  ==== -minxu
+    T ~ (-minfd).trunc.m  ==== -minxd
+    T ~ (-minxu).round.m  ==== -minxu
+    T ~ (-minxu).ceil.m   ==== -minxu
+    T ~ (-minxu).floor.m  ==== -minxu
+    T ~ (-minxu).trunc.m  ==== -minxu
+    T ~ dmin.round.m      ==== DurationCompanion.MinMinutes
+    T ~ dmin.ceil.m       ==== DurationCompanion.MinMinutes
+    T ~ dmin.floor.m      ==== DurationCompanion.MinMinutes
+    T ~ dmin.trunc.m      ==== DurationCompanion.MinMinutes
+    T ~ dmax.round.m      ==== DurationCompanion.MaxMinutes
+    T ~ dmax.ceil.m       ==== DurationCompanion.MaxMinutes
+    T ~ dmax.floor.m      ==== DurationCompanion.MaxMinutes
+    T ~ dmax.trunc.m      ==== DurationCompanion.MaxMinutes
+    T ~ minxd.into.m          ==== 10  --: typed[Long]
+    T ~ minxd.floor.into.m    ==== 10  --: typed[Long]
+    T ~ minxd.round.into.m    ==== 10  --: typed[Long]
+    T ~ minxd.ceil.into.m     ==== 10  --: typed[Long]
+    T ~ mincu.ceil.into.m     ==== 11
+    T ~ minrd.round.into.m    ==== 10
+    T ~ minru.round.into.m    ==== 11
+    T ~ minfd.floor.into.m    ==== 10
+    T ~ minxu.into.m          ==== 11
+    T ~ minxu.floor.into.m    ==== 11
+    T ~ minxu.round.into.m    ==== 11
+    T ~ minxu.ceil.into.m     ==== 11
+    T ~ (-minxd).into.m       ==== -10  --: typed[Long]
+    T ~ (-minxd).floor.into.m ==== -10  --: typed[Long]
+    T ~ (-minxd).round.into.m ==== -10  --: typed[Long]
+    T ~ (-minxd).ceil.into.m  ==== -10  --: typed[Long]
+    T ~ (-mincu).floor.into.m ==== -11
+    T ~ (-minrd).round.into.m ==== -10
+    T ~ (-minru).round.into.m ==== -11
+    T ~ (-minfd).ceil.into.m  ==== -10
+    T ~ (-minxu).into.m       ==== -11
+    T ~ (-minxu).floor.into.m ==== -11
+    T ~ (-minxu).round.into.m ==== -11
+    T ~ (-minxu).ceil.into.m  ==== -11
+    T ~ dmin.into.m           ==== Long.MinValue/60
+    T ~ dmin.round.into.m     ==== Long.MinValue/60
+    T ~ dmin.ceil.into.m      ==== Long.MinValue/60
+    T ~ dmin.floor.into.m     ==== Long.MinValue/60 - 1
+    T ~ dmax.into.m           ==== Long.MaxValue/60
+    T ~ dmax.round.into.m     ==== Long.MaxValue/60
+    T ~ dmax.ceil.into.m      ==== Long.MaxValue/60 + 1
+    T ~ dmax.floor.into.m     ==== Long.MaxValue/60
+
+    val hrxd = 36000.s
+    val hrcu = Duration.ofSeconds(36000, 1)
+    val hrrd = Duration.ofSeconds(37800, 0)
+    val hrru = Duration.ofSeconds(37800, 1)
+    val hrfd = Duration.ofSeconds(39599, 999999999)
+    val hrxu = 39600.s
+    T ~ hrxd.round.h     ==== hrxd
+    T ~ hrxd.ceil.h      ==== hrxd
+    T ~ hrxd.floor.h     ==== hrxd
+    T ~ hrxd.trunc.h     ==== hrxd
+    T ~ hrcu.round.h     ==== hrxd
+    T ~ hrcu.ceil.h      ==== hrxu
+    T ~ hrcu.floor.h     ==== hrxd
+    T ~ hrcu.trunc.h     ==== hrxd
+    T ~ hrrd.round.h     ==== hrxd
+    T ~ hrrd.ceil.h      ==== hrxu
+    T ~ hrrd.floor.h     ==== hrxd
+    T ~ hrrd.trunc.h     ==== hrxd
+    T ~ hrru.round.h     ==== hrxu
+    T ~ hrru.ceil.h      ==== hrxu
+    T ~ hrru.floor.h     ==== hrxd
+    T ~ hrru.trunc.h     ==== hrxd
+    T ~ hrfd.round.h     ==== hrxu
+    T ~ hrfd.ceil.h      ==== hrxu
+    T ~ hrfd.floor.h     ==== hrxd
+    T ~ hrfd.trunc.h     ==== hrxd
+    T ~ hrxu.round.h     ==== hrxu
+    T ~ hrxu.ceil.h      ==== hrxu
+    T ~ hrxu.floor.h     ==== hrxu
+    T ~ hrxu.trunc.h     ==== hrxu
+    T ~ (-hrxd).round.h  ==== -hrxd
+    T ~ (-hrxd).ceil.h   ==== -hrxd
+    T ~ (-hrxd).floor.h  ==== -hrxd
+    T ~ (-hrxd).trunc.h  ==== -hrxd
+    T ~ (-hrcu).round.h  ==== -hrxd
+    T ~ (-hrcu).ceil.h   ==== -hrxd
+    T ~ (-hrcu).floor.h  ==== -hrxu
+    T ~ (-hrcu).trunc.h  ==== -hrxd
+    T ~ (-hrrd).round.h  ==== -hrxd
+    T ~ (-hrrd).ceil.h   ==== -hrxd
+    T ~ (-hrrd).floor.h  ==== -hrxu
+    T ~ (-hrrd).trunc.h  ==== -hrxd
+    T ~ (-hrru).round.h  ==== -hrxu
+    T ~ (-hrru).ceil.h   ==== -hrxd
+    T ~ (-hrru).floor.h  ==== -hrxu
+    T ~ (-hrru).trunc.h  ==== -hrxd
+    T ~ (-hrfd).round.h  ==== -hrxu
+    T ~ (-hrfd).ceil.h   ==== -hrxd
+    T ~ (-hrfd).floor.h  ==== -hrxu
+    T ~ (-hrfd).trunc.h  ==== -hrxd
+    T ~ (-hrxu).round.h  ==== -hrxu
+    T ~ (-hrxu).ceil.h   ==== -hrxu
+    T ~ (-hrxu).floor.h  ==== -hrxu
+    T ~ (-hrxu).trunc.h  ==== -hrxu
+    T ~ dmin.round.h     ==== DurationCompanion.MinHours
+    T ~ dmin.ceil.h      ==== DurationCompanion.MinHours
+    T ~ dmin.floor.h     ==== DurationCompanion.MinHours
+    T ~ dmin.trunc.h     ==== DurationCompanion.MinHours
+    T ~ dmax.round.h     ==== DurationCompanion.MaxHours
+    T ~ dmax.ceil.h      ==== DurationCompanion.MaxHours
+    T ~ dmax.floor.h     ==== DurationCompanion.MaxHours
+    T ~ dmax.trunc.h     ==== DurationCompanion.MaxHours
+    T ~ hrxd.into.h          ==== 10  --: typed[Long]
+    T ~ hrxd.floor.into.h    ==== 10  --: typed[Long]
+    T ~ hrxd.round.into.h    ==== 10  --: typed[Long]
+    T ~ hrxd.ceil.into.h     ==== 10  --: typed[Long]
+    T ~ hrcu.ceil.into.h     ==== 11
+    T ~ hrrd.round.into.h    ==== 10
+    T ~ hrru.round.into.h    ==== 11
+    T ~ hrfd.floor.into.h    ==== 10
+    T ~ hrxu.into.h          ==== 11
+    T ~ hrxu.floor.into.h    ==== 11
+    T ~ hrxu.round.into.h    ==== 11
+    T ~ hrxu.ceil.into.h     ==== 11
+    T ~ (-hrxd).into.h       ==== -10  --: typed[Long]
+    T ~ (-hrxd).floor.into.h ==== -10  --: typed[Long]
+    T ~ (-hrxd).round.into.h ==== -10  --: typed[Long]
+    T ~ (-hrxd).ceil.into.h  ==== -10  --: typed[Long]
+    T ~ (-hrcu).floor.into.h ==== -11
+    T ~ (-hrrd).round.into.h ==== -10
+    T ~ (-hrru).round.into.h ==== -11
+    T ~ (-hrfd).ceil.into.h  ==== -10
+    T ~ (-hrxu).into.h       ==== -11
+    T ~ (-hrxu).floor.into.h ==== -11
+    T ~ (-hrxu).round.into.h ==== -11
+    T ~ (-hrxu).ceil.into.h  ==== -11
+    T ~ dmin.into.h          ==== Long.MinValue/3600
+    T ~ dmin.round.into.h    ==== Long.MinValue/3600 - 1
+    T ~ dmin.ceil.into.h     ==== Long.MinValue/3600
+    T ~ dmin.floor.into.h    ==== Long.MinValue/3600 - 1
+    T ~ dmax.into.h          ==== Long.MaxValue/3600
+    T ~ dmax.round.into.h    ==== Long.MaxValue/3600 + 1
+    T ~ dmax.ceil.into.h     ==== Long.MaxValue/3600 + 1
+    T ~ dmax.floor.into.h    ==== Long.MaxValue/3600
+
+    val dayxd = 864000.s
+    val daycu = Duration.ofSeconds(864000, 1)
+    val dayrd = Duration.ofSeconds(907200, 0)
+    val dayru = Duration.ofSeconds(907200, 1)
+    val dayfd = Duration.ofSeconds(950399, 999999999)
+    val dayxu = 950400.s
+    T ~ dayxd.round.d     ==== dayxd
+    T ~ dayxd.ceil.d      ==== dayxd
+    T ~ dayxd.floor.d     ==== dayxd
+    T ~ dayxd.trunc.d     ==== dayxd
+    T ~ daycu.round.d     ==== dayxd
+    T ~ daycu.ceil.d      ==== dayxu
+    T ~ daycu.floor.d     ==== dayxd
+    T ~ daycu.trunc.d     ==== dayxd
+    T ~ dayrd.round.d     ==== dayxd
+    T ~ dayrd.ceil.d      ==== dayxu
+    T ~ dayrd.floor.d     ==== dayxd
+    T ~ dayrd.trunc.d     ==== dayxd
+    T ~ dayru.round.d     ==== dayxu
+    T ~ dayru.ceil.d      ==== dayxu
+    T ~ dayru.floor.d     ==== dayxd
+    T ~ dayru.trunc.d     ==== dayxd
+    T ~ dayfd.round.d     ==== dayxu
+    T ~ dayfd.ceil.d      ==== dayxu
+    T ~ dayfd.floor.d     ==== dayxd
+    T ~ dayfd.trunc.d     ==== dayxd
+    T ~ dayxu.round.d     ==== dayxu
+    T ~ dayxu.ceil.d      ==== dayxu
+    T ~ dayxu.floor.d     ==== dayxu
+    T ~ dayxu.trunc.d     ==== dayxu
+    T ~ (-dayxd).round.d  ==== -dayxd
+    T ~ (-dayxd).ceil.d   ==== -dayxd
+    T ~ (-dayxd).floor.d  ==== -dayxd
+    T ~ (-dayxd).trunc.d  ==== -dayxd
+    T ~ (-daycu).round.d  ==== -dayxd
+    T ~ (-daycu).ceil.d   ==== -dayxd
+    T ~ (-daycu).floor.d  ==== -dayxu
+    T ~ (-daycu).trunc.d  ==== -dayxd
+    T ~ (-dayrd).round.d  ==== -dayxd
+    T ~ (-dayrd).ceil.d   ==== -dayxd
+    T ~ (-dayrd).floor.d  ==== -dayxu
+    T ~ (-dayrd).trunc.d  ==== -dayxd
+    T ~ (-dayru).round.d  ==== -dayxu
+    T ~ (-dayru).ceil.d   ==== -dayxd
+    T ~ (-dayru).floor.d  ==== -dayxu
+    T ~ (-dayru).trunc.d  ==== -dayxd
+    T ~ (-dayfd).round.d  ==== -dayxu
+    T ~ (-dayfd).ceil.d   ==== -dayxd
+    T ~ (-dayfd).floor.d  ==== -dayxu
+    T ~ (-dayfd).trunc.d  ==== -dayxd
+    T ~ (-dayxu).round.d  ==== -dayxu
+    T ~ (-dayxu).ceil.d   ==== -dayxu
+    T ~ (-dayxu).floor.d  ==== -dayxu
+    T ~ (-dayxu).trunc.d  ==== -dayxu
+    T ~ dmin.round.d      ==== DurationCompanion.MinDays
+    T ~ dmin.ceil.d       ==== DurationCompanion.MinDays
+    T ~ dmin.floor.d      ==== DurationCompanion.MinDays
+    T ~ dmin.trunc.d      ==== DurationCompanion.MinDays
+    T ~ dmax.round.d      ==== DurationCompanion.MaxDays
+    T ~ dmax.ceil.d       ==== DurationCompanion.MaxDays
+    T ~ dmax.floor.d      ==== DurationCompanion.MaxDays
+    T ~ dmax.trunc.d      ==== DurationCompanion.MaxDays
+    T ~ dayxd.into.d          ==== 10  --: typed[Long]
+    T ~ dayxd.floor.into.d    ==== 10  --: typed[Long]
+    T ~ dayxd.round.into.d    ==== 10  --: typed[Long]
+    T ~ dayxd.ceil.into.d     ==== 10  --: typed[Long]
+    T ~ daycu.ceil.into.d     ==== 11
+    T ~ dayrd.round.into.d    ==== 10
+    T ~ dayru.round.into.d    ==== 11
+    T ~ dayfd.floor.into.d    ==== 10
+    T ~ dayxu.into.d          ==== 11
+    T ~ dayxu.floor.into.d    ==== 11
+    T ~ dayxu.round.into.d    ==== 11
+    T ~ dayxu.ceil.into.d     ==== 11
+    T ~ (-dayxd).into.d       ==== -10  --: typed[Long]
+    T ~ (-dayxd).floor.into.d ==== -10  --: typed[Long]
+    T ~ (-dayxd).round.into.d ==== -10  --: typed[Long]
+    T ~ (-dayxd).ceil.into.d  ==== -10  --: typed[Long]
+    T ~ (-daycu).floor.into.d ==== -11
+    T ~ (-dayrd).round.into.d ==== -10
+    T ~ (-dayru).round.into.d ==== -11
+    T ~ (-dayfd).ceil.into.d  ==== -10
+    T ~ (-dayxu).into.d       ==== -11
+    T ~ (-dayxu).floor.into.d ==== -11
+    T ~ (-dayxu).round.into.d ==== -11
+    T ~ (-dayxu).ceil.into.d  ==== -11
+    T ~ dmin.into.d           ==== Long.MinValue/86400
+    T ~ dmin.round.into.d     ==== Long.MinValue/86400 - 1
+    T ~ dmin.ceil.into.d      ==== Long.MinValue/86400
+    T ~ dmin.floor.into.d     ==== Long.MinValue/86400 - 1
+    T ~ dmax.into.d           ==== Long.MaxValue/86400
+    T ~ dmax.round.into.d     ==== Long.MaxValue/86400 + 1
+    T ~ dmax.ceil.into.d      ==== Long.MaxValue/86400 + 1
+    T ~ dmax.floor.into.d     ==== Long.MaxValue/86400
+    T ~ dayru.floor.days      ==== dayru.floor.d
+    T ~ dayru.trunc.days      ==== dayru.trunc.d
+    T ~ dayru.round.days      ==== dayru.round.d
+    T ~ dayru.ceil.days       ==== dayru.ceil.d
+    T ~ dayru.into.days       ==== dayru.into.d
+    T ~ dayru.round.into.days ==== dayru.round.into.d
+    T ~ dayru.floor.into.days ==== dayru.floor.into.d
+    T ~ dayru.ceil.into.days  ==== dayru.ceil.into.d
 }
 object MathsTest {
   // @BeforeClass

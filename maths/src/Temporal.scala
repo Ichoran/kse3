@@ -478,9 +478,9 @@ object DurationCompanion {
       def us: Duration = durationAdjustSmall(round, MaxMicros, 1000, -499, 499)
       def ms: Duration = durationAdjustSmall(round, MaxMillis, 1000000, -499999, 499999)
       def  s: Duration = durationAdjustSmall(round, MaxSeconds, 1000000000, -499999999, 499999999)
-      def  m: Duration = durationAdjustLarge(round, MinMinutes, MaxMinutes, 60, -29, 999999999, 29, 999999999)
-      def  h: Duration = durationAdjustLarge(round, MinHours, MaxHours, 3600, -1799, 999999999, 1799, 999999999)
-      def  d: Duration = durationAdjustLarge(round, MinDays, MaxDays, 86400, -43199, 999999999, 43199, 999999999)
+      def  m: Duration = durationAdjustLarge(round, MinMinutes, MaxMinutes, 60, -29, -999999999, 29, 999999999)
+      def  h: Duration = durationAdjustLarge(round, MinHours, MaxHours, 3600, -1799, -999999999, 1799, 999999999)
+      def  d: Duration = durationAdjustLarge(round, MinDays, MaxDays, 86400, -43199, -999999999, 43199, 999999999)
       inline def days = round.d
 
 
@@ -497,9 +497,9 @@ object DurationCompanion {
       def us: Duration = durationAdjustSmall(floor, MaxMicros, 1000, -999, 0)
       def ms: Duration = durationAdjustSmall(floor, MaxMillis, 1000000, -999999, 0)
       def  s: Duration = if floor.getNano == 0 then floor else Duration.ofSeconds(floor.getSeconds)
-      def  m: Duration = durationAdjustLarge(floor, MinMinutes, MaxMinutes, 60, -59, 999999999, 0, 0)
-      def  h: Duration = durationAdjustLarge(floor, MinHours, MaxHours, 3600, -3599, 999999999, 0, 0)
-      def  d: Duration = durationAdjustLarge(floor, MinDays, MaxDays, 86400, -86399, 999999999, 0, 0)
+      def  m: Duration = durationAdjustLarge(floor, MinMinutes, MaxMinutes, 60, -59, -999999999, 0, 0)
+      def  h: Duration = durationAdjustLarge(floor, MinHours, MaxHours, 3600, -3599, -999999999, 0, 0)
+      def  d: Duration = durationAdjustLarge(floor, MinDays, MaxDays, 86400, -86399, -999999999, 0, 0)
       inline def days = floor.d
 
       inline def into:  kse.maths.DurationCompanion.InFloor    = floor
@@ -554,9 +554,9 @@ object DurationCompanion {
         else
           if nano > 500000000 && sec < Long.MaxValue then sec + 1
           else sec
-      def  m: Long = durationLargeToLong(round, 60, -29, 999999999, 29, 999999999)
-      def  h: Long = durationLargeToLong(round, 3600, -1799, 999999999, 1799, 999999999)
-      def  d: Long = durationLargeToLong(round, 86400, -43199, 999999999, 43199, 999999999)
+      def  m: Long = durationLargeToLong(round, 60, -29, -999999999, 29, 999999999)
+      def  h: Long = durationLargeToLong(round, 3600, -1799, -999999999, 1799, 999999999)
+      def  d: Long = durationLargeToLong(round, 86400, -43199, -999999999, 43199, 999999999)
       def days: Long = round.d
     }
   }
@@ -622,6 +622,12 @@ object DurationCompanion {
     extension (ceil: ExactCeil) {
       def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 999, true)
       def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 999999, true)
+      def s: Long =
+        val sec = ceil.getSeconds
+        val nano = ceil.getNano
+        if nano == 0 then sec
+        else if sec == Long.MaxValue then throw new ArithmeticException("long overflow")
+        else sec + 1
     }
   }
 }
