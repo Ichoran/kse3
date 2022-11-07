@@ -2486,6 +2486,9 @@ class MathTest {
     T ~ Frac.scaleClamped(100000000000L, -15 over 15)         ==== -100000000000L
     T ~ Frac.scaleClamped(100000000000L, Int.MaxValue over 1) ==== Long.MaxValue
     T ~ Frac.scaleClamped(100000000000L, Int.MinValue over 1) ==== Long.MinValue
+    T ~ Frac.scaleExactly(100000000000L, -15 over 15)         ==== -100000000000L
+    T ~ Frac.scaleExactly(100000000000L, Int.MaxValue over 1) ==== thrown[ArithmeticException]
+    T ~ Frac.scaleExactly(100000000000L, Int.MinValue over 1) ==== thrown[ArithmeticException]
 
 
   @Test
@@ -4171,6 +4174,24 @@ class MathTest {
     T ~ (d /! 3.ns)        ==== thrown[ArithmeticException]
     T ~ (d.round.us/3.us)  ==== 279857332718958371L
     T ~ (d.round.us%3.us)  ==== 1.us
+    T ~ (d < d2)           ==== true
+    T ~ (d < d)            ==== false
+    T ~ (d2 < d)           ==== false
+    T ~ (d <= d2)          ==== true
+    T ~ (d <= d)           ==== true
+    T ~ (d2 <= d)          ==== false
+    T ~ (d >= d2)          ==== false
+    T ~ (d >= d)           ==== true
+    T ~ (d2 >= d)          ==== true
+    T ~ (d > d2)           ==== false
+    T ~ (d > d)            ==== false
+    T ~ (d2 > d)           ==== true
+    T ~ (d min d2)         ==== d
+    T ~ (d2 min d)         ==== d
+    T ~ (d max d2)         ==== d2
+    T ~ (d2 max d)         ==== d2
+    T ~ (-d).safeAbs       ==== d
+    T ~ dmin.safeAbs       ==== dmax
 
     val dna = Duration.ofSeconds(9223372036L, 854775807)
     val dnb = Duration.ofSeconds(9223372036L, 854775808)
@@ -4805,6 +4826,10 @@ class MathTest {
     T ~ dayru.round.into.days ==== dayru.round.into.d
     T ~ dayru.floor.into.days ==== dayru.floor.into.d
     T ~ dayru.ceil.into.days  ==== dayru.ceil.into.d
+
+  @Test
+  def temporalTestCustomDurations(): Unit =
+    T ~ NanoDuration(1985711895L) ==== 1985711895L         --: typed[NanoDuration]
 }
 object MathsTest {
   // @BeforeClass

@@ -764,6 +764,15 @@ extension (d: Duration) {
   // +!(FileTime) in OverloadedExtensions
   // trunc in OverloadedExtensions
 
+  inline def <( e: Duration) = d.compareTo(e) <  0
+  inline def <=(e: Duration) = d.compareTo(e) <= 0
+  inline def >=(e: Duration) = d.compareTo(e) >= 0
+  inline def >( e: Duration) = d.compareTo(e) >  0
+
+  inline def safeAbs: Duration = if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX else d.abs
+  inline def min(e: Duration) = if d.compareTo(e) > 0 then e else d
+  inline def max(e: Duration) = if d.compareTo(e) < 0 then e else d
+
   def nano: kse.maths.NanoDuration =
     if d.getSeconds < 0 then
       if d.getSeconds == Long.MinValue then NanoDuration(Long.MinValue)
@@ -877,27 +886,57 @@ object NanoDuration {
   }
 
   extension (dt: kse.maths.NanoDuration) {
-    @targetName("duration_plus_duration")
+    @targetName("nanodur_plus_nanodur")
     inline def +(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap +# et.unwrap)
 
-    @targetName("duration_plus_instant")
+    @targetName("nanodur_plus_nanoinst")
     inline def +(nt: kse.maths.NanoInstant): kse.maths.NanoInstant = NanoInstant(nt.unwrap +# dt.unwrap)
 
     inline def -(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap -# et.unwrap)
 
     inline def unary_- : kse.maths.NanoDuration = NanoDuration(0L -# dt.unwrap)
 
-    @targetName("long_mul")
+    @targetName("nanodur_mul_long")
     inline def *(factor: Long): kse.maths.NanoDuration = NanoDuration(dt.unwrap *# factor)
 
-    @targetName("frac_mul")
+    @targetName("nanodur_mul_frac")
     def *(frac: kse.maths.Frac): kse.maths.NanoDuration = NanoDuration(Frac.scaleClamped(dt.unwrap, frac))
 
-    @targetName("long_div")
+    @targetName("nanodur_div_long")
     inline def /(factor: Long): kse.maths.NanoDuration = NanoDuration(dt.unwrap /# factor)
 
-    @targetName("frac_div")
+    @targetName("nanodur_div_frac")
     inline def /(frac: kse.maths.Frac): kse.maths.NanoDuration = dt * frac.reciprocal
+
+    @targetName("nanodur_div_nanodur")
+    inline def /(et: kse.maths.NanoDuration): Long = dt.unwrap /# et.unwrap
+
+    @targetName("nanodur_mod_nanodur")
+    inline def %(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap %# et.unwrap)
+
+    @targetName("nanodur_plusxcl_nanodur")
+    inline def +!(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(kse.maths.+!(dt.unwrap)(et.unwrap))
+
+    @targetName("nanodur_plusxcl_nanoinst")
+    inline def +!(nt: kse.maths.NanoInstant): kse.maths.NanoInstant = NanoInstant(kse.maths.+!(nt.unwrap)(dt.unwrap))
+
+    inline def -!(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(kse.maths.-!(dt.unwrap)(et.unwrap))
+
+    @targetName("nanodur_mulxcl_long")
+    inline def *!(factor: Long): kse.maths.NanoDuration = NanoDuration(kse.maths.*!(dt.unwrap)(factor))
+
+    @targetName("nanodur_mulxcl_frac")
+    def *!(frac: kse.maths.Frac): kse.maths.NanoDuration = NanoDuration(Frac.scaleExactly(dt.unwrap, frac))
+
+    @targetName("nanodur_divxcl_long")
+    inline def /!(factor: Long): kse.maths.NanoDuration = NanoDuration(kse.maths./!(dt.unwrap)(factor))
+
+    @targetName("nanodur_divxcl_frac")
+    inline def /!(frac: kse.maths.Frac): kse.maths.NanoDuration = dt *! frac.reciprocal
+
+    @targetName("nanodur_divxcl_nanodur")
+    inline def /!(et: kse.maths.NanoDuration): Long = kse.maths./!(dt.unwrap)(et.unwrap)
+
 
     inline def <( et: kse.maths.NanoDuration): Boolean = dt.unwrap <  et.unwrap
     inline def <=(et: kse.maths.NanoDuration): Boolean = dt.unwrap <= et.unwrap

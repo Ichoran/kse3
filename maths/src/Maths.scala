@@ -2332,8 +2332,18 @@ object Frac {
     else if d == 1 then value *# n
     else
       val vq = value / d
-      val vr = value % d
+      val vr = value - vq*d
       (vq *# n) +# ((vr * n)/d)
+
+  def scaleExactly(value: Long, factor: Frac): Long =
+    val n = factor.numer
+    val d = factor.denom
+    if n == 0 then 0L
+    else if d == 1 then value *! n
+    else
+      val vq = value / d
+      val vr = value - vq*d
+      (vq *! n) +! ((vr * n)/d)
 
   given Ordering[kse.maths.Frac] = new {
     def compare(f: kse.maths.Frac, g: kse.maths.Frac) =
