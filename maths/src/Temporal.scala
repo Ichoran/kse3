@@ -183,6 +183,7 @@ object DurationCompanion {
         if cs == Long.MaxValue then DurationCompanion.MAX
         else if ss != Long.MaxValue || ns < 1000000000 then DurationCompanion.MIN
         else Duration.ofSeconds(Long.MinValue, ns - 1000000000)
+
   def sub(d: Duration, dd: Duration): Duration =
     val ns = d.getNano - dd.getNano
     val cs = d.getSeconds -# dd.getSeconds
@@ -203,6 +204,7 @@ object DurationCompanion {
         if cs == Long.MinValue then DurationCompanion.MIN
         else if ss != Long.MinValue || ns >= 0 then DurationCompanion.MAX
         else Duration.ofSeconds(Long.MaxValue, ns + 1000000000)
+
   def mul(d: Duration, scale: Int): Duration = scale match
     case  0 => Duration.ZERO
     case  1 => d
@@ -245,6 +247,7 @@ object DurationCompanion {
             if ns == 0 then Duration.ofSeconds(-s)
             else Duration.ofSeconds(-s - 1, 1000000000 - ns)
           else Duration.ofSeconds(s, ns)
+
   def mul(d: Duration, frac: Frac): Duration =
     var md = d.getSeconds
     val numer = frac.numer
@@ -309,11 +312,111 @@ object DurationCompanion {
             s -= 1
             ns = 1000000000 - ns
         Duration.ofSeconds(s, ns)
+
   def div(d: Duration, factor: Int): Duration = factor match
     case  1 => d
     case -1 => if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX else d.negated
     case  0 => if d == Duration.ZERO then d else if d.getSeconds < 0 then DurationCompanion.MIN else DurationCompanion.MAX
     case  _ => d dividedBy factor
+
+  private def divUsingBigInt(ds: Long, dn: Int, es: Long, en: Int, exact: Boolean): Long =
+      val bd = BigInt(ds)*1000000000 + dn
+      val be = BigInt(es)*1000000000 + en
+      val ans = bd / be
+      if ans >= Long.MinValue && ans <= Long.MaxValue then ans.toLong
+      else if exact then throw new ArithmeticException("long overflow")
+      else if ds < 0 == es < 0 then Long.MaxValue
+      else Long.MinValue
+
+  private def divUsingLongConversion(ds: Long, dn: Int, es: Long, en: Int, mult: Int, divi: Int, exact: Boolean): Long =
+    val nsd = if ds < 0 then (ds + 1)*mult + (1000000000 - dn)/divi else ds*mult + dn/divi
+    val nse = if es < 0 then (es + 1)*mult + (1000000000 - en)/divi else es*mult + en/divi
+    if nsd == Long.MinValue && nse == -1 then
+      if exact then throw new ArithmeticException("long overflow")
+      else Long.MaxValue
+    else nsd / nse
+
+  def div(d: Duration, e: Duration, exact: Boolean): Long =
+    val ds = d.getSeconds
+    val dn = d.getNano
+    val es = e.getSeconds
+    val en = e.getNano
+    if es == 0 && en == 0 then
+      if exact then throw new ArithmeticException("division by zero")
+      else if ds == 0 && dn == 0 then 0L
+      else if ds < 0 then Long.MaxValue
+      else Long.MinValue
+    else if en == 0 then
+      if ds == Long.MinValue && dn == 0 && es == -1 then
+        if exact then throw new ArithmeticException("long overflow")
+        else Long.MaxValue
+      else if ds < 0 then (ds + (if dn > 0 then 1 else 0)) / es
+      else ds / es
+    else if ds == 0 && dn == 0 then 0L
+    else
+      val dtiny = d.compareTo(MinLongNanos) >= 0 && d.compareTo(MaxLongNanos) <= 0
+      val etiny = e.compareTo(MinLongNanos) >= 0 && e.compareTo(MaxLongNanos) <= 0
+      if dtiny && etiny then divUsingLongConversion(ds, dn, es, en, 1000000000, 1, exact)
+      else if dn % 1000 == 0 && en % 1000 == 0 then
+        val dsmall = dtiny || (d.compareTo(MinLongMicros) >= 0 && d.compareTo(MaxLongMicros) <= 0)
+        val esmall = etiny || (e.compareTo(MinLongMicros) >= 0 && e.compareTo(MaxLongMicros) <= 0)
+        if dsmall & esmall then divUsingLongConversion(ds, dn, es, en, 1000000, 1000, exact)
+        else if dn % 1000000 == 0 && en % 1000000 == 0 then
+          val dpetite = dsmall || (d.compareTo(MinLongMillis) >= 0 && d.compareTo(MaxLongMillis) <= 0)
+          val epetite = esmall || (e.compareTo(MinLongMillis) >= 0 && e.compareTo(MaxLongMillis) <= 0)
+          if dpetite && epetite then divUsingLongConversion(ds, dn, es, en, 1000, 1000000, exact)
+          else divUsingBigInt(ds, dn, es, en, exact)
+        else divUsingBigInt(ds, dn, es, en, exact)
+      else divUsingBigInt(ds, dn, es, en, exact)
+
+  private def modUsingBigInt(ds: Long, dn: Int, es: Long, en: Int): Duration =
+      val bd = BigInt(ds)*1000000000 + dn
+      val be = BigInt(es)*1000000000 + en
+      val ans = bd % be
+      var s = (ans / 1000000000).toLong
+      var ns = (ans - s * 1000000000).toInt
+      if ns < 0 then
+        s -= 1
+        ns += 1000000000
+      Duration.ofSeconds(s, ns)
+
+  private def modUsingLongConversion(ds: Long, dn: Int, es: Long, en: Int, mult: Int, divi: Int): Duration =
+    val nsd = if ds < 0 then (ds + 1)*mult + (1000000000 - dn)/divi else ds*mult + dn/divi
+    val nse = if es < 0 then (es + 1)*mult + (1000000000 - en)/divi else es*mult + en/divi
+    val ans = nsd % nse
+    var s = ans / mult
+    var ns = (ans - s * mult)*divi
+    if ns < 0 then
+      s -= 1
+      ns += 1000000000
+    Duration.ofSeconds(s, ns)
+
+
+  def mod(d: Duration, e: Duration): Duration =
+    val ds = d.getSeconds
+    val dn = d.getNano
+    val es = e.getSeconds
+    val en = e.getNano
+    if es == 0 && en == 0 then Duration.ZERO
+    else if en == 0 then
+      if ds < 0  && dn != 0 then Duration.ofSeconds((ds + 1) % es, dn - 1000000000)
+      else Duration.ofSeconds(ds % es, dn)
+    else if ds == 0 && dn == 0 then Duration.ZERO
+    else
+      val dtiny = d.compareTo(MinLongNanos) >= 0 && d.compareTo(MaxLongNanos) <= 0
+      val etiny = e.compareTo(MinLongNanos) >= 0 && e.compareTo(MaxLongNanos) <= 0
+      if dtiny && etiny then modUsingLongConversion(ds, dn, es, en, 1000000000, 1)
+      else if dn % 1000 == 0 && en % 1000 == 0 then
+        val dsmall = dtiny || (d.compareTo(MinLongMicros) >= 0 && d.compareTo(MaxLongMicros) <= 0)
+        val esmall = etiny || (e.compareTo(MinLongMicros) >= 0 && e.compareTo(MaxLongMicros) <= 0)
+        if dsmall & esmall then modUsingLongConversion(ds, dn, es, en, 1000000, 1000)
+        else if dn % 1000000 == 0 && en % 1000000 == 0 then
+          val dpetite = dsmall || (d.compareTo(MinLongMillis) >= 0 && d.compareTo(MaxLongMillis) <= 0)
+          val epetite = esmall || (e.compareTo(MinLongMillis) >= 0 && e.compareTo(MaxLongMillis) <= 0)
+          if dpetite && epetite then modUsingLongConversion(ds, dn, es, en, 1000, 1000000)
+          else modUsingBigInt(ds, dn, es, en)
+        else modUsingBigInt(ds, dn, es, en)
+      else modUsingBigInt(ds, dn, es, en)
 
   private def durationAdjustSmall(
     d: Duration, max: Duration,
@@ -642,6 +745,8 @@ extension (d: Duration) {
   // *(Frac) in OverloadedExtensions
   // /(Int) in OverloadedExtensions
   // /(Frac) in OverloadedExtensions
+  // /(Duration) in OverloadedExtensions
+  // %(Duration) in OverloadedExtensions
   // +(Instant) in OverloadedExtensions
   // +(LocalDateTime) in OverloadedExtensions
   // +(OffsetDateTime) in OverloadedExtensions
@@ -651,6 +756,7 @@ extension (d: Duration) {
   // -!(Duration) in OverloadedExtensions
   // *!(Int) in OverloadedExtensions
   // /!(Int) in OverloadedExtensions
+  // /!(Duration) in OverloadedExtensions
   // +!(Instant) in OverloadedExtensions
   // +!(LocalDateTime) in OverloadedExtensions
   // +!(OffsetDateTime) in OverloadedExtensions

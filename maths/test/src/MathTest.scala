@@ -4158,6 +4158,19 @@ class MathTest {
     T ~ (1.s / ifrac)      ==== Duration.ZERO
     T ~ (-1.s / nfrac)     ==== Duration.ZERO
     T ~ (d / (3 over 989)) ==== Duration.ofSeconds(276778902059049L, 829309655)
+    T ~ (d / d2)           ==== 0 --: typed[Long]
+    T ~ (d2 / d)           ==== 1
+    T ~ (d / 3.ns)         ==== Long.MaxValue
+    T ~ (d / (-3).ns)      ==== Long.MinValue
+    T ~ (d % d2)           ==== d
+    T ~ (d2 % d)           ==== (d2 - d)
+    T ~ (5.days / 45.ns)   ==== 9600000000000L
+    T ~ (13518.ns / 92.ns) ==== (13518 / 92)
+    T ~ (13518.ns % 92.ns) ==== (13518 % 92).ns
+    T ~ (d2 /! d)          ==== 1 --: typed[Long]
+    T ~ (d /! 3.ns)        ==== thrown[ArithmeticException]
+    T ~ (d.round.us/3.us)  ==== 279857332718958371L
+    T ~ (d.round.us%3.us)  ==== 1.us
 
     val dna = Duration.ofSeconds(9223372036L, 854775807)
     val dnb = Duration.ofSeconds(9223372036L, 854775808)
