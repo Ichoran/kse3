@@ -4065,20 +4065,30 @@ class MathTest {
 
   @Test
   def temporalTestDuration(): Unit =
-    T ~ 2.days             ==== Duration.ofSeconds(172800)
-    T ~ 3.h                ==== Duration.ofSeconds(10800)
-    T ~ 4.m                ==== Duration.ofSeconds(240)
-    T ~ 5.s                ==== Duration.ofSeconds(5)
-    T ~ 6.ms               ==== Duration.ofSeconds(0, 6000000)
-    T ~ 7.us               ==== Duration.ofSeconds(0, 7000)
-    T ~ 8.ns               ==== Duration.ofSeconds(0, 8)
-    T ~ 2.0.days           ==== DoubleDuration(86400*2)
-    T ~ 3.0.h              ==== DoubleDuration(10.8e3)
-    T ~ 4.0.m              ==== DoubleDuration(240.0)
-    T ~ 5.0.s              ==== DoubleDuration(5)
-    T ~ 6.0.ms             ==== DoubleDuration(0.006)
-    T ~ 7.0.us             ==== DoubleDuration(0.000007)
-    T ~ 8.0.ns             ==== DoubleDuration(8e-9)
+    T ~ 1.day                ==== Duration.ofSeconds(86400)
+    T ~ 2.days               ==== Duration.ofSeconds(172800)
+    T ~ 3.h                  ==== Duration.ofSeconds(10800)
+    T ~ 4.m                  ==== Duration.ofSeconds(240)
+    T ~ 5.s                  ==== Duration.ofSeconds(5)
+    T ~ 6.ms                 ==== Duration.ofSeconds(0, 6000000)
+    T ~ 7.us                 ==== Duration.ofSeconds(0, 7000)
+    T ~ 8.ns                 ==== Duration.ofSeconds(0, 8)
+    T ~ 1.0.day              ==== DoubleDuration(86400)          --: typed[DoubleDuration]
+    T ~ 2.0.days             ==== DoubleDuration(86400*2)        --: typed[DoubleDuration]
+    T ~ 3.0.h                ==== DoubleDuration(10.8e3)         --: typed[DoubleDuration]
+    T ~ 4.0.m                ==== DoubleDuration(240.0)          --: typed[DoubleDuration]
+    T ~ 5.0.s                ==== DoubleDuration(5)              --: typed[DoubleDuration]
+    T ~ 6.0.ms               ==== DoubleDuration(0.006)          --: typed[DoubleDuration]
+    T ~ 7.0.us               ==== DoubleDuration(0.000007)       --: typed[DoubleDuration]
+    T ~ 8.0.ns               ==== DoubleDuration(8e-9)           --: typed[DoubleDuration]
+    T ~ 1.day_nano           ==== NanoDuration(86400000000000L)  --: typed[NanoDuration]
+    T ~ (2: Short).days_nano ==== NanoDuration(172800000000000L) --: typed[NanoDuration]
+    T ~ (3: Short).h_nano    ==== NanoDuration(10800000000000L)  --: typed[NanoDuration]
+    T ~ (4: Short).m_nano    ==== NanoDuration(240000000000L)    --: typed[NanoDuration]
+    T ~ 5.s_nano             ==== NanoDuration(5000000000L)      --: typed[NanoDuration]
+    T ~ 6.ms_nano            ==== NanoDuration(6000000L)         --: typed[NanoDuration]
+    T ~ 7.us_nano            ==== NanoDuration(7000L)            --: typed[NanoDuration]
+    T ~ 8.ns_nano            ==== NanoDuration(8L)               --: typed[NanoDuration]
 
     val dmin = DurationCompanion.MIN
     val dmax = DurationCompanion.MAX

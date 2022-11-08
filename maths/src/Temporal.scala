@@ -15,45 +15,78 @@ import kse.maths._
 
 
 extension (inline t: Byte | Short | Int | Long | Float | Double) {
-  transparent inline def days: Duration | DoubleDuration = inline t match
+  transparent inline def days: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofDays(i)
     case d: Double => DoubleDuration(d * 86400)
     case _ => compiletime.error("Use .days on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
 
-  transparent inline def day: Duration | DoubleDuration = inline t match
+  transparent inline def day: Duration | kse.maths.DoubleDuration = inline t match
     case _: 1   => Duration.ofDays(1)
     case _: 1.0 => DoubleDuration(86400.0)
     case _      => compiletime.error("Use .day on 1 to get a Duration or on 1.0 to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
 
-  transparent inline def h: Duration | DoubleDuration = inline t match
+  transparent inline def h: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofHours(i)
     case d: Double => DoubleDuration(d * 3600)
     case _ => compiletime.error("Use .h on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.hr or .toDouble.hr to specify which.")
 
-  transparent inline def m: Duration | DoubleDuration = inline t match
+  transparent inline def m: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofMinutes(i)
     case d: Double => DoubleDuration(d * 60)
     case _ => compiletime.error("Use .m on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.m or .toDouble.m to specify which.")
 
-  transparent inline def s: Duration | DoubleDuration = inline t match
+  transparent inline def s: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofSeconds(i)
     case d: Double => DoubleDuration(d)
     case _ => compiletime.error("Use .s on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.s or .toDouble.s to specify which.")
 
-  transparent inline def ms: Duration | DoubleDuration = inline t match
+  transparent inline def ms: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofMillis(i)
     case d: Double => DoubleDuration(d / 1e3)
     case _ => compiletime.error("Use .ms on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ms or .toDouble.ms to specify which.")
 
-  transparent inline def us: Duration | DoubleDuration = inline t match
+  transparent inline def us: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofNanos(i*1000L)
     case d: Double => DoubleDuration(d / 1e6)
     case _ => compiletime.error("Use .us on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.us or .toDouble.us to specify which.")
 
-  transparent inline def ns: Duration | DoubleDuration = inline t match
+  transparent inline def ns: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofNanos(i)
     case d: Double => DoubleDuration(d / 1e9)
     case _ => compiletime.error("Use .ns on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.ns or .toDouble.ns to specify which.")
+
+  transparent inline def ns_nano: kse.maths.NanoDuration = inline t match
+    case i: Int => NanoDuration(i+0L)
+    case l: Long => NanoDuration(l)
+    case _ => compiletime.error(".ns_nano only creates NanoDurations out of `Int` or `Long`")
+
+  transparent inline def us_nano: kse.maths.NanoDuration = inline t match
+    case i: Int => NanoDuration(i*1000L)
+    case _ => compiletime.error(".us_nano only creates NanoDurations out of `Int`")
+
+  transparent inline def ms_nano: kse.maths.NanoDuration = inline t match
+    case i: Int => NanoDuration(i*1000000L)
+    case _ => compiletime.error(".ms_nano only creates NanoDurations out of `Int`")
+
+  transparent inline def s_nano: kse.maths.NanoDuration = inline t match
+    case i: Int => NanoDuration(i*1000000000L)
+    case _ => compiletime.error(".s_nano only creates NanoDurations out of `Int`")
+
+  transparent inline def m_nano: kse.maths.NanoDuration = inline t match
+    case s: Short => NanoDuration(s*60000000000L)
+    case _ => compiletime.error(".m_nano only creates NanoDurations out of `Short`")
+
+  transparent inline def h_nano: kse.maths.NanoDuration = inline t match
+    case s: Short => NanoDuration(s*3600000000000L)
+    case _ => compiletime.error(".h_nano only creates NanoDurations out of `Short`")
+
+  transparent inline def days_nano: kse.maths.NanoDuration = inline t match
+    case s: Short => NanoDuration(s*86400000000000L)
+    case _ => compiletime.error(".days_nano only creates NanoDurations out of `Short`")
+
+  transparent inline def day_nano: kse.maths.NanoDuration = inline t match
+    case _: 1 => NanoDuration(86400000000000L)
+    case _ => compiletime.error(".day_nano only creates NanoDurations out of the literal number 1")
 }
 
 
@@ -842,6 +875,9 @@ opaque type NanoInstant = Long
 object NanoInstant {
   inline def apply(nanos: Long): NanoInstant = nanos
   inline def now: NanoInstant = System.nanoTime
+
+  final val MinValue: kse.maths.NanoInstant = apply(Long.MinValue)
+  final val MaxValue: kse.maths.NanoInstant = apply(Long.MaxValue)
 
   extension (nt: NanoInstant) {
     inline def unwrap: Long = nt
@@ -2104,10 +2140,10 @@ object Tic {
   def apply(): kse.maths.Tic = NanoInstant.now.unwrap
 
   extension (t: Tic) {
-    inline def unwrap: Long = t
+    inline def unwrap: kse.maths.NanoInstant = NanoInstant(t: Long)
   }
   extension (t: kse.maths.Tic) {
-    inline def toc: kse.maths.NanoDuration = NanoInstant(t.unwrap).age
+    inline def toc: kse.maths.NanoDuration = t.unwrap.age
   }
 }
 
