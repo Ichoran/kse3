@@ -983,16 +983,31 @@ object NanoDuration {
     inline def >=(et: kse.maths.NanoDuration): Boolean = dt.unwrap >= et.unwrap
     inline def >( et: kse.maths.NanoDuration): Boolean = dt.unwrap >  et.unwrap
 
-    inline def abs: kse.maths.NanoDuration = if dt.unwrap < 0 then NanoDuration(-dt.unwrap) else dt
+    def abs: kse.maths.NanoDuration =
+      if dt.unwrap < 0 then
+        if dt.unwrap == Long.MinValue then NanoDuration.MaxValue
+        else NanoDuration(-dt.unwrap)
+      else dt
     inline def max(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap < et.unwrap then et else dt
     inline def min(et: kse.maths.NanoDuration): kse.maths.NanoDuration = if dt.unwrap > et.unwrap then et else dt
+
+    def clamp(lo: kse.maths.NanoDuration, hi: kse.maths.NanoDuration): kse.maths.NanoDuration =
+      if lo.unwrap <= dt.unwrap then
+        if dt.unwrap <= hi.unwrap then dt.unwrap
+        else if lo.unwrap <= hi.unwrap then hi
+        else lo
+      else lo
+    inline def in(lo: kse.maths.NanoDuration, hi: kse.maths.NanoDuration) = lo.unwrap <= dt.unwrap && dt.unwrap <= hi.unwrap
+    def checkIn(lo: kse.maths.NanoDuration, hi: kse.maths.NanoDuration): kse.maths.NanoDuration =
+      if dt.unwrap < lo.unwrap || dt.unwrap > hi.unwrap then throw new ArithmeticException("long overflow")
+      else dt
 
     inline def double: kse.maths.DoubleDuration = DoubleDuration(dt)
     def duration: Duration =
       val s = dt.unwrap/1000000000
-      val n = dt.unwrap - s
+      val n = (dt.unwrap - s*1000000000).toInt
       if n >= 0 then Duration.ofSeconds(s, n)
-      else           Duration.ofSeconds(s-1, 1000000000+n)
+      else           Duration.ofSeconds(s-1, 1000000000 + n)
 
     inline def into:  kse.maths.NanoDuration.Into  = dt.unwrap
     inline def round: kse.maths.NanoDuration.Round = dt.unwrap
@@ -1011,6 +1026,10 @@ object NanoDuration {
       inline def us: Long = in/1000
       inline def ms: Long = in/1000000
       inline def  s: Long = in/1000000000
+      inline def  m: Int  = (in/60000000000L).toInt
+      inline def  h: Int  = (in/3600000000000L).toInt
+      inline def  d: Int  = (in/86400000000000L).toInt
+      inline def days: Int = in.d
 
       inline def round: InRound = in
       inline def floor: InFloor = in
