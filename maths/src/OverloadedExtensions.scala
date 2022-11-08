@@ -25,6 +25,7 @@ import java.nio.file.attribute.FileTime
 import scala.annotation.targetName
 
 
+
 extension (value: Byte) {
   /////////////////////////////////
   // Overflow-throwing operators //
@@ -44,7 +45,23 @@ extension (value: Byte) {
   def /!(b: Byte): Byte =
     if b == -1 && value == Byte.MinValue then throw new ArithmeticException("byte overflow")
     else (value/b).toByte
+
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  inline def clamp(lo: Byte, hi: Byte) =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then hi
+      else lo
+    else lo
+  inline def in(lo: Byte, hi: Byte) = lo <= value && value <= hi
+  inline def checkIn(lo: Byte, hi: Byte) =
+    if value < lo || value > hi then throw new ArithmeticException("byte out of range")
+    else value
+
 }
+
 
 
 extension (value: Short) {
@@ -66,7 +83,40 @@ extension (value: Short) {
   def /!(s: Short): Short =
     if s == -1 && value == Short.MinValue then throw new ArithmeticException("short overflow")
     else (value/s).toShort
+
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  inline def clamp(lo: Short, hi: Short) =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then hi
+      else lo
+    else lo
+  inline def in(lo: Short, hi: Short) = lo <= value && value <= hi
+  inline def checkIn(lo: Short, hi: Short): Short =
+    if value < lo || value > hi then throw new ArithmeticException("short out of range")
+    else value
 }
+
+
+
+extension (value: Char) {
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  inline def clamp(lo: Char, hi: Char) =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then hi
+      else lo
+    else lo
+  inline def in(lo: Char, hi: Char) = lo <= value && value <= hi
+  inline def checkIn(lo: Char, hi: Char) =
+    if value < lo || value > hi then throw new ArithmeticException("char out of range")
+    else value
+}
+
 
 
 extension (value: Int) {
@@ -79,6 +129,20 @@ extension (value: Int) {
   inline def /!(i: Int) =
     if i == -1 && value == Int.MinValue then throw new ArithmeticException("int overflow")
     else value / i
+
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  inline def clamp(lo: Int, hi: Int) =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then hi
+      else lo
+    else lo
+  inline def in(lo: Int, hi: Int) = lo <= value && value <= hi
+  inline def checkIn(lo: Int, hi: Int) =
+    if value < lo || value > hi then throw new ArithmeticException("int out of range")
+    else value
 
   ////////////////////////////////////////
   // Int _ Frac Operators (Maths.scala) //
@@ -122,6 +186,20 @@ extension (value: Long) {
     if l == -1 && value == Long.MinValue then throw new ArithmeticException("long overflow")
     else value / l
 
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  inline def clamp(lo: Long, hi: Long) =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then hi
+      else lo
+    else lo
+  inline def in(lo: Long, hi: Long) = lo <= value && value <= hi
+  inline def checkIn(lo: Long, hi: Long) =
+    if value < lo || value > hi then throw new ArithmeticException("long overflow")
+    else value
+
   /////////////////////////////////////
   // Time operators (Temporal.scala) //
   /////////////////////////////////////
@@ -132,11 +210,29 @@ extension (value: Long) {
 
 
 extension (value: Float) {
-  ////////////////////////////
-  // trunc from Maths.scala //
-  ////////////////////////////
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
   @targetName("float_trunc")
   inline def trunc = if value < 0 then jm.ceil(value) else jm.floor(value)
+
+  inline def clamp(lo: Float, hi: Float) =
+    if lo <= value && value <= hi then value
+    else if value < lo then lo
+    else if value > hi then
+      if lo <= hi then hi
+      else lo
+    else Float.NaN
+
+  inline def in(lo: Float, hi: Float) = lo <= value && value <= hi
+
+  final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
+    jm.abs(value - that) match
+      case x if x <= abstol =>
+        val big = jm.max(jm.abs(value), jm.abs(that))
+        big <= 1 || x <= big*fractol
+      case _ => false
+  inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
 
 
   ////////////////////////////////////////
@@ -175,16 +271,50 @@ extension (value: Float) {
 
 
 extension (value: Double) {
-  ////////////////////////////
-  // trunc from Maths.scala //
-  ////////////////////////////
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
   @targetName("float_trunc")
   inline def trunc = if value < 0 then jm.ceil(value) else jm.floor(value)
+
+  inline def clamp(lo: Double, hi: Double) =
+    if lo <= value && value <= hi then value
+    else if value < lo then lo
+    else if value > hi then
+      if lo <= hi then hi
+      else lo
+    else Double.NaN
+
+  inline def in(lo: Double, hi: Double) = lo <= value && value <= hi
+
+  final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
+    jm.abs(value - that) match
+      case x if x <= abstol =>
+        val big = jm.max(jm.abs(value), jm.abs(that))
+        big <= 1 || x <= big*fractol
+      case _ => false
 }
 
 
 
 extension (d: Duration) {
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  def clamp(early: Duration, late: Duration): Duration =
+    if d.compareTo(early) >= 0 then
+      if d.compareTo(late) <= 0 then d
+      else if early.compareTo(late) <= 0 then late
+      else early
+    else early
+
+  inline def in(early: Duration, late: Duration): Boolean = d.compareTo(early) >= 0 && d.compareTo(late) <= 0
+
+  inline def checkIn(early: Duration, late: Duration): Duration =
+    if d.compareTo(early) >= 0 && d.compareTo(late) <= 0 then d
+    else throw new ArithmeticException("Duration out of range")
+
+
   /////////////////////////////////////////////
   // Duration arithmetic from Temporal.scala //
   /////////////////////////////////////////////

@@ -676,16 +676,9 @@ extension (b: Byte) {
   // -! moved to OverloadedExtensions
   // *! moved to OverloadedExtensions
   // /! moved to OverloadedExtensions
-  inline def clamp(lo: Byte, hi: Byte) =
-    if lo <= b then
-      if b <= hi then b
-      else if lo <= hi then hi
-      else lo
-    else lo
-  inline def in(lo: Byte, hi: Byte) = lo <= b && b <= hi
-  inline def checkIn(lo: Byte, hi: Byte) =
-    if b < lo || b > hi then throw new ArithmeticException("byte out of range")
-    else b
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   @targetName("byte_hiHex") inline def hiHexString: String = ToHexString.hi(b)
   @targetName("byte_loHex") inline def loHexString: String = ToHexString.lo(b)
@@ -726,16 +719,9 @@ extension (s: Short) {
   // -! moved to OverloadedExtensions
   // *! moved to OverloadedExtensions
   // /! moved to OverloadedExtensions
-  inline def clamp(lo: Short, hi: Short) =
-    if lo <= s then
-      if s <= hi then s
-      else if lo <= hi then hi
-      else lo
-    else lo
-  inline def in(lo: Short, hi: Short) = lo <= s && s <= hi
-  inline def checkIn(lo: Short, hi: Short): Short =
-    if s < lo || s > hi then throw new ArithmeticException("short out of range")
-    else s
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   @targetName("short_hiHex") inline def hiHexString: String = ToHexString.hi(s)
   @targetName("short_loHex") inline def loHexString: String = ToHexString.lo(s)
@@ -760,16 +746,9 @@ extension (s: Short) {
 }
 
 extension (c: Char) {
-  inline def clamp(lo: Char, hi: Char) =
-    if lo <= c then
-      if c <= hi then c
-      else if lo <= hi then hi
-      else lo
-    else lo
-  inline def in(lo: Char, hi: Char) = lo <= c && c <= hi
-  inline def checkIn(lo: Char, hi: Char) =
-    if c < lo || c > hi then throw new ArithmeticException("char out of range")
-    else c
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   @targetName("char_hiHex") inline def hiHexString: String = ToHexString.hi(c)
   @targetName("char_loHex") inline def loHexString: String = ToHexString.lo(c)
@@ -807,16 +786,9 @@ extension (i: Int) {
   // -! moved to OverloadedExtensions
   // *! moved to OverloadedExtensions
   // /! moved to OverloadedExtensions
-  inline def clamp(lo: Int, hi: Int) =
-    if lo <= i then
-      if i <= hi then i
-      else if lo <= hi then hi
-      else lo
-    else lo
-  inline def in(lo: Int, hi: Int) = lo <= i && i <= hi
-  inline def checkIn(lo: Int, hi: Int) =
-    if i < lo || i > hi then throw new ArithmeticException("int out of range")
-    else i
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   @targetName("int_hiHex") inline def hiHexString: String = ToHexString.hi(i)
   @targetName("int_loHex") inline def loHexString: String = ToHexString.lo(i)
@@ -896,16 +868,9 @@ extension (l: Long) {
   // -! moved to OverloadedExtensions
   // *! moved to OverloadedExtensions
   // /! moved to OverloadedExtensions
-  inline def clamp(lo: Long, hi: Long) =
-    if lo <= l then
-      if l <= hi then l
-      else if lo <= hi then hi
-      else lo
-    else lo
-  inline def in(lo: Long, hi: Long) = lo <= l && l <= hi
-  inline def checkIn(lo: Long, hi: Long) =
-    if l < lo || l > hi then throw new ArithmeticException("long overflow")
-    else l
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   @targetName("long_hiHex") inline def hiHexString: String = ToHexString.hi(l)
   @targetName("long_loHex") inline def loHexString: String = ToHexString.lo(l)
@@ -986,24 +951,9 @@ extension (inline x: Byte | Short | Int | Long) {
 
 extension (f: Float) {
   // trunc moved to OverloadedExtensions
-
-  inline def clamp(lo: Float, hi: Float) =
-    if lo <= f && f <= hi then f
-    else if f < lo then lo
-    else if f > hi then
-      if lo <= hi then hi
-      else lo
-    else Float.NaN
-
-  inline def in(lo: Float, hi: Float) = lo <= f && f <= hi
-
-  final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
-    jm.abs(f - that) match
-      case x if x <= abstol =>
-        val big = jm.max(jm.abs(f), jm.abs(that))
-        big <= 1 || x <= big*fractol
-      case _ => false
-  inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   def toUByte: kse.maths.UByte =
     if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
@@ -1026,6 +976,9 @@ extension (f: Float) {
 
 extension (d: Double) {
   // trunc moved to OverloadedExtensions
+  // clamp moved to OverloadedExtensions
+  // in moved to OverloadedExtensions
+  // checkIn moved to OverloadedExtensions
 
   inline def cube = d * d * d
   inline def sqrt = jm.sqrt(d)
@@ -1066,23 +1019,6 @@ extension (d: Double) {
   inline def icdfNormal = NumericFunctions.icdfNormal(d)
 
   inline def rint = jm.rint(d)
-
-  inline def clamp(lo: Double, hi: Double) =
-    if lo <= d && d <= hi then d
-    else if d < lo then lo
-    else if d > hi then
-      if lo <= hi then hi
-      else lo
-    else Double.NaN
-
-  inline def in(lo: Double, hi: Double) = lo <= d && d <= hi
-
-  final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
-    jm.abs(d - that) match
-      case x if x <= abstol =>
-        val big = jm.max(jm.abs(d), jm.abs(that))
-        big <= 1 || x <= big*fractol
-      case _ => false
 
   def toUByte: kse.maths.UByte =
     if d < 0 then UByte(0) else if d > 255 then UByte(255) else UByte((d.toInt & 0xFF).toByte)

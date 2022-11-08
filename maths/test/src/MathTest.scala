@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2022 Rex Kerr and Calico Life Sciences LLC.
 
-package kse.flow.test
+package kse.maths.test
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -4192,6 +4192,16 @@ class MathTest {
     T ~ (d2 max d)         ==== d2
     T ~ (-d).safeAbs       ==== d
     T ~ dmin.safeAbs       ==== dmax
+    T ~ d2.clamp(d, dmax)  ==== d2
+    T ~ d.clamp(d2, dmax)  ==== d2
+    T ~ dmax.clamp(d, d2)  ==== d2
+    T ~ dmax.clamp(d2, d)  ==== d2
+    T ~ d2.in(d, dmax)     ==== true
+    T ~ d.in(d2, dmax)     ==== false
+    T ~ dmax.in(d, d2)     ==== false
+    T ~ d2.checkIn(d,dmax) ==== d2
+    T ~ d.checkIn(d2,dmax) ==== thrown[ArithmeticException]
+    T ~ dmax.checkIn(d,d2) ==== thrown[ArithmeticException]
 
     val dna = Duration.ofSeconds(9223372036L, 854775807)
     val dnb = Duration.ofSeconds(9223372036L, 854775808)

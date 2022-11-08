@@ -773,6 +773,10 @@ extension (d: Duration) {
   inline def min(e: Duration) = if d.compareTo(e) > 0 then e else d
   inline def max(e: Duration) = if d.compareTo(e) < 0 then e else d
 
+  // clamp(Duration, Duration) moved to OverloadedExtensions
+  // in(Duration, Duration) moved to OverloadedExtensions
+  // checkIn(Duration, Duration) moved to OverloadedExtensions
+
   def nano: kse.maths.NanoDuration =
     if d.getSeconds < 0 then
       if d.getSeconds == Long.MinValue then NanoDuration(Long.MinValue)
