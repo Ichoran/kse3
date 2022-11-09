@@ -1705,5 +1705,117 @@ class TemporalTest() {
     T ~ dphs.round.exact.h ==== thrown[ArithmeticException]
     T ~ dnhs.ceil.exact.h  ==== thrown[ArithmeticException]
     T ~ dphs.ceil.exact.h  ==== thrown[ArithmeticException]
+
+    val ysd = dd(302153846.4)
+    val ysu = dd(302185296.0)
+    val yzu = dd(-302153846.4)
+    val yzd = dd(-302185296.0)
+    val dnys = dd((Long.MinValue * 86400.0).prev)
+    val dpys = dd((Long.MaxValue * 86400.0).next)
+    T ~ ysd.trunc.d          ==== 3021408e2           --: typed[DoubleDuration]
+    T ~ ysd.floor.d          ==== ysd.trunc.d         --: typed[DoubleDuration]
+    T ~ ysd.round.d          ==== ysd.trunc.d         --: typed[DoubleDuration]
+    T ~ ysd.ceil.d           ==== 3022272e2           --: typed[DoubleDuration]
+    T ~ ysu.trunc.d          ==== ysd.floor.d         --: typed[DoubleDuration]
+    T ~ ysu.floor.d          ==== ysd.floor.d         --: typed[DoubleDuration]
+    T ~ ysu.round.d          ==== ysd.ceil.d          --: typed[DoubleDuration]
+    T ~ ysu.ceil.d           ==== ysd.ceil.d          --: typed[DoubleDuration]
+    T ~ yzu.trunc.d          ==== -3021408e2          --: typed[DoubleDuration]
+    T ~ yzu.floor.d          ==== -3022272e2          --: typed[DoubleDuration]
+    T ~ yzu.round.d          ==== yzu.trunc.d         --: typed[DoubleDuration]
+    T ~ yzu.ceil.d           ==== yzu.trunc.d         --: typed[DoubleDuration]
+    T ~ yzd.trunc.d          ==== yzu.trunc.d         --: typed[DoubleDuration]
+    T ~ yzd.floor.d          ==== yzu.floor.d         --: typed[DoubleDuration]
+    T ~ yzd.round.d          ==== yzu.floor.d         --: typed[DoubleDuration]
+    T ~ yzd.ceil.d           ==== yzu.trunc.d         --: typed[DoubleDuration]
+    T ~ ysd.into.d           =~~=  3497.151
+    T ~ ysd.floor.into.d     ====  3.497e3            --: typed[Double]
+    T ~ ysd.trunc.into.d     ====  3.497e3            --: typed[Double]
+    T ~ ysd.round.into.d     ====  3.497e3            --: typed[Double]
+    T ~ ysd.ceil.into.d      ====  3.498e3            --: typed[Double]
+    T ~ ysu.into.d           =~~=  3497.515
+    T ~ ysu.floor.into.d     ====  3.497e3            --: typed[Double]
+    T ~ ysu.trunc.into.d     ====  3.497e3            --: typed[Double]
+    T ~ ysu.round.into.d     ====  3.498e3            --: typed[Double]
+    T ~ ysu.ceil.into.d      ====  3.498e3            --: typed[Double]
+    T ~ yzu.into.d           =~~= -3497.151
+    T ~ yzu.floor.into.d     ==== -3.498e3            --: typed[Double]
+    T ~ yzu.round.into.d     ==== -3.497e3            --: typed[Double]
+    T ~ yzu.ceil.into.d      ==== -3.497e3            --: typed[Double]
+    T ~ yzu.trunc.into.d     ==== -3.497e3            --: typed[Double]
+    T ~ yzd.into.d           =~~= -3497.515
+    T ~ yzd.floor.into.d     ==== -3.498e3            --: typed[Double]
+    T ~ yzd.round.into.d     ==== -3.498e3            --: typed[Double]
+    T ~ yzd.ceil.into.d      ==== -3.497e3            --: typed[Double]
+    T ~ yzd.trunc.into.d     ==== -3.497e3            --: typed[Double]
+    T ~ ysd.into.trunc.d     ==== ysd.trunc.into.d
+    T ~ ysd.into.floor.d     ==== ysd.floor.into.d
+    T ~ ysd.into.round.d     ==== ysd.round.into.d
+    T ~ ysd.into.ceil.d      ==== ysd.ceil.into.d
+    T ~ ysd.long.d           ====  3497L              --: typed[Long]
+    T ~ ysd.floor.long.d     ====  3497L              --: typed[Long]
+    T ~ ysd.round.long.d     ====  3497L              --: typed[Long]
+    T ~ ysd.ceil.long.d      ====  3498L              --: typed[Long]
+    T ~ ysu.long.d           ====  3497L              --: typed[Long]
+    T ~ ysu.floor.long.d     ====  3497L              --: typed[Long]
+    T ~ ysu.round.long.d     ====  3498L              --: typed[Long]
+    T ~ ysu.ceil.long.d      ====  3498L              --: typed[Long]
+    T ~ yzu.long.d           ==== -3497L              --: typed[Long]
+    T ~ yzu.floor.long.d     ==== -3498L              --: typed[Long]
+    T ~ yzu.round.long.d     ==== -3497L              --: typed[Long]
+    T ~ yzu.ceil.long.d      ==== -3497L              --: typed[Long]
+    T ~ yzd.long.d           ==== -3497L              --: typed[Long]
+    T ~ yzd.floor.long.d     ==== -3498L              --: typed[Long]
+    T ~ yzd.round.long.d     ==== -3498L              --: typed[Long]
+    T ~ yzd.ceil.long.d      ==== -3497L              --: typed[Long]
+    T ~ ysd.long.floor.d     ==== ysd.floor.long.d
+    T ~ ysd.long.round.d     ==== ysd.round.long.d
+    T ~ ysd.long.ceil.d      ==== ysd.ceil.long.d
+    T ~ ysd.exact.d          ====  3497L              --: typed[Long]
+    T ~ ysd.floor.exact.d    ====  3497L              --: typed[Long]
+    T ~ ysd.round.exact.d    ====  3497L              --: typed[Long]
+    T ~ ysd.ceil.exact.d     ====  3498L              --: typed[Long]
+    T ~ ysu.exact.d          ====  3497L              --: typed[Long]
+    T ~ ysu.floor.exact.d    ====  3497L              --: typed[Long]
+    T ~ ysu.round.exact.d    ====  3498L              --: typed[Long]
+    T ~ ysu.ceil.exact.d     ====  3498L              --: typed[Long]
+    T ~ yzu.exact.d          ==== -3497L              --: typed[Long]
+    T ~ yzu.floor.exact.d    ==== -3498L              --: typed[Long]
+    T ~ yzu.round.exact.d    ==== -3497L              --: typed[Long]
+    T ~ yzu.ceil.exact.d     ==== -3497L              --: typed[Long]
+    T ~ yzd.exact.d          ==== -3497L              --: typed[Long]
+    T ~ yzd.floor.exact.d    ==== -3498L              --: typed[Long]
+    T ~ yzd.round.exact.d    ==== -3498L              --: typed[Long]
+    T ~ yzd.ceil.exact.d     ==== -3497L              --: typed[Long]
+    T ~ ysd.exact.floor.d    ==== ysd.floor.exact.d
+    T ~ ysd.exact.round.d    ==== ysd.round.exact.d
+    T ~ ysd.exact.ceil.d     ==== ysd.ceil.exact.d
+    T ~ dnys.exact.d         ==== thrown[ArithmeticException]
+    T ~ dpys.exact.d         ==== thrown[ArithmeticException]
+    T ~ dnys.floor.exact.d   ==== thrown[ArithmeticException]
+    T ~ dpys.floor.exact.d   ==== thrown[ArithmeticException]
+    T ~ dnys.round.exact.d   ==== thrown[ArithmeticException]
+    T ~ dpys.round.exact.d   ==== thrown[ArithmeticException]
+    T ~ dnys.ceil.exact.d    ==== thrown[ArithmeticException]
+    T ~ dpys.ceil.exact.d    ==== thrown[ArithmeticException]
+    T ~ ysu.trunc.days       ==== ysu.trunc.d         --: typed[DoubleDuration]
+    T ~ ysu.floor.days       ==== ysu.floor.d         --: typed[DoubleDuration]
+    T ~ ysu.round.days       ==== ysu.round.d         --: typed[DoubleDuration]
+    T ~ ysu.ceil.days        ==== ysu.ceil.d          --: typed[DoubleDuration]
+    T ~ ysu.into.days        ==== ysu.into.d          --: typed[Double]
+    T ~ ysu.trunc.into.days  ==== ysu.trunc.into.d  --: typed[Double]
+    T ~ ysu.floor.into.days  ==== ysu.floor.into.d  --: typed[Double]
+    T ~ ysu.round.into.days  ==== ysu.round.into.d  --: typed[Double]
+    T ~ ysu.ceil.into.days   ==== ysu.ceil.into.d   --: typed[Double]
+    T ~ ysu.long.days        ==== ysu.long.d        --: typed[Long]
+    T ~ ysu.floor.long.days  ==== ysu.floor.long.d  --: typed[Long]
+    T ~ ysu.round.long.days  ==== ysu.round.long.d  --: typed[Long]
+    T ~ ysu.ceil.long.days   ==== ysu.ceil.long.d   --: typed[Long]
+    T ~ ysu.exact.days       ==== ysu.exact.d       --: typed[Long]
+    T ~ ysu.floor.exact.days ==== ysu.floor.exact.d --: typed[Long]
+    T ~ ysu.round.exact.days ==== ysu.round.exact.d --: typed[Long]
+    T ~ ysu.ceil.exact.days  ==== ysu.ceil.exact.d  --: typed[Long]
+
+    T ~ List(ysd, yzu, yzd, ysu).sorted ==== List(yzd, yzu, ysd, ysu)
 }
 
