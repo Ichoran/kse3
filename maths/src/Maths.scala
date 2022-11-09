@@ -1085,7 +1085,7 @@ extension (inline x: Byte | Short | Int | Long | Float | Double) {
   transparent inline def prev = inline x match
     case f: Float  => jm.nextDown(f)
     case d: Double => jm.nextDown(d)
-    case _ => compiletime.error("prev is defined only on Float and Double\nother primitive types are not propoted")
+    case _ => compiletime.error("prev is defined only on Float and Double\nother primitive types are not promoted")
 
   transparent inline def nan = inline x match
     case f: Float  => java.lang.Float.isNaN(f)

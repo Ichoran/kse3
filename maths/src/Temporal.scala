@@ -1307,14 +1307,16 @@ object DoubleDuration {
 
     inline def %(et: kse.maths.DoubleDuration): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap % et.unwrap)
 
-    inline def <( du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) < 0
-    inline def <=(du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) <= 0
-    inline def >=(du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) >= 0
-    inline def >( du: kse.maths.DoubleDuration): Boolean = java.lang.Double.compare(dt.unwrap, du.unwrap) > 0
+    inline def <( du: kse.maths.DoubleDuration): Boolean = dt.unwrap <  du.unwrap
+    inline def <=(du: kse.maths.DoubleDuration): Boolean = dt.unwrap <= du.unwrap
+    inline def >=(du: kse.maths.DoubleDuration): Boolean = dt.unwrap >= du.unwrap
+    inline def >( du: kse.maths.DoubleDuration): Boolean = dt.unwrap >  du.unwrap
 
     inline def abs: kse.maths.DoubleDuration = if dt.unwrap < 0 then DoubleDuration(-dt.unwrap) else dt
-    inline def max(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = if DoubleDuration.<(dt)(du) then du else dt
-    inline def min(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration = if DoubleDuration.>(dt)(du) then du else dt
+    inline def max(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration =
+      if dt.unwrap >= du.unwrap then dt else if du.unwrap >= dt.unwrap then du else DoubleDuration(Double.NaN)
+    inline def min(du: kse.maths.DoubleDuration): kse.maths.DoubleDuration =
+      if dt.unwrap <= du.unwrap then dt else if du.unwrap <= dt.unwrap then du else DoubleDuration(Double.NaN)
 
     inline def clamp(lo: kse.maths.DoubleDuration, hi: kse.maths.DoubleDuration): kse.maths.DoubleDuration =
       DoubleDuration(kse.maths.clamp(dt.unwrap)(lo.unwrap, hi.unwrap))
@@ -1328,7 +1330,7 @@ object DoubleDuration {
 
     def exactNano: kse.maths.NanoDuration =
       val l = jm.rint(dt.unwrap * 1e9)
-      if l >= Long.MinValue && l <= Long.MaxValue then NanoDuration(l.toInt)
+      if l >= Long.MinValue && l <= Long.MaxValue then NanoDuration(l.toLong)
       else throw new ArithmeticException("long overflow")
 
     def duration: Duration =
@@ -1445,56 +1447,56 @@ object DoubleDuration {
   opaque type InRound = Double
   object InRound {
     extension (round: InRound) {
-      inline def ns: kse.maths.DoubleDuration = jm.rint(round * 1e9) / 1e9
-      inline def us: kse.maths.DoubleDuration = jm.rint(round * 1e6) / 1e6
-      inline def ms: kse.maths.DoubleDuration = jm.rint(round * 1e3) / 1e3
-      inline def s:  kse.maths.DoubleDuration = jm.rint(round)
-      inline def m:  kse.maths.DoubleDuration = jm.rint(round / 60) * 60
-      inline def h:  kse.maths.DoubleDuration = jm.rint(round / 3600) * 3600
-      inline def d:  kse.maths.DoubleDuration = jm.rint(round / 86400) * 86400
-      inline def days: kse.maths.DoubleDuration = round.d
+      inline def ns: Double = jm.rint(round * 1e9)
+      inline def us: Double = jm.rint(round * 1e6)
+      inline def ms: Double = jm.rint(round * 1e3)
+      inline def s:  Double = jm.rint(round)
+      inline def m:  Double = jm.rint(round / 60)
+      inline def h:  Double = jm.rint(round / 3600)
+      inline def d:  Double = jm.rint(round / 86400)
+      inline def days: Double = round.d
     }
   }
 
   opaque type InFloor = Double
   object InFloor {
     extension (floor: InFloor) {
-      inline def ns: kse.maths.DoubleDuration = jm.floor(floor * 1e9) / 1e9
-      inline def us: kse.maths.DoubleDuration = jm.floor(floor * 1e6) / 1e6
-      inline def ms: kse.maths.DoubleDuration = jm.floor(floor * 1e3) / 1e3
-      inline def s:  kse.maths.DoubleDuration = jm.floor(floor)
-      inline def m:  kse.maths.DoubleDuration = jm.floor(floor / 60) * 60
-      inline def h:  kse.maths.DoubleDuration = jm.floor(floor / 3600) * 3600
-      inline def d:  kse.maths.DoubleDuration = jm.floor(floor / 86400) * 86400
-      inline def days: kse.maths.DoubleDuration = floor.d
+      inline def ns: Double = jm.floor(floor * 1e9)
+      inline def us: Double = jm.floor(floor * 1e6)
+      inline def ms: Double = jm.floor(floor * 1e3)
+      inline def s:  Double = jm.floor(floor)
+      inline def m:  Double = jm.floor(floor / 60)
+      inline def h:  Double = jm.floor(floor / 3600)
+      inline def d:  Double = jm.floor(floor / 86400)
+      inline def days: Double = floor.d
     }
   }
 
   opaque type InCeil = Double
   object InCeil {
     extension (ceil: InCeil) {
-      inline def ns: kse.maths.DoubleDuration = jm.ceil(ceil * 1e9) / 1e9
-      inline def us: kse.maths.DoubleDuration = jm.ceil(ceil * 1e6) / 1e6
-      inline def ms: kse.maths.DoubleDuration = jm.ceil(ceil * 1e3) / 1e3
-      inline def s:  kse.maths.DoubleDuration = jm.ceil(ceil)
-      inline def m:  kse.maths.DoubleDuration = jm.ceil(ceil / 60) * 60
-      inline def h:  kse.maths.DoubleDuration = jm.ceil(ceil / 3600) * 3600
-      inline def d:  kse.maths.DoubleDuration = jm.ceil(ceil / 86400) * 86400
-      inline def days: kse.maths.DoubleDuration = ceil.d
+      inline def ns: Double = jm.ceil(ceil * 1e9)
+      inline def us: Double = jm.ceil(ceil * 1e6)
+      inline def ms: Double = jm.ceil(ceil * 1e3)
+      inline def s:  Double = jm.ceil(ceil)
+      inline def m:  Double = jm.ceil(ceil / 60)
+      inline def h:  Double = jm.ceil(ceil / 3600)
+      inline def d:  Double = jm.ceil(ceil / 86400)
+      inline def days: Double = ceil.d
     }
   }
 
   opaque type InTrunc = Double
   object InTrunc {
     extension (trunc: InTrunc) {
-      def ns: kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc * 1e9)   else jm.floor(trunc * 1e9) ) / 1e9
-      def us: kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc * 1e6)   else jm.floor(trunc * 1e6) ) / 1e6
-      def ms: kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc * 1e3)   else jm.floor(trunc * 1e3) ) / 1e3
-      def s:  kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc)         else jm.floor(trunc) )
-      def m:  kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc / 60)    else jm.floor(trunc / 60) ) * 60
-      def h:  kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc / 3600)  else jm.floor(trunc / 3600) ) * 3600
-      def d:  kse.maths.DoubleDuration = ( if trunc < 0 then jm.ceil(trunc / 86400) else jm.floor(trunc / 86400) ) * 86400
-      inline def days: kse.maths.DoubleDuration = trunc.d
+      def ns: Double = ( if trunc < 0 then jm.ceil(trunc * 1e9)   else jm.floor(trunc * 1e9) )
+      def us: Double = ( if trunc < 0 then jm.ceil(trunc * 1e6)   else jm.floor(trunc * 1e6) )
+      def ms: Double = ( if trunc < 0 then jm.ceil(trunc * 1e3)   else jm.floor(trunc * 1e3) )
+      def s:  Double = ( if trunc < 0 then jm.ceil(trunc)         else jm.floor(trunc) )
+      def m:  Double = ( if trunc < 0 then jm.ceil(trunc / 60)    else jm.floor(trunc / 60) )
+      def h:  Double = ( if trunc < 0 then jm.ceil(trunc / 3600)  else jm.floor(trunc / 3600) )
+      def d:  Double = ( if trunc < 0 then jm.ceil(trunc / 86400) else jm.floor(trunc / 86400) )
+      inline def days: Double = trunc.d
     }
   }
 
@@ -1512,7 +1514,7 @@ object DoubleDuration {
 
       inline def round: kse.maths.DoubleDuration.InLongRound = in
       inline def floor: kse.maths.DoubleDuration.InLongFloor = in
-      inline def ceil:  kse.maths.DoubleDuration.InLongRound = in
+      inline def ceil:  kse.maths.DoubleDuration.InLongCeil  = in
     }
   }
 
@@ -1576,7 +1578,7 @@ object DoubleDuration {
 
       inline def round: kse.maths.DoubleDuration.ExactLongRound = in
       inline def floor: kse.maths.DoubleDuration.ExactLongFloor = in
-      inline def ceil:  kse.maths.DoubleDuration.ExactLongRound = in
+      inline def ceil:  kse.maths.DoubleDuration.ExactLongCeil  = in
     }
   }
 
