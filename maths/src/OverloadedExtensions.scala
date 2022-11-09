@@ -306,9 +306,12 @@ extension (value: Double) {
 
 
 extension (d: Duration) {
-  /////////////////////////
-  // Range-aware methods //
-  /////////////////////////
+  //////////////////////////////////////
+  // Range-aware and rounding methods //
+  //////////////////////////////////////
+  @targetName("Duration_trunc")
+  inline def trunc: kse.maths.DurationCompanion.Trunc = DurationCompanion.Trunc(d)
+
   def clamp(early: Duration, late: Duration): Duration =
     if d.compareTo(early) >= 0 then
       if d.compareTo(late) <= 0 then d
@@ -374,9 +377,11 @@ extension (d: Duration) {
     catch
       case _: DateTimeException => ZonedDateTime.of(if d.getSeconds < 0 then LocalDateTime.MIN else LocalDateTime.MAX, zdt.getZone)
 
+  /*
   @targetName("Duration_add_FileTime")
   def +(ft: FileTime): FileTime =
     DurationCompanion.robustAddition(ft, d, subtract = false)
+  */
 
   inline def +!(dd: Duration): Duration = d plus dd
   inline def -!(dd: Duration): Duration = d minus dd
@@ -388,13 +393,9 @@ extension (d: Duration) {
   inline def +!(ldt: LocalDateTime): LocalDateTime = ldt plus d
   inline def +!(odt: OffsetDateTime): OffsetDateTime = odt plus d
   inline def +!(zdt: ZonedDateTime): ZonedDateTime = zdt plus d
+
+  /*
   inline def +!(ft: FileTime): FileTime = DurationCompanion.exactAddition(ft, d, subtract = false)
-
-
-  ////////////////////////////////////////
-  // Duration trunc from Temporal.scala //
-  ////////////////////////////////////////
-  @targetName("Duration_trunc")
-  inline def trunc: kse.maths.DurationCompanion.Trunc = DurationCompanion.Trunc(d)
+  */
 }
 

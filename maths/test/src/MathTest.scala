@@ -1209,6 +1209,7 @@ class MathTest {
   def extensionsTest(): Unit =
     val b: Byte = -8
     val b2: Byte = 32
+    val bmin = Byte.MinValue
     T ~ (b +# b)                 ==== -16  --: typed[Byte]
     T ~ (b +# (-125: Byte))      ==== -128 --: typed[Byte]
     T ~ (99.toByte +# 99.toByte) ==== 127  --: typed[Byte]
@@ -1252,6 +1253,8 @@ class MathTest {
     T ~ b.toUByte          ==== b          --: typed[UByte]
     T ~ b.toUInt           ==== 248        --: typed[UInt]
     T ~ b.toULong          ==== 248L       --: typed[ULong]
+    T ~ b.clampNeg         ==== 8          --: typed[Byte]
+    T ~ bmin.clampNeg      ==== 127        --: typed[Byte]
     T ~ b.clampToUByte     ==== 0          --: typed[UByte]
     T ~ b2.clampToUByte    ==== b2         --: typed[UByte]
     T ~ b.clampToChar      ==== '\u0000'   --: typed[Char]
@@ -1260,6 +1263,8 @@ class MathTest {
     T ~ b2.clampToUInt     ==== b2         --: typed[UInt]
     T ~ b.clampToULong     ==== 0          --: typed[ULong]
     T ~ b2.clampToULong    ==== b2         --: typed[ULong]
+    T ~ b.exactNeg         ==== 8          --: typed[Byte]
+    T ~ bmin.exactNeg      ==== thrown[ArithmeticException]
     T ~ b2.exactToUByte    ==== b2         --: typed[UByte]
     T ~ b.exactToUByte     ==== thrown[ArithmeticException]
     T ~ b2.exactToChar     ==== b2.toChar  --: typed[Char]
@@ -1276,6 +1281,7 @@ class MathTest {
     val s2: Short = -888
     val s3: Short = 200
     val s4: Short = 2000
+    val smin = Short.MinValue
     T ~ (s +# s)                        ==== -176   --: typed[Short]
     T ~ (s +# (-32760: Short))          ==== -32768 --: typed[Short]
     T ~ (29999.toShort +# 9999.toShort) ==== 32767  --: typed[Short]
@@ -1317,6 +1323,8 @@ class MathTest {
     T ~ s.toUByte            ==== UByte(168)        --: typed[UByte]
     T ~ s.toUInt             ==== 65448             --: typed[UInt]
     T ~ s.toULong            ==== 65448L            --: typed[ULong]
+    T ~ s.clampNeg           ==== 88                --: typed[Short]
+    T ~ smin.clampNeg        ==== Short.MaxValue    --: typed[Short]
     T ~ s.clampToByte        ==== s                 --: typed[Byte]
     T ~ s2.clampToByte       ==== Byte.MinValue     --: typed[Byte]
     T ~ s3.clampToByte       ==== Byte.MaxValue     --: typed[Byte]
@@ -1329,6 +1337,8 @@ class MathTest {
     T ~ s4.clampToUInt       ==== 2000              --: typed[UInt]
     T ~ s.clampToULong       ==== 0                 --: typed[ULong]
     T ~ s4.clampToULong      ==== 2000              --: typed[ULong]
+    T ~ s.exactNeg           ==== 88                --: typed[Short]
+    T ~ smin.exactNeg        ==== thrown[ArithmeticException]
     T ~ s.exactToByte        ==== s                 --: typed[Byte]
     T ~ s2.exactToByte       ==== thrown[ArithmeticException]
     T ~ s3.exactToUByte      ==== UByte(200)        --: typed[UByte]
@@ -1435,6 +1445,8 @@ class MathTest {
     T ~ i.toUByte               ==== (i & 0xFF)     --: typed[UByte]
     T ~ i.toUInt                ==== i              --: typed[UInt]
     T ~ i.toULong               ==== 4294958408L    --: typed[ULong]
+    T ~ i.clampNeg              ==== 8888           --: typed[Int]
+    T ~ Int.MinValue.clampNeg   ==== Int.MaxValue   --: typed[Int]
     T ~ i.clampToByte           ==== -128           --: typed[Byte]
     T ~ i2.clampToByte          ==== i2             --: typed[Byte]
     T ~ i4.clampToByte          ==== 127            --: typed[Byte]
@@ -1451,6 +1463,8 @@ class MathTest {
     T ~ i6.clampToUInt          ==== i6             --: typed[UInt]
     T ~ i.clampToULong          ==== 0              --: typed[ULong]
     T ~ i6.clampToULong         ==== i6             --: typed[ULong]
+    T ~ i.exactNeg              ==== 8888           --: typed[Int]
+    T ~ Int.MinValue.exactNeg   ==== thrown[ArithmeticException]
     T ~ i2.exactToByte          ==== i2             --: typed[Byte]
     T ~ i.exactToByte           ==== thrown[ArithmeticException]
     T ~ i4.exactToUByte         ==== UByte(200)     --: typed[UByte]
@@ -1555,6 +1569,8 @@ class MathTest {
     T ~ lbiga.toUByte              ==== UByte(153)       --: typed[UByte]
     T ~ lbiga.toUInt               ==== UInt(0xF7054D99) --: typed[UInt]
     T ~ lbiga.toULong              ==== lbiga            --: typed[ULong]
+    T ~ l2.clampNeg                ==== 88               --: typed[Long]
+    T ~ Long.MinValue.clampNeg     ==== Long.MaxValue    --: typed[Long]
     T ~ l.clampToByte              ==== 42               --: typed[Byte]
     T ~ l2.clampToByte             ==== l2               --: typed[Byte]
     T ~ l3.clampToByte             ==== Byte.MinValue    --: typed[Byte]
@@ -1582,6 +1598,8 @@ class MathTest {
     T ~ l.clampToULong             ==== l                --: typed[ULong]
     T ~ l2.clampToULong            ==== 0L               --: typed[ULong]
     T ~ l9.clampToULong            ==== l9               --: typed[ULong]
+    T ~ l2.exactNeg                ==== 88               --: typed[Long]
+    T ~ Long.MinValue.exactNeg     ==== thrown[ArithmeticException]
     T ~ l.exactToByte              ==== 42               --: typed[Byte]
     T ~ l3.exactToByte             ==== thrown[ArithmeticException]
     T ~ l6.exactToUByte            ==== UByte(200)       --: typed[UByte]

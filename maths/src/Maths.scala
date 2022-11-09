@@ -689,15 +689,17 @@ extension (b: Byte) {
   @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
   @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
 
+  @targetName("byte_clampNeg")   inline def clampNeg: Byte = if b != (-128: Byte) then (-b).toByte else (127: Byte)
   @targetName("byte_clampUByte") inline def clampToUByte: kse.maths.UByte = UByte.clamp(b)
   @targetName("byte_clampChar")  inline def clampToChar: Char             = if b < 0 then '\u0000' else b.toChar
   @targetName("byte_clampUInt")  inline def clampToUInt: kse.maths.UInt   = if b < 0 then UInt(0) else UInt(b.toInt)
   @targetName("byte_clampULong") inline def clampToULong: kse.maths.ULong = if b < 0 then ULong(0L) else ULong(b.toLong)
 
-  @targetName("byte_exactUByte") inline def exactToUByte: kse.maths.UByte = if b < 0 then throw new ArithmeticException("negative UByte") else UByte(b)
-  @targetName("byte_exactChar")  inline def exactToChar: Char             = if b < 0 then throw new ArithmeticException("negative Char")  else b.toChar
-  @targetName("byte_exactUInt")  inline def exactToUInt: kse.maths.UInt   = if b < 0 then throw new ArithmeticException("negative UInt")  else UInt(b.toInt)
-  @targetName("byte_exactULong") inline def exactToULong: kse.maths.ULong = if b < 0 then throw new ArithmeticException("negative ULong") else ULong(b.toLong)
+  @targetName("byte_exactNeg")   def exactNeg: Byte = if b != (-128: Byte) then (-b).toByte else throw new ArithmeticException("byte overflow")
+  @targetName("byte_exactUByte") def exactToUByte: kse.maths.UByte = if b < 0 then throw new ArithmeticException("negative UByte") else UByte(b)
+  @targetName("byte_exactChar")  def exactToChar: Char             = if b < 0 then throw new ArithmeticException("negative Char")  else b.toChar
+  @targetName("byte_exactUInt")  def exactToUInt: kse.maths.UInt   = if b < 0 then throw new ArithmeticException("negative UInt")  else UInt(b.toInt)
+  @targetName("byte_exactULong") def exactToULong: kse.maths.ULong = if b < 0 then throw new ArithmeticException("negative ULong") else ULong(b.toLong)
 }
 
 extension (s: Short) {
@@ -732,12 +734,14 @@ extension (s: Short) {
   @targetName("short_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
   @targetName("short_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(s & 0xFFFFL)
 
+  @targetName("short_clampNeg")   def clampNeg: Short               = if s != (-32768: Short) then (-s).toShort else (32767: Short)
   @targetName("short_clampByte")  def clampToByte: Byte             = if s < -128 then -128 else if s > 127 then 127 else s.toByte
   @targetName("short_clampUByte") def clampToUByte: kse.maths.UByte = if s < 0 then UByte(0) else if s > 255 then UByte(255) else UByte(s.toByte)
   @targetName("short_clampChar")  def clampToChar: Char             = if s < 0 then '\u0000' else s.toChar
   @targetName("short_clampUInt")  def clampToUInt: kse.maths.UInt   = if s < 0 then UInt(0) else UInt(s.toInt)
   @targetName("short_clampULong") def clampToULong: kse.maths.ULong = if s < 0 then ULong(0L) else ULong(s.toLong)
 
+  @targetName("short_exactNeg")   def exactNeg: Short               = if s != (-32768: Short) then (-s).toShort else throw new ArithmeticException("short overflow")
   @targetName("short_exactByte")  def exactToByte: Byte             = if s < -128 || s > 127 then throw new ArithmeticException("byte overflow")  else s.toByte
   @targetName("short_exactUByte") def exactToUByte: kse.maths.UByte = if s < 0    || s > 255 then throw new ArithmeticException("UByte overflow") else UByte(s.toByte)
   @targetName("short_exactChar")  def exactToChar: Char             = if s < 0               then throw new ArithmeticException("negative Char")  else s.toChar
@@ -799,6 +803,7 @@ extension (i: Int) {
   @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
   @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
 
+  @targetName("int_clampNeg")   def clampNeg: Int                 = if i != Int.MinValue then -i else Int.MaxValue
   @targetName("int_clampByte")  def clampToByte: Byte             = if i < -128 then -128 else if i > 127 then 127 else i.toByte
   @targetName("int_clampUByte") def clampToUByte: kse.maths.UByte = if i < 0 then UByte(0) else if i > 255 then UByte(255) else UByte(i.toByte)
   @targetName("int_clampShort") def clampToShort: Short           = if i < Short.MinValue then Short.MinValue else if i > Short.MaxValue then Short.MaxValue else i.toShort
@@ -806,6 +811,7 @@ extension (i: Int) {
   @targetName("int_clampUInt")  def clampToUInt: kse.maths.UInt   = if i < 0 then UInt(0) else UInt(i)
   @targetName("int_clampULong") def clampToULong: kse.maths.ULong = if i < 0 then ULong(0L) else ULong(i.toLong)
 
+  @targetName("int_exactNeg")   def exactNeg: Int                 = if i != Int.MinValue then -i else throw new ArithmeticException("int overflow")
   @targetName("int_exactByte")  def exactToByte: Byte             = if i < -128   || i > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
   @targetName("int_exactUByte") def exactToUByte: kse.maths.UByte = if i < 0      || i > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
   @targetName("int_exactShort") def exactToShort: Short           = if i < -32768 || i > 32767 then throw new ArithmeticException("short overflow") else i.toShort
@@ -881,6 +887,7 @@ extension (l: Long) {
   @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap((l & 0xFFFFFFFFL).toInt)
   @targetName("long_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(l)
 
+  @targetName("long_clampNeg")   def clampNeg: Long                = if l != Long.MinValue then -l else Long.MaxValue
   @targetName("long_clampByte")  def clampToByte: Byte             = if l < -128 then -128 else if l > 127 then 127 else l.toByte
   @targetName("long_clampUByte") def clampToUByte: kse.maths.UByte = if l < 0 then UByte(0) else if l > 255 then UByte(255) else UByte(l.toByte)
   @targetName("long_clampShort") def clampToShort: Short           = if l < Short.MinValue then Short.MinValue else if l > Short.MaxValue then Short.MaxValue else l.toShort
@@ -889,6 +896,7 @@ extension (l: Long) {
   @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
   @targetName("long_clampULong") def clampToULong: kse.maths.ULong = if l < 0 then ULong(0L) else ULong(l)
 
+  @targetName("long_exactNeg")   def exactNeg: Long                = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
   @targetName("long_exactByte")  def exactToByte: Byte             = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
   @targetName("long_exactUByte") def exactToUByte: kse.maths.UByte = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
   @targetName("long_exactShort") def exactToShort: Short           = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
