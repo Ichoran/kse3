@@ -4850,10 +4850,13 @@ class MathTest {
     T ~ dayru.ceil.into.days  ==== dayru.ceil.into.d
 
   @Test
-  def temporalTestCustomDurations(): Unit =
+  def temporalTestNanoDuration(): Unit =
+    val t = tic
+    val t0 = System.nanoTime
+
     val nd  = NanoDuration(238597181528L)
     val nd2 = NanoDuration(239051615115L)
-    val nd3 = NanoDuration(239123561522L)
+    val nd3 = NanoDuration(259123561422L)
     val nz  = NanoDuration(0L)
     val ndmax = NanoDuration.MaxValue
     val ndmin = NanoDuration.MinValue
@@ -4940,6 +4943,7 @@ class MathTest {
     T ~ nd.double            ==== 238.597181528 --: typed[DoubleDuration]
     T ~ ndmin.double         ==== -9.223372036854775808e9
     T ~ nd.duration          ==== Duration.ofSeconds(238, 597181528)
+
     T ~ nd.into.ns           ==== nd                             --: typed[Long]
     T ~ nd.into.us           ==== (nd.unwrap / 1000L)            --: typed[Long]
     T ~ nd.into.ms           ==== (nd.unwrap / 1000000L)         --: typed[Long]
@@ -4948,66 +4952,151 @@ class MathTest {
     T ~ ndmax.into.h         ==== (Long.MaxValue/3600000000000L) --: typed[Int]
     T ~ ndmax.into.d         ==== (Long.MaxValue/86400000000000L)--: typed[Int]
     T ~ ndmax.into.days      ==== ndmax.into.d                   --: typed[Int]
-    T ~ nd.trunc.us          ==== 238597181000L                  --: typed[NanoDuration]
-    T ~ nd.floor.us          ==== 238597181000L                  --: typed[NanoDuration]
-    T ~ nd.round.us          ==== 238597182000L                  --: typed[NanoDuration]
-    T ~ nd.ceil.us           ==== 238597182000L                  --: typed[NanoDuration]
-    T ~ nd2.trunc.us         ==== 239051615000L                  --: typed[NanoDuration]
-    T ~ nd2.floor.us         ==== 239051615000L                  --: typed[NanoDuration]
-    T ~ nd2.round.us         ==== 239051615000L                  --: typed[NanoDuration]
-    T ~ nd2.ceil.us          ==== 239051616000L                  --: typed[NanoDuration]
-    T ~ nd.into.floor.us     ==== 238597181L                     --: typed[Long]
-    T ~ nd.into.round.us     ==== 238597182L                     --: typed[Long]
-    T ~ nd.into.ceil.us      ==== 238597182L                     --: typed[Long]
-    T ~ nd2.into.floor.us    ==== 239051615L                     --: typed[Long]
-    T ~ nd2.into.round.us    ==== 239051615L                     --: typed[Long]
-    T ~ nd2.into.ceil.us     ==== 239051616L                     --: typed[Long]
+
+    T ~ nd.trunc.us          ==== 238597181000L  --: typed[NanoDuration]
+    T ~ nd.floor.us          ==== 238597181000L  --: typed[NanoDuration]
+    T ~ nd.round.us          ==== 238597182000L  --: typed[NanoDuration]
+    T ~ nd.ceil.us           ==== 238597182000L  --: typed[NanoDuration]
+    T ~ nd2.trunc.us         ==== 239051615000L  --: typed[NanoDuration]
+    T ~ nd2.floor.us         ==== 239051615000L  --: typed[NanoDuration]
+    T ~ nd2.round.us         ==== 239051615000L  --: typed[NanoDuration]
+    T ~ nd2.ceil.us          ==== 239051616000L  --: typed[NanoDuration]
+    T ~ nd.into.floor.us     ==== 238597181L     --: typed[Long]
+    T ~ nd.into.round.us     ==== 238597182L     --: typed[Long]
+    T ~ nd.into.ceil.us      ==== 238597182L     --: typed[Long]
+    T ~ nd2.into.floor.us    ==== 239051615L     --: typed[Long]
+    T ~ nd2.into.round.us    ==== 239051615L     --: typed[Long]
+    T ~ nd2.into.ceil.us     ==== 239051616L     --: typed[Long]
     T ~ nd.round.into.us     ==== nd.into.round.us
     T ~ (-nd).trunc.us       ==== (-nd).ceil.us
     T ~ (-nd).floor.us       ==== -(nd.ceil.us)
     T ~ (-nd).ceil.us        ==== -(nd.floor.us)
     T ~ (-nd).floor.into.us  ==== -(nd.ceil.into.us)
     T ~ (-nd).ceil.into.us   ==== -(nd.floor.into.us)
-    T ~ nd.trunc.ms          ==== 238597000000L                  --: typed[NanoDuration]
-    T ~ nd.floor.ms          ==== 238597000000L                  --: typed[NanoDuration]
-    T ~ nd.round.ms          ==== 238597000000L                  --: typed[NanoDuration]
-    T ~ nd.ceil.ms           ==== 238598000000L                  --: typed[NanoDuration]
-    T ~ nd2.trunc.ms         ==== 239051000000L                  --: typed[NanoDuration]
-    T ~ nd2.floor.ms         ==== 239051000000L                  --: typed[NanoDuration]
-    T ~ nd2.round.ms         ==== 239052000000L                  --: typed[NanoDuration]
-    T ~ nd2.ceil.ms          ==== 239052000000L                  --: typed[NanoDuration]
-    T ~ nd.into.floor.ms     ==== 238597L                        --: typed[Long]
-    T ~ nd.into.round.ms     ==== 238597L                        --: typed[Long]
-    T ~ nd.into.ceil.ms      ==== 238598L                        --: typed[Long]
-    T ~ nd2.into.floor.ms    ==== 239051L                        --: typed[Long]
-    T ~ nd2.into.round.ms    ==== 239052L                        --: typed[Long]
-    T ~ nd2.into.ceil.ms     ==== 239052L                        --: typed[Long]
+
+    T ~ nd.trunc.ms          ==== 238597000000L  --: typed[NanoDuration]
+    T ~ nd.floor.ms          ==== 238597000000L  --: typed[NanoDuration]
+    T ~ nd.round.ms          ==== 238597000000L  --: typed[NanoDuration]
+    T ~ nd.ceil.ms           ==== 238598000000L  --: typed[NanoDuration]
+    T ~ nd2.trunc.ms         ==== 239051000000L  --: typed[NanoDuration]
+    T ~ nd2.floor.ms         ==== 239051000000L  --: typed[NanoDuration]
+    T ~ nd2.round.ms         ==== 239052000000L  --: typed[NanoDuration]
+    T ~ nd2.ceil.ms          ==== 239052000000L  --: typed[NanoDuration]
+    T ~ nd.into.floor.ms     ==== 238597L        --: typed[Long]
+    T ~ nd.into.round.ms     ==== 238597L        --: typed[Long]
+    T ~ nd.into.ceil.ms      ==== 238598L        --: typed[Long]
+    T ~ nd2.into.floor.ms    ==== 239051L        --: typed[Long]
+    T ~ nd2.into.round.ms    ==== 239052L        --: typed[Long]
+    T ~ nd2.into.ceil.ms     ==== 239052L        --: typed[Long]
     T ~ nd.round.into.ms     ==== nd.into.round.ms
     T ~ (-nd).trunc.ms       ==== (-nd).ceil.ms
     T ~ (-nd).floor.ms       ==== -(nd.ceil.ms)
     T ~ (-nd).ceil.ms        ==== -(nd.floor.ms)
     T ~ (-nd).floor.into.ms  ==== -(nd.ceil.into.ms)
     T ~ (-nd).ceil.into.ms   ==== -(nd.floor.into.ms)
-    T ~ nd.trunc.s           ==== 238000000000L                  --: typed[NanoDuration]
-    T ~ nd.floor.s           ==== 238000000000L                  --: typed[NanoDuration]
-    T ~ nd.round.s           ==== 239000000000L                  --: typed[NanoDuration]
-    T ~ nd.ceil.s            ==== 239000000000L                  --: typed[NanoDuration]
-    T ~ nd2.trunc.s          ==== 239000000000L                  --: typed[NanoDuration]
-    T ~ nd2.floor.s          ==== 239000000000L                  --: typed[NanoDuration]
-    T ~ nd2.round.s          ==== 239000000000L                  --: typed[NanoDuration]
-    T ~ nd2.ceil.s           ==== 240000000000L                  --: typed[NanoDuration]
-    T ~ nd.into.floor.s      ==== 238L                           --: typed[Long]
-    T ~ nd.into.round.s      ==== 239L                           --: typed[Long]
-    T ~ nd.into.ceil.s       ==== 239L                           --: typed[Long]
-    T ~ nd2.into.floor.s     ==== 239L                           --: typed[Long]
-    T ~ nd2.into.round.s     ==== 239L                           --: typed[Long]
-    T ~ nd2.into.ceil.s      ==== 240L                           --: typed[Long]
+
+    T ~ nd.trunc.s           ==== 238000000000L  --: typed[NanoDuration]
+    T ~ nd.floor.s           ==== 238000000000L  --: typed[NanoDuration]
+    T ~ nd.round.s           ==== 239000000000L  --: typed[NanoDuration]
+    T ~ nd.ceil.s            ==== 239000000000L  --: typed[NanoDuration]
+    T ~ nd2.trunc.s          ==== 239000000000L  --: typed[NanoDuration]
+    T ~ nd2.floor.s          ==== 239000000000L  --: typed[NanoDuration]
+    T ~ nd2.round.s          ==== 239000000000L  --: typed[NanoDuration]
+    T ~ nd2.ceil.s           ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd.into.floor.s      ==== 238L           --: typed[Long]
+    T ~ nd.into.round.s      ==== 239L           --: typed[Long]
+    T ~ nd.into.ceil.s       ==== 239L           --: typed[Long]
+    T ~ nd2.into.floor.s     ==== 239L           --: typed[Long]
+    T ~ nd2.into.round.s     ==== 239L           --: typed[Long]
+    T ~ nd2.into.ceil.s      ==== 240L           --: typed[Long]
     T ~ nd.round.into.s      ==== nd.into.round.s
     T ~ (-nd).trunc.s        ==== (-nd).ceil.s
     T ~ (-nd).floor.s        ==== -(nd.ceil.s)
     T ~ (-nd).ceil.s         ==== -(nd.floor.s)
     T ~ (-nd).floor.into.s   ==== -(nd.ceil.into.s)
     T ~ (-nd).ceil.into.s    ==== -(nd.floor.into.s)
+
+    T ~ nd.trunc.m           ==== 180000000000L  --: typed[NanoDuration]
+    T ~ nd.floor.m           ==== 180000000000L  --: typed[NanoDuration]
+    T ~ nd.round.m           ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd.ceil.m            ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd3.trunc.m          ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd3.floor.m          ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd3.round.m          ==== 240000000000L  --: typed[NanoDuration]
+    T ~ nd3.ceil.m           ==== 300000000000L  --: typed[NanoDuration]
+    T ~ nd.into.floor.m      ==== 3              --: typed[Int]
+    T ~ nd.into.round.m      ==== 4              --: typed[Int]
+    T ~ nd.into.ceil.m       ==== 4              --: typed[Int]
+    T ~ nd3.into.floor.m     ==== 4              --: typed[Int]
+    T ~ nd3.into.round.m     ==== 4              --: typed[Int]
+    T ~ nd3.into.ceil.m      ==== 5              --: typed[Int]
+    T ~ nd.round.into.m      ==== nd.into.round.m
+    T ~ (-nd).trunc.m        ==== (-nd).ceil.m
+    T ~ (-nd).floor.m        ==== -(nd.ceil.m)
+    T ~ (-nd).ceil.m         ==== -(nd.floor.m)
+    T ~ (-nd).floor.into.m   ==== -(nd.ceil.into.m)
+    T ~ (-nd).ceil.into.m    ==== -(nd.floor.into.m)
+
+    val ba = NanoDuration((86400 +  7*3600 + 14*60 + 42)*1000000000L + 819571235)
+    val ha = NanoDuration((86400 + 17*3600 + 35*60 + 11)*1000000000L + 119171835)
+    T ~ ba.trunc.h           ==== 111600000000000L  --: typed[NanoDuration]
+    T ~ ba.floor.h           ==== 111600000000000L  --: typed[NanoDuration]
+    T ~ ba.round.h           ==== 111600000000000L  --: typed[NanoDuration]
+    T ~ ba.ceil.h            ==== 115200000000000L  --: typed[NanoDuration]
+    T ~ ha.trunc.h           ==== 147600000000000L  --: typed[NanoDuration]
+    T ~ ha.floor.h           ==== 147600000000000L  --: typed[NanoDuration]
+    T ~ ha.round.h           ==== 151200000000000L  --: typed[NanoDuration]
+    T ~ ha.ceil.h            ==== 151200000000000L  --: typed[NanoDuration]
+    T ~ ba.into.floor.h      ==== 31                --: typed[Int]
+    T ~ ba.into.round.h      ==== 31                --: typed[Int]
+    T ~ ba.into.ceil.h       ==== 32                --: typed[Int]
+    T ~ ha.into.floor.h      ==== 41                --: typed[Int]
+    T ~ ha.into.round.h      ==== 42                --: typed[Int]
+    T ~ ha.into.ceil.h       ==== 42                --: typed[Int]
+    T ~ ba.round.into.h      ==== ba.into.round.h
+    T ~ (-ba).trunc.h        ==== (-ba).ceil.h
+    T ~ (-ba).floor.h        ==== -(ba.ceil.h)
+    T ~ (-ba).ceil.h         ==== -(ba.floor.h)
+    T ~ (-ba).floor.into.h   ==== -(ba.ceil.into.h)
+    T ~ (-ba).ceil.into.h    ==== -(ba.floor.into.h)
+
+    T ~ ba.trunc.d           ====  86400000000000L  --: typed[NanoDuration]
+    T ~ ba.floor.d           ====  86400000000000L  --: typed[NanoDuration]
+    T ~ ba.round.d           ====  86400000000000L  --: typed[NanoDuration]
+    T ~ ba.ceil.d            ==== 172800000000000L  --: typed[NanoDuration]
+    T ~ ha.trunc.d           ====  86400000000000L  --: typed[NanoDuration]
+    T ~ ha.floor.d           ====  86400000000000L  --: typed[NanoDuration]
+    T ~ ha.round.d           ==== 172800000000000L  --: typed[NanoDuration]
+    T ~ ha.ceil.d            ==== 172800000000000L  --: typed[NanoDuration]
+    T ~ ba.into.floor.d      ==== 1                 --: typed[Int]
+    T ~ ba.into.round.d      ==== 1                 --: typed[Int]
+    T ~ ba.into.ceil.d       ==== 2                 --: typed[Int]
+    T ~ ha.into.floor.d      ==== 1                 --: typed[Int]
+    T ~ ha.into.round.d      ==== 2                 --: typed[Int]
+    T ~ ha.into.ceil.d       ==== 2                 --: typed[Int]
+    T ~ ba.round.into.d      ==== ba.into.round.d
+    T ~ (-ba).trunc.d        ==== (-ba).ceil.d
+    T ~ (-ba).floor.d        ==== -(ba.ceil.d)
+    T ~ (-ba).ceil.d         ==== -(ba.floor.d)
+    T ~ (-ba).floor.into.d   ==== -(ba.ceil.into.d)
+    T ~ (-ba).ceil.into.d    ==== -(ba.floor.into.d)
+    T ~ ba.trunc.days        ==== ba.trunc.d        --: typed[NanoDuration]
+    T ~ ba.floor.days        ==== ba.floor.d        --: typed[NanoDuration]
+    T ~ ba.round.days        ==== ba.round.d        --: typed[NanoDuration]
+    T ~ ba.ceil.days         ==== ba.ceil.d         --: typed[NanoDuration]
+    T ~ ba.into.floor.days   ==== ba.into.floor.d   --: typed[Int]
+    T ~ ba.into.round.days   ==== ba.into.round.d   --: typed[Int]
+    T ~ ba.into.ceil.days    ==== ba.into.ceil.d    --: typed[Int]
+
+    T ~ List(ba, nd, nd3, -ha, nd2).sorted ==== List(-ha, nd, nd2, nd3, ba)
+
+    val t1 = System.nanoTime
+    val dt = t.toc
+    val dt2 = NanoDuration.since(t.unwrap)
+    T ~ ((t1 - t0) <= dt.unwrap) ==== true
+    T ~ (dt >= 0.ns_nano)        ==== true
+    T ~ (t1 - t0 > 0)            ==== (dt >= 0.ns_nano)
+    T ~ (dt2 >= dt)              ==== true
 }
 object MathsTest {
   // @BeforeClass

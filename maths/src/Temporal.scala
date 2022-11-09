@@ -918,6 +918,7 @@ object NanoDuration {
   inline def apply(nanos: Long): kse.maths.NanoDuration = nanos
   inline def since(nt: kse.maths.NanoInstant): kse.maths.NanoDuration = nt.age
 
+  final val Zero: kse.maths.NanoDuration     = apply(0L)
   final val MinValue: kse.maths.NanoDuration = apply(Long.MinValue)
   final val MaxValue: kse.maths.NanoDuration = apply(Long.MaxValue)
 
@@ -1049,6 +1050,17 @@ object NanoDuration {
       def  s: kse.maths.NanoDuration =
         NanoDuration(1000000000L * (if round < 0 then (round -# 499999999)/1000000000 else (round +# 499999999)/1000000000))
 
+      def  m: kse.maths.NanoDuration =
+        NanoDuration(60000000000L * (if round < 0 then (round -# 29999999999L)/60000000000L else (round +# 29999999999L)/60000000000L))
+
+      def  h: kse.maths.NanoDuration =
+        NanoDuration(3600000000000L * (if round < 0 then (round -# 1799999999999L)/3600000000000L else (round +# 1799999999999L)/3600000000000L))
+
+      def  d: kse.maths.NanoDuration =
+        NanoDuration(86400000000000L * (if round < 0 then (round -# 43199999999999L)/86400000000000L else (round +# 43199999999999L)/86400000000000L))
+
+      inline def days: kse.maths.NanoDuration = round.d
+
       inline def into: kse.maths.NanoDuration.InRound = round
     }
   }
@@ -1064,6 +1076,17 @@ object NanoDuration {
 
       def  s: kse.maths.NanoDuration =
         NanoDuration(1000000000L * (if floor < 0 then (floor -# 999999999)/1000000000 else floor/1000000000))
+
+      def  m: kse.maths.NanoDuration =
+        NanoDuration(60000000000L * (if floor < 0 then (floor -# 59999999999L)/60000000000L else floor/60000000000L))
+
+      def  h: kse.maths.NanoDuration =
+        NanoDuration(3600000000000L * (if floor < 0 then (floor -# 3599999999999L)/3600000000000L else floor/3600000000000L))
+
+      def  d: kse.maths.NanoDuration =
+        NanoDuration(86400000000000L * (if floor < 0 then (floor -# 86399999999999L)/86400000000000L else floor/86400000000000L))
+
+      inline def days: kse.maths.NanoDuration = floor.d
 
       inline def into: kse.maths.NanoDuration.InFloor = floor
     }
@@ -1081,6 +1104,17 @@ object NanoDuration {
       def  s: kse.maths.NanoDuration =
         NanoDuration(1000000000L * (if ceil > 0 then (ceil +# 999999999)/1000000000 else ceil/1000000000))
 
+      def  m: kse.maths.NanoDuration =
+        NanoDuration(60000000000L * (if ceil > 0 then (ceil +# 59999999999L)/60000000000L else ceil/60000000000L))
+
+      def  h: kse.maths.NanoDuration =
+        NanoDuration(3600000000000L * (if ceil > 0 then (ceil +# 3599999999999L)/3600000000000L else ceil/3600000000000L))
+
+      def  d: kse.maths.NanoDuration =
+        NanoDuration(86400000000000L * (if ceil > 0 then (ceil +# 86399999999999L)/86400000000000L else ceil/86400000000000L))
+
+      inline def days: kse.maths.NanoDuration = ceil.d
+
       inline def into: kse.maths.NanoDuration.InCeil = ceil
     }
   }
@@ -1093,81 +1127,61 @@ object NanoDuration {
       def ms: kse.maths.NanoDuration = NanoDuration(1000000L * (trunc/1000000))
 
       def  s: kse.maths.NanoDuration = NanoDuration(1000000000L * (trunc/1000000000))
+
+      def  m: kse.maths.NanoDuration = NanoDuration(60000000000L * (trunc/60000000000L))
+
+      def  h: kse.maths.NanoDuration = NanoDuration(3600000000000L * (trunc/3600000000000L))
+
+      def  d: kse.maths.NanoDuration = NanoDuration(86400000000000L * (trunc/86400000000000L))
+
+      inline def days: kse.maths.NanoDuration = trunc.d
     }
   }
+
+  private def nanoDurationInto(value: Long, div: Long, neg: Long, pos: Long): Long =
+    val ans = value / div
+    val err = value - ans * div
+    if err < 0 then
+      if err + neg + div <= 0 then ans - 1 else ans
+    else
+      if err + pos >= div then ans + 1 else ans
 
   opaque type InRound = Long
   object InRound {
     extension (round: InRound) {
-      def us: Long =
-        val l: Long = round
-        val ans = l / 1000
-        val e = l - 1000 * ans
-        if      e >  500 then ans + 1
-        else if e < -500 then ans - 1
-        else                  ans
-      def ms: Long =
-        val l: Long = round
-        val ans = l / 1000000
-        val e = l - 1000000 * ans
-        if      e >  500000 then ans + 1
-        else if e < -500000 then ans - 1
-        else                  ans
-      def s: Long =
-        val l: Long = round
-        val ans = l / 1000000000
-        val e = l - 1000000000 * ans
-        if      e >  500000000 then ans + 1
-        else if e < -500000000 then ans - 1
-        else                  ans
+      def us: Long = nanoDurationInto(round, 1000, -499, 499)
+      def ms: Long = nanoDurationInto(round, 1000000, -499999, 499999)
+      def  s: Long = nanoDurationInto(round, 1000000000, -499999999, 499999999)
+      def  m: Int  = nanoDurationInto(round, 60000000000L, -29999999999L, 29999999999L).toInt
+      def  h: Int  = nanoDurationInto(round, 3600000000000L, -1799999999999L, 1799999999999L).toInt
+      def  d: Int  = nanoDurationInto(round, 86400000000000L, -43199999999999L, 43199999999999L).toInt
+      inline def days: Int = round.d
     }
   }
 
   opaque type InFloor = Long
   object InFloor {
     extension (floor: InFloor) {
-      def us: Long =
-        val l: Long = floor
-        if l >= 0 then l / 1000
-        else
-          val ans = l / 1000
-          if ans * 1000 == l then ans else ans-1
-      def ms: Long =
-        val l: Long = floor
-        if l >= 0 then l / 1000000
-        else
-          val ans = l / 1000000
-          if ans * 1000000 == l then ans else ans-1
-      def s: Long =
-        val l: Long = floor
-        if l >= 0 then l / 1000000000
-        else
-          val ans = l / 1000000000
-          if ans * 1000000000 == l then ans else ans-1
+      def us: Long = nanoDurationInto(floor, 1000, -999, 0)
+      def ms: Long = nanoDurationInto(floor, 1000000, -999999, 0)
+      def  s: Long = nanoDurationInto(floor, 1000000000, -999999999, 0)
+      def  m: Int  = nanoDurationInto(floor, 60000000000L, -59999999999L, 0).toInt
+      def  h: Int  = nanoDurationInto(floor, 3600000000000L, -3599999999999L, 0).toInt
+      def  d: Int  = nanoDurationInto(floor, 86400000000000L, -86399999999999L, 0).toInt
+      inline def days: Int = floor.d
     }
   }
 
   opaque type InCeil = Long
   object InCeil {
     extension (ceil: InCeil) {
-      def us: Long =
-        val l: Long = ceil
-        if l <= 0 then l / 1000
-        else
-          val ans = l / 1000
-          if ans * 1000 == l then ans else ans+1
-      def ms: Long =
-        val l: Long = ceil
-        if l <= 0 then l / 1000000
-        else
-          val ans = l / 1000000
-          if ans * 1000000 == l then ans else ans+1
-      def s: Long =
-        val l: Long = ceil
-        if l <= 0 then l / 1000000000
-        else
-          val ans = l / 1000000000
-          if ans * 1000000000 == l then ans else ans+1
+      def us: Long = nanoDurationInto(ceil, 1000, 0, 999)
+      def ms: Long = nanoDurationInto(ceil, 1000000, 0, 999999)
+      def  s: Long = nanoDurationInto(ceil, 1000000000, 0, 999999999)
+      def  m: Int  = nanoDurationInto(ceil, 60000000000L, 0, 59999999999L).toInt
+      def  h: Int  = nanoDurationInto(ceil, 3600000000000L, 0, 3599999999999L).toInt
+      def  d: Int  = nanoDurationInto(ceil, 86400000000000L, 0, 86399999999999L).toInt
+      inline def days: Int = ceil.d
     }
   }
 
