@@ -226,6 +226,10 @@ extension (value: Float) {
 
   inline def in(lo: Float, hi: Float) = lo <= value && value <= hi
 
+  inline def checkIn(lo: Float, hi: Float): Float =
+    if value >= lo && value <= hi then value
+    else throw new ArithmeticException("float overflow")
+
   final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
     jm.abs(value - that) match
       case x if x <= abstol =>
@@ -286,6 +290,10 @@ extension (value: Double) {
     else Double.NaN
 
   inline def in(lo: Double, hi: Double) = lo <= value && value <= hi
+
+  inline def checkIn(lo: Double, hi: Double): Double =
+    if value >= lo && value <= hi then value
+    else throw new ArithmeticException("double overflow")
 
   final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
     jm.abs(value - that) match

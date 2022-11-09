@@ -1642,6 +1642,11 @@ class MathTest {
     T ~ f.in(fnan, fnan)    ==== false
     T ~ fnan.in(1f, 32f)    ==== false
     T ~ fnan.in(32f, 1f)    ==== false
+    T ~ f.checkIn(0.7f, 4f) ==== f
+    T ~ 0.7f.checkIn(f, 4f) ==== thrown[ArithmeticException]
+    T ~ fnan.checkIn(0f,1f) ==== thrown[ArithmeticException]
+    T ~ f.checkIn(0f, fnan) ==== thrown[ArithmeticException]
+    T ~ f.checkIn(fnan, 4f) ==== thrown[ArithmeticException]
     T ~ f.closeTo(f+1e-7f)  ==== true
     T ~ f.closeTo(f+1e-5f)  ==== false
     T ~ f.closeTo(1f,1f,1f) ==== true
@@ -1721,6 +1726,11 @@ class MathTest {
     T ~ d.in(dnan, dnan)      ==== false
     T ~ fnan.in(1.0, 32.0)    ==== false
     T ~ fnan.in(32.0, 1.0)    ==== false
+    T ~ d.checkIn(0.7, 3.5)   ==== d
+    T ~ 0.7.checkIn(d, 3.5)   ==== thrown[ArithmeticException]
+    T ~ dnan.checkIn(d, d)    ==== thrown[ArithmeticException]
+    T ~ d.checkIn(0.1, dnan)  ==== thrown[ArithmeticException]
+    T ~ d.checkIn(dnan, 3.5)  ==== thrown[ArithmeticException]
     T ~ d.closeTo(d+1e-13)    ==== true
     T ~ d.closeTo(d+1e-8)     ==== false
     T ~ d.closeTo(1.0,1,1)    ==== true
