@@ -1143,7 +1143,11 @@ object DoubleDuration {
     @targetName("dbldur_div_dbldur")
     inline def /(et: kse.maths.DoubleDuration): Double = dt.unwrap / et.unwrap
 
-    inline def %(et: kse.maths.DoubleDuration): kse.maths.DoubleDuration = DoubleDuration(dt.unwrap % et.unwrap)
+    inline def %(et: kse.maths.DoubleDuration): kse.maths.DoubleDuration =
+      val x = dt.unwrap
+      val y = et.unwrap
+      val q = x / y
+      DoubleDuration(if q < 0 then x - y * jm.ceil(q) else x - y * jm.floor(q))
 
     inline def <( du: kse.maths.DoubleDuration): Boolean = dt.unwrap <  du.unwrap
     inline def <=(du: kse.maths.DoubleDuration): Boolean = dt.unwrap <= du.unwrap
@@ -1472,8 +1476,8 @@ object DoubleDuration {
 object TemporalCompanion {
   def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
   def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
-  def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.from(datetime.toEpochSecond, datetime.getNano)
-  def toDouble(datetime: ZonedDateTime): kse.maths.DoubleInstant = DoubleInstant.from(datetime.toEpochSecond, datetime.getNano)
+  def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
+  def toDouble(datetime: ZonedDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
 
   def toInstant(datetime: LocalDateTime): Instant = datetime.atZone(ZoneId.systemDefault).toInstant
 
@@ -1567,13 +1571,14 @@ object NanoInstant {
     inline def min(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap - mt.unwrap > 0 then mt else nt
 
     def clamp(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): kse.maths.NanoInstant =
-      if lo <= nt then
-        if nt <= hi then nt
-        else if lo <= hi then hi
+      if lo.unwrap - nt.unwrap <= 0 then
+        if nt.unwrap - hi.unwrap <= 0 then nt
+        else if lo.unwrap - hi.unwrap <= 0 then hi
         else lo
       else lo
 
-    def in(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): Boolean = lo <= nt && nt <= hi
+    def in(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): Boolean =
+      lo.unwrap - nt.unwrap <= 0 && nt.unwrap - hi.unwrap <= 0
 
     def checkIn(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): kse.maths.NanoInstant =
       if in(lo, hi) then nt else throw new ArithmeticException("NanoInstant out of bounds")
@@ -1585,7 +1590,9 @@ object NanoInstant {
   }
 
   given Ordering[NanoInstant] = new {
-    def compare(a: NanoInstant, b: NanoInstant) = a.unwrap compareTo b.unwrap
+    def compare(a: NanoInstant, b: NanoInstant) =
+      val diff = a.unwrap - b.unwrap
+      if diff > 0 then 1 else (diff >> 63).toInt
   }
 }
 
@@ -1594,12 +1601,25 @@ object NanoInstant {
 opaque type DoubleInstant = Double
 object DoubleInstant {
   inline def apply(t: Double): kse.maths.DoubleInstant = t
-  inline def apply(i: Instant): kse.maths.DoubleInstant = i.getEpochSecond + i.getNano/1e9
+  inline def apply(i: Instant): kse.maths.DoubleInstant = fromSeconds(i.getEpochSecond, i.getNano)
 
-  def from(seconds: Long, nanos: Int): kse.maths.DoubleInstant =
+  def fromSeconds(seconds: Long, nanos: Int = 0): kse.maths.DoubleInstant =
     if nanos == 0 then seconds.toDouble
-    else if nanos % 1000000 == 0 && jm.abs(seconds) < 9223372036854775L then (1000*seconds + nanos/1000000)/1e3
-    else seconds + nanos/1e9
+    else if nanos % 1000000 == 0 then
+      if jm.abs(seconds) <= 9223372036854775L then (1000*seconds + nanos/1000000)/1e3 else seconds + nanos/1e9
+    else if nanos % 1000 == 0 then
+      if jm.abs(seconds) <= 9223372036854L then (1000000*seconds + nanos/1000)/1e6 else seconds + nanos/1e9
+    else
+      if jm.abs(seconds) <= 9223372036L then (1000000000*seconds + nanos)/1e9 else seconds + nanos/1e9
+
+  def fromDays(days: Long, extraNanos: Long = 0L): kse.maths.DoubleInstant =
+    if extraNanos == 0 then
+      if jm.abs(days) <= 106751991167300L then (days * 86400).toDouble else days.toDouble * 86400
+    else if extraNanos % 1000000 == 0 then
+      if jm.abs(days) <= 106751991167L then (86400000*days + extraNanos/1000000)/1e3 else days*86400.0 + extraNanos/1e9
+    else if extraNanos % 1000 == 0 then
+      if jm.abs(days) <= 106751991L then (86400000000L*days + extraNanos/1000)/1e6 else days*86400.0 + extraNanos/1e9
+    else if jm.abs(days) <= 106751L then (86400000000000L*days + extraNanos)/1e9 else days*860400.0 + extraNanos/1e9
 
   inline def now: kse.maths.DoubleInstant = apply(Instant.now)
 
@@ -1625,6 +1645,14 @@ object DoubleInstant {
 
     inline def max(u: kse.maths.DoubleInstant): kse.maths.DoubleInstant = if DoubleInstant.<(t)(u) then u else t
     inline def min(u: kse.maths.DoubleInstant): kse.maths.DoubleInstant = if DoubleInstant.>(t)(u) then u else t
+
+    def clamp(lo: kse.maths.DoubleInstant, hi: kse.maths.DoubleInstant): kse.maths.DoubleInstant =
+      DoubleInstant(kse.maths.clamp(t.unwrap)(lo.unwrap, hi.unwrap))
+
+    def in(lo: kse.maths.DoubleInstant, hi: kse.maths.DoubleInstant): Boolean = kse.maths.in(t.unwrap)(lo.unwrap, hi.unwrap)
+
+    def checkIn(lo: kse.maths.DoubleInstant, hi: kse.maths.DoubleInstant): kse.maths.DoubleInstant =
+      DoubleInstant(kse.maths.checkIn(t.unwrap)(lo.unwrap, hi.unwrap))
 
     def age: kse.maths.DoubleDuration = DoubleDuration(DoubleInstant(Instant.now).unwrap - t)
 

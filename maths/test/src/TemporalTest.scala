@@ -1888,5 +1888,6 @@ class TemporalTest() {
     T ~ (ts2 - ts <= dt.unwrap) ==== true
     T ~ dt                      ==== dt  --: typed[NanoDuration]
     T ~ i.pr                    ==== "nanotime=912835798134"
+    T ~ List(j, k, h, i).sorted ==== List(i, j, k, h)
 }
 
