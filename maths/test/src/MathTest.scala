@@ -2531,16 +2531,19 @@ class MathTest {
   def packedPrimitiveTest(): Unit = packedTester.packedPrimitiveTest()
 
   @Test
-  def temporalTestCreation(): Unit = temporalTester.temporalTestCreation()
+  def temporalTestCreation(): Unit = temporalTester.testCreation()
 
   @Test
-  def temporalTestDuration(): Unit = temporalTester.temporalTestDuration()
+  def temporalTestDuration(): Unit = temporalTester.testDuration()
 
   @Test
-  def temporalTestNanoDuration(): Unit = temporalTester.temporalTestNanoDuration()
+  def temporalTestNanoDuration(): Unit = temporalTester.testNanoDuration()
 
   @Test
-  def temporalTestDoubleDuration(): Unit = temporalTester.temporalTestDoubleDuration()
+  def temporalTestDoubleDuration(): Unit = temporalTester.testDoubleDuration()
+
+  @Test
+  def temporalTestNanoInstant(): Unit = temporalTester.testNanoInstant()
 }
 object MathsTest {
   // @BeforeClass

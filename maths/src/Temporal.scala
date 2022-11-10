@@ -852,7 +852,7 @@ object NanoDuration {
     inline def +(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap +# et.unwrap)
 
     @targetName("nanodur_plus_nanoinst")
-    inline def +(nt: kse.maths.NanoInstant): kse.maths.NanoInstant = NanoInstant(nt.unwrap +# dt.unwrap)
+    def +(nt: kse.maths.NanoInstant): kse.maths.NanoInstant = NanoInstant(nt.unwrap + dt.unwrap)
 
     inline def -(et: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(dt.unwrap -# et.unwrap)
 
@@ -898,7 +898,6 @@ object NanoDuration {
 
     @targetName("nanodur_divxcl_nanodur")
     inline def /!(et: kse.maths.NanoDuration): Long = kse.maths./!(dt.unwrap)(et.unwrap)
-
 
     inline def <( et: kse.maths.NanoDuration): Boolean = dt.unwrap <  et.unwrap
     inline def <=(et: kse.maths.NanoDuration): Boolean = dt.unwrap <= et.unwrap
@@ -1470,11 +1469,7 @@ object DoubleDuration {
 
 
 
-class DateDuration private (val years: Int, val months: Int, val days: Long) {}
-
-
-
-object TemporalConversions {
+object TemporalCompanion {
   def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
   def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
   def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.from(datetime.toEpochSecond, datetime.getNano)
@@ -1496,24 +1491,54 @@ object TemporalConversions {
 
   def toOffset(instant: Instant): OffsetDateTime = toZoned(instant).toOffsetDateTime
   def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
+
+  def toFileTime(instant: Instant): FileTime =
+    var s = instant.getEpochSecond
+    var ns = instant.getNano
+    if s < 0 && ns != 0 then
+      s += 1
+      ns -= 1000000000
+    var level = 1
+    if ns % 1000000 != 0 then
+      level += 1
+      if ns % 1000 != 0 then
+        level += 1
+    if s < 0 then
+      if level == 3 && s <= Long.MinValue/1000000000L then level -= 1
+      if level == 2 && s <= Long.MinValue/1000000L then level -= 1
+      if level == 1 && s <= Long.MinValue/1000L then level -= 1
+    else
+      if level == 3 && s >= Long.MaxValue/1000000000L then level -= 1
+      if level == 2 && s >= Long.MaxValue/1000000L then level -= 1
+      if level == 1 && s >= Long.MaxValue/1000L then level -= 1
+    level match
+      case 1 => FileTime.fromMillis(s*1000L + ns/1000000)
+      case 2 => FileTime.from(s*1000000L + ns/1000, TimeUnit.MICROSECONDS)
+      case 3 => FileTime.from(s*1000000000L + ns, TimeUnit.NANOSECONDS)
+      case _ => FileTime.from(s, TimeUnit.SECONDS)
 }
 
 
-
-object InstantCompanion {}
+/*
 extension (i: Instant) {
+  /*
   inline def double: kse.maths.DoubleInstant = DoubleInstant(i)
-  inline def local: LocalDateTime            = TemporalConversions.toLocal(i)
-  inline def offset: OffsetDateTime          = TemporalConversions.toOffset(i)
-  inline def utc: OffsetDateTime             = TemporalConversions.toUTC(i)
-  inline def zoned: ZonedDateTime            = TemporalConversions.toZoned(i)
-  //inline def filetime: FileTime              = TemporalConversions.toFileTime(i)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(i)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(i)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(i)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(i)
+  inline def filetime: FileTime              = TemporalCompanion.toFileTime(i)
+  */
+
+  // +(Duration) in OverloadedExtensions
+  // -(Duration) in OverloadedExtensions
 }
+*/
 
 opaque type NanoInstant = Long
 object NanoInstant {
-  inline def apply(nanos: Long): NanoInstant = nanos
-  inline def now: NanoInstant = System.nanoTime
+  inline def apply(nanos: Long): kse.maths.NanoInstant = nanos
+  inline def now: kse.maths.NanoInstant = System.nanoTime
 
   final val MinValue: kse.maths.NanoInstant = apply(Long.MinValue)
   final val MaxValue: kse.maths.NanoInstant = apply(Long.MaxValue)
@@ -1525,26 +1550,38 @@ object NanoInstant {
   extension (nt: kse.maths.NanoInstant) {
     inline def +(dt: kse.maths.NanoDuration): kse.maths.NanoInstant = NanoInstant(nt.unwrap + dt.unwrap)
 
-    @targetName("instant_minus_duration")
+    @targetName("nanoinst_sub_nanodur")
     inline def -(dt: kse.maths.NanoDuration): kse.maths.NanoInstant = NanoInstant(nt.unwrap - dt.unwrap)
 
-    @targetName("instant_minus_instant")
+    @targetName("nanoinst_subxcl_nanoinst")
     inline def -(mt: kse.maths.NanoInstant): kse.maths.NanoDuration = NanoDuration(nt.unwrap - mt.unwrap)
 
     inline def to(mt: kse.maths.NanoInstant): kse.maths.NanoDuration = NanoDuration(mt.unwrap - nt.unwrap)
 
-    inline def <( mt: kse.maths.NanoInstant): Boolean = nt.unwrap <  mt.unwrap
-    inline def <=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap <= mt.unwrap
-    inline def >=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap >= mt.unwrap
-    inline def >( mt: kse.maths.NanoInstant): Boolean = nt.unwrap >  mt.unwrap
+    inline def <( mt: kse.maths.NanoInstant): Boolean = nt.unwrap - mt.unwrap < 0
+    inline def <=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap - mt.unwrap <= 0
+    inline def >=(mt: kse.maths.NanoInstant): Boolean = nt.unwrap - mt.unwrap >= 0
+    inline def >( mt: kse.maths.NanoInstant): Boolean = nt.unwrap - mt.unwrap > 0
 
-    inline def max(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap < mt.unwrap then mt else nt
-    inline def min(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap > mt.unwrap then mt else nt
+    inline def max(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap - mt.unwrap < 0 then mt else nt
+    inline def min(mt: kse.maths.NanoInstant): kse.maths.NanoInstant = if nt.unwrap - mt.unwrap > 0 then mt else nt
+
+    def clamp(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): kse.maths.NanoInstant =
+      if lo <= nt then
+        if nt <= hi then nt
+        else if lo <= hi then hi
+        else lo
+      else lo
+
+    def in(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): Boolean = lo <= nt && nt <= hi
+
+    def checkIn(lo: kse.maths.NanoInstant, hi: kse.maths.NanoInstant): kse.maths.NanoInstant =
+      if in(lo, hi) then nt else throw new ArithmeticException("NanoInstant out of bounds")
 
     inline def age: kse.maths.NanoDuration = NanoDuration(System.nanoTime - nt.unwrap)
 
     def pr: String =
-      s"timestamp ${nt.unwrap} ns"
+      s"nanotime=${nt.unwrap}"
   }
 
   given Ordering[NanoInstant] = new {
@@ -1621,10 +1658,10 @@ object DoubleInstant {
         else FileTime.from(us, TimeUnit.MICROSECONDS)
       else if a < 4.39e12 then FileTime.fromMillis(jm.rint(b*1e3).toLong)
       else                    FileTime.from(jm.rint(b).toLong, TimeUnit.SECONDS)
-    inline def local: LocalDateTime   = TemporalConversions.toLocal( DoubleInstant.instant(t))
-    inline def offset: OffsetDateTime = TemporalConversions.toOffset(DoubleInstant.instant(t))
-    inline def utc: OffsetDateTime    = TemporalConversions.toUTC(   DoubleInstant.instant(t))
-    inline def zoned: ZonedDateTime   = TemporalConversions.toZoned( DoubleInstant.instant(t))
+    inline def local: LocalDateTime   = TemporalCompanion.toLocal( DoubleInstant.instant(t))
+    inline def offset: OffsetDateTime = TemporalCompanion.toOffset(DoubleInstant.instant(t))
+    inline def utc: OffsetDateTime    = TemporalCompanion.toUTC(   DoubleInstant.instant(t))
+    inline def zoned: ZonedDateTime   = TemporalCompanion.toZoned( DoubleInstant.instant(t))
 
     def pr: String = s"epoch + ${t.unwrap} sec"
   }
@@ -1641,10 +1678,10 @@ object DoubleInstant {
 /*
 extension (instant: Instant) {
   inline def double: kse.maths.DoubleInstant = DoubleInstant(instant)
-  inline def local: LocalDateTime            = TemporalConversions.toLocal(instant)
-  inline def offset: OffsetDateTime          = TemporalConversions.toOffset(instant)
-  inline def utc: OffsetDateTime             = TemporalConversions.toUTC(instant)
-  inline def zoned: ZonedDateTime            = TemporalConversions.toZoned(instant)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(instant)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(instant)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(instant)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(instant)
 
   inline def +(duration: Duration): Instant = instant plus duration
 
@@ -1662,11 +1699,11 @@ extension (instant: Instant) {
 }
 
 extension (zoned: ZonedDateTime) {
-  inline def double: kse.maths.DoubleInstant = TemporalConversions.toDouble(zoned)
+  inline def double: kse.maths.DoubleInstant = TemporalCompanion.toDouble(zoned)
   inline def instant: Instant                = zoned.toInstant
-  inline def local: LocalDateTime            = TemporalConversions.toLocal(zoned)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(zoned)
   inline def offset: OffsetDateTime          = zoned.toOffsetDateTime
-  inline def utc: OffsetDateTime             = TemporalConversions.toUTC(zoned)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(zoned)
 
   inline def +(duration: Duration): ZonedDateTime = zoned plus duration
 

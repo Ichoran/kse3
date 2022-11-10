@@ -33,7 +33,7 @@ class TemporalTest() {
     assertTrue _
   )
 
-  def temporalTestCreation(): Unit =
+  def testCreation(): Unit =
     T ~ 1.day                ==== Duration.ofSeconds(86400)
     T ~ 2.days               ==== Duration.ofSeconds(172800)
     T ~ 3.h                  ==== Duration.ofSeconds(10800)
@@ -59,7 +59,7 @@ class TemporalTest() {
     T ~ 7.us_nano            ==== NanoDuration(7000L)            --: typed[NanoDuration]
     T ~ 8.ns_nano            ==== NanoDuration(8L)               --: typed[NanoDuration]
 
-  def temporalTestDuration(): Unit =
+  def testDuration(): Unit =
     val dmin = DurationCompanion.MIN
     val dmax = DurationCompanion.MAX
     val twoB = 2000000000
@@ -817,7 +817,7 @@ class TemporalTest() {
     T ~ dayru.floor.into.days ==== dayru.floor.into.d
     T ~ dayru.ceil.into.days  ==== dayru.ceil.into.d
 
-  def temporalTestNanoDuration(): Unit =
+  def testNanoDuration(): Unit =
     val t = tic
     val t0 = System.nanoTime
 
@@ -1056,6 +1056,7 @@ class TemporalTest() {
     T ~ ba.into.ceil.days    ==== ba.into.ceil.d    --: typed[Int]
 
     T ~ List(ba, nd, nd3, -ha, nd2).sorted ==== List(-ha, nd, nd2, nd3, ba)
+    T ~ nd.pr ==== "238597181528 ns"
 
     val t1 = System.nanoTime
     val dt = t.toc
@@ -1066,7 +1067,7 @@ class TemporalTest() {
     T ~ (dt2 >= dt)              ==== true
 
 
-  def temporalTestDoubleDuration(): Unit =
+  def testDoubleDuration(): Unit =
     def dd(d: Double): DoubleDuration = DoubleDuration(d)
 
     val da = dd(3.9)
@@ -1817,5 +1818,75 @@ class TemporalTest() {
     T ~ ysu.ceil.exact.days  ==== ysu.ceil.exact.d  --: typed[Long]
 
     T ~ List(ysd, yzu, yzd, ysu).sorted ==== List(yzd, yzu, ysd, ysu)
+    T ~ nsd.pr ==== "3.481957197151 sec"
+
+
+  def testNanoInstant(): Unit =
+    val t = NanoInstant.now
+    val ts = System.nanoTime
+
+    val i = NanoInstant(912835798134L)
+    val j: NanoInstant = i + 5.ns_nano
+    val k = NanoInstant(Long.MaxValue - 2)
+    val h = NanoInstant(Long.MinValue + 2)
+    T ~ t               ==== t             --: typed[NanoInstant]
+    T ~ i               ==== 912835798134L --: typed[NanoInstant]
+    T ~ j               ==== 912835798139L
+    T ~ (5.ns_nano + i) ==== j             --: typed[NanoInstant]
+    T ~ (k + 5.ns_nano) ==== h             --: typed[NanoInstant]
+    T ~ (j - 5.ns_nano) ==== i             --: typed[NanoInstant]
+    T ~ (j - i)         ==== 5.ns_nano     --: typed[NanoDuration]
+    T ~ (i - j)         ==== -5.ns_nano
+    T ~ (h - k)         ==== 5.ns_nano
+    T ~ (i to j)        ==== (j - i)       --: typed[NanoDuration]
+    T ~ (k to h)        ==== (h - k)
+    T ~ (i < j)  ==== true
+    T ~ (i < i)  ==== false
+    T ~ (j < i)  ==== false
+    T ~ (k < h)  ==== true
+    T ~ (k < k)  ==== false
+    T ~ (h < k)  ==== false
+    T ~ (i <= j) ==== true
+    T ~ (i <= i) ==== true
+    T ~ (j <= i) ==== false
+    T ~ (k <= h) ==== true
+    T ~ (k <= k) ==== true
+    T ~ (h <= k) ==== false
+    T ~ (i >= j) ==== false
+    T ~ (i >= i) ==== true
+    T ~ (j >= i) ==== true
+    T ~ (k >= h) ==== false
+    T ~ (k >= k) ==== true
+    T ~ (h >= k) ==== true
+    T ~ (i > j)  ==== false
+    T ~ (i > i)  ==== false
+    T ~ (j > i)  ==== true
+    T ~ (k > h)  ==== false
+    T ~ (k > k)  ==== false
+    T ~ (h > k)  ==== true
+    T ~ (i max j)       ==== j      --: typed[NanoInstant]
+    T ~ (j max i)       ==== j
+    T ~ (k max h)       ==== h
+    T ~ (h max k)       ==== h
+    T ~ (i min j)       ==== i      --: typed[NanoInstant]
+    T ~ (j min i)       ==== i
+    T ~ (k min h)       ==== k
+    T ~ (h min k)       ==== k
+    T ~ k.clamp(j, h)   ==== k
+    T ~ j.clamp(k, h)   ==== k
+    T ~ h.clamp(j, k)   ==== k
+    T ~ j.clamp(h, k)   ==== h
+    T ~ k.in(j, h)      ==== true
+    T ~ j.in(k, h)      ==== false
+    T ~ h.in(j, k)      ==== false
+    T ~ k.checkIn(j, h) ==== k
+    T ~ j.checkIn(k, h) ==== thrown[ArithmeticException]
+    T ~ h.checkIn(j, k) ==== thrown[ArithmeticException]
+
+    val ts2 = System.nanoTime
+    val dt = t.age
+    T ~ (ts2 - ts <= dt.unwrap) ==== true
+    T ~ dt                      ==== dt  --: typed[NanoDuration]
+    T ~ i.pr                    ==== "nanotime=912835798134"
 }
 

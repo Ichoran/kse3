@@ -399,3 +399,12 @@ extension (d: Duration) {
   */
 }
 
+
+
+extension (i: Instant) {
+  @targetName("Instant_add_Duration")
+  def +(d: Duration) = ???
+
+  @targetName("Instant_sub_Duration")
+  def -(d: Duration) = ???
+}
