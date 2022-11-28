@@ -2544,6 +2544,9 @@ class MathTest {
 
   @Test
   def temporalTestNanoInstant(): Unit = temporalTester.testNanoInstant()
+
+  @Test
+  def temporalTestDoubleInstant(): Unit = temporalTester.testDoubleInstant()
 }
 object MathsTest {
   // @BeforeClass

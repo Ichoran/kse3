@@ -1889,5 +1889,61 @@ class TemporalTest() {
     T ~ dt                      ==== dt  --: typed[NanoDuration]
     T ~ i.pr                    ==== "nanotime=912835798134"
     T ~ List(j, k, h, i).sorted ==== List(i, j, k, h)
+
+  def testDoubleInstant(): Unit =
+    val t = DoubleInstant.now
+    val nineG = DoubleInstant(1e9)
+    val ti = Instant.now
+    val tp = t + 5.0.ms
+    val tm = t - 5.0.ms
+
+    T ~ DoubleInstant(1e9.next)                ==== 1e9.next         --: typed[DoubleInstant]
+    T ~ DoubleInstant(1e9.next).unwrap         ==== 1e9.next         --: typed[Double]
+    T ~ (DoubleInstant(ti).unwrap >= t.unwrap) ==== true
+    T ~ DoubleInstant.fromSeconds(5, 195215)   ==== 5.000195215      --: typed[DoubleInstant]
+    T ~ DoubleInstant.fromDays(5, 1234567890L) ==== 432001.23456789  --: typed[DoubleInstant]
+    T ~ (nineG + 5.0.ms)                       ==== 1.000000000005e9 --: typed[DoubleInstant]
+    T ~ (nineG - 5.0.ms)                       ==== 0.999999999995e9 --: typed[DoubleInstant]
+    T ~ (t - nineG)                            ==== (t.unwrap - 1e9) --: typed[DoubleDuration]
+    T ~ (nineG to t)                           ==== (t - nineG)      --: typed[DoubleDuration]
+    T ~ (nineG <  t) ==== true
+    T ~ (nineG <= t) ==== true
+    T ~ (nineG >= t) ==== false
+    T ~ (nineG >  t) ==== false
+    T ~ (t <  t)     ==== false
+    T ~ (t <= t)     ==== true
+    T ~ (t >= t)     ==== true
+    T ~ (t >  t)     ==== false
+    T ~ (t <  nineG) ==== false
+    T ~ (t <= nineG) ==== false
+    T ~ (t >= nineG) ==== true
+    T ~ (t >  nineG) ==== true
+    T ~ (t max nineG)     ==== t     --: typed[DoubleInstant]
+    T ~ (nineG max t)     ==== t
+    T ~ (t min nineG)     ==== nineG --: typed[DoubleInstant]
+    T ~ (nineG min t)     ==== nineG
+    T ~ t.clamp(tm, tp)   ==== t     --: typed[DoubleInstant]
+    T ~ tm.clamp(t, tp)   ==== t
+    T ~ tp.clamp(tm, t)   ==== t
+    T ~ t.clamp(tp, tm)   ==== tp
+    T ~ t.in(tm, tp)      ==== true
+    T ~ tm.in(t, tp)      ==== false
+    T ~ tp.in(tm, t)      ==== false
+    T ~ t.checkIn(tm, tp) ==== t     --: typed[DoubleInstant]
+    T ~ tm.checkIn(t, tp) ==== thrown[ArithmeticException]
+    T ~ tp.checkIn(tm, t) ==== thrown[ArithmeticException]
+
+    var ti2 = Instant.now
+    while ti == ti2 do { Thread.sleep(1); ti2 = Instant.now }
+    val dt = t.age
+    T ~ (dt >= DoubleInstant(ti2) - DoubleInstant(ti)) ==== true
+
+    T ~ nineG.instant ==== Instant.ofEpochSecond(1000000000)  --: typed[Instant]
+    T ~ DoubleInstant(1234567890.123456).instant ==== Instant.ofEpochSecond(1234567890L, 123456000)
+    T ~ DoubleInstant(12345678901.23456).instant ==== Instant.ofEpochSecond(12345678901L, 234560000)
+    T ~ DoubleInstant(123456789012.3456).instant ==== Instant.ofEpochSecond(123456789012L, 345600000)
+    T ~ DoubleInstant(1234567890123.456).instant ==== Instant.ofEpochSecond(1234567890123L, 456000000)
+    T ~ DoubleInstant(12345678901234.56).instant ==== Instant.ofEpochSecond(12345678901234L, 560000000)
+    T ~ DoubleInstant(123456789012345.6).instant ==== Instant.ofEpochSecond(123456789012345L, 600000000)
 }
 

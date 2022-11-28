@@ -1146,8 +1146,8 @@ object DoubleDuration {
     inline def %(et: kse.maths.DoubleDuration): kse.maths.DoubleDuration =
       val x = dt.unwrap
       val y = et.unwrap
-      val q = x / y
-      DoubleDuration(if q < 0 then x - y * jm.ceil(q) else x - y * jm.floor(q))
+      val q = kse.maths.trunc(x / y)
+      DoubleDuration(x - y * q)
 
     inline def <( du: kse.maths.DoubleDuration): Boolean = dt.unwrap <  du.unwrap
     inline def <=(du: kse.maths.DoubleDuration): Boolean = dt.unwrap <= du.unwrap
@@ -1474,6 +1474,9 @@ object DoubleDuration {
 
 
 object TemporalCompanion {
+  val FileTimeMax = FileTime.from(Long.MaxValue, TimeUnit.DAYS)
+  val FileTimeMin = FileTime.from(Long.MinValue, TimeUnit.DAYS)
+
   def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
   def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
   def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
@@ -1495,31 +1498,6 @@ object TemporalCompanion {
 
   def toOffset(instant: Instant): OffsetDateTime = toZoned(instant).toOffsetDateTime
   def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
-
-  def toFileTime(instant: Instant): FileTime =
-    var s = instant.getEpochSecond
-    var ns = instant.getNano
-    if s < 0 && ns != 0 then
-      s += 1
-      ns -= 1000000000
-    var level = 1
-    if ns % 1000000 != 0 then
-      level += 1
-      if ns % 1000 != 0 then
-        level += 1
-    if s < 0 then
-      if level == 3 && s <= Long.MinValue/1000000000L then level -= 1
-      if level == 2 && s <= Long.MinValue/1000000L then level -= 1
-      if level == 1 && s <= Long.MinValue/1000L then level -= 1
-    else
-      if level == 3 && s >= Long.MaxValue/1000000000L then level -= 1
-      if level == 2 && s >= Long.MaxValue/1000000L then level -= 1
-      if level == 1 && s >= Long.MaxValue/1000L then level -= 1
-    level match
-      case 1 => FileTime.fromMillis(s*1000L + ns/1000000)
-      case 2 => FileTime.from(s*1000000L + ns/1000, TimeUnit.MICROSECONDS)
-      case 3 => FileTime.from(s*1000000000L + ns, TimeUnit.NANOSECONDS)
-      case _ => FileTime.from(s, TimeUnit.SECONDS)
 }
 
 
@@ -1600,6 +1578,12 @@ object NanoInstant {
 
 opaque type DoubleInstant = Double
 object DoubleInstant {
+  val MaxInstantDouble = Instant.MAX.getEpochSecond.toDouble
+  val MinInstantDouble = Instant.MIN.getEpochSecond.toDouble
+
+  val MaxFileTimeDouble = Long.MaxValue.toDouble * 86400
+  val MinFileTimeDouble = Long.MinValue.toDouble * 86400
+
   inline def apply(t: Double): kse.maths.DoubleInstant = t
   inline def apply(i: Instant): kse.maths.DoubleInstant = fromSeconds(i.getEpochSecond, i.getNano)
 
@@ -1628,15 +1612,17 @@ object DoubleInstant {
   }
 
   extension (t: kse.maths.DoubleInstant) {
-    inline def +(dt: kse.maths.DoubleDuration): DoubleInstant = DoubleInstant(t.unwrap + dt.unwrap)
+    // SCALABUG - not inline because it confuses the opaque types
+    def +(dt: kse.maths.DoubleDuration): kse.maths.DoubleInstant = DoubleInstant(t.unwrap + dt.unwrap)
 
-    @targetName("instant_minus_duration")
-    inline def -(dt: kse.maths.DoubleDuration): DoubleInstant = DoubleInstant(t.unwrap - dt.unwrap)
+    // SCALABUG - not inline because it confuses the opaque types
+    @targetName("instant_sub_duration")
+    def -(dt: kse.maths.DoubleDuration): kse.maths.DoubleInstant = DoubleInstant(t.unwrap - dt.unwrap)
+    
+    @targetName("instant_sub_instant")
+    inline def -(u: kse.maths.DoubleInstant): kse.maths.DoubleDuration = DoubleDuration(t.unwrap - u.unwrap)
 
-    @targetName("instant_minus_instant")
-    inline def -(u: kse.maths.DoubleInstant): DoubleDuration = DoubleDuration(t.unwrap - u.unwrap)
-
-    inline def to(u: kse.maths.DoubleInstant): DoubleDuration = DoubleDuration(u.unwrap - t.unwrap)
+    inline def to(u: kse.maths.DoubleInstant): kse.maths.DoubleDuration = DoubleDuration(u.unwrap - t.unwrap)
 
     def <( u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) < 0
     def <=(u: kse.maths.DoubleInstant): Boolean = java.lang.Double.compare(t.unwrap, u.unwrap) <= 0
@@ -1658,48 +1644,120 @@ object DoubleInstant {
 
     def instant: Instant =
       val b = t.unwrap
-      if java.lang.Double.isNaN(b) then Instant.ofEpochSecond(Long.MaxValue) // Will probably throw an exception
-      else if b >= MaxInstantDouble then Instant.MAX
-      else if b <= MinInstantDouble then Instant.MIN
+      if b.nan || b >= MaxInstantDouble then Instant.MAX
+      else if     b <= MinInstantDouble then Instant.MIN
       else
-        val a = jm.abs(b)
-        if a < 4.19e6 then
-          val ns = jm.rint(b*1e9).toLong
-          if ns % 1000000 == 0 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
+        val u = jm.ulp(b)
+        if u <= 0.25e-1 then
+          val s = kse.maths.trunc(b).toLong
+          if u <= 0.25e-6 then
+            // Microseconds--we won't go smaller than that
+            Instant.ofEpochSecond(s, jm.rint((b - s)*1e6).toInt * 1000)
+          else if u <= 0.25e-3 then
+            // Milliseconds or smaller
+            if u <= 0.25e-4 then
+              if u <= 0.25e-5 then
+                Instant.ofEpochSecond(s, jm.rint((b - s)*1e5).toInt * 10000)
+              else
+                Instant.ofEpochSecond(s, jm.rint((b - s)*1e4).toInt * 100000)
+            else
+              // Actually milliseconds
+              Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
           else
-            val s = ns/1000000000
-            Instant.ofEpochSecond(s, ns - 1000000000*s)
-        else if a < 4.29e9 then
-          val us = jm.rint(b*1e6).toLong
-          if us % 1000 == 0 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
+            if u <= 0.25e-2 then
+              Instant.ofEpochSecond(s, jm.rint((b - s)*1e2).toInt * 10000000)
+            else
+              Instant.ofEpochSecond(s, jm.rint((b - s)*1e1).toInt * 100000000)
+        else
+          // Seconds or bigger
+          var s = jm.rint(b).toLong
+          if u <= 0.25 then Instant.ofEpochSecond(s)
           else
-            val s = us/1000000
-            Instant.ofEpochSecond(s, (us - 1000000*s)*1000)
-        else if a < 4.39e12 then Instant.ofEpochMilli(jm.rint(b*1e3).toLong)
-        else Instant.ofEpochSecond(jm.rint(b).toLong)
+            // Values for hours and days are unnecessary since they won't fit in Instant anyway
+            val mod = if u <= 2.5 then 10 else 60
+            println(s"$u $mod ${s - (s % mod)} ${MaxInstantDouble}")
+            Instant.ofEpochSecond(s - (s % mod))
+
     def filetime: FileTime =
       val b = t.unwrap
-      val a = jm.abs(b)
-      if      a < 4.29e9  then
-        val us = jm.rint(b*1e6).toLong
-        if us % 1000 == 0 then FileTime.fromMillis(jm.rint(b*1e3).toLong)
-        else FileTime.from(us, TimeUnit.MICROSECONDS)
-      else if a < 4.39e12 then FileTime.fromMillis(jm.rint(b*1e3).toLong)
-      else                    FileTime.from(jm.rint(b).toLong, TimeUnit.SECONDS)
+      if b.nan || b >= MaxFileTimeDouble then TemporalCompanion.FileTimeMax
+      else if     b <= MinFileTimeDouble then TemporalCompanion.FileTimeMin
+      else
+        if b > MinInstantDouble && b < MaxInstantDouble then FileTime.from(DoubleInstant.instant(t))
+        else
+          val u = jm.ulp(b)
+          if      u <= 15  then FileTime.from((b/60).toLong, TimeUnit.MINUTES)
+          else if u <= 900 then FileTime.from((b/3600).toLong, TimeUnit.HOURS)
+          else                  FileTime.from((b/86400).toLong, TimeUnit.DAYS)
+
     inline def local: LocalDateTime   = TemporalCompanion.toLocal( DoubleInstant.instant(t))
     inline def offset: OffsetDateTime = TemporalCompanion.toOffset(DoubleInstant.instant(t))
     inline def utc: OffsetDateTime    = TemporalCompanion.toUTC(   DoubleInstant.instant(t))
     inline def zoned: ZonedDateTime   = TemporalCompanion.toZoned( DoubleInstant.instant(t))
 
+    def trunc: kse.maths.DoubleInstant.Trunc = t.unwrap
+    def floor: kse.maths.DoubleInstant.Floor = t.unwrap
+    def round: kse.maths.DoubleInstant.Round = t.unwrap
+    def ceil:  kse.maths.DoubleInstant.Ceil  = t.unwrap
+
     def pr: String = s"epoch + ${t.unwrap} sec"
+  }
+
+  opaque type Trunc = Double
+  object Trunc {
+    extension (trunc: Trunc) {
+      def us: kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc * 1e6)   else jm.floor(trunc * 1e6) ) / 1e6 )
+      def ms: kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc * 1e3)   else jm.floor(trunc * 1e3) ) / 1e3 )
+      def s:  kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc)         else jm.floor(trunc) ) )
+      def m:  kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc / 60)    else jm.floor(trunc / 60) ) * 60 )
+      def h:  kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc / 3600)  else jm.floor(trunc / 3600) ) * 3600 )
+      def d:  kse.maths.DoubleInstant = DoubleInstant( (if trunc < 0 then jm.ceil(trunc / 86400) else jm.floor(trunc / 86400) ) * 86400 )
+      inline def days: kse.maths.DoubleInstant = trunc.d
+    }
+  }
+
+  opaque type Floor = Double
+  object Floor {
+    extension (floor: Floor) {
+      inline def us: kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor) )
+      inline def m:  kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor / 60) * 60 )
+      inline def h:  kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleInstant = DoubleInstant( jm.floor(floor / 86400) * 86400 )
+      inline def days: kse.maths.DoubleInstant = floor.d
+    }
+  }
+
+  opaque type Round = Double
+  object Round {
+    extension (round: Round) {
+      inline def us: kse.maths.DoubleInstant = DoubleInstant( jm.rint(round * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleInstant = DoubleInstant( jm.rint(round * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleInstant = DoubleInstant( jm.rint(round) )
+      inline def m:  kse.maths.DoubleInstant = DoubleInstant( jm.rint(round / 60) * 60 )
+      inline def h:  kse.maths.DoubleInstant = DoubleInstant( jm.rint(round / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleInstant = DoubleInstant( jm.rint(round / 86400) * 86400 )
+      inline def days: kse.maths.DoubleInstant = round.d
+    }
+  }
+
+  opaque type Ceil = Double
+  object Ceil {
+    extension (ceil: Ceil) {
+      inline def us: kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil * 1e6) / 1e6 )
+      inline def ms: kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil * 1e3) / 1e3 )
+      inline def s:  kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil) )
+      inline def m:  kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil / 60) * 60 )
+      inline def h:  kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil / 3600) * 3600 )
+      inline def d:  kse.maths.DoubleInstant = DoubleInstant( jm.ceil(ceil / 86400) * 86400 )
+      inline def days: kse.maths.DoubleInstant = ceil.d
+    }
   }
 
   given Ordering[kse.maths.DoubleInstant] = new {
     def compare(t: kse.maths.DoubleInstant, u: kse.maths.DoubleInstant) = java.lang.Double.compare(t.unwrap, u.unwrap)
   }
-
-  val MaxInstantDouble = Instant.MAX.getEpochSecond.toDouble
-  val MinInstantDouble = Instant.MIN.getEpochSecond.toDouble
 }
 
 
