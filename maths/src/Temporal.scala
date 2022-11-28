@@ -823,7 +823,7 @@ extension (d: Duration) {
       else NanoDuration((d.getSeconds + 1) *! 1000000000L +! (d.getNano - 1000000000L))
     else
       NanoDuration(d.getSeconds *! 1000000000L +! d.getNano)
-  inline def double: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
+  inline def D: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
 
   inline def into:    kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
   inline def checked: kse.maths.DurationCompanion.Check = DurationCompanion.Check(d)
@@ -923,7 +923,7 @@ object NanoDuration {
       if dt.unwrap < lo.unwrap || dt.unwrap > hi.unwrap then throw new ArithmeticException("long overflow")
       else dt
 
-    inline def double: kse.maths.DoubleDuration = DoubleDuration(dt)
+    inline def D: kse.maths.DoubleDuration = DoubleDuration(dt)
     def duration: Duration =
       val s = dt.unwrap/1000000000
       val n = (dt.unwrap - s*1000000000).toInt

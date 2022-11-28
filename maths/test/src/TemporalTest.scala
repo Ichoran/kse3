@@ -200,10 +200,10 @@ class TemporalTest() {
     T ~ dnb.checkedNano    ==== thrown[ArithmeticException]
     T ~ (-dnb).checkedNano ==== (-dnb).nano
     T ~ (-dnc).checkedNano ==== thrown[ArithmeticException]
-    T ~ (4.ns).double      ==== 4e-9 --: typed[DoubleDuration]
-    T ~ (-5.days).double   ==== -432000.0
-    T ~ d.double           ==== 8.395719981568751e11
-    T ~ dmin.double        ==== -9.223372036854776e18
+    T ~ (4.ns).D           ==== 4e-9 --: typed[DoubleDuration]
+    T ~ (-5.days).D        ==== -432000.0
+    T ~ d.D                ==== 8.395719981568751e11
+    T ~ dmin.D             ==== -9.223372036854776e18
     T ~ d.into.ns          ==== Long.MaxValue --: typed[Long]
     T ~ 5.us.into.ns       ==== 5000
     T ~ dna.into.ns        ==== Long.MaxValue
@@ -907,8 +907,8 @@ class TemporalTest() {
     T ~ nd.checkIn(nd2, nd3) ==== thrown[ArithmeticException]
     T ~ nd3.checkIn(nd, nd2) ==== thrown[ArithmeticException]
 
-    T ~ nd.double            ==== 238.597181528 --: typed[DoubleDuration]
-    T ~ ndmin.double         ==== -9.223372036854775808e9
+    T ~ nd.D                 ==== 238.597181528 --: typed[DoubleDuration]
+    T ~ ndmin.D              ==== -9.223372036854775808e9
     T ~ nd.duration          ==== Duration.ofSeconds(238, 597181528)
 
     T ~ nd.into.ns           ==== nd                             --: typed[Long]
