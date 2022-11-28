@@ -695,11 +695,11 @@ extension (b: Byte) {
   @targetName("byte_clampUInt")  inline def clampToUInt: kse.maths.UInt   = if b < 0 then UInt(0) else UInt(b.toInt)
   @targetName("byte_clampULong") inline def clampToULong: kse.maths.ULong = if b < 0 then ULong(0L) else ULong(b.toLong)
 
-  @targetName("byte_exactNeg")   def exactNeg: Byte = if b != (-128: Byte) then (-b).toByte else throw new ArithmeticException("byte overflow")
-  @targetName("byte_exactUByte") def exactToUByte: kse.maths.UByte = if b < 0 then throw new ArithmeticException("negative UByte") else UByte(b)
-  @targetName("byte_exactChar")  def exactToChar: Char             = if b < 0 then throw new ArithmeticException("negative Char")  else b.toChar
-  @targetName("byte_exactUInt")  def exactToUInt: kse.maths.UInt   = if b < 0 then throw new ArithmeticException("negative UInt")  else UInt(b.toInt)
-  @targetName("byte_exactULong") def exactToULong: kse.maths.ULong = if b < 0 then throw new ArithmeticException("negative ULong") else ULong(b.toLong)
+  @targetName("byte_checkedNeg")   def checkedNeg: Byte = if b != (-128: Byte) then (-b).toByte else throw new ArithmeticException("byte overflow")
+  @targetName("byte_checkedUByte") def checkedToUByte: kse.maths.UByte = if b < 0 then throw new ArithmeticException("negative UByte") else UByte(b)
+  @targetName("byte_checkedChar")  def checkedToChar: Char             = if b < 0 then throw new ArithmeticException("negative Char")  else b.toChar
+  @targetName("byte_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if b < 0 then throw new ArithmeticException("negative UInt")  else UInt(b.toInt)
+  @targetName("byte_checkedULong") def checkedToULong: kse.maths.ULong = if b < 0 then throw new ArithmeticException("negative ULong") else ULong(b.toLong)
 }
 
 extension (s: Short) {
@@ -741,12 +741,12 @@ extension (s: Short) {
   @targetName("short_clampUInt")  def clampToUInt: kse.maths.UInt   = if s < 0 then UInt(0) else UInt(s.toInt)
   @targetName("short_clampULong") def clampToULong: kse.maths.ULong = if s < 0 then ULong(0L) else ULong(s.toLong)
 
-  @targetName("short_exactNeg")   def exactNeg: Short               = if s != (-32768: Short) then (-s).toShort else throw new ArithmeticException("short overflow")
-  @targetName("short_exactByte")  def exactToByte: Byte             = if s < -128 || s > 127 then throw new ArithmeticException("byte overflow")  else s.toByte
-  @targetName("short_exactUByte") def exactToUByte: kse.maths.UByte = if s < 0    || s > 255 then throw new ArithmeticException("UByte overflow") else UByte(s.toByte)
-  @targetName("short_exactChar")  def exactToChar: Char             = if s < 0               then throw new ArithmeticException("negative Char")  else s.toChar
-  @targetName("short_exactUInt")  def exactToUInt: kse.maths.UInt   = if s < 0               then throw new ArithmeticException("negative UInt")  else UInt(s.toInt)
-  @targetName("short_exactULong") def exactToULong: kse.maths.ULong = if s < 0               then throw new ArithmeticException("negative ULong") else ULong(s.toLong)
+  @targetName("short_checkedNeg")   def checkedNeg: Short               = if s != (-32768: Short) then (-s).toShort else throw new ArithmeticException("short overflow")
+  @targetName("short_checkedByte")  def checkedToByte: Byte             = if s < -128 || s > 127 then throw new ArithmeticException("byte overflow")  else s.toByte
+  @targetName("short_checkedUByte") def checkedToUByte: kse.maths.UByte = if s < 0    || s > 255 then throw new ArithmeticException("UByte overflow") else UByte(s.toByte)
+  @targetName("short_checkedChar")  def checkedToChar: Char             = if s < 0               then throw new ArithmeticException("negative Char")  else s.toChar
+  @targetName("short_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if s < 0               then throw new ArithmeticException("negative UInt")  else UInt(s.toInt)
+  @targetName("short_checkedULong") def checkedToULong: kse.maths.ULong = if s < 0               then throw new ArithmeticException("negative ULong") else ULong(s.toLong)
 }
 
 extension (c: Char) {
@@ -766,9 +766,9 @@ extension (c: Char) {
   @targetName("char_clampUByte") def clampToUByte: kse.maths.UByte = if c > '\u00FF' then UByte.MaxValue else UByte(c.toByte)
   @targetName("char_clampShort") def clampToShort: Short           = if c > '\u7FFF' then Short.MaxValue else c.toShort
 
-  @targetName("char_exactByte")  def exactToByte: Byte             = if c > '\u007F' then throw new ArithmeticException("byte overflow")  else c.toByte
-  @targetName("char_exactUByte") def exactToUByte: kse.maths.UByte = if c > '\u00FF' then throw new ArithmeticException("UByte overflow") else UByte(c.toByte)
-  @targetName("char_exactShort") def exactToShort: Short           = if c > '\u7FFF' then throw new ArithmeticException("short overflow") else c.toShort
+  @targetName("char_checkedByte")  def checkedToByte: Byte             = if c > '\u007F' then throw new ArithmeticException("byte overflow")  else c.toByte
+  @targetName("char_checkedUByte") def checkedToUByte: kse.maths.UByte = if c > '\u00FF' then throw new ArithmeticException("UByte overflow") else UByte(c.toByte)
+  @targetName("char_checkedShort") def checkedToShort: Short           = if c > '\u7FFF' then throw new ArithmeticException("short overflow") else c.toShort
 }
 
 extension (i: Int) {
@@ -811,13 +811,13 @@ extension (i: Int) {
   @targetName("int_clampUInt")  def clampToUInt: kse.maths.UInt   = if i < 0 then UInt(0) else UInt(i)
   @targetName("int_clampULong") def clampToULong: kse.maths.ULong = if i < 0 then ULong(0L) else ULong(i.toLong)
 
-  @targetName("int_exactNeg")   def exactNeg: Int                 = if i != Int.MinValue then -i else throw new ArithmeticException("int overflow")
-  @targetName("int_exactByte")  def exactToByte: Byte             = if i < -128   || i > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
-  @targetName("int_exactUByte") def exactToUByte: kse.maths.UByte = if i < 0      || i > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-  @targetName("int_exactShort") def exactToShort: Short           = if i < -32768 || i > 32767 then throw new ArithmeticException("short overflow") else i.toShort
-  @targetName("int_exactChar")  def exactToChar: Char             = if i < 0      || i > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
-  @targetName("int_exactUInt")  def exactToUInt: kse.maths.UInt   = if i < 0                   then throw new ArithmeticException("negative UInt")  else UInt(i)
-  @targetName("int_exactULong") def exactToULong: kse.maths.ULong = if i < 0                   then throw new ArithmeticException("negative ULong") else ULong(i.toLong)
+  @targetName("int_checkedNeg")   def checkedNeg: Int                 = if i != Int.MinValue then -i else throw new ArithmeticException("int overflow")
+  @targetName("int_checkedByte")  def checkedToByte: Byte             = if i < -128   || i > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
+  @targetName("int_checkedUByte") def checkedToUByte: kse.maths.UByte = if i < 0      || i > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
+  @targetName("int_checkedShort") def checkedToShort: Short           = if i < -32768 || i > 32767 then throw new ArithmeticException("short overflow") else i.toShort
+  @targetName("int_checkedChar")  def checkedToChar: Char             = if i < 0      || i > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
+  @targetName("int_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if i < 0                   then throw new ArithmeticException("negative UInt")  else UInt(i)
+  @targetName("int_checkedULong") def checkedToULong: kse.maths.ULong = if i < 0                   then throw new ArithmeticException("negative ULong") else ULong(i.toLong)
 }
 
 extension (l: Long) {
@@ -896,14 +896,14 @@ extension (l: Long) {
   @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
   @targetName("long_clampULong") def clampToULong: kse.maths.ULong = if l < 0 then ULong(0L) else ULong(l)
 
-  @targetName("long_exactNeg")   def exactNeg: Long                = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
-  @targetName("long_exactByte")  def exactToByte: Byte             = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
-  @targetName("long_exactUByte") def exactToUByte: kse.maths.UByte = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
-  @targetName("long_exactShort") def exactToShort: Short           = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
-  @targetName("long_exactChar")  def exactToChar: Char             = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")  else l.toChar
-  @targetName("long_exactInt")   def exactToInt: Int               = jm.toIntExact(l)
-  @targetName("long_exactUInt")  def exactToUInt: kse.maths.UInt   = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")  else UInt(l.toInt)
-  @targetName("long_exactULong") def exactToULong: kse.maths.ULong = if l < 0                    then throw new ArithmeticException("negative ULong") else ULong(l)
+  @targetName("long_checkedNeg")   def checkedNeg: Long                = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
+  @targetName("long_checkedByte")  def checkedToByte: Byte             = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
+  @targetName("long_checkedUByte") def checkedToUByte: kse.maths.UByte = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
+  @targetName("long_checkedShort") def checkedToShort: Short           = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
+  @targetName("long_checkedChar")  def checkedToChar: Char             = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")  else l.toChar
+  @targetName("long_checkedInt")   def checkedToInt: Int               = jm.toIntExact(l)
+  @targetName("long_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")  else UInt(l.toInt)
+  @targetName("long_checkedULong") def checkedToULong: kse.maths.ULong = if l < 0                    then throw new ArithmeticException("negative ULong") else ULong(l)
 }
 
 extension (inline x: Byte | Short | Int | Long) {
@@ -1260,7 +1260,7 @@ object UByte {
     inline def toDouble: Double          =           (b.signed & 0xFF).toDouble
 
     def clampToByte: Byte = if b.signed < 0 then 127 else b.signed
-    def exactToByte: Byte = if b.signed < 0 then throw new ArithmeticException("byte overflow") else b.signed
+    def checkedToByte: Byte = if b.signed < 0 then throw new ArithmeticException("byte overflow") else b.signed
 
     def pr: String = (b.signed & 0xFF).toString
 
@@ -1404,11 +1404,11 @@ object UInt {
     def clampToChar: Char             = if i.signed < 0 || i.signed > 0xFFFF then '\uFFFF' else i.toChar
     def clampToInt: Int               = if i.signed < 0 then Int.MaxValue else i.signed
 
-    def exactToByte: Byte             = if i.signed < 0 || i.signed > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
-    def exactToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-    def exactToShort: Short           = if i.signed < 0 || i.signed > 32767 then throw new ArithmeticException("short overflow") else i.toShort
-    def exactToChar: Char             = if i.signed < 0 || i.signed > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
-    def exactToInt: Int               = if i.signed < 0                     then throw new ArithmeticException("int overflow")   else i.signed
+    def checkedToByte: Byte             = if i.signed < 0 || i.signed > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
+    def checkedToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
+    def checkedToShort: Short           = if i.signed < 0 || i.signed > 32767 then throw new ArithmeticException("short overflow") else i.toShort
+    def checkedToChar: Char             = if i.signed < 0 || i.signed > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
+    def checkedToInt: Int               = if i.signed < 0                     then throw new ArithmeticException("int overflow")   else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
 
@@ -1586,13 +1586,13 @@ object ULong {
     def clampToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL then UInt.MaxValue else UInt(i.toInt)
     def clampToLong                   = if i.signed < 0 then Long.MaxValue else i.signed
 
-    def exactToByte: Byte             = if i.signed < 0 || i.signed > 127          then throw new ArithmeticException("byte overflow")  else i.toByte
-    def exactToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255          then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-    def exactToShort: Short           = if i.signed < 0 || i.signed > 32767        then throw new ArithmeticException("short overflow") else i.toShort
-    def exactToChar: Char             = if i.signed < 0 || i.signed > 65535        then throw new ArithmeticException("char overflow")  else i.toChar
-    def exactToInt: Int               = if i.signed < 0 || i.signed > Int.MaxValue then throw new ArithmeticException("int overflow")   else i.toInt
-    def exactToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL  then throw new ArithmeticException("UInt overflow")  else UInt(i.toInt)
-    def exactToLong                   = if i.signed < 0                            then throw new ArithmeticException("long overflow")  else i.signed
+    def checkedToByte: Byte             = if i.signed < 0 || i.signed > 127          then throw new ArithmeticException("byte overflow")  else i.toByte
+    def checkedToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255          then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
+    def checkedToShort: Short           = if i.signed < 0 || i.signed > 32767        then throw new ArithmeticException("short overflow") else i.toShort
+    def checkedToChar: Char             = if i.signed < 0 || i.signed > 65535        then throw new ArithmeticException("char overflow")  else i.toChar
+    def checkedToInt: Int               = if i.signed < 0 || i.signed > Int.MaxValue then throw new ArithmeticException("int overflow")   else i.toInt
+    def checkedToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL  then throw new ArithmeticException("UInt overflow")  else UInt(i.toInt)
+    def checkedToLong                   = if i.signed < 0                            then throw new ArithmeticException("long overflow")  else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
 
@@ -1797,7 +1797,7 @@ object PlusMinus {
     (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL) | (java.lang.Float.floatToRawIntBits(value).toLong << 32)
   inline def D(value: Double, error: Double): kse.maths.PlusMinus =
     apply(value.toFloat, error.toFloat)
-  inline def exactly(value: Float): kse.maths.PlusMinus =
+  inline def exact(value: Float): kse.maths.PlusMinus =
     java.lang.Float.floatToRawIntBits(value).toLong << 32
 
   extension (pm: PlusMinus) {
@@ -2019,7 +2019,7 @@ object Frac {
     inline def denomL: Long = (f: Long) & 0x7FFFFFFFL
 
     inline def isExact: Boolean = ((f: Long) & 0x80000000L) == 0
-    inline def inexact: Boolean = ((f: Long) & 0x80000000L) != 0
+    inline def inchecked: Boolean = ((f: Long) & 0x80000000L) != 0
     inline def overflowBit: Long = (f: Long) & 0x80000000L
 
     inline def overflowed: Frac = (f: Long) | 0x80000000L
@@ -2165,11 +2165,11 @@ object Frac {
       if negative then Frac.wrap(((-a).toLong << 32) | b.toLong)
       else             Frac.wrap((  a .toLong << 32) | b.toLong)
 
-  def approx(d: Double, maxSteps: Int = 40, tolerance: Double = 1e-12, markInexact: Boolean = false): kse.maths.Frac =
+  def approx(d: Double, maxSteps: Int = 40, tolerance: Double = 1e-12, markInchecked: Boolean = false): kse.maths.Frac =
     if d.nan then return Frac.wrap(0x80000001L)
     val e = d.abs
     if e < 2.3283064365386963E-10 then
-      if markInexact && e > tolerance then return Frac.wrap(0x80000001L)
+      if markInchecked && e > tolerance then return Frac.wrap(0x80000001L)
       else return Frac.wrap(0x1L)
     if e > Int.MaxValue then
       if e.inf then
@@ -2177,7 +2177,7 @@ object Frac {
         else          return Frac.wrap(0xFFFFFFFF80000000L)
       else
         val n = if d > 0 then Int.MaxValue else -Int.MaxValue
-        if markInexact then
+        if markInchecked then
           val err = (1 - Int.MaxValue/e).abs
           if err > tolerance then return Frac.wrap((n.toLong << 32) | 0x80000001L)
           else                    return Frac.wrap((n.toLong << 32) | 0x1L)
@@ -2264,10 +2264,10 @@ object Frac {
     val eruv = (1 - u*fi/v).abs
     if erxy < eruv then
       val ans = uncheckedApply(x, y, d < 0, f != e)
-      if markInexact && erxy > tolerance then ans.overflowed else ans
+      if markInchecked && erxy > tolerance then ans.overflowed else ans
     else
       val ans = uncheckedApply(u, v, d < 0, f != e)
-      if markInexact && eruv > tolerance then ans.overflowed else ans
+      if markInchecked && eruv > tolerance then ans.overflowed else ans
 
   def scaleClamped(value: Long, factor: Frac): Long =
     val n = factor.numer
@@ -2284,7 +2284,7 @@ object Frac {
       (vq *# n) +# ((vr * n)/d)
 
   def scaleExactly(value: Long, factor: Frac): Long =
-    if factor.inexact then throw new ArithmeticException("inexact fraction")
+    if factor.inchecked then throw new ArithmeticException("inchecked fraction")
     val n = factor.numer
     val d = factor.denom
     if n == 0 then 0L

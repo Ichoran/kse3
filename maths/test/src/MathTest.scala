@@ -1263,16 +1263,16 @@ class MathTest {
     T ~ b2.clampToUInt     ==== b2         --: typed[UInt]
     T ~ b.clampToULong     ==== 0          --: typed[ULong]
     T ~ b2.clampToULong    ==== b2         --: typed[ULong]
-    T ~ b.exactNeg         ==== 8          --: typed[Byte]
-    T ~ bmin.exactNeg      ==== thrown[ArithmeticException]
-    T ~ b2.exactToUByte    ==== b2         --: typed[UByte]
-    T ~ b.exactToUByte     ==== thrown[ArithmeticException]
-    T ~ b2.exactToChar     ==== b2.toChar  --: typed[Char]
-    T ~ b.exactToChar      ==== thrown[ArithmeticException]
-    T ~ b2.exactToUInt     ==== b2         --: typed[UInt]
-    T ~ b.exactToUInt      ==== thrown[ArithmeticException]
-    T ~ b2.exactToULong    ==== b2         --: typed[ULong]
-    T ~ b.exactToULong     ==== thrown[ArithmeticException]
+    T ~ b.checkedNeg       ==== 8          --: typed[Byte]
+    T ~ bmin.checkedNeg    ==== thrown[ArithmeticException]
+    T ~ b2.checkedToUByte  ==== b2         --: typed[UByte]
+    T ~ b.checkedToUByte   ==== thrown[ArithmeticException]
+    T ~ b2.checkedToChar   ==== b2.toChar  --: typed[Char]
+    T ~ b.checkedToChar    ==== thrown[ArithmeticException]
+    T ~ b2.checkedToUInt   ==== b2         --: typed[UInt]
+    T ~ b.checkedToUInt    ==== thrown[ArithmeticException]
+    T ~ b2.checkedToULong  ==== b2         --: typed[ULong]
+    T ~ b.checkedToULong   ==== thrown[ArithmeticException]
     T ~ b.hexString        ==== "F8"
     T ~ b.hiHexString      ==== "F8"
     T ~ b.loHexString      ==== "f8"
@@ -1337,18 +1337,18 @@ class MathTest {
     T ~ s4.clampToUInt       ==== 2000              --: typed[UInt]
     T ~ s.clampToULong       ==== 0                 --: typed[ULong]
     T ~ s4.clampToULong      ==== 2000              --: typed[ULong]
-    T ~ s.exactNeg           ==== 88                --: typed[Short]
-    T ~ smin.exactNeg        ==== thrown[ArithmeticException]
-    T ~ s.exactToByte        ==== s                 --: typed[Byte]
-    T ~ s2.exactToByte       ==== thrown[ArithmeticException]
-    T ~ s3.exactToUByte      ==== UByte(200)        --: typed[UByte]
-    T ~ s.exactToUByte       ==== thrown[ArithmeticException]
-    T ~ s4.exactToChar       ==== '\u07D0'          --: typed[Char]
-    T ~ s.exactToChar        ==== thrown[ArithmeticException]
-    T ~ s4.exactToUInt       ==== s4                --: typed[UInt]
-    T ~ s.exactToUInt        ==== thrown[ArithmeticException]
-    T ~ s4.exactToULong      ==== s4                --: typed[ULong]
-    T ~ s.exactToULong       ==== thrown[ArithmeticException]
+    T ~ s.checkedNeg         ==== 88                --: typed[Short]
+    T ~ smin.checkedNeg      ==== thrown[ArithmeticException]
+    T ~ s.checkedToByte      ==== s                 --: typed[Byte]
+    T ~ s2.checkedToByte     ==== thrown[ArithmeticException]
+    T ~ s3.checkedToUByte    ==== UByte(200)        --: typed[UByte]
+    T ~ s.checkedToUByte     ==== thrown[ArithmeticException]
+    T ~ s4.checkedToChar     ==== '\u07D0'          --: typed[Char]
+    T ~ s.checkedToChar      ==== thrown[ArithmeticException]
+    T ~ s4.checkedToUInt     ==== s4                --: typed[UInt]
+    T ~ s.checkedToUInt      ==== thrown[ArithmeticException]
+    T ~ s4.checkedToULong    ==== s4                --: typed[ULong]
+    T ~ s.checkedToULong     ==== thrown[ArithmeticException]
     T ~ s.hexString          ==== "FFA8"
     T ~ s.hiHexString        ==== "FFA8"
     T ~ s.loHexString        ==== "ffa8"
@@ -1381,12 +1381,12 @@ class MathTest {
     T ~ c4.clampToShort     ==== 0x7FFF     --: typed[Short]
     T ~ c.clampToUInt       ==== UInt(110)  --: typed[UInt]
     T ~ c.clampToULong      ==== ULong(110) --: typed[ULong]
-    T ~ c.exactToByte       ==== 110        --: typed[Byte]
-    T ~ c2.exactToByte      ==== thrown[ArithmeticException]
-    T ~ c.exactToUByte      ==== 110        --: typed[UByte]
-    T ~ c3.exactToUByte     ==== thrown[ArithmeticException]
-    T ~ c.exactToShort      ==== 110        --: typed[Short]
-    T ~ c4.exactToShort     ==== thrown[ArithmeticException]
+    T ~ c.checkedToByte     ==== 110        --: typed[Byte]
+    T ~ c2.checkedToByte    ==== thrown[ArithmeticException]
+    T ~ c.checkedToUByte    ==== 110        --: typed[UByte]
+    T ~ c3.checkedToUByte   ==== thrown[ArithmeticException]
+    T ~ c.checkedToShort    ==== 110        --: typed[Short]
+    T ~ c4.checkedToShort   ==== thrown[ArithmeticException]
     T ~ c.hexString         ==== "006E"
     T ~ c.hiHexString       ==== "006E"
     T ~ c.loHexString       ==== "006e"
@@ -1463,20 +1463,20 @@ class MathTest {
     T ~ i6.clampToUInt          ==== i6             --: typed[UInt]
     T ~ i.clampToULong          ==== 0              --: typed[ULong]
     T ~ i6.clampToULong         ==== i6             --: typed[ULong]
-    T ~ i.exactNeg              ==== 8888           --: typed[Int]
-    T ~ Int.MinValue.exactNeg   ==== thrown[ArithmeticException]
-    T ~ i2.exactToByte          ==== i2             --: typed[Byte]
-    T ~ i.exactToByte           ==== thrown[ArithmeticException]
-    T ~ i4.exactToUByte         ==== UByte(200)     --: typed[UByte]
-    T ~ i.exactToUByte          ==== thrown[ArithmeticException]
-    T ~ i.exactToShort          ==== i              --: typed[Short]
-    T ~ i3.exactToShort         ==== thrown[ArithmeticException]
-    T ~ i5.exactToChar          ==== '\u07D0'       --: typed[Char]
-    T ~ i.exactToChar           ==== thrown[ArithmeticException]
-    T ~ i6.exactToUInt          ==== i6             --: typed[UInt]
-    T ~ i.exactToUInt           ==== thrown[ArithmeticException]
-    T ~ i6.exactToULong         ==== i6             --: typed[ULong]
-    T ~ i.exactToULong          ==== thrown[ArithmeticException]
+    T ~ i.checkedNeg            ==== 8888           --: typed[Int]
+    T ~ Int.MinValue.checkedNeg ==== thrown[ArithmeticException]
+    T ~ i2.checkedToByte        ==== i2             --: typed[Byte]
+    T ~ i.checkedToByte         ==== thrown[ArithmeticException]
+    T ~ i4.checkedToUByte       ==== UByte(200)     --: typed[UByte]
+    T ~ i.checkedToUByte        ==== thrown[ArithmeticException]
+    T ~ i.checkedToShort        ==== i              --: typed[Short]
+    T ~ i3.checkedToShort       ==== thrown[ArithmeticException]
+    T ~ i5.checkedToChar        ==== '\u07D0'       --: typed[Char]
+    T ~ i.checkedToChar         ==== thrown[ArithmeticException]
+    T ~ i6.checkedToUInt        ==== i6             --: typed[UInt]
+    T ~ i.checkedToUInt         ==== thrown[ArithmeticException]
+    T ~ i6.checkedToULong       ==== i6             --: typed[ULong]
+    T ~ i.checkedToULong        ==== thrown[ArithmeticException]
     val ix = 0x12345DCA
     T ~ ix.leadingZeros  ==== 3
     T ~ ix.trailingZeros ==== 1
@@ -1598,22 +1598,22 @@ class MathTest {
     T ~ l.clampToULong             ==== l                --: typed[ULong]
     T ~ l2.clampToULong            ==== 0L               --: typed[ULong]
     T ~ l9.clampToULong            ==== l9               --: typed[ULong]
-    T ~ l2.exactNeg                ==== 88               --: typed[Long]
-    T ~ Long.MinValue.exactNeg     ==== thrown[ArithmeticException]
-    T ~ l.exactToByte              ==== 42               --: typed[Byte]
-    T ~ l3.exactToByte             ==== thrown[ArithmeticException]
-    T ~ l6.exactToUByte            ==== UByte(200)       --: typed[UByte]
-    T ~ l2.exactToUByte            ==== thrown[ArithmeticException]
-    T ~ l2.exactToShort            ==== l2               --: typed[Short]
-    T ~ l4.exactToShort            ==== thrown[ArithmeticException]
-    T ~ l.exactToChar              ==== '*'              --: typed[Char]
-    T ~ l2.exactToChar             ==== thrown[ArithmeticException]
-    T ~ l4.exactToInt              ==== l4               --: typed[Int]
-    T ~ l5.exactToInt              ==== thrown[ArithmeticException]
-    T ~ l8.exactToUInt             ==== l8               --: typed[UInt]
-    T ~ l9.exactToUInt             ==== thrown[ArithmeticException]
-    T ~ l9.exactToULong            ==== l9               --: typed[ULong]
-    T ~ l2.exactToULong            ==== thrown[ArithmeticException]
+    T ~ l2.checkedNeg              ==== 88               --: typed[Long]
+    T ~ Long.MinValue.checkedNeg   ==== thrown[ArithmeticException]
+    T ~ l.checkedToByte            ==== 42               --: typed[Byte]
+    T ~ l3.checkedToByte           ==== thrown[ArithmeticException]
+    T ~ l6.checkedToUByte          ==== UByte(200)       --: typed[UByte]
+    T ~ l2.checkedToUByte          ==== thrown[ArithmeticException]
+    T ~ l2.checkedToShort          ==== l2               --: typed[Short]
+    T ~ l4.checkedToShort          ==== thrown[ArithmeticException]
+    T ~ l.checkedToChar            ==== '*'              --: typed[Char]
+    T ~ l2.checkedToChar           ==== thrown[ArithmeticException]
+    T ~ l4.checkedToInt            ==== l4               --: typed[Int]
+    T ~ l5.checkedToInt            ==== thrown[ArithmeticException]
+    T ~ l8.checkedToUInt           ==== l8               --: typed[UInt]
+    T ~ l9.checkedToUInt           ==== thrown[ArithmeticException]
+    T ~ l9.checkedToULong          ==== l9               --: typed[ULong]
+    T ~ l2.checkedToULong          ==== thrown[ArithmeticException]
     val lx = 0x123456789AB0FEDCL
     T ~ lx.leadingZeros  ==== 3
     T ~ lx.trailingZeros ==== 2
@@ -1845,8 +1845,8 @@ class MathTest {
     T ~ b.toDouble      ==== 200.0       --: typed[Double]
     T ~ b.clampToByte   ==== 127         --: typed[Byte]
     T ~ c.clampToByte   ==== c           --: typed[Byte]
-    T ~ c.exactToByte   ==== c           --: typed[Byte]
-    T ~ b.exactToByte   ==== thrown[ArithmeticException]
+    T ~ c.checkedToByte ==== c           --: typed[Byte]
+    T ~ b.checkedToByte ==== thrown[ArithmeticException]
     T ~ b.pr            ==== "200"
     T ~ b.hexString     ==== "C8"
     T ~ b.hiHexString   ==== "C8"
@@ -1956,16 +1956,16 @@ class MathTest {
     T ~ i.clampToChar          ==== '\uFFFF'            --: typed[Char]
     T ~ i5.clampToInt          ==== i5                  --: typed[Int]
     T ~ i.clampToInt           ==== Int.MaxValue        --: typed[Int]
-    T ~ i2.exactToByte         ==== i2                  --: typed[Byte]
-    T ~ i3.exactToByte         ==== thrown[ArithmeticException]
-    T ~ i3.exactToUByte        ==== UByte(200)          --: typed[UByte]
-    T ~ i4.exactToUByte        ==== thrown[ArithmeticException]
-    T ~ i4.exactToShort        ==== i4                  --: typed[Short]
-    T ~ i5.exactToShort        ==== thrown[ArithmeticException]
-    T ~ i5.exactToChar         ==== '\uA410'            --: typed[Char]
-    T ~ h.exactToChar          ==== thrown[ArithmeticException]
-    T ~ i5.exactToInt          ==== i5                  --: typed[Int]
-    T ~ i.exactToInt           ==== thrown[ArithmeticException]
+    T ~ i2.checkedToByte       ==== i2                  --: typed[Byte]
+    T ~ i3.checkedToByte       ==== thrown[ArithmeticException]
+    T ~ i3.checkedToUByte      ==== UByte(200)          --: typed[UByte]
+    T ~ i4.checkedToUByte      ==== thrown[ArithmeticException]
+    T ~ i4.checkedToShort      ==== i4                  --: typed[Short]
+    T ~ i5.checkedToShort      ==== thrown[ArithmeticException]
+    T ~ i5.checkedToChar       ==== '\uA410'            --: typed[Char]
+    T ~ h.checkedToChar        ==== thrown[ArithmeticException]
+    T ~ i5.checkedToInt        ==== i5                  --: typed[Int]
+    T ~ i.checkedToInt         ==== thrown[ArithmeticException]
     T ~ i.pr                   ==== "2684354560"
     T ~ i.hexString            ==== "A0000000"
     T ~ i.hiHexString          ==== "A0000000"
@@ -2104,20 +2104,20 @@ class MathTest {
     T ~ l.clampToUInt   ==== UInt.MaxValue     --: typed[UInt]
     T ~ l6.clampToLong  ==== l6                --: typed[Long]
     T ~ l.clampToLong   ==== Long.MaxValue     --: typed[Long]
-    T ~ l2.exactToByte  ==== l2                --: typed[Byte]
-    T ~ l3.exactToByte  ==== thrown[ArithmeticException]
-    T ~ l3.exactToUByte ==== UByte(200)        --: typed[UByte]
-    T ~ l4.exactToUByte ==== thrown[ArithmeticException]
-    T ~ l3.exactToShort ==== l3                --: typed[Short]
-    T ~ l4.exactToShort ==== thrown[ArithmeticException]
-    T ~ l4.exactToChar  ==== '\u9C40'          --: typed[Char]
-    T ~ l5.exactToChar  ==== thrown[ArithmeticException]
-    T ~ l4.exactToInt   ==== l4                --: typed[Int]
-    T ~ l5.exactToInt   ==== thrown[ArithmeticException]
-    T ~ l5.exactToUInt  ==== UInt(0xEE6B2800)  --: typed[UInt]
-    T ~ l6.exactToUInt  ==== thrown[ArithmeticException]
-    T ~ l6.exactToLong  ==== l6                --: typed[Long]
-    T ~ l.exactToLong   ==== thrown[ArithmeticException]
+    T ~ l2.checkedToByte  ==== l2                --: typed[Byte]
+    T ~ l3.checkedToByte  ==== thrown[ArithmeticException]
+    T ~ l3.checkedToUByte ==== UByte(200)        --: typed[UByte]
+    T ~ l4.checkedToUByte ==== thrown[ArithmeticException]
+    T ~ l3.checkedToShort ==== l3                --: typed[Short]
+    T ~ l4.checkedToShort ==== thrown[ArithmeticException]
+    T ~ l4.checkedToChar  ==== '\u9C40'          --: typed[Char]
+    T ~ l5.checkedToChar  ==== thrown[ArithmeticException]
+    T ~ l4.checkedToInt   ==== l4                --: typed[Int]
+    T ~ l5.checkedToInt   ==== thrown[ArithmeticException]
+    T ~ l5.checkedToUInt  ==== UInt(0xEE6B2800)  --: typed[UInt]
+    T ~ l6.checkedToUInt  ==== thrown[ArithmeticException]
+    T ~ l6.checkedToLong  ==== l6                --: typed[Long]
+    T ~ l.checkedToLong   ==== thrown[ArithmeticException]
     T ~ l.pr            ==== "11731935826142493825"
     T ~ l.hexString     ==== "A2D03579B4E6FC81"
     T ~ l.hiHexString   ==== "A2D03579B4E6FC81"
@@ -2231,7 +2231,7 @@ class MathTest {
     T ~ (0f +- 1f)              ==== PlusMinus.wrap(0x000000003F800000L)
     T ~ (1f +- 0f).unwrap       ==== 0x3F80000000000000L
     T ~ pm                      ==== PlusMinus.D(3.5, 0.2)
-    T ~ (1f +- 0f)              ==== PlusMinus.exactly(1f)
+    T ~ (1f +- 0f)              ==== PlusMinus.exact(1f)
     T ~ pm.value                ==== 3.5f
     T ~ pm.error                ==== 0.2f
     T ~ pm.valueTo(1.9f).value  ==== 1.9f
@@ -2299,8 +2299,8 @@ class MathTest {
     T ~ badf.denom     ==== 1
     T ~ fr.isExact               ==== true
     T ~ badf.isExact             ==== false
-    T ~ fr.inexact               ==== false
-    T ~ badf.inexact             ==== true
+    T ~ fr.inchecked               ==== false
+    T ~ badf.inchecked             ==== true
     T ~ fr.overflowBit           ==== 0L
     T ~ badf.overflowBit         ==== 0x80000000L
     T ~ fr.overflowed.numer      ==== 20
@@ -2318,14 +2318,14 @@ class MathTest {
     T ~ f2.abs.numer     ==== -f2.numer
     T ~ f2.abs.denom     ==== f2.denom
     T ~ badf.abs.numer   ==== -badf.numer
-    T ~ badf.abs.inexact ==== true
-    T ~ ovrf.abs.inexact ==== true
+    T ~ badf.abs.inchecked ==== true
+    T ~ ovrf.abs.inchecked ==== true
     T ~ (-fr).numer      ==== -fr.numer
     T ~ (-fr).denom      ==== fr.denom
     T ~ (-f2)            ==== (18 over 35)
     T ~ (-badf).numer    ==== -badf.numer
-    T ~ (-badf).inexact  ==== true
-    T ~ (-ovrf).inexact  ==== true
+    T ~ (-badf).inchecked  ==== true
+    T ~ (-ovrf).inchecked  ==== true
     T ~ fr.toInt         ==== 6
     T ~ f2.toInt         ==== 0
     T ~ fr.floor         ==== 6
@@ -2339,70 +2339,70 @@ class MathTest {
     T ~ (fr + f2)           ==== (646 over 105)
     T ~ ((9 over 20) + f2)  ==== (-9 over 140)
     T ~ (badf + f2)         ==== badf
-    T ~ (fr + ovrf).inexact ==== true
-    T ~ (ovrf + fr).inexact ==== true
-    T ~ (ovrf + 2).inexact  ==== true
-    T ~ (2 + ovrf).inexact  ==== true
+    T ~ (fr + ovrf).inchecked ==== true
+    T ~ (ovrf + fr).inchecked ==== true
+    T ~ (ovrf + 2).inchecked  ==== true
+    T ~ (2 + ovrf).inchecked  ==== true
     val bigplus = (2000000000 over 1) + (2000000001 over 2)
-    T ~ bigplus.inexact  ==== true
+    T ~ bigplus.inchecked  ==== true
     T ~ bigplus.numer    ==== Int.MaxValue
     val largeplus = (2000000000 over 3) + (2000000001 over 4)
     T ~ (largeplus.numer < Int.MaxValue) ==== true
     T ~ largeplus.denom                  ==== 1
-    T ~ largeplus.inexact                ==== true
+    T ~ largeplus.inchecked                ==== true
     val impreciseplus = (1293815714 over 318571605) + (781517561 over 2018675117)
-    T ~ impreciseplus.inexact        ==== true
+    T ~ impreciseplus.inchecked        ==== true
     T ~ impreciseplus.denom          ==== 299463314
-    T ~ (impreciseplus + fr).inexact ==== true
-    T ~ (fr + impreciseplus).inexact ==== true
+    T ~ (impreciseplus + fr).inchecked ==== true
+    T ~ (fr + impreciseplus).inchecked ==== true
     val bittyplus = (3 over 2000000000) + (2 over 2000000001)
     T ~ (bittyplus.denom < Int.MaxValue) ==== true
     T ~ bittyplus.numer                  ==== 1
-    T ~ bittyplus.inexact                ==== true
+    T ~ bittyplus.inchecked                ==== true
     val zeroplus = (1 over 2000000000) + (-1 over 2000000001)
     T ~ zeroplus ==== (0 over 1).overflowed
     val bigplusinrange = (2000000000 over 1) + Int.MinValue
     T ~ bigplusinrange         ==== (-147483648 over 1)
-    T ~ bigplusinrange.inexact ==== false
+    T ~ bigplusinrange.inchecked ==== false
     T ~ (fr - 2)            ==== (14 over 3)
     T ~ (2 - fr)            ==== (-14 over 3)
     T ~ ((9 over 20) - f2)  ==== (27 over 28)
     T ~ (badf - f2)         ==== badf
-    T ~ (fr - ovrf).inexact ==== true
-    T ~ (ovrf - fr).inexact ==== true
-    T ~ (ovrf - 2).inexact  ==== true
-    T ~ (2 - ovrf).inexact  ==== true
+    T ~ (fr - ovrf).inchecked ==== true
+    T ~ (ovrf - fr).inchecked ==== true
+    T ~ (ovrf - 2).inchecked  ==== true
+    T ~ (2 - ovrf).inchecked  ==== true
     val bigminus = (2000000000 over 1) - (-2000000001 over 2)
-    T ~ bigminus.inexact  ==== true
+    T ~ bigminus.inchecked  ==== true
     T ~ bigminus.numer    ==== Int.MaxValue
     val largeminus = (-2000000000 over 3) - (2000000001 over 4)
     T ~ (largeminus.numer > -Int.MaxValue) ==== true
     T ~ largeminus.denom                   ==== 1
-    T ~ largeminus.inexact                 ==== true
+    T ~ largeminus.inchecked                 ==== true
     T ~ (largeplus + largeminus)           ==== 0x80000001L
     val impreciseminus = (1293815714 over 318571605) - (781517561 over 2018675117)
-    T ~ impreciseminus.inexact        ==== true
+    T ~ impreciseminus.inchecked        ==== true
     T ~ impreciseminus.denom          ==== 299463314
-    T ~ (impreciseminus - fr).inexact ==== true
-    T ~ (fr - impreciseminus).inexact ==== true
+    T ~ (impreciseminus - fr).inchecked ==== true
+    T ~ (fr - impreciseminus).inchecked ==== true
     val bittyminus = (3 over 2000000000) - (-2 over 2000000001)
     T ~ (bittyminus.denom < Int.MaxValue) ==== true
     T ~ bittyminus.numer                  ==== 1
-    T ~ bittyminus.inexact                ==== true
+    T ~ bittyminus.inchecked                ==== true
     val zerominus = (1 over 2000000000) - (1 over 2000000001)
     T ~ zerominus ==== (0 over 1).overflowed
     val bigminusinrange = (-2000000000 over 1) - Int.MinValue
     T ~ bigminusinrange         ==== (147483648 over 1)
-    T ~ bigminusinrange.inexact ==== false
+    T ~ bigminusinrange.inchecked ==== false
     T ~ (fr * 2)            ==== (40 over 3)
     T ~ (f2 * 5)            ==== (-18 over 7)
     T ~ (5 * fr)            ==== (fr * 5)
     T ~ (fr * f2)           ==== (-24 over 7)
     T ~ (badf * fr)         ==== badf
-    T ~ (fr * ovrf).inexact ==== true
-    T ~ (ovrf * fr).inexact ==== true
-    T ~ (ovrf * 2).inexact  ==== true
-    T ~ (2 * ovrf).inexact  ==== true
+    T ~ (fr * ovrf).inchecked ==== true
+    T ~ (ovrf * fr).inchecked ==== true
+    T ~ (ovrf * 2).inchecked  ==== true
+    T ~ (2 * ovrf).inchecked  ==== true
     val bigmuli = fr * 1000000000
     T ~ bigmuli ==== (Int.MaxValue over 1).overflowed
     val bigmulf = fr * (2000000001 over 2)
@@ -2410,16 +2410,16 @@ class MathTest {
     val largemul = fr * (400000000 over 3)
     T ~ (largemul.numer < Int.MaxValue) ==== true
     T ~ largemul.denom                  ==== 1
-    T ~ largemul.inexact                ==== true
+    T ~ largemul.inchecked                ==== true
     val imprecisemul = (1293815714 over 318571605) * (781517561 over 2018675117)
-    T ~ imprecisemul.inexact        ==== true
+    T ~ imprecisemul.inchecked        ==== true
     T ~ imprecisemul.denom          ==== 871166007
-    T ~ (imprecisemul * fr).inexact ==== true
-    T ~ (fr * imprecisemul).inexact ==== true
+    T ~ (imprecisemul * fr).inchecked ==== true
+    T ~ (fr * imprecisemul).inchecked ==== true
     val bittymul = f2 * (2 over 1917918581)
     T ~ (bittymul.denom < Int.MaxValue) ==== true
     T ~ bittymul.numer                  ==== -1
-    T ~ bittymul.inexact                ==== true
+    T ~ bittymul.inchecked                ==== true
     val zeromul = (1 over 10100101) * (-1 over 10101001)
     T ~ zeromul ==== (0 over 1).overflowed
     T ~ (fr / 2)            ==== (10 over 3)
@@ -2427,10 +2427,10 @@ class MathTest {
     T ~ (2 / fr)            ==== (3 over 10)
     T ~ (fr / f2)           ==== (-350 over 27)
     T ~ (badf / -f2)        ==== badf
-    T ~ (fr / ovrf).inexact ==== true
-    T ~ (ovrf / fr).inexact ==== true
-    T ~ (ovrf / 2).inexact  ==== true
-    T ~ (2 / ovrf).inexact  ==== true
+    T ~ (fr / ovrf).inchecked ==== true
+    T ~ (ovrf / fr).inchecked ==== true
+    T ~ (ovrf / 2).inchecked  ==== true
+    T ~ (2 / ovrf).inchecked  ==== true
     val tinydivi = f2 / -2000000000
     T ~ tinydivi ==== (0 over 1).overflowed
     val bigdivf = (1000000 over 3) / (3 over 2000000)
@@ -2438,7 +2438,7 @@ class MathTest {
     val largediv = fr / (3 over 200000000)
     T ~ (largediv.numer < Int.MaxValue) ==== true
     T ~ largediv.denom                  ==== 1
-    T ~ largediv.inexact                ==== true
+    T ~ largediv.inchecked                ==== true
     val imprecisediv = (1293815714 over 318571605) / (2018675117 over 781517561)
     T ~ imprecisediv ==== imprecisemul
     val bittydiv = f2 / (1917918581 over 2)
@@ -2449,8 +2449,8 @@ class MathTest {
     val f4 = 91956397 over 20006152
     T ~ fr.reciprocal            ==== (3 over 20)
     T ~ f2.reciprocal            ==== (-35 over 18)
-    T ~ badf.reciprocal.inexact  ==== true
-    T ~ ovrf.reciprocal.inexact  ==== true
+    T ~ badf.reciprocal.inchecked  ==== true
+    T ~ ovrf.reciprocal.inchecked  ==== true
     T ~ f2.reciprocal.reciprocal ==== f2
     T ~ (0 over 1).reciprocal    ==== (1 over 0)
     T ~ (fr =~= fr)           ==== true
@@ -2510,7 +2510,7 @@ class MathTest {
     T ~ Frac.approx(2.5)    ==== (5 over 2)
     T ~ Frac.approx(1e20)   ==== (Int.MaxValue over 1)
     T ~ Frac.approx(-1e20)  ==== (-Int.MaxValue over 1)
-    T ~ Frac.approx(Int.MaxValue.toDouble - 0.7, markInexact = true) ==== (Int.MaxValue - 1 over 1).overflowed
+    T ~ Frac.approx(Int.MaxValue.toDouble - 0.7, markInchecked = true) ==== (Int.MaxValue - 1 over 1).overflowed
     T ~ Frac.approx(0.3125) ==== (10 over 32)
     T ~ Frac.approx(-1.0/0) ==== (-1 over 0)
     T ~ Frac.approx(0.0/0)  ==== (0 over 1).overflowed

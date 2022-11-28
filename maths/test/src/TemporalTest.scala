@@ -195,11 +195,11 @@ class TemporalTest() {
     T ~ (-dna).nano        ==== -Long.MaxValue
     T ~ (-dnb).nano        ==== Long.MinValue
     T ~ (-dnc).nano        ==== Long.MinValue
-    T ~ 15.us.exactNano    ==== 15000
-    T ~ dna.exactNano      ==== dna.nano
-    T ~ dnb.exactNano      ==== thrown[ArithmeticException]
-    T ~ (-dnb).exactNano   ==== (-dnb).nano
-    T ~ (-dnc).exactNano   ==== thrown[ArithmeticException]
+    T ~ 15.us.checkedNano  ==== 15000
+    T ~ dna.checkedNano    ==== dna.nano
+    T ~ dnb.checkedNano    ==== thrown[ArithmeticException]
+    T ~ (-dnb).checkedNano ==== (-dnb).nano
+    T ~ (-dnc).checkedNano ==== thrown[ArithmeticException]
     T ~ (4.ns).double      ==== 4e-9 --: typed[DoubleDuration]
     T ~ (-5.days).double   ==== -432000.0
     T ~ d.double           ==== 8.395719981568751e11
@@ -212,13 +212,13 @@ class TemporalTest() {
     T ~ (-dna).into.ns     ==== -Long.MaxValue
     T ~ (-dnb).into.ns     ==== Long.MinValue
     T ~ (-dnc).into.ns     ==== Long.MinValue
-    T ~ 5.us.exact.ns      ==== 5000
-    T ~ dna.exact.ns       ==== Long.MaxValue
-    T ~ dnb.exact.ns       ==== thrown[ArithmeticException]
-    T ~ (-5).us.exact.ns   ==== -5000
-    T ~ (-dna).exact.ns    ==== -Long.MaxValue
-    T ~ (-dnb).exact.ns    ==== Long.MinValue
-    T ~ (-dnc).exact.ns    ==== thrown[ArithmeticException]
+    T ~ 5.us.checked.ns    ==== 5000
+    T ~ dna.checked.ns     ==== Long.MaxValue
+    T ~ dnb.checked.ns     ==== thrown[ArithmeticException]
+    T ~ (-5).us.checked.ns ==== -5000
+    T ~ (-dna).checked.ns  ==== -Long.MaxValue
+    T ~ (-dnb).checked.ns  ==== Long.MinValue
+    T ~ (-dnc).checked.ns  ==== thrown[ArithmeticException]
 
     val dua = Duration.ofSeconds(9223372036854L, 775807000)
     val dub = Duration.ofSeconds(9223372036854L, 775808000)
@@ -246,16 +246,16 @@ class TemporalTest() {
     T ~ (-dub).into.us           ==== Long.MinValue
     T ~ (-dub - 999.ns).into.us  ==== Long.MinValue
     T ~ (-dub - 1.us).into.us    ==== Long.MinValue
-    T ~ 5.ms.exact.us            ==== 5000 --: typed[Long]
-    T ~ dua.exact.us             ==== Long.MaxValue
-    T ~ (dua - 1.ns).exact.us    ==== Long.MaxValue - 1
-    T ~ dub.exact.us             ==== thrown[ArithmeticException]
-    T ~ (-5).ms.exact.us         ==== -5000 --: typed[Long]
-    T ~ (-dua).exact.us          ==== -Long.MaxValue
-    T ~ (-dua - 999.ns).exact.us ==== -Long.MaxValue
-    T ~ (-dub).exact.us          ==== Long.MinValue
-    T ~ (-dub - 999.ns).exact.us ==== Long.MinValue
-    T ~ (-dub - 1.us).exact.us   ==== thrown[ArithmeticException]
+    T ~ 5.ms.checked.us            ==== 5000 --: typed[Long]
+    T ~ dua.checked.us             ==== Long.MaxValue
+    T ~ (dua - 1.ns).checked.us    ==== Long.MaxValue - 1
+    T ~ dub.checked.us             ==== thrown[ArithmeticException]
+    T ~ (-5).ms.checked.us         ==== -5000 --: typed[Long]
+    T ~ (-dua).checked.us          ==== -Long.MaxValue
+    T ~ (-dua - 999.ns).checked.us ==== -Long.MaxValue
+    T ~ (-dub).checked.us          ==== Long.MinValue
+    T ~ (-dub - 999.ns).checked.us ==== Long.MinValue
+    T ~ (-dub - 1.us).checked.us   ==== thrown[ArithmeticException]
     T ~ 185198.ns.round.into.us        ==== 185 --: typed[Long]
     T ~ dua.round.into.us              ==== Long.MaxValue
     T ~ (dua - 1.ns).round.into.us     ==== Long.MaxValue
@@ -268,18 +268,18 @@ class TemporalTest() {
     T ~ (-dua - 501.ns).round.into.us  ==== Long.MinValue
     T ~ (-dub - 500.ns).round.into.us  ==== Long.MinValue
     T ~ (-dub - 501.ns).round.into.us  ==== Long.MinValue
-    T ~ 185198.ns.round.exact.us       ==== 185 --: typed[Long]
-    T ~ dua.round.exact.us             ==== Long.MaxValue
-    T ~ (dua - 1.ns).round.exact.us    ==== Long.MaxValue
-    T ~ (dua - 499.ns).round.exact.us  ==== Long.MaxValue
-    T ~ (dua - 500.ns).round.exact.us  ==== Long.MaxValue - 1
-    T ~ (dua + 501.ns).round.exact.us  ==== thrown[ArithmeticException]
-    T ~ -981581.ns.round.exact.us      ==== -982
-    T ~ (-dub).round.exact.us          ==== Long.MinValue
-    T ~ (-dua - 500.ns).round.exact.us ==== Long.MinValue + 1
-    T ~ (-dua - 501.ns).round.exact.us ==== Long.MinValue
-    T ~ (-dub - 500.ns).round.exact.us ==== Long.MinValue
-    T ~ (-dub - 501.ns).round.exact.us ==== thrown[ArithmeticException]
+    T ~ 185198.ns.round.checked.us       ==== 185 --: typed[Long]
+    T ~ dua.round.checked.us             ==== Long.MaxValue
+    T ~ (dua - 1.ns).round.checked.us    ==== Long.MaxValue
+    T ~ (dua - 499.ns).round.checked.us  ==== Long.MaxValue
+    T ~ (dua - 500.ns).round.checked.us  ==== Long.MaxValue - 1
+    T ~ (dua + 501.ns).round.checked.us  ==== thrown[ArithmeticException]
+    T ~ -981581.ns.round.checked.us      ==== -982
+    T ~ (-dub).round.checked.us          ==== Long.MinValue
+    T ~ (-dua - 500.ns).round.checked.us ==== Long.MinValue + 1
+    T ~ (-dua - 501.ns).round.checked.us ==== Long.MinValue
+    T ~ (-dub - 500.ns).round.checked.us ==== Long.MinValue
+    T ~ (-dub - 501.ns).round.checked.us ==== thrown[ArithmeticException]
     T ~ 185198.ns.ceil.into.us         ==== 186 --: typed[Long]
     T ~ dua.ceil.into.us               ==== Long.MaxValue
     T ~ (dua - 999.ns).ceil.into.us    ==== Long.MaxValue
@@ -290,16 +290,16 @@ class TemporalTest() {
     T ~ (-dua - 999.ns).ceil.into.us   ==== Long.MinValue + 1
     T ~ (-dub - 999.ns).ceil.into.us   ==== Long.MinValue
     T ~ (-dub - 1000.ns).ceil.into.us  ==== Long.MinValue
-    T ~ 185198.ns.ceil.exact.us        ==== 186 --: typed[Long]
-    T ~ dua.ceil.exact.us              ==== Long.MaxValue
-    T ~ (dua - 999.ns).ceil.exact.us   ==== Long.MaxValue
-    T ~ (dua - 1000.ns).ceil.exact.us  ==== Long.MaxValue - 1
-    T ~ (dua + 1.ns).ceil.exact.us     ==== thrown[ArithmeticException]
-    T ~ -981581.ns.ceil.exact.us       ==== -981
-    T ~ (-dub).ceil.exact.us           ==== Long.MinValue
-    T ~ (-dua - 999.ns).ceil.exact.us  ==== Long.MinValue + 1
-    T ~ (-dub - 999.ns).ceil.exact.us  ==== Long.MinValue
-    T ~ (-dub - 1000.ns).ceil.exact.us ==== thrown[ArithmeticException]
+    T ~ 185198.ns.ceil.checked.us        ==== 186 --: typed[Long]
+    T ~ dua.ceil.checked.us              ==== Long.MaxValue
+    T ~ (dua - 999.ns).ceil.checked.us   ==== Long.MaxValue
+    T ~ (dua - 1000.ns).ceil.checked.us  ==== Long.MaxValue - 1
+    T ~ (dua + 1.ns).ceil.checked.us     ==== thrown[ArithmeticException]
+    T ~ -981581.ns.ceil.checked.us       ==== -981
+    T ~ (-dub).ceil.checked.us           ==== Long.MinValue
+    T ~ (-dua - 999.ns).ceil.checked.us  ==== Long.MinValue + 1
+    T ~ (-dub - 999.ns).ceil.checked.us  ==== Long.MinValue
+    T ~ (-dub - 1000.ns).ceil.checked.us ==== thrown[ArithmeticException]
     T ~ 185198.ns.floor.into.us      ==== 185 --: typed[Long]
     T ~ dua.floor.into.us            ==== Long.MaxValue
     T ~ (dua - 1.ns).floor.into.us   ==== Long.MaxValue - 1
@@ -309,15 +309,15 @@ class TemporalTest() {
     T ~ (-dua).floor.into.us         ==== Long.MinValue + 1
     T ~ (-dua - 1.ns).floor.into.us  ==== Long.MinValue
     T ~ (-dub - 1.ns).floor.into.us  ==== Long.MinValue
-    T ~ 185198.ns.floor.exact.us     ==== 185 --: typed[Long]
-    T ~ dua.floor.exact.us           ==== Long.MaxValue
-    T ~ (dua - 1.ns).floor.exact.us  ==== Long.MaxValue - 1
-    T ~ (dub + 1.ns).floor.exact.us  ==== thrown[ArithmeticException]
-    T ~ -981581.ns.floor.exact.us    ==== -982
-    T ~ (-dub).floor.exact.us        ==== Long.MinValue
-    T ~ (-dua).floor.exact.us        ==== Long.MinValue + 1
-    T ~ (-dua - 1.ns).floor.exact.us ==== Long.MinValue
-    T ~ (-dub - 1.ns).floor.exact.us ==== thrown[ArithmeticException]
+    T ~ 185198.ns.floor.checked.us     ==== 185 --: typed[Long]
+    T ~ dua.floor.checked.us           ==== Long.MaxValue
+    T ~ (dua - 1.ns).floor.checked.us  ==== Long.MaxValue - 1
+    T ~ (dub + 1.ns).floor.checked.us  ==== thrown[ArithmeticException]
+    T ~ -981581.ns.floor.checked.us    ==== -982
+    T ~ (-dub).floor.checked.us        ==== Long.MinValue
+    T ~ (-dua).floor.checked.us        ==== Long.MinValue + 1
+    T ~ (-dua - 1.ns).floor.checked.us ==== Long.MinValue
+    T ~ (-dub - 1.ns).floor.checked.us ==== thrown[ArithmeticException]
 
     val dma = Duration.ofSeconds(9223372036854775L, 807000000)
     val dmb = Duration.ofSeconds(9223372036854775L, 808000000)
@@ -345,16 +345,16 @@ class TemporalTest() {
     T ~ (-dmb).into.ms              ==== Long.MinValue
     T ~ (-dmb - 999999.ns).into.ms  ==== Long.MinValue
     T ~ (-dmb - 1.ms).into.ms       ==== Long.MinValue
-    T ~ 5.s.exact.ms                ==== 5000 --: typed[Long]
-    T ~ dma.exact.ms                ==== Long.MaxValue
-    T ~ (dma - 1.ns).exact.ms       ==== Long.MaxValue - 1
-    T ~ dmb.exact.ms                ==== thrown[ArithmeticException]
-    T ~ (-5).s.exact.ms             ==== -5000 --: typed[Long]
-    T ~ (-dma).exact.ms             ==== -Long.MaxValue
-    T ~ (-dma - 999999.ns).exact.ms ==== -Long.MaxValue
-    T ~ (-dmb).exact.ms             ==== Long.MinValue
-    T ~ (-dmb - 999999.ns).exact.ms ==== Long.MinValue
-    T ~ (-dmb - 1.ms).exact.ms      ==== thrown[ArithmeticException]
+    T ~ 5.s.checked.ms                ==== 5000 --: typed[Long]
+    T ~ dma.checked.ms                ==== Long.MaxValue
+    T ~ (dma - 1.ns).checked.ms       ==== Long.MaxValue - 1
+    T ~ dmb.checked.ms                ==== thrown[ArithmeticException]
+    T ~ (-5).s.checked.ms             ==== -5000 --: typed[Long]
+    T ~ (-dma).checked.ms             ==== -Long.MaxValue
+    T ~ (-dma - 999999.ns).checked.ms ==== -Long.MaxValue
+    T ~ (-dmb).checked.ms             ==== Long.MinValue
+    T ~ (-dmb - 999999.ns).checked.ms ==== Long.MinValue
+    T ~ (-dmb - 1.ms).checked.ms      ==== thrown[ArithmeticException]
     T ~ 185198.us.round.into.ms           ==== 185 --: typed[Long]
     T ~ dma.round.into.ms                 ==== Long.MaxValue
     T ~ (dma - 1.ns).round.into.ms        ==== Long.MaxValue
@@ -367,18 +367,18 @@ class TemporalTest() {
     T ~ (-dma - 500001.ns).round.into.ms  ==== Long.MinValue
     T ~ (-dmb - 500000.ns).round.into.ms  ==== Long.MinValue
     T ~ (-dmb - 500001.ns).round.into.ms  ==== Long.MinValue
-    T ~ 185198.us.round.exact.ms          ==== 185 --: typed[Long]
-    T ~ dma.round.exact.ms                ==== Long.MaxValue
-    T ~ (dma - 1.ns).round.exact.ms       ==== Long.MaxValue
-    T ~ (dma - 499999.ns).round.exact.ms  ==== Long.MaxValue
-    T ~ (dma - 500000.ns).round.exact.ms  ==== Long.MaxValue - 1
-    T ~ (dma + 500001.ns).round.exact.ms  ==== thrown[ArithmeticException]
-    T ~ -981581.us.round.exact.ms         ==== -982
-    T ~ (-dmb).round.exact.ms             ==== Long.MinValue
-    T ~ (-dma - 500000.ns).round.exact.ms ==== Long.MinValue + 1
-    T ~ (-dma - 500001.ns).round.exact.ms ==== Long.MinValue
-    T ~ (-dmb - 500000.ns).round.exact.ms ==== Long.MinValue
-    T ~ (-dmb - 500001.ns).round.exact.ms ==== thrown[ArithmeticException]
+    T ~ 185198.us.round.checked.ms          ==== 185 --: typed[Long]
+    T ~ dma.round.checked.ms                ==== Long.MaxValue
+    T ~ (dma - 1.ns).round.checked.ms       ==== Long.MaxValue
+    T ~ (dma - 499999.ns).round.checked.ms  ==== Long.MaxValue
+    T ~ (dma - 500000.ns).round.checked.ms  ==== Long.MaxValue - 1
+    T ~ (dma + 500001.ns).round.checked.ms  ==== thrown[ArithmeticException]
+    T ~ -981581.us.round.checked.ms         ==== -982
+    T ~ (-dmb).round.checked.ms             ==== Long.MinValue
+    T ~ (-dma - 500000.ns).round.checked.ms ==== Long.MinValue + 1
+    T ~ (-dma - 500001.ns).round.checked.ms ==== Long.MinValue
+    T ~ (-dmb - 500000.ns).round.checked.ms ==== Long.MinValue
+    T ~ (-dmb - 500001.ns).round.checked.ms ==== thrown[ArithmeticException]
     T ~ 185198.us.ceil.into.ms            ==== 186 --: typed[Long]
     T ~ dma.ceil.into.ms                  ==== Long.MaxValue
     T ~ (dma - 999999.ns).ceil.into.ms    ==== Long.MaxValue
@@ -389,16 +389,16 @@ class TemporalTest() {
     T ~ (-dma - 999999.ns).ceil.into.ms   ==== Long.MinValue + 1
     T ~ (-dmb - 999999.ns).ceil.into.ms   ==== Long.MinValue
     T ~ (-dmb - 1000000.ns).ceil.into.ms  ==== Long.MinValue
-    T ~ 185198.us.ceil.exact.ms           ==== 186 --: typed[Long]
-    T ~ dma.ceil.exact.ms                 ==== Long.MaxValue
-    T ~ (dma - 999999.ns).ceil.exact.ms   ==== Long.MaxValue
-    T ~ (dma - 1000.us).ceil.exact.ms     ==== Long.MaxValue - 1
-    T ~ (dma + 1.ns).ceil.exact.ms        ==== thrown[ArithmeticException]
-    T ~ -981581.us.ceil.exact.ms          ==== -981
-    T ~ (-dmb).ceil.exact.ms              ==== Long.MinValue
-    T ~ (-dma - 999999.ns).ceil.exact.ms  ==== Long.MinValue + 1
-    T ~ (-dmb - 999999.ns).ceil.exact.ms  ==== Long.MinValue
-    T ~ (-dmb - 1000000.ns).ceil.exact.ms ==== thrown[ArithmeticException]
+    T ~ 185198.us.ceil.checked.ms           ==== 186 --: typed[Long]
+    T ~ dma.ceil.checked.ms                 ==== Long.MaxValue
+    T ~ (dma - 999999.ns).ceil.checked.ms   ==== Long.MaxValue
+    T ~ (dma - 1000.us).ceil.checked.ms     ==== Long.MaxValue - 1
+    T ~ (dma + 1.ns).ceil.checked.ms        ==== thrown[ArithmeticException]
+    T ~ -981581.us.ceil.checked.ms          ==== -981
+    T ~ (-dmb).ceil.checked.ms              ==== Long.MinValue
+    T ~ (-dma - 999999.ns).ceil.checked.ms  ==== Long.MinValue + 1
+    T ~ (-dmb - 999999.ns).ceil.checked.ms  ==== Long.MinValue
+    T ~ (-dmb - 1000000.ns).ceil.checked.ms ==== thrown[ArithmeticException]
     T ~ 185198.us.floor.into.ms      ==== 185 --: typed[Long]
     T ~ dma.floor.into.ms            ==== Long.MaxValue
     T ~ (dma - 1.ns).floor.into.ms   ==== Long.MaxValue - 1
@@ -408,15 +408,15 @@ class TemporalTest() {
     T ~ (-dma).floor.into.ms         ==== Long.MinValue + 1
     T ~ (-dma - 1.ns).floor.into.ms  ==== Long.MinValue
     T ~ (-dmb - 1.ns).floor.into.ms  ==== Long.MinValue
-    T ~ 185198.us.floor.exact.ms     ==== 185 --: typed[Long]
-    T ~ dma.floor.exact.ms           ==== Long.MaxValue
-    T ~ (dma - 1.ns).floor.exact.ms  ==== Long.MaxValue - 1
-    T ~ (dmb + 1.ns).floor.exact.ms  ==== thrown[ArithmeticException]
-    T ~ -981581.us.floor.exact.ms    ==== -982
-    T ~ (-dmb).floor.exact.ms        ==== Long.MinValue
-    T ~ (-dma).floor.exact.ms        ==== Long.MinValue + 1
-    T ~ (-dma - 1.ns).floor.exact.ms ==== Long.MinValue
-    T ~ (-dmb - 1.ns).floor.exact.ms ==== thrown[ArithmeticException]
+    T ~ 185198.us.floor.checked.ms     ==== 185 --: typed[Long]
+    T ~ dma.floor.checked.ms           ==== Long.MaxValue
+    T ~ (dma - 1.ns).floor.checked.ms  ==== Long.MaxValue - 1
+    T ~ (dmb + 1.ns).floor.checked.ms  ==== thrown[ArithmeticException]
+    T ~ -981581.us.floor.checked.ms    ==== -982
+    T ~ (-dmb).floor.checked.ms        ==== Long.MinValue
+    T ~ (-dma).floor.checked.ms        ==== Long.MinValue + 1
+    T ~ (-dma - 1.ns).floor.checked.ms ==== Long.MinValue
+    T ~ (-dmb - 1.ns).floor.checked.ms ==== thrown[ArithmeticException]
 
     val dsp = DurationCompanion.MaxSeconds
     val dsn = DurationCompanion.MinSeconds
@@ -469,60 +469,60 @@ class TemporalTest() {
     T ~ (-5.s - 1.ns).ceil.s          ==== -5.s
     T ~ (-5.s - 1.ns).round.s         ==== -5.s
     T ~ (-5.s - 1.ns).trunc.s         ==== -5.s
-    T ~ 1751851951.ns.into.s                ==== 1   --: typed[Long]
-    T ~ 1751851951.ns.round.into.s          ==== 2   --: typed[Long]
-    T ~ 1751851951.ns.floor.into.s          ==== 1   --: typed[Long]
-    T ~ 1751851951.ns.ceil.into.s           ==== 2   --: typed[Long]
-    T ~ 1751851951.ns.round.exact.s         ==== 2   --: typed[Long]
-    T ~ 1751851951.ns.ceil.exact.s          ==== 2   --: typed[Long]
-    T ~ -1751851951.ns.into.s               ==== -1  --: typed[Long]
-    T ~ -1751851951.ns.round.into.s         ==== -2  --: typed[Long]
-    T ~ -1751851951.ns.floor.into.s         ==== -2  --: typed[Long]
-    T ~ -1751851951.ns.ceil.into.s          ==== -1  --: typed[Long]
-    T ~ -1751851951.ns.round.exact.s        ==== -2  --: typed[Long]
-    T ~ -1751851951.ns.ceil.exact.s         ==== -1  --: typed[Long]
-    T ~ (dsp + 1.ns).into.s                 ==== Long.MaxValue
-    T ~ (dsp + 1.ns).round.into.s           ==== Long.MaxValue
-    T ~ (dsp + 1.ns).round.exact.s          ==== Long.MaxValue
-    T ~ (dsp + 1.ns).floor.into.s           ==== Long.MaxValue
-    T ~ (dsp + 1.ns).ceil.into.s            ==== Long.MaxValue
-    T ~ (dsp + 1.ns).ceil.exact.s           ==== thrown[ArithmeticException]
-    T ~ (dsp + 500000000.ns).into.s         ==== Long.MaxValue
-    T ~ (dsp + 500000000.ns).round.into.s   ==== Long.MaxValue
-    T ~ (dsp + 500000000.ns).round.exact.s  ==== Long.MaxValue
-    T ~ (dsp + 500000000.ns).floor.into.s   ==== Long.MaxValue
-    T ~ (dsp + 500000000.ns).ceil.into.s    ==== Long.MaxValue
-    T ~ (dsp + 500000000.ns).ceil.exact.s   ==== thrown[ArithmeticException]
-    T ~ (dsp + 500000001.ns).into.s         ==== Long.MaxValue
-    T ~ (dsp + 500000001.ns).round.into.s   ==== Long.MaxValue
-    T ~ (dsp + 500000001.ns).round.exact.s  ==== thrown[ArithmeticException]
-    T ~ (dsp + 500000001.ns).floor.into.s   ==== Long.MaxValue
-    T ~ (dsp + 500000001.ns).ceil.into.s    ==== Long.MaxValue
-    T ~ (dsp + 500000001.ns).ceil.exact.s   ==== thrown[ArithmeticException]
-    T ~ (dsn + 1.ns).into.s                 ==== Long.MinValue + 1
-    T ~ (dsn + 1.ns).round.into.s           ==== Long.MinValue
-    T ~ (dsn + 1.ns).round.exact.s          ==== Long.MinValue
-    T ~ (dsn + 1.ns).floor.into.s           ==== Long.MinValue
-    T ~ (dsn + 1.ns).ceil.into.s            ==== Long.MinValue + 1
-    T ~ (dsn + 1.ns).ceil.exact.s           ==== Long.MinValue + 1
-    T ~ (dsn + 499999999.ns).into.s         ==== Long.MinValue + 1
-    T ~ (dsn + 499999999.ns).round.into.s   ==== Long.MinValue
-    T ~ (dsn + 499999999.ns).round.exact.s  ==== Long.MinValue
-    T ~ (dsn + 499999999.ns).floor.into.s   ==== Long.MinValue
-    T ~ (dsn + 499999999.ns).ceil.into.s    ==== Long.MinValue + 1
-    T ~ (dsn + 499999999.ns).ceil.exact.s   ==== Long.MinValue + 1
-    T ~ (dsn + 500000000.ns).into.s         ==== Long.MinValue + 1
-    T ~ (dsn + 500000000.ns).round.into.s   ==== Long.MinValue + 1
-    T ~ (dsn + 500000000.ns).round.exact.s  ==== Long.MinValue + 1
-    T ~ (dsn + 500000000.ns).floor.into.s   ==== Long.MinValue
-    T ~ (dsn + 500000000.ns).ceil.into.s    ==== Long.MinValue + 1
-    T ~ (dsn + 500000000.ns).ceil.exact.s   ==== Long.MinValue + 1
-    T ~ (dsn + 999999999.ns).into.s         ==== Long.MinValue + 1
-    T ~ (dsn + 999999999.ns).round.into.s   ==== Long.MinValue + 1
-    T ~ (dsn + 999999999.ns).round.exact.s  ==== Long.MinValue + 1
-    T ~ (dsn + 999999999.ns).floor.into.s   ==== Long.MinValue
-    T ~ (dsn + 999999999.ns).ceil.into.s    ==== Long.MinValue + 1
-    T ~ (dsn + 999999999.ns).ceil.exact.s   ==== Long.MinValue + 1
+    T ~ 1751851951.ns.into.s                 ==== 1   --: typed[Long]
+    T ~ 1751851951.ns.round.into.s           ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.floor.into.s           ==== 1   --: typed[Long]
+    T ~ 1751851951.ns.ceil.into.s            ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.round.checked.s        ==== 2   --: typed[Long]
+    T ~ 1751851951.ns.ceil.checked.s         ==== 2   --: typed[Long]
+    T ~ -1751851951.ns.into.s                ==== -1  --: typed[Long]
+    T ~ -1751851951.ns.round.into.s          ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.floor.into.s          ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.ceil.into.s           ==== -1  --: typed[Long]
+    T ~ -1751851951.ns.round.checked.s       ==== -2  --: typed[Long]
+    T ~ -1751851951.ns.ceil.checked.s        ==== -1  --: typed[Long]
+    T ~ (dsp + 1.ns).into.s                  ==== Long.MaxValue
+    T ~ (dsp + 1.ns).round.into.s            ==== Long.MaxValue
+    T ~ (dsp + 1.ns).round.checked.s         ==== Long.MaxValue
+    T ~ (dsp + 1.ns).floor.into.s            ==== Long.MaxValue
+    T ~ (dsp + 1.ns).ceil.into.s             ==== Long.MaxValue
+    T ~ (dsp + 1.ns).ceil.checked.s          ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000000.ns).into.s          ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).round.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).round.checked.s ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).floor.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).ceil.into.s     ==== Long.MaxValue
+    T ~ (dsp + 500000000.ns).ceil.checked.s  ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000001.ns).into.s          ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).round.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).round.checked.s ==== thrown[ArithmeticException]
+    T ~ (dsp + 500000001.ns).floor.into.s    ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).ceil.into.s     ==== Long.MaxValue
+    T ~ (dsp + 500000001.ns).ceil.checked.s  ==== thrown[ArithmeticException]
+    T ~ (dsn + 1.ns).into.s                  ==== Long.MinValue + 1
+    T ~ (dsn + 1.ns).round.into.s            ==== Long.MinValue
+    T ~ (dsn + 1.ns).round.checked.s         ==== Long.MinValue
+    T ~ (dsn + 1.ns).floor.into.s            ==== Long.MinValue
+    T ~ (dsn + 1.ns).ceil.into.s             ==== Long.MinValue + 1
+    T ~ (dsn + 1.ns).ceil.checked.s          ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).into.s          ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).round.into.s    ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).round.checked.s ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).floor.into.s    ==== Long.MinValue
+    T ~ (dsn + 499999999.ns).ceil.into.s     ==== Long.MinValue + 1
+    T ~ (dsn + 499999999.ns).ceil.checked.s  ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).into.s          ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).round.into.s    ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).round.checked.s ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).floor.into.s    ==== Long.MinValue
+    T ~ (dsn + 500000000.ns).ceil.into.s     ==== Long.MinValue + 1
+    T ~ (dsn + 500000000.ns).ceil.checked.s  ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).into.s          ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).round.into.s    ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).round.checked.s ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).floor.into.s    ==== Long.MinValue
+    T ~ (dsn + 999999999.ns).ceil.into.s     ==== Long.MinValue + 1
+    T ~ (dsn + 999999999.ns).ceil.checked.s  ==== Long.MinValue + 1
 
     val minxd = 600.s
     val mincu = Duration.ofSeconds(600, 1)
@@ -1138,18 +1138,18 @@ class TemporalTest() {
     T ~ dd(4e10).nano      ==== NanoDuration.MaxValue
     T ~ dnnd.nano          ==== NanoDuration.MinValue
     T ~ dn.nano            ==== 0L
-    T ~ da.exactNano       ==== da.nano                   --: typed[NanoDuration]
-    T ~ dd(4e10).exactNano ==== thrown[ArithmeticException]
-    T ~ dnnd.exactNano     ==== thrown[ArithmeticException]
-    T ~ dn.exactNano       ==== thrown[ArithmeticException]
+    T ~ da.checkedNano       ==== da.nano                   --: typed[NanoDuration]
+    T ~ dd(4e10).checkedNano ==== thrown[ArithmeticException]
+    T ~ dnnd.checkedNano     ==== thrown[ArithmeticException]
+    T ~ dn.checkedNano       ==== thrown[ArithmeticException]
     T ~ da.duration        ==== 3900.ms                   --: typed[Duration]
     T ~ dpd.duration       ==== DurationCompanion.MAX
     T ~ dnd.duration       ==== DurationCompanion.MIN
     T ~ dn.duration        ==== Duration.ZERO
-    T ~ da.exactDuration   ==== da.duration               --: typed[Duration]
-    T ~ dpd.exactDuration  ==== thrown[ArithmeticException]
-    T ~ dnd.exactDuration  ==== thrown[ArithmeticException]
-    T ~ dn.exactDuration   ==== thrown[ArithmeticException]
+    T ~ da.checkedDuration   ==== da.duration               --: typed[Duration]
+    T ~ dpd.checkedDuration  ==== thrown[ArithmeticException]
+    T ~ dnd.checkedDuration  ==== thrown[ArithmeticException]
+    T ~ dn.checkedDuration   ==== thrown[ArithmeticException]
 
     val nsd = dd(3.481957197151)
     val nsu = dd(3.481957197515)
@@ -1214,33 +1214,33 @@ class TemporalTest() {
     T ~ nsd.long.floor.ns   ==== nsd.floor.long.ns
     T ~ nsd.long.round.ns   ==== nsd.round.long.ns
     T ~ nsd.long.ceil.ns    ==== nsd.ceil.long.ns
-    T ~ nsd.exact.ns        ====  3481957197L      --: typed[Long]
-    T ~ nsd.floor.exact.ns  ====  3481957197L      --: typed[Long]
-    T ~ nsd.round.exact.ns  ====  3481957197L      --: typed[Long]
-    T ~ nsd.ceil.exact.ns   ====  3481957198L      --: typed[Long]
-    T ~ nsu.exact.ns        ====  3481957197L      --: typed[Long]
-    T ~ nsu.floor.exact.ns  ====  3481957197L      --: typed[Long]
-    T ~ nsu.round.exact.ns  ====  3481957198L      --: typed[Long]
-    T ~ nsu.ceil.exact.ns   ====  3481957198L      --: typed[Long]
-    T ~ nzu.exact.ns        ==== -3481957197L      --: typed[Long]
-    T ~ nzu.floor.exact.ns  ==== -3481957198L      --: typed[Long]
-    T ~ nzu.round.exact.ns  ==== -3481957197L      --: typed[Long]
-    T ~ nzu.ceil.exact.ns   ==== -3481957197L      --: typed[Long]
-    T ~ nzd.exact.ns        ==== -3481957197L      --: typed[Long]
-    T ~ nzd.floor.exact.ns  ==== -3481957198L      --: typed[Long]
-    T ~ nzd.round.exact.ns  ==== -3481957198L      --: typed[Long]
-    T ~ nzd.ceil.exact.ns   ==== -3481957197L      --: typed[Long]
-    T ~ nsd.exact.floor.ns  ==== nsd.floor.exact.ns
-    T ~ nsd.exact.round.ns  ==== nsd.round.exact.ns
-    T ~ nsd.exact.ceil.ns   ==== nsd.ceil.exact.ns
-    T ~ dnnd.exact.ns       ==== thrown[ArithmeticException]
-    T ~ dpnd.exact.ns       ==== thrown[ArithmeticException]
-    T ~ dnnd.floor.exact.ns ==== thrown[ArithmeticException]
-    T ~ dpnd.floor.exact.ns ==== thrown[ArithmeticException]
-    T ~ dnnd.round.exact.ns ==== thrown[ArithmeticException]
-    T ~ dpnd.round.exact.ns ==== thrown[ArithmeticException]
-    T ~ dnnd.ceil.exact.ns  ==== thrown[ArithmeticException]
-    T ~ dpnd.ceil.exact.ns  ==== thrown[ArithmeticException]
+    T ~ nsd.checked.ns        ====  3481957197L      --: typed[Long]
+    T ~ nsd.floor.checked.ns  ====  3481957197L      --: typed[Long]
+    T ~ nsd.round.checked.ns  ====  3481957197L      --: typed[Long]
+    T ~ nsd.ceil.checked.ns   ====  3481957198L      --: typed[Long]
+    T ~ nsu.checked.ns        ====  3481957197L      --: typed[Long]
+    T ~ nsu.floor.checked.ns  ====  3481957197L      --: typed[Long]
+    T ~ nsu.round.checked.ns  ====  3481957198L      --: typed[Long]
+    T ~ nsu.ceil.checked.ns   ====  3481957198L      --: typed[Long]
+    T ~ nzu.checked.ns        ==== -3481957197L      --: typed[Long]
+    T ~ nzu.floor.checked.ns  ==== -3481957198L      --: typed[Long]
+    T ~ nzu.round.checked.ns  ==== -3481957197L      --: typed[Long]
+    T ~ nzu.ceil.checked.ns   ==== -3481957197L      --: typed[Long]
+    T ~ nzd.checked.ns        ==== -3481957197L      --: typed[Long]
+    T ~ nzd.floor.checked.ns  ==== -3481957198L      --: typed[Long]
+    T ~ nzd.round.checked.ns  ==== -3481957198L      --: typed[Long]
+    T ~ nzd.ceil.checked.ns   ==== -3481957197L      --: typed[Long]
+    T ~ nsd.checked.floor.ns  ==== nsd.floor.checked.ns
+    T ~ nsd.checked.round.ns  ==== nsd.round.checked.ns
+    T ~ nsd.checked.ceil.ns   ==== nsd.ceil.checked.ns
+    T ~ dnnd.checked.ns       ==== thrown[ArithmeticException]
+    T ~ dpnd.checked.ns       ==== thrown[ArithmeticException]
+    T ~ dnnd.floor.checked.ns ==== thrown[ArithmeticException]
+    T ~ dpnd.floor.checked.ns ==== thrown[ArithmeticException]
+    T ~ dnnd.round.checked.ns ==== thrown[ArithmeticException]
+    T ~ dpnd.round.checked.ns ==== thrown[ArithmeticException]
+    T ~ dnnd.ceil.checked.ns  ==== thrown[ArithmeticException]
+    T ~ dpnd.ceil.checked.ns  ==== thrown[ArithmeticException]
 
     val usd = dd(3.481197151)
     val usu = dd(3.481197515)
@@ -1307,33 +1307,33 @@ class TemporalTest() {
     T ~ usd.long.floor.us   ==== usd.floor.long.us
     T ~ usd.long.round.us   ==== usd.round.long.us
     T ~ usd.long.ceil.us    ==== usd.ceil.long.us
-    T ~ usd.exact.us        ====  3481197L      --: typed[Long]
-    T ~ usd.floor.exact.us  ====  3481197L      --: typed[Long]
-    T ~ usd.round.exact.us  ====  3481197L      --: typed[Long]
-    T ~ usd.ceil.exact.us   ====  3481198L      --: typed[Long]
-    T ~ usu.exact.us        ====  3481197L      --: typed[Long]
-    T ~ usu.floor.exact.us  ====  3481197L      --: typed[Long]
-    T ~ usu.round.exact.us  ====  3481198L      --: typed[Long]
-    T ~ usu.ceil.exact.us   ====  3481198L      --: typed[Long]
-    T ~ uzu.exact.us        ==== -3481197L      --: typed[Long]
-    T ~ uzu.floor.exact.us  ==== -3481198L      --: typed[Long]
-    T ~ uzu.round.exact.us  ==== -3481197L      --: typed[Long]
-    T ~ uzu.ceil.exact.us   ==== -3481197L      --: typed[Long]
-    T ~ uzd.exact.us        ==== -3481197L      --: typed[Long]
-    T ~ uzd.floor.exact.us  ==== -3481198L      --: typed[Long]
-    T ~ uzd.round.exact.us  ==== -3481198L      --: typed[Long]
-    T ~ uzd.ceil.exact.us   ==== -3481197L      --: typed[Long]
-    T ~ usd.exact.floor.us  ==== usd.floor.exact.us
-    T ~ usd.exact.round.us  ==== usd.round.exact.us
-    T ~ usd.exact.ceil.us   ==== usd.ceil.exact.us
-    T ~ dnus.exact.us       ==== thrown[ArithmeticException]
-    T ~ dpus.exact.us       ==== thrown[ArithmeticException]
-    T ~ dnus.floor.exact.us ==== thrown[ArithmeticException]
-    T ~ dpus.floor.exact.us ==== thrown[ArithmeticException]
-    T ~ dnus.round.exact.us ==== thrown[ArithmeticException]
-    T ~ dpus.round.exact.us ==== thrown[ArithmeticException]
-    T ~ dnus.ceil.exact.us  ==== thrown[ArithmeticException]
-    T ~ dpus.ceil.exact.us  ==== thrown[ArithmeticException]
+    T ~ usd.checked.us        ====  3481197L      --: typed[Long]
+    T ~ usd.floor.checked.us  ====  3481197L      --: typed[Long]
+    T ~ usd.round.checked.us  ====  3481197L      --: typed[Long]
+    T ~ usd.ceil.checked.us   ====  3481198L      --: typed[Long]
+    T ~ usu.checked.us        ====  3481197L      --: typed[Long]
+    T ~ usu.floor.checked.us  ====  3481197L      --: typed[Long]
+    T ~ usu.round.checked.us  ====  3481198L      --: typed[Long]
+    T ~ usu.ceil.checked.us   ====  3481198L      --: typed[Long]
+    T ~ uzu.checked.us        ==== -3481197L      --: typed[Long]
+    T ~ uzu.floor.checked.us  ==== -3481198L      --: typed[Long]
+    T ~ uzu.round.checked.us  ==== -3481197L      --: typed[Long]
+    T ~ uzu.ceil.checked.us   ==== -3481197L      --: typed[Long]
+    T ~ uzd.checked.us        ==== -3481197L      --: typed[Long]
+    T ~ uzd.floor.checked.us  ==== -3481198L      --: typed[Long]
+    T ~ uzd.round.checked.us  ==== -3481198L      --: typed[Long]
+    T ~ uzd.ceil.checked.us   ==== -3481197L      --: typed[Long]
+    T ~ usd.checked.floor.us  ==== usd.floor.checked.us
+    T ~ usd.checked.round.us  ==== usd.round.checked.us
+    T ~ usd.checked.ceil.us   ==== usd.ceil.checked.us
+    T ~ dnus.checked.us       ==== thrown[ArithmeticException]
+    T ~ dpus.checked.us       ==== thrown[ArithmeticException]
+    T ~ dnus.floor.checked.us ==== thrown[ArithmeticException]
+    T ~ dpus.floor.checked.us ==== thrown[ArithmeticException]
+    T ~ dnus.round.checked.us ==== thrown[ArithmeticException]
+    T ~ dpus.round.checked.us ==== thrown[ArithmeticException]
+    T ~ dnus.ceil.checked.us  ==== thrown[ArithmeticException]
+    T ~ dpus.ceil.checked.us  ==== thrown[ArithmeticException]
 
     val msd = dd(3.497151)
     val msu = dd(3.497515)
@@ -1400,33 +1400,33 @@ class TemporalTest() {
     T ~ msd.long.floor.ms   ==== msd.floor.long.ms
     T ~ msd.long.round.ms   ==== msd.round.long.ms
     T ~ msd.long.ceil.ms    ==== msd.ceil.long.ms
-    T ~ msd.exact.ms        ====  3497L       --: typed[Long]
-    T ~ msd.floor.exact.ms  ====  3497L       --: typed[Long]
-    T ~ msd.round.exact.ms  ====  3497L       --: typed[Long]
-    T ~ msd.ceil.exact.ms   ====  3498L       --: typed[Long]
-    T ~ msu.exact.ms        ====  3497L       --: typed[Long]
-    T ~ msu.floor.exact.ms  ====  3497L       --: typed[Long]
-    T ~ msu.round.exact.ms  ====  3498L       --: typed[Long]
-    T ~ msu.ceil.exact.ms   ====  3498L       --: typed[Long]
-    T ~ mzu.exact.ms        ==== -3497L       --: typed[Long]
-    T ~ mzu.floor.exact.ms  ==== -3498L       --: typed[Long]
-    T ~ mzu.round.exact.ms  ==== -3497L       --: typed[Long]
-    T ~ mzu.ceil.exact.ms   ==== -3497L       --: typed[Long]
-    T ~ mzd.exact.ms        ==== -3497L       --: typed[Long]
-    T ~ mzd.floor.exact.ms  ==== -3498L       --: typed[Long]
-    T ~ mzd.round.exact.ms  ==== -3498L       --: typed[Long]
-    T ~ mzd.ceil.exact.ms   ==== -3497L       --: typed[Long]
-    T ~ msd.exact.floor.ms  ==== msd.floor.exact.ms
-    T ~ msd.exact.round.ms  ==== msd.round.exact.ms
-    T ~ msd.exact.ceil.ms   ==== msd.ceil.exact.ms
-    T ~ dnms.exact.ms       ==== thrown[ArithmeticException]
-    T ~ dpms.exact.ms       ==== thrown[ArithmeticException]
-    T ~ dnms.floor.exact.ms ==== thrown[ArithmeticException]
-    T ~ dpms.floor.exact.ms ==== thrown[ArithmeticException]
-    T ~ dnms.round.exact.ms ==== thrown[ArithmeticException]
-    T ~ dpms.round.exact.ms ==== thrown[ArithmeticException]
-    T ~ dnms.ceil.exact.ms  ==== thrown[ArithmeticException]
-    T ~ dpms.ceil.exact.ms  ==== thrown[ArithmeticException]
+    T ~ msd.checked.ms        ====  3497L       --: typed[Long]
+    T ~ msd.floor.checked.ms  ====  3497L       --: typed[Long]
+    T ~ msd.round.checked.ms  ====  3497L       --: typed[Long]
+    T ~ msd.ceil.checked.ms   ====  3498L       --: typed[Long]
+    T ~ msu.checked.ms        ====  3497L       --: typed[Long]
+    T ~ msu.floor.checked.ms  ====  3497L       --: typed[Long]
+    T ~ msu.round.checked.ms  ====  3498L       --: typed[Long]
+    T ~ msu.ceil.checked.ms   ====  3498L       --: typed[Long]
+    T ~ mzu.checked.ms        ==== -3497L       --: typed[Long]
+    T ~ mzu.floor.checked.ms  ==== -3498L       --: typed[Long]
+    T ~ mzu.round.checked.ms  ==== -3497L       --: typed[Long]
+    T ~ mzu.ceil.checked.ms   ==== -3497L       --: typed[Long]
+    T ~ mzd.checked.ms        ==== -3497L       --: typed[Long]
+    T ~ mzd.floor.checked.ms  ==== -3498L       --: typed[Long]
+    T ~ mzd.round.checked.ms  ==== -3498L       --: typed[Long]
+    T ~ mzd.ceil.checked.ms   ==== -3497L       --: typed[Long]
+    T ~ msd.checked.floor.ms  ==== msd.floor.checked.ms
+    T ~ msd.checked.round.ms  ==== msd.round.checked.ms
+    T ~ msd.checked.ceil.ms   ==== msd.ceil.checked.ms
+    T ~ dnms.checked.ms       ==== thrown[ArithmeticException]
+    T ~ dpms.checked.ms       ==== thrown[ArithmeticException]
+    T ~ dnms.floor.checked.ms ==== thrown[ArithmeticException]
+    T ~ dpms.floor.checked.ms ==== thrown[ArithmeticException]
+    T ~ dnms.round.checked.ms ==== thrown[ArithmeticException]
+    T ~ dpms.round.checked.ms ==== thrown[ArithmeticException]
+    T ~ dnms.ceil.checked.ms  ==== thrown[ArithmeticException]
+    T ~ dpms.ceil.checked.ms  ==== thrown[ArithmeticException]
 
     val ssd = dd(3497.151)
     val ssu = dd(3497.515)
@@ -1493,33 +1493,33 @@ class TemporalTest() {
     T ~ ssd.long.floor.s   ==== ssd.floor.long.s
     T ~ ssd.long.round.s   ==== ssd.round.long.s
     T ~ ssd.long.ceil.s    ==== ssd.ceil.long.s
-    T ~ ssd.exact.s        ====  3497L      --: typed[Long]
-    T ~ ssd.floor.exact.s  ====  3497L      --: typed[Long]
-    T ~ ssd.round.exact.s  ====  3497L      --: typed[Long]
-    T ~ ssd.ceil.exact.s   ====  3498L      --: typed[Long]
-    T ~ ssu.exact.s        ====  3497L      --: typed[Long]
-    T ~ ssu.floor.exact.s  ====  3497L      --: typed[Long]
-    T ~ ssu.round.exact.s  ====  3498L      --: typed[Long]
-    T ~ ssu.ceil.exact.s   ====  3498L      --: typed[Long]
-    T ~ szu.exact.s        ==== -3497L      --: typed[Long]
-    T ~ szu.floor.exact.s  ==== -3498L      --: typed[Long]
-    T ~ szu.round.exact.s  ==== -3497L      --: typed[Long]
-    T ~ szu.ceil.exact.s   ==== -3497L      --: typed[Long]
-    T ~ szd.exact.s        ==== -3497L      --: typed[Long]
-    T ~ szd.floor.exact.s  ==== -3498L      --: typed[Long]
-    T ~ szd.round.exact.s  ==== -3498L      --: typed[Long]
-    T ~ szd.ceil.exact.s   ==== -3497L      --: typed[Long]
-    T ~ ssd.exact.floor.s  ==== ssd.floor.exact.s
-    T ~ ssd.exact.round.s  ==== ssd.round.exact.s
-    T ~ ssd.exact.ceil.s   ==== ssd.ceil.exact.s
-    T ~ dnss.exact.s       ==== thrown[ArithmeticException]
-    T ~ dpss.exact.s       ==== thrown[ArithmeticException]
-    T ~ dnss.floor.exact.s ==== thrown[ArithmeticException]
-    T ~ dpss.floor.exact.s ==== thrown[ArithmeticException]
-    T ~ dnss.round.exact.s ==== thrown[ArithmeticException]
-    T ~ dpss.round.exact.s ==== thrown[ArithmeticException]
-    T ~ dnss.ceil.exact.s  ==== thrown[ArithmeticException]
-    T ~ dpss.ceil.exact.s  ==== thrown[ArithmeticException]
+    T ~ ssd.checked.s        ====  3497L      --: typed[Long]
+    T ~ ssd.floor.checked.s  ====  3497L      --: typed[Long]
+    T ~ ssd.round.checked.s  ====  3497L      --: typed[Long]
+    T ~ ssd.ceil.checked.s   ====  3498L      --: typed[Long]
+    T ~ ssu.checked.s        ====  3497L      --: typed[Long]
+    T ~ ssu.floor.checked.s  ====  3497L      --: typed[Long]
+    T ~ ssu.round.checked.s  ====  3498L      --: typed[Long]
+    T ~ ssu.ceil.checked.s   ====  3498L      --: typed[Long]
+    T ~ szu.checked.s        ==== -3497L      --: typed[Long]
+    T ~ szu.floor.checked.s  ==== -3498L      --: typed[Long]
+    T ~ szu.round.checked.s  ==== -3497L      --: typed[Long]
+    T ~ szu.ceil.checked.s   ==== -3497L      --: typed[Long]
+    T ~ szd.checked.s        ==== -3497L      --: typed[Long]
+    T ~ szd.floor.checked.s  ==== -3498L      --: typed[Long]
+    T ~ szd.round.checked.s  ==== -3498L      --: typed[Long]
+    T ~ szd.ceil.checked.s   ==== -3497L      --: typed[Long]
+    T ~ ssd.checked.floor.s  ==== ssd.floor.checked.s
+    T ~ ssd.checked.round.s  ==== ssd.round.checked.s
+    T ~ ssd.checked.ceil.s   ==== ssd.ceil.checked.s
+    T ~ dnss.checked.s       ==== thrown[ArithmeticException]
+    T ~ dpss.checked.s       ==== thrown[ArithmeticException]
+    T ~ dnss.floor.checked.s ==== thrown[ArithmeticException]
+    T ~ dpss.floor.checked.s ==== thrown[ArithmeticException]
+    T ~ dnss.round.checked.s ==== thrown[ArithmeticException]
+    T ~ dpss.round.checked.s ==== thrown[ArithmeticException]
+    T ~ dnss.ceil.checked.s  ==== thrown[ArithmeticException]
+    T ~ dpss.ceil.checked.s  ==== thrown[ArithmeticException]
 
     val ksd = dd(209829.06)
     val ksu = dd(209850.90)
@@ -1586,33 +1586,33 @@ class TemporalTest() {
     T ~ ksd.long.floor.m   ==== ksd.floor.long.m
     T ~ ksd.long.round.m   ==== ksd.round.long.m
     T ~ ksd.long.ceil.m    ==== ksd.ceil.long.m
-    T ~ ksd.exact.m        ====  3497L      --: typed[Long]
-    T ~ ksd.floor.exact.m  ====  3497L      --: typed[Long]
-    T ~ ksd.round.exact.m  ====  3497L      --: typed[Long]
-    T ~ ksd.ceil.exact.m   ====  3498L      --: typed[Long]
-    T ~ ksu.exact.m        ====  3497L      --: typed[Long]
-    T ~ ksu.floor.exact.m  ====  3497L      --: typed[Long]
-    T ~ ksu.round.exact.m  ====  3498L      --: typed[Long]
-    T ~ ksu.ceil.exact.m   ====  3498L      --: typed[Long]
-    T ~ kzu.exact.m        ==== -3497L      --: typed[Long]
-    T ~ kzu.floor.exact.m  ==== -3498L      --: typed[Long]
-    T ~ kzu.round.exact.m  ==== -3497L      --: typed[Long]
-    T ~ kzu.ceil.exact.m   ==== -3497L      --: typed[Long]
-    T ~ kzd.exact.m        ==== -3497L      --: typed[Long]
-    T ~ kzd.floor.exact.m  ==== -3498L      --: typed[Long]
-    T ~ kzd.round.exact.m  ==== -3498L      --: typed[Long]
-    T ~ kzd.ceil.exact.m   ==== -3497L      --: typed[Long]
-    T ~ ksd.exact.floor.m  ==== ksd.floor.exact.m
-    T ~ ksd.exact.round.m  ==== ksd.round.exact.m
-    T ~ ksd.exact.ceil.m   ==== ksd.ceil.exact.m
-    T ~ dnks.exact.m       ==== thrown[ArithmeticException]
-    T ~ dpks.exact.m       ==== thrown[ArithmeticException]
-    T ~ dnks.floor.exact.m ==== thrown[ArithmeticException]
-    T ~ dpks.floor.exact.m ==== thrown[ArithmeticException]
-    T ~ dnks.round.exact.m ==== thrown[ArithmeticException]
-    T ~ dpks.round.exact.m ==== thrown[ArithmeticException]
-    T ~ dnks.ceil.exact.m  ==== thrown[ArithmeticException]
-    T ~ dpks.ceil.exact.m  ==== thrown[ArithmeticException]
+    T ~ ksd.checked.m        ====  3497L      --: typed[Long]
+    T ~ ksd.floor.checked.m  ====  3497L      --: typed[Long]
+    T ~ ksd.round.checked.m  ====  3497L      --: typed[Long]
+    T ~ ksd.ceil.checked.m   ====  3498L      --: typed[Long]
+    T ~ ksu.checked.m        ====  3497L      --: typed[Long]
+    T ~ ksu.floor.checked.m  ====  3497L      --: typed[Long]
+    T ~ ksu.round.checked.m  ====  3498L      --: typed[Long]
+    T ~ ksu.ceil.checked.m   ====  3498L      --: typed[Long]
+    T ~ kzu.checked.m        ==== -3497L      --: typed[Long]
+    T ~ kzu.floor.checked.m  ==== -3498L      --: typed[Long]
+    T ~ kzu.round.checked.m  ==== -3497L      --: typed[Long]
+    T ~ kzu.ceil.checked.m   ==== -3497L      --: typed[Long]
+    T ~ kzd.checked.m        ==== -3497L      --: typed[Long]
+    T ~ kzd.floor.checked.m  ==== -3498L      --: typed[Long]
+    T ~ kzd.round.checked.m  ==== -3498L      --: typed[Long]
+    T ~ kzd.ceil.checked.m   ==== -3497L      --: typed[Long]
+    T ~ ksd.checked.floor.m  ==== ksd.floor.checked.m
+    T ~ ksd.checked.round.m  ==== ksd.round.checked.m
+    T ~ ksd.checked.ceil.m   ==== ksd.ceil.checked.m
+    T ~ dnks.checked.m       ==== thrown[ArithmeticException]
+    T ~ dpks.checked.m       ==== thrown[ArithmeticException]
+    T ~ dnks.floor.checked.m ==== thrown[ArithmeticException]
+    T ~ dpks.floor.checked.m ==== thrown[ArithmeticException]
+    T ~ dnks.round.checked.m ==== thrown[ArithmeticException]
+    T ~ dpks.round.checked.m ==== thrown[ArithmeticException]
+    T ~ dnks.ceil.checked.m  ==== thrown[ArithmeticException]
+    T ~ dpks.ceil.checked.m  ==== thrown[ArithmeticException]
 
     val hsd = dd(12589743.6)
     val hsu = dd(12591054.0)
@@ -1679,33 +1679,33 @@ class TemporalTest() {
     T ~ hsd.long.floor.h   ==== hsd.floor.long.h
     T ~ hsd.long.round.h   ==== hsd.round.long.h
     T ~ hsd.long.ceil.h    ==== hsd.ceil.long.h
-    T ~ hsd.exact.h        ====  3497L      --: typed[Long]
-    T ~ hsd.floor.exact.h  ====  3497L      --: typed[Long]
-    T ~ hsd.round.exact.h  ====  3497L      --: typed[Long]
-    T ~ hsd.ceil.exact.h   ====  3498L      --: typed[Long]
-    T ~ hsu.exact.h        ====  3497L      --: typed[Long]
-    T ~ hsu.floor.exact.h  ====  3497L      --: typed[Long]
-    T ~ hsu.round.exact.h  ====  3498L      --: typed[Long]
-    T ~ hsu.ceil.exact.h   ====  3498L      --: typed[Long]
-    T ~ hzu.exact.h        ==== -3497L      --: typed[Long]
-    T ~ hzu.floor.exact.h  ==== -3498L      --: typed[Long]
-    T ~ hzu.round.exact.h  ==== -3497L      --: typed[Long]
-    T ~ hzu.ceil.exact.h   ==== -3497L      --: typed[Long]
-    T ~ hzd.exact.h        ==== -3497L      --: typed[Long]
-    T ~ hzd.floor.exact.h  ==== -3498L      --: typed[Long]
-    T ~ hzd.round.exact.h  ==== -3498L      --: typed[Long]
-    T ~ hzd.ceil.exact.h   ==== -3497L      --: typed[Long]
-    T ~ hsd.exact.floor.h  ==== hsd.floor.exact.h
-    T ~ hsd.exact.round.h  ==== hsd.round.exact.h
-    T ~ hsd.exact.ceil.h   ==== hsd.ceil.exact.h
-    T ~ dnhs.exact.h       ==== thrown[ArithmeticException]
-    T ~ dphs.exact.h       ==== thrown[ArithmeticException]
-    T ~ dnhs.floor.exact.h ==== thrown[ArithmeticException]
-    T ~ dphs.floor.exact.h ==== thrown[ArithmeticException]
-    T ~ dnhs.round.exact.h ==== thrown[ArithmeticException]
-    T ~ dphs.round.exact.h ==== thrown[ArithmeticException]
-    T ~ dnhs.ceil.exact.h  ==== thrown[ArithmeticException]
-    T ~ dphs.ceil.exact.h  ==== thrown[ArithmeticException]
+    T ~ hsd.checked.h        ====  3497L      --: typed[Long]
+    T ~ hsd.floor.checked.h  ====  3497L      --: typed[Long]
+    T ~ hsd.round.checked.h  ====  3497L      --: typed[Long]
+    T ~ hsd.ceil.checked.h   ====  3498L      --: typed[Long]
+    T ~ hsu.checked.h        ====  3497L      --: typed[Long]
+    T ~ hsu.floor.checked.h  ====  3497L      --: typed[Long]
+    T ~ hsu.round.checked.h  ====  3498L      --: typed[Long]
+    T ~ hsu.ceil.checked.h   ====  3498L      --: typed[Long]
+    T ~ hzu.checked.h        ==== -3497L      --: typed[Long]
+    T ~ hzu.floor.checked.h  ==== -3498L      --: typed[Long]
+    T ~ hzu.round.checked.h  ==== -3497L      --: typed[Long]
+    T ~ hzu.ceil.checked.h   ==== -3497L      --: typed[Long]
+    T ~ hzd.checked.h        ==== -3497L      --: typed[Long]
+    T ~ hzd.floor.checked.h  ==== -3498L      --: typed[Long]
+    T ~ hzd.round.checked.h  ==== -3498L      --: typed[Long]
+    T ~ hzd.ceil.checked.h   ==== -3497L      --: typed[Long]
+    T ~ hsd.checked.floor.h  ==== hsd.floor.checked.h
+    T ~ hsd.checked.round.h  ==== hsd.round.checked.h
+    T ~ hsd.checked.ceil.h   ==== hsd.ceil.checked.h
+    T ~ dnhs.checked.h       ==== thrown[ArithmeticException]
+    T ~ dphs.checked.h       ==== thrown[ArithmeticException]
+    T ~ dnhs.floor.checked.h ==== thrown[ArithmeticException]
+    T ~ dphs.floor.checked.h ==== thrown[ArithmeticException]
+    T ~ dnhs.round.checked.h ==== thrown[ArithmeticException]
+    T ~ dphs.round.checked.h ==== thrown[ArithmeticException]
+    T ~ dnhs.ceil.checked.h  ==== thrown[ArithmeticException]
+    T ~ dphs.ceil.checked.h  ==== thrown[ArithmeticException]
 
     val ysd = dd(302153846.4)
     val ysu = dd(302185296.0)
@@ -1772,33 +1772,33 @@ class TemporalTest() {
     T ~ ysd.long.floor.d     ==== ysd.floor.long.d
     T ~ ysd.long.round.d     ==== ysd.round.long.d
     T ~ ysd.long.ceil.d      ==== ysd.ceil.long.d
-    T ~ ysd.exact.d          ====  3497L              --: typed[Long]
-    T ~ ysd.floor.exact.d    ====  3497L              --: typed[Long]
-    T ~ ysd.round.exact.d    ====  3497L              --: typed[Long]
-    T ~ ysd.ceil.exact.d     ====  3498L              --: typed[Long]
-    T ~ ysu.exact.d          ====  3497L              --: typed[Long]
-    T ~ ysu.floor.exact.d    ====  3497L              --: typed[Long]
-    T ~ ysu.round.exact.d    ====  3498L              --: typed[Long]
-    T ~ ysu.ceil.exact.d     ====  3498L              --: typed[Long]
-    T ~ yzu.exact.d          ==== -3497L              --: typed[Long]
-    T ~ yzu.floor.exact.d    ==== -3498L              --: typed[Long]
-    T ~ yzu.round.exact.d    ==== -3497L              --: typed[Long]
-    T ~ yzu.ceil.exact.d     ==== -3497L              --: typed[Long]
-    T ~ yzd.exact.d          ==== -3497L              --: typed[Long]
-    T ~ yzd.floor.exact.d    ==== -3498L              --: typed[Long]
-    T ~ yzd.round.exact.d    ==== -3498L              --: typed[Long]
-    T ~ yzd.ceil.exact.d     ==== -3497L              --: typed[Long]
-    T ~ ysd.exact.floor.d    ==== ysd.floor.exact.d
-    T ~ ysd.exact.round.d    ==== ysd.round.exact.d
-    T ~ ysd.exact.ceil.d     ==== ysd.ceil.exact.d
-    T ~ dnys.exact.d         ==== thrown[ArithmeticException]
-    T ~ dpys.exact.d         ==== thrown[ArithmeticException]
-    T ~ dnys.floor.exact.d   ==== thrown[ArithmeticException]
-    T ~ dpys.floor.exact.d   ==== thrown[ArithmeticException]
-    T ~ dnys.round.exact.d   ==== thrown[ArithmeticException]
-    T ~ dpys.round.exact.d   ==== thrown[ArithmeticException]
-    T ~ dnys.ceil.exact.d    ==== thrown[ArithmeticException]
-    T ~ dpys.ceil.exact.d    ==== thrown[ArithmeticException]
+    T ~ ysd.checked.d          ====  3497L              --: typed[Long]
+    T ~ ysd.floor.checked.d    ====  3497L              --: typed[Long]
+    T ~ ysd.round.checked.d    ====  3497L              --: typed[Long]
+    T ~ ysd.ceil.checked.d     ====  3498L              --: typed[Long]
+    T ~ ysu.checked.d          ====  3497L              --: typed[Long]
+    T ~ ysu.floor.checked.d    ====  3497L              --: typed[Long]
+    T ~ ysu.round.checked.d    ====  3498L              --: typed[Long]
+    T ~ ysu.ceil.checked.d     ====  3498L              --: typed[Long]
+    T ~ yzu.checked.d          ==== -3497L              --: typed[Long]
+    T ~ yzu.floor.checked.d    ==== -3498L              --: typed[Long]
+    T ~ yzu.round.checked.d    ==== -3497L              --: typed[Long]
+    T ~ yzu.ceil.checked.d     ==== -3497L              --: typed[Long]
+    T ~ yzd.checked.d          ==== -3497L              --: typed[Long]
+    T ~ yzd.floor.checked.d    ==== -3498L              --: typed[Long]
+    T ~ yzd.round.checked.d    ==== -3498L              --: typed[Long]
+    T ~ yzd.ceil.checked.d     ==== -3497L              --: typed[Long]
+    T ~ ysd.checked.floor.d    ==== ysd.floor.checked.d
+    T ~ ysd.checked.round.d    ==== ysd.round.checked.d
+    T ~ ysd.checked.ceil.d     ==== ysd.ceil.checked.d
+    T ~ dnys.checked.d         ==== thrown[ArithmeticException]
+    T ~ dpys.checked.d         ==== thrown[ArithmeticException]
+    T ~ dnys.floor.checked.d   ==== thrown[ArithmeticException]
+    T ~ dpys.floor.checked.d   ==== thrown[ArithmeticException]
+    T ~ dnys.round.checked.d   ==== thrown[ArithmeticException]
+    T ~ dpys.round.checked.d   ==== thrown[ArithmeticException]
+    T ~ dnys.ceil.checked.d    ==== thrown[ArithmeticException]
+    T ~ dpys.ceil.checked.d    ==== thrown[ArithmeticException]
     T ~ ysu.trunc.days       ==== ysu.trunc.d         --: typed[DoubleDuration]
     T ~ ysu.floor.days       ==== ysu.floor.d         --: typed[DoubleDuration]
     T ~ ysu.round.days       ==== ysu.round.d         --: typed[DoubleDuration]
@@ -1812,10 +1812,10 @@ class TemporalTest() {
     T ~ ysu.floor.long.days  ==== ysu.floor.long.d  --: typed[Long]
     T ~ ysu.round.long.days  ==== ysu.round.long.d  --: typed[Long]
     T ~ ysu.ceil.long.days   ==== ysu.ceil.long.d   --: typed[Long]
-    T ~ ysu.exact.days       ==== ysu.exact.d       --: typed[Long]
-    T ~ ysu.floor.exact.days ==== ysu.floor.exact.d --: typed[Long]
-    T ~ ysu.round.exact.days ==== ysu.round.exact.d --: typed[Long]
-    T ~ ysu.ceil.exact.days  ==== ysu.ceil.exact.d  --: typed[Long]
+    T ~ ysu.checked.days       ==== ysu.checked.d       --: typed[Long]
+    T ~ ysu.floor.checked.days ==== ysu.floor.checked.d --: typed[Long]
+    T ~ ysu.round.checked.days ==== ysu.round.checked.d --: typed[Long]
+    T ~ ysu.ceil.checked.days  ==== ysu.ceil.checked.d  --: typed[Long]
 
     T ~ List(ysd, yzu, yzd, ysu).sorted ==== List(yzd, yzu, ysd, ysu)
     T ~ nsd.pr ==== "3.481957197151 sec"

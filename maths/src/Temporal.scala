@@ -188,7 +188,7 @@ object DurationCompanion {
     else
       robustFileTimeFrom(ft.to(TimeUnit.SECONDS), 0, ds, dn, subtract, 1000000000)
 
-  def exactAddition(ft: FileTime, d: Duration, subtract: Boolean): FileTime =
+  def checkedAddition(ft: FileTime, d: Duration, subtract: Boolean): FileTime =
     val ft2 = robustAddition(ft, d, subtract)
     val ft0 = robustAddition(ft2, d, !subtract)
     if ft0 == ft then ft2
@@ -351,36 +351,36 @@ object DurationCompanion {
     case  0 => if d == Duration.ZERO then d else if d.getSeconds < 0 then DurationCompanion.MIN else DurationCompanion.MAX
     case  _ => d dividedBy factor
 
-  private def divUsingBigInt(ds: Long, dn: Int, es: Long, en: Int, exact: Boolean): Long =
+  private def divUsingBigInt(ds: Long, dn: Int, es: Long, en: Int, checked: Boolean): Long =
       val bd = BigInt(ds)*1000000000 + dn
       val be = BigInt(es)*1000000000 + en
       val ans = bd / be
       if ans >= Long.MinValue && ans <= Long.MaxValue then ans.toLong
-      else if exact then throw new ArithmeticException("long overflow")
+      else if checked then throw new ArithmeticException("long overflow")
       else if ds < 0 == es < 0 then Long.MaxValue
       else Long.MinValue
 
-  private def divUsingLongConversion(ds: Long, dn: Int, es: Long, en: Int, mult: Int, divi: Int, exact: Boolean): Long =
+  private def divUsingLongConversion(ds: Long, dn: Int, es: Long, en: Int, mult: Int, divi: Int, checked: Boolean): Long =
     val nsd = if ds < 0 then (ds + 1)*mult + (1000000000 - dn)/divi else ds*mult + dn/divi
     val nse = if es < 0 then (es + 1)*mult + (1000000000 - en)/divi else es*mult + en/divi
     if nsd == Long.MinValue && nse == -1 then
-      if exact then throw new ArithmeticException("long overflow")
+      if checked then throw new ArithmeticException("long overflow")
       else Long.MaxValue
     else nsd / nse
 
-  def div(d: Duration, e: Duration, exact: Boolean): Long =
+  def div(d: Duration, e: Duration, checked: Boolean): Long =
     val ds = d.getSeconds
     val dn = d.getNano
     val es = e.getSeconds
     val en = e.getNano
     if es == 0 && en == 0 then
-      if exact then throw new ArithmeticException("division by zero")
+      if checked then throw new ArithmeticException("division by zero")
       else if ds == 0 && dn == 0 then 0L
       else if ds < 0 then Long.MaxValue
       else Long.MinValue
     else if en == 0 then
       if ds == Long.MinValue && dn == 0 && es == -1 then
-        if exact then throw new ArithmeticException("long overflow")
+        if checked then throw new ArithmeticException("long overflow")
         else Long.MaxValue
       else if ds < 0 then (ds + (if dn > 0 then 1 else 0)) / es
       else ds / es
@@ -388,18 +388,18 @@ object DurationCompanion {
     else
       val dtiny = d.compareTo(MinLongNanos) >= 0 && d.compareTo(MaxLongNanos) <= 0
       val etiny = e.compareTo(MinLongNanos) >= 0 && e.compareTo(MaxLongNanos) <= 0
-      if dtiny && etiny then divUsingLongConversion(ds, dn, es, en, 1000000000, 1, exact)
+      if dtiny && etiny then divUsingLongConversion(ds, dn, es, en, 1000000000, 1, checked)
       else if dn % 1000 == 0 && en % 1000 == 0 then
         val dsmall = dtiny || (d.compareTo(MinLongMicros) >= 0 && d.compareTo(MaxLongMicros) <= 0)
         val esmall = etiny || (e.compareTo(MinLongMicros) >= 0 && e.compareTo(MaxLongMicros) <= 0)
-        if dsmall & esmall then divUsingLongConversion(ds, dn, es, en, 1000000, 1000, exact)
+        if dsmall & esmall then divUsingLongConversion(ds, dn, es, en, 1000000, 1000, checked)
         else if dn % 1000000 == 0 && en % 1000000 == 0 then
           val dpetite = dsmall || (d.compareTo(MinLongMillis) >= 0 && d.compareTo(MaxLongMillis) <= 0)
           val epetite = esmall || (e.compareTo(MinLongMillis) >= 0 && e.compareTo(MaxLongMillis) <= 0)
-          if dpetite && epetite then divUsingLongConversion(ds, dn, es, en, 1000, 1000000, exact)
-          else divUsingBigInt(ds, dn, es, en, exact)
-        else divUsingBigInt(ds, dn, es, en, exact)
-      else divUsingBigInt(ds, dn, es, en, exact)
+          if dpetite && epetite then divUsingLongConversion(ds, dn, es, en, 1000, 1000000, checked)
+          else divUsingBigInt(ds, dn, es, en, checked)
+        else divUsingBigInt(ds, dn, es, en, checked)
+      else divUsingBigInt(ds, dn, es, en, checked)
 
   private def modUsingBigInt(ds: Long, dn: Int, es: Long, en: Int): Duration =
       val bd = BigInt(ds)*1000000000 + dn
@@ -589,18 +589,18 @@ object DurationCompanion {
     }
   }
 
-  opaque type Exact = Duration
-  object Exact {
-    def apply(d: Duration): kse.maths.DurationCompanion.Exact = d
+  opaque type Check = Duration
+  object Check {
+    def apply(d: Duration): kse.maths.DurationCompanion.Check = d
 
-    extension (in: Exact) {
-      def ns: Long = (in: Duration).exactNano.unwrap
+    extension (in: Check) {
+      def ns: Long = (in: Duration).checkedNano.unwrap
       def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 0, true)
       def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 0, true)
 
-      inline def round: kse.maths.DurationCompanion.ExactRound = in
-      inline def floor: kse.maths.DurationCompanion.ExactFloor = in
-      inline def ceil:  kse.maths.DurationCompanion.ExactCeil  = in
+      inline def round: kse.maths.DurationCompanion.CheckRound = in
+      inline def floor: kse.maths.DurationCompanion.CheckFloor = in
+      inline def ceil:  kse.maths.DurationCompanion.CheckCeil  = in
     }
 
   }
@@ -619,8 +619,8 @@ object DurationCompanion {
       inline def days = round.d
 
 
-      inline def into:  kse.maths.DurationCompanion.InRound    = round
-      inline def exact: kse.maths.DurationCompanion.ExactRound = round
+      inline def into:    kse.maths.DurationCompanion.InRound    = round
+      inline def checked: kse.maths.DurationCompanion.CheckRound = round
     }
   }
 
@@ -637,8 +637,8 @@ object DurationCompanion {
       def  d: Duration = durationAdjustLarge(floor, MinDays, MaxDays, 86400, -86399, -999999999, 0, 0)
       inline def days = floor.d
 
-      inline def into:  kse.maths.DurationCompanion.InFloor    = floor
-      inline def exact: kse.maths.DurationCompanion.ExactFloor = floor
+      inline def into:    kse.maths.DurationCompanion.InFloor    = floor
+      inline def checked: kse.maths.DurationCompanion.CheckFloor = floor
     }
   }
 
@@ -655,8 +655,8 @@ object DurationCompanion {
       def  d: Duration = durationAdjustLarge(ceil, MinDays, MaxDays, 86400, 0, 0, 86399, 999999999)
       inline def days: Duration = ceil.d
 
-      inline def into:  kse.maths.DurationCompanion.InCeil    = ceil
-      inline def exact: kse.maths.DurationCompanion.ExactCeil = ceil
+      inline def into:    kse.maths.DurationCompanion.InCeil    = ceil
+      inline def checked: kse.maths.DurationCompanion.CheckCeil = ceil
     }
   }
 
@@ -722,10 +722,10 @@ object DurationCompanion {
     }
   }
 
-  opaque type ExactRound = Duration
-  object ExactRound {
-    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactRound = d
-    extension (round: ExactRound) {
+  opaque type CheckRound = Duration
+  object CheckRound {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.CheckRound = d
+    extension (round: CheckRound) {
       def us: Long = durationSmallToLong(round, MinLongMicros, MaxLongMicros, 1000, -499, 499, true)
       def ms: Long = durationSmallToLong(round, MinLongMillis, MaxLongMillis, 1000000, -499999, 499999, true)
       def s: Long =
@@ -742,19 +742,19 @@ object DurationCompanion {
     }
   }
 
-  opaque type ExactFloor = Duration
-  object ExactFloor {
-    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactFloor = d
-    extension (floor: ExactFloor) {
+  opaque type CheckFloor = Duration
+  object CheckFloor {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.CheckFloor = d
+    extension (floor: CheckFloor) {
       def us: Long = durationSmallToLong(floor, MinLongMicros, MaxLongMicros, 1000, -999, 0, true)
       def ms: Long = durationSmallToLong(floor, MinLongMillis, MaxLongMillis, 1000000, -999999, 0, true)
     }
   }
 
-  opaque type ExactCeil = Duration
-  object ExactCeil {
-    inline def apply(d: Duration): kse.maths.DurationCompanion.ExactCeil = d
-    extension (ceil: ExactCeil) {
+  opaque type CheckCeil = Duration
+  object CheckCeil {
+    inline def apply(d: Duration): kse.maths.DurationCompanion.CheckCeil = d
+    extension (ceil: CheckCeil) {
       def us: Long = durationSmallToLong(ceil, MinLongMicros, MaxLongMicros, 1000, 0, 999, true)
       def ms: Long = durationSmallToLong(ceil, MinLongMillis, MaxLongMillis, 1000000, 0, 999999, true)
       def s: Long =
@@ -816,7 +816,7 @@ extension (d: Duration) {
       else NanoDuration((d.getSeconds + 1) *# 1000000000L +# (d.getNano - 1000000000L))
     else
       NanoDuration(d.getSeconds *# 1000000000L +# d.getNano)
-  inline def exactNano: kse.maths.NanoDuration =
+  inline def checkedNano: kse.maths.NanoDuration =
     if d.getSeconds < 0 then
       if d.getSeconds == Long.MinValue then NanoDuration(Long.MinValue)
       else if d.getNano == 0 then NanoDuration(d.getSeconds *! 1000000000L)
@@ -825,11 +825,11 @@ extension (d: Duration) {
       NanoDuration(d.getSeconds *! 1000000000L +! d.getNano)
   inline def double: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
 
-  inline def into:  kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
-  inline def exact: kse.maths.DurationCompanion.Exact = DurationCompanion.Exact(d)
-  inline def round: kse.maths.DurationCompanion.Round = DurationCompanion.Round(d)
-  inline def floor: kse.maths.DurationCompanion.Floor = DurationCompanion.Floor(d)
-  inline def ceil:  kse.maths.DurationCompanion.Ceil  = DurationCompanion.Ceil (d)
+  inline def into:    kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
+  inline def checked: kse.maths.DurationCompanion.Check = DurationCompanion.Check(d)
+  inline def round:   kse.maths.DurationCompanion.Round = DurationCompanion.Round(d)
+  inline def floor:   kse.maths.DurationCompanion.Floor = DurationCompanion.Floor(d)
+  inline def ceil:    kse.maths.DurationCompanion.Ceil  = DurationCompanion.Ceil (d)
 }
 
 
@@ -1170,7 +1170,7 @@ object DoubleDuration {
 
     def nano: kse.maths.NanoDuration = NanoDuration(jm.rint(dt.unwrap * 1e9).toLong)
 
-    def exactNano: kse.maths.NanoDuration =
+    def checkedNano: kse.maths.NanoDuration =
       val l = jm.rint(dt.unwrap * 1e9)
       if l >= Long.MinValue && l <= Long.MaxValue then NanoDuration(l.toLong)
       else throw new ArithmeticException("long overflow")
@@ -1180,13 +1180,13 @@ object DoubleDuration {
       val n = jm.rint((dt.unwrap - t)*1e9)
       Duration.ofSeconds(t.toLong, if t > Long.MaxValue || n > 999999999.0 then 999999999 else n.toInt)
 
-    def exactDuration: Duration =
+    def checkedDuration: Duration =
       if dt.unwrap >= Long.MinValue && dt.unwrap <= Long.MaxValue then dt.duration
       else throw new ArithmeticException("Duration overflow")
 
-    inline def into:  kse.maths.DoubleDuration.Into      = dt.unwrap
-    inline def long:  kse.maths.DoubleDuration.InLong    = dt.unwrap
-    inline def exact: kse.maths.DoubleDuration.ExactLong = dt.unwrap
+    inline def into:    kse.maths.DoubleDuration.Into      = dt.unwrap
+    inline def long:    kse.maths.DoubleDuration.InLong    = dt.unwrap
+    inline def checked: kse.maths.DoubleDuration.CheckLong = dt.unwrap
 
     inline def round: kse.maths.DoubleDuration.Round = dt.unwrap
     inline def floor: kse.maths.DoubleDuration.Floor = dt.unwrap
@@ -1228,9 +1228,9 @@ object DoubleDuration {
       inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.rint(round / 86400) * 86400 )
       inline def days: kse.maths.DoubleDuration = round.d
 
-      inline def into:  kse.maths.DoubleDuration.InRound        = round
-      inline def long:  kse.maths.DoubleDuration.InLongRound    = round
-      inline def exact: kse.maths.DoubleDuration.ExactLongRound = round
+      inline def into:    kse.maths.DoubleDuration.InRound        = round
+      inline def long:    kse.maths.DoubleDuration.InLongRound    = round
+      inline def checked: kse.maths.DoubleDuration.CheckLongRound = round
     }
   }
 
@@ -1246,9 +1246,9 @@ object DoubleDuration {
       inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.floor(floor / 86400) * 86400 )
       inline def days: kse.maths.DoubleDuration = floor.d
 
-      inline def into:  kse.maths.DoubleDuration.InFloor        = floor
-      inline def long:  kse.maths.DoubleDuration.InLongFloor    = floor
-      inline def exact: kse.maths.DoubleDuration.ExactLongFloor = floor
+      inline def into:    kse.maths.DoubleDuration.InFloor        = floor
+      inline def long:    kse.maths.DoubleDuration.InLongFloor    = floor
+      inline def checked: kse.maths.DoubleDuration.CheckLongFloor = floor
     }
   }
 
@@ -1264,9 +1264,9 @@ object DoubleDuration {
       inline def d:  kse.maths.DoubleDuration = DoubleDuration( jm.ceil(ceil / 86400) * 86400 )
       inline def days: kse.maths.DoubleDuration = ceil.d
 
-      inline def into:  kse.maths.DoubleDuration.InCeil        = ceil
-      inline def long:  kse.maths.DoubleDuration.InLongCeil    = ceil
-      inline def exact: kse.maths.DoubleDuration.ExactLongCeil = ceil
+      inline def into:    kse.maths.DoubleDuration.InCeil        = ceil
+      inline def long:    kse.maths.DoubleDuration.InLongCeil    = ceil
+      inline def checked: kse.maths.DoubleDuration.CheckLongCeil = ceil
     }
   }
 
@@ -1406,9 +1406,9 @@ object DoubleDuration {
     if d >= Long.MinValue && d <= Long.MaxValue then d.toLong
     else throw new ArithmeticException("long overflow")
 
-  opaque type ExactLong = Double
-  object ExactLong {
-    extension (in: ExactLong) {
+  opaque type CheckLong = Double
+  object CheckLong {
+    extension (in: CheckLong) {
       def ns: Long  = inRangeLong(in * 1e9)
       def us: Long  = inRangeLong(in * 1e6)
       def ms: Long  = inRangeLong(in * 1e3)
@@ -1418,15 +1418,15 @@ object DoubleDuration {
       def d: Long   = inRangeLong(in / 86400.0)
       inline def days: Long = in.d
 
-      inline def round: kse.maths.DoubleDuration.ExactLongRound = in
-      inline def floor: kse.maths.DoubleDuration.ExactLongFloor = in
-      inline def ceil:  kse.maths.DoubleDuration.ExactLongCeil  = in
+      inline def round: kse.maths.DoubleDuration.CheckLongRound = in
+      inline def floor: kse.maths.DoubleDuration.CheckLongFloor = in
+      inline def ceil:  kse.maths.DoubleDuration.CheckLongCeil  = in
     }
   }
 
-  opaque type ExactLongRound = Double
-  object ExactLongRound {
-    extension (in: ExactLongRound) {
+  opaque type CheckLongRound = Double
+  object CheckLongRound {
+    extension (in: CheckLongRound) {
       def ns: Long  = inRangeLong( jm.rint(in * 1e9) )
       def us: Long  = inRangeLong( jm.rint(in * 1e6) )
       def ms: Long  = inRangeLong( jm.rint(in * 1e3) )
@@ -1438,9 +1438,9 @@ object DoubleDuration {
     }
   }
 
-  opaque type ExactLongFloor = Double
-  object ExactLongFloor {
-    extension (in: ExactLongFloor) {
+  opaque type CheckLongFloor = Double
+  object CheckLongFloor {
+    extension (in: CheckLongFloor) {
       def ns: Long  = inRangeLong( jm.floor(in * 1e9) )
       def us: Long  = inRangeLong( jm.floor(in * 1e6) )
       def ms: Long  = inRangeLong( jm.floor(in * 1e3) )
@@ -1452,9 +1452,9 @@ object DoubleDuration {
     }
   }
 
-  opaque type ExactLongCeil = Double
-  object ExactLongCeil {
-    extension (in: ExactLongCeil) {
+  opaque type CheckLongCeil = Double
+  object CheckLongCeil {
+    extension (in: CheckLongCeil) {
       def ns: Long  = inRangeLong( jm.ceil(in * 1e9) )
       def us: Long  = inRangeLong( jm.ceil(in * 1e6) )
       def ms: Long  = inRangeLong( jm.ceil(in * 1e3) )
@@ -1618,7 +1618,7 @@ object DoubleInstant {
     // SCALABUG - not inline because it confuses the opaque types
     @targetName("instant_sub_duration")
     def -(dt: kse.maths.DoubleDuration): kse.maths.DoubleInstant = DoubleInstant(t.unwrap - dt.unwrap)
-    
+
     @targetName("instant_sub_instant")
     inline def -(u: kse.maths.DoubleInstant): kse.maths.DoubleDuration = DoubleDuration(t.unwrap - u.unwrap)
 

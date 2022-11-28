@@ -348,7 +348,7 @@ extension (d: Duration) {
   inline def /(frac: Frac): Duration = DurationCompanion.mul(d, frac.reciprocal)
 
   @targetName("Duration_div_Duration")
-  inline def /(duration: Duration): Long = DurationCompanion.div(d, duration, exact = false)
+  inline def /(duration: Duration): Long = DurationCompanion.div(d, duration, checked = false)
 
   @targetName("Duration_mod_Duration")
   inline def %(duration: Duration): Duration = DurationCompanion.mod(d, duration)
@@ -387,7 +387,7 @@ extension (d: Duration) {
   inline def -!(dd: Duration): Duration = d minus dd
   inline def *!(scale: Int): Duration = d multipliedBy scale
   inline def /!(factor: Int): Duration = d dividedBy factor
-  inline def /!(duration: Duration): Long = DurationCompanion.div(d, duration, exact = true)
+  inline def /!(duration: Duration): Long = DurationCompanion.div(d, duration, checked = true)
 
   inline def +!(i: Instant): Instant = i plus d
   inline def +!(ldt: LocalDateTime): LocalDateTime = ldt plus d
@@ -395,7 +395,7 @@ extension (d: Duration) {
   inline def +!(zdt: ZonedDateTime): ZonedDateTime = zdt plus d
 
   /*
-  inline def +!(ft: FileTime): FileTime = DurationCompanion.exactAddition(ft, d, subtract = false)
+  inline def +!(ft: FileTime): FileTime = DurationCompanion.checkedAddition(ft, d, subtract = false)
   */
 }
 
