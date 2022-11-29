@@ -9,6 +9,8 @@ import org.junit._
 import org.junit.Assert._
 
 import java.time._
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.TimeUnit
 
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
@@ -1938,12 +1940,175 @@ class TemporalTest() {
     val dt = t.age
     T ~ (dt >= DoubleInstant(ti2) - DoubleInstant(ti)) ==== true
 
-    T ~ nineG.instant ==== Instant.ofEpochSecond(1000000000)  --: typed[Instant]
-    T ~ DoubleInstant(1234567890.123456).instant ==== Instant.ofEpochSecond(1234567890L, 123456000)
-    T ~ DoubleInstant(12345678901.23456).instant ==== Instant.ofEpochSecond(12345678901L, 234560000)
-    T ~ DoubleInstant(123456789012.3456).instant ==== Instant.ofEpochSecond(123456789012L, 345600000)
-    T ~ DoubleInstant(1234567890123.456).instant ==== Instant.ofEpochSecond(1234567890123L, 456000000)
-    T ~ DoubleInstant(12345678901234.56).instant ==== Instant.ofEpochSecond(12345678901234L, 560000000)
-    T ~ DoubleInstant(123456789012345.6).instant ==== Instant.ofEpochSecond(123456789012345L, 600000000)
+    T ~ nineG.instant                              ==== Instant.ofEpochSecond(1000000000) --: typed[Instant]
+    T ~ DoubleInstant(1234567890.1234562).instant  ==== Instant.ofEpochSecond(1234567890L, 123456000)
+    T ~ DoubleInstant(12345678901.234562).instant  ==== Instant.ofEpochSecond(12345678901L, 234560000)
+    T ~ DoubleInstant(123456789012.34562).instant  ==== Instant.ofEpochSecond(123456789012L, 345600000)
+    T ~ DoubleInstant(1234567890123.4562).instant  ==== Instant.ofEpochSecond(1234567890123L, 456000000)
+    T ~ DoubleInstant(12345678901234.562).instant  ==== Instant.ofEpochSecond(12345678901234L, 560000000)
+    T ~ DoubleInstant(123456789012345.62).instant  ==== Instant.ofEpochSecond(123456789012345L, 600000000)
+    T ~ DoubleInstant(1234567890123456.2).instant  ==== Instant.ofEpochSecond(1234567890123456L)
+    T ~ DoubleInstant(12345678901234562.0).instant ==== Instant.ofEpochSecond(12345678901234560L)
+    T ~ DoubleInstant(23456789012345672.0).instant ==== Instant.ofEpochSecond(23456789012345640L)
+    T ~ DoubleInstant(12345678901234562e1).instant ==== Instant.MAX
+    T ~ DoubleInstant(-1e20).instant               ==== Instant.MIN
+    T ~ nineG.checkedInstant                     ==== nineG.instant --: typed[Instant]
+    T ~ DoubleInstant(3.2e16).checkedInstant     ==== thrown[DateTimeException]
+    T ~ DoubleInstant(-1e20).checkedInstant      ==== thrown[DateTimeException]
+    T ~ DoubleInstant(Double.NaN).checkedInstant ==== thrown[DateTimeException]
+
+    T ~ nineG.filetime                              ==== FileTime.fromMillis(1000000000000L)  --: typed[FileTime]
+    T ~ DoubleInstant(1234567890.1234562).filetime  ==== FileTime.from(1234567890123456L, TimeUnit.MICROSECONDS)
+    T ~ DoubleInstant(23456789012345672.0).filetime ==== FileTime.from(Instant.ofEpochSecond(23456789012345640L))
+    T ~ DoubleInstant(56890123456789012.0).filetime ==== FileTime.from(948168724279816L, TimeUnit.MINUTES)
+    T ~ DoubleInstant(56890123456789012e1).filetime ==== FileTime.from(158028120713302L, TimeUnit.HOURS)
+    T ~ DoubleInstant(56890123456789012e2).filetime ==== FileTime.from(65845050297209L, TimeUnit.DAYS)
+    T ~ DoubleInstant(56890123456789012e7).filetime ==== FileTime.from(6584505029720950784L, TimeUnit.DAYS)
+    T ~ DoubleInstant(56890123456789012e8).filetime ==== TemporalCompanion.FileTimeMax
+    T ~ DoubleInstant(-1e24).filetime               ==== TemporalCompanion.FileTimeMin
+    T ~ nineG.checkedFileTime                              ==== nineG.filetime --: typed[FileTime]
+    T ~ DoubleInstant(56890123456789012e8).checkedFileTime ==== thrown[DateTimeException]
+    T ~ DoubleInstant(-1e24).checkedFileTime               ==== thrown[DateTimeException]
+    T ~ DoubleInstant(Double.NaN).checkedFileTime          ==== thrown[DateTimeException]
+
+    val zoff = ZoneId.systemDefault.getRules.getOffset(nineG.instant)
+    T ~ (1.m > Duration.between(t.local, LocalDateTime.now).abs) ==== true
+    T ~ nineG.local                                 ==== LocalDateTime.ofEpochSecond(1000000000, 0, zoff) --: typed[LocalDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).local ==== LocalDateTime.MAX
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).local ==== LocalDateTime.MIN
+    T ~ nineG.checkedLocal                                 ==== nineG.local --: typed[LocalDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).checkedLocal ==== thrown[DateTimeException]
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).checkedLocal ==== thrown[DateTimeException]
+
+    T ~ (1.m > Duration.between(t.offset, OffsetDateTime.now).abs) ==== true
+    T ~ nineG.offset                                 ==== OffsetDateTime.ofInstant(nineG.instant, zoff) --: typed[OffsetDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).offset ==== TemporalCompanion.currentMaxOffsetDateTime
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).offset ==== TemporalCompanion.currentMinOffsetDateTime
+    T ~ nineG.checkedOffset                                 ==== nineG.offset --: typed[OffsetDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).checkedOffset ==== thrown[DateTimeException]
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).checkedOffset ==== thrown[DateTimeException]
+
+    T ~ (1.m > Duration.between(t.utc, OffsetDateTime.now).abs) ==== true
+    T ~ nineG.utc                                 ==== OffsetDateTime.ofInstant(nineG.instant, ZoneOffset.UTC) --: typed[OffsetDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).utc ==== TemporalCompanion.MaxUTCDateTime
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).utc ==== TemporalCompanion.MinUTCDateTime
+    T ~ nineG.checkedUTC                                 ==== nineG.utc --: typed[OffsetDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).checkedUTC ==== thrown[DateTimeException]
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).checkedUTC ==== thrown[DateTimeException]
+
+    T ~ (1.m > Duration.between(t.zoned, ZonedDateTime.now)) ==== true
+    T ~ nineG.zoned                                 ==== ZonedDateTime.ofInstant(nineG.instant, ZoneId.systemDefault) --: typed[ZonedDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).zoned ==== TemporalCompanion.currentMaxZonedDateTime
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).zoned ==== TemporalCompanion.currentMinZonedDateTime
+    T ~ nineG.checkedZoned                                 ==== nineG.zoned --: typed[ZonedDateTime]
+    T ~ (DoubleInstant(Instant.MAX) - 24.0.h).checkedZoned ==== thrown[DateTimeException]
+    T ~ (DoubleInstant(Instant.MIN) + 24.0.h).checkedZoned ==== thrown[DateTimeException]
+
+    val dipu = DoubleInstant(1234567891.6786787)
+    val dipd = DoubleInstant(1234516283.4324323)
+    val dinu = DoubleInstant(-dipd.unwrap)
+    val dind = DoubleInstant(-dipu.unwrap)
+    T ~ dipu.trunc.us ====  1234567891.678678  --: typed[DoubleInstant]
+    T ~ dipu.floor.us ====  1234567891.678678  --: typed[DoubleInstant]
+    T ~ dipu.round.us ====  1234567891.678679  --: typed[DoubleInstant]
+    T ~ dipu.ceil.us  ====  1234567891.678679  --: typed[DoubleInstant]
+    T ~ dipd.trunc.us ====  1234516283.432432  --: typed[DoubleInstant]
+    T ~ dipd.floor.us ====  1234516283.432432  --: typed[DoubleInstant]
+    T ~ dipd.round.us ====  1234516283.432432  --: typed[DoubleInstant]
+    T ~ dipd.ceil.us  ====  1234516283.432433  --: typed[DoubleInstant]
+    T ~ dinu.trunc.us ==== -1234516283.432432  --: typed[DoubleInstant]
+    T ~ dinu.floor.us ==== -1234516283.432433  --: typed[DoubleInstant]
+    T ~ dinu.round.us ==== -1234516283.432432  --: typed[DoubleInstant]
+    T ~ dinu.ceil.us  ==== -1234516283.432432  --: typed[DoubleInstant]
+    T ~ dind.trunc.us ==== -1234567891.678678  --: typed[DoubleInstant]
+    T ~ dind.floor.us ==== -1234567891.678679  --: typed[DoubleInstant]
+    T ~ dind.round.us ==== -1234567891.678679  --: typed[DoubleInstant]
+    T ~ dind.ceil.us  ==== -1234567891.678678  --: typed[DoubleInstant]
+    T ~ dipu.trunc.ms ====  1234567891.678     --: typed[DoubleInstant]
+    T ~ dipu.floor.ms ====  1234567891.678     --: typed[DoubleInstant]
+    T ~ dipu.round.ms ====  1234567891.679     --: typed[DoubleInstant]
+    T ~ dipu.ceil.ms  ====  1234567891.679     --: typed[DoubleInstant]
+    T ~ dipd.trunc.ms ====  1234516283.432     --: typed[DoubleInstant]
+    T ~ dipd.floor.ms ====  1234516283.432     --: typed[DoubleInstant]
+    T ~ dipd.round.ms ====  1234516283.432     --: typed[DoubleInstant]
+    T ~ dipd.ceil.ms  ====  1234516283.433     --: typed[DoubleInstant]
+    T ~ dinu.trunc.ms ==== -1234516283.432     --: typed[DoubleInstant]
+    T ~ dinu.floor.ms ==== -1234516283.433     --: typed[DoubleInstant]
+    T ~ dinu.round.ms ==== -1234516283.432     --: typed[DoubleInstant]
+    T ~ dinu.ceil.ms  ==== -1234516283.432     --: typed[DoubleInstant]
+    T ~ dind.trunc.ms ==== -1234567891.678     --: typed[DoubleInstant]
+    T ~ dind.floor.ms ==== -1234567891.679     --: typed[DoubleInstant]
+    T ~ dind.round.ms ==== -1234567891.679     --: typed[DoubleInstant]
+    T ~ dind.ceil.ms  ==== -1234567891.678     --: typed[DoubleInstant]
+    T ~ dipu.trunc.s  ====  1234567891.0       --: typed[DoubleInstant]
+    T ~ dipu.floor.s  ====  1234567891.0       --: typed[DoubleInstant]
+    T ~ dipu.round.s  ====  1234567892.0       --: typed[DoubleInstant]
+    T ~ dipu.ceil.s   ====  1234567892.0       --: typed[DoubleInstant]
+    T ~ dipd.trunc.s  ====  1234516283.0       --: typed[DoubleInstant]
+    T ~ dipd.floor.s  ====  1234516283.0       --: typed[DoubleInstant]
+    T ~ dipd.round.s  ====  1234516283.0       --: typed[DoubleInstant]
+    T ~ dipd.ceil.s   ====  1234516284.0       --: typed[DoubleInstant]
+    T ~ dinu.trunc.s  ==== -1234516283.0       --: typed[DoubleInstant]
+    T ~ dinu.floor.s  ==== -1234516284.0       --: typed[DoubleInstant]
+    T ~ dinu.round.s  ==== -1234516283.0       --: typed[DoubleInstant]
+    T ~ dinu.ceil.s   ==== -1234516283.0       --: typed[DoubleInstant]
+    T ~ dind.trunc.s  ==== -1234567891.0       --: typed[DoubleInstant]
+    T ~ dind.floor.s  ==== -1234567892.0       --: typed[DoubleInstant]
+    T ~ dind.round.s  ==== -1234567892.0       --: typed[DoubleInstant]
+    T ~ dind.ceil.s   ==== -1234567891.0       --: typed[DoubleInstant]
+    T ~ dipu.trunc.m  ====  1234567860.0       --: typed[DoubleInstant]
+    T ~ dipu.floor.m  ====  1234567860.0       --: typed[DoubleInstant]
+    T ~ dipu.round.m  ====  1234567920.0       --: typed[DoubleInstant]
+    T ~ dipu.ceil.m   ====  1234567920.0       --: typed[DoubleInstant]
+    T ~ dipd.trunc.m  ====  1234516260.0       --: typed[DoubleInstant]
+    T ~ dipd.floor.m  ====  1234516260.0       --: typed[DoubleInstant]
+    T ~ dipd.round.m  ====  1234516260.0       --: typed[DoubleInstant]
+    T ~ dipd.ceil.m   ====  1234516320.0       --: typed[DoubleInstant]
+    T ~ dinu.trunc.m  ==== -1234516260.0       --: typed[DoubleInstant]
+    T ~ dinu.floor.m  ==== -1234516320.0       --: typed[DoubleInstant]
+    T ~ dinu.round.m  ==== -1234516260.0       --: typed[DoubleInstant]
+    T ~ dinu.ceil.m   ==== -1234516260.0       --: typed[DoubleInstant]
+    T ~ dind.trunc.m  ==== -1234567860.0       --: typed[DoubleInstant]
+    T ~ dind.floor.m  ==== -1234567920.0       --: typed[DoubleInstant]
+    T ~ dind.round.m  ==== -1234567920.0       --: typed[DoubleInstant]
+    T ~ dind.ceil.m   ==== -1234567860.0       --: typed[DoubleInstant]
+    T ~ dipu.trunc.h  ====  1234566000.0       --: typed[DoubleInstant]
+    T ~ dipu.floor.h  ====  1234566000.0       --: typed[DoubleInstant]
+    T ~ dipu.round.h  ====  1234569600.0       --: typed[DoubleInstant]
+    T ~ dipu.ceil.h   ====  1234569600.0       --: typed[DoubleInstant]
+    T ~ dipd.trunc.h  ====  1234515600.0       --: typed[DoubleInstant]
+    T ~ dipd.floor.h  ====  1234515600.0       --: typed[DoubleInstant]
+    T ~ dipd.round.h  ====  1234515600.0       --: typed[DoubleInstant]
+    T ~ dipd.ceil.h   ====  1234519200.0       --: typed[DoubleInstant]
+    T ~ dinu.trunc.h  ==== -1234515600.0       --: typed[DoubleInstant]
+    T ~ dinu.floor.h  ==== -1234519200.0       --: typed[DoubleInstant]
+    T ~ dinu.round.h  ==== -1234515600.0       --: typed[DoubleInstant]
+    T ~ dinu.ceil.h   ==== -1234515600.0       --: typed[DoubleInstant]
+    T ~ dind.trunc.h  ==== -1234566000.0       --: typed[DoubleInstant]
+    T ~ dind.floor.h  ==== -1234569600.0       --: typed[DoubleInstant]
+    T ~ dind.round.h  ==== -1234569600.0       --: typed[DoubleInstant]
+    T ~ dind.ceil.h   ==== -1234566000.0       --: typed[DoubleInstant]
+    T ~ dipu.trunc.d  ====  1234483200.0       --: typed[DoubleInstant]
+    T ~ dipu.floor.d  ====  1234483200.0       --: typed[DoubleInstant]
+    T ~ dipu.round.d  ====  1234569600.0       --: typed[DoubleInstant]
+    T ~ dipu.ceil.d   ====  1234569600.0       --: typed[DoubleInstant]
+    T ~ dipd.trunc.d  ====  1234483200.0       --: typed[DoubleInstant]
+    T ~ dipd.floor.d  ====  1234483200.0       --: typed[DoubleInstant]
+    T ~ dipd.round.d  ====  1234483200.0       --: typed[DoubleInstant]
+    T ~ dipd.ceil.d   ====  1234569600.0       --: typed[DoubleInstant]
+    T ~ dinu.trunc.d  ==== -1234483200.0       --: typed[DoubleInstant]
+    T ~ dinu.floor.d  ==== -1234569600.0       --: typed[DoubleInstant]
+    T ~ dinu.round.d  ==== -1234483200.0       --: typed[DoubleInstant]
+    T ~ dinu.ceil.d   ==== -1234483200.0       --: typed[DoubleInstant]
+    T ~ dind.trunc.d  ==== -1234483200.0       --: typed[DoubleInstant]
+    T ~ dind.floor.d  ==== -1234569600.0       --: typed[DoubleInstant]
+    T ~ dind.round.d  ==== -1234569600.0       --: typed[DoubleInstant]
+    T ~ dind.ceil.d   ==== -1234483200.0       --: typed[DoubleInstant]
+    T ~ dipu.trunc.days ==== dipu.trunc.d      --: typed[DoubleInstant]
+    T ~ dipu.floor.days ==== dipu.floor.d      --: typed[DoubleInstant]
+    T ~ dipu.round.days ==== dipu.round.d      --: typed[DoubleInstant]
+    T ~ dipu.ceil.days  ==== dipu.ceil.d       --: typed[DoubleInstant]
+
+    T ~ List(dinu, dipu, dind, dipd).sorted ==== List(dind, dinu, dipd, dipu)
 }
 

@@ -1477,6 +1477,21 @@ object TemporalCompanion {
   val FileTimeMax = FileTime.from(Long.MaxValue, TimeUnit.DAYS)
   val FileTimeMin = FileTime.from(Long.MinValue, TimeUnit.DAYS)
 
+  val DateTimeMaxSeconds = LocalDateTime.MAX.toEpochSecond(ZoneOffset.UTC)
+  val DateTimeMinSeconds = LocalDateTime.MIN.toEpochSecond(ZoneOffset.UTC)
+
+  val DateTimeSuperMaxSeconds = DateTimeMaxSeconds + 16 * 3600
+  val DateTimeSuperMinSeconds = DateTimeMinSeconds - 16 * 3600
+
+  def currentMaxOffsetDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
+  def currentMinOffsetDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
+
+  val MaxUTCDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneOffset.UTC)
+  val MinUTCDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneOffset.UTC)
+
+  def currentMaxZonedDateTime = ZonedDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault)
+  def currentMinZonedDateTime = ZonedDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault)
+
   def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
   def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
   def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
@@ -1675,8 +1690,11 @@ object DoubleInstant {
           else
             // Values for hours and days are unnecessary since they won't fit in Instant anyway
             val mod = if u <= 2.5 then 10 else 60
-            println(s"$u $mod ${s - (s % mod)} ${MaxInstantDouble}")
             Instant.ofEpochSecond(s - (s % mod))
+    def checkedInstant: Instant =
+      val b = t.unwrap
+      if b.nan || b > MaxInstantDouble || b < MinInstantDouble then throw new DateTimeException("Instant overflow")
+      else instant
 
     def filetime: FileTime =
       val b = t.unwrap
@@ -1689,11 +1707,54 @@ object DoubleInstant {
           if      u <= 15  then FileTime.from((b/60).toLong, TimeUnit.MINUTES)
           else if u <= 900 then FileTime.from((b/3600).toLong, TimeUnit.HOURS)
           else                  FileTime.from((b/86400).toLong, TimeUnit.DAYS)
+    def checkedFileTime: FileTime =
+      val b = t.unwrap
+      if b.nan || b > MaxFileTimeDouble || b < MinFileTimeDouble then throw new DateTimeException("FileTime overflow")
+      else filetime
 
-    inline def local: LocalDateTime   = TemporalCompanion.toLocal( DoubleInstant.instant(t))
-    inline def offset: OffsetDateTime = TemporalCompanion.toOffset(DoubleInstant.instant(t))
-    inline def utc: OffsetDateTime    = TemporalCompanion.toUTC(   DoubleInstant.instant(t))
-    inline def zoned: ZonedDateTime   = TemporalCompanion.toZoned( DoubleInstant.instant(t))
+    def local: LocalDateTime =
+      val b = t.unwrap
+      if b.nan || b >= TemporalCompanion.DateTimeSuperMaxSeconds then LocalDateTime.MAX
+      else if     b <= TemporalCompanion.DateTimeSuperMinSeconds then LocalDateTime.MIN
+      else
+        try LocalDateTime.ofInstant(DoubleInstant.instant(t), ZoneId.systemDefault)
+        catch case _: DateTimeException => if b < 0 then LocalDateTime.MIN else LocalDateTime.MAX
+    def checkedLocal: LocalDateTime =
+      LocalDateTime.ofInstant(DoubleInstant.checkedInstant(t), ZoneId.systemDefault)
+
+    def offset: OffsetDateTime =
+      val b = t.unwrap
+      if b.nan || b >= TemporalCompanion.DateTimeSuperMaxSeconds then TemporalCompanion.currentMaxOffsetDateTime
+      else if     b <= TemporalCompanion.DateTimeSuperMinSeconds then TemporalCompanion.currentMinOffsetDateTime
+      else
+        try OffsetDateTime.ofInstant(DoubleInstant.instant(t), ZoneId.systemDefault)
+        catch case _: DateTimeException =>
+          if b < 0 then TemporalCompanion.currentMinOffsetDateTime
+          else          TemporalCompanion.currentMaxOffsetDateTime
+    def checkedOffset: OffsetDateTime =
+      OffsetDateTime.ofInstant(DoubleInstant.checkedInstant(t), ZoneId.systemDefault)
+
+    def utc: OffsetDateTime =
+      val b = t.unwrap
+      if b.nan || b >= TemporalCompanion.DateTimeMaxSeconds then TemporalCompanion.MaxUTCDateTime
+      else if     b <= TemporalCompanion.DateTimeMinSeconds then TemporalCompanion.MinUTCDateTime
+      else
+        try OffsetDateTime.ofInstant(DoubleInstant.instant(t), ZoneOffset.UTC)
+        catch case _: DateTimeException => if b < 0 then TemporalCompanion.MinUTCDateTime else TemporalCompanion.MaxUTCDateTime
+    def checkedUTC: OffsetDateTime =
+      OffsetDateTime.ofInstant(DoubleInstant.checkedInstant(t), ZoneOffset.UTC)
+
+    def zoned: ZonedDateTime =
+      val b = t.unwrap
+      if b.nan || b >= TemporalCompanion.DateTimeSuperMaxSeconds then TemporalCompanion.currentMaxZonedDateTime
+      else if     b <= TemporalCompanion.DateTimeSuperMinSeconds then TemporalCompanion.currentMinZonedDateTime
+      else
+        try ZonedDateTime.ofInstant(DoubleInstant.instant(t), ZoneId.systemDefault)
+        catch case _: DateTimeException =>
+          if b < 0 then TemporalCompanion.currentMinZonedDateTime
+          else          TemporalCompanion.currentMaxZonedDateTime
+    def checkedZoned: ZonedDateTime =
+      ZonedDateTime.ofInstant(DoubleInstant.checkedInstant(t), ZoneId.systemDefault)
 
     def trunc: kse.maths.DoubleInstant.Trunc = t.unwrap
     def floor: kse.maths.DoubleInstant.Floor = t.unwrap
