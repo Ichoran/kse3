@@ -1473,65 +1473,6 @@ object DoubleDuration {
 
 
 
-object TemporalCompanion {
-  val FileTimeMax = FileTime.from(Long.MaxValue, TimeUnit.DAYS)
-  val FileTimeMin = FileTime.from(Long.MinValue, TimeUnit.DAYS)
-
-  val DateTimeMaxSeconds = LocalDateTime.MAX.toEpochSecond(ZoneOffset.UTC)
-  val DateTimeMinSeconds = LocalDateTime.MIN.toEpochSecond(ZoneOffset.UTC)
-
-  val DateTimeSuperMaxSeconds = DateTimeMaxSeconds + 16 * 3600
-  val DateTimeSuperMinSeconds = DateTimeMinSeconds - 16 * 3600
-
-  def currentMaxOffsetDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
-  def currentMinOffsetDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
-
-  val MaxUTCDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneOffset.UTC)
-  val MinUTCDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneOffset.UTC)
-
-  def currentMaxZonedDateTime = ZonedDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault)
-  def currentMinZonedDateTime = ZonedDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault)
-
-  def toDouble(instant: Instant): kse.maths.DoubleInstant = DoubleInstant(instant)
-  def toDouble(datetime: LocalDateTime): kse.maths.DoubleInstant = toDouble(datetime.atZone(ZoneId.systemDefault))
-  def toDouble(datetime: OffsetDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
-  def toDouble(datetime: ZonedDateTime): kse.maths.DoubleInstant = DoubleInstant.fromSeconds(datetime.toEpochSecond, datetime.getNano)
-
-  def toInstant(datetime: LocalDateTime): Instant = datetime.atZone(ZoneId.systemDefault).toInstant
-
-  def toLocal(instant: Instant): LocalDateTime = instant.atZone(ZoneId.systemDefault).toLocalDateTime
-  def toLocal(datetime: ZonedDateTime): LocalDateTime = datetime.withZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
-  def toLocal(datetime: OffsetDateTime): LocalDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
-
-  def toUTC(instant: Instant): OffsetDateTime = instant.atOffset(ZoneOffset.UTC)
-  def toUTC(datetime: LocalDateTime): OffsetDateTime = datetime.atZone(ZoneId.systemDefault).toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
-  def toUTC(datetime: ZonedDateTime): OffsetDateTime = datetime.toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
-
-  def toZoned(instant: Instant): ZonedDateTime = instant.atZone(ZoneId.systemDefault)
-  def toZoned(datetime: LocalDateTime): ZonedDateTime = datetime.atZone(ZoneId.systemDefault)
-  def toZoned(datetime: OffsetDateTime): ZonedDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault)
-
-  def toOffset(instant: Instant): OffsetDateTime = toZoned(instant).toOffsetDateTime
-  def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
-}
-
-
-/*
-extension (i: Instant) {
-  /*
-  inline def double: kse.maths.DoubleInstant = DoubleInstant(i)
-  inline def local: LocalDateTime            = TemporalCompanion.toLocal(i)
-  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(i)
-  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(i)
-  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(i)
-  inline def filetime: FileTime              = TemporalCompanion.toFileTime(i)
-  */
-
-  // +(Duration) in OverloadedExtensions
-  // -(Duration) in OverloadedExtensions
-}
-*/
-
 opaque type NanoInstant = Long
 object NanoInstant {
   inline def apply(nanos: Long): kse.maths.NanoInstant = nanos
@@ -1822,19 +1763,190 @@ object DoubleInstant {
 }
 
 
-/*
+
+object TemporalCompanion {
+  val FileTimeMax = FileTime.from(Long.MaxValue, TimeUnit.DAYS)
+  val FileTimeMin = FileTime.from(Long.MinValue, TimeUnit.DAYS)
+
+  val DateTimeMaxSeconds = LocalDateTime.MAX.toEpochSecond(ZoneOffset.UTC)
+  val DateTimeMinSeconds = LocalDateTime.MIN.toEpochSecond(ZoneOffset.UTC)
+
+  val DateTimeSuperMaxSeconds = DateTimeMaxSeconds + 16 * 3600
+  val DateTimeSuperMinSeconds = DateTimeMinSeconds - 16 * 3600
+
+  def currentMaxOffsetDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
+  def currentMinOffsetDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
+
+  val MaxUTCDateTime = OffsetDateTime.of(LocalDateTime.MAX, ZoneOffset.UTC)
+  val MinUTCDateTime = OffsetDateTime.of(LocalDateTime.MIN, ZoneOffset.UTC)
+
+  def currentMaxZonedDateTime = ZonedDateTime.of(LocalDateTime.MAX, ZoneId.systemDefault)
+  def currentMinZonedDateTime = ZonedDateTime.of(LocalDateTime.MIN, ZoneId.systemDefault)
+
+  val ZoneOfUTC = ZoneId.of("UTC")
+
+  def addToInstant(instant: Instant, duration: Duration, subtract: Boolean): Instant =
+    var s =
+      if subtract then instant.getEpochSecond -# duration.getSeconds
+      else             instant.getEpochSecond +# duration.getSeconds
+    var ns =
+      if subtract then instant.getNano - duration.getNano
+      else             instant.getNano + duration.getNano
+    if ns < 0 then
+      while ns < 0 do
+        ns += 1000000000
+        if s < Long.MaxValue then s -= 1
+    else if ns > 0 then
+      while ns >= 1000000000 do
+        ns -= 1000000000
+        if s > Long.MinValue then s += 1
+    if s < Instant.MIN.getEpochSecond then Instant.MIN
+    else if s > Instant.MAX.getEpochSecond then Instant.MAX
+    else Instant.ofEpochSecond(s, ns)
+
+  def toInstant(datetime: LocalDateTime): Instant =
+    datetime.toInstant(ZoneId.systemDefault.getRules.getOffset(datetime))
+
+  def toLocal(instant: Instant): LocalDateTime =
+    val e = instant.getEpochSecond
+    if      e > DateTimeSuperMaxSeconds then LocalDateTime.MAX
+    else if e < DateTimeSuperMinSeconds then LocalDateTime.MIN
+    else
+      try toLocalChecked(instant)
+      catch case _: DateTimeException => if e < 0 then LocalDateTime.MIN else LocalDateTime.MAX
+  def toLocalChecked(instant: Instant): LocalDateTime =
+    LocalDateTime.ofEpochSecond(instant.getEpochSecond, instant.getNano, ZoneId.systemDefault.getRules.getOffset(instant))
+
+
+  def toLocal(datetime: ZonedDateTime): LocalDateTime = datetime.withZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
+  def toLocal(datetime: OffsetDateTime): LocalDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
+
+  def toOffset(instant: Instant): OffsetDateTime =
+    val e = instant.getEpochSecond
+    if      e > DateTimeSuperMaxSeconds then currentMaxOffsetDateTime
+    else if e < DateTimeSuperMinSeconds then currentMinOffsetDateTime
+    else
+      try toOffsetChecked(instant)
+      catch case _: DateTimeException => if e < 0 then currentMinOffsetDateTime else currentMaxOffsetDateTime
+  def toOffsetChecked(instant: Instant): OffsetDateTime = OffsetDateTime.ofInstant(instant, ZoneId.systemDefault)
+
+  def toUTC(instant: Instant): OffsetDateTime =
+    val e = instant.getEpochSecond
+    if      e > DateTimeMaxSeconds then MaxUTCDateTime
+    else if e < DateTimeMinSeconds then MinUTCDateTime
+    else
+      try toUTCChecked(instant)
+      catch case _: DateTimeException => if e < 0 then currentMinOffsetDateTime else currentMaxOffsetDateTime
+  def toUTCChecked(instant: Instant): OffsetDateTime = OffsetDateTime.ofInstant(instant, ZoneOfUTC)
+
+  def toUTC(datetime: LocalDateTime): OffsetDateTime = datetime.atZone(ZoneId.systemDefault).toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
+  def toUTC(datetime: ZonedDateTime): OffsetDateTime = datetime.toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
+
+  def toZoned(instant: Instant): ZonedDateTime =
+    val e = instant.getEpochSecond
+    if      e > DateTimeSuperMaxSeconds then currentMaxZonedDateTime
+    else if e < DateTimeSuperMinSeconds then currentMinZonedDateTime
+    else
+      try toZonedChecked(instant)
+      catch case _: DateTimeException => if e < 0 then currentMinZonedDateTime else currentMaxZonedDateTime
+  def toZonedChecked(instant: Instant): ZonedDateTime = ZonedDateTime.ofInstant(instant, ZoneId.systemDefault)
+
+  def toZoned(datetime: LocalDateTime): ZonedDateTime = datetime.atZone(ZoneId.systemDefault)
+  def toZoned(datetime: OffsetDateTime): ZonedDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault)
+
+  def toOffset(datetime: LocalDateTime): OffsetDateTime = toZoned(datetime).toOffsetDateTime
+
+  private def adjustTemporalNanos(sec: Long, nano: Int, mod: Int, pos: Int, neg: Int): Instant =
+    var n = nano
+    val m = n % mod
+    if sec < 0 then
+      if m + neg > 0 then n += (mod - m)
+      else n -= m
+    else
+      if m + pos < mod then n -= m
+      else n += (mod - m)
+    if n >= 1000000000 then
+      if sec + 1 > Instant.MAX.getEpochSecond then Instant.ofEpochSecond(sec, n - mod)
+      else Instant.ofEpochSecond(sec + 1, n - 1000000000)
+    else Instant.ofEpochSecond(sec, n)
+
+  private def adjustTemporalSecs(sec: Long, nano: Int, mod: Int, spos: Int, npos: Int, sneg: Int, nneg: Int): Instant =
+    var s = sec
+    if s < 0 then
+      s += sneg
+      if nano + nneg > 0 then s += 1
+      s -= (s % mod)
+      Instant.ofEpochSecond(if s < Instant.MIN.getEpochSecond then s + mod else s)
+    else
+      s += spos
+      if nano + npos >= 1000000000 then s += 1
+      s -= (s % mod)
+      Instant.ofEpochSecond(if s > Instant.MAX.getEpochSecond then s - mod else s)
+
+  private def adjustInstantNanos(instant: Instant, mod: Int, pos: Int, neg: Int): Instant =
+    val n = instant.getNano
+    if n % mod == 0 then instant
+    else adjustTemporalNanos(instant.getEpochSecond, n, mod, pos, neg)
+
+  private def adjustInstantSecs(instant: Instant, mod: Int, spos: Int, npos:Int, sneg: Int, nneg: Int): Instant =
+    val s = instant.getEpochSecond
+    val n = instant.getNano
+    if n == 0 && (s % mod) == 0 then instant
+    else adjustTemporalSecs(s, n, mod, spos, npos, sneg, nneg)
+
+  opaque type FloorInstant = Instant
+  object FloorInstant {
+    inline def apply(instant: Instant): kse.maths.TemporalCompanion.FloorInstant = instant
+    extension(floor: FloorInstant) {
+      def us: Instant = adjustInstantNanos(floor, 1000, 0, -999)
+      def ms: Instant = adjustInstantNanos(floor, 1000000, 0, -999999)
+      def s:  Instant = adjustInstantNanos(floor, 1000000000, 0, -999999999)
+      def m:  Instant = adjustInstantSecs(floor, 60, 0, 0, -59, -999999999)
+      def h:  Instant = adjustInstantSecs(floor, 3600, 0, 0, -3599, -999999999)
+      def d:  Instant = adjustInstantSecs(floor, 86400, 0, 0, -86399, -999999999)
+      inline def days: Instant = FloorInstant.d(floor)
+    }
+  }
+
+  opaque type RoundInstant = Instant
+  object RoundInstant {
+    inline def apply(instant: Instant): kse.maths.TemporalCompanion.RoundInstant = instant
+    extension(round: RoundInstant) {
+      def us: Instant = adjustInstantNanos(round, 1000, 499, -500)
+      def ms: Instant = adjustInstantNanos(round, 1000000, 499999, -500000)
+      def s:  Instant = adjustInstantNanos(round, 1000000000, 499999999, -500000000)
+      def m:  Instant = adjustInstantSecs(round, 60, 29, 999999999, -30, 0)
+      def h:  Instant = adjustInstantSecs(round, 3600, 1799, 999999999, -1800, 0)
+      def d:  Instant = adjustInstantSecs(round, 86400, 43199, 999999999, -43200, 0)
+      inline def days: Instant = RoundInstant.d(round)
+    }
+  }
+
+  opaque type CeilInstant = Instant
+  object CeilInstant {
+    inline def apply(instant: Instant): kse.maths.TemporalCompanion.CeilInstant = instant
+    extension(ceil: CeilInstant) {
+      def us: Instant = adjustInstantNanos(ceil, 1000, 999, 0)
+      def ms: Instant = adjustInstantNanos(ceil, 1000000, 999999, 0)
+      def s:  Instant = adjustInstantNanos(ceil, 1000000000, 999999999, 0)
+      def m:  Instant = adjustInstantSecs(ceil, 60, 59, 999999999, 0, 0)
+      def h:  Instant = adjustInstantSecs(ceil, 3600, 3599, 999999999, 0, 0)
+      def d:  Instant = adjustInstantSecs(ceil, 86400, 86399, 999999999, 0, 0)
+      inline def days: Instant = CeilInstant.d(ceil)
+    }
+  }
+}
+
+
+
 extension (instant: Instant) {
-  inline def double: kse.maths.DoubleInstant = DoubleInstant(instant)
-  inline def local: LocalDateTime            = TemporalCompanion.toLocal(instant)
-  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(instant)
-  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(instant)
-  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(instant)
+  // +(Duration) in OverloadedExtensions
+  // +!(Duration) in OverloadedExtensions
+  // -(Duration) in OverloadedExtensions
+  // -!(Duration) in OverloadedExtensions
+  // -(Instant) in OverloadedExtensions
 
-  inline def +(duration: Duration): Instant = instant plus duration
-
-  inline def -(inst: Instant): Duration = Duration.between(inst, instant)
-
-  inline def to(inst: Instant): Duration = Duration.between(instant,inst)
+  inline def to(inst: Instant): Duration = Duration.between(instant, inst)
 
   inline def <( inst: Instant): Boolean = instant.compareTo(inst) < 0
   inline def <=(inst: Instant): Boolean = instant.compareTo(inst) <= 0
@@ -1843,8 +1955,36 @@ extension (instant: Instant) {
 
   inline def max(inst: Instant): Instant = if instant.compareTo(inst) < 0 then inst else instant
   inline def min(inst: Instant): Instant = if instant.compareTo(inst) > 0 then inst else instant
+
+  // clamp(Instant, Instant) in OverloadedExtensions
+  // in(Instant, Instant) in OverloadedExtensions
+  // checkIn(Instant, Instant) in OverloadedExtensions
+
+  inline def age: Duration = Duration.between(Instant.now, instant)
+
+  inline def D: kse.maths.DoubleInstant    = DoubleInstant(instant)
+
+  inline def filetime: FileTime            = FileTime.from(instant)
+
+  inline def local: LocalDateTime          = TemporalCompanion.toLocal(instant)
+  inline def checkedLocal: LocalDateTime   = TemporalCompanion.toLocalChecked(instant)
+
+  inline def offset: OffsetDateTime        = TemporalCompanion.toOffset(instant)
+  inline def checkedOffset: OffsetDateTime = TemporalCompanion.toOffsetChecked(instant)
+
+  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(instant)
+  inline def checkedUTC                    = TemporalCompanion.toUTCChecked(instant)
+
+  inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(instant)
+  inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toZonedChecked(instant)
+
+  // trunc in OverloadedExtensions
+  inline def floor: kse.maths.TemporalCompanion.FloorInstant = TemporalCompanion.FloorInstant(instant)
+  inline def round: kse.maths.TemporalCompanion.RoundInstant = TemporalCompanion.RoundInstant(instant)
+  inline def ceil:  kse.maths.TemporalCompanion.CeilInstant  = TemporalCompanion.CeilInstant(instant)
 }
 
+/*
 extension (zoned: ZonedDateTime) {
   inline def double: kse.maths.DoubleInstant = TemporalCompanion.toDouble(zoned)
   inline def instant: Instant                = zoned.toInstant

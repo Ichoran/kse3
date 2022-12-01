@@ -2110,5 +2110,212 @@ class TemporalTest() {
     T ~ dipu.ceil.days  ==== dipu.ceil.d       --: typed[DoubleInstant]
 
     T ~ List(dinu, dipu, dind, dipd).sorted ==== List(dind, dinu, dipd, dipu)
+
+
+  def testInstant(): Unit =
+    val i = Instant.now
+    val ldt = LocalDateTime.now
+    val odt = OffsetDateTime.now
+    val zdt = ZonedDateTime.now
+    val gig = Instant.ofEpochSecond(1000000000)
+    val giggle = Instant.ofEpochSecond(1000000001, 234567890)
+    val big = Duration.between(gig, Instant.MAX)
+    val bigger = Duration.between(Instant.MIN, giggle)
+    T ~ (gig + 1.s)     ==== Instant.ofEpochSecond(1000000001) --: typed[Instant]
+    T ~ (giggle + big)  ==== Instant.MAX
+    T ~ (gig +! 1.s)    ==== (gig + 1.s) --: typed[Instant]
+    T ~ (giggle +! big) ==== thrown[DateTimeException]
+    T ~ (gig - 1.s)     ==== Instant.ofEpochSecond(999999999)  --: typed[Instant]
+    T ~ (gig - bigger)  ==== Instant.MIN
+    T ~ (gig -! 1.s)    ==== (gig - 1.s)                       --: typed[Instant]
+    T ~ (gig -! bigger) ==== thrown[DateTimeException]
+    T ~ (giggle - gig)  ==== 1234567890.ns                     --: typed[Duration]
+    T ~ (giggle to gig) ==== -1234567890.ns                    --: typed[Duration]
+    T ~ (gig < giggle)  ==== true
+    T ~ (gig < gig)     ==== false
+    T ~ (giggle < gig)  ==== false
+    T ~ (gig <= giggle) ==== true
+    T ~ (gig <= gig)    ==== true
+    T ~ (giggle <= gig) ==== false
+    T ~ (gig >= giggle) ==== false
+    T ~ (gig >= gig)    ==== true
+    T ~ (giggle >= gig) ==== true
+    T ~ (gig > giggle)  ==== false
+    T ~ (gig > gig)     ==== false 
+    T ~ (giggle > gig)  ==== true
+    T ~ (gig max giggle)                 ==== giggle      --: typed[Instant]
+    T ~ (giggle max gig)                 ==== giggle
+    T ~ (gig min giggle)                 ==== gig         --: typed[Instant]
+    T ~ (giggle min gig)                 ==== gig
+    T ~ (gig + 1.s).clamp(gig, giggle)   ==== (gig + 1.s) --: typed[Instant]
+    T ~ gig.clamp(gig + 1.s, giggle)     ==== (gig + 1.s)
+    T ~ giggle.clamp(gig, gig + 1.s)     ==== (gig + 1.s)
+    T ~ (gig + 1.s).clamp(giggle, gig)   ==== giggle
+    T ~ (gig + 1.s).in(gig, giggle)      ==== true
+    T ~ gig.in(gig + 1.s, giggle)        ==== false
+    T ~ giggle.in(gig, gig + 1.s)        ==== false
+    T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[Instant]
+    T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
+    T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
+    T ~ i.age                            ==== typed[Duration]
+    T ~ (1.m > i.age)                    ==== true
+    T ~ gig.D                                   ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.filetime                            ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
+    T ~ gig.local                               ==== typed[LocalDateTime]
+    T ~ (Duration.between(i.local, ldt) < 1.m)  ==== true
+    T ~ Instant.MAX.local                       ==== LocalDateTime.MAX
+    T ~ Instant.MIN.local                       ==== LocalDateTime.MIN
+    T ~ gig.checkedLocal                        ==== gig.local   --: typed[LocalDateTime]
+    T ~ Instant.MAX.checkedLocal                ==== thrown[DateTimeException]
+    T ~ Instant.MIN.checkedLocal                ==== thrown[DateTimeException]
+    T ~ gig.offset                              ==== typed[OffsetDateTime]
+    T ~ (Duration.between(i.offset, odt) < 1.m) ==== true
+    T ~ Instant.MAX.offset                      ==== LocalDateTime.MAX.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
+    T ~ Instant.MIN.offset                      ==== LocalDateTime.MIN.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
+    T ~ gig.checkedOffset                       ==== gig.offset   --: typed[OffsetDateTime]
+    T ~ Instant.MAX.checkedOffset               ==== thrown[DateTimeException]
+    T ~ Instant.MIN.checkedOffset               ==== thrown[DateTimeException]
+    T ~ gig.utc                                 ==== typed[OffsetDateTime]
+    T ~ (Duration.between(i.utc, odt) < 1.m)    ==== true
+    T ~ Instant.MAX.utc                         ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
+    T ~ Instant.MIN.utc                         ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
+    T ~ gig.checkedUTC                          ==== gig.utc   --: typed[OffsetDateTime]
+    T ~ Instant.MAX.checkedLocal                ==== thrown[DateTimeException]
+    T ~ Instant.MIN.checkedLocal                ==== thrown[DateTimeException]
+    T ~ gig.zoned                               ==== typed[ZonedDateTime]
+    T ~ (Duration.between(i.zoned, odt) < 1.m)  ==== true
+    T ~ Instant.MAX.zoned                       ==== LocalDateTime.MAX.atZone(ZoneId.systemDefault)
+    T ~ Instant.MIN.zoned                       ==== LocalDateTime.MIN.atZone(ZoneId.systemDefault)
+    T ~ gig.checkedZoned                        ==== gig.zoned   --: typed[ZonedDateTime]
+    T ~ Instant.MAX.checkedZoned                ==== thrown[DateTimeException]
+    T ~ Instant.MIN.checkedZoned                ==== thrown[DateTimeException]
+
+    val n9 = 999999999
+    def ioes(s: Long, nano: Int = 0): Instant = Instant.ofEpochSecond(s, nano)
+    T ~ ioes(100, 3000).floor.us      ==== ioes(100, 3000) --: typed[Instant]
+    T ~ ioes(100, 3999).floor.us      ==== ioes(100, 3000)
+    T ~ ioes(-10, 3000).floor.us      ==== ioes(-10, 3000)
+    T ~ ioes(-10, 3999).floor.us      ==== ioes(-10, 3000)
+    T ~ ioes(100, 3000).round.us      ==== ioes(100, 3000) --: typed[Instant]
+    T ~ ioes(100, 3500).round.us      ==== ioes(100, 3000)
+    T ~ ioes(100, 3501).round.us      ==== ioes(100, 4000)
+    T ~ ioes(100, 999999501).round.us ==== ioes(101)
+    T ~ ioes(-10, 3000).round.us      ==== ioes(-10, 3000)
+    T ~ ioes(-10, 3500).round.us      ==== ioes(-10, 3000)
+    T ~ ioes(-10, 3501).round.us      ==== ioes(-10, 4000)
+    T ~ ioes(-10, 999999501).round.us ==== ioes( -9)
+    T ~ ioes(100, 3000).ceil.us       ==== ioes(100, 3000) --: typed[Instant]
+    T ~ ioes(100, 3001).ceil.us       ==== ioes(100, 4000)
+    T ~ ioes(100, 999999001).ceil.us  ==== ioes(101)
+    T ~ ioes(-10, 3000).ceil.us       ==== ioes(-10, 3000)
+    T ~ ioes(-10, 3001).ceil.us       ==== ioes(-10, 4000)
+    T ~ ioes(-10, 999999001).ceil.us  ==== ioes( -9)
+    T ~ ioes(100, 3000000).floor.ms   ==== ioes(100, 3000000) --: typed[Instant]
+    T ~ ioes(100, 3999999).floor.ms   ==== ioes(100, 3000000)
+    T ~ ioes(-10, 3000000).floor.ms   ==== ioes(-10, 3000000)
+    T ~ ioes(-10, 3999999).floor.ms   ==== ioes(-10, 3000000)
+    T ~ ioes(100, 3000000).round.ms   ==== ioes(100, 3000000) --: typed[Instant]
+    T ~ ioes(100, 3500000).round.ms   ==== ioes(100, 3000000)
+    T ~ ioes(100, 3500001).round.ms   ==== ioes(100, 4000000)
+    T ~ ioes(100, 999500001).round.ms ==== ioes(101)
+    T ~ ioes(-10, 3000000).round.ms   ==== ioes(-10, 3000000)
+    T ~ ioes(-10, 3500000).round.ms   ==== ioes(-10, 3000000)
+    T ~ ioes(-10, 3500001).round.ms   ==== ioes(-10, 4000000)
+    T ~ ioes(-10, 999500001).round.ms ==== ioes( -9)
+    T ~ ioes(100, 3000000).ceil.ms    ==== ioes(100, 3000000) --: typed[Instant]
+    T ~ ioes(100, 3000001).ceil.ms    ==== ioes(100, 4000000)
+    T ~ ioes(100, 999000001).ceil.ms  ==== ioes(101)
+    T ~ ioes(-10, 3000000).ceil.ms    ==== ioes(-10, 3000000)
+    T ~ ioes(-10, 3000001).ceil.ms    ==== ioes(-10, 4000000)
+    T ~ ioes(-10, 999000001).ceil.ms  ==== ioes( -9)
+    T ~ ioes(100).floor.s             ==== ioes(100) --: typed[Instant]
+    T ~ ioes(100, n9).floor.s         ==== ioes(100)
+    T ~ ioes(-10).floor.s             ==== ioes(-10)
+    T ~ ioes(-10, n9).floor.s         ==== ioes(-10)
+    T ~ ioes(100).round.s             ==== ioes(100) --: typed[Instant]
+    T ~ ioes(100, 500000000).round.s  ==== ioes(100)
+    T ~ ioes(100, 500000001).round.s  ==== ioes(101)
+    T ~ ioes(-10).round.s             ==== ioes(-10)
+    T ~ ioes(-10, 500000000).round.s  ==== ioes(-10)
+    T ~ ioes(-10, 500000001).round.s  ==== ioes( -9)
+    T ~ ioes(100).ceil.s              ==== ioes(100) --: typed[Instant]
+    T ~ ioes(100, 1).ceil.s           ==== ioes(101)
+    T ~ ioes(-10).ceil.s              ==== ioes(-10)
+    T ~ ioes(-10, 1).ceil.s           ==== ioes( -9)
+    T ~ ioes(6120).floor.m            ==== ioes(6120) --: typed[Instant]
+    T ~ ioes(6179, n9).floor.m        ==== ioes(6120)
+    T ~ ioes(6120, 1).floor.m         ==== ioes(6120)
+    T ~ ioes(-180).floor.m            ==== ioes(-180)
+    T ~ ioes(-121, n9).floor.m        ==== ioes(-180)
+    T ~ ioes(-180, 1).floor.m         ==== ioes(-180)
+    T ~ ioes(6120).round.m            ==== ioes(6120) --: typed[Instant]
+    T ~ ioes(6150).round.m            ==== ioes(6120)
+    T ~ ioes(6150, 1).round.m         ==== ioes(6180)
+    T ~ ioes(6151).round.m            ==== ioes(6180)
+    T ~ ioes(-180).round.m            ==== ioes(-180)
+    T ~ ioes(-150).round.m            ==== ioes(-180)
+    T ~ ioes(-150, 1).round.m         ==== ioes(-120)
+    T ~ ioes(-149).round.m            ==== ioes(-120)
+    T ~ ioes(6120).ceil.m             ==== ioes(6120) --: typed[Instant]
+    T ~ ioes(6120, 1).ceil.m          ==== ioes(6180)
+    T ~ ioes(6121).ceil.m             ==== ioes(6180)
+    T ~ ioes(-180).ceil.m             ==== ioes(-180)
+    T ~ ioes(-180, 1).ceil.m          ==== ioes(-120)
+    T ~ ioes(-179).ceil.m             ==== ioes(-120)
+    T ~ ioes(612000).floor.h          ==== ioes(612000) --: typed[Instant]
+    T ~ ioes(615599, n9).floor.h      ==== ioes(612000)
+    T ~ ioes(612000, 1).floor.h       ==== ioes(612000)
+    T ~ ioes(-14400).floor.h          ==== ioes(-14400)
+    T ~ ioes(-10801, n9).floor.h      ==== ioes(-14400)
+    T ~ ioes(-14400, 1).floor.h       ==== ioes(-14400)
+    T ~ ioes(612000).round.h          ==== ioes(612000) --: typed[Instant]
+    T ~ ioes(613800).round.h          ==== ioes(612000)
+    T ~ ioes(613800, 1).round.h       ==== ioes(615600)
+    T ~ ioes(613801).round.h          ==== ioes(615600)
+    T ~ ioes(-14400).round.h          ==== ioes(-14400)
+    T ~ ioes(-12600).round.h          ==== ioes(-14400)
+    T ~ ioes(-12600, 1).round.h       ==== ioes(-10800)
+    T ~ ioes(-12599).round.h          ==== ioes(-10800)
+    T ~ ioes(612000).ceil.h           ==== ioes(612000) --: typed[Instant]
+    T ~ ioes(612000, 1).ceil.h        ==== ioes(615600)
+    T ~ ioes(612001).ceil.h           ==== ioes(615600)
+    T ~ ioes(-14400).ceil.h           ==== ioes(-14400)
+    T ~ ioes(-14400, 1).ceil.h        ==== ioes(-10800)
+    T ~ ioes(-14399).ceil.h           ==== ioes(-10800)
+    T ~ ioes(1468800).floor.d         ==== ioes(1468800) --: typed[Instant]
+    T ~ ioes(1555199, n9).floor.d     ==== ioes(1468800)
+    T ~ ioes(1468800, 1).floor.d      ==== ioes(1468800)
+    T ~ ioes(-259200).floor.d         ==== ioes(-259200)
+    T ~ ioes(-172801, n9).floor.d     ==== ioes(-259200)
+    T ~ ioes(-259200, 1).floor.d      ==== ioes(-259200)
+    T ~ ioes(1468800).round.d         ==== ioes(1468800) --: typed[Instant]
+    T ~ ioes(1512000).round.d         ==== ioes(1468800)
+    T ~ ioes(1512000, 1).round.d      ==== ioes(1555200)
+    T ~ ioes(1512001).round.d         ==== ioes(1555200)
+    T ~ ioes(-259200).round.d         ==== ioes(-259200)
+    T ~ ioes(-216000).round.d         ==== ioes(-259200)
+    T ~ ioes(-216000, 1).round.d      ==== ioes(-172800)
+    T ~ ioes(-215999).round.d         ==== ioes(-172800)
+    T ~ ioes(1468800).ceil.d          ==== ioes(1468800) --: typed[Instant]
+    T ~ ioes(1468800, 1).ceil.d       ==== ioes(1555200)
+    T ~ ioes(1468801).ceil.d          ==== ioes(1555200)
+    T ~ ioes(-259200).ceil.d          ==== ioes(-259200)
+    T ~ ioes(-259200, 1).ceil.d       ==== ioes(-172800)
+    T ~ ioes(-259199).ceil.d          ==== ioes(-172800)
+    T ~ i.round.days ==== i.round.d --: typed[Instant]
+    T ~ i.floor.days ==== i.floor.d --: typed[Instant]
+    T ~ i.ceil.days  ==== i.ceil.d  --: typed[Instant]
+    T ~ Instant.MAX.round.us ==== ioes(Instant.MAX.getEpochSecond, 999999000)
+    T ~ Instant.MAX.round.ms ==== ioes(Instant.MAX.getEpochSecond, 999000000)
+    T ~ Instant.MAX.round.s  ==== ioes(Instant.MAX.getEpochSecond)
+    T ~ Instant.MAX.round.m  ==== ioes(Instant.MAX.getEpochSecond.fn(s => s - (s % 60)))
+    T ~ Instant.MAX.round.h  ==== ioes(Instant.MAX.getEpochSecond.fn(s => s - (s % 3600)))
+    T ~ Instant.MAX.round.d  ==== ioes(Instant.MAX.getEpochSecond.fn(s => s - (s % 86400)))
+    T ~ Instant.MAX.ceil.us  ==== Instant.MAX.round.us
+    T ~ Instant.MAX.ceil.ms  ==== Instant.MAX.round.ms
+    T ~ Instant.MAX.ceil.s   ==== Instant.MAX.round.s 
+    T ~ Instant.MAX.ceil.m   ==== Instant.MAX.round.m 
+    T ~ Instant.MAX.ceil.h   ==== Instant.MAX.round.h 
+    T ~ Instant.MAX.ceil.d   ==== Instant.MAX.round.d 
 }
 

@@ -401,10 +401,32 @@ extension (d: Duration) {
 
 
 
-extension (i: Instant) {
+extension (instant: Instant) {
   @targetName("Instant_add_Duration")
-  def +(d: Duration) = ???
+  inline def +(duration: Duration): Instant = TemporalCompanion.addToInstant(instant, duration, subtract = false)
+
+  @targetName("Instant_addexc_Duration")
+  inline def +!(duration: Duration): Instant = instant plus duration
 
   @targetName("Instant_sub_Duration")
-  def -(d: Duration) = ???
+  inline def -(duration: Duration): Instant = TemporalCompanion.addToInstant(instant, duration, subtract = true)
+
+  @targetName("Instant_subexc_Duration")
+  inline def -!(duration: Duration): Instant = instant minus duration
+
+  @targetName("Instant_sub_Instant")
+  inline def -(inst: Instant): Duration = Duration.between(inst, instant)
+
+  def clamp(i0: Instant, i1: Instant): Instant =
+    if instant.compareTo(i0) >= 0 then
+      if instant.compareTo(i1) <= 0 then instant
+      else if i0.compareTo(i1) <= 0 then i1
+      else i0
+    else i0
+
+  inline def in(i0: Instant, i1: Instant): Boolean = instant.compareTo(i0) >= 0 && instant.compareTo(i1) <= 0
+
+  def checkIn(i0: Instant, i1: Instant): Instant =
+    if instant.compareTo(i0) < 0 || instant.compareTo(i1) > 0 then throw new DateTimeException("Instant out of range")
+    else instant
 }
