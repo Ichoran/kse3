@@ -430,3 +430,35 @@ extension (instant: Instant) {
     if instant.compareTo(i0) < 0 || instant.compareTo(i1) > 0 then throw new DateTimeException("Instant out of range")
     else instant
 }
+
+
+extension (local: LocalDateTime) {
+  @targetName("LocalDateTime_add_Duration")
+  inline def +(duration: Duration): LocalDateTime = TemporalCompanion.addToLocal(local, duration, subtract = false)
+
+  @targetName("LocalDateTime_addexc_Duration")
+  inline def +!(duration: Duration): LocalDateTime = local plus duration
+
+  @targetName("LocalDateTime_sub_Duration")
+  inline def -(duration: Duration): LocalDateTime = TemporalCompanion.addToLocal(local, duration, subtract = true)
+
+  @targetName("LocalDateTime_subexc_Duration")
+  inline def -!(duration: Duration): LocalDateTime = local minus duration
+
+  @targetName("LocalDateTime_sub_LocalDateTime")
+  inline def -(ldt: LocalDateTime): Duration = Duration.between(ldt, local)
+
+  def clamp(ldt0: LocalDateTime, ldt1: LocalDateTime): LocalDateTime =
+    if local.compareTo(ldt0) >= 0 then
+      if local.compareTo(ldt1) <= 0 then local
+      else if ldt0.compareTo(ldt1) <= 0 then ldt1
+      else ldt0
+    else ldt0
+
+  inline def in(ldt0: LocalDateTime, ldt1: LocalDateTime): Boolean = local.compareTo(ldt0) >= 0 && local.compareTo(ldt1) <= 0
+
+  def checkIn(ldt0: LocalDateTime, ldt1: LocalDateTime): LocalDateTime =
+    if local.compareTo(ldt0) < 0 || local.compareTo(ldt1) > 0 then throw new DateTimeException("LocalDateTime out of range")
+    else local
+}
+
