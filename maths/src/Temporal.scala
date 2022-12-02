@@ -1804,9 +1804,31 @@ object TemporalCompanion {
     else if s > Instant.MAX.getEpochSecond then Instant.MAX
     else Instant.ofEpochSecond(s, ns)
 
+  private def predictLocalOverflow(local: LocalDateTime, secs: Long, nanos: Long, subtract: Boolean): Int =
+    var s =
+      if subtract then local.toEpochSecond(ZoneOffset.UTC) -# secs
+      else             local.toEpochSecond(ZoneOffset.UTC) +# secs
+    var ns =
+      if subtract then local.getNano - nanos
+      else             local.getNano + nanos
+    if ns < 0 then
+      while ns < 0 do
+        ns += 1000000000
+        if s < Long.MaxValue then s -= 1
+    else if ns > 0 then
+      while ns >= 1000000000 do
+        ns -= 1000000000
+        if s > Long.MinValue then s += 1
+    if s < DateTimeMinSeconds then -1
+    else if s > DateTimeMaxSeconds then 1
+    else 0
+
   def addToLocal(local: LocalDateTime, duration: Duration, subtract: Boolean): LocalDateTime =
     try
-      if subtract then local minus duration else local plus duration
+      predictLocalOverflow(local, duration.getSeconds, duration.getNano, subtract) match
+        case -1 => LocalDateTime.MIN
+        case  1 => LocalDateTime.MAX
+        case _  => if subtract then local minus duration else local plus duration
     catch case _: DateTimeException =>
       if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN
 
@@ -1961,7 +1983,12 @@ object TemporalCompanion {
     if err == 0 then local
     else if err < thresh then local.minusNanos(err)
     else
-      try local.plusNanos(scale - err)
+      val fix = scale - err
+      val fs = fix/1000000000
+      try
+        predictLocalOverflow(local, fs, fix - fs*1000000000, subtract = false) match
+          case 1 => LocalDateTime.MAX.minusNanos(scale - 1)
+          case _ => local plusNanos fix
       catch case _: DateTimeException => LocalDateTime.MAX.minusNanos(scale - 1)
 
   private def localMinErr(local: LocalDateTime): Long = 1000000000L*local.getSecond + local.getNano
