@@ -2180,10 +2180,10 @@ class TemporalTest() {
     T ~ Instant.MAX.utc                         ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
     T ~ Instant.MIN.utc                         ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
     T ~ gig.checkedUTC                          ==== gig.utc   --: typed[OffsetDateTime]
-    T ~ Instant.MAX.checkedLocal                ==== thrown[DateTimeException]
-    T ~ Instant.MIN.checkedLocal                ==== thrown[DateTimeException]
+    T ~ Instant.MAX.checkedUTC                  ==== thrown[DateTimeException]
+    T ~ Instant.MIN.checkedUTC                  ==== thrown[DateTimeException]
     T ~ gig.zoned                               ==== typed[ZonedDateTime]
-    T ~ (Duration.between(i.zoned, odt) < 1.m)  ==== true
+    T ~ (Duration.between(i.zoned, zdt) < 1.m)  ==== true
     T ~ Instant.MAX.zoned                       ==== LocalDateTime.MAX.atZone(ZoneId.systemDefault)
     T ~ Instant.MIN.zoned                       ==== LocalDateTime.MIN.atZone(ZoneId.systemDefault)
     T ~ gig.checkedZoned                        ==== gig.zoned   --: typed[ZonedDateTime]
@@ -2317,5 +2317,202 @@ class TemporalTest() {
     T ~ Instant.MAX.ceil.m   ==== Instant.MAX.round.m 
     T ~ Instant.MAX.ceil.h   ==== Instant.MAX.round.h 
     T ~ Instant.MAX.ceil.d   ==== Instant.MAX.round.d 
+
+  def testLocalDateTime(): Unit =
+    val l = LocalDateTime.now
+    val idt = Instant.now
+    val odt = OffsetDateTime.now
+    val zdt = ZonedDateTime.now
+    val gig = Instant.ofEpochSecond(1000000000).local
+    val giggle = Instant.ofEpochSecond(1000000001, 234567890).local
+    val big = Duration.between(gig, LocalDateTime.MAX)
+    val bigger = Duration.between(LocalDateTime.MIN, giggle)
+    T ~ (gig + 1.s)     ==== Instant.ofEpochSecond(1000000001).local --: typed[LocalDateTime]
+    T ~ (giggle + big)  ==== LocalDateTime.MAX
+    T ~ (gig +! 1.s)    ==== (gig + 1.s) --: typed[LocalDateTime]
+    T ~ (giggle +! big) ==== thrown[DateTimeException]
+    T ~ (gig - 1.s)     ==== Instant.ofEpochSecond(999999999).local  --: typed[LocalDateTime]
+    T ~ (gig - bigger)  ==== LocalDateTime.MIN
+    T ~ (gig -! 1.s)    ==== (gig - 1.s)                       --: typed[LocalDateTime]
+    T ~ (gig -! bigger) ==== thrown[DateTimeException]
+    T ~ (giggle - gig)  ==== 1234567890.ns                     --: typed[Duration]
+    T ~ (giggle to gig) ==== -1234567890.ns                    --: typed[Duration]
+    T ~ (gig < giggle)  ==== true
+    T ~ (gig < gig)     ==== false
+    T ~ (giggle < gig)  ==== false
+    T ~ (gig <= giggle) ==== true
+    T ~ (gig <= gig)    ==== true
+    T ~ (giggle <= gig) ==== false
+    T ~ (gig >= giggle) ==== false
+    T ~ (gig >= gig)    ==== true
+    T ~ (giggle >= gig) ==== true
+    T ~ (gig > giggle)  ==== false
+    T ~ (gig > gig)     ==== false 
+    T ~ (giggle > gig)  ==== true
+    T ~ (gig max giggle)                 ==== giggle      --: typed[LocalDateTime]
+    T ~ (giggle max gig)                 ==== giggle
+    T ~ (gig min giggle)                 ==== gig         --: typed[LocalDateTime]
+    T ~ (giggle min gig)                 ==== gig
+    T ~ (gig + 1.s).clamp(gig, giggle)   ==== (gig + 1.s) --: typed[LocalDateTime]
+    T ~ gig.clamp(gig + 1.s, giggle)     ==== (gig + 1.s)
+    T ~ giggle.clamp(gig, gig + 1.s)     ==== (gig + 1.s)
+    T ~ (gig + 1.s).clamp(giggle, gig)   ==== giggle
+    T ~ (gig + 1.s).in(gig, giggle)      ==== true
+    T ~ gig.in(gig + 1.s, giggle)        ==== false
+    T ~ giggle.in(gig, gig + 1.s)        ==== false
+    T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[LocalDateTime]
+    T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
+    T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
+    T ~ gig.D                                    ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.filetime                             ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
+    T ~ gig.instant                              ==== typed[Instant]
+    T ~ (Duration.between(l.instant, idt) < 1.m) ==== true
+    T ~ gig.offset                               ==== typed[OffsetDateTime]
+    T ~ (Duration.between(l.offset, odt) < 1.m)  ==== true
+    T ~ gig.utc                                 ==== typed[OffsetDateTime]
+    T ~ (Duration.between(l.utc, odt) < 1.m)    ==== true
+    T ~ gig.checkedUTC                          ==== gig.utc   --: typed[OffsetDateTime]
+    ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX).getTotalSeconds match
+      case x if x > 0 =>
+        T ~ LocalDateTime.MIN.utc        ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
+        T ~ LocalDateTime.MIN.checkedUTC ==== thrown[DateTimeException]
+      case x if x < 0 =>
+        T ~ LocalDateTime.MAX.utc        ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
+        T ~ LocalDateTime.MAX.checkedUTC ==== thrown[DateTimeException]
+      case _ =>
+        println(s"Warning--local time matches UTC, so local/UTC bounds safety not determined")
+    T ~ gig.zoned                               ==== typed[ZonedDateTime]
+    T ~ (Duration.between(l.zoned, odt) < 1.m)  ==== true
+
+    val n9 = 999999999
+    def loes(s: Long, nano: Int = 0): LocalDateTime =
+      val i = Instant.ofEpochSecond(s, nano)
+      val shift = ZoneId.systemDefault.getRules.getOffset(i).getTotalSeconds
+      (i - shift.s).local
+    T ~ loes(100, 3000).floor.us      ==== loes(100, 3000) --: typed[LocalDateTime]
+    T ~ loes(100, 3999).floor.us      ==== loes(100, 3000)
+    T ~ loes(-10, 3000).floor.us      ==== loes(-10, 3000)
+    T ~ loes(-10, 3999).floor.us      ==== loes(-10, 3000)
+    T ~ loes(100, 3000).round.us      ==== loes(100, 3000) --: typed[LocalDateTime]
+    T ~ loes(100, 3500).round.us      ==== loes(100, 3000)
+    T ~ loes(100, 3501).round.us      ==== loes(100, 4000)
+    T ~ loes(100, 999999501).round.us ==== loes(101)
+    T ~ loes(-10, 3000).round.us      ==== loes(-10, 3000)
+    T ~ loes(-10, 3500).round.us      ==== loes(-10, 3000)
+    T ~ loes(-10, 3501).round.us      ==== loes(-10, 4000)
+    T ~ loes(-10, 999999501).round.us ==== loes( -9)
+    T ~ loes(100, 3000).ceil.us       ==== loes(100, 3000) --: typed[LocalDateTime]
+    T ~ loes(100, 3001).ceil.us       ==== loes(100, 4000)
+    T ~ loes(100, 999999001).ceil.us  ==== loes(101)
+    T ~ loes(-10, 3000).ceil.us       ==== loes(-10, 3000)
+    T ~ loes(-10, 3001).ceil.us       ==== loes(-10, 4000)
+    T ~ loes(-10, 999999001).ceil.us  ==== loes( -9)
+    T ~ loes(100, 3000000).floor.ms   ==== loes(100, 3000000) --: typed[LocalDateTime]
+    T ~ loes(100, 3999999).floor.ms   ==== loes(100, 3000000)
+    T ~ loes(-10, 3000000).floor.ms   ==== loes(-10, 3000000)
+    T ~ loes(-10, 3999999).floor.ms   ==== loes(-10, 3000000)
+    T ~ loes(100, 3000000).round.ms   ==== loes(100, 3000000) --: typed[LocalDateTime]
+    T ~ loes(100, 3500000).round.ms   ==== loes(100, 3000000)
+    T ~ loes(100, 3500001).round.ms   ==== loes(100, 4000000)
+    T ~ loes(100, 999500001).round.ms ==== loes(101)
+    T ~ loes(-10, 3000000).round.ms   ==== loes(-10, 3000000)
+    T ~ loes(-10, 3500000).round.ms   ==== loes(-10, 3000000)
+    T ~ loes(-10, 3500001).round.ms   ==== loes(-10, 4000000)
+    T ~ loes(-10, 999500001).round.ms ==== loes( -9)
+    T ~ loes(100, 3000000).ceil.ms    ==== loes(100, 3000000) --: typed[LocalDateTime]
+    T ~ loes(100, 3000001).ceil.ms    ==== loes(100, 4000000)
+    T ~ loes(100, 999000001).ceil.ms  ==== loes(101)
+    T ~ loes(-10, 3000000).ceil.ms    ==== loes(-10, 3000000)
+    T ~ loes(-10, 3000001).ceil.ms    ==== loes(-10, 4000000)
+    T ~ loes(-10, 999000001).ceil.ms  ==== loes( -9)
+    T ~ loes(100).floor.s             ==== loes(100) --: typed[LocalDateTime]
+    T ~ loes(100, n9).floor.s         ==== loes(100)
+    T ~ loes(-10).floor.s             ==== loes(-10)
+    T ~ loes(-10, n9).floor.s         ==== loes(-10)
+    T ~ loes(100).round.s             ==== loes(100) --: typed[LocalDateTime]
+    T ~ loes(100, 500000000).round.s  ==== loes(100)
+    T ~ loes(100, 500000001).round.s  ==== loes(101)
+    T ~ loes(-10).round.s             ==== loes(-10)
+    T ~ loes(-10, 500000000).round.s  ==== loes(-10)
+    T ~ loes(-10, 500000001).round.s  ==== loes( -9)
+    T ~ loes(100).ceil.s              ==== loes(100) --: typed[LocalDateTime]
+    T ~ loes(100, 1).ceil.s           ==== loes(101)
+    T ~ loes(-10).ceil.s              ==== loes(-10)
+    T ~ loes(-10, 1).ceil.s           ==== loes( -9)
+    T ~ loes(6120).floor.m            ==== loes(6120) --: typed[LocalDateTime]
+    T ~ loes(6179, n9).floor.m        ==== loes(6120)
+    T ~ loes(6120, 1).floor.m         ==== loes(6120)
+    T ~ loes(-180).floor.m            ==== loes(-180)
+    T ~ loes(-121, n9).floor.m        ==== loes(-180)
+    T ~ loes(-180, 1).floor.m         ==== loes(-180)
+    T ~ loes(6120).round.m            ==== loes(6120) --: typed[LocalDateTime]
+    T ~ loes(6150).round.m            ==== loes(6120)
+    T ~ loes(6150, 1).round.m         ==== loes(6180)
+    T ~ loes(6151).round.m            ==== loes(6180)
+    T ~ loes(-180).round.m            ==== loes(-180)
+    T ~ loes(-150).round.m            ==== loes(-180)
+    T ~ loes(-150, 1).round.m         ==== loes(-120)
+    T ~ loes(-149).round.m            ==== loes(-120)
+    T ~ loes(6120).ceil.m             ==== loes(6120) --: typed[LocalDateTime]
+    T ~ loes(6120, 1).ceil.m          ==== loes(6180)
+    T ~ loes(6121).ceil.m             ==== loes(6180)
+    T ~ loes(-180).ceil.m             ==== loes(-180)
+    T ~ loes(-180, 1).ceil.m          ==== loes(-120)
+    T ~ loes(-179).ceil.m             ==== loes(-120)
+    T ~ loes(612000).floor.h          ==== loes(612000) --: typed[LocalDateTime]
+    T ~ loes(615599, n9).floor.h      ==== loes(612000)
+    T ~ loes(612000, 1).floor.h       ==== loes(612000)
+    T ~ loes(-14400).floor.h          ==== loes(-14400)
+    T ~ loes(-10801, n9).floor.h      ==== loes(-14400)
+    T ~ loes(-14400, 1).floor.h       ==== loes(-14400)
+    T ~ loes(612000).round.h          ==== loes(612000) --: typed[LocalDateTime]
+    T ~ loes(613800).round.h          ==== loes(612000)
+    T ~ loes(613800, 1).round.h       ==== loes(615600)
+    T ~ loes(613801).round.h          ==== loes(615600)
+    T ~ loes(-14400).round.h          ==== loes(-14400)
+    T ~ loes(-12600).round.h          ==== loes(-14400)
+    T ~ loes(-12600, 1).round.h       ==== loes(-10800)
+    T ~ loes(-12599).round.h          ==== loes(-10800)
+    T ~ loes(612000).ceil.h           ==== loes(612000) --: typed[LocalDateTime]
+    T ~ loes(612000, 1).ceil.h        ==== loes(615600)
+    T ~ loes(612001).ceil.h           ==== loes(615600)
+    T ~ loes(-14400).ceil.h           ==== loes(-14400)
+    T ~ loes(-14400, 1).ceil.h        ==== loes(-10800)
+    T ~ loes(-14399).ceil.h           ==== loes(-10800)
+    T ~ loes(1468800).floor.d         ==== loes(1468800) --: typed[LocalDateTime]
+    T ~ loes(1555199, n9).floor.d     ==== loes(1468800)
+    T ~ loes(1468800, 1).floor.d      ==== loes(1468800)
+    T ~ loes(-259200).floor.d         ==== loes(-259200)
+    T ~ loes(-172801, n9).floor.d     ==== loes(-259200)
+    T ~ loes(-259200, 1).floor.d      ==== loes(-259200)
+    T ~ loes(1468800).round.d         ==== loes(1468800) --: typed[LocalDateTime]
+    T ~ loes(1512000).round.d         ==== loes(1468800)
+    T ~ loes(1512000, 1).round.d      ==== loes(1555200)
+    T ~ loes(1512001).round.d         ==== loes(1555200)
+    T ~ loes(-259200).round.d         ==== loes(-259200)
+    T ~ loes(-216000).round.d         ==== loes(-259200)
+    T ~ loes(-216000, 1).round.d      ==== loes(-172800)
+    T ~ loes(-215999).round.d         ==== loes(-172800)
+    T ~ loes(1468800).ceil.d          ==== loes(1468800) --: typed[LocalDateTime]
+    T ~ loes(1468800, 1).ceil.d       ==== loes(1555200)
+    T ~ loes(1468801).ceil.d          ==== loes(1555200)
+    T ~ loes(-259200).ceil.d          ==== loes(-259200)
+    T ~ loes(-259200, 1).ceil.d       ==== loes(-172800)
+    T ~ loes(-259199).ceil.d          ==== loes(-172800)
+    T ~ l.round.days ==== l.round.d --: typed[LocalDateTime]
+    T ~ l.floor.days ==== l.floor.d --: typed[LocalDateTime]
+    T ~ l.ceil.days  ==== l.ceil.d  --: typed[LocalDateTime]
+    T ~ LocalDateTime.MAX.round.us ==== LocalDateTime.MAX.minus(999.ns)
+    T ~ LocalDateTime.MAX.round.ms ==== LocalDateTime.MAX.minus(999999.ns)
+    T ~ LocalDateTime.MAX.round.s  ==== LocalDateTime.MAX.minus(999999999.ns)
+    T ~ LocalDateTime.MAX.round.m  ==== LocalDateTime.MAX.minus(59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.round.h  ==== LocalDateTime.MAX.minus(59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.round.d  ==== LocalDateTime.MAX.minus(23.h + 59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.ceil.us  ==== LocalDateTime.MAX.round.us
+    T ~ LocalDateTime.MAX.ceil.ms  ==== LocalDateTime.MAX.round.ms
+    T ~ LocalDateTime.MAX.ceil.s   ==== LocalDateTime.MAX.round.s 
+    T ~ LocalDateTime.MAX.ceil.m   ==== LocalDateTime.MAX.round.m 
+    T ~ LocalDateTime.MAX.ceil.h   ==== LocalDateTime.MAX.round.h 
+    T ~ LocalDateTime.MAX.ceil.d   ==== LocalDateTime.MAX.round.d
 }
 

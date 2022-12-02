@@ -1808,7 +1808,7 @@ object TemporalCompanion {
     try
       if subtract then local minus duration else local plus duration
     catch case _: DateTimeException =>
-      toLocal(addToInstant(toInstant(local), duration, subtract))
+      if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN
 
   def toInstant(datetime: LocalDateTime): Instant =
     datetime.toInstant(ZoneId.systemDefault.getRules.getOffset(datetime))
@@ -1962,7 +1962,7 @@ object TemporalCompanion {
     else if err < thresh then local.minusNanos(err)
     else
       try local.plusNanos(scale - err)
-      catch case _: DateTimeException => LocalDateTime.MAX
+      catch case _: DateTimeException => LocalDateTime.MAX.minusNanos(scale - 1)
 
   private def localMinErr(local: LocalDateTime): Long = 1000000000L*local.getSecond + local.getNano
   private def localHrErr(local: LocalDateTime): Long = 1000000000L*(60*local.getMinute + local.getSecond) + local.getNano

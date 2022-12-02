@@ -2550,6 +2550,9 @@ class MathTest {
 
   @Test
   def temporalTestInstant(): Unit = temporalTester.testInstant()
+
+  @Test
+  def temporalTestLocalDateTime(): Unit = temporalTester.testLocalDateTime()
 }
 object MathsTest {
   // @BeforeClass
