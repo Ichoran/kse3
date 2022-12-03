@@ -1804,13 +1804,13 @@ object TemporalCompanion {
     else if s > Instant.MAX.getEpochSecond then Instant.MAX
     else Instant.ofEpochSecond(s, ns)
 
-  private def predictLocalOverflow(local: LocalDateTime, secs: Long, nanos: Long, subtract: Boolean): Int =
+  private def predictLocalOverflow(epochSecs: Long, epochNano: Int, secs: Long, nanos: Long, subtract: Boolean): Int =
     var s =
-      if subtract then local.toEpochSecond(ZoneOffset.UTC) -# secs
-      else             local.toEpochSecond(ZoneOffset.UTC) +# secs
+      if subtract then epochSecs -# secs
+      else             epochSecs +# secs
     var ns =
-      if subtract then local.getNano - nanos
-      else             local.getNano + nanos
+      if subtract then epochNano - nanos
+      else             epochNano + nanos
     if ns < 0 then
       while ns < 0 do
         ns += 1000000000
@@ -1825,12 +1825,21 @@ object TemporalCompanion {
 
   def addToLocal(local: LocalDateTime, duration: Duration, subtract: Boolean): LocalDateTime =
     try
-      predictLocalOverflow(local, duration.getSeconds, duration.getNano, subtract) match
+      predictLocalOverflow(local.toEpochSecond(ZoneOffset.UTC), local.getNano, duration.getSeconds, duration.getNano, subtract) match
         case -1 => LocalDateTime.MIN
         case  1 => LocalDateTime.MAX
         case _  => if subtract then local minus duration else local plus duration
     catch case _: DateTimeException =>
       if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN
+
+  def addToOffset(offset: OffsetDateTime, duration: Duration, subtract: Boolean): OffsetDateTime =
+    try
+      predictLocalOverflow(offset.toEpochSecond + offset.getOffset.getTotalSeconds, offset.getNano, duration.getSeconds, duration.getNano, subtract) match
+        case -1 => LocalDateTime.MIN.atOffset(offset.getOffset)
+        case  1 => LocalDateTime.MAX.atOffset(offset.getOffset)
+        case _  => if subtract then offset minus duration else offset plus duration
+    catch case _: DateTimeException =>
+      (if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN).atOffset(offset.getOffset)
 
   def toInstant(datetime: LocalDateTime): Instant =
     datetime.toInstant(ZoneId.systemDefault.getRules.getOffset(datetime))
@@ -1845,9 +1854,17 @@ object TemporalCompanion {
   def toLocalChecked(instant: Instant): LocalDateTime =
     LocalDateTime.ofEpochSecond(instant.getEpochSecond, instant.getNano, ZoneId.systemDefault.getRules.getOffset(instant))
 
+  def toLocal(offset: OffsetDateTime): LocalDateTime =
+    try toLocalChecked(offset)
+    catch case _: DateTimeException =>
+      if offset.getYear < 0 then LocalDateTime.MIN else LocalDateTime.MAX
+  def toLocalChecked(offset: OffsetDateTime): LocalDateTime =
+    val withoutOffset = offset.toLocalDateTime
+    val myOffset = ZoneId.systemDefault.getRules.getOffset(withoutOffset)
+    if myOffset == offset.getOffset then withoutOffset
+    else withoutOffset.plusSeconds(myOffset.getTotalSeconds - offset.getOffset.getTotalSeconds)
 
   def toLocal(datetime: ZonedDateTime): LocalDateTime = datetime.withZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
-  def toLocal(datetime: OffsetDateTime): LocalDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault).toLocalDateTime
 
   def toOffset(instant: Instant): OffsetDateTime =
     val e = instant.getEpochSecond
@@ -1858,7 +1875,18 @@ object TemporalCompanion {
       catch case _: DateTimeException => if e < 0 then currentMinOffsetDateTime else currentMaxOffsetDateTime
   def toOffsetChecked(instant: Instant): OffsetDateTime = OffsetDateTime.ofInstant(instant, ZoneId.systemDefault)
 
-  def toOffset(local: LocalDateTime): OffsetDateTime = local.atOffset(ZoneId.systemDefault.getRules.getOffset(local))
+  def toOffset(local: LocalDateTime): OffsetDateTime =
+    local.atOffset(ZoneId.systemDefault.getRules.getOffset(local))
+
+  def toMyOffset(offset: OffsetDateTime): OffsetDateTime =
+    val withoutOffset = offset.toLocalDateTime
+    val myOffset = ZoneId.systemDefault.getRules.getOffset(withoutOffset)
+    if myOffset == offset.getOffset then offset
+    else
+      try offset.withOffsetSameInstant(myOffset)
+      catch case _: DateTimeException => if offset.getYear < 0 then currentMinOffsetDateTime else currentMaxOffsetDateTime
+  def toMyOffsetChecked(offset: OffsetDateTime): OffsetDateTime =
+    offset.withOffsetSameInstant(ZoneId.systemDefault.getRules.getOffset(offset.toLocalDateTime))
 
   def toUTC(instant: Instant): OffsetDateTime =
     val e = instant.getEpochSecond
@@ -1876,6 +1904,14 @@ object TemporalCompanion {
   def toUTCChecked(local: LocalDateTime): OffsetDateTime =
     local.atOffset(ZoneId.systemDefault.getRules.getOffset(local)).withOffsetSameInstant(ZoneOffset.UTC)
 
+  def toUTC(offset: OffsetDateTime): OffsetDateTime =
+    if offset.getOffset == ZoneOffset.UTC then offset
+    else
+      try offset.withOffsetSameInstant(ZoneOffset.UTC)
+      catch case _: DateTimeException => if offset.getYear < 0 then MinUTCDateTime else MaxUTCDateTime
+  def toUTCChecked(offset: OffsetDateTime): OffsetDateTime =
+    offset.withOffsetSameInstant(ZoneOffset.UTC)
+
   def toUTC(datetime: ZonedDateTime): OffsetDateTime = datetime.toOffsetDateTime.withOffsetSameInstant(ZoneOffset.UTC)
 
   def toZoned(instant: Instant): ZonedDateTime =
@@ -1889,7 +1925,10 @@ object TemporalCompanion {
 
   def toZoned(local: LocalDateTime): ZonedDateTime = local.atZone(ZoneId.systemDefault)
 
-  def toZoned(datetime: OffsetDateTime): ZonedDateTime = datetime.atZoneSameInstant(ZoneId.systemDefault)
+  def toZoned(offset: OffsetDateTime): ZonedDateTime =
+    try toZonedChecked(offset)
+    catch case _: DateTimeException => if offset.getYear < 0 then currentMinZonedDateTime else currentMaxZonedDateTime
+  def toZonedChecked(offset: OffsetDateTime): ZonedDateTime = offset.atZoneSameInstant(ZoneId.systemDefault)
 
   private def adjustTemporalNanos(sec: Long, nano: Int, mod: Int, pos: Int, neg: Int): Instant =
     var n = nano
@@ -1986,7 +2025,7 @@ object TemporalCompanion {
       val fix = scale - err
       val fs = fix/1000000000
       try
-        predictLocalOverflow(local, fs, fix - fs*1000000000, subtract = false) match
+        predictLocalOverflow(local.toEpochSecond(ZoneOffset.UTC), local.getNano, fs, fix - fs*1000000000, subtract = false) match
           case 1 => LocalDateTime.MAX.minusNanos(scale - 1)
           case _ => local plusNanos fix
       catch case _: DateTimeException => LocalDateTime.MAX.minusNanos(scale - 1)
@@ -2034,6 +2073,66 @@ object TemporalCompanion {
       def h:  LocalDateTime = fixErrLocal(ceil, localHrErr( ceil), Hns, 1)
       def d:  LocalDateTime = fixErrLocal(ceil, localDayErr(ceil), Dns, 1)
       inline def days: LocalDateTime = CeilLocal.d(ceil)
+    }
+  }
+
+  private def fixErrOffset(offset: OffsetDateTime, err: Long, scale: Long, thresh: Long): OffsetDateTime = ???
+    /*
+    if err == 0 then offset
+    else if err < thresh then offset.minusNanos(err)
+    else
+      val fix = scale - err
+      val fs = fix/1000000000
+      try
+        predictOffsetOverflow(offset.getEpochSecond(ZoneOffset.UTC), offset.getNano, fs, fix - fs*1000000000, subtract = false) match
+          case 1 => OffsetDateTime.MAX.minusNanos(scale - 1)
+          case _ => offset plusNanos fix
+      catch case _: DateTimeException => OffsetDateTime.MAX.minusNanos(scale - 1)
+    */
+
+  private def offsetMinErr(offset: OffsetDateTime): Long = 1000000000L*offset.getSecond + offset.getNano
+  private def offsetHrErr(offset: OffsetDateTime): Long = 1000000000L*(60*offset.getMinute + offset.getSecond) + offset.getNano
+  private def offsetDayErr(offset: OffsetDateTime): Long = 1000000000L*(3600*offset.getHour + 60*offset.getMinute + offset.getSecond) + offset.getNano
+
+  opaque type FloorOffset = OffsetDateTime
+  object FloorOffset {
+    inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.FloorOffset = offset
+    extension (floor: FloorOffset) {
+      def us: OffsetDateTime = fixErrOffset(floor, floor.getNano % 1000, 1000, 1000)
+      def ms: OffsetDateTime = fixErrOffset(floor, floor.getNano % 1000000, 1000000, 1000000)
+      def s:  OffsetDateTime = fixErrOffset(floor, floor.getNano, 1000000000, 1000000000)
+      def m:  OffsetDateTime = fixErrOffset(floor, offsetMinErr(floor), Mns, Mns)
+      def h:  OffsetDateTime = fixErrOffset(floor, offsetHrErr( floor), Hns, Hns)
+      def d:  OffsetDateTime = fixErrOffset(floor, offsetDayErr(floor), Dns, Dns)
+      inline def days: OffsetDateTime = FloorOffset.d(floor)
+    }
+  }
+
+  opaque type RoundOffset = OffsetDateTime
+  object RoundOffset {
+    inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.RoundOffset = offset
+    extension (round: RoundOffset) {
+      def us: OffsetDateTime = fixErrOffset(round, round.getNano % 1000, 1000, 501)
+      def ms: OffsetDateTime = fixErrOffset(round, round.getNano % 1000000, 1000000, 500001)
+      def s:  OffsetDateTime = fixErrOffset(round, round.getNano, 1000000000, 500000001)
+      def m:  OffsetDateTime = fixErrOffset(round, offsetMinErr(round), Mns, MnsHp1)
+      def h:  OffsetDateTime = fixErrOffset(round, offsetHrErr( round), Hns, HnsHp1)
+      def d:  OffsetDateTime = fixErrOffset(round, offsetDayErr(round), Dns, DnsHp1)
+      inline def days: OffsetDateTime = RoundOffset.d(round)
+    }
+  }
+
+  opaque type CeilOffset = OffsetDateTime
+  object CeilOffset {
+    inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.CeilOffset = offset
+    extension (ceil: CeilOffset) {
+      def us: OffsetDateTime = fixErrOffset(ceil, ceil.getNano % 1000, 1000, 1)
+      def ms: OffsetDateTime = fixErrOffset(ceil, ceil.getNano % 1000000, 1000000, 1)
+      def s:  OffsetDateTime = fixErrOffset(ceil, ceil.getNano, 1000000000, 1)
+      def m:  OffsetDateTime = fixErrOffset(ceil, offsetMinErr(ceil), Mns, 1)
+      def h:  OffsetDateTime = fixErrOffset(ceil, offsetHrErr( ceil), Hns, 1)
+      def d:  OffsetDateTime = fixErrOffset(ceil, offsetDayErr(ceil), Dns, 1)
+      inline def days: OffsetDateTime = CeilOffset.d(ceil)
     }
   }
 }
@@ -2108,24 +2207,74 @@ extension (local: LocalDateTime) {
   // in(LocalDateTime, LocalDateTime) in OverloadedExtensions
   // checkIn(LocalDateTime, LocalDateTime) in OverloadedExtensions
 
-  inline def D: kse.maths.DoubleInstant    = DoubleInstant(TemporalCompanion.toInstant(local))
+  def D: kse.maths.DoubleInstant =
+    DoubleInstant.fromSeconds(local.toEpochSecond(ZoneId.systemDefault.getRules.getOffset(local)), local.getNano)
 
-  inline def instant: Instant              = TemporalCompanion.toInstant(local)
+  inline def instant: Instant       = TemporalCompanion.toInstant(local)
 
-  inline def offset: OffsetDateTime        = TemporalCompanion.toOffset(local)
+  inline def offset: OffsetDateTime = TemporalCompanion.toOffset(local)
 
-  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(local)
-  inline def checkedUTC                    = TemporalCompanion.toUTCChecked(local)
+  inline def utc: OffsetDateTime    = TemporalCompanion.toUTC(local)
+  inline def checkedUTC             = TemporalCompanion.toUTCChecked(local)
 
-  inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(local)
+  inline def zoned: ZonedDateTime   = TemporalCompanion.toZoned(local)
 
-  inline def filetime: FileTime            = FileTime.from(TemporalCompanion.toInstant(local))
+  inline def filetime: FileTime     = FileTime.from(TemporalCompanion.toInstant(local))
 
 
   // trunc in OverloadedExtensions
   inline def floor: kse.maths.TemporalCompanion.FloorLocal = TemporalCompanion.FloorLocal(local)
   inline def round: kse.maths.TemporalCompanion.RoundLocal = TemporalCompanion.RoundLocal(local)
   inline def ceil:  kse.maths.TemporalCompanion.CeilLocal  = TemporalCompanion.CeilLocal(local)
+}
+
+
+extension (offset: OffsetDateTime) {
+  // +(Duration) in OverloadedExtensions
+  // +!(Duration) in OverloadedExtensions
+  // -(Duration) in OverloadedExtensions
+  // -!(Duration) in OverloadedExtensions
+  // -(OffsetDateTime) in OverloadedExtensions
+
+  inline def to(odt: OffsetDateTime): Duration = Duration.between(offset, odt)
+
+  inline def <( odt: OffsetDateTime): Boolean = offset.compareTo(odt) < 0
+  inline def <=(odt: OffsetDateTime): Boolean = offset.compareTo(odt) <= 0
+  inline def >=(odt: OffsetDateTime): Boolean = offset.compareTo(odt) >= 0
+  inline def >( odt: OffsetDateTime): Boolean = offset.compareTo(odt) > 0
+
+  inline def max(odt: OffsetDateTime): OffsetDateTime = if offset.compareTo(odt) < 0 then odt else offset
+  inline def min(odt: OffsetDateTime): OffsetDateTime = if offset.compareTo(odt) > 0 then odt else offset
+
+  // clamp(OffsetDateTime, OffsetDateTime) in OverloadedExtensions
+  // in(OffsetDateTime, OffsetDateTime) in OverloadedExtensions
+  // checkIn(OffsetDateTime, OffsetDateTime) in OverloadedExtensions
+
+  inline def D: kse.maths.DoubleInstant      = DoubleInstant.fromSeconds(offset.toEpochSecond, offset.getNano)
+
+  inline def instant: Instant                = offset.toInstant
+
+  inline def discardOffset: LocalDateTime    = offset.toLocalDateTime
+
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(offset)
+  inline def localChecked: LocalDateTime     = TemporalCompanion.toLocalChecked(offset)
+
+  inline def myOffset: OffsetDateTime        = TemporalCompanion.toMyOffset(offset)
+  inline def checkedMyOffset: OffsetDateTime = TemporalCompanion.toMyOffsetChecked(offset)
+
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(offset)
+  inline def checkedUTC                      = TemporalCompanion.toUTCChecked(offset)
+
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(offset)
+  inline def checkedZoned: ZonedDateTime     = TemporalCompanion.toZonedChecked(offset)
+
+  inline def filetime: FileTime              = FileTime.from(offset.toInstant)
+
+
+  // trunc in OverloadedExtensions
+  inline def floor: kse.maths.TemporalCompanion.FloorOffset = TemporalCompanion.FloorOffset(offset)
+  inline def round: kse.maths.TemporalCompanion.RoundOffset = TemporalCompanion.RoundOffset(offset)
+  inline def ceil:  kse.maths.TemporalCompanion.CeilOffset  = TemporalCompanion.CeilOffset(offset)
 }
 
 /*

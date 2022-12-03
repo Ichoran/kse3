@@ -462,3 +462,35 @@ extension (local: LocalDateTime) {
     else local
 }
 
+
+
+extension (offset: OffsetDateTime) {
+  @targetName("OffsetDateTime_add_Duration")
+  inline def +(duration: Duration): OffsetDateTime = TemporalCompanion.addToOffset(offset, duration, subtract = false)
+
+  @targetName("OffsetDateTime_addexc_Duration")
+  inline def +!(duration: Duration): OffsetDateTime = offset plus duration
+
+  @targetName("OffsetDateTime_sub_Duration")
+  inline def -(duration: Duration): OffsetDateTime = TemporalCompanion.addToOffset(offset, duration, subtract = true)
+
+  @targetName("OffsetDateTime_subexc_Duration")
+  inline def -!(duration: Duration): OffsetDateTime = offset minus duration
+
+  @targetName("OffsetDateTime_sub_OffsetDateTime")
+  inline def -(odt: OffsetDateTime): Duration = Duration.between(odt, offset)
+
+  def clamp(odt0: OffsetDateTime, odt1: OffsetDateTime): OffsetDateTime =
+    if offset.compareTo(odt0) >= 0 then
+      if offset.compareTo(odt1) <= 0 then offset
+      else if odt0.compareTo(odt1) <= 0 then odt1
+      else odt0
+    else odt0
+
+  inline def in(odt0: OffsetDateTime, odt1: OffsetDateTime): Boolean = offset.compareTo(odt0) >= 0 && offset.compareTo(odt1) <= 0
+
+  def checkIn(odt0: OffsetDateTime, odt1: OffsetDateTime): OffsetDateTime =
+    if offset.compareTo(odt0) < 0 || offset.compareTo(odt1) > 0 then throw new DateTimeException("OffsetDateTime out of range")
+    else offset
+}
+
