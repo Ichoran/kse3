@@ -417,6 +417,10 @@ extension (instant: Instant) {
   @targetName("Instant_sub_Instant")
   inline def -(inst: Instant): Duration = Duration.between(inst, instant)
 
+  @targetName("Instant_sub_OffsetDateTime")
+  def -(odt: OffsetDateTime): Duration =
+    Duration.ofSeconds(instant.getEpochSecond - odt.toEpochSecond, instant.getNano - odt.getNano)
+
   def clamp(i0: Instant, i1: Instant): Instant =
     if instant.compareTo(i0) >= 0 then
       if instant.compareTo(i1) <= 0 then instant
@@ -478,7 +482,12 @@ extension (offset: OffsetDateTime) {
   inline def -!(duration: Duration): OffsetDateTime = offset minus duration
 
   @targetName("OffsetDateTime_sub_OffsetDateTime")
-  inline def -(odt: OffsetDateTime): Duration = Duration.between(odt, offset)
+  def -(odt: OffsetDateTime): Duration =
+    Duration.ofSeconds(offset.toEpochSecond - odt.toEpochSecond, offset.getNano - odt.getNano)
+
+  @targetName("OffsetDateTime_sub_Instant")
+  inline def -(instant: Instant): Duration =
+    Duration.ofSeconds(offset.toEpochSecond - instant.getEpochSecond, offset.getNano - instant.getNano)
 
   def clamp(odt0: OffsetDateTime, odt1: OffsetDateTime): OffsetDateTime =
     if offset.compareTo(odt0) >= 0 then

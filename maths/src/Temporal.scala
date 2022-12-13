@@ -13,6 +13,11 @@ import scala.annotation.targetName
 import kse.maths._
 
 
+// Note: Duration.between is not guaranteed to be safe on ZonedDateTime or OffsetDateTime!
+// Just get epoch seconds manually and calculate.  Duration tries to shift these to a common
+// offset or zone, which technically can fail.
+
+
 
 extension (inline t: Byte | Short | Int | Long | Float | Double) {
   transparent inline def days: Duration | kse.maths.DoubleDuration = inline t match
@@ -1785,6 +1790,7 @@ object TemporalCompanion {
 
   val ZoneOfUTC = ZoneId.of("UTC")
 
+
   def addToInstant(instant: Instant, duration: Duration, subtract: Boolean): Instant =
     var s =
       if subtract then instant.getEpochSecond -# duration.getSeconds
@@ -1840,6 +1846,50 @@ object TemporalCompanion {
         case _  => if subtract then offset minus duration else offset plus duration
     catch case _: DateTimeException =>
       (if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN).atOffset(offset.getOffset)
+
+
+  def compareUnlike(instant: Instant, offset: OffsetDateTime): Int =
+    val ea = instant.getEpochSecond
+    val eb = offset.toEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(instant.getNano, offset.getNano)
+
+  def compareUnlike(instant: Instant, zoned: ZonedDateTime): Int =
+    val ea = instant.getEpochSecond
+    val eb = zoned.toEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(instant.getNano, zoned.getNano)
+
+  def compareUnlike(offset: OffsetDateTime, instant: Instant): Int =
+    val ea = offset.toEpochSecond
+    val eb = instant.getEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(offset.getNano, instant.getNano)
+
+  def compareUnlike(offset: OffsetDateTime, zoned: ZonedDateTime): Int =
+    val ea = offset.toEpochSecond
+    val eb = zoned.toEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(offset.getNano, zoned.getNano)
+
+  def compareUnlike(zoned: ZonedDateTime, instant: Instant): Int =
+    val ea = zoned.toEpochSecond
+    val eb = instant.getEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(zoned.getNano, instant.getNano)
+
+  def compareUnlike(zoned: ZonedDateTime, offset: OffsetDateTime): Int =
+    val ea = zoned.toEpochSecond
+    val eb = offset.toEpochSecond
+    if      ea < eb then -1
+    else if ea > eb then 1
+    else                 Integer.compare(zoned.getNano, offset.getNano)
+
 
   def toInstant(datetime: LocalDateTime): Instant =
     datetime.toInstant(ZoneId.systemDefault.getRules.getOffset(datetime))
@@ -1929,6 +1979,7 @@ object TemporalCompanion {
     try toZonedChecked(offset)
     catch case _: DateTimeException => if offset.getYear < 0 then currentMinZonedDateTime else currentMaxZonedDateTime
   def toZonedChecked(offset: OffsetDateTime): ZonedDateTime = offset.atZoneSameInstant(ZoneId.systemDefault)
+
 
   private def adjustTemporalNanos(sec: Long, nano: Int, mod: Int, pos: Int, neg: Int): Instant =
     var n = nano
@@ -2076,34 +2127,37 @@ object TemporalCompanion {
     }
   }
 
-  private def fixErrOffset(offset: OffsetDateTime, err: Long, scale: Long, thresh: Long): OffsetDateTime = ???
-    /*
+  private def fixNanoErrOffset(offset: OffsetDateTime, err: Int, scale: Int, thresh: Int): OffsetDateTime =
     if err == 0 then offset
     else if err < thresh then offset.minusNanos(err)
     else
-      val fix = scale - err
-      val fs = fix/1000000000
-      try
-        predictOffsetOverflow(offset.getEpochSecond(ZoneOffset.UTC), offset.getNano, fs, fix - fs*1000000000, subtract = false) match
-          case 1 => OffsetDateTime.MAX.minusNanos(scale - 1)
-          case _ => offset plusNanos fix
-      catch case _: DateTimeException => OffsetDateTime.MAX.minusNanos(scale - 1)
-    */
+      try offset.plusNanos(scale - err)
+      catch case _: DateTimeException => LocalDateTime.MAX.minusNanos(scale - 1).atOffset(offset.getOffset)
 
-  private def offsetMinErr(offset: OffsetDateTime): Long = 1000000000L*offset.getSecond + offset.getNano
-  private def offsetHrErr(offset: OffsetDateTime): Long = 1000000000L*(60*offset.getMinute + offset.getSecond) + offset.getNano
-  private def offsetDayErr(offset: OffsetDateTime): Long = 1000000000L*(3600*offset.getHour + 60*offset.getMinute + offset.getSecond) + offset.getNano
+  private def offsetToNearby(offset: OffsetDateTime, useHr: Boolean, useMin: Boolean, upThresh: Long): OffsetDateTime =
+    val s = offset.getSecond + (if useMin then 60*offset.getMinute + (if useHr then 3600*offset.getHour else 0) else 0)
+    val ns = offset.getNano
+    if s == 0 && ns == 0 then offset
+    else
+      val down = ns + 1000000000L*s
+      val up = (if useHr then Dns else if useMin then Hns else Mns) - down
+      if down >= upThresh then
+        try offset.plusNanos(up)
+        catch case _: DateTimeException => offset.minusNanos(down)
+      else
+        try offset.minusNanos(down)
+        catch case _: DateTimeException => offset.plusNanos(up)
 
   opaque type FloorOffset = OffsetDateTime
   object FloorOffset {
     inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.FloorOffset = offset
     extension (floor: FloorOffset) {
-      def us: OffsetDateTime = fixErrOffset(floor, floor.getNano % 1000, 1000, 1000)
-      def ms: OffsetDateTime = fixErrOffset(floor, floor.getNano % 1000000, 1000000, 1000000)
-      def s:  OffsetDateTime = fixErrOffset(floor, floor.getNano, 1000000000, 1000000000)
-      def m:  OffsetDateTime = fixErrOffset(floor, offsetMinErr(floor), Mns, Mns)
-      def h:  OffsetDateTime = fixErrOffset(floor, offsetHrErr( floor), Hns, Hns)
-      def d:  OffsetDateTime = fixErrOffset(floor, offsetDayErr(floor), Dns, Dns)
+      def us: OffsetDateTime = fixNanoErrOffset(floor, floor.getNano % 1000, 1000, 1000)
+      def ms: OffsetDateTime = fixNanoErrOffset(floor, floor.getNano % 1000000, 1000000, 1000000)
+      def s:  OffsetDateTime = fixNanoErrOffset(floor, floor.getNano, 1000000000, 1000000000)
+      def m:  OffsetDateTime = offsetToNearby(floor, false, false, Mns)
+      def h:  OffsetDateTime = offsetToNearby(floor, false, true, Hns)
+      def d:  OffsetDateTime = offsetToNearby(floor, true, true, Dns)
       inline def days: OffsetDateTime = FloorOffset.d(floor)
     }
   }
@@ -2112,12 +2166,12 @@ object TemporalCompanion {
   object RoundOffset {
     inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.RoundOffset = offset
     extension (round: RoundOffset) {
-      def us: OffsetDateTime = fixErrOffset(round, round.getNano % 1000, 1000, 501)
-      def ms: OffsetDateTime = fixErrOffset(round, round.getNano % 1000000, 1000000, 500001)
-      def s:  OffsetDateTime = fixErrOffset(round, round.getNano, 1000000000, 500000001)
-      def m:  OffsetDateTime = fixErrOffset(round, offsetMinErr(round), Mns, MnsHp1)
-      def h:  OffsetDateTime = fixErrOffset(round, offsetHrErr( round), Hns, HnsHp1)
-      def d:  OffsetDateTime = fixErrOffset(round, offsetDayErr(round), Dns, DnsHp1)
+      def us: OffsetDateTime = fixNanoErrOffset(round, round.getNano % 1000, 1000, 501)
+      def ms: OffsetDateTime = fixNanoErrOffset(round, round.getNano % 1000000, 1000000, 500001)
+      def s:  OffsetDateTime = fixNanoErrOffset(round, round.getNano, 1000000000, 500000001)
+      def m:  OffsetDateTime = offsetToNearby(round, false, false, MnsHp1)
+      def h:  OffsetDateTime = offsetToNearby(round, false, true, HnsHp1)
+      def d:  OffsetDateTime = offsetToNearby(round, true, true, DnsHp1)
       inline def days: OffsetDateTime = RoundOffset.d(round)
     }
   }
@@ -2126,12 +2180,12 @@ object TemporalCompanion {
   object CeilOffset {
     inline def apply(offset: OffsetDateTime): kse.maths.TemporalCompanion.CeilOffset = offset
     extension (ceil: CeilOffset) {
-      def us: OffsetDateTime = fixErrOffset(ceil, ceil.getNano % 1000, 1000, 1)
-      def ms: OffsetDateTime = fixErrOffset(ceil, ceil.getNano % 1000000, 1000000, 1)
-      def s:  OffsetDateTime = fixErrOffset(ceil, ceil.getNano, 1000000000, 1)
-      def m:  OffsetDateTime = fixErrOffset(ceil, offsetMinErr(ceil), Mns, 1)
-      def h:  OffsetDateTime = fixErrOffset(ceil, offsetHrErr( ceil), Hns, 1)
-      def d:  OffsetDateTime = fixErrOffset(ceil, offsetDayErr(ceil), Dns, 1)
+      def us: OffsetDateTime = fixNanoErrOffset(ceil, ceil.getNano % 1000, 1000, 1)
+      def ms: OffsetDateTime = fixNanoErrOffset(ceil, ceil.getNano % 1000000, 1000000, 1)
+      def s:  OffsetDateTime = fixNanoErrOffset(ceil, ceil.getNano, 1000000000, 1)
+      def m:  OffsetDateTime = offsetToNearby(ceil, false, false, 1L)
+      def h:  OffsetDateTime = offsetToNearby(ceil, false, true, 1L)
+      def d:  OffsetDateTime = offsetToNearby(ceil, true, true, 1L)
       inline def days: OffsetDateTime = CeilOffset.d(ceil)
     }
   }
@@ -2145,13 +2199,22 @@ extension (instant: Instant) {
   // -(Duration) in OverloadedExtensions
   // -!(Duration) in OverloadedExtensions
   // -(Instant) in OverloadedExtensions
+  // -(OffsetDateTime) in OverloadedExtensions
 
   inline def to(inst: Instant): Duration = Duration.between(instant, inst)
+  def to(odt: OffsetDateTime): Duration =
+    Duration.ofSeconds(odt.toEpochSecond - instant.getEpochSecond, odt.getNano - instant.getNano)
 
   inline def <( inst: Instant): Boolean = instant.compareTo(inst) < 0
   inline def <=(inst: Instant): Boolean = instant.compareTo(inst) <= 0
   inline def >=(inst: Instant): Boolean = instant.compareTo(inst) >= 0
   inline def >( inst: Instant): Boolean = instant.compareTo(inst) > 0
+
+  inline def <( odt: OffsetDateTime): Boolean = TemporalCompanion.compareUnlike(instant, odt) < 0
+  inline def <=(odt: OffsetDateTime): Boolean = TemporalCompanion.compareUnlike(instant, odt) <= 0
+  inline def >=(odt: OffsetDateTime): Boolean = TemporalCompanion.compareUnlike(instant, odt) >= 0
+  inline def >( odt: OffsetDateTime): Boolean = TemporalCompanion.compareUnlike(instant, odt) > 0
+
 
   inline def max(inst: Instant): Instant = if instant.compareTo(inst) < 0 then inst else instant
   inline def min(inst: Instant): Instant = if instant.compareTo(inst) > 0 then inst else instant
@@ -2230,13 +2293,20 @@ extension (local: LocalDateTime) {
 
 
 extension (offset: OffsetDateTime) {
+  def MaxValue: OffsetDateTime = LocalDateTime.MAX atOffset offset.getOffset
+  def MinValue: OffsetDateTime = LocalDateTime.MIN atOffset offset.getOffset
+
   // +(Duration) in OverloadedExtensions
   // +!(Duration) in OverloadedExtensions
   // -(Duration) in OverloadedExtensions
   // -!(Duration) in OverloadedExtensions
   // -(OffsetDateTime) in OverloadedExtensions
+  // -(Instant) in OverloadedExtensions
 
-  inline def to(odt: OffsetDateTime): Duration = Duration.between(offset, odt)
+  def to(odt: OffsetDateTime): Duration =
+    Duration.ofSeconds(odt.toEpochSecond - offset.toEpochSecond, odt.getNano - offset.getNano)
+  def to(instant: Instant): Duration =
+    Duration.ofSeconds(instant.getEpochSecond - offset.toEpochSecond, instant.getNano - offset.getNano)
 
   inline def <( odt: OffsetDateTime): Boolean = offset.compareTo(odt) < 0
   inline def <=(odt: OffsetDateTime): Boolean = offset.compareTo(odt) <= 0
@@ -2257,7 +2327,7 @@ extension (offset: OffsetDateTime) {
   inline def discardOffset: LocalDateTime    = offset.toLocalDateTime
 
   inline def local: LocalDateTime            = TemporalCompanion.toLocal(offset)
-  inline def localChecked: LocalDateTime     = TemporalCompanion.toLocalChecked(offset)
+  inline def checkedLocal: LocalDateTime     = TemporalCompanion.toLocalChecked(offset)
 
   inline def myOffset: OffsetDateTime        = TemporalCompanion.toMyOffset(offset)
   inline def checkedMyOffset: OffsetDateTime = TemporalCompanion.toMyOffsetChecked(offset)
@@ -2270,36 +2340,12 @@ extension (offset: OffsetDateTime) {
 
   inline def filetime: FileTime              = FileTime.from(offset.toInstant)
 
-
   // trunc in OverloadedExtensions
   inline def floor: kse.maths.TemporalCompanion.FloorOffset = TemporalCompanion.FloorOffset(offset)
   inline def round: kse.maths.TemporalCompanion.RoundOffset = TemporalCompanion.RoundOffset(offset)
   inline def ceil:  kse.maths.TemporalCompanion.CeilOffset  = TemporalCompanion.CeilOffset(offset)
 }
 
-/*
-extension (zoned: ZonedDateTime) {
-  inline def double: kse.maths.DoubleInstant = TemporalCompanion.toDouble(zoned)
-  inline def instant: Instant                = zoned.toInstant
-  inline def local: LocalDateTime            = TemporalCompanion.toLocal(zoned)
-  inline def offset: OffsetDateTime          = zoned.toOffsetDateTime
-  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(zoned)
-
-  inline def +(duration: Duration): ZonedDateTime = zoned plus duration
-
-  inline def -(z: ZonedDateTime): DeltaDateTime = DeltaDateTime.between(z, zoned)
-
-  inline def to(z: ZonedDateTime): DeltaDateTime = DeltaDateTime.between(zoned, z)
-
-  inline def <( z: ZonedDateTime): Boolean = zoned.compareTo(z) < 0
-  inline def <=(z: ZonedDateTime): Boolean = zoned.compareTo(z) <= 0
-  inline def >=(z: ZonedDateTime): Boolean = zoned.compareTo(z) >= 0
-  inline def >( z: ZonedDateTime): Boolean = zoned.compareTo(z) > 0
-
-  inline def max(z: ZonedDateTime): ZonedDateTime = if zoned.compareTo(z) < 0 then z else zoned
-  inline def min(z: ZonedDateTime): ZonedDateTime = if zoned.compareTo(z) > 0 then z else zoned
-}
-*/
 
 class DeltaDateTime private (val years: Int, val months: Int, val days: Int, val seconds: Int, val nanos: Int) {
   override def toString =
