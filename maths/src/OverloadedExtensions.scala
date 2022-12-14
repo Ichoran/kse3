@@ -421,6 +421,10 @@ extension (instant: Instant) {
   def -(odt: OffsetDateTime): Duration =
     Duration.ofSeconds(instant.getEpochSecond - odt.toEpochSecond, instant.getNano - odt.getNano)
 
+  @targetName("Instant_sub_ZonedDateTime")
+  def -(zdt: ZonedDateTime): Duration =
+    Duration.ofSeconds(instant.getEpochSecond - zdt.toEpochSecond, instant.getNano - zdt.getNano)
+
   def clamp(i0: Instant, i1: Instant): Instant =
     if instant.compareTo(i0) >= 0 then
       if instant.compareTo(i1) <= 0 then instant
@@ -489,6 +493,10 @@ extension (offset: OffsetDateTime) {
   inline def -(instant: Instant): Duration =
     Duration.ofSeconds(offset.toEpochSecond - instant.getEpochSecond, offset.getNano - instant.getNano)
 
+  @targetName("OffsetDateTime_sub_ZonedDateTime")
+  inline def -(zoned: ZonedDateTime): Duration =
+    Duration.ofSeconds(offset.toEpochSecond - zoned.toEpochSecond, offset.getNano - zoned.getNano)
+
   def clamp(odt0: OffsetDateTime, odt1: OffsetDateTime): OffsetDateTime =
     if offset.compareTo(odt0) >= 0 then
       if offset.compareTo(odt1) <= 0 then offset
@@ -503,3 +511,43 @@ extension (offset: OffsetDateTime) {
     else offset
 }
 
+
+
+extension (zoned: ZonedDateTime) {
+  @targetName("ZonedDateTime_add_Duration")
+  inline def +(duration: Duration): ZonedDateTime = TemporalCompanion.addToZoned(zoned, duration, subtract = false)
+
+  @targetName("ZonedDateTime_addexc_Duration")
+  inline def +!(duration: Duration): ZonedDateTime = zoned plus duration
+
+  @targetName("ZonedDateTime_sub_Duration")
+  inline def -(duration: Duration): ZonedDateTime = TemporalCompanion.addToZoned(zoned, duration, subtract = true)
+
+  @targetName("ZonedDateTime_subexc_Duration")
+  inline def -!(duration: Duration): ZonedDateTime = zoned minus duration
+
+  @targetName("ZonedDateTime_sub_ZonedDateTime")
+  def -(zdt: ZonedDateTime): Duration =
+    Duration.ofSeconds(zoned.toEpochSecond - zdt.toEpochSecond, zoned.getNano - zdt.getNano)
+
+  @targetName("ZonedDateTime_sub_Instant")
+  inline def -(instant: Instant): Duration =
+    Duration.ofSeconds(zoned.toEpochSecond - instant.getEpochSecond, zoned.getNano - instant.getNano)
+
+  @targetName("ZonedDateTime_sub_OffsetDateTime")
+  inline def -(offset: OffsetDateTime): Duration =
+    Duration.ofSeconds(zoned.toEpochSecond - offset.toEpochSecond, zoned.getNano - offset.getNano)
+
+  def clamp(zdt0: ZonedDateTime, zdt1: ZonedDateTime): ZonedDateTime =
+    if zoned.compareTo(zdt0) >= 0 then
+      if zoned.compareTo(zdt1) <= 0 then zoned
+      else if zdt0.compareTo(zdt1) <= 0 then zdt1
+      else zdt0
+    else zdt0
+
+  inline def in(zdt0: ZonedDateTime, zdt1: ZonedDateTime): Boolean = zoned.compareTo(zdt0) >= 0 && zoned.compareTo(zdt1) <= 0
+
+  def checkIn(zdt0: ZonedDateTime, zdt1: ZonedDateTime): ZonedDateTime =
+    if zoned.compareTo(zdt0) < 0 || zoned.compareTo(zdt1) > 0 then throw new DateTimeException("ZonedDateTime out of range")
+    else zoned
+}

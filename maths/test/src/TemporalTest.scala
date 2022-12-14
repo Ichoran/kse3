@@ -2580,21 +2580,35 @@ class TemporalTest() {
     T ~ gig.utc                                  ==== typed[OffsetDateTime]
     T ~ (Duration.between(o.utc, udt) < 1.m)     ==== true
     T ~ gig.checkedUTC                           ==== gig.utc   --: typed[OffsetDateTime]
+    T ~ gig.utc.offset                           ==== gig       --: typed[OffsetDateTime]
+    T ~ gig.utc.offset.getOffset                 ==== gig.getOffset
+    T ~ gig.utc.checkedOffset                    ==== gig       --: typed[OffsetDateTime]
+    T ~ gig.utc.checkedOffset.getOffset          ==== gig.getOffset
     T ~ (Duration.between(o.zoned, zdt) < 1.m)   ==== true
     T ~ gig.checkedZoned                         ==== gig.zoned --: typed[ZonedDateTime]
-    o.getOffset.getTotalSeconds match
-      case x if x > 0 =>
-        T ~ o.MinValue.utc              ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
-        T ~ o.MinValue.checkedUTC       ==== thrown[DateTimeException]
-        T ~ o.utc.MaxValue.local        ==== LocalDateTime.MAX
-        T ~ o.utc.MaxValue.checkedLocal ==== thrown[DateTimeException]
-      case x if x < 0 =>
-        T ~ o.MaxValue.utc              ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
-        T ~ o.MaxValue.checkedUTC       ==== thrown[DateTimeException]
-        T ~ o.utc.MinValue.local        ==== LocalDateTime.MIN
-        T ~ o.utc.MinValue.checkedLocal ==== thrown[DateTimeException]
-      case _ =>
-        println(s"Warning--local time matches UTC, so offset/UTC bounds safety not determined")
+
+    if o.getOffset.getTotalSeconds < 0 then
+      val farOff = ZoneOffset ofHours 11
+      val f = o withOffsetSameInstant farOff
+      T ~ f.MinValue.local         ==== LocalDateTime.MIN
+      T ~ f.MinValue.checkedLocal  ==== thrown[DateTimeException]
+      T ~ f.MinValue.offset        ==== LocalDateTime.MIN.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
+      T ~ f.MinValue.checkedOffset ==== thrown[DateTimeException]
+      T ~ f.MinValue.utc           ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
+      T ~ f.MinValue.checkedUTC    ==== thrown[DateTimeException]
+      T ~ f.MinValue.zoned         ==== LocalDateTime.MIN.atZone(ZoneId.systemDefault)
+      T ~ f.MinValue.checkedZoned  ==== thrown[DateTimeException]
+    else
+      val farOff = ZoneOffset ofHours -9
+      val f = o withOffsetSameInstant farOff
+      T ~ f.MaxValue.local         ==== LocalDateTime.MAX
+      T ~ f.MaxValue.checkedLocal  ==== thrown[DateTimeException]
+      T ~ f.MaxValue.offset        ==== LocalDateTime.MAX.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
+      T ~ f.MaxValue.checkedOffset ==== thrown[DateTimeException]
+      T ~ f.MaxValue.utc           ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
+      T ~ f.MaxValue.checkedUTC    ==== thrown[DateTimeException]
+      T ~ f.MaxValue.zoned         ==== LocalDateTime.MAX.atZone(ZoneId.systemDefault)
+      T ~ f.MaxValue.checkedZoned  ==== thrown[DateTimeException]
 
     val n9 = 999999999
     def ooes(s: Long, nano: Int = 0): OffsetDateTime =
@@ -2714,17 +2728,246 @@ class TemporalTest() {
     T ~ o.round.days ==== o.round.d --: typed[OffsetDateTime]
     T ~ o.floor.days ==== o.floor.d --: typed[OffsetDateTime]
     T ~ o.ceil.days  ==== o.ceil.d  --: typed[OffsetDateTime]
-    T ~ OffsetDateTime.MAX.round.us ==== OffsetDateTime.MAX.minus(999.ns)
-    T ~ OffsetDateTime.MAX.round.ms ==== OffsetDateTime.MAX.minus(999999.ns)
-    T ~ OffsetDateTime.MAX.round.s  ==== OffsetDateTime.MAX.minus(999999999.ns)
-    T ~ OffsetDateTime.MAX.round.m  ==== OffsetDateTime.MAX.minus(59.s + 999999999.ns)
-    T ~ OffsetDateTime.MAX.round.h  ==== OffsetDateTime.MAX.minus(59.m + 59.s + 999999999.ns)
-    T ~ OffsetDateTime.MAX.round.d  ==== OffsetDateTime.MAX.minus(23.h + 59.m + 59.s + 999999999.ns)
-    T ~ OffsetDateTime.MAX.ceil.us  ==== OffsetDateTime.MAX.round.us
-    T ~ OffsetDateTime.MAX.ceil.ms  ==== OffsetDateTime.MAX.round.ms
-    T ~ OffsetDateTime.MAX.ceil.s   ==== OffsetDateTime.MAX.round.s 
-    T ~ OffsetDateTime.MAX.ceil.m   ==== OffsetDateTime.MAX.round.m 
-    T ~ OffsetDateTime.MAX.ceil.h   ==== OffsetDateTime.MAX.round.h 
-    T ~ OffsetDateTime.MAX.ceil.d   ==== OffsetDateTime.MAX.round.d
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.us ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.ms ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(999999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.s  ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(999999999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.m  ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.h  ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).round.d  ==== LocalDateTime.MAX.atOffset(o.getOffset).minus(23.h + 59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.us  ==== LocalDateTime.MAX.atOffset(o.getOffset).round.us
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.ms  ==== LocalDateTime.MAX.atOffset(o.getOffset).round.ms
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.s   ==== LocalDateTime.MAX.atOffset(o.getOffset).round.s 
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.m   ==== LocalDateTime.MAX.atOffset(o.getOffset).round.m 
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.h   ==== LocalDateTime.MAX.atOffset(o.getOffset).round.h 
+    T ~ LocalDateTime.MAX.atOffset(o.getOffset).ceil.d   ==== LocalDateTime.MAX.atOffset(o.getOffset).round.d
+
+
+  def testZonedDateTime(): Unit =
+    val z = ZonedDateTime.now
+    val idt = Instant.now
+    val ldt = LocalDateTime.now
+    val odt = OffsetDateTime.now
+    val udt = odt.withOffsetSameInstant(ZoneOffset.UTC)
+    val gig = Instant.ofEpochSecond(1000000000).zoned
+    val gigu = gig.withZoneSameInstant(ZoneId of "UTC")
+    val goz = gig.getZone
+    val giggle = Instant.ofEpochSecond(1000000001, 234567890).zoned
+    val big = gig to gig.MaxValue
+    val bigger = giggle.MinValue to giggle
+    T ~ (gig + 1.s)     ==== Instant.ofEpochSecond(1000000001).zoned --: typed[ZonedDateTime]
+    T ~ (giggle + big)  ==== giggle.MaxValue
+    T ~ (gig +! 1.s)    ==== (gig + 1.s) --: typed[ZonedDateTime]
+    T ~ (giggle +! big) ==== thrown[DateTimeException]
+    T ~ (gig - 1.s)     ==== Instant.ofEpochSecond(999999999).zoned  --: typed[ZonedDateTime]
+    T ~ (gig - bigger)  ==== gig.MinValue
+    T ~ (gig -! 1.s)    ==== (gig - 1.s)                       --: typed[ZonedDateTime]
+    T ~ (gig -! bigger) ==== thrown[DateTimeException]
+    T ~ (giggle - gig)  ==== 1234567890.ns                     --: typed[Duration]
+    T ~ (giggle to gig) ==== -1234567890.ns                    --: typed[Duration]
+    T ~ (gig < giggle)  ==== true
+    T ~ (gig < gig)     ==== false
+    T ~ (giggle < gig)  ==== false
+    T ~ (gig <= giggle) ==== true
+    T ~ (gig <= gig)    ==== true
+    T ~ (giggle <= gig) ==== false
+    T ~ (gig >= giggle) ==== false
+    T ~ (gig >= gig)    ==== true
+    T ~ (giggle >= gig) ==== true
+    T ~ (gig > giggle)  ==== false
+    T ~ (gig > gig)     ==== false 
+    T ~ (giggle > gig)  ==== true
+    T ~ (gig max giggle)                 ==== giggle      --: typed[ZonedDateTime]
+    T ~ (giggle max gig)                 ==== giggle
+    T ~ (gig min giggle)                 ==== gig         --: typed[ZonedDateTime]
+    T ~ (giggle min gig)                 ==== gig
+    T ~ (gig + 1.s).clamp(gig, giggle)   ==== (gig + 1.s) --: typed[ZonedDateTime]
+    T ~ gig.clamp(gig + 1.s, giggle)     ==== (gig + 1.s)
+    T ~ giggle.clamp(gig, gig + 1.s)     ==== (gig + 1.s)
+    T ~ (gig + 1.s).clamp(giggle, gig)   ==== giggle
+    T ~ (gig + 1.s).in(gig, giggle)      ==== true
+    T ~ gig.in(gig + 1.s, giggle)        ==== false
+    T ~ giggle.in(gig, gig + 1.s)        ==== false
+    T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[ZonedDateTime]
+    T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
+    T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
+    T ~ gig.D                            ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.filetime                     ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
+    T ~ gig.instant                      ==== typed[Instant]
+    T ~ (idt - z.instant < 1.m)          ==== true
+    T ~ gig.local                        ==== typed[LocalDateTime]
+    T ~ (ldt - z.local < 1.m)            ==== true
+    T ~ gig.utc                          ==== typed[OffsetDateTime]
+    T ~ (udt - z.utc < 1.m)              ==== true
+    T ~ gig.checkedUTC                   ==== gig.utc   --: typed[OffsetDateTime]
+    T ~ gigu.zoned                       ==== gig       --: typed[ZonedDateTime]
+    T ~ gigu.zoned.getZone               ==== gig.getZone 
+    T ~ gigu.checkedZoned                ==== gig       --: typed[ZonedDateTime]
+    T ~ gigu.checkedZoned.getZone        ==== gig.getZone 
+    T ~ (odt - z.offset < 1.m)           ==== true
+    T ~ gig.checkedZoned                 ==== gig.zoned --: typed[ZonedDateTime]
+
+    if z.getOffset.getTotalSeconds < 0 then
+      val farZone = ZoneId of "Australia/Adelaide"
+      val f = z withZoneSameInstant farZone
+      T ~ f.MinValue.local         ==== LocalDateTime.MIN
+      T ~ f.MinValue.checkedLocal  ==== thrown[DateTimeException]
+      T ~ f.MinValue.offset        ==== LocalDateTime.MIN.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MIN))
+      T ~ f.MinValue.checkedOffset ==== thrown[DateTimeException]
+      T ~ f.MinValue.utc           ==== LocalDateTime.MIN.atOffset(ZoneOffset.UTC)
+      T ~ f.MinValue.checkedUTC    ==== thrown[DateTimeException]
+      T ~ f.MinValue.zoned         ==== LocalDateTime.MIN.atZone(z.getZone)
+      T ~ f.MinValue.checkedZoned  ==== thrown[DateTimeException]
+    else
+      val farZone = ZoneId of "America/Anchorage"
+      val f = z withZoneSameInstant farZone
+      T ~ f.MaxValue.local         ==== LocalDateTime.MAX
+      T ~ f.MaxValue.checkedLocal  ==== thrown[DateTimeException]
+      T ~ f.MaxValue.offset        ==== LocalDateTime.MAX.atOffset(ZoneId.systemDefault.getRules.getOffset(LocalDateTime.MAX))
+      T ~ f.MaxValue.checkedOffset ==== thrown[DateTimeException]
+      T ~ f.MaxValue.utc           ==== LocalDateTime.MAX.atOffset(ZoneOffset.UTC)
+      T ~ f.MaxValue.checkedUTC    ==== thrown[DateTimeException]
+      T ~ f.MaxValue.zoned         ==== LocalDateTime.MAX.atZone(z.getZone)
+      T ~ f.MaxValue.checkedZoned  ==== thrown[DateTimeException]
+
+    val n9 = 999999999
+    def zoes(s: Long, nano: Int = 0): ZonedDateTime =
+      val i = Instant.ofEpochSecond(s, nano)
+      val shift = ZoneId.systemDefault.getRules.getOffset(i).getTotalSeconds
+      (i - shift.s).zoned
+    T ~ zoes(100, 3000).floor.us      ==== zoes(100, 3000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3999).floor.us      ==== zoes(100, 3000)
+    T ~ zoes(-10, 3000).floor.us      ==== zoes(-10, 3000)
+    T ~ zoes(-10, 3999).floor.us      ==== zoes(-10, 3000)
+    T ~ zoes(100, 3000).round.us      ==== zoes(100, 3000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3500).round.us      ==== zoes(100, 3000)
+    T ~ zoes(100, 3501).round.us      ==== zoes(100, 4000)
+    T ~ zoes(100, 999999501).round.us ==== zoes(101)
+    T ~ zoes(-10, 3000).round.us      ==== zoes(-10, 3000)
+    T ~ zoes(-10, 3500).round.us      ==== zoes(-10, 3000)
+    T ~ zoes(-10, 3501).round.us      ==== zoes(-10, 4000)
+    T ~ zoes(-10, 999999501).round.us ==== zoes( -9)
+    T ~ zoes(100, 3000).ceil.us       ==== zoes(100, 3000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3001).ceil.us       ==== zoes(100, 4000)
+    T ~ zoes(100, 999999001).ceil.us  ==== zoes(101)
+    T ~ zoes(-10, 3000).ceil.us       ==== zoes(-10, 3000)
+    T ~ zoes(-10, 3001).ceil.us       ==== zoes(-10, 4000)
+    T ~ zoes(-10, 999999001).ceil.us  ==== zoes( -9)
+    T ~ zoes(100, 3000000).floor.ms   ==== zoes(100, 3000000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3999999).floor.ms   ==== zoes(100, 3000000)
+    T ~ zoes(-10, 3000000).floor.ms   ==== zoes(-10, 3000000)
+    T ~ zoes(-10, 3999999).floor.ms   ==== zoes(-10, 3000000)
+    T ~ zoes(100, 3000000).round.ms   ==== zoes(100, 3000000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3500000).round.ms   ==== zoes(100, 3000000)
+    T ~ zoes(100, 3500001).round.ms   ==== zoes(100, 4000000)
+    T ~ zoes(100, 999500001).round.ms ==== zoes(101)
+    T ~ zoes(-10, 3000000).round.ms   ==== zoes(-10, 3000000)
+    T ~ zoes(-10, 3500000).round.ms   ==== zoes(-10, 3000000)
+    T ~ zoes(-10, 3500001).round.ms   ==== zoes(-10, 4000000)
+    T ~ zoes(-10, 999500001).round.ms ==== zoes( -9)
+    T ~ zoes(100, 3000000).ceil.ms    ==== zoes(100, 3000000) --: typed[ZonedDateTime]
+    T ~ zoes(100, 3000001).ceil.ms    ==== zoes(100, 4000000)
+    T ~ zoes(100, 999000001).ceil.ms  ==== zoes(101)
+    T ~ zoes(-10, 3000000).ceil.ms    ==== zoes(-10, 3000000)
+    T ~ zoes(-10, 3000001).ceil.ms    ==== zoes(-10, 4000000)
+    T ~ zoes(-10, 999000001).ceil.ms  ==== zoes( -9)
+    T ~ zoes(100).floor.s             ==== zoes(100) --: typed[ZonedDateTime]
+    T ~ zoes(100, n9).floor.s         ==== zoes(100)
+    T ~ zoes(-10).floor.s             ==== zoes(-10)
+    T ~ zoes(-10, n9).floor.s         ==== zoes(-10)
+    T ~ zoes(100).round.s             ==== zoes(100) --: typed[ZonedDateTime]
+    T ~ zoes(100, 500000000).round.s  ==== zoes(100)
+    T ~ zoes(100, 500000001).round.s  ==== zoes(101)
+    T ~ zoes(-10).round.s             ==== zoes(-10)
+    T ~ zoes(-10, 500000000).round.s  ==== zoes(-10)
+    T ~ zoes(-10, 500000001).round.s  ==== zoes( -9)
+    T ~ zoes(100).ceil.s              ==== zoes(100) --: typed[ZonedDateTime]
+    T ~ zoes(100, 1).ceil.s           ==== zoes(101)
+    T ~ zoes(-10).ceil.s              ==== zoes(-10)
+    T ~ zoes(-10, 1).ceil.s           ==== zoes( -9)
+    T ~ zoes(6120).floor.m            ==== zoes(6120) --: typed[ZonedDateTime]
+    T ~ zoes(6179, n9).floor.m        ==== zoes(6120)
+    T ~ zoes(6120, 1).floor.m         ==== zoes(6120)
+    T ~ zoes(-180).floor.m            ==== zoes(-180)
+    T ~ zoes(-121, n9).floor.m        ==== zoes(-180)
+    T ~ zoes(-180, 1).floor.m         ==== zoes(-180)
+    T ~ zoes(6120).round.m            ==== zoes(6120) --: typed[ZonedDateTime]
+    T ~ zoes(6150).round.m            ==== zoes(6120)
+    T ~ zoes(6150, 1).round.m         ==== zoes(6180)
+    T ~ zoes(6151).round.m            ==== zoes(6180)
+    T ~ zoes(-180).round.m            ==== zoes(-180)
+    T ~ zoes(-150).round.m            ==== zoes(-180)
+    T ~ zoes(-150, 1).round.m         ==== zoes(-120)
+    T ~ zoes(-149).round.m            ==== zoes(-120)
+    T ~ zoes(6120).ceil.m             ==== zoes(6120) --: typed[ZonedDateTime]
+    T ~ zoes(6120, 1).ceil.m          ==== zoes(6180)
+    T ~ zoes(6121).ceil.m             ==== zoes(6180)
+    T ~ zoes(-180).ceil.m             ==== zoes(-180)
+    T ~ zoes(-180, 1).ceil.m          ==== zoes(-120)
+    T ~ zoes(-179).ceil.m             ==== zoes(-120)
+    T ~ zoes(612000).floor.h          ==== zoes(612000) --: typed[ZonedDateTime]
+    T ~ zoes(615599, n9).floor.h      ==== zoes(612000)
+    T ~ zoes(612000, 1).floor.h       ==== zoes(612000)
+    T ~ zoes(-14400).floor.h          ==== zoes(-14400)
+    T ~ zoes(-10801, n9).floor.h      ==== zoes(-14400)
+    T ~ zoes(-14400, 1).floor.h       ==== zoes(-14400)
+    T ~ zoes(612000).round.h          ==== zoes(612000) --: typed[ZonedDateTime]
+    T ~ zoes(613800).round.h          ==== zoes(612000)
+    T ~ zoes(613800, 1).round.h       ==== zoes(615600)
+    T ~ zoes(613801).round.h          ==== zoes(615600)
+    T ~ zoes(-14400).round.h          ==== zoes(-14400)
+    T ~ zoes(-12600).round.h          ==== zoes(-14400)
+    T ~ zoes(-12600, 1).round.h       ==== zoes(-10800)
+    T ~ zoes(-12599).round.h          ==== zoes(-10800)
+    T ~ zoes(612000).ceil.h           ==== zoes(612000) --: typed[ZonedDateTime]
+    T ~ zoes(612000, 1).ceil.h        ==== zoes(615600)
+    T ~ zoes(612001).ceil.h           ==== zoes(615600)
+    T ~ zoes(-14400).ceil.h           ==== zoes(-14400)
+    T ~ zoes(-14400, 1).ceil.h        ==== zoes(-10800)
+    T ~ zoes(-14399).ceil.h           ==== zoes(-10800)
+    T ~ zoes(1468800).floor.d         ==== zoes(1468800) --: typed[ZonedDateTime]
+    T ~ zoes(1555199, n9).floor.d     ==== zoes(1468800)
+    T ~ zoes(1468800, 1).floor.d      ==== zoes(1468800)
+    T ~ zoes(-259200).floor.d         ==== zoes(-259200)
+    T ~ zoes(-172801, n9).floor.d     ==== zoes(-259200)
+    T ~ zoes(-259200, 1).floor.d      ==== zoes(-259200)
+    T ~ zoes(1468800).round.d         ==== zoes(1468800) --: typed[ZonedDateTime]
+    T ~ zoes(1512000).round.d         ==== zoes(1468800)
+    T ~ zoes(1512000, 1).round.d      ==== zoes(1555200)
+    T ~ zoes(1512001).round.d         ==== zoes(1555200)
+    T ~ zoes(-259200).round.d         ==== zoes(-259200)
+    T ~ zoes(-216000).round.d         ==== zoes(-259200)
+    T ~ zoes(-216000, 1).round.d      ==== zoes(-172800)
+    T ~ zoes(-215999).round.d         ==== zoes(-172800)
+    T ~ zoes(1468800).ceil.d          ==== zoes(1468800) --: typed[ZonedDateTime]
+    T ~ zoes(1468800, 1).ceil.d       ==== zoes(1555200)
+    T ~ zoes(1468801).ceil.d          ==== zoes(1555200)
+    T ~ zoes(-259200).ceil.d          ==== zoes(-259200)
+    T ~ zoes(-259200, 1).ceil.d       ==== zoes(-172800)
+    T ~ zoes(-259199).ceil.d          ==== zoes(-172800)
+    T ~ z.round.days ==== z.round.d --: typed[ZonedDateTime]
+    T ~ z.floor.days ==== z.floor.d --: typed[ZonedDateTime]
+    T ~ z.ceil.days  ==== z.ceil.d  --: typed[ZonedDateTime]
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.us ==== LocalDateTime.MAX.atZone(z.getZone).minus(999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.ms ==== LocalDateTime.MAX.atZone(z.getZone).minus(999999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.s  ==== LocalDateTime.MAX.atZone(z.getZone).minus(999999999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.m  ==== LocalDateTime.MAX.atZone(z.getZone).minus(59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.h  ==== LocalDateTime.MAX.atZone(z.getZone).minus(59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).round.d  ==== LocalDateTime.MAX.atZone(z.getZone).minus(23.h + 59.m + 59.s + 999999999.ns)
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.us  ==== LocalDateTime.MAX.atZone(z.getZone).round.us
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.ms  ==== LocalDateTime.MAX.atZone(z.getZone).round.ms
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.s   ==== LocalDateTime.MAX.atZone(z.getZone).round.s 
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.m   ==== LocalDateTime.MAX.atZone(z.getZone).round.m 
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.h   ==== LocalDateTime.MAX.atZone(z.getZone).round.h 
+    T ~ LocalDateTime.MAX.atZone(z.getZone).ceil.d   ==== LocalDateTime.MAX.atZone(z.getZone).round.d
+
+    val hobart = ZoneId of "Australia/Hobart"
+    val weird = Instant.ofEpochSecond(-2345795357L) atZone hobart
+    val ordinary = Instant.ofEpochSecond(-2345795355L) atZone hobart
+    T ~ weird.getMinute    ==== 59
+    T ~ ordinary.getMinute ==== 10
+    T ~ (weird + 2.s)      ==== ordinary
+    T ~ (ordinary - weird) ==== 2.s
+    T ~ ordinary.round.d   ==== (weird - 86399.s)
+    T ~ LocalDateTime.MIN.atZone(hobart).floor.m ==== LocalDateTime.MIN.atZone(hobart).ceil.m
 }
 
