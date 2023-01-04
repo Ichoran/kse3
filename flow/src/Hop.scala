@@ -151,7 +151,7 @@ object Hop {
     * Usage:
     * {{{
     * def rooty(d: Double): Double Or String =
-    *   Hop.on[String]{
+    *   Hop.alt[String]{
     *     val d = getDouble()
     *     if d < 0 then s"Root of negative number: $d".hop
     *     val root = math.sqrt(d)
@@ -159,13 +159,17 @@ object Hop {
     *   }
     * }}}
     */
-  def on[Y] = new HopOrDispatcher[Y]()
+  inline def alt[Y]: kse.flow.Hop.HopOrDispatcher[Y] = new AnyImpl[Y]()
 
-  class HopOrDispatcher[Y](private val underlying: scala.Unit = ()) extends AnyVal {
-    def apply[X](f: CanHop[Y] ?=> X): X Or Y =
-      given ch: AnyImpl[Y] = new AnyImpl[Y]
-      try{ Is(f) }
-      catch { case h: Hop.Any[_] if h eq ch => Alt(ch.a) }
+  opaque type HopOrDispatcher[Y] = AnyImpl[Y]
+  object HopOrDispatcher {
+    extension [Y](ch: HopOrDispatcher[Y])
+      inline def apply[X](inline f: CanHop[Y] ?=> X): X Or Y =
+        try
+          val x = f(using ch)
+          Is(x)
+        catch
+          case h: Hop.Any[_] if h eq ch => Alt(ch.a)
   }
 }
 

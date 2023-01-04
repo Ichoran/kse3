@@ -1263,7 +1263,7 @@ class FlowTest {
     } ==== "Error: bad char 'm'"
 
     T("Or hop") ~ {
-      Hop.on[String]{
+      Hop.alt[String]{
         fish.foldLeft(0){ (acc, y) =>
           if y.length > 5 then y.hop
           else acc max y.length
@@ -1272,7 +1272,7 @@ class FlowTest {
     } ==== Alt("salmon") --: typed[Int Or String]
 
     T("Or did not hop") ~ {
-      Hop.on[String]{
+      Hop.alt[String]{
         fish.foldLeft(0){ (acc, y) =>
           if y.length > 8 then y.hop
           else acc max y.length

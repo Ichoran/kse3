@@ -1966,6 +1966,10 @@ class TemporalTest() {
     T ~ DoubleInstant(56890123456789012e7).filetime ==== FileTime.from(6584505029720950784L, TimeUnit.DAYS)
     T ~ DoubleInstant(56890123456789012e8).filetime ==== TemporalCompanion.FileTimeMax
     T ~ DoubleInstant(-1e24).filetime               ==== TemporalCompanion.FileTimeMin
+    T ~ DoubleInstant(t.filetime)                   ==== typed[DoubleInstant]
+    T ~ DoubleInstant(t.filetime).unwrap            =~~= t.unwrap
+    T ~ DoubleInstant(DoubleInstant( 56890123456789012e1).filetime).unwrap =~~=  56890123456789012e1
+    T ~ DoubleInstant(DoubleInstant(-56890123456789012e1).filetime).unwrap =~~= -56890123456789012e1
     T ~ nineG.checkedFileTime                              ==== nineG.filetime --: typed[FileTime]
     T ~ DoubleInstant(56890123456789012e8).checkedFileTime ==== thrown[DateTimeException]
     T ~ DoubleInstant(-1e24).checkedFileTime               ==== thrown[DateTimeException]
