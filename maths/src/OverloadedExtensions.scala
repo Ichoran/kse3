@@ -551,3 +551,42 @@ extension (zoned: ZonedDateTime) {
     if zoned.compareTo(zdt0) < 0 || zoned.compareTo(zdt1) > 0 then throw new DateTimeException("ZonedDateTime out of range")
     else zoned
 }
+
+
+
+extension (filetime: FileTime) {
+  @targetName("FileTime_add_Duration")
+  inline def +(duration: Duration): FileTime =
+    TemporalCompanion.addToFileTime(filetime, duration, subtract = false, checked = false)
+
+  @targetName("FileTime_addexc_Duration")
+  inline def +!(duration: Duration): FileTime =
+    TemporalCompanion.addToFileTime(filetime, duration, subtract = false, checked = true)
+
+  @targetName("FileTime_sub_Duration")
+  inline def -(duration: Duration): FileTime =
+    TemporalCompanion.addToFileTime(filetime, duration, subtract = true, checked = false)
+
+  @targetName("FileTime_subexc_Duration")
+  inline def -!(duration: Duration): FileTime =
+    TemporalCompanion.addToFileTime(filetime, duration, subtract = true, checked = true)
+
+  @targetName("FileTime_sub_FileTime")
+  def -(ft: FileTime): Duration = TemporalCompanion.fileTimeDelta(ft, filetime, checked = false)
+
+  @targetName("FileTime_subexc_FileTime")
+  def -!(ft: FileTime): Duration = TemporalCompanion.fileTimeDelta(ft, filetime, checked = true)
+
+  def clamp(ft0: FileTime, ft1: FileTime): FileTime =
+    if filetime.compareTo(ft0) >= 0 then
+      if filetime.compareTo(ft1) <= 0 then filetime
+      else if ft0.compareTo(ft1) <= 0 then ft1
+      else ft0
+    else ft0
+
+  inline def in(ft0: FileTime, ft1: FileTime): Boolean = filetime.compareTo(ft0) >= 0 && filetime.compareTo(ft1) <= 0
+
+  def checkIn(ft0: FileTime, ft1: FileTime): FileTime =
+    if filetime.compareTo(ft0) < 0 || filetime.compareTo(ft1) > 0 then throw new DateTimeException("FileTime out of range")
+    else filetime
+}

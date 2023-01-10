@@ -1903,7 +1903,6 @@ class TemporalTest() {
     T ~ DoubleInstant(1e9.next).unwrap         ==== 1e9.next         --: typed[Double]
     T ~ (DoubleInstant(ti).unwrap >= t.unwrap) ==== true
     T ~ DoubleInstant.fromSeconds(5, 195215)   ==== 5.000195215      --: typed[DoubleInstant]
-    T ~ DoubleInstant.fromDays(5, 1234567890L) ==== 432001.23456789  --: typed[DoubleInstant]
     T ~ (nineG + 5.0.ms)                       ==== 1.000000000005e9 --: typed[DoubleInstant]
     T ~ (nineG - 5.0.ms)                       ==== 0.999999999995e9 --: typed[DoubleInstant]
     T ~ (t - nineG)                            ==== (t.unwrap - 1e9) --: typed[DoubleDuration]
