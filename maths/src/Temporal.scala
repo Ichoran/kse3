@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014, 2015, 2020-22 Rex Kerr and Calico Life Sciences, LLC.
+// Copyright (c) 2014, 2015, 2020-23 Rex Kerr and Calico Life Sciences, LLC.
 
 package kse.maths
+
 
 import java.lang.{Math => jm}
 import java.time._
@@ -18,7 +19,6 @@ import kse.maths._
 // offset or zone, which technically can fail.
 
 
-
 extension (inline t: Byte | Short | Int | Long | Float | Double) {
   transparent inline def days: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofDays(i)
@@ -26,9 +26,11 @@ extension (inline t: Byte | Short | Int | Long | Float | Double) {
     case _ => compiletime.error("Use .days on Int to get a Duration or on Double to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
 
   transparent inline def day: Duration | kse.maths.DoubleDuration = inline t match
-    case _: 1   => Duration.ofDays(1)
-    case _: 1.0 => DoubleDuration(86400.0)
-    case _      => compiletime.error("Use .day on 1 to get a Duration or on 1.0 to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
+    case _: 1    => Duration.ofDays(1)
+    case _: -1   => Duration.ofDays(-1)
+    case _: 1.0  => DoubleDuration(86400.0)
+    case _: -1.0 => DoubleDuration(-86400.0)
+    case _       => compiletime.error("Use .day on 1 to get a Duration or on 1.0 to get a DoubleDuration.\nInput has neither type; use .toInt.days or .toDouble.days to specify which.")
 
   transparent inline def h: Duration | kse.maths.DoubleDuration = inline t match
     case i: Int => Duration.ofHours(i)
@@ -90,8 +92,9 @@ extension (inline t: Byte | Short | Int | Long | Float | Double) {
     case _ => compiletime.error(".days_nano only creates NanoDurations out of Short")
 
   transparent inline def day_nano: kse.maths.NanoDuration = inline t match
-    case _: 1 => NanoDuration(86400000000000L)
-    case _ => compiletime.error(".day_nano only creates NanoDurations out of the literal number 1")
+    case _: 1  => NanoDuration( 86400000000000L)
+    case _: -1 => NanoDuration(-86400000000000L)
+    case _     => compiletime.error(".day_nano only creates NanoDurations out of the literal number 1")
 }
 
 

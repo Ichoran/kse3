@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-15, 2021-22 Rex Kerr, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 
 package kse.flow
@@ -76,7 +76,7 @@ extension (float: Float)
   * }
   * }}}
   */
-inline def Ret[A](inline a: TransformsFlow[A] ?=> A): A =
+inline def Ret[A <: Float | Double](inline a: TransformsFlow[A] ?=> A): A =
   ${ EarlyReturnMacro.transform('{a(using TransformsFlow.of[A])}) }
 
 extension (objectOr: Or.type)

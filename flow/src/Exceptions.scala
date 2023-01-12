@@ -1,9 +1,10 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-15, 2021-22 Rex Kerr, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 package kse.flow
 
 import scala.util.control.NonFatal
+
 
 object ExceptionExplainer {
   private val emptyExplanation = new Array[String](0)

@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022 Rex Kerr and Calico Life Sciences, LLC.
+// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences, LLC.
 
 package kse.flow.bench
+
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -15,6 +16,12 @@ import scala.util.control.ControlThrowable
 import kse.flow._
 
 
+/** This is a terrible benchmarking framework.
+ *
+ *  But it's very easy to deploy despite an absence of an internal benchmarking framework.
+ *  Eventually that will happen and it will be nice.  For now, use at your own risk, and
+ *  doubt everything!  (Use JMH for anything important.)
+ */
 object Bench {
 
   class Nicely() {

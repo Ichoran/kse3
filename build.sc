@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
-// Copyright 2021-2022 Rex Kerr and Calico Life Sciences, LLC
+// Copyright 2021-2023 Rex Kerr and Calico Life Sciences, LLC
 
 
 import mill._
@@ -21,13 +21,15 @@ object testutilities extends Base {
 }
 
 trait Common extends Base {
+  def extraTestDeps: Seq[ScalaModule] = Seq.empty
+
   object test extends Tests with TestModule.Junit4 {
     override def ivyDeps = T{
       super.ivyDeps() ++ Agg(
         ivy"com.lihaoyi::sourcecode:0.2.7"
       )
     }
-    def moduleDeps = Seq(testutilities) ++ super.moduleDeps
+    def moduleDeps = Seq(testutilities) ++ extraTestDeps ++ super.moduleDeps
   }
 
   object bench extends Tests with TestModule.Junit4 {}
@@ -36,7 +38,7 @@ trait Common extends Base {
 object flow extends Common {}
 
 object maths extends Common {
-  def moduleDeps = Seq(flow)
+  override def extraTestDeps = Seq(flow)
 }
 
 object jsonal extends Common {

@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
 
 package kse.flow
 
@@ -7,6 +7,7 @@ import scala.compiletime.{erasedValue, summonFrom}
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
 import scala.util.control.{NonFatal, ControlThrowable}
+
 
 /** This is the implementation for `Or`, an unboxed union sum type.
   * 
@@ -51,6 +52,7 @@ object AorB {
       case i: IsBox[_] => get == i.get
       case _ => false
   }
+
 
   /** The disfavored branch of an `Or`.
     *
@@ -134,6 +136,7 @@ object AorB {
     inline def swapToTry: Try[Y] =
       Success(alt.alt)
   }
+
 
   /** The favored branch of an `Or`.
     *

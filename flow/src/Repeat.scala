@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-15, 2021-22 Rex Kerr, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 package kse.flow
+
 
 /** C-style for loop: starting with an Int `zero`, until meeting a stopping condition `p`, advance with `next` and operate with `f`. */
 inline def cFor(zero: Int)(inline p: Int => Boolean)(inline next: Int => Int)(inline f: Int => Unit): Unit =

@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2016, 2021-22 by Rex Kerr and Calico Life Sciences LLC
+// Copyright (c) 2016, 2021-23 by Rex Kerr and Calico Life Sciences LLC
 
 package kse.maths
+
 
 import java.lang.{Math => jm}
 

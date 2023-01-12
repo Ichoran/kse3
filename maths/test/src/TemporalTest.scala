@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
 
 package kse.maths.test
+
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -36,6 +37,7 @@ class TemporalTest() {
   )
 
   def testCreation(): Unit =
+    T ~ -1.day               ==== Duration.ofSeconds(-86400)
     T ~ 1.day                ==== Duration.ofSeconds(86400)
     T ~ 2.days               ==== Duration.ofSeconds(172800)
     T ~ 3.h                  ==== Duration.ofSeconds(10800)
@@ -44,6 +46,7 @@ class TemporalTest() {
     T ~ 6.ms                 ==== Duration.ofSeconds(0, 6000000)
     T ~ 7.us                 ==== Duration.ofSeconds(0, 7000)
     T ~ 8.ns                 ==== Duration.ofSeconds(0, 8)
+    T ~ -1.0.day             ==== DoubleDuration(-86400)         --: typed[DoubleDuration]
     T ~ 1.0.day              ==== DoubleDuration(86400)          --: typed[DoubleDuration]
     T ~ 2.0.days             ==== DoubleDuration(86400*2)        --: typed[DoubleDuration]
     T ~ 3.0.h                ==== DoubleDuration(10.8e3)         --: typed[DoubleDuration]
@@ -52,6 +55,7 @@ class TemporalTest() {
     T ~ 6.0.ms               ==== DoubleDuration(0.006)          --: typed[DoubleDuration]
     T ~ 7.0.us               ==== DoubleDuration(0.000007)       --: typed[DoubleDuration]
     T ~ 8.0.ns               ==== DoubleDuration(8e-9)           --: typed[DoubleDuration]
+    T ~ -1.day_nano          ==== NanoDuration(-86400000000000L) --: typed[NanoDuration]
     T ~ 1.day_nano           ==== NanoDuration(86400000000000L)  --: typed[NanoDuration]
     T ~ (2: Short).days_nano ==== NanoDuration(172800000000000L) --: typed[NanoDuration]
     T ~ (3: Short).h_nano    ==== NanoDuration(10800000000000L)  --: typed[NanoDuration]

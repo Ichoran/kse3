@@ -1,12 +1,12 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2011-15, 2021-22 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2011-15, 2021-23 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
 
 package kse.flow
+
 
 ////////////////////////////////////////////////
 /// Packaging and wrappers to alter behavior ///
 ////////////////////////////////////////////////
-
 
 /** Typeclass to enable generic copying of mutable things to a decent replica of themselves. */
 trait Copies[A] {

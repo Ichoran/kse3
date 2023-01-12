@@ -1,7 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022 Rex Kerr and Calico Life Sciences, LLC.
+// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences, LLC.
 
 package kse.flow.test
+
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -14,6 +15,7 @@ import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
 import sourcecode.{Line, given}
+
 
 @RunWith(classOf[JUnit4])
 class FlowTest {
