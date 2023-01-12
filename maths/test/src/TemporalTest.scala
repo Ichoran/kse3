@@ -2972,5 +2972,338 @@ class TemporalTest() {
     T ~ (ordinary - weird) ==== 2.s
     T ~ ordinary.round.d   ==== (weird - 86399.s)
     T ~ LocalDateTime.MIN.atZone(hobart).floor.m ==== LocalDateTime.MIN.atZone(hobart).ceil.m
+
+  def testFileTime(): Unit =
+    def orftv(ft: FileTime): Instant Or TemporalCompanion.TimeAndUnit = TemporalCompanion.fileTimeValue(ft) match
+      case i: Instant => Is(i)
+      case tu: TemporalCompanion.TimeAndUnit => Alt(tu)
+    val ft = FileTime from Instant.ofEpochSecond(1000000000, 123456789)
+    val gig = FileTime.from( 1000000000, TimeUnit.SECONDS)
+    val gigp = FileTime.from(1000000002, TimeUnit.SECONDS)
+    val gigm = FileTime.from( 999999997, TimeUnit.SECONDS)
+    val gimx = FileTime.from(Instant.MAX)
+    val gsmx = FileTime.from(Long.MaxValue, TimeUnit.SECONDS)
+    val gmmx = FileTime.from(Long.MaxValue, TimeUnit.MINUTES)
+    val gmmn = FileTime.from(Long.MinValue, TimeUnit.MINUTES)
+    val ghmx = FileTime.from(Long.MaxValue, TimeUnit.HOURS)
+    val gdmx = FileTime.from(Long.MaxValue, TimeUnit.DAYS)
+
+    T ~ orftv(gig)                     ==== Is(Instant.ofEpochSecond(1000000000))
+    T ~ orftv(gimx)                    ==== Is(Instant.MAX)
+    T ~ orftv(gsmx).mapAlt(_.timeunit) ==== Alt(TimeUnit.SECONDS)
+    T ~ orftv(gmmn).mapAlt(_.timeunit) ==== Alt(TimeUnit.MINUTES)
+    T ~ orftv(ghmx).mapAlt(_.timeunit) ==== Alt(TimeUnit.HOURS)
+    T ~ orftv(gdmx).mapAlt(_.timeunit) ==== Alt(TimeUnit.DAYS)
+    T ~ gig.value                        ==== typed[Instant | TemporalCompanion.TimeAndUnit]
+    T ~ gig.value.isInstanceOf[Instant]  ==== true
+    T ~ gsmx.value.isInstanceOf[Instant] ==== false
+    
+    T ~ (gig  + 2.s)             ==== gigp --: typed[FileTime]
+    T ~ (gimx + 2.s)             ==== FileTime.from(Instant.MAX.getEpochSecond + 2, TimeUnit.SECONDS)
+    T ~ (gsmx + 2.s)             ==== gsmx
+    T ~ (gsmx + 53.s)            ==== FileTime.from(Long.MaxValue/60 + 1, TimeUnit.MINUTES)
+    T ~ (gmmx + 2.m)             ==== gmmx
+    T ~ (gmmx + 53.m)            ==== FileTime.from(Long.MaxValue/60 + 1, TimeUnit.HOURS)
+    T ~ (gmmn + (-2).m)          ==== gmmn
+    T ~ (gmmn + (-52).m)         ==== FileTime.from(Long.MinValue/60 - 1, TimeUnit.HOURS)
+    T ~ (ghmx + 2.h)             ==== ghmx
+    T ~ (ghmx + 17.h)            ==== FileTime.from(Long.MaxValue/24 + 1, TimeUnit.DAYS)
+    T ~ (gdmx + 99.days)         ==== gdmx
+    T ~ (ghmx +! 17.h)           ==== (ghmx +! 17.h) --: typed[FileTime]
+    T ~ (gdmx +! 99.days)        ==== thrown[DateTimeException]
+    T ~ (gig  - 3.s)             ==== gigm --: typed[FileTime]
+    T ~ (gsmx - (-2.s))          ==== gsmx
+    T ~ (gsmx - (-53.s))         ==== FileTime.from(Long.MaxValue/60 + 1, TimeUnit.MINUTES)
+    T ~ (gdmx - -1.days)         ==== gdmx
+    T ~ (gdmx -! -1.days)        ==== thrown[DateTimeException]
+    T ~ (ft - gig)               ==== 123456789.ns --: typed[Duration]
+    T ~ (gig - ft)               ==== -123456789.ns
+    T ~ (gsmx - gimx)            ==== Duration.ofSeconds(Long.MaxValue - Instant.MAX.getEpochSecond - 1)  // Interval rounded down
+    T ~ ((gmmx+53.m) - gmmx)     ==== 0.s
+    T ~ ((gmmx+53.m)-(gmmx-7.m)) ==== 1.h
+    T ~ (gmmx - gsmx)            ==== DurationCompanion.MAX
+    T ~ (gsmx - gmmx)            ==== DurationCompanion.MIN
+    T ~ (gsmx -! gimx)           ==== (gsmx - gimx) --: typed[Duration]
+    T ~ (gmmx -! gsmx)           ==== thrown[DateTimeException]
+    T ~ (gimx to gsmx)           ==== (gsmx - gimx) --: typed[Duration]
+    T ~ (gmmn to gmmx)           ==== (gmmx - gmmn)
+    T ~ (gimx checkedTo gsmx)    ==== (gimx to gsmx) --: typed[Duration]
+    T ~ (gmmn checkedTo gmmx)    ==== thrown[DateTimeException]
+
+    T ~ (gig < gigp)             ==== true
+    T ~ (gig < gig)              ==== false
+    T ~ (gigp < gig)             ==== false
+    T ~ (gig <= gigp)            ==== true
+    T ~ (gig <= gig)             ==== true
+    T ~ (gigp <= gig)            ==== false
+    T ~ (gig >= gigp)            ==== false
+    T ~ (gig >= gig)             ==== true
+    T ~ (gigp >= gig)            ==== true
+    T ~ (gig > gigp)             ==== false
+    T ~ (gig > gig)              ==== false
+    T ~ (gigp > gig)             ==== true
+    T ~ (gig max gigp)           ==== gigp
+    T ~ (gigp max gig)           ==== gigp
+    T ~ (gig min gigp)           ==== gig
+    T ~ (gigp min gig)           ==== gig
+    T ~ gig.clamp(gigm, gigp)    ==== gig
+    T ~ gigm.clamp(gig, gigp)    ==== gig
+    T ~ gigp.clamp(gigm, gig)    ==== gig
+    T ~ gig.clamp(gigp, gigm)    ==== gigp
+    T ~ gig.in(gigm, gigp)       ==== true
+    T ~ gigm.in(gig, gigp)       ==== false
+    T ~ gigp.in(gigm, gig)       ==== false
+    T ~ gig.checkIn(gigm, gigp)  ==== gig
+    T ~ gigm.checkIn(gig, gigp)  ==== thrown[DateTimeException]
+    T ~ gigp.checkIn(gigm, gig)  ==== thrown[DateTimeException]
+
+    T ~ gig.D                       ==== 1e9 --: typed[DoubleInstant]
+    T ~ gimx.D                      ==== Instant.MAX.getEpochSecond.toDouble
+    T ~ gsmx.D                      ==== Long.MaxValue.toDouble
+    T ~ gmmn.D                      ==== (Long.MinValue.toDouble * 60)
+    T ~ ghmx.D                      ==== (Long.MaxValue.toDouble * 3600)
+    T ~ gdmx.D                      ==== (Long.MaxValue.toDouble * 86400)
+    T ~ gig.instant                 ==== Instant.ofEpochSecond(1000000000) --: typed[Instant]
+    T ~ gimx.instant                ==== Instant.MAX
+    T ~ (gimx + 1.s).instant        ==== Instant.MAX
+    T ~ (gmmn).instant              ==== Instant.MIN
+    T ~ gig.checkedInstant          ==== gig.instant --: typed[Instant]
+    T ~ gimx.checkedInstant         ==== gimx.instant
+    T ~ (gimx + 1.s).checkedInstant ==== thrown[DateTimeException]
+    T ~ gig.local                   ==== gig.instant.local --: typed[LocalDateTime]
+    T ~ gimx.local                  ==== gimx.instant.local
+    T ~ gig.checkedLocal            ==== gig.local --: typed[LocalDateTime]
+    T ~ gimx.checkedLocal           ==== thrown[DateTimeException]
+    T ~ gig.utc                     ==== gig.instant.utc --: typed[OffsetDateTime]
+    T ~ gimx.utc                    ==== gimx.instant.utc
+    T ~ gig.checkedUTC              ==== gig.utc --: typed[OffsetDateTime]
+    T ~ gimx.checkedUTC             ==== thrown[DateTimeException]
+    T ~ gig.offset                  ==== gig.instant.offset --: typed[OffsetDateTime]
+    T ~ gimx.offset                 ==== gimx.instant.offset
+    T ~ gig.checkedOffset           ==== gig.offset --: typed[OffsetDateTime]
+    T ~ gimx.checkedOffset          ==== thrown[DateTimeException]
+    T ~ gig.zoned                   ==== gig.instant.zoned --: typed[ZonedDateTime]
+    T ~ gimx.zoned                  ==== gimx.instant.zoned
+    T ~ gig.checkedZoned            ==== gig.zoned --: typed[ZonedDateTime]
+    T ~ gimx.checkedZoned           ==== thrown[DateTimeException]
+
+    val n9 = 999999999
+    def foes(s: Long, nano: Int = 0): FileTime = FileTime from Instant.ofEpochSecond(s, nano)
+    T ~ foes(100, 3000).floor.us      ==== foes(100, 3000) --: typed[FileTime]
+    T ~ foes(100, 3999).floor.us      ==== foes(100, 3000)
+    T ~ foes(-10, 3000).floor.us      ==== foes(-10, 3000)
+    T ~ foes(-10, 3999).floor.us      ==== foes(-10, 3000)
+    T ~ foes(100, 3000).round.us      ==== foes(100, 3000) --: typed[FileTime]
+    T ~ foes(100, 3500).round.us      ==== foes(100, 3000)
+    T ~ foes(100, 3501).round.us      ==== foes(100, 4000)
+    T ~ foes(100, 999999501).round.us ==== foes(101)
+    T ~ foes(-10, 3000).round.us      ==== foes(-10, 3000)
+    T ~ foes(-10, 3500).round.us      ==== foes(-10, 3000)
+    T ~ foes(-10, 3501).round.us      ==== foes(-10, 4000)
+    T ~ foes(-10, 999999501).round.us ==== foes( -9)
+    T ~ foes(100, 3000).ceil.us       ==== foes(100, 3000) --: typed[FileTime]
+    T ~ foes(100, 3001).ceil.us       ==== foes(100, 4000)
+    T ~ foes(100, 999999001).ceil.us  ==== foes(101)
+    T ~ foes(-10, 3000).ceil.us       ==== foes(-10, 3000)
+    T ~ foes(-10, 3001).ceil.us       ==== foes(-10, 4000)
+    T ~ foes(-10, 999999001).ceil.us  ==== foes( -9)
+    T ~ foes(100, 3000000).floor.ms   ==== foes(100, 3000000) --: typed[FileTime]
+    T ~ foes(100, 3999999).floor.ms   ==== foes(100, 3000000)
+    T ~ foes(-10, 3000000).floor.ms   ==== foes(-10, 3000000)
+    T ~ foes(-10, 3999999).floor.ms   ==== foes(-10, 3000000)
+    T ~ foes(100, 3000000).round.ms   ==== foes(100, 3000000) --: typed[FileTime]
+    T ~ foes(100, 3500000).round.ms   ==== foes(100, 3000000)
+    T ~ foes(100, 3500001).round.ms   ==== foes(100, 4000000)
+    T ~ foes(100, 999500001).round.ms ==== foes(101)
+    T ~ foes(-10, 3000000).round.ms   ==== foes(-10, 3000000)
+    T ~ foes(-10, 3500000).round.ms   ==== foes(-10, 3000000)
+    T ~ foes(-10, 3500001).round.ms   ==== foes(-10, 4000000)
+    T ~ foes(-10, 999500001).round.ms ==== foes( -9)
+    T ~ foes(100, 3000000).ceil.ms    ==== foes(100, 3000000) --: typed[FileTime]
+    T ~ foes(100, 3000001).ceil.ms    ==== foes(100, 4000000)
+    T ~ foes(100, 999000001).ceil.ms  ==== foes(101)
+    T ~ foes(-10, 3000000).ceil.ms    ==== foes(-10, 3000000)
+    T ~ foes(-10, 3000001).ceil.ms    ==== foes(-10, 4000000)
+    T ~ foes(-10, 999000001).ceil.ms  ==== foes( -9)
+    T ~ foes(100).floor.s             ==== foes(100) --: typed[FileTime]
+    T ~ foes(100, n9).floor.s         ==== foes(100)
+    T ~ foes(-10).floor.s             ==== foes(-10)
+    T ~ foes(-10, n9).floor.s         ==== foes(-10)
+    T ~ foes(100).round.s             ==== foes(100) --: typed[FileTime]
+    T ~ foes(100, 500000000).round.s  ==== foes(100)
+    T ~ foes(100, 500000001).round.s  ==== foes(101)
+    T ~ foes(-10).round.s             ==== foes(-10)
+    T ~ foes(-10, 500000000).round.s  ==== foes(-10)
+    T ~ foes(-10, 500000001).round.s  ==== foes( -9)
+    T ~ foes(100).ceil.s              ==== foes(100) --: typed[FileTime]
+    T ~ foes(100, 1).ceil.s           ==== foes(101)
+    T ~ foes(-10).ceil.s              ==== foes(-10)
+    T ~ foes(-10, 1).ceil.s           ==== foes( -9)
+    T ~ foes(6120).floor.m            ==== foes(6120) --: typed[FileTime]
+    T ~ foes(6179, n9).floor.m        ==== foes(6120)
+    T ~ foes(6120, 1).floor.m         ==== foes(6120)
+    T ~ foes(-180).floor.m            ==== foes(-180)
+    T ~ foes(-121, n9).floor.m        ==== foes(-180)
+    T ~ foes(-180, 1).floor.m         ==== foes(-180)
+    T ~ foes(6120).round.m            ==== foes(6120) --: typed[FileTime]
+    T ~ foes(6150).round.m            ==== foes(6120)
+    T ~ foes(6150, 1).round.m         ==== foes(6180)
+    T ~ foes(6151).round.m            ==== foes(6180)
+    T ~ foes(-180).round.m            ==== foes(-180)
+    T ~ foes(-150).round.m            ==== foes(-180)
+    T ~ foes(-150, 1).round.m         ==== foes(-120)
+    T ~ foes(-149).round.m            ==== foes(-120)
+    T ~ foes(6120).ceil.m             ==== foes(6120) --: typed[FileTime]
+    T ~ foes(6120, 1).ceil.m          ==== foes(6180)
+    T ~ foes(6121).ceil.m             ==== foes(6180)
+    T ~ foes(-180).ceil.m             ==== foes(-180)
+    T ~ foes(-180, 1).ceil.m          ==== foes(-120)
+    T ~ foes(-179).ceil.m             ==== foes(-120)
+    T ~ foes(612000).floor.h          ==== foes(612000) --: typed[FileTime]
+    T ~ foes(615599, n9).floor.h      ==== foes(612000)
+    T ~ foes(612000, 1).floor.h       ==== foes(612000)
+    T ~ foes(-14400).floor.h          ==== foes(-14400)
+    T ~ foes(-10801, n9).floor.h      ==== foes(-14400)
+    T ~ foes(-14400, 1).floor.h       ==== foes(-14400)
+    T ~ foes(612000).round.h          ==== foes(612000) --: typed[FileTime]
+    T ~ foes(613800).round.h          ==== foes(612000)
+    T ~ foes(613800, 1).round.h       ==== foes(615600)
+    T ~ foes(613801).round.h          ==== foes(615600)
+    T ~ foes(-14400).round.h          ==== foes(-14400)
+    T ~ foes(-12600).round.h          ==== foes(-14400)
+    T ~ foes(-12600, 1).round.h       ==== foes(-10800)
+    T ~ foes(-12599).round.h          ==== foes(-10800)
+    T ~ foes(612000).ceil.h           ==== foes(612000) --: typed[FileTime]
+    T ~ foes(612000, 1).ceil.h        ==== foes(615600)
+    T ~ foes(612001).ceil.h           ==== foes(615600)
+    T ~ foes(-14400).ceil.h           ==== foes(-14400)
+    T ~ foes(-14400, 1).ceil.h        ==== foes(-10800)
+    T ~ foes(-14399).ceil.h           ==== foes(-10800)
+    T ~ foes(1468800).floor.d         ==== foes(1468800) --: typed[FileTime]
+    T ~ foes(1555199, n9).floor.d     ==== foes(1468800)
+    T ~ foes(1468800, 1).floor.d      ==== foes(1468800)
+    T ~ foes(-259200).floor.d         ==== foes(-259200)
+    T ~ foes(-172801, n9).floor.d     ==== foes(-259200)
+    T ~ foes(-259200, 1).floor.d      ==== foes(-259200)
+    T ~ foes(1468800).round.d         ==== foes(1468800) --: typed[FileTime]
+    T ~ foes(1512000).round.d         ==== foes(1468800)
+    T ~ foes(1512000, 1).round.d      ==== foes(1555200)
+    T ~ foes(1512001).round.d         ==== foes(1555200)
+    T ~ foes(-259200).round.d         ==== foes(-259200)
+    T ~ foes(-216000).round.d         ==== foes(-259200)
+    T ~ foes(-216000, 1).round.d      ==== foes(-172800)
+    T ~ foes(-215999).round.d         ==== foes(-172800)
+    T ~ foes(1468800).ceil.d          ==== foes(1468800) --: typed[FileTime]
+    T ~ foes(1468800, 1).ceil.d       ==== foes(1555200)
+    T ~ foes(1468801).ceil.d          ==== foes(1555200)
+    T ~ foes(-259200).ceil.d          ==== foes(-259200)
+    T ~ foes(-259200, 1).ceil.d       ==== foes(-172800)
+    T ~ foes(-259199).ceil.d          ==== foes(-172800)
+
+    T ~ (gsmx.floor.us eq gsmx)       ==== true
+    T ~ (gsmx.floor.ms eq gsmx)       ==== true
+    T ~ (gsmx.floor.s  eq gsmx)       ==== true
+    T ~ (gmmn.floor.m  eq gmmn)       ==== true
+    T ~ (ghmx.floor.h  eq ghmx)       ==== true
+    T ~ (gdmx.floor.d  eq gdmx)       ==== true
+    T ~ (gsmx.round.us eq gsmx)       ==== true
+    T ~ (gsmx.round.ms eq gsmx)       ==== true
+    T ~ (gsmx.round.s  eq gsmx)       ==== true
+    T ~ (gmmn.round.m  eq gmmn)       ==== true
+    T ~ (ghmx.round.h  eq ghmx)       ==== true
+    T ~ (gdmx.round.d  eq gdmx)       ==== true
+    T ~ (gsmx.ceil.us  eq gsmx)       ==== true
+    T ~ (gsmx.ceil.ms  eq gsmx)       ==== true
+    T ~ (gsmx.ceil.s   eq gsmx)       ==== true
+    T ~ (gmmn.ceil.m   eq gmmn)       ==== true
+    T ~ (ghmx.ceil.h   eq ghmx)       ==== true
+    T ~ (gdmx.ceil.d   eq gdmx)       ==== true
+    T ~ gimx.floor.days               ==== gimx.floor.d
+    T ~ gimx.round.days               ==== gimx.round.d
+    T ~ gimx.ceil.days                ==== gimx.ceil.d
+
+    inline def uft(value: Long, inline u: 's' | 'm' | 'h' | 'd') = inline u match
+      case 's' => FileTime.from(value, TimeUnit.SECONDS)
+      case 'm' => FileTime.from(value, TimeUnit.MINUTES)
+      case 'h' => FileTime.from(value, TimeUnit.HOURS)
+      case 'd' => FileTime.from(value, TimeUnit.DAYS)
+    T ~ uft(3074457345616800000L, 's').floor.m ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800059L, 's').floor.m ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800060L, 's').floor.m ==== uft(3074457345616800060L, 's')
+    T ~ uft(3074457345616800000L, 's').round.m ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800030L, 's').round.m ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800031L, 's').round.m ==== uft(3074457345616800060L, 's')
+    T ~ uft(3074457345616800060L, 's').round.m ==== uft(3074457345616800060L, 's')
+    T ~ uft(3074457345616800000L, 's').ceil.m  ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800001L, 's').ceil.m  ==== uft(3074457345616800060L, 's')
+    T ~ uft(3074457345616800060L, 's').ceil.m  ==== uft(3074457345616800060L, 's')
+    T ~ uft(3074457345616800000L, 's').floor.h ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616803599L, 's').floor.h ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616803600L, 's').floor.h ==== uft(3074457345616803600L, 's')
+    T ~ uft(3074457345616800000L, 's').round.h ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616801800L, 's').round.h ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616801801L, 's').round.h ==== uft(3074457345616803600L, 's')
+    T ~ uft(3074457345616803600L, 's').round.h ==== uft(3074457345616803600L, 's')
+    T ~ uft(3074457345616800000L, 's').ceil.h  ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800001L, 's').ceil.h  ==== uft(3074457345616803600L, 's')
+    T ~ uft(3074457345616803600L, 's').ceil.h  ==== uft(3074457345616803600L, 's')
+    T ~ uft(3074457345616800000L, 's').floor.d ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616886399L, 's').floor.d ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616886400L, 's').floor.d ==== uft(3074457345616886400L, 's')
+    T ~ uft(3074457345616800000L, 's').round.d ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616843200L, 's').round.d ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616843201L, 's').round.d ==== uft(3074457345616886400L, 's')
+    T ~ uft(3074457345616886400L, 's').round.d ==== uft(3074457345616886400L, 's')
+    T ~ uft(3074457345616800000L, 's').ceil.d  ==== uft(3074457345616800000L, 's')
+    T ~ uft(3074457345616800001L, 's').ceil.d  ==== uft(3074457345616886400L, 's')
+    T ~ uft(3074457345616886400L, 's').ceil.d  ==== uft(3074457345616886400L, 's')
+    T ~ uft(3074457345616800000L, 'm').floor.h ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800059L, 'm').floor.h ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800060L, 'm').floor.h ==== uft(3074457345616800060L, 'm')
+    T ~ uft(3074457345616800000L, 'm').round.h ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800030L, 'm').round.h ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800031L, 'm').round.h ==== uft(3074457345616800060L, 'm')
+    T ~ uft(3074457345616800060L, 'm').round.h ==== uft(3074457345616800060L, 'm')
+    T ~ uft(3074457345616800000L, 'm').ceil.h  ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800001L, 'm').ceil.h  ==== uft(3074457345616800060L, 'm')
+    T ~ uft(3074457345616800060L, 'm').ceil.h  ==== uft(3074457345616800060L, 'm')
+    T ~ uft(3074457345616800000L, 'm').floor.d ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616801339L, 'm').floor.d ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616801440L, 'm').floor.d ==== uft(3074457345616801440L, 'm')
+    T ~ uft(3074457345616800000L, 'm').round.d ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800720L, 'm').round.d ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800721L, 'm').round.d ==== uft(3074457345616801440L, 'm')
+    T ~ uft(3074457345616801440L, 'm').round.d ==== uft(3074457345616801440L, 'm')
+    T ~ uft(3074457345616800000L, 'm').ceil.d  ==== uft(3074457345616800000L, 'm')
+    T ~ uft(3074457345616800001L, 'm').ceil.d  ==== uft(3074457345616801440L, 'm')
+    T ~ uft(3074457345616801440L, 'm').ceil.d  ==== uft(3074457345616801440L, 'm')
+    T ~ uft(3074457345616800000L, 'h').floor.d ==== uft(3074457345616800000L, 'h')
+    T ~ uft(3074457345616800023L, 'h').floor.d ==== uft(3074457345616800000L, 'h')
+    T ~ uft(3074457345616800024L, 'h').floor.d ==== uft(3074457345616800024L, 'h')
+    T ~ uft(3074457345616800000L, 'h').round.d ==== uft(3074457345616800000L, 'h')
+    T ~ uft(3074457345616800012L, 'h').round.d ==== uft(3074457345616800000L, 'h')
+    T ~ uft(3074457345616800013L, 'h').round.d ==== uft(3074457345616800024L, 'h')
+    T ~ uft(3074457345616800024L, 'h').round.d ==== uft(3074457345616800024L, 'h')
+    T ~ uft(3074457345616800000L, 'h').ceil.d  ==== uft(3074457345616800000L, 'h')
+    T ~ uft(3074457345616800001L, 'h').ceil.d  ==== uft(3074457345616800024L, 'h')
+    T ~ uft(3074457345616800024L, 'h').ceil.d  ==== uft(3074457345616800024L, 'h')
+    T ~ uft(Long.MinValue, 's').floor.m ==== uft(Long.MinValue/60 - 1, 'm')
+    T ~ uft(Long.MaxValue, 's').ceil.m  ==== uft(Long.MaxValue/60 + 1, 'm')
+    T ~ uft(Long.MinValue, 's').floor.h ==== uft(Long.MinValue/3600 - 1, 'h')
+    T ~ uft(Long.MinValue, 's').round.h ==== uft(Long.MinValue/3600 - 1, 'h')
+    T ~ uft(Long.MaxValue, 's').round.h ==== uft(Long.MaxValue/3600 + 1, 'h')
+    T ~ uft(Long.MaxValue, 's').ceil.h  ==== uft(Long.MaxValue/3600 + 1, 'h')
+    T ~ uft(Long.MinValue, 's').floor.d ==== uft(Long.MinValue/86400 - 1, 'd')
+    T ~ uft(Long.MinValue, 's').round.d ==== uft(Long.MinValue/86400 - 1, 'd')
+    T ~ uft(Long.MaxValue, 's').round.d ==== uft(Long.MaxValue/86400 + 1, 'd')
+    T ~ uft(Long.MaxValue, 's').ceil.d  ==== uft(Long.MaxValue/86400 + 1, 'd')
+    T ~ uft(Long.MinValue, 'm').floor.h ==== uft(Long.MinValue/60 - 1, 'h')
+    T ~ uft(Long.MaxValue, 'm').ceil.h  ==== uft(Long.MaxValue/60 + 1, 'h')
+    T ~ uft(Long.MinValue, 'm').floor.d ==== uft(Long.MinValue/1440 - 1, 'd')
+    T ~ uft(Long.MinValue, 'm').round.d ==== uft(Long.MinValue/1440 - 1, 'd')
+    T ~ uft(Long.MaxValue, 'm').round.d ==== uft(Long.MaxValue/1440 + 1, 'd')
+    T ~ uft(Long.MaxValue, 'm').ceil.d  ==== uft(Long.MaxValue/1440 + 1, 'd')
+    T ~ uft(Long.MinValue, 'h').floor.d ==== uft(Long.MinValue/24 - 1, 'd')
+    T ~ uft(Long.MaxValue, 'h').ceil.d  ==== uft(Long.MaxValue/24 + 1, 'd')
 }
 

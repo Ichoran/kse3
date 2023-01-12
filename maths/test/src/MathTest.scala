@@ -2559,6 +2559,9 @@ class MathTest {
 
   @Test
   def temporalTestZonedDateTime(): Unit = temporalTester.testZonedDateTime()
+
+  @Test
+  def temporalTestFileTime(): Unit = temporalTester.testFileTime()
 }
 object MathsTest {
   // @BeforeClass

@@ -1862,32 +1862,34 @@ object TemporalCompanion {
       (if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN).atZone(zoned.getZone)
 
 
-  case class Tu(timeunit: TimeUnit, value: Long) {}
+  case class TimeAndUnit(timeunit: TimeUnit, value: Long) {
+    def filetime: FileTime = FileTime.from(value, timeunit)
+  }
 
-  def fileTimeValue(filetime: FileTime): Instant | Tu =
+  def fileTimeValue(filetime: FileTime): Instant | TimeAndUnit =
     val i = filetime.toInstant
     if i != Instant.MIN && i != Instant.MAX then i
     else
       val s = filetime to TimeUnit.SECONDS
       if s == Instant.MAX.getEpochSecond || s == Instant.MIN.getEpochSecond then i
       else
-        if s != Long.MinValue && s != Long.MaxValue then Tu(TimeUnit.SECONDS, s)
+        if s != Long.MinValue && s != Long.MaxValue then TimeAndUnit(TimeUnit.SECONDS, s)
         else
           val m = filetime to TimeUnit.MINUTES
-          if m == -153722867280912930L || m == 153722867280912930L then Tu(TimeUnit.SECONDS, s)
-          else if m != Long.MinValue && m != Long.MaxValue then Tu(TimeUnit.MINUTES, m)
+          if m == -153722867280912930L || m == 153722867280912930L then TimeAndUnit(TimeUnit.SECONDS, s)
+          else if m != Long.MinValue && m != Long.MaxValue then TimeAndUnit(TimeUnit.MINUTES, m)
           else
             val h = filetime to TimeUnit.HOURS
-            if h == -153722867280912930L || h == 153722867280912930L then Tu(TimeUnit.MINUTES, m)
-            else if h != Long.MinValue && h != Long.MaxValue then Tu(TimeUnit.HOURS, h)
+            if h == -153722867280912930L || h == 153722867280912930L then TimeAndUnit(TimeUnit.MINUTES, m)
+            else if h != Long.MinValue && h != Long.MaxValue then TimeAndUnit(TimeUnit.HOURS, h)
             else
               val d = filetime to TimeUnit.DAYS
-              if d == -384307168202282325L || d == 384307168202282325L then Tu(TimeUnit.HOURS, h)
-              else Tu(TimeUnit.DAYS, d)
+              if d == -384307168202282325L || d == 384307168202282325L then TimeAndUnit(TimeUnit.HOURS, h)
+              else TimeAndUnit(TimeUnit.DAYS, d)
 
-  def valueToFileTime(value: Instant | Tu): FileTime = value match
+  def valueToFileTime(value: Instant | TimeAndUnit): FileTime = value match
     case i: Instant => FileTime.from(i)
-    case Tu(u, x)   => FileTime.from(x, u)
+    case TimeAndUnit(u, x)   => FileTime.from(x, u)
 
   private[this] def addInstantGetFileTime(i: Instant, duration: Duration, subtract: Boolean): FileTime =
     val si = i.getEpochSecond
@@ -1918,7 +1920,8 @@ object TemporalCompanion {
       if major < 0 && minor > 0 then major += 1
       FileTime.from(major/30, TimeUnit.MINUTES)
 
-  private[this] def addStuffGetFileTime(x: Long, dx: Long, subtract: Boolean, tu: TimeUnit, tv: TimeUnit): FileTime =
+  private[this] def addStuffGetFileTime(x: Long, dx: Long, subtract: Boolean, tu: TimeUnit): FileTime =
+    val tv = TimeUnit.values.apply(tu.ordinal + 1)
     val direct = if subtract then x - dx else x + dx
     val clamped = if subtract then x -# dx else x +# dx
     if clamped == direct then FileTime.from(direct, tu)
@@ -1927,20 +1930,21 @@ object TemporalCompanion {
       val y = x/mod
       val dy = dx/mod
       var bigs = if subtract then y - dy else y + dy
-      (if subtract then (x - y*mod) - (dx - dy*60) else (x - y*60) + (dx - dy*60)) match
+      (if subtract then (x - y*mod) - (dx - dy*mod) else (x - y*mod) + (dx - dy*mod)) match
         case x if x >=  mod => bigs += 1
         case x if x <= -mod => bigs -= 1
         case _ =>
-      FileTime.from(bigs, tv)
+      if bigs == y then FileTime.from(clamped, tu)
+      else              FileTime.from(bigs, tv)
 
   private[this] def addSecondsGetFileTime(s: Long, dt: Long, subtract: Boolean): FileTime =
-    addStuffGetFileTime(s, dt, subtract, TimeUnit.SECONDS, TimeUnit.MINUTES)
+    addStuffGetFileTime(s, dt, subtract, TimeUnit.SECONDS)
 
   private[this] def addMinutesGetFileTime(m: Long, dt: Long, subtract: Boolean): FileTime =
-    addStuffGetFileTime(m, dt, subtract, TimeUnit.MINUTES, TimeUnit.HOURS)
+    addStuffGetFileTime(m, dt, subtract, TimeUnit.MINUTES)
 
   private[this] def addHoursGetFileTime(h: Long, dt: Long, subtract: Boolean): FileTime =
-    addStuffGetFileTime(h, dt, subtract, TimeUnit.HOURS, TimeUnit.DAYS)
+    addStuffGetFileTime(h, dt, subtract, TimeUnit.HOURS)
 
   private[this] def addDaysGetFileTime(d: Long, dt: Long, subtract: Boolean, checked: Boolean) =
     val direct = if subtract then d - dt else d + dt
@@ -1951,7 +1955,7 @@ object TemporalCompanion {
   def addToFileTime(filetime: FileTime, duration: Duration, subtract: Boolean, checked: Boolean): FileTime =
     fileTimeValue(filetime) match
       case i: Instant => addInstantGetFileTime(i, duration, subtract)
-      case Tu(u, x) =>
+      case TimeAndUnit(u, x) =>
         var dt = duration.getSeconds
         if dt < 0 && duration.getNano > 0 then dt += 1
         u match
@@ -1963,61 +1967,95 @@ object TemporalCompanion {
 
   def fileTimeDelta(ft0: FileTime, ft1: FileTime, checked: Boolean): Duration =
     var u = TimeUnit.NANOSECONDS
-    var x0: Long = 0
-    var n0: Int = 0
-    var x1: Long = 0
-    var n1: Int = 0
+    var x0 = 0L
+    var n0 = 0L
+    var x1 = 0L
+    var n1 = 0L
+    // First we'll do an exact calculation, then we'll round to the lowest precision
     fileTimeValue(ft0) match
       case i: Instant =>
         x0 = i.getEpochSecond
         n0 = i.getNano
-        if x0 < 0 && n0 > 0 then
-          x0 += 1
-          n0 -= 1000000000
-      case Tu(v, x) =>
+      case TimeAndUnit(v, x) =>
         u = v
         x0 = x
     fileTimeValue(ft1) match
       case i: Instant =>
         x1 = i.getEpochSecond
         n1 = i.getNano
-        if x0 < 0 && n0 > 0 then
-          x0 += 1
-          n0 -= 1000000000
         u match
-          case TimeUnit.NANOSECONDS =>  // All good, just here for efficiency
-          case TimeUnit.SECONDS     =>  // Also all good because we already truncated seconds
-          case TimeUnit.MINUTES     => x1 = x1/60
-          case TimeUnit.HOURS       => x1 = x1/3600
-          case TimeUnit.DAYS        => x1 = x1/86400
-          case _                    => throw new DateTimeException("Internal error: invalid TimeUnit for FileTime")
-      case Tu(v, x) =>
-        u.compareTo(v) match
+          case TimeUnit.NANOSECONDS | TimeUnit.SECONDS =>  // All good
+          case TimeUnit.MINUTES | TimeUnit.HOURS | TimeUnit.DAYS =>
+            val scale = TimeUnit.SECONDS.convert(1, u)
+            val y = x1 / scale
+            n1 += (scale * 1000000000L) * (x1 - y * scale)
+            if n1 < 0 then
+              x1 = y - 1
+              n1 += scale * 1000000000L
+            else
+              x1 = y
+          case _ => throw new DateTimeException("Internal error: invalid TimeUnit for FileTime")
+      case TimeAndUnit(v, x) =>
+        // Although our precision is u, for conversion we need to know what is in x0 and x
+        val uc = if u == TimeUnit.NANOSECONDS then TimeUnit.SECONDS else u
+        val vc = if v == TimeUnit.NANOSECONDS then TimeUnit.SECONDS else v
+        // We will report whoever is larger
+        if u.compareTo(v) < 0 then u = v
+        // But conversion is only on x's which are SECONDS or bigger
+        uc.compareTo(vc) match
           case c if c < 0 =>
             x1 = x
-            x0 = v.convert(x0, u)
+            val scale = uc.convert(1, vc)
+            val y = x0 / scale
+            val e = x0 - y * scale
+            n0 += TimeUnit.NANOSECONDS.convert(e, uc)
+            if n0 < 0 then
+              x0 = y - 1
+              n0 += TimeUnit.NANOSECONDS.convert(1, vc)
+            else
+              x0 = y
           case c if c > 0 =>
-            x1 = u.convert(x, v)
-          case _ =>  // Already the same unit, leave alone
+            val scale = vc.convert(1, uc)
+            val y = x / scale
+            val e = x - y * scale
+            n1 += TimeUnit.NANOSECONDS.convert(e, vc)
+            if n1 < 0 then
+              x1 = y - 1
+              n1 += TimeUnit.NANOSECONDS.convert(1, uc)
+            else
+              x1 = y
+          case _ =>
+            x1 = x
     if u == TimeUnit.NANOSECONDS then Duration.ofSeconds(x1 - x0, n1 - n0)  // Well within bounds, so no fancy checks needed
+    else if u == TimeUnit.SECONDS then
+      val dns = n1 - n0
+      val direct =
+        if      x1 > x0 && dns < 0 then x1 - (x0 + 1)
+        else if x1 < x0 && dns > 0 then x1 - (x0 - 1)
+        else                            x1 - x0
+      val clamped =
+        if      x1 > x0 && dns < 0 then x1 -# (x0 + 1)
+        else if x1 < x0 && dns > 0 then x1 -# (x0 - 1)
+        else                            x1 -# x0
+      if direct == clamped then Duration.ofSeconds(direct)
+      else if checked      then throw new DateTimeException("Duration out of bounds")
+      else if clamped > 0  then DurationCompanion.MAX
+      else                      DurationCompanion.MIN
     else
-      val direct = x1 - x0
-      val clipped = x1 -# x0
-      if !checked then
-        if direct != clipped then
-          if clipped == Long.MaxValue then DurationCompanion.MAX
-          else                             DurationCompanion.MIN
-        else if u == TimeUnit.SECONDS then Duration.ofSeconds(clipped)
-        else Duration.ofSeconds(TimeUnit.SECONDS.convert(clipped, u))
+      var delta = x1 -# x0
+      val dns = n1 - n0
+      if      delta > 0 && dns < 0 then delta -= 1
+      else if delta < 0 && dns > 0 then delta += 1
+      val dmax = u.convert(Long.MaxValue, TimeUnit.SECONDS)
+      val dmin = u.convert(Long.MinValue, TimeUnit.SECONDS)
+      if delta > dmax then
+        if checked then throw new DateTimeException("Duration out of bounds")
+        else DurationCompanion.MAX
+      else if delta < dmin then
+        if checked then throw new DateTimeException("Duration out of bounds")
+        else DurationCompanion.MIN
       else
-        if direct != clipped then
-          if u == TimeUnit.SECONDS && clipped == Long.MaxValue && direct == Long.MinValue then DurationCompanion.MAX
-          else throw new DateTimeException("Duration out of bounds")
-        else if u == TimeUnit.SECONDS then Duration.ofSeconds(direct)
-        else
-          val s = TimeUnit.SECONDS.convert(direct, u)
-          if s != Long.MaxValue && s != Long.MinValue then Duration.ofSeconds(direct)
-          else throw new DateTimeException("Duration out of bounds")  // Long Min/Max not divisible by 60 so Min/Max means overflow
+        Duration.ofSeconds(TimeUnit.SECONDS.convert(delta, u))
 
 
   def compareUnlike(instant: Instant, offset: OffsetDateTime): Int =
@@ -2483,10 +2521,23 @@ object TemporalCompanion {
           else FileTime.from(i plusNanos (scale - m))
       case _ => filetime  // Already properly rounded
 
-  private def fixFileTimeToUnit(filetime: FileTime, v: TimeUnit, thresh: Long): FileTime =
+  private def fixFileTimeBigly(filetime: FileTime, v: TimeUnit, thresh: Long): FileTime =
     fileTimeValue(filetime) match
-      case i: Instant => ???
-      case Tu(u, x) =>
+      case i: Instant =>
+        val scale = TimeUnit.SECONDS.convert(1, v)
+        var s = i.getEpochSecond
+        val ns = i.getNano
+        var fix = ns.toLong + (s % scale)*1000000000L
+        if fix < 0 then fix += scale*1000000000L
+        val delta =
+          if fix >= thresh then scale * 1000000000L - fix
+          else -fix
+        if delta == 0 then filetime
+        else
+          s += (ns + delta) / 1000000000L  // No remainder by design
+          if s < Instant.MIN.getEpochSecond || s > Instant.MAX.getEpochSecond then FileTime.from(s, TimeUnit.SECONDS)
+          else FileTime from Instant.ofEpochSecond(s)  // Pay cost of Instant up front since we mostly use Instants
+      case TimeAndUnit(u, x) =>
         if v.compareTo(u) <= 0 then filetime  // Already at least this rounded
         else
           val mod = u.convert(1, v)
@@ -2495,20 +2546,16 @@ object TemporalCompanion {
           val delta =
             if TimeUnit.NANOSECONDS.convert(m, u) >= thresh then mod - m
             else -m
-          val undelta = if delta < 0 then mod - m else -m
-          if x < 0 then
-            val y = x + delta
-            if y < 0 then FileTime.from(y, u)
-            else
-              val w = TimeUnit.values.apply(u.ordinal + 1)
-              val z = w.convert(x + undelta, u) - w.convert(mod, v)
-              FileTime.from(z, w)
+          if delta == 0 then filetime
           else
-            val y = x + delta
-            if y >= 0 then FileTime.from(y, u)
+            val direct = x + delta
+            val clamped = x +# delta
+            if direct == clamped then FileTime.from(direct, u)
             else
+              val undelta = if delta < 0 then mod - m else -m
+              val y = v.convert(x + undelta, u)
               val w = TimeUnit.values.apply(u.ordinal + 1)
-              val z = w.convert(x + undelta, u) + w.convert(mod, v)
+              val z = w.convert(if y < 0 then y - 1 else y + 1, v)
               FileTime.from(z, w)
 
   opaque type FloorFileTime = FileTime
@@ -2518,9 +2565,9 @@ object TemporalCompanion {
       def us: FileTime = fixNanoErrFileTime(floor, 1000, 1000)
       def ms: FileTime = fixNanoErrFileTime(floor, 1000000, 1000000)
       def s:  FileTime = fixNanoErrFileTime(floor, 1000000000, 1000000000)
-      def m:  FileTime = fixFileTimeToUnit(floor, TimeUnit.MINUTES, Mns)
-      def h:  FileTime = fixFileTimeToUnit(floor, TimeUnit.HOURS, Hns)
-      def d:  FileTime = fixFileTimeToUnit(floor, TimeUnit.DAYS, Dns)
+      def m:  FileTime = fixFileTimeBigly(floor, TimeUnit.MINUTES, Mns)
+      def h:  FileTime = fixFileTimeBigly(floor, TimeUnit.HOURS, Hns)
+      def d:  FileTime = fixFileTimeBigly(floor, TimeUnit.DAYS, Dns)
       inline def days: FileTime = FloorFileTime.d(floor)
     }
   }
@@ -2532,9 +2579,9 @@ object TemporalCompanion {
       def us: FileTime = fixNanoErrFileTime(round, 1000, 501)
       def ms: FileTime = fixNanoErrFileTime(round, 1000000, 500001)
       def s:  FileTime = fixNanoErrFileTime(round, 1000000000, 500000001)
-      def m:  FileTime = fixFileTimeToUnit(round, TimeUnit.MINUTES, MnsHp1)
-      def h:  FileTime = fixFileTimeToUnit(round, TimeUnit.HOURS, HnsHp1)
-      def d:  FileTime = fixFileTimeToUnit(round, TimeUnit.DAYS, DnsHp1)
+      def m:  FileTime = fixFileTimeBigly(round, TimeUnit.MINUTES, MnsHp1)
+      def h:  FileTime = fixFileTimeBigly(round, TimeUnit.HOURS, HnsHp1)
+      def d:  FileTime = fixFileTimeBigly(round, TimeUnit.DAYS, DnsHp1)
       inline def days: FileTime = RoundFileTime.d(round)
     }
   }
@@ -2546,9 +2593,9 @@ object TemporalCompanion {
       def us: FileTime = fixNanoErrFileTime(ceil, 1000, 1)
       def ms: FileTime = fixNanoErrFileTime(ceil, 1000000, 1)
       def s:  FileTime = fixNanoErrFileTime(ceil, 1000000000, 1)
-      def m:  FileTime = fixFileTimeToUnit(ceil, TimeUnit.MINUTES, 1L)
-      def h:  FileTime = fixFileTimeToUnit(ceil, TimeUnit.HOURS, 1L)
-      def d:  FileTime = fixFileTimeToUnit(ceil, TimeUnit.DAYS, 1L)
+      def m:  FileTime = fixFileTimeBigly(ceil, TimeUnit.MINUTES, 1L)
+      def h:  FileTime = fixFileTimeBigly(ceil, TimeUnit.HOURS, 1L)
+      def d:  FileTime = fixFileTimeBigly(ceil, TimeUnit.DAYS, 1L)
       inline def days: FileTime = CeilFileTime.d(ceil)
     }
   }
@@ -2777,8 +2824,8 @@ extension (filetime: FileTime) {
   // -(FileTime) in OverloadedExtensions
   // -!(FileTime) in OverloadedExtensions
 
-  def to(ft: FileTime): Duration        = TemporalCompanion.fileTimeDelta(filetime, ft, checked = true)
-  def checkedTo(ft: FileTime): Duration = TemporalCompanion.fileTimeDelta(filetime, ft, checked = false)
+  def to(ft: FileTime): Duration        = TemporalCompanion.fileTimeDelta(filetime, ft, checked = false)
+  def checkedTo(ft: FileTime): Duration = TemporalCompanion.fileTimeDelta(filetime, ft, checked = true)
 
   inline def <( ft: FileTime): Boolean = filetime.compareTo(ft) < 0
   inline def <=(ft: FileTime): Boolean = filetime.compareTo(ft) <= 0
@@ -2811,12 +2858,12 @@ extension (filetime: FileTime) {
   inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(filetime.toInstant)
   inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toZonedChecked(filetime.toInstant)
 
+  inline def value: Instant | TemporalCompanion.TimeAndUnit = TemporalCompanion.fileTimeValue(filetime)
+
   inline def floor: kse.maths.TemporalCompanion.FloorFileTime = TemporalCompanion.FloorFileTime(filetime)
   inline def round: kse.maths.TemporalCompanion.RoundFileTime = TemporalCompanion.RoundFileTime(filetime)
   inline def ceil:  kse.maths.TemporalCompanion.CeilFileTime  = TemporalCompanion.CeilFileTime(filetime)
 }
-
-
 
 
 
