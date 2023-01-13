@@ -4,6 +4,8 @@
 
 import mill._
 import mill.scalalib._
+import publish._
+
 
 trait Base extends ScalaModule {
   def scalaVersion = "3.1.3"
@@ -13,6 +15,30 @@ trait Base extends ScalaModule {
     "-deprecation"
   )}
 }
+
+
+trait PublishKse3 extends PublishModule {
+  def publicationName: String = ""
+
+  override def artifactName = {
+    if (publicationName.isEmpty) "kse3-" + super.artifactName()
+    else publicationName
+  }
+
+  def publishVersion = "0.0.2"
+
+  def pomSettings = PomSettings(
+    description = publicationName,
+    organization = "com.github.ichoran",
+    url = "https://github.com/ichoran/kse3",
+    licenses = Seq(License.`BSD-3-Clause-Clear`),
+    versionControl = VersionControl.github("ichoran", "kse3"),
+    developers = Seq(
+      Developer("ichoran", "Rex Kerr", "https://github.com/ichoran")
+    )
+  )
+}
+
 
 object testutilities extends Base {
   def ivyDeps = Agg(
@@ -35,7 +61,7 @@ trait Common extends Base {
   object bench extends Tests with TestModule.Junit4 {}
 }
 
-object flow extends Common {}
+object flow extends Common with PublishKse3 {}
 
 object maths extends Common {
   override def extraTestDeps = Seq(flow)
