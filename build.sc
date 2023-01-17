@@ -28,7 +28,7 @@ trait PublishKse3 extends PublishModule {
   def publishVersion = "0.0.2"
 
   def pomSettings = PomSettings(
-    description = publicationName,
+    description = "Kerr Scala Extensions 3, module " + artifactName(),
     organization = "com.github.ichoran",
     url = "https://github.com/ichoran/kse3",
     licenses = Seq(License.`BSD-3-Clause-Clear`),
