@@ -2,6 +2,9 @@
 // Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 
+/**
+  * This is the package documentation for kse.flow, hopefully.
+  */
 package kse.flow
 
 import scala.util.control.NonFatal
@@ -13,7 +16,7 @@ import scala.util.{Try, Success, Failure}
 /// Exports of other nicely packaged things ///
 ///////////////////////////////////////////////
 
-export kse.flow.AorB._
+//export kse.flow.AorB._
 
 
 //////////////////////////////////////
@@ -249,11 +252,96 @@ inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y =
 /// Interconversions between sum types ///
 //////////////////////////////////////////
 
+extension [Y](alt: Alt[Y]) {
+  /** Put value into Left */
+  inline def toEither: Either[Y, Nothing] =
+    Left(alt.alt)
+
+  /** Put value into Right */
+  inline def swapToEither: Either[Nothing, Y] =
+    Right(alt.alt)
+
+  /** Discard value, return None */
+  inline def toOption: Option[Nothing] =
+    None
+
+  /** Store value in Option */
+  inline def swapToOption: Option[Y] =
+    Some(alt.alt)
+
+  /** Put value into WrongBranchException and pack in Try */
+  inline def toTry: Try[Nothing] =
+    Failure(new WrongBranchException(alt.alt))
+
+  /** Store value in Try as a Success */
+  inline def swapToTry: Try[Y] =
+    Success(alt.alt)
+}
+
+extension [X](is: Is[X]) {
+  /** Put value into Right */
+  inline def toEither: Either[Nothing, X] =
+    Right(Is unwrap is)
+
+  /** Put value into Left */
+  inline def swapToEither: Either[X, Nothing] =
+    Left(Is unwrap is)
+
+  /** Put value into Option */
+  inline def toOption: Option[X] =
+    Some(Is unwrap is)
+
+  /** Discard value and return None */
+  inline def swapToOption: Option[Nothing] =
+    None
+
+  /** Put value into Try */
+  inline def toTry: Try[X] =
+    Success(Is unwrap is)
+
+  /** Pack value into WrongBranchException and return as a Try */
+  inline def swapToTry: Try[Nothing] =
+    Failure(new WrongBranchException(Is unwrap is))
+}
+
+extension [X, Y](or: X Or Y) {
+  /** Turns this `Or` into an `Either` maintaining favored and disfavored branches (i.e `Is[X]` becomes `Right[X]`) */
+  inline def toEither: Either[Y, X] = or match
+    case a: Alt[_] => Left(a.alt.asInstanceOf[Y])
+    case _ => Right(Is unwrap or.asInstanceOf[Is[X]])
+
+  /** Turns this `Or` into an `Either` swapping favored and disfavored branches (i.e `Is[X]` becomes `Left[X]`) */
+  inline def swapToEither: Either[X, Y] = or match
+    case a: Alt[_] => Right(a.alt.asInstanceOf[Y])
+    case _ => Left(Is unwrap or.asInstanceOf[Is[X]])
+
+  /** Turns this `Or` into an `Option` by discarding the disfavored branch if present. */
+  inline def toOption: Option[X] = or match
+    case _: Alt[_] => None
+    case _ => Some(Is unwrap or.asInstanceOf[Is[X]])
+
+  /** Turns this `Or` into an `Option` by discarding the favored branch if present. */
+  inline def swapToOption: Option[Y] = or match
+    case _: Alt[_] => Some(or.asInstanceOf[Alt[Y]].alt)
+    case _ => None
+
+  /** Turns this `Or` into a `Try` by packing the disfavored branch into a `WrongBranchException` created for that purpose. */
+  inline def toTry: Try[X] = or match
+    case a: Alt[_] => Failure(new WrongBranchException(a.alt.asInstanceOf[Y]))
+    case _ => Success(Is unwrap or.asInstanceOf[Is[X]])
+
+  /** Turns this `Or` into a `Try` by packing the favored branch into a `WrongBranchException` created for that purpose. */
+  inline def swapToTry: Try[Y] = or match
+    case a: Alt[_] => Success(a.alt.asInstanceOf[Y])
+    case _ => Failure(new WrongBranchException(Is unwrap or.asInstanceOf[Is[X]]))
+}
+
 
 extension [L, R](either: Either[L, R]) {
   /** Converts to an `Or`, placing `Right` as the favored branch */
   inline def toOr: R Or L = Or from either
 }
+
 
 extension [A](`try`: Try[A]) {
   /** Converts to an `Or`, placing a success as the favored branch and a failure as a `Throwable` in the disfavored branch. */
@@ -266,6 +354,7 @@ extension [A](`try`: Try[A]) {
   inline def niceOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
 }
 
+
 extension [A](option: Option[A]) {
   /** Converts to a `Try` by creating a new `None`-containing WrongBranchException if the `Option` is empty. */
   inline def toTry: Try[A] = option match
@@ -276,14 +365,16 @@ extension [A](option: Option[A]) {
   inline def toOr: A Or Unit = Or from option
 
   /** Converts to an Or by using a default value for the disfavored branch if there is no value */
-  inline def or[B](b: => B): A Or B = Or.fromOrElse(option, b)
+  inline def toOrElse[B](b: => B): A Or B = Or.fromOrElse(option, b)
 
+  /*
   /** Do something with a stored value, if present, and keep passing along the Option either way */
   inline def use(f: A => Unit): option.type =
     (option: Option[A]) match
       case Some(a) => f(a)
       case _       =>
     option
+  */
 }
 
 

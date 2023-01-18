@@ -1443,17 +1443,19 @@ class FlowTest {
     T ~ s.toOr           ==== "snapper"          --: typed[String Or Unit]
     T ~ os.toOr          ==== "snapper"          --: typed[String Or Unit]
     T ~ on.toOr          ==== Alt(())            --: typed[String Or Unit]
-    T ~ s.or(5)          ==== "snapper"          --: typed[String Or Int]
-    T ~ os.or(5)         ==== "snapper"          --: typed[String Or Int]
-    T ~ on.or(5)         ==== Alt(5)             --: typed[String Or Int]
+    T ~ s.toOrElse(5)    ==== "snapper"          --: typed[String Or Int]
+    T ~ os.toOrElse(5)   ==== "snapper"          --: typed[String Or Int]
+    T ~ on.toOrElse(5)   ==== Alt(5)             --: typed[String Or Int]
     T ~ os.toTry         ==== Success("snapper") --: typed[Try[String]]
     T ~ on.toTry         ==== typed[Try[String]]
     on.toTry match
       case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[_]] ==== true
       case _          => T("Success when failure expected") ~ false  ==== true
+    /*
     T ~ { var x = ""; ( s.use{ x = _ }, x) } ==== ( s, "snapper")
     T ~ { var x = ""; (os.use{ x = _ }, x) } ==== (os, "snapper")
     T ~ { var x = ""; (on.use{ x = _ }, x) } ==== (on, "")
+    */
 
     T("hopWith hopped") ~ {
       val s = "salmon"
@@ -1612,10 +1614,10 @@ class FlowTest {
     T ~ aa.copy.tap(_(0) = "4").toSeq =!!= aa.toSeq
 
     val oab = Option(ab)
-    T ~ oab.copy.get                     =**= oab.get
-    T ~ (oab.copy eq oab)                ==== false
-    T ~ (oab.copy.get eq oab.get)        ==== false
-    T ~ oab.copy.use(_(0) = 4).get.toSeq =!!= oab.get.toSeq
+    T ~ oab.copy.get                         =**= oab.get
+    T ~ (oab.copy eq oab)                    ==== false
+    T ~ (oab.copy.get eq oab.get)            ==== false
+    T ~ oab.copy.tap(_.get(0) = 4).get.toSeq =!!= oab.get.toSeq
 
     val aab = Anon(ab)
     T ~ aab.copy.value                     =**= aab.value
