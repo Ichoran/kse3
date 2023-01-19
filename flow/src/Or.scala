@@ -87,7 +87,7 @@ extension[Y](alt: Alt[Y]) {
   inline def unwrap: Y = alt.alt
 
   /** Extends the type to an `Or` with specified favored branch */
-  inline def favor[X]: X Or Y = alt
+  inline def orIs[X]: X Or Y = alt
 
   /** We're sure this is not the favored branch */
   inline def isIs: Boolean = false
@@ -169,8 +169,8 @@ extension [X](is: Is[X]) {
   /** Unwraps this type. */
   inline def unwrap: X = Is unwrap is
 
-  /** Extends the type to an `Or` with specified favored branch */
-  inline def disfavor[Y]: X Or Y = is
+  /** Extends the type to an `Or` with specified disfavored branch */
+  inline def orAlt[Y]: X Or Y = is
 
   /** Unwraps this type */
   inline def get: X = Is unwrap is
@@ -389,13 +389,21 @@ extension [X, Y](or: Or[X, Y]) {
     case a: Alt[_] => g(a.alt.asInstanceOf[Y])
     case _ => or.asInstanceOf[Is[X]]
 
-  /** Applies a function to whichever value exists, creating a new Or.
+  /** Applies a function to whichever value exists, creating a new `Or`.
     * 
     * Equivalent to `o.fold{ x => f(x) }{ y => g(y) }` where `f` and `g` both produce type `XX Or YY`.
     */
   inline def flatMapThem[XX, YY](inline f: X => XX Or YY)(inline g: Y => XX Or YY): XX Or YY = (or: X Or Y) match
     case a: Alt[_] => g(a.alt.asInstanceOf[Y])
     case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+
+  /** Keeps a favored value, or switches to another `Or` while discarding a disfavored value.
+    *
+    * Equivalent to `o.flatMapAlt(_ => that)`.
+    */
+  inline def ||[XX >: X, YY >: Y](inline that: => XX Or YY): XX Or YY = (or: X Or Y) match
+    case _: Alt[_] => that
+    case _         => or.asInstanceOf[Is[XX]]
 
   /** Operate on the favored value if it exists. */
   inline def foreach(inline f: X => Unit): Unit = (or: X Or Y) match
@@ -538,13 +546,7 @@ extension [A](a: A) {
   inline def or[Y]: A Or Y = Is(a)
 
   /** Uses a value as the disfavored branch of an `Or` while specifying the type of a favored branch. */
-  inline def isnt[X]: X Or A = Alt(a)
-
-  /** Uses a value as the favored branch of an `Or` while specifying the type of a disfavored branch.  Generally use `or` intsead. */
-  inline def isOr[Y]: A Or Y = Is(a)
-
-  /** Uses a value as the disfavored branch of an `Or` while specifying the type of a favored branch.  Generally use `isnt` instead. */
-  inline def altOr[X]: X Or A = Alt(a)
+  inline def nor[X]: X Or A = Alt(a)
 
   /** Separates values into favored and disfavored based on a predicate; true means favored. */
   inline def isIf(inline p: A => Boolean): A Or A =
@@ -587,9 +589,6 @@ extension [A](a: A) {
 
   /** This is a disfavored value, but make it look like another Or */
   inline def altLike[X, Y >: A](that: X Or Y): X Or Y = Alt(a: Y)
-
-  /** This is a disfavored value, and add it to the possibilities of disfavored values in another Or */
-  inline def altAlso[X, Y](that: X Or Y): X Or (A Or Y) = Alt(Is(a))
 }
 
 extension [A >: Null] (a: A) {

@@ -2,21 +2,11 @@
 // Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 
-/**
-  * This is the package documentation for kse.flow, hopefully.
-  */
 package kse.flow
 
-import scala.util.control.NonFatal
+import scala.util.control.{ControlThrowable, NonFatal}
 
 import scala.util.{Try, Success, Failure}
-
-
-///////////////////////////////////////////////
-/// Exports of other nicely packaged things ///
-///////////////////////////////////////////////
-
-//export kse.flow.AorB._
 
 
 //////////////////////////////////////
@@ -247,6 +237,13 @@ inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y =
   try Is(x)
   catch
     case e if NonFatal(e) => Alt(cope fromThrowable e)
+
+/** Run something safely, also catching any control constructs that might escape. */
+inline def threadsafe[X](inline x: => X): X Or Throwable =
+  try Is(x)
+  catch
+    case e if NonFatal(e)    => Alt(e)
+    case c: ControlThrowable => Alt(c)
 
 //////////////////////////////////////////
 /// Interconversions between sum types ///
