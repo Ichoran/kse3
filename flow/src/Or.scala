@@ -53,6 +53,10 @@ final class IsBox[+X](val get: X) extends BoxedOr[X]() {
   * 
   * It can also be extracted by pattern matching into `case Alt(y)` or accessed through
   * various extension methods on `Or`.
+  * 
+  * Note that you cannot extract `Is` values by pattern matching because `Is` is a
+  * fictional type, and the pattern matching exaustiveness checks work poorly in that
+  * case.
   */
 final class Alt[+Y](val alt: Y) extends BoxedOr[Y]() {
   def get: Nothing = throw new NoSuchElementException("get on Alt")
@@ -149,6 +153,8 @@ object Is {
   /** Wraps a value into an `Is`.  `Is wrap x` is equivalent to `Is(x)`. */
   inline def wrap[X](x: X): Is[X] = apply(x)
 
+  // Exhaustiveness checking prevents proper pattern matching, sadly
+  /*
   def unapply[X, Y](o: X Or Y): Option[X] = o match
     case _: BoxedOr[_] => o match
       case x: IsBox[_] => Some(x.get.asInstanceOf[X])
@@ -161,6 +167,7 @@ object Is {
       case x: IsBox[_] => Some(x.get.asInstanceOf[Any])
       case _         => None
     case _ => Some(a)
+  */
 
   /** The canonical Is[Unit], which is actually always just `()`, the only possible `Unit`; but this one is typed as `Is[Unit]`. */
   val unit: Is[Unit] = ()

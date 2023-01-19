@@ -47,19 +47,20 @@ package kse
   * println(w.isIs)               // prints: false
   * println(v.isAlt)              // prints: true
   * 
+  * val u = safe{ "-".toInt } || safe{ "9".toInt }
+  * println(u) // prints: 9
+  * 
   * def little(i: Int): Int Or String = i match
   *   case x if x >= -99 && x <= 99 => Is(x)
   *   case _                        => Alt(s"$i is not little")
   * 
   * val a = little(10).map(_ > 0)   // == Is(true)
   * val b = little(100).map(_ > 0)  // == Alt("100 is not little"), typed as Boolean Or String
-  * a match
-  *   case Is(i)  => println(i)   // prints: true
-  *   case Alt(a) => println(a)   // doesn't print
-  * b match
-  *   case Is(i)  => println(i)   // doesn't print
-  *   case Alt(a) => println(a)   // prints: 100 is not little
   * 
+  * // Due to overly aggressive exhaustiveness checking, use `fold` instead of `match` to destructure 
+  * a.fold{ i => println(i) }{ a => println("Oops") }  // prints: true
+  * b.fold{ i => println(i) }{ a => println("Oops") }  // prints: Oops
+  *
   * val c = z.discard{
   *   case s if s.length > 5 => s.length
   * }

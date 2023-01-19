@@ -239,13 +239,7 @@ class FlowTest {
 
     T ~ Alt.unit ==== Alt(())
 
-    aoc.orIs[Int] match
-      case Alt(y) => T ~ y ==== Some("cod")
-      case y      => assertTrue(s"Took disfavored branch with $y", false)
-
-    (aoc: Any) match
-      case Alt(y) => T ~ y ==== Some("cod")
-      case y      => assertTrue(s"Took disfavored branch with $y", false)
+    T ~ aoc.orIs[Int] ==== aoc --: typed[Int Or Option[String]]
 
     T("isnum") ~ Is(5) ==== Is(5L)
 
@@ -271,21 +265,7 @@ class FlowTest {
     T ~ iiaoc.unwrap ==== iaoc
     T ~ Is.unit      ==== Is(())
 
-    ioc.orAlt[Int] match
-      case Is(x) => T ~ x ==== Some("cod")
-      case x     => assertTrue(s"Took favored branch with $x", false)
-
-    (ioc: Any) match
-      case Is(x) => T ~ x ==== Some("cod")
-      case x     => assertTrue(s"Took favored branch with $x", false)
-
-    Is(aoc).orAlt[Int] match
-      case Is(x) => T ~ x ==== aoc
-      case x     => assertTrue(s"Took favored branch with $x", false)
-
-    (Is(aoc): Any) match
-      case Is(x) => T ~ x ==== aoc
-      case x     => assertTrue(s"Took favored branch with $x", false)
+    T ~ ioc.orAlt[Int] ==== ioc --: typed[Option[String] Or Int]
 
     T ~ Or.from(Right[Int, String]("herring")) ==== Is("herring")
     T ~ Or.from(Left[Int, String](5))          ==== Alt(5)
