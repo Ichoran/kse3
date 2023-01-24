@@ -25,7 +25,6 @@ import kse.flow._
 object Bench {
 
   class Nicely() {
-    import kse.flow.AorB._
 
     def foldly(): Unit =
       val a = 5.or[String]
@@ -35,12 +34,6 @@ object Bench {
 
     def maply(): Unit =
       val a = 5.or[String]
-      println(a)
-      val b = a.map(_ + 10)
-      println(b)
-
-    def mapOr(): Unit =
-      val a: Ok[String, Int] = Yes(5)
       println(a)
       val b = a.map(_ + 10)
       println(b)
@@ -78,8 +71,6 @@ class FlowBench {
     val t1= System.nanoTime
     (a, (t1 - t0)/1e9)
 
-  import kse.flow.AorB._
-
   def bestEitherString(input: Array[String]): Either[String, String] =
     var result: Either[String, String] = Right("")
     var i = 0
@@ -106,19 +97,6 @@ class FlowBench {
       i += 1
     result
 
-  def bestOkString(input: Array[String]): Ok[String, String] =
-    var result: Ok[String, String] = Yes("")
-    var i = 0
-    while i < input.length do
-      val s = input(i)
-      result = result.flatMap{ t =>
-        if (s.isEmpty) No(s)
-        else if (t.length != s.length) Yes(s)
-        else result
-      }
-      i += 1
-    result
-
   def bestAnyRefString(input: Array[String]): AnyRef =
     var result: AnyRef = ""
     input.foreach{ s =>
@@ -134,27 +112,23 @@ class FlowBench {
 
   def stringBench(): Unit = {
     val timings = new Array[Double](80)
-    val eithers = new Array[Either[String, String]](timings.length/4)
-    val ors = new Array[String Or String](timings.length/4)
-    val oks = new Array[Ok[String, String]](timings.length/4)
-    val grounds = new Array[AnyRef](timings.length/4)
-    for (i <- 0 until timings.length/4) {
+    val eithers = new Array[Either[String, String]](timings.length/3)
+    val ors = new Array[String Or String](timings.length/3)
+    val grounds = new Array[AnyRef](timings.length/3)
+    for (i <- 0 until timings.length/3) {
       val (e, et) = time(bestEitherString(FlowBench.theStrings))
-      val (k, kt) = time(bestOkString(    FlowBench.theStrings))
       val (o, ot) = time(bestOrString(    FlowBench.theStrings))
       val (g, gt) = time(bestAnyRefString(FlowBench.theStrings))
       eithers(i) = e
       ors(i) = o
-      oks(i) = k
       grounds(i) = g
-      timings(4*i) = et
-      timings(4*i+1) = ot
-      timings(4*i+2) = kt
-      timings(4*i+3) = gt
+      timings(3*i) = et
+      timings(3*i+1) = ot
+      timings(3*i+2) = gt
     }
-    ((eithers zip ors) zip (oks zip grounds)).foreach(println _)
-    for (i <- 0 until timings.length/4) {
-      println(f"${timings(4*i)}%6.3f   vs  ${timings(4*i+1)}%6.3f   vs  ${timings(4*i+2)}%6.3f   vs  ${timings(4*i+3)}%6.3f")
+    ((eithers zip ors) zip grounds).foreach(println _)
+    for (i <- 0 until timings.length/3) {
+      println(f"${timings(3*i)}%6.3f   vs  ${timings(3*i+1)}%6.3f   vs  ${timings(3*i+2)}%6.3f")
     }
   }
 
@@ -168,15 +142,6 @@ class FlowBench {
     result
 
   def bestOrSum(input: Array[Int], zero: Int Or String): Int Or String =
-    var result = zero
-    var i = 0
-    while i < input.length do
-      val v = input(i)
-      result = result.map(_ + v)
-      i += 1
-    result
-
-  def bestOkSum(input: Array[Int], zero: Ok[String, Int]): Ok[String, Int] =
     var result = zero
     var i = 0
     while i < input.length do
@@ -200,27 +165,23 @@ class FlowBench {
     println
     println("Sum benchmark")
     val timings = new Array[Double](80)
-    val eithers = new Array[Either[String, Int]](timings.length/4)
-    val ors = new Array[Int Or String](timings.length/4)
-    val oks = new Array[Ok[String, Int]](timings.length/4)
-    val grounds = new Array[AnyRef](timings.length/4)
-    for (i <- 0 until timings.length/4) {
+    val eithers = new Array[Either[String, Int]](timings.length/3)
+    val ors = new Array[Int Or String](timings.length/3)
+    val grounds = new Array[AnyRef](timings.length/3)
+    for (i <- 0 until timings.length/3) {
       val (e, et) = time(bestEitherSum(FlowBench.theNumbers, Right(0)))
-      val (k, kt) = time(bestOkSum(    FlowBench.theNumbers, Yes(0)))
       val (o, ot) = time(bestOrSum(    FlowBench.theNumbers, Is(0)))
       val (g, gt) = time(bestAnyRefSum(FlowBench.theNumbers, 0.asInstanceOf[AnyRef]))
       eithers(i) = e
       ors(i) = o
-      oks(i) = k
       grounds(i) = g
-      timings(4*i) = et
-      timings(4*i+1) = ot
-      timings(4*i+2) = kt
-      timings(4*i+3) = gt
+      timings(3*i) = et
+      timings(3*i+1) = ot
+      timings(3*i+2) = gt
     }
-    ((eithers zip ors) zip (oks zip grounds)).foreach(println _)
-    for (i <- 0 until timings.length/4) {
-      println(f"${timings(4*i)}%6.3f   vs  ${timings(4*i+1)}%6.3f   vs  ${timings(4*i+2)}%6.3f   vs  ${timings(4*i+3)}%6.3f")
+    ((eithers zip ors) zip grounds).foreach(println _)
+    for (i <- 0 until timings.length/3) {
+      println(f"${timings(3*i)}%6.3f   vs  ${timings(3*i+1)}%6.3f   vs  ${timings(3*i+2)}%6.3f")
     }
   }
 

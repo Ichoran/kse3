@@ -107,7 +107,7 @@ println(b)   // prints: Alt(999 is not little)
 println(c)   // prints: Alt(-3 is not a number in reverse)
 ```
 
-You have access to full-speed inlined pipe (to transform values) and tap (to act on them but keep original):
+You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
 
 ```scala
 val m = (1 + 2*3).pipe(x => x*x)
@@ -116,7 +116,41 @@ println(n)                         // prints: 8
 println(m)                         // prints: 49
 ```
 
+There are inlined index-based loops, as fast as `while` but without risk of an indexing error:
+
+```scala
+val list = List("salmon", "herring", "perch")
+iFor(list.iterator){ (i, s) => println(s*i) }  // prints nothing, then "herring", then "perchperch"
+```
+
+Standard mutable containers for primitive and object types for counting, callbacks, and other such use:
+
+```scala
+def nextEven(m: Mu[Int]): m.type =
+  m.zap(i => if i % 2 == 0 then i + 2 else i + 1)
+
+val count = Mu(1)
+for (i <- 1 to 5) nextEven(count)
+println(count.value)   // prints: 10
+
+
+def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
+  if s.isEmpty then 0
+  else
+    val tok = s.split("\\s+")
+    tokens.foreach(_.set(tok))
+    tok.length
+
+val tok = Mu(Array.empty[String])
+println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
+println(tok.value.mkString)                         // prints: minnowsalmonbasseel
+```
+
 And a variety of other nice things that you can find by perusing the ScalaDoc, the unit tests, or the code.
+
+### kse.maths
+
+This exists but presently is undocumented.  Feel free to look through the unit tests to see what can be done, however!
 
 ## More to come
 

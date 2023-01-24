@@ -63,7 +63,7 @@ trait Common extends Base {
 
 object flow extends Common with PublishKse3 {}
 
-object maths extends Common {
+object maths extends Common with PublishKse3 {
   override def extraTestDeps = Seq(flow)
 }
 
