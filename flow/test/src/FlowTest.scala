@@ -2022,6 +2022,7 @@ class FlowTest {
 
     // Not explicitly testing thread safety, but it should be thread-safe.
     val w = Worm.of[String]
+    val ww = Worm.of[String]
     T ~ w.value ==== Alt(()) --: typed[String Or Unit]
     T ~ w.get   ==== thrown[IllegalStateException]
     w.set("cod")
@@ -2029,6 +2030,9 @@ class FlowTest {
     T ~ w.get   ==== "cod"
     T ~ w.setIfEmpty("herring") ==== false
     T ~ w.set("herring")        ==== thrown[IllegalStateException]
+    T ~ w.getOrSet("perch")     ==== "cod" --: typed[String]
+    T ~ ww.getOrSet("minnow")   ==== "minnow"
+    T ~ ww.getOrSet("eel")      ==== "minnow"
 
     // Not explicitly testing soft memory clearance, but it should clear memory
     var z = 0

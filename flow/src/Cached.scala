@@ -60,6 +60,13 @@ final class Worm[V] {
     case x if x eq Worm.storedNullSentinel => throw new java.lang.IllegalStateException("Retrieved value before being set")
     case x                                 => x.asInstanceOf[V]
 
+  /** Gets the value, or sets a new value if it hasn't been set yet. */
+  def getOrSet(v: => V): V = myValue.get() match
+    case x if x eq Worm.storedNullSentinel =>
+      setIfEmpty(v)
+      get
+    case x => x.asInstanceOf[V]
+
   /** If the value is set, return it in a favored branch; otherwise, Unit in the disfavored branch. */
   def value: V Or Unit = myValue.get() match
     case x if x eq Worm.storedNullSentinel => Alt.unit
