@@ -35,48 +35,50 @@ object Lazy {
 
 
 /** An unset value that you can set but then not change (thread-safe) */
-final class Worm[V] {
-  private[this] val myValue: AtomicReference[AnyRef] = new AtomicReference[AnyRef](Worm.storedNullSentinel)
-
-  /** Sets the value if it hasn't already been set.  Returns `true` if the new value was set, `false` if not.
-    * 
-    * The new value is only computed if the value is initially unset.  (It may be filled in by someone else while
-    * the computation is occurring, though.)
-    */ 
-  def setIfEmpty(v: => V): Boolean =
-    var old = myValue.get()
-    if (old eq Worm.storedNullSentinel) {
-      myValue.compareAndSet(old, v.asInstanceOf[AnyRef])
-    }
-    else false
-
-  /** Sets the value, returning self, or throws an exception if it's already set. */
-  def set(v: => V): this.type =
-    if (!setIfEmpty(v)) throw new java.lang.IllegalStateException("Set while already set")
-    this
-
-  /** Gets the value, throwing an exception if it hasn't been set yet. */
-  def get: V = myValue.get() match
-    case x if x eq Worm.storedNullSentinel => throw new java.lang.IllegalStateException("Retrieved value before being set")
-    case x                                 => x.asInstanceOf[V]
-
-  /** Gets the value, or sets a new value if it hasn't been set yet. */
-  def getOrSet(v: => V): V = myValue.get() match
-    case x if x eq Worm.storedNullSentinel =>
-      setIfEmpty(v)
-      get
-    case x => x.asInstanceOf[V]
-
-  /** If the value is set, return it in a favored branch; otherwise, Unit in the disfavored branch. */
-  def value: V Or Unit = myValue.get() match
-    case x if x eq Worm.storedNullSentinel => Alt.unit
-    case x                                 => Is(x.asInstanceOf[V])
-}
+opaque type Worm[V] = AtomicReference[AnyRef]
 object Worm {
-  /** Creates a new uninitialized box for the value.  Set it with `set` or `setIfEmpty`. */
-  def of[V]: Worm[V] = new Worm[V]
+  /** Sentinel value indicating that a Worm hasn't been set yet. */
+  val notSetSentinel: AnyRef = new AnyRef {}
 
-  private[Worm] val storedNullSentinel: AnyRef = new AnyRef {}
+  /** Creates a new uninitialized box for the value.  Set it with `set` or `setIfEmpty`. */
+  inline def of[V]: Worm[V] = new AtomicReference[AnyRef](notSetSentinel)
+
+  extension [V](worm: Worm[V]) {
+    inline def wormAsAtomic: AtomicReference[AnyRef] = worm
+  }
+  extension [V](worm: kse.flow.Worm[V]) {
+    /** Sets the value if it hasn't already been set.  Returns `true` if the new value was set, `false` if not.
+      * 
+      * The new value is only computed if the value is initially unset.  (It may be filled in by someone else while
+      * the computation is occurring, though.)
+      */ 
+    inline def setIfEmpty(v: => V): Boolean =
+      var old = worm.wormAsAtomic.get()
+      if (old eq Worm.notSetSentinel) {
+        worm.wormAsAtomic.compareAndSet(old, v.asInstanceOf[AnyRef])
+      }
+      else false
+
+    /** Sets the value, returning self, or throws an exception if it's already set. */
+    inline def set(v: => V): worm.type =
+      if (!worm.setIfEmpty(v)) throw new java.lang.IllegalStateException("Set while already set")
+      worm
+
+    /** Gets the value, throwing an exception if it hasn't been set yet. */
+    inline def get: V = worm.wormAsAtomic.get() match
+      case x if x eq Worm.notSetSentinel => throw new java.lang.IllegalStateException("Retrieved value before being set")
+      case x                             => x.asInstanceOf[V]
+
+    /** Gets the value, or sets a new value if it hasn't been set yet. */
+    inline def getOrSet(v: => V): V = worm.wormAsAtomic.get() match
+      case x if x eq Worm.notSetSentinel => { worm.setIfEmpty(v); get }
+      case x => x.asInstanceOf[V]
+
+    /** If the value is set, return it in a favored branch; otherwise, Unit in the disfavored branch. */
+    inline def value: V Or Unit = worm.wormAsAtomic.get() match
+      case x if x eq Worm.notSetSentinel => Alt.unit
+      case x                             => Is(x.asInstanceOf[V])
+  }
 }
 
 

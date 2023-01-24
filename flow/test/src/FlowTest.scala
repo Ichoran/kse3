@@ -2023,8 +2023,9 @@ class FlowTest {
     // Not explicitly testing thread safety, but it should be thread-safe.
     val w = Worm.of[String]
     val ww = Worm.of[String]
-    T ~ w.value ==== Alt(()) --: typed[String Or Unit]
-    T ~ w.get   ==== thrown[IllegalStateException]
+    T ~ w.wormAsAtomic ==== typed[java.util.concurrent.atomic.AtomicReference[AnyRef]]
+    T ~ w.value        ==== Alt(()) --: typed[String Or Unit]
+    T ~ w.get          ==== thrown[IllegalStateException]
     w.set("cod")
     T ~ w.value ==== "cod" --: typed[String Or Unit]
     T ~ w.get   ==== "cod"
