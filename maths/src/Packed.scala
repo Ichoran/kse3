@@ -1969,4 +1969,10 @@ extension (z64: Long) {
 
   inline def reverseInts: Long =
     ((z64 & 0xFFFFFFFF00000000L) >>> 32) | ((z64 & 0x00000000FFFFFFFFL) << 32)
+
+  inline def float(index: IntIndices.L): Float =
+    java.lang.Float.intBitsToFloat(((z64 >>> 32*index) & 0xFFFFFFFFL).toInt)
+
+  inline def floatTo(index: IntIndices.L)(value: Float): Long =
+    (z64 & ~(0xFFFFFFFFL << 32*index)) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32*index)
 }

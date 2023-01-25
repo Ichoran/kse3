@@ -1602,4 +1602,8 @@ class PackedTest() {
     T ~ lp.intTo(0)(0x87EAD223) ==== 0xD30AB6E887EAD223L
     T ~ lp.intTo(1)(0xBEEFDEAD) ==== 0xBEEFDEAD2CF54917L
     T ~ lp.reverseInts ==== 0x2CF54917D30AB6E8L
+    T ~ lp.float(0) ==== 6.9714334e-12f
+    T ~ lp.float(1) ==== -5.9577414e11f
+    T ~ lp.floatTo(0)(1.115f) ==== 0xD30AB6E83F8EB852L
+    T ~ lp.floatTo(1)(-97e9f) ==== 0xD1B4AD342CF54917L
 }
