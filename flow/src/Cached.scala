@@ -43,6 +43,9 @@ object Worm {
   /** Creates a new uninitialized box for the value.  Set it with `set` or `setIfEmpty`. */
   inline def of[V]: Worm[V] = new AtomicReference[AnyRef](notSetSentinel)
 
+  /** Creates a new initialized box that you can't actually set because it's already set */
+  inline def preset[V](v: V): Worm[V] = new AtomicReference[AnyRef](v.asInstanceOf[AnyRef])
+
   extension [V](worm: Worm[V]) {
     inline def wormAsAtomic: AtomicReference[AnyRef] = worm
   }

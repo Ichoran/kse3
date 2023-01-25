@@ -2023,6 +2023,7 @@ class FlowTest {
     // Not explicitly testing thread safety, but it should be thread-safe.
     val w = Worm.of[String]
     val ww = Worm.of[String]
+    val www = Worm.preset("halibut")
     T ~ w.wormAsAtomic ==== typed[java.util.concurrent.atomic.AtomicReference[AnyRef]]
     T ~ w.value        ==== Alt(()) --: typed[String Or Unit]
     T ~ w.get          ==== thrown[IllegalStateException]
@@ -2034,6 +2035,7 @@ class FlowTest {
     T ~ w.getOrSet("perch")     ==== "cod" --: typed[String]
     T ~ ww.getOrSet("minnow")   ==== "minnow"
     T ~ ww.getOrSet("eel")      ==== "minnow"
+    T ~ www.value               ==== "halibut"
 
     // Not explicitly testing soft memory clearance, but it should clear memory
     var z = 0
