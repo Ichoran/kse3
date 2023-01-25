@@ -9,6 +9,15 @@ import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
 
+/** This provides a way to write unit tests.
+  *
+  * It's really easy to use once you're used to it!
+  * 
+  * Unfortunately, it doesn't have any documentation at all.
+  * You can read the unit tests for kse.flow etc. to see how it is used.
+  * 
+  * See build.sc for how to include it in your own tests.
+  */
 object TestUtilities {
   class Asserter(
         assertEq:    (String, Any, Any) => Unit,

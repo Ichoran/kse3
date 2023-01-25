@@ -40,7 +40,8 @@ trait PublishKse3 extends PublishModule {
 }
 
 
-object testutilities extends Base {
+object testutilities extends Base with PublishKse3 {
+  override def publicationName = "kse3-testing"
   def ivyDeps = Agg(
     ivy"com.lihaoyi::sourcecode:0.2.7"
   )
