@@ -12,7 +12,14 @@ import java.util.concurrent.atomic._
 import scala.util.control.NonFatal
 
 
-/** A general way to defer a computation but cache the result. */
+/** A general way to defer a computation but cache the result.
+  *
+  * Especially useful as an alternative to a by-name parameter where you want to be sure
+  * you only compute it once and only if needed, but can reuse it without
+  * redoing the computation.
+  * 
+  * You can cache any by-name parameter by converting `f(foo(x))` to `val l = Lazy{ foo(x) }; f(l.value)`.
+  */
 final class Lazy[V](gen: => V) {
 
   /** The cached value. */
@@ -29,7 +36,9 @@ final class Lazy[V](gen: => V) {
   def flatMap[W](f: V => Lazy[W]) = Lazy(f(value).value)
 }
 object Lazy {
-  /** Create a new lazily computed cached value. */
+  /** Create a new lazily computed cached value. 
+    * Use like a by-name parameter, but where you want to ensure only one computation.
+    **/
   def apply[V](gen: => V) = new Lazy(gen)
 }
 

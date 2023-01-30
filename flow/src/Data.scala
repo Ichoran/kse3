@@ -13,7 +13,7 @@ trait Copies[A] {
   /** Creates a copy of a presumably mutable object. */
   def copy(a: A): A
 }
-object Copies{
+object Copies {
   given copiesArrayByte:   Copies[Array[Byte  ]] with
     def copy(a: Array[Byte  ]) = java.util.Arrays.copyOf(a, a.length)
 
@@ -38,20 +38,56 @@ object Copies{
   given copiesArrayGeneric[A <: AnyRef]: Copies[Array[A]] with
     def copy(a: Array[A]) = java.util.Arrays.copyOf[A & AnyRef](a, a.length)
 
-  given copiesOption[A](using Copies[A]): Copies[Option[A]] with
-    def copy(a: Option[A]) = a match
-      case Some(x) => Some(summon[Copies[A]] copy x)
-      case _       => None
-
   given copiesAnon[A](using Copies[A]): Copies[Anon[A]] with
     def copy(a: Anon[A]) = new Anon[A](summon[Copies[A]] copy a.value)
-
-  given copiesMu[A, M <: Mu[A]]: Copies[M] with
-    def copy(m: M): M = m.copy.asInstanceOf[M]
 }
 
+
+/** Typeclass to enable generic partial copying of mutable things to a new size (replicated otherwise) */
+trait CopiesToSize[A] {
+  /** Creates a copy of a presumably mutable object into a new size, truncating or padding as needed */
+  def copyToSize(a: A, size: Int): A
+
+  /** Shrinks an object if it is larger than the specified size */
+  def shrinkCopy(a: A, size: Int): A
+}
+object CopiesToSize {
+  given copiesSizeArrayByte:   CopiesToSize[Array[Byte  ]] with
+    def copyToSize(a: Array[Byte  ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Byte  ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayShort:  CopiesToSize[Array[Short ]] with
+    def copyToSize(a: Array[Short ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Short ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayChar:   CopiesToSize[Array[Char  ]] with
+    def copyToSize(a: Array[Char  ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Char  ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayInt:    CopiesToSize[Array[Int   ]] with
+    def copyToSize(a: Array[Int   ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Int   ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayLong:   CopiesToSize[Array[Long  ]] with
+    def copyToSize(a: Array[Long  ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Long  ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayFloat:  CopiesToSize[Array[Float ]] with
+    def copyToSize(a: Array[Float ], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Float ], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+
+  given copiesSizeArrayDouble: CopiesToSize[Array[Double]] with
+    def copyToSize(a: Array[Double], size: Int) = java.util.Arrays.copyOf(a, size)
+    def shrinkCopy(a: Array[Double], size: Int) = if size < a.length then java.util.Arrays.copyOf(a, size) else a
+}
+
+
+/** Use copier typeclasses, if available, to copy a (presumably mutable) object. */
 extension [A](a: A)
   inline def copy(using copier: Copies[A]): A = copier copy a
+  inline def copyToSize(size: Int)(using copier: CopiesToSize[A]): A = copier.copyToSize(a, size)
+  inline def shrinkCopy(size: Int)(using copier: CopiesToSize[A]): A = copier.shrinkCopy(a, size)
+
 
 
 /** Holds mutable data (would be better if standard library exposed this!) */

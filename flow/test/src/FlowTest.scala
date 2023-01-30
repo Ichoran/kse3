@@ -1570,53 +1570,77 @@ class FlowTest {
     T ~ ab.copy                     =**= ab
     T ~ (ab.copy eq ab)             ==== false
     T ~ ab.copy.tap(_(0) = 4).toSeq =!!= ab.toSeq
+    T ~ ab.copyToSize(2).length     ==== 2
+    T ~ ab.copyToSize(2)            =**= ab.take(2)
+    T ~ ab.copyToSize(4)            =**= Array[Byte](1, 2, 3, 0)
+    T ~ ab.shrinkCopy(2)            =**= ab.take(2)
+    T ~ (ab.shrinkCopy(4) eq ab)    ==== true
 
     val as = Array[Short](1, 2, 3)
     T ~ as.copy                     =**= as
     T ~ (as.copy eq as)             ==== false
     T ~ as.copy.tap(_(0) = 4).toSeq =!!= as.toSeq
+    T ~ as.copyToSize(2).length     ==== 2
+    T ~ as.copyToSize(2)            =**= as.take(2)
+    T ~ as.copyToSize(4)            =**= Array[Short](1, 2, 3, 0)
+    T ~ as.shrinkCopy(2)            =**= as.take(2)
+    T ~ (as.shrinkCopy(4) eq as)    ==== true
 
     val ac = Array[Char]('1', '2', '3')
     T ~ ac.copy                       =**= ac
     T ~ (ac.copy eq ac)               ==== false
     T ~ ac.copy.tap(_(0) = '4').toSeq =!!= ac.toSeq
+    T ~ ac.copyToSize(2).length     ==== 2
+    T ~ ac.copyToSize(2)            =**= ac.take(2)
+    T ~ ac.copyToSize(4)            =**= Array[Char]('1', '2', '3', '\u0000')
+    T ~ ac.shrinkCopy(2)            =**= ac.take(2)
+    T ~ (ac.shrinkCopy(4) eq ac)    ==== true
 
     val ai = Array[Int](1, 2, 3)
     T ~ ai.copy                     =**= ai
     T ~ (ai.copy eq ai)             ==== false
     T ~ ai.copy.tap(_(0) = 4).toSeq =!!= ai.toSeq
+    T ~ ai.copyToSize(2).length     ==== 2
+    T ~ ai.copyToSize(2)            =**= ai.take(2)
+    T ~ ai.copyToSize(4)            =**= Array[Int](1, 2, 3, 0)
+    T ~ ai.shrinkCopy(2)            =**= ai.take(2)
+    T ~ (ai.shrinkCopy(4) eq ai)    ==== true
 
     val al = Array[Long](1, 2, 3)
     T ~ al.copy                     =**= al
     T ~ (al.copy eq al)             ==== false
     T ~ al.copy.tap(_(0) = 4).toSeq =!!= al.toSeq
+    T ~ al.copyToSize(2).length     ==== 2
+    T ~ al.copyToSize(2)            =**= al.take(2)
+    T ~ al.copyToSize(4)            =**= Array[Long](1, 2, 3, 0)
+    T ~ al.shrinkCopy(2)            =**= al.take(2)
+    T ~ (al.shrinkCopy(4) eq al)    ==== true
 
     val af = Array[Float](1, 2, 3)
     T ~ af.copy                     =**= af
     T ~ (af.copy eq af)             ==== false
     T ~ af.copy.tap(_(0) = 4).toSeq =!!= af.toSeq
+    T ~ af.copyToSize(2).length     ==== 2
+    T ~ af.copyToSize(2)            =**= af.take(2)
+    T ~ af.copyToSize(4)            =**= Array[Float](1, 2, 3, 0)
+    T ~ af.shrinkCopy(2)            =**= af.take(2)
+    T ~ (af.shrinkCopy(4) eq af)    ==== true
 
     val ad = Array[Double](1, 2, 3)
     T ~ ad.copy                     =**= ad
     T ~ (ad.copy eq ad)             ==== false
     T ~ ad.copy.tap(_(0) = 4).toSeq =!!= ad.toSeq
+    T ~ ad.copyToSize(2).length     ==== 2
+    T ~ ad.copyToSize(2)            =**= ad.take(2)
+    T ~ ad.copyToSize(4)            =**= Array[Double](1, 2, 3, 0)
+    T ~ ad.shrinkCopy(2)            =**= ad.take(2)
+    T ~ (ad.shrinkCopy(4) eq ad)    ==== true
 
     val aa = Array[String]("1", "2", "3")
     T ~ aa.copy                       =**= aa
     T ~ (aa.copy eq aa)               ==== false
     T ~ aa.copy.tap(_(0) = "4").toSeq =!!= aa.toSeq
 
-    val oab = Option(ab)
-    T ~ oab.copy.get                         =**= oab.get
-    T ~ (oab.copy eq oab)                    ==== false
-    T ~ (oab.copy.get eq oab.get)            ==== false
-    T ~ oab.copy.tap(_.get(0) = 4).get.toSeq =!!= oab.get.toSeq
-
-    val aab = Anon(ab)
-    T ~ aab.copy.value                     =**= aab.value
-    T ~ (aab.copy eq aab)                  ==== false
-    T ~ (aab.copy.value eq aab.value)      ==== false
-    T ~ aab.copy.use(_(0) = 4).value.toSeq =!!= aab.value.toSeq
 
     val m = Mu(5)
     T ~ m.value            ==== 5
@@ -1637,13 +1661,6 @@ class FlowTest {
     T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.set(4.0)))  .sameOp(_.value) ==== (2.0, 4.0)           --: typed[(Double, Double)]
     T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.set("eel"))).sameOp(_.value) ==== ("cod!", "eel")      --: typed[(String, String)]
 
-
-    val ame = Anon(Mu('e'))
-    val ams = Anon(Mu("cod"))
-    T ~ ame.copy             ==== typed[Anon[Mu.MuChar]]
-    T ~ ame.copy.value.value ==== 'e'
-    T ~ ams.copy             ==== typed[Anon[Mu[String]]]
-    T ~ ams.copy.value.value ==== "cod"
 
     inline def gm[A](a: A): Mu[A] = inline a match
       case _: Unit    => Mu.MuUnit.asInstanceOf[Mu[A]]
