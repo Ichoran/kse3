@@ -1567,6 +1567,7 @@ class FlowTest {
   @Test
   def mutableDataTest(): Unit =
     val ab = Array[Byte](1, 2, 3)
+    val bb = Array[Byte](0, 1, 2, 3, 4)
     T ~ ab.copy                     =**= ab
     T ~ (ab.copy eq ab)             ==== false
     T ~ ab.copy.tap(_(0) = 4).toSeq =!!= ab.toSeq
@@ -1575,8 +1576,31 @@ class FlowTest {
     T ~ ab.copyToSize(4)            =**= Array[Byte](1, 2, 3, 0)
     T ~ ab.shrinkCopy(2)            =**= ab.take(2)
     T ~ (ab.shrinkCopy(4) eq ab)    ==== true
+    T ~ ab.copyOfRange(1, 3)        =**= ab.drop(1)
+    T ~ ab.addLeftSlots(1)          =**= (0 +: ab)
+    T ~ ab.addRightSlots(1)         =**= (ab :+ 0)
+    T ~ ab.copyInto(bb)             =**= Array[Byte](1, 2, 3, 3, 4)
+    T ~ ab.copyInto(bb, 2)          =**= Array[Byte](1, 2, 1, 2, 3)
+    T ~ ab.copyRangeInto(1,3)(bb)   =**= Array[Byte](2, 3, 1, 2, 3)
+    T ~ ab.copyRangeInto(1,3)(bb,1) =**= Array[Byte](2, 2, 3, 2, 3)
+    T ~ ab.py(1)                    ==== ab(1)
+    T ~ ab.py(-3)                   ==== ab(0)
+    T ~ bb.py.index(-2)             ==== 3
+    T ~ { bb.py(-4) = 0; bb }       =**= Array[Byte](2, 0, 3, 2, 3)
+    T ~ bb.isSorted                 ==== false
+    T ~ bb.isSortedRange(1, 3)      ==== true
+    T ~ ab.search(2)                ==== 1
+    T ~ ab.search(0)                ==== -1
+    T ~ bb.searchRange(1, 3)(3)     ==== 2
+    T ~ bb.searchRange(1, 3)(2)     ==== -3
+    T ~ bb.sortRange(0, 3)          =**= Array[Byte](0, 2, 3, 2, 3)
+    T ~ bb.sort()                   =**= Array[Byte](0, 2, 2, 3, 3)
+    T ~ bb.fillRange(2, 4)(1)       =**= Array[Byte](0, 2, 1, 1, 3)
+    T ~ bb.fill(4)                  =**= Array[Byte](4, 4, 4, 4, 4)
+
 
     val as = Array[Short](1, 2, 3)
+    val bs = Array[Short](0, 1, 2, 3, 4)
     T ~ as.copy                     =**= as
     T ~ (as.copy eq as)             ==== false
     T ~ as.copy.tap(_(0) = 4).toSeq =!!= as.toSeq
@@ -1585,8 +1609,30 @@ class FlowTest {
     T ~ as.copyToSize(4)            =**= Array[Short](1, 2, 3, 0)
     T ~ as.shrinkCopy(2)            =**= as.take(2)
     T ~ (as.shrinkCopy(4) eq as)    ==== true
+    T ~ as.copyOfRange(1, 3)        =**= as.drop(1)
+    T ~ as.addLeftSlots(1)          =**= (0 +: as)
+    T ~ as.addRightSlots(1)         =**= (as :+ 0)
+    T ~ as.copyInto(bs)             =**= Array[Short](1, 2, 3, 3, 4)
+    T ~ as.copyInto(bs, 2)          =**= Array[Short](1, 2, 1, 2, 3)
+    T ~ as.copyRangeInto(1,3)(bs)   =**= Array[Short](2, 3, 1, 2, 3)
+    T ~ as.copyRangeInto(1,3)(bs,1) =**= Array[Short](2, 2, 3, 2, 3)
+    T ~ as.py(1)                    ==== as(1)
+    T ~ as.py(-3)                   ==== as(0)
+    T ~ bs.py.index(-2)             ==== 3
+    T ~ { bs.py(-4) = 0; bs }       =**= Array[Short](2, 0, 3, 2, 3)
+    T ~ bs.isSorted                 ==== false
+    T ~ bs.isSortedRange(1, 3)      ==== true
+    T ~ as.search(2)                ==== 1
+    T ~ as.search(0)                ==== -1
+    T ~ bs.searchRange(1, 3)(3)     ==== 2
+    T ~ bs.searchRange(1, 3)(2)     ==== -3
+    T ~ bs.sortRange(0, 3)          =**= Array[Short](0, 2, 3, 2, 3)
+    T ~ bs.sort()                   =**= Array[Short](0, 2, 2, 3, 3)
+    T ~ bs.fillRange(2, 4)(1)       =**= Array[Short](0, 2, 1, 1, 3)
+    T ~ bs.fill(4)                  =**= Array[Short](4, 4, 4, 4, 4)
 
     val ac = Array[Char]('1', '2', '3')
+    val bc = Array[Char]('0', '1', '2', '3', '4')
     T ~ ac.copy                       =**= ac
     T ~ (ac.copy eq ac)               ==== false
     T ~ ac.copy.tap(_(0) = '4').toSeq =!!= ac.toSeq
@@ -1595,8 +1641,30 @@ class FlowTest {
     T ~ ac.copyToSize(4)            =**= Array[Char]('1', '2', '3', '\u0000')
     T ~ ac.shrinkCopy(2)            =**= ac.take(2)
     T ~ (ac.shrinkCopy(4) eq ac)    ==== true
+    T ~ ac.copyOfRange(1, 3)        =**= ac.drop(1)
+    T ~ ac.addLeftSlots(1)          =**= ('\u0000' +: ac)
+    T ~ ac.addRightSlots(1)         =**= (ac :+ '\u0000')
+    T ~ ac.copyInto(bc)             =**= Array[Char]('1', '2', '3', '3', '4')
+    T ~ ac.copyInto(bc, 2)          =**= Array[Char]('1', '2', '1', '2', '3')
+    T ~ ac.copyRangeInto(1,3)(bc)   =**= Array[Char]('2', '3', '1', '2', '3')
+    T ~ ac.copyRangeInto(1,3)(bc,1) =**= Array[Char]('2', '2', '3', '2', '3')
+    T ~ ac.py(1)                    ==== ac(1)
+    T ~ ac.py(-3)                   ==== ac(0)
+    T ~ bc.py.index(-2)             ==== 3
+    T ~ { bc.py(-4) = '0'; bc }     =**= Array[Char]('2', '0', '3', '2', '3')
+    T ~ bc.isSorted                 ==== false
+    T ~ bc.isSortedRange(1, 3)      ==== true
+    T ~ ac.search('2')              ==== 1
+    T ~ ac.search('0')              ==== -1
+    T ~ bc.searchRange(1, 3)('3')   ==== 2
+    T ~ bc.searchRange(1, 3)('2')   ==== -3
+    T ~ bc.sortRange(0, 3)          =**= Array[Char]('0', '2', '3', '2', '3')
+    T ~ bc.sort()                   =**= Array[Char]('0', '2', '2', '3', '3')
+    T ~ bc.fillRange(2, 4)('1')     =**= Array[Char]('0', '2', '1', '1', '3')
+    T ~ bc.fill('4')                =**= Array[Char]('4', '4', '4', '4', '4')
 
     val ai = Array[Int](1, 2, 3)
+    val bi = Array[Int](0, 1, 2, 3, 4)
     T ~ ai.copy                     =**= ai
     T ~ (ai.copy eq ai)             ==== false
     T ~ ai.copy.tap(_(0) = 4).toSeq =!!= ai.toSeq
@@ -1605,8 +1673,30 @@ class FlowTest {
     T ~ ai.copyToSize(4)            =**= Array[Int](1, 2, 3, 0)
     T ~ ai.shrinkCopy(2)            =**= ai.take(2)
     T ~ (ai.shrinkCopy(4) eq ai)    ==== true
+    T ~ ai.copyOfRange(1, 3)        =**= ai.drop(1)
+    T ~ ai.addLeftSlots(1)          =**= (0 +: ai)
+    T ~ ai.addRightSlots(1)         =**= (ai :+ 0)
+    T ~ ai.copyInto(bi)             =**= Array[Int](1, 2, 3, 3, 4)
+    T ~ ai.copyInto(bi, 2)          =**= Array[Int](1, 2, 1, 2, 3)
+    T ~ ai.copyRangeInto(1,3)(bi)   =**= Array[Int](2, 3, 1, 2, 3)
+    T ~ ai.copyRangeInto(1,3)(bi,1) =**= Array[Int](2, 2, 3, 2, 3)
+    T ~ ai.py(1)                    ==== ai(1)
+    T ~ ai.py(-3)                   ==== ai(0)
+    T ~ bi.py.index(-2)             ==== 3
+    T ~ { bi.py(-4) = 0; bi }       =**= Array[Int](2, 0, 3, 2, 3)
+    T ~ bi.isSorted                 ==== false
+    T ~ bi.isSortedRange(1, 3)      ==== true
+    T ~ ai.search(2)                ==== 1
+    T ~ ai.search(0)                ==== -1
+    T ~ bi.searchRange(1, 3)(3)     ==== 2
+    T ~ bi.searchRange(1, 3)(2)     ==== -3
+    T ~ bi.sortRange(0, 3)          =**= Array[Int](0, 2, 3, 2, 3)
+    T ~ bi.sort()                   =**= Array[Int](0, 2, 2, 3, 3)
+    T ~ bi.fillRange(2, 4)(1)       =**= Array[Int](0, 2, 1, 1, 3)
+    T ~ bi.fill(4)                  =**= Array[Int](4, 4, 4, 4, 4)
 
     val al = Array[Long](1, 2, 3)
+    val bl = Array[Long](0, 1, 2, 3, 4)
     T ~ al.copy                     =**= al
     T ~ (al.copy eq al)             ==== false
     T ~ al.copy.tap(_(0) = 4).toSeq =!!= al.toSeq
@@ -1615,8 +1705,30 @@ class FlowTest {
     T ~ al.copyToSize(4)            =**= Array[Long](1, 2, 3, 0)
     T ~ al.shrinkCopy(2)            =**= al.take(2)
     T ~ (al.shrinkCopy(4) eq al)    ==== true
+    T ~ al.copyOfRange(1, 3)        =**= al.drop(1)
+    T ~ al.addLeftSlots(1)          =**= (0 +: al)
+    T ~ al.addRightSlots(1)         =**= (al :+ 0)
+    T ~ al.copyInto(bl)             =**= Array[Long](1, 2, 3, 3, 4)
+    T ~ al.copyInto(bl, 2)          =**= Array[Long](1, 2, 1, 2, 3)
+    T ~ al.copyRangeInto(1,3)(bl)   =**= Array[Long](2, 3, 1, 2, 3)
+    T ~ al.copyRangeInto(1,3)(bl,1) =**= Array[Long](2, 2, 3, 2, 3)
+    T ~ al.py(1)                    ==== al(1)
+    T ~ al.py(-3)                   ==== al(0)
+    T ~ bl.py.index(-2)             ==== 3
+    T ~ { bl.py(-4) = 0; bl }       =**= Array[Long](2, 0, 3, 2, 3)
+    T ~ bl.isSorted                 ==== false
+    T ~ bl.isSortedRange(1, 3)      ==== true
+    T ~ al.search(2)                ==== 1
+    T ~ al.search(0)                ==== -1
+    T ~ bl.searchRange(1, 3)(3)     ==== 2
+    T ~ bl.searchRange(1, 3)(2)     ==== -3
+    T ~ bl.sortRange(0, 3)          =**= Array[Long](0, 2, 3, 2, 3)
+    T ~ bl.sort()                   =**= Array[Long](0, 2, 2, 3, 3)
+    T ~ bl.fillRange(2, 4)(1)       =**= Array[Long](0, 2, 1, 1, 3)
+    T ~ bl.fill(4)                  =**= Array[Long](4, 4, 4, 4, 4)
 
     val af = Array[Float](1, 2, 3)
+    val bf = Array[Float](0, 1, 2, 3, 4)
     T ~ af.copy                     =**= af
     T ~ (af.copy eq af)             ==== false
     T ~ af.copy.tap(_(0) = 4).toSeq =!!= af.toSeq
@@ -1625,8 +1737,30 @@ class FlowTest {
     T ~ af.copyToSize(4)            =**= Array[Float](1, 2, 3, 0)
     T ~ af.shrinkCopy(2)            =**= af.take(2)
     T ~ (af.shrinkCopy(4) eq af)    ==== true
+    T ~ af.copyOfRange(1, 3)        =**= af.drop(1)
+    T ~ af.addLeftSlots(1)          =**= (0 +: af)
+    T ~ af.addRightSlots(1)         =**= (af :+ 0)
+    T ~ af.copyInto(bf)             =**= Array[Float](1, 2, 3, 3, 4)
+    T ~ af.copyInto(bf, 2)          =**= Array[Float](1, 2, 1, 2, 3)
+    T ~ af.copyRangeInto(1,3)(bf)   =**= Array[Float](2, 3, 1, 2, 3)
+    T ~ af.copyRangeInto(1,3)(bf,1) =**= Array[Float](2, 2, 3, 2, 3)
+    T ~ af.py(1)                    ==== af(1)
+    T ~ af.py(-3)                   ==== af(0)
+    T ~ bf.py.index(-2)             ==== 3
+    T ~ { bf.py(-4) = 0; bf }       =**= Array[Float](2, 0, 3, 2, 3)
+    T ~ bf.isSorted                 ==== false
+    T ~ bf.isSortedRange(1, 3)      ==== true
+    T ~ af.search(2)                ==== 1
+    T ~ af.search(0)                ==== -1
+    T ~ bf.searchRange(1, 3)(3)     ==== 2
+    T ~ bf.searchRange(1, 3)(2)     ==== -3
+    T ~ bf.sortRange(0, 3)          =**= Array[Float](0, 2, 3, 2, 3)
+    T ~ bf.sort()                   =**= Array[Float](0, 2, 2, 3, 3)
+    T ~ bf.fillRange(2, 4)(1)       =**= Array[Float](0, 2, 1, 1, 3)
+    T ~ bf.fill(4)                  =**= Array[Float](4, 4, 4, 4, 4)
 
     val ad = Array[Double](1, 2, 3)
+    val bd = Array[Double](0, 1, 2, 3, 4)
     T ~ ad.copy                     =**= ad
     T ~ (ad.copy eq ad)             ==== false
     T ~ ad.copy.tap(_(0) = 4).toSeq =!!= ad.toSeq
@@ -1635,11 +1769,59 @@ class FlowTest {
     T ~ ad.copyToSize(4)            =**= Array[Double](1, 2, 3, 0)
     T ~ ad.shrinkCopy(2)            =**= ad.take(2)
     T ~ (ad.shrinkCopy(4) eq ad)    ==== true
+    T ~ ad.copyOfRange(1, 3)        =**= ad.drop(1)
+    T ~ ad.addLeftSlots(1)          =**= (0 +: ad)
+    T ~ ad.addRightSlots(1)         =**= (ad :+ 0)
+    T ~ ad.copyInto(bd)             =**= Array[Double](1, 2, 3, 3, 4)
+    T ~ ad.copyInto(bd, 2)          =**= Array[Double](1, 2, 1, 2, 3)
+    T ~ ad.copyRangeInto(1,3)(bd)   =**= Array[Double](2, 3, 1, 2, 3)
+    T ~ ad.copyRangeInto(1,3)(bd,1) =**= Array[Double](2, 2, 3, 2, 3)
+    T ~ ad.py(1)                    ==== ad(1)
+    T ~ ad.py(-3)                   ==== ad(0)
+    T ~ bd.py.index(-2)             ==== 3
+    T ~ { bd.py(-4) = 0; bd }       =**= Array[Double](2, 0, 3, 2, 3)
+    T ~ bd.isSorted                 ==== false
+    T ~ bd.isSortedRange(1, 3)      ==== true
+    T ~ ad.search(2)                ==== 1
+    T ~ ad.search(0)                ==== -1
+    T ~ bd.searchRange(1, 3)(3)     ==== 2
+    T ~ bd.searchRange(1, 3)(2)     ==== -3
+    T ~ bd.sortRange(0, 3)          =**= Array[Double](0, 2, 3, 2, 3)
+    T ~ bd.sort()                   =**= Array[Double](0, 2, 2, 3, 3)
+    T ~ bd.fillRange(2, 4)(1)       =**= Array[Double](0, 2, 1, 1, 3)
+    T ~ bd.fill(4)                  =**= Array[Double](4, 4, 4, 4, 4)
 
     val aa = Array[String]("1", "2", "3")
+    val ba = Array[String]("0", "1", "2", "3", "4")
     T ~ aa.copy                       =**= aa
     T ~ (aa.copy eq aa)               ==== false
     T ~ aa.copy.tap(_(0) = "4").toSeq =!!= aa.toSeq
+    T ~ aa.copyToSize(2).length     ==== 2
+    T ~ aa.copyToSize(2)            =**= aa.take(2)
+    T ~ aa.copyToSize(4)            =**= Array[String]("1", "2", "3", null)
+    T ~ aa.shrinkCopy(2)            =**= aa.take(2)
+    T ~ (aa.shrinkCopy(4) eq aa)    ==== true
+    T ~ aa.copyOfRange(1, 3)        =**= aa.drop(1)
+    T ~ aa.addLeftSlots(1)          =**= (null +: aa)
+    T ~ aa.addRightSlots(1)         =**= (aa :+ null)
+    T ~ aa.copyInto(ba)             =**= Array[String]("1", "2", "3", "3", "4")
+    T ~ aa.copyInto(ba, 2)          =**= Array[String]("1", "2", "1", "2", "3")
+    T ~ aa.copyRangeInto(1,3)(ba)   =**= Array[String]("2", "3", "1", "2", "3")
+    T ~ aa.copyRangeInto(1,3)(ba,1) =**= Array[String]("2", "2", "3", "2", "3")
+    T ~ aa.py(1)                    ==== aa(1)
+    T ~ aa.py(-3)                   ==== aa(0)
+    T ~ ba.py.index(-2)             ==== 3
+    T ~ { ba.py(-4) = "0"; ba }     =**= Array[String]("2", "0", "3", "2", "3")
+    T ~ ba.isSorted                 ==== false
+    T ~ ba.isSortedRange(1, 3)      ==== true
+    T ~ aa.search("2")              ==== 1
+    T ~ aa.search("0")              ==== -1
+    T ~ ba.searchRange(1, 3)("3")   ==== 2
+    T ~ ba.searchRange(1, 3)("2")   ==== -3
+    T ~ ba.sortRange(0, 3)          =**= Array[String]("0", "2", "3", "2", "3")
+    T ~ ba.sort()                   =**= Array[String]("0", "2", "2", "3", "3")
+    T ~ ba.fillRange(2, 4)("1")     =**= Array[String]("0", "2", "1", "1", "3")
+    T ~ ba.fill("4")                =**= Array[String]("4", "4", "4", "4", "4")
 
 
     val m = Mu(5)
