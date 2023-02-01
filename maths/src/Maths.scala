@@ -1049,6 +1049,103 @@ extension (d: Double) {
       else ULong(frac.toLong << (exp-1075))
 }
 
+
+extension (af: Array[Float]) {
+  def isIncreasing: Boolean =
+    var i = 1
+    while i < af.length && af(i-1) < af(i) do i += 1
+    i >= af.length
+
+  def bisect(x: Float): Float =
+    if af.length > 1 then  
+      var x0 = af(0)
+      var x1 = af(af.length - 1)
+      if x > x0 && x < x1 then
+        var i0 = 0
+        var i1 = af.length - 1
+        while i1 - i0 > 1 do
+          val j = (i0 + i1) >>> 1
+          val y = af(j)
+          if x < y then
+            x1 = y
+            i1 = j
+          else if x > y then
+            x0 = y
+            i0 = j
+          else if x == y then return j
+          else return Float.NaN
+        val f = (x - x0)/(x1 - x0)
+        i0 + f
+      else
+        if x == x0 then 0
+        else if x == x1 then af.length - 1
+        else if x < x0 then Float.NegativeInfinity
+        else if x > x1 then Float.PositiveInfinity
+        else Float.NaN
+    else if af.length == 1 then
+      if x == af(0) then 0.0
+      else if x > af(0) then Float.PositiveInfinity
+      else if x < af(0) then Float.NegativeInfinity
+      else Float.NaN
+    else Float.NaN
+}
+
+extension (ad: Array[Double]) {
+  def accumulateInto(target: Array[Double], position: Int = 0, zero: Double = 0.0): target.type =
+    if ad.length > 0 then
+      var acc = ad(0) + zero
+      target(position) = acc
+      var i = 1
+      var j = position + 1
+      while i < ad.length do
+        acc += ad(i)
+        target(j) = acc
+        i += 1
+        j += 1
+    target
+
+  inline def accumulate: Array[Double] = accumulateInto(new Array[Double](ad.length), 0)
+
+  def isIncreasing: Boolean =
+    var i = 1
+    while i < ad.length && ad(i-1) < ad(i) do i += 1
+    i >= ad.length
+
+  def bisect(x: Double): Double =
+    if ad.length > 1 then  
+      var x0 = ad(0)
+      var x1 = ad(ad.length - 1)
+      if x > x0 && x < x1 then
+        var i0 = 0
+        var i1 = ad.length - 1
+        while i1 - i0 > 1 do
+          val j = (i0 + i1) >>> 1
+          val y = ad(j)
+          if x < y then
+            x1 = y
+            i1 = j
+          else if x > y then
+            x0 = y
+            i0 = j
+          else if x == y then return j
+          else return Double.NaN
+        val f = (x - x0)/(x1 - x0)
+        i0 + f
+      else
+        if x == x0 then 0
+        else if x == x1 then ad.length - 1
+        else if x < x0 then Double.NegativeInfinity
+        else if x > x1 then Double.PositiveInfinity
+        else Double.NaN
+    else if ad.length == 1 then
+      if x == ad(0) then 0.0
+      else if x > ad(0) then Double.PositiveInfinity
+      else if x < ad(0) then Double.NegativeInfinity
+      else Double.NaN
+    else Double.NaN
+}
+
+
 extension (inline x: Byte | Short | Int | Long | Float | Double) {
   transparent inline def bitsI = inline x match
     case f: Float => java.lang.Float.floatToRawIntBits(f)

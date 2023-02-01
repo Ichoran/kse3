@@ -1677,6 +1677,19 @@ class MathTest {
     T ~ f.f64               ==== 1.2f.toDouble
     T ~ f.f64               ==== typed[Double]
 
+    T ~ Array(1f, 2f, 4f).isIncreasing  ==== true
+    T ~ Array(1f, 4f, 2f).isIncreasing  ==== false
+    T ~ Array(1f, 2f, 4f).bisect(3f)    =~~= 1.5f
+    T ~ Array(1f, 2f, 4f).bisect(5f)    ==== Float.PositiveInfinity
+    T ~ Array(1f, 2f, 4f).bisect(2f)    ==== 1f
+    T ~ Array(1f, 2f, 4f).bisect(-1f)   ==== Float.NegativeInfinity
+    T ~ Array[Float]().bisect(0f)       ==== Float.NaN
+    T ~ Array(1f).bisect(0f)            ==== Float.NegativeInfinity
+    T ~ Array(1f).bisect(1f)            ==== 0f
+    T ~ Array(1f).bisect(2f)            ==== Float.PositiveInfinity
+    T ~ Array(1f, Float.NaN).bisect(2f) ==== Float.NaN
+    T ~ Array(1f, 2f).bisect(Float.NaN) ==== Float.NaN
+
     val d = 1.2
     val dnan = Double.NaN
     T ~ d.trunc          ==== 1.0
@@ -1760,6 +1773,24 @@ class MathTest {
     T ~ d.bitsL               ==== 4608083138725491507L
     T ~ d.f32                 ==== 1.2f
     T ~ d.f32                 ==== typed[Float]
+
+    val dd = Array(5.0, 4.0, 3.0, 2.0, 1.0)
+    T ~ Array(1.0, 2.0).accumulateInto(dd) =**= Array(1.0, 3.0, 3.0, 2.0, 1.0)
+    T ~ Array(3.0).accumulateInto(dd, 4)   =**= Array(1.0, 3.0, 3.0, 2.0, 3.0)
+    T ~ Array(3.0).accumulateInto(dd,1,3)  =**= Array(1.0, 6.0, 3.0, 2.0, 3.0)
+    T ~ Array(1.0, 2.0, 4.0).accumulate    =**= Array(1.0, 3.0, 7.0)
+    T ~ Array(1.0, 2.0, 4.0).isIncreasing  ==== true
+    T ~ Array(1.0, 4.0, 2.0).isIncreasing  ==== false
+    T ~ Array(1.0, 2.0, 4.0).bisect(3.0)   =~~= 1.5
+    T ~ Array(1.0, 2.0, 4.0).bisect(5.0)   ==== Double.PositiveInfinity
+    T ~ Array(1.0, 2.0, 4.0).bisect(2.0)   ==== 1.0
+    T ~ Array(1.0, 2.0, 4.0).bisect(-1.0)  ==== Double.NegativeInfinity
+    T ~ Array[Double]().bisect(0.0)        ==== Double.NaN
+    T ~ Array(1.0).bisect(0.0)             ==== Double.NegativeInfinity
+    T ~ Array(1.0).bisect(1.0)             ==== 0.0
+    T ~ Array(1.0).bisect(2.0)             ==== Double.PositiveInfinity
+    T ~ Array(1.0, Double.NaN).bisect(2.0) ==== Double.NaN
+    T ~ Array(1.0, 2.0).bisect(Double.NaN) ==== Double.NaN
 
 
   @Test

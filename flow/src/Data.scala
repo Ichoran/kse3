@@ -160,6 +160,12 @@ extension (ab: Array[Byte])
       var i = i0 + 1
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Byte => Byte): ab.type =
+    var i = 0
+    while i < ab.length do
+      ab(i) = f(ab(i))
+      i += 1
+    ab
 
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
 extension (as: Array[Short])
@@ -186,6 +192,12 @@ extension (as: Array[Short])
       var i = i0 + 1
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Short => Short): as.type =
+    var i = 0
+    while i < as.length do
+      as(i) = f(as(i))
+      i += 1
+    as
 
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ac: Array[Char])
@@ -212,6 +224,12 @@ extension (ac: Array[Char])
       var i = i0 + 1
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Char => Char): ac.type =
+    var i = 0
+    while i < ac.length do
+      ac(i) = f(ac(i))
+      i += 1
+    ac
 
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ai: Array[Int])
@@ -238,6 +256,12 @@ extension (ai: Array[Int])
       var i = i0 + 1
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Int => Int): ai.type =
+    var i = 0
+    while i < ai.length do
+      ai(i) = f(ai(i))
+      i += 1
+    ai
 
 /** Long Array specific functionality from java.util.Arrays and java.lang.System */
 extension (al: Array[Long])
@@ -264,6 +288,12 @@ extension (al: Array[Long])
       var i = i0 + 1
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Long => Long): al.type =
+    var i = 0
+    while i < al.length do
+      al(i) = f(al(i))
+      i += 1
+    al
 
 /** Float Array specific functionality from java.util.Arrays and java.lang.System */
 extension (af: Array[Float])
@@ -290,6 +320,12 @@ extension (af: Array[Float])
       var i = i0 + 1
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Float => Float): af.type =
+    var i = 0
+    while i < af.length do
+      af(i) = f(af(i))
+      i += 1
+    af
 
 /** Double Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ad: Array[Double])
@@ -316,6 +352,12 @@ extension (ad: Array[Double])
       var i = i0 + 1
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
+  inline def zapAll(inline f: Double => Double): ad.type =
+    var i = 0
+    while i < ad.length do
+      ad(i) = f(ad(i))
+      i += 1
+    ad
 
 /** Object Array specific functionality from java.util.Arrays and java.lang.System */
 extension [A >: Null <: AnyRef](aa: Array[A])
@@ -342,6 +384,13 @@ extension [A >: Null <: AnyRef](aa: Array[A])
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
+  inline def zapAll(inline f: A => A): aa.type =
+    var i = 0
+    while i < aa.length do
+      aa(i) = f(aa(i))
+      i += 1
+    aa
+
 
 /** Holds mutable data (would be better if standard library exposed this!) */
 sealed abstract class Mu[A] {

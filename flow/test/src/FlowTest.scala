@@ -1596,6 +1596,7 @@ class FlowTest {
     T ~ bb.sortRange(0, 3)          =**= Array[Byte](0, 2, 3, 2, 3)
     T ~ bb.sort()                   =**= Array[Byte](0, 2, 2, 3, 3)
     T ~ bb.fillRange(2, 4)(1)       =**= Array[Byte](0, 2, 1, 1, 3)
+    T ~ bb.zapAll(b=>(b+1).toByte)  =**= Array[Byte](1, 3, 2, 2, 4)
     T ~ bb.fill(4)                  =**= Array[Byte](4, 4, 4, 4, 4)
 
 
@@ -1629,6 +1630,7 @@ class FlowTest {
     T ~ bs.sortRange(0, 3)          =**= Array[Short](0, 2, 3, 2, 3)
     T ~ bs.sort()                   =**= Array[Short](0, 2, 2, 3, 3)
     T ~ bs.fillRange(2, 4)(1)       =**= Array[Short](0, 2, 1, 1, 3)
+    T ~ bs.zapAll(s=>(s+1).toShort) =**= Array[Short](1, 3, 2, 2, 4)
     T ~ bs.fill(4)                  =**= Array[Short](4, 4, 4, 4, 4)
 
     val ac = Array[Char]('1', '2', '3')
@@ -1660,7 +1662,8 @@ class FlowTest {
     T ~ bc.searchRange(1, 3)('2')   ==== -3
     T ~ bc.sortRange(0, 3)          =**= Array[Char]('0', '2', '3', '2', '3')
     T ~ bc.sort()                   =**= Array[Char]('0', '2', '2', '3', '3')
-    T ~ bc.fillRange(2, 4)('1')     =**= Array[Char]('0', '2', '1', '1', '3')
+    T ~ bc.fillRange(2, 4)('e')     =**= Array[Char]('0', '2', 'e', 'e', '3')
+    T ~ bc.zapAll(_.toUpper)        =**= Array[Char]('0', '2', 'E', 'E', '3')
     T ~ bc.fill('4')                =**= Array[Char]('4', '4', '4', '4', '4')
 
     val ai = Array[Int](1, 2, 3)
@@ -1693,6 +1696,7 @@ class FlowTest {
     T ~ bi.sortRange(0, 3)          =**= Array[Int](0, 2, 3, 2, 3)
     T ~ bi.sort()                   =**= Array[Int](0, 2, 2, 3, 3)
     T ~ bi.fillRange(2, 4)(1)       =**= Array[Int](0, 2, 1, 1, 3)
+    T ~ bi.zapAll(_ + 1)            =**= Array[Int](1, 3, 2, 2, 4)
     T ~ bi.fill(4)                  =**= Array[Int](4, 4, 4, 4, 4)
 
     val al = Array[Long](1, 2, 3)
@@ -1725,6 +1729,7 @@ class FlowTest {
     T ~ bl.sortRange(0, 3)          =**= Array[Long](0, 2, 3, 2, 3)
     T ~ bl.sort()                   =**= Array[Long](0, 2, 2, 3, 3)
     T ~ bl.fillRange(2, 4)(1)       =**= Array[Long](0, 2, 1, 1, 3)
+    T ~ bl.zapAll(_ + 1)            =**= Array[Long](1, 3, 2, 2, 4)
     T ~ bl.fill(4)                  =**= Array[Long](4, 4, 4, 4, 4)
 
     val af = Array[Float](1, 2, 3)
@@ -1757,6 +1762,7 @@ class FlowTest {
     T ~ bf.sortRange(0, 3)          =**= Array[Float](0, 2, 3, 2, 3)
     T ~ bf.sort()                   =**= Array[Float](0, 2, 2, 3, 3)
     T ~ bf.fillRange(2, 4)(1)       =**= Array[Float](0, 2, 1, 1, 3)
+    T ~ bf.zapAll(_ + 1)            =**= Array[Float](1, 3, 2, 2, 4)
     T ~ bf.fill(4)                  =**= Array[Float](4, 4, 4, 4, 4)
 
     val ad = Array[Double](1, 2, 3)
@@ -1789,6 +1795,7 @@ class FlowTest {
     T ~ bd.sortRange(0, 3)          =**= Array[Double](0, 2, 3, 2, 3)
     T ~ bd.sort()                   =**= Array[Double](0, 2, 2, 3, 3)
     T ~ bd.fillRange(2, 4)(1)       =**= Array[Double](0, 2, 1, 1, 3)
+    T ~ bd.zapAll(_ + 1)            =**= Array[Double](1, 3, 2, 2, 4)
     T ~ bd.fill(4)                  =**= Array[Double](4, 4, 4, 4, 4)
 
     val aa = Array[String]("1", "2", "3")
@@ -1820,7 +1827,8 @@ class FlowTest {
     T ~ ba.searchRange(1, 3)("2")   ==== -3
     T ~ ba.sortRange(0, 3)          =**= Array[String]("0", "2", "3", "2", "3")
     T ~ ba.sort()                   =**= Array[String]("0", "2", "2", "3", "3")
-    T ~ ba.fillRange(2, 4)("1")     =**= Array[String]("0", "2", "1", "1", "3")
+    T ~ ba.fillRange(2, 4)("e")     =**= Array[String]("0", "2", "e", "e", "3")
+    T ~ ba.zapAll(_.toUpperCase)    =**= Array[String]("0", "2", "E", "E", "3")
     T ~ ba.fill("4")                =**= Array[String]("4", "4", "4", "4", "4")
 
 
