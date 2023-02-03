@@ -1203,6 +1203,7 @@ class MathTest {
     T ~ regularizedIncompleteBeta(94.1, 94.2)(0.384) =~~= 0.00064973938015974858055
     T ~ regularizedIncompleteBeta(94.1, 94.2)(0.501) =~~= 0.51384518267594726173
     T ~ regularizedIncompleteBeta(94.1, 94.2)(0.599) =~~= 0.99700121042712086905
+    T ~ regularizedIncompleteBeta(500, 1)(0.98)      =~~= 0.000041023985145472588934
     T ~ cdfFDist(5, 7)(14.142) =~~= 0.99847312214627792997
     T ~ cdfFDist(18, 11)(0.29) =~~= 0.0097966801396012063383
 

@@ -414,7 +414,7 @@ object NumericFunctions {
 
   // Incomplete beta functions and F distribution based on DiDonato & Morris, ACM Trans Math Soft v18 pp360-373 (1992)
   // Additional inspiration taken from bratio.f90 by DD & M, and Boost 1.53 implementation and documentation also based on DD & M
-  def ddmMethodBPSER(a: Double, b: Double, x: Double) =
+  private def ddmMethodBPSER(a: Double, b: Double, x: Double) =
     var nu = a
     var de = 1.0
     var term = EpsDouble100x
