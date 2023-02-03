@@ -3,7 +3,12 @@
 
 package kse.flow
 
-import scala.util.control.NonFatal
+import scala.util.control.ControlThrowable
+
+
+def catchable(t: Throwable): Boolean = t match
+  case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable => false
+  case _ => true
 
 
 object ExceptionExplainer {

@@ -4,7 +4,7 @@
 
 package kse.flow
 
-import scala.util.control.{ControlThrowable, NonFatal}
+import scala.util.control.ControlThrowable
 
 import scala.util.{Try, Success, Failure}
 
@@ -113,7 +113,7 @@ extension (objectOr: Or.type)
     * }}}
     */
   inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: TransformsFlow[Alt[Y]] ?=> X): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if NonFatal(t) => Alt(erf(t)) }; or }) }
+    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if catchable(t) => Alt(erf(t)) }; or }) }
   /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted via a given `Cope`. 
     *
@@ -125,7 +125,7 @@ extension (objectOr: Or.type)
     * }}}
     */
   inline def Nice[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X)(using cope: Cope[Y]): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if NonFatal(t) => Alt(cope fromThrowable t) }; or }) }
+    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if catchable(t) => Alt(cope fromThrowable t) }; or }) }
 
 extension (objectEither: Either.type)
   /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
@@ -220,7 +220,7 @@ extension (tryObject: Try.type)
 inline def safe[X](inline x: => X): X Or Throwable =
   try Is(x)
   catch
-    case e if NonFatal(e) => Alt(e)
+    case e if catchable(e) => Alt(e)
 
 /** Run something safely, packing all non-fatal exceptions into the disfavored branch by mapping
   * the Throwable that was created, and returning the result as the favored branch of an `Or`.
@@ -228,7 +228,7 @@ inline def safe[X](inline x: => X): X Or Throwable =
 inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
   try Is(x)
   catch
-    case e if NonFatal(e) => Alt(f(e))
+    case e if catchable(e) => Alt(f(e))
 
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
@@ -236,13 +236,13 @@ inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
 inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
   catch
-    case e if NonFatal(e) => Alt(cope fromThrowable e)
+    case e if catchable(e) => Alt(cope fromThrowable e)
 
 /** Run something safely, also catching any control constructs that might escape. */
 inline def threadsafe[X](inline x: => X): X Or Throwable =
   try Is(x)
   catch
-    case e if NonFatal(e)    => Alt(e)
+    case e if catchable(e)   => Alt(e)
     case c: ControlThrowable => Alt(c)
 
 //////////////////////////////////////////

@@ -9,7 +9,6 @@ import java.lang.ref.SoftReference
 import java.time._
 import java.util.concurrent.atomic._
 
-import scala.util.control.NonFatal
 
 
 /** A general way to defer a computation but cache the result.
@@ -467,7 +466,7 @@ object Hold {
           else
             state = Is(s)
         }
-        catch { case e if NonFatal(e) => state = Alt.unit; throw e }
+        catch { case e if catchable(e) => state = Alt.unit; throw e }
       }
       answer
     }

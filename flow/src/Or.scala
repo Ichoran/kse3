@@ -6,7 +6,7 @@ package kse.flow
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
-import scala.util.control.{NonFatal, ControlThrowable}
+import scala.util.control.ControlThrowable
 
 
 /** Supertype of any boxed branch of an `Or`.
