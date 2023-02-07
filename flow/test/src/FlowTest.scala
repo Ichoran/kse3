@@ -13,6 +13,8 @@ import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
+import scala.util.boundary
+import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
@@ -1144,133 +1146,6 @@ class FlowTest {
     T ~ om.swapToTry.get ==== null
 
 
-  @Test
-  def hopTest(): Unit =
-
-    T ~ Hop.unit{ () }     ==== ()
-    T ~ Hop.int{ 3 }       ==== 3
-    T ~ Hop.long{ 999L }   ==== 999 --: typed[Long]
-    T ~ Hop.float{ 2.1f }  ==== 2.1f
-    T ~ Hop.double{ 0.6 }  ==== 0.6 
-    T ~ Hop.any[Char]('e') ==== 'e'
-
-    val fish = List("cod", "eel", "salmon", "bass")
-
-    T ~ {
-      var x = 0
-      Hop.unit{
-        fish.foreach{ y =>
-          if y.length > 5 then ().hop
-          x += y.length
-        }
-      }
-      x
-    } ==== 6
-
-    T ~ {
-      Hop.int{
-        fish.foldLeft(0){ (acc, y) =>
-          if y.length > 5 then acc.hop
-          acc + y.length
-        }
-      }
-    } ==== 6
-
-    T ~ {
-      Hop.long{
-        fish.foldLeft(0L){ (acc, y) =>
-          if y.length > 5 then acc.hop
-          (acc + 1) << y.length
-        }
-      }
-    } ==== 72 --: typed[Long]
-
-    T ~ {
-      Hop.float{
-        fish.foldLeft(0f){ (acc, y) =>
-          if y.length > 5 then acc.hop
-          acc + 1f/y.length
-        }
-      }
-    } =~~= 0.66666667f
-
-    T ~ {
-      Hop.double{
-        fish.foldLeft(0.0){ (acc, y) =>
-          if y.length > 5 then acc.hop
-          acc + 1.0/y.length
-        }
-      }
-    } =~~= 0.66666666666666667
-
-    T ~ {
-      Hop.any[String]{
-        fish.foldLeft("fish:"){ (acc, y) =>
-          if y.length > 5 then acc.hop
-          acc + " " + y
-        }
-      }
-    } ==== "fish: cod eel"
-
-    T("Hop by default to inner context") ~ {
-      Hop.int{
-        fish.foldLeft(0){ (acc, y) =>
-          acc + Hop.int{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.hop else bcc + z ) }
-        }
-      }
-    } ==== "ceeba".sum.toInt
-
-    T("Hop to outer context") ~ {
-      Hop.int{ outer ?=>
-        fish.foldLeft(0){ (acc, y) =>
-          acc + Hop.int{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.hop(using outer) else bcc + z ) }
-        }
-      }
-    } ==== 'c'.toInt
-
-    T("Correct type-based dispatch of hops") ~ {
-      var x = 0
-      val s = Hop.any[String]{
-        fish.foldLeft(""){ (acc, y) =>
-          val c = Hop.any[Char]{ 
-            y.foldLeft(0)( (bcc, z) => if z > 'g' then z.hop else if z <= 'a' then s"$bcc $z".hop else bcc + z ).toChar
-          }
-          x += c
-          acc + c.toString
-        }
-      }
-      (x, s)
-    } ==== ("ols".sum.toInt , "98 a")
-
-    T("Mapped hops") ~ {
-      Hop.any[String]{
-        fish.fold(""){ (acc, y) =>
-          if y.length < acc.length then s"Error: got shorter from $acc to $y"
-          else
-            Hop.map((c: Char) => s"Error: bad char '$c'"){ y.foreach(c => if c == 'm' || c == 'n' then c.hop); ' ' }
-            if y.length > acc.length || y > acc then y else acc
-        }
-      }
-    } ==== "Error: bad char 'm'"
-
-    T("Or hop") ~ {
-      Hop.alt[String]{
-        fish.foldLeft(0){ (acc, y) =>
-          if y.length > 5 then y.hop
-          else acc max y.length
-        }
-      }
-    } ==== Alt("salmon") --: typed[Int Or String]
-
-    T("Or did not hop") ~ {
-      Hop.alt[String]{
-        fish.foldLeft(0){ (acc, y) =>
-          if y.length > 8 then y.hop
-          else acc max y.length
-        }
-      }
-    } ==== Is(6)
-
 
   @Test
   def flowTest(): Unit =
@@ -1426,118 +1301,177 @@ class FlowTest {
     T ~ { var x = ""; (on.use{ x = _ }, x) } ==== (on, "")
     */
 
-    T("hopWith hopped") ~ {
+    val fish = List("cod", "eel", "salmon", "bass")
+
+    T ~ {
+      var x = 0
+      boundary {
+        fish.foreach{ y =>
+          if y.length > 5 then ().break
+          x += y.length
+        }
+      }
+      x
+    } ==== 6
+
+    T ~ {
+      boundary[String] {
+        fish.foldLeft("fish:"){ (acc, y) =>
+          if y.length > 5 then acc.break
+          acc + " " + y
+        }
+      }
+    } ==== "fish: cod eel"
+
+    T("Break by default to inner context") ~ {
+      boundary[Int] {
+        fish.foldLeft(0){ (acc, y) =>
+          acc + boundary[Int] { y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break else bcc + z ) }
+        }
+      }
+    } ==== "ceeba".sum.toInt
+
+    T("Break to outer context") ~ {
+      boundary[Int]{ outer ?=>
+        fish.foldLeft(0){ (acc, y) =>
+          acc + boundary[Int]{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break(using outer) else bcc + z ) }
+        }
+      }
+    } ==== 'c'.toInt
+
+    T("Correct type-based dispatch of breaks") ~ {
+      var x = 0
+      val s = boundary[String] {
+        fish.foldLeft(""){ (acc, y) =>
+          val c = boundary[Char] { 
+            y.foldLeft(0)( (bcc, z) => if z > 'g' then z.break else if z <= 'a' then s"$bcc $z".break else bcc + z ).toChar
+          }
+          x += c
+          acc + c.toString
+        }
+      }
+      (x, s)
+    } ==== ("ols".sum.toInt , "98 a")
+
+    given AutoMap[Char, String] = c => s"Error: bad char '$c'"
+    T("Mapped breaks") ~ {
+      boundary[String] {
+        fish.fold(""){ (acc, y) =>
+          if y.length < acc.length then s"Error: got shorter from $acc to $y"
+          else
+            y.foreach(c => if c == 'm' || c == 'n' then c.autobreak);
+            if y.length > acc.length || y > acc then y else acc
+        }
+      }
+    } ==== "Error: bad char 'm'"
+
+    T("breakWith broke") ~ {
       val s = "salmon"
-      Hop.int{
-        if !s.forall(_.isDigit) then s.hopWith(x => -x.length)
+      boundary[Int] {
+        if !s.forall(_.isDigit) then s.breakWith(x => -x.length)
         s.toInt
       }
     } ==== -6
 
-    T("hopWith didn't hop") ~ {
+    T("breakWith didn't break") ~ {
       val s = "14"
-      Hop.int{
-        if !s.forall(_.isDigit) then s.hopWith(x => -x.length)
+      boundary[Int] {
+        if !s.forall(_.isDigit) then s.breakWith(x => -x.length)
         s.toInt
       }
     } ==== 14
 
-    T("hopIf hopped") ~ {
+    T("breakIf broke") ~ {
       val s = "salmon"
-      Hop.any[String]{
-        s.hopIf(_.length > 4)
+      boundary[String] {
+        s.breakIf(_.length > 4)
         s.toUpperCase
       }
     } ==== "salmon"
 
-    T("hopIf didn't hop") ~ {
+    T("breakIf didn't break") ~ {
       val s = "cod"
-      Hop.any[String]{
-        s.hopIf(_.length > 4)
+      boundary[String] {
+        s.breakIf(_.length > 4)
         s.toUpperCase
       }
     } ==== "COD"
 
-    T("hopIfNot hopped") ~ {
+    T("breakIfNot broke") ~ {
       val s = "cod"
-      Hop.any[String]{
-        s.hopIfNot(_.length > 4)
+      boundary[String] {
+        s.breakIfNot(_.length > 4)
         s.toUpperCase
       }
     } ==== "cod"
 
-    T("hopIfNot didn't hop") ~ {
+    T("breakIfNot didn't break") ~ {
       val s = "salmon"
-      Hop.any[String]{
-        s.hopIfNot(_.length > 4)
+      boundary[String] {
+        s.breakIfNot(_.length > 4)
         s.toUpperCase
       }
     } ==== "SALMON"
 
-    T("hopCase hopped") ~ {
+    T("breakCase broke") ~ {
       val s = Option("salmon")
-      Hop.any[String]{
-        s.hopCase{ case Some(x) => x }
+      boundary[String] {
+        s.breakCase{ case Some(x) => x }
         ""
       }
     } ==== "salmon"
 
-    T("hopCase didn't hop") ~ {
+    T("breakCase didn't break") ~ {
       val s: Option[String] = None
-      Hop.any[String]{
-        s.hopCase{ case Some(x) => x }
+      boundary[String] {
+        s.breakCase{ case Some(x) => x }
         ""
       }
     } ==== ""
 
-    T("hopNotCase hopped") ~ {
+    T("breakNotCase broke") ~ {
       val s = "salmon"
-      Hop.any[String]{
-        "!" * s.hopNotCase{ case "cod" => 4 }
+      boundary[String] {
+        "!" * s.breakNotCase{ case "cod" => 4 }
       }
     } ==== "salmon"
 
-    T("hopNotCase didn't hop") ~ {
+    T("breakNotCase didn't break") ~ {
       val s = "cod"
-      Hop.any[String]{
-        "!" * s.hopNotCase{ case "cod" => 4 }
+      boundary[String] {
+        "!" * s.breakNotCase{ case "cod" => 4 }
       }
     } ==== "!!!!"
 
-    T ~ Hop.int{ val o = 7.nor[String];   o.getOrHop.length } ==== 7
-    T ~ Hop.int{ val o = "minnow".or[Int]; o.getOrHop.length } ==== 6
-    T ~ Hop.int{ val o = 5.or[String];     o.altOrHop.length } ==== 5
-    T ~ Hop.int{ val o = "bass".nor[Int]; o.altOrHop.length } ==== 4
-    T ~ Hop.int{ val o = "eel".or[Int];    o.hoppit.length }   ==== 3
-    T ~ Hop.int{ val o = 2.nor[String];   o.hoppit.length }   ==== 2
+    T ~ boundary[Int]{ val o = 7.nor[String];    o.getOrBreak.length } ==== 7
+    T ~ boundary[Int]{ val o = "minnow".or[Int]; o.getOrBreak.length } ==== 6
+    T ~ boundary[Int]{ val o = 5.or[String];     o.altOrBreak.length } ==== 5
+    T ~ boundary[Int]{ val o = "bass".nor[Int];  o.altOrBreak.length } ==== 4
+
+    T ~ boundary[Char]{ val o = "hi".nor[Char];  o.getOrBreakWith(_.head) } ==== 'h'
+    T ~ boundary[Char]{ val o = 'e'.or[String];  o.getOrBreakWith(_.head) } ==== 'e'
+    T ~ boundary[Char]{ val o = "bye".or[Char];  o.altOrBreakWith(_.head) } ==== 'b'
+    T ~ boundary[Char]{ val o = 'g'.nor[String]; o.altOrBreakWith(_.head) } ==== 'g'
+
+    T ~ boundary[String]{ val o = "bass".or[Char]; o.getOrAutoBreak }.length ==== 4
+    T ~ boundary[String]{ val o = 'c'.nor[String]; o.getOrAutoBreak }.length ==== summon[AutoMap[Char, String]](' ').length
+    T ~ boundary[String]{ val o = "eel".nor[Char]; o.altOrAutoBreak }.length ==== 3
+    T ~ boundary[String]{ val o = 'c'.or[String];  o.altOrAutoBreak }.length ==== summon[AutoMap[Char, String]](' ').length
+
 
     val eisL: Either[Int, String] = Left(7)
     val eisR: Either[Int, String] = Right("minnow")
     val esiR: Either[String, Int] = Right(5)
     val esiL: Either[String, Int] = Left("bass")
-    T ~ Hop.int{ eisL.rightOrHop.length } ==== 7
-    T ~ Hop.int{ eisR.rightOrHop.length } ==== 6
-    T ~ Hop.int{ esiR.leftOrHop.length }  ==== 5
-    T ~ Hop.int{ esiL.leftOrHop.length }  ==== 4
-    T ~ Hop.int{ eisL.hoppit.length }     ==== 7
-    T ~ Hop.int{ eisR.hoppit.length }     ==== 6
+    T ~ boundary[Int]{ eisL.rightOrBreak.length } ==== 7
+    T ~ boundary[Int]{ eisR.rightOrBreak.length } ==== 6
+    T ~ boundary[Int]{ esiR.leftOrBreak.length }  ==== 5
+    T ~ boundary[Int]{ esiL.leftOrBreak.length }  ==== 4
 
     val oiS: Option[Int] = Some(2)
     val oiN: Option[Int] = None
-    T ~ { var x = 0; Hop.unit{ x = oiS.getOrHop }; x } ==== 2
-    T ~ { var x = 0; Hop.unit{ x = oiN.getOrHop }; x } ==== 0
-    T ~ { var x = 0; Hop.unit{ x = oiS.hoppit }; x }   ==== 2
-    T ~ { var x = 0; Hop.unit{ x = oiN.hoppit }; x }   ==== 0
-
-    val e2 = new Exception("perch")
-    val tiS = Try { 3 }
-    val tiE = Try { throw e2; 2 }
-    T ~ Hop.any[Throwable]{ new Exception(tiS.getOrHop.toString) }.getMessage ==== "3"
-    T ~ Hop.any[Throwable]{ new Exception(tiE.getOrHop.toString) }            ==== e2
-    T ~ Hop.int{ tiS.hopIfSuccess.getMessage.length }                         ==== 3
-    T ~ Hop.int{ tiE.hopIfSuccess.getMessage.length }                         ==== 5
-    T ~ Hop.any[Throwable]{ new Exception(tiS.hoppit.toString) }.getMessage   ==== "3"
-    T ~ Hop.any[Throwable]{ new Exception(tiE.hoppit.toString) }              ==== e2
+    T ~ { var x = 0; boundary{ x = oiS.getOrBreak }; x } ==== 2
+    T ~ { var x = 0; boundary{ x = oiN.getOrBreak }; x } ==== 0
 
 
   @Test

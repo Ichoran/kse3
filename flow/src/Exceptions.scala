@@ -12,6 +12,8 @@ extension (t: Throwable) {
   inline def catchable: Boolean = t match
     case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable | _: Break[_] => false
     case _ => true
+
+  /** Indicates that a throwable should be caught rather than letting it kill the current thread. */
   inline def threadCatchable: Boolean = t match
     case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError => false
     case _ => true

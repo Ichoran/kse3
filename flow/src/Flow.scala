@@ -7,15 +7,17 @@ package kse.flow
 import scala.util.control.ControlThrowable
 import scala.util.boundary
 import scala.util.boundary.Label
+import scala.util.boundary.break
 
 import scala.util.{Try, Success, Failure}
+
 
 
 //////////////////////////////////////
 /// Early returns with ? a la Rust ///
 //////////////////////////////////////
 
-/** Trait for automatic mapping of disfavored branches using `?*` returns */
+/** Trait for automatic mapping of disfavored branches using `?*` returns and `autobreak` */
 infix trait AutoMap[Y, YY] extends Function1[Y, YY] {}
 
 extension [X, Y](or: X Or Y)
@@ -341,86 +343,74 @@ extension [A](option: Option[A]) {
 }
 
 
-////////////////////////////////////////////////////////
-/// Empowering sum types and others to work with Hop ///
-////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+/// Empowering sum types and others to work with postfix break ///
+//////////////////////////////////////////////////////////////////
 
 extension [A](a: A) {
-  /** Remap this value with a lambda, and then hop that new value */
-  inline def hopWith[B](inline f: A => B)(using ch: CanHop[B]): Nothing = ch hop f(a)
+  /** Exit to a boundary that is this type */
+  inline def break(using Label[A]): Nothing = boundary.break(a)
 
-  /** Hop this value if a predicate is met, otherwise keep going with the same value */
-  inline def hopIf(inline p: A => Boolean)(using ch: CanHop[A]): A = if p(a) then ch hop a else a
+  /** Exit to a boundary that we can map from this type */
+  inline def autobreak[B](using am: AutoMap[A, B], l: Label[B]) = boundary.break(am(a))
 
-  /** Hop this value if a predicate is not met, otherwise keep going with the same value */
-  inline def hopIfNot(inline p: A => Boolean)(using ch: CanHop[A]): A = if p(a) then a else ch hop a
+  /** Remap this value with a lambda, and then exit to boundary with that new value */
+  inline def breakWith[B](inline f: A => B)(using Label[B]): Nothing = boundary.break(f(a))
 
-  /** Remap some of these values and hop if the remap succeeded; otherwise keep going with the same value */
-  inline def hopCase[B](pf: PartialFunction[A, B])(using ch: CanHop[B]): A =
+  /** Exit to boundary with this value if a predicate is met, otherwise keep going with the same value */
+  inline def breakIf(inline p: A => Boolean)(using Label[A]): A = if p(a) then boundary.break(a) else a
+
+  /** Exit to boundary with this value if a predicate is not met, otherwise keep going with the same value */
+  inline def breakIfNot(inline p: A => Boolean)(using Label[A]): A = if p(a) then a else boundary.break(a)
+
+  /** Remap some of these values and exit to boundary with if the remap succeeded; otherwise keep going with the same value */
+  inline def breakCase[B](pf: PartialFunction[A, B])(using Label[B]): A =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => a
-      case b => ch hop b.asInstanceOf[B]
+      case b => boundary.break(b.asInstanceOf[B])
 
-  /** Remap some of these values, or hop the value if it wasn't remapped */
-  inline def hopNotCase[B](pf: PartialFunction[A, B])(using ch: CanHop[A]): B =
+  /** Remap some of these values, or exit to boundary with the value if it wasn't remapped */
+  inline def breakNotCase[B](pf: PartialFunction[A, B])(using Label[A]): B =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
-      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => ch hop a
+      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break(a)
       case b => b.asInstanceOf[B]
 }
 
 extension [X, Y](or: X Or Y) {
-  /** Hop the disfavored branch, or keep going with the favored branch's value */
-  inline def getOrHop(using ch: CanHop[Y]): X = or.fold{ x => x }{ ch hop _ }
+  /** Exit to boundary matching the disfavored branch, or keep going with the favored branch's value */
+  inline def getOrBreak(using Label[Y]): X = or.fold{ x => x }{ y => boundary.break(y) }
 
-  /** Hop the favored branch, or keep going with the disfavored branch's value */
-  inline def altOrHop(using ch: CanHop[X]): Y = or.fold{ ch hop _ }{ y => y }
+  /** Exit to boundary matching mapping of the disfavored branch, or keep going with the favored branch's value */
+  inline def getOrBreakWith[Z](inline f: Y => Z)(using Label[Z]): X = or.fold{ x => x }{ y => boundary.break(f(y)) }
 
-  /** Hop the disfavored branch, or keep going with the favored branch's value.  Like `.?`, but for hops. */
-  inline def hoppit(using ch: CanHop[Y]): X   = or.fold{ x => x }{ ch hop _ }
+  /** Exit to boundary matching automatically mapped disfavored branch, or keep going with the favored branch's value */
+  inline def getOrAutoBreak[Z](using am: AutoMap[Y, Z], l: Label[Z]): X = or.fold{ x => x }{ y => boundary.break(am(y)) }
+
+  /** Exit to boundary matching the favored branch, or keep going with the disfavored branch's value */
+  inline def altOrBreak(using Label[X]): Y = or.fold{ x => boundary.break(x) }{ y => y }
+
+  /** Exit to boundary matching the favored branch, or keep going with the disfavored branch's value */
+  inline def altOrBreakWith[W](inline f: X => W)(using Label[W]): Y = or.fold{ x => boundary.break(f(x)) }{ y => y }
+
+  /** Exit to boundary matching the favored branch, or keep going with the disfavored branch's value */
+  inline def altOrAutoBreak[W](using am: AutoMap[X, W], l: Label[W]): Y = or.fold{ x => boundary.break(am(x)) }{ y => y }
 }
 
 extension[L, R](either: Either[L, R]) {
-  /** Hop the left branch, or keep going with the right branch's value. */
-  inline def rightOrHop(using ch: CanHop[L]): R = either match
+  /** Exit to boundary matching the left branch, or keep going with the right branch's value. */
+  inline def rightOrBreak(using Label[L]): R = either match
     case Right(r) => r
-    case Left(l) => ch hop l
+    case Left(l) => boundary.break(l)
 
-  /** Hop the right branch, or keep going with the left branch's value. */
-  inline def leftOrHop(using ch: CanHop[R]): L = either match
+  /** Exit to boundary matching the right branch, or keep going with the left branch's value. */
+  inline def leftOrBreak(using Label[R]): L = either match
     case Left(l) => l
-    case Right(r) => ch hop r
-
-  /** Hop the left branch, or keep going with the right branch's value.  Like `.?`, but for hops. */
-  inline def hoppit(using ch: CanHop[L]): R = either match
-    case Right(r) => r
-    case Left(l) => ch hop l
+    case Right(r) => boundary.break(r)
 }
 
 extension[A](option: Option[A]) {
-  /** Hop a unit value if the option is empty, or keep going with the option's value. */
-  inline def getOrHop(using ch: CanHop[Unit]): A = option match
+  /** Exit to unit-type boundary if the option is empty, or keep going with the option's value. */
+  inline def getOrBreak(using Label[Unit]): A = option match
     case Some(a) => a
-    case _ => ch.hop(())
-
-  /** Hop a unit value if the option is empty, or keep going with the option's value. */
-  inline def hoppit(using ch: CanHop[Unit]): A = option match
-    case Some(a) => a
-    case _ => ch.hop(())
-}
-
-extension[A](`try`: Try[A]) {
-  /** Hop the throwable if the Try failed, or keep going with the success's value. */
-  inline def getOrHop(using ch: CanHop[Throwable]): A = `try` match
-    case Success(a) => a
-    case Failure(e) => ch hop e
-
-  /** Hop the success if it worked, or keep going with the `Throwable` from the failure. */
-  inline def hopIfSuccess(using ch: CanHop[A]): Throwable = `try` match
-    case Success(a) => ch hop a
-    case Failure(e) => e
-
-  /** Hop the throwable if the Try failed, or keep going with the success's value. */
-  inline def hoppit(using ch: CanHop[Throwable]): A = `try` match
-    case Success(a) => a
-    case Failure(e) => ch hop e
+    case _ => break(())
 }
