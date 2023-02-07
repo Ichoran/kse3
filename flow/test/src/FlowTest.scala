@@ -975,7 +975,7 @@ class FlowTest {
     T ~ (oa || 9.or[String])          ==== 9          --: typed[Int Or String]
     T ~ (oi || "eel".nor[Int])        ==== 5          --: typed[Int Or String]
     T ~ (oa || "eel".nor[Int])        ==== Alt("eel") --: typed[Int Or String]
-    T ~ (oi || { x += 1; 9.or[Int] }) ==== 5          --: typed[Int Or Matchable]
+    T ~ (oi || { x += 1; 9.or[Int] }) ==== 5          --: typed[Int Or (String | Int)]
     T ~ x                             ==== 0
     T ~ (oa || { x += 1; 9.or[Int] }) ==== 9
     T ~ x                             ==== 1
@@ -1317,7 +1317,7 @@ class FlowTest {
     T ~ orQ6("")                                                    ==== Alt("")
     T ~ orQ6("1815")                                                ==== 1815    --: typed[Int Or String]
 
-    def floatQ(f: Float): Float = Ret[Float]{
+    def floatQ(f: Float) = Ret[Float]{
       val g = f.?
       if g < 0 then -math.sqrt(-g).toFloat
       else math.sqrt(g - 1).toFloat.? + 1
@@ -1327,7 +1327,7 @@ class FlowTest {
     T ~ floatQ(0.5f)      =~~= Float.NaN
     T ~ floatQ(2f)        =~~= 2f
 
-    def doubleQ(f: Double): Double = Ret[Double]{
+    def doubleQ(f: Double) = Ret[Double]{
       val g = f.?
       if g < 0 then -math.sqrt(-g)
       else math.sqrt(g - 1).? + 1
@@ -1372,32 +1372,6 @@ class FlowTest {
     T ~ optionQ2("herring") ==== None     --: typed[Option[Int]]
     T ~ optionQ2("8")       ==== None     --: typed[Option[Int]]
     T ~ optionQ2("88")      ==== Some(88)
-
-    def tryQ1(s: String): Try[Int] = Try.Ret{
-      Try(s.toInt).? + 1
-    }
-    T ~ tryQ1("11")    ==== Success(12)
-    T ~ tryQ1("e").get ==== thrown[NumberFormatException]
-    T ~ tryQ1("e").isInstanceOf[Failure[_]] ==== true
-
-    class TestTryJumpException() extends Exception("jump") {}
-    def tryQ2(s: String): Try[Int] = Try.FlatRet{
-      val v = Try(s.toInt).?
-      Try(if v < 10 then throw new TestTryJumpException() else 2*v)
-    }
-    T ~ tryQ2("15")      ==== Success(30)
-    T ~ tryQ2("eel").get ==== thrown[NumberFormatException]
-    T ~ tryQ2("7").get   ==== thrown[TestTryJumpException]
-    T ~ tryQ2("7").isInstanceOf[Failure[_]] ==== true
-
-    def tryQ3(s: String): Try[Int] = Try.Safe{
-      val v = Try(s.toInt).?
-      if v < 10 then throw new TestTryJumpException() else 2*v
-    }
-    T ~ tryQ3("15")      ==== Success(30)
-    T ~ tryQ3("eel").get ==== thrown[NumberFormatException]
-    T ~ tryQ3("7").get   ==== thrown[TestTryJumpException]
-    T ~ tryQ3("7").isInstanceOf[Failure[_]] ==== true
 
     import scala.util.control.ControlThrowable
     T ~ safe{ "17".toInt }                                              ==== 17 --: typed[Int Or Throwable]

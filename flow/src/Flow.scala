@@ -5,6 +5,8 @@
 package kse.flow
 
 import scala.util.control.ControlThrowable
+import scala.util.boundary
+import scala.util.boundary.Label
 
 import scala.util.{Try, Success, Failure}
 
@@ -18,66 +20,59 @@ infix trait AutoMap[Y, YY] extends Function1[Y, YY] {}
 
 extension [X, Y](or: X Or Y)
   /** Delivers the favored branch or returns, perhaps nonlocally the disfavored branch. */
-  inline def ?(using TransformsFlow[Alt[Y]]) : X = (or: @unchecked) match
-    case y: Alt[Y @unchecked] => throw new UntransformedFlowException(y)
+  inline def ?[L >: Alt[Y]](using Label[L]) : X = (or: @unchecked) match
+    case y: Alt[Y @unchecked] => boundary.break(y)
     case _ => Is unwrap or.asInstanceOf[Is[X]]
 
   /** Delivers the favored branch or remaps the disfavored branch and returns it perhaps nonlocally. */
-  inline def ?+[YY](inline f: Y => YY)(using TransformsFlow[Alt[YY]]) : X =
+  inline def ?+[YY, L >: Alt[YY]](inline f: Y => YY)(using Label[L]) : X =
     or.mapAlt(f).?
 
   /** Delivers the favored branch or automatically remaps the disfavored branch before returning it perhaps nonlocally. */
-  inline def ?*[YY](using tr: TransformsFlow[Alt[YY]], m: Y AutoMap YY) : X =
+  inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY) : X =
     or.mapAlt(m).?
 
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
-  inline def ?(using TransformsFlow[Left[L, R]]) : R = either match
+  inline def ?[E >: Left[L, R]](using Label[E]) : R = either match
     case Right(r) => r
-    case l: Left[L, R] => throw new UntransformedFlowException(l)
+    case l: Left[L, R] => boundary.break(l)
 
 extension [A](option: Option[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `None`. */
-  inline def ?(using TransformsFlow[Option[Nothing]]) : A = option match
+  inline def ?[N >: None.type](using Label[N]) : A = option match
     case Some(a) => a
-    case n: None.type => throw new UntransformedFlowException(n)
-
-extension [A](`try`: Try[A])
-  /** Delivers the value if it exists, or does a perhaps nonlocal return of the `Failure` branch. */
-  inline def ?(using TransformsFlow[Failure[A]]) : A = `try` match
-    case Success(a) => a
-    case f: Failure[A] => throw new UntransformedFlowException(f)
+    case n: None.type => boundary.break(n)
 
 extension (double: Double)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
-  inline def ?(using TransformsFlow[Double]) : Double = double match
-    case x if java.lang.Double.isNaN(x) => throw new UntransformedFlowException(x)
+  inline def ?(using Label[Double]) : Double = double match
+    case x if java.lang.Double.isNaN(x) => boundary.break(x)
     case y => y
 
 extension (float: Float)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
-  inline def ?(using TransformsFlow[Float]) : Float = float match
-    case x if java.lang.Float.isNaN(x) => throw new UntransformedFlowException(x)
+  inline def ?(using Label[Float]) : Float = float match
+    case x if java.lang.Float.isNaN(x) => boundary.break(x)
     case y => y
 
 /** Macro to enable returning Double or Float NaN values from within a method.  Must enclose entire mthod.
   *
   * Usage:
   * {{{
-  * def nansgn(d: Double): Double = Ret{
+  * def nansgn(d: Double): Double = Ret {
   *   if d.? < 0 then -1.0 else 1.0
   * }
   * }}}
   */
-inline def Ret[A <: Float | Double](inline a: TransformsFlow[A] ?=> A): A =
-  ${ EarlyReturnMacro.transform('{a(using TransformsFlow.of[A])}) }
+inline def Ret[A <: Float | Double](inline a: Label[A] ?=> A): A = boundary{ a }
 
-extension (objectOr: Or.type)
+extension (objectOr: Or.type) {
   /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     *
     * Usage:
     * {{{
-    * def lastDigit(s: String): Int Or String = Or.Ret{
+    * def lastDigit(s: String): Int Or String = Or.Ret {
     *   s.trim
     *     .isIf(_.forall(_.isDigit)).?+("Non numeric: " + _)
     *     .altCase{ case x if x.isEmpty => "Empty" }.?
@@ -86,13 +81,13 @@ extension (objectOr: Or.type)
     * }
     * }}}
     */
-  inline def Ret[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = Is(x(using TransformsFlow.of[Alt[Y]])); or }) }
+  inline def Ret[X, Y](inline x: Label[X Or Y] ?=> X): X Or Y = boundary{ Is(x) }
+
   /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow must be the same type of `Or`.
     *
     * Usage:
     * {{{
-    * def lastDigit(s: String): Int Or String = Or.FlatRet{
+    * def lastDigit(s: String): Int Or String = Or.FlatRet {
     *   s.trim
     *     .isIf(_.forall(_.isDigit)).?+("Non numeric: " + _)
     *     .altCase{ case x if x.isEmpty => "Empty" }.
@@ -100,50 +95,58 @@ extension (objectOr: Or.type)
     * }
     * }}}
     */
-  inline def FlatRet[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X Or Y): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = x(using TransformsFlow.of[Alt[Y]]); or }) }
+  inline def FlatRet[X, Y](inline xy: Label[X Or Y] ?=> X Or Y): X Or Y = boundary{ xy }
+
   /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are converted explicitly by a supplied function mapping `Throwable` to the disfavored case. 
     *
     * Usage:
     * {{{
-    * def parseTwice(s: String): Int Or String = Or.Safe(_.toString){
+    * def parseTwice(s: String): Int Or String = Or.Safe(_.toString) {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }
     * }}}
     */
-  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: TransformsFlow[Alt[Y]] ?=> X): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if catchable(t) => Alt(erf(t)) }; or }) }
+  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: Label[X Or Y] ?=> X): X Or Y = boundary {
+    try Is(x)
+    catch case t if t.catchable => Alt(erf(t))
+  }
+
   /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted via a given `Cope`. 
     *
     * Usage:
     * {{{
-    * def parseTwice(s: String): Int Or String = Or.Nice{
+    * def parseTwice(s: String): Int Or String = Or.Nice {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }
     * }}}
     */
-  inline def Nice[X, Y](inline x: TransformsFlow[Alt[Y]] ?=> X)(using cope: Cope[Y]): X Or Y =
-    ${ EarlyReturnMacro.transform('{ val or: X Or Y = try { Is(x(using TransformsFlow.of[Alt[Y]])) } catch { case t if catchable(t) => Alt(cope fromThrowable t) }; or }) }
+  inline def Nice[X, Y](inline x: Label[X Or Y] ?=> X)(using cope: Cope[Y]): X Or Y = boundary {
+    try Is(x)
+    catch case t if t.catchable => Alt(cope fromThrowable t)
+  }
+}
 
-extension (objectEither: Either.type)
+
+extension (objectEither: Either.type){
   /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
     * The value from normal control flow is wrapped in a `Right`.
     *
     * Because `Left` and `Right` have two types, this is awkward and not recommended.
     */
-  inline def Ret[L, R](inline r: TransformsFlow[Left[L, R]] ?=> R): Either[L, R] =
-    ${ EarlyReturnMacro.transform('{ val either: Either[L, R] = Right(r(using TransformsFlow.of[Left[L, R]])); either }) }
+  inline def Ret[L, R](inline r: Label[Either[L, R]] ?=> R): Either[L, R] = boundary{ Right[L, R](r) }
+
   /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
     * The value from normal control flow must be an `Either` of the same type.
     *
     * Because `Left` and `Right` have two types, this is awkward and not recommended.
     */
-  inline def FlatRet[L, R](inline r: TransformsFlow[Left[L, R]] ?=> Either[L, R]): Either[L, R] =
-    ${ EarlyReturnMacro.transform('{ val either: Either[L, R] = r(using TransformsFlow.of[Left[L, R]]); either }) }
+  inline def FlatRet[L, R](inline r: Label[Either[L, R]] ?=> Either[L, R]): Either[L, R] = boundary{ r }
+}
 
-extension (objectOption: Option.type)
+
+extension (objectOption: Option.type) {
   /** Macro to enable Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow is wrapped `Some`.
     *
     * Usage:
@@ -153,8 +156,8 @@ extension (objectOption: Option.type)
     * }
     * }}}
     */   
-  inline def Ret[A](inline a: TransformsFlow[Option[Nothing]] ?=> A): Option[A] =
-    ${ EarlyReturnMacro.transform('{ val option: Option[A] = Some(a(using TransformsFlow.of[Option[Nothing]])); option }) }
+  inline def Ret[A](inline a: Label[Option[A]] ?=> A): Option[A] = boundary{ Some(a) }
+
   /** Macro to eable Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow must also be an `Option`.
     *
     * Usage:
@@ -165,47 +168,8 @@ extension (objectOption: Option.type)
     * }
     * }}}
     */ 
-  inline def FlatRet[A](inline a: TransformsFlow[Option[Nothing]] ?=> Option[A]): Option[A] =
-    ${ EarlyReturnMacro.transform('{ val option: Option[A] = a(using TransformsFlow.of[Option[Nothing]]); option }) }
-
-extension (tryObject: Try.type)
-  /** Macro to enable Rust-style early returns of the `Failure` branch of a `Try`.  The value from normal control flow is wrapped in `Success`.
-    * It does NOT catch any additional exceptions.  Note that normally you'd just want to wrap your entire block in a `Try{}` instead.
-    * 
-    * Usage:
-    * {{{
-    * def parseTwice(s: String): Try[Int] = Try.Ret{
-    *   Try{ s.toInt }.? * 2
-    * }
-    * }}}
-    */
-  inline def Ret[A](inline a: TransformsFlow[Failure[A]] ?=> A): Try[A] =
-    ${ EarlyReturnMacro.transform('{ val tri: Try[A] = Success(a(using TransformsFlow.of[Failure[A]])); tri }) }
-  /** Macro to enable Rust-style early returns of the `Failure` branch of a `Try`.  The value from normal control flow must also be a `Try`.
-    * It does NOT catch any additional exceptions.  Note that normally you'd just want to wrap your entire block in a `Try{}` instead.
-    * 
-    * Usage:
-    * {{{
-    * def parseDiv(s: String, value: Int): Try[Int] = Try.FlatRet{
-    *   Try{Try{ s.toInt }.? / value}
-    * }
-    * }}}
-    */
-  inline def FlatRet[A](inline a: TransformsFlow[Failure[A]] ?=> Try[A]): Try[A] =
-    ${ EarlyReturnMacro.transform('{ val tri: Try[A] = a(using TransformsFlow.of[Failure[A]]); tri }) }
-  /** Macro to enable Rust-style early returns of the `Failure` branch of a `Try`.  The value from normal control flow is wrapped in `Success`.
-    * It DOES catch any additional exceptions.  Note that normally you'd just want to wrap your entire block in a `Try{}` instead.
-    * 
-    * Usage:
-    * {{{
-    * def parseDiv(s: String, value: Int): Try[Int] = Try.Safe{
-    *   Try{ s.toInt }.? / value
-    * }
-    * }}}
-    */
-  inline def Safe[A](inline a: TransformsFlow[Failure[A]] ?=> A): Try[A] =
-    ${ EarlyReturnMacro.transform('{ val tri: Try[A] = Try(a(using TransformsFlow.of[Failure[A]])); tri }) }
-
+  inline def FlatRet[A](inline a: Label[Option[A]] ?=> Option[A]): Option[A] = boundary{ a }
+}
 
 
 
@@ -219,38 +183,33 @@ extension (tryObject: Try.type)
   */
 inline def safe[X](inline x: => X): X Or Throwable =
   try Is(x)
-  catch
-    case e if e.catchable => Alt(e)
+  catch case e if e.catchable => Alt(e)
 
 /** Run something safely, packing all non-fatal exceptions into the disfavored branch by mapping
   * the Throwable that was created, and returning the result as the favored branch of an `Or`.
   */
 inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
   try Is(x)
-  catch
-    case e if e.catchable => Alt(f(e))
+  catch case e if e.catchable => Alt(f(e))
 
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
   */
 inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
-  catch
-    case e if e.catchable => Alt(cope fromThrowable e)
+  catch case e if e.catchable => Alt(cope fromThrowable e)
 
 /** Run something safely, also catching any control constructs that might escape. */
 inline def threadsafe[X](inline x: => X): X Or Throwable =
   try Is(x)
-  catch
-    case e if e.threadCatchable => Alt(e)
+  catch case e if e.threadCatchable => Alt(e)
 
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
   */
 inline def threadnice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
-  catch
-    case e if e.threadCatchable => Alt(cope fromThrowable e)
+  catch case e if e.threadCatchable => Alt(cope fromThrowable e)
 
 //////////////////////////////////////////
 /// Interconversions between sum types ///

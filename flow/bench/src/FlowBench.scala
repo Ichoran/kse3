@@ -10,7 +10,6 @@ import org.junit._
 import org.junit.Assert._
 
 import scala.reflect.{ClassTag, TypeTest}
-import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
 import kse.flow._
@@ -20,7 +19,8 @@ import kse.flow._
  *
  *  But it's very easy to deploy despite an absence of an internal benchmarking framework.
  *  Eventually that will happen and it will be nice.  For now, use at your own risk, and
- *  doubt everything!  (Use JMH for anything important.)
+ *  doubt everything!  (Use JMH for anything important.  This is just to get a clue as to
+ *  whether we might be on the right track.)
  */
 object Bench {
 
