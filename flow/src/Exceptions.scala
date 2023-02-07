@@ -6,9 +6,15 @@ package kse.flow
 import scala.util.control.ControlThrowable
 
 
-def catchable(t: Throwable): Boolean = t match
-  case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable => false
-  case _ => true
+extension (t: Throwable) {
+  /** Indicates that a throwable is meant to be caught as a normal part of control flow. */
+  inline def catchable: Boolean = t match
+    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable => false
+    case _ => true
+  inline def threadCatchable: Boolean = t match
+    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError => false
+    case _ => true
+}
 
 
 object ExceptionExplainer {

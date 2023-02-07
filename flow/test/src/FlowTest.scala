@@ -1410,6 +1410,8 @@ class FlowTest {
     T ~ threadsafe{ "17".toInt }                                        ==== 17 --: typed[Int Or Throwable]
     T ~ threadsafe{ "e".toInt }.existsAlt(_.isInstanceOf[NumberFormatException])                     ==== true
     T ~ threadsafe{ throw new ControlThrowable() {}; 0 }.existsAlt(_.isInstanceOf[ControlThrowable]) ==== true
+    T ~ threadnice{ "17".toInt }                                        ==== 17 --: typed[Int Or String]
+    T ~ threadsafe{ "e".toInt }.existsAlt(_.isInstanceOf[NumberFormatException])                     ==== true
 
     val l = Left("herring")
     val r = Right(15)

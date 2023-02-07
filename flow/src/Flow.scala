@@ -220,7 +220,7 @@ extension (tryObject: Try.type)
 inline def safe[X](inline x: => X): X Or Throwable =
   try Is(x)
   catch
-    case e if catchable(e) => Alt(e)
+    case e if e.catchable => Alt(e)
 
 /** Run something safely, packing all non-fatal exceptions into the disfavored branch by mapping
   * the Throwable that was created, and returning the result as the favored branch of an `Or`.
@@ -228,7 +228,7 @@ inline def safe[X](inline x: => X): X Or Throwable =
 inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
   try Is(x)
   catch
-    case e if catchable(e) => Alt(f(e))
+    case e if e.catchable => Alt(f(e))
 
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
@@ -236,14 +236,21 @@ inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
 inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
   catch
-    case e if catchable(e) => Alt(cope fromThrowable e)
+    case e if e.catchable => Alt(cope fromThrowable e)
 
 /** Run something safely, also catching any control constructs that might escape. */
 inline def threadsafe[X](inline x: => X): X Or Throwable =
   try Is(x)
   catch
-    case e if catchable(e)   => Alt(e)
-    case c: ControlThrowable => Alt(c)
+    case e if e.threadCatchable => Alt(e)
+
+/** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
+  * and returning the non-exception result as the favored branch of an `Or`.
+  */
+inline def threadnice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
+  try Is(x)
+  catch
+    case e if e.threadCatchable => Alt(cope fromThrowable e)
 
 //////////////////////////////////////////
 /// Interconversions between sum types ///
