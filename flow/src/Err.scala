@@ -20,11 +20,11 @@ object Err {
 
   def apply(s: String): kse.flow.Err = s
   def apply(et: ErrType): kse.flow.Err = et
-  def apply[E](e: E)(using etf: ErrTypeFrom[E]): kse.flow.Err = etf(e)
+  def apply[E](e: E)(using ef: ErrFrom[E]): kse.flow.Err = ef(e)
 
   def or(s: String): kse.flow.Alt[kse.flow.Err] = Alt(s)
   def or(et: ErrType): kse.flow.Alt[kse.flow.Err] = Alt(et)
-  def or[E](e: E)(using etf: ErrTypeFrom[E]): kse.flow.Alt[kse.flow.Err] = Alt(etf(e))
+  def or[E](e: E)(using ef: ErrFrom[E]): kse.flow.Alt[kse.flow.Err] = Alt(ef(e))
 
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
@@ -93,9 +93,21 @@ object ErrType {
 }
 
 
-trait ErrTypeFrom[-E] {
-  def apply(e: E): ErrType
+trait ErrFrom[-E] {
+  def apply(e: E): Err
 }
-object ErrTypeFrom {
-  given ErrTypeFrom[Throwable] = e => ErrType.ThrowableErr(e)
+object ErrFrom {
+  given ErrFrom[String]    = e => Err(e)
+  given ErrFrom[Throwable] = e => Err(ErrType.ThrowableErr(e))
+}
+
+
+extension [A](a: A) {
+  inline def errIf(p: A => Boolean)(using ef: ErrFrom[A]): A Or Err =
+    if p(a) then Is(a) else Alt(ef(a))
+
+  inline def errCase(pf: PartialFunction[A, Err]): A Or Err =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
+      case e => Alt(e.asInstanceOf[Err])
 }

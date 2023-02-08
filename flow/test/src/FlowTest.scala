@@ -97,11 +97,14 @@ class FlowTest {
     T ~ sideB ==== 2
 
     val herr = Err("herring")
-    T ~ Err("herring")                       ==== "herring"                            --: typed[Err]
+    T ~ Err("herring")                       ==== "herring"               --: typed[Err]
     T ~ Err("herring")                       ==== herr
-    T ~ Err(e)                               ==== ErrType.ThrowableErr(e)              --: typed[Err]
-    T ~ Err(ErrType.Explained("fish", herr)) ==== herr.explainBy("fish") --: typed[Err]
-    T ~ herr.explainWith(_.toString.take(4)) ==== herr.explainBy("herr") --: typed[Err]
+    T ~ Err(e)                               ==== ErrType.ThrowableErr(e) --: typed[Err]
+    T ~ Err(ErrType.Explained("fish", herr)) ==== herr.explainBy("fish")  --: typed[Err]
+    T ~ herr.explainBy("fish")               ==== typed[Err]
+    T ~ herr.explainWith(_.toString.take(4)) ==== herr.explainBy("herr")  --: typed[Err]
+    T ~ "herring".errIf(_.length < 5)        ==== Err.or("herring")       --: typed[String Or Err]
+    T ~ 5.errCase{ case x if x < 6 => Err("x") } ==== Err.or("x")         --: typed[Int Or Err]
    
 
   @Test

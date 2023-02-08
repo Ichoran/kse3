@@ -213,6 +213,8 @@ inline def threadnice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y =
   try Is(x)
   catch case e if e.threadCatchable => Alt(cope fromThrowable e)
 
+
+
 //////////////////////////////////////////
 /// Interconversions between sum types ///
 //////////////////////////////////////////
