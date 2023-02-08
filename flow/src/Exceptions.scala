@@ -220,93 +220,29 @@ extension (throwable: Throwable) {
     ExceptionExplainer.explain(throwable, lines, true, childLines)
 }
 
-/** Provides the ability to cope with errors, either Throwable or a String message,
-  * by converting to an error type `E` that can, for instance, be stored and passed
-  * as a disfavored branch in an `Or`.
+/** Provides the ability to cope with Throwable by converting to an error type `E`
+  * that can, for instance, be stored and passed as a disfavored branch in an `Or`.
   */
 trait Cope[E] {
   def fromThrowable(t: Throwable): E
-  def fromThrowable(t: Throwable, cause: E): E = fromCope(fromThrowable(t), cause)
-  def fromString(s: String): E
-  def fromString(s: String, cause: E): E = fromCope(fromString(s), cause)
-  def fromCope(error: E, cause: E): E
 }
 object Cope {
-  /** Conversion from one method of coping with errors to another. */
-  trait From[F, E] extends Cope[E] {
-    def from(previous: F): E
-    def from(previous: F, cause: E): E = fromCope(from(previous), cause)
-  }
-  object From {
-    def apply[F, E](f: F => E, merge: (E, E) => E)(using cope: Cope[F]): Cope.From[F, E] = new Cope.From[F, E] {
-      def fromThrowable(t: Throwable): E = f(cope fromThrowable t)
-      def fromString(s: String): E = f(cope fromString s)
-      def fromCope(error: E, cause: E): E = merge(error, cause)
-      def from(previous: F): E = f(previous)
-    }
+  /** The default coping strategy: store throwables */
+  given Cope[kse.flow.Err] = new Cope[kse.flow.Err] {
+    def fromThrowable(t: Throwable) = Err(t)
   }
 
-  final class StoredMessageException(message: String)
-  extends Exception(message) {
-    override def fillInStackTrace(): Throwable = this
-  }
-
-  final class MultipleExceptionsException(val exceptions: List[Throwable])
-  extends Exception(
-    if exceptions.nonEmpty then exceptions.head.getMessage else null,
-    if exceptions.nonEmpty then
-      if exceptions.head.isInstanceOf[StoredMessageException] then
-        if exceptions.tail.nonEmpty then exceptions.tail.head
-        else null
-      else exceptions.head
-    else null
-  ) {
-    exceptions match
-      case (sme: StoredMessageException) :: t :: more => more.reverse.foreach(this addSuppressed _)
-      case (sme: StoredMessageException) :: Nil =>
-      case t :: more => more.reverse.foreach(this addSuppressed _)
-      case _ =>
-
-    override def fillInStackTrace(): Throwable = this
-  }
-
-  /** The default coping strategy: errors are Strings, with Throwables printed out. */
-  given Cope[String] = new Cope[String] { 
-    def fromThrowable(t: Throwable)          = t.explainSuppressed(60, 12)
-    def fromString(s: String)                = s
-    def fromCope(error: String, why: String) = s"$error\n$why"
+  val asString = new Cope[String] { 
+    def fromThrowable(t: Throwable) = t.explainSuppressed(60, 12)
   }
 
   val fullTrace = new Cope[Array[String]] {
-    def fromThrowable(t: Throwable)                        = t.explainSuppressedAsArray()
-    def fromString(s: String)                              = s.linesIterator.toArray
-    def fromCope(error: Array[String], why: Array[String]) = error ++ why
+    def fromThrowable(t: Throwable) = t.explainSuppressedAsArray()
   }
 
-  val asException = new Cope[Throwable] {
+  val asThrowable = new Cope[Throwable] {
     def fromThrowable(t: Throwable) = t
-    def fromString(s: String) = new StoredMessageException(s)
-    def fromCope(t: Throwable, u: Throwable) = t match
-      case mee: MultipleExceptionsException => u match
-        case yuu: MultipleExceptionsException =>
-          if mee.exceptions.isEmpty then yuu
-          else if yuu.exceptions.isEmpty then mee
-          else new MultipleExceptionsException(mee.exceptions ++ yuu.exceptions)
-        case _ => new MultipleExceptionsException(mee.exceptions :+ u)
-      case _ => u.match
-        case yuu: MultipleExceptionsException =>
-          new MultipleExceptionsException(t :: yuu.exceptions)
-        case _ =>
-          new MultipleExceptionsException(t :: u :: Nil)
   }
-
-  val stored = new Cope[List[String | Throwable]] {
-    def fromThrowable(t: Throwable): List[String | Throwable] = t :: Nil
-    def fromString(s: String):       List[String | Throwable] = s :: Nil
-    def fromCope(a: List[String | Throwable], b: List[String | Throwable]) = a ::: b
-  }
-
-  val fullText = From[Array[String], String](_.mkString("\n"), (a: String, b: String) => s"$a\n$b")(using fullTrace)
 }
 
 /** An exception specifically to reify the idea of the disfavored branch of a sum type

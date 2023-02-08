@@ -91,7 +91,7 @@ extension[Y](alt: Alt[Y]) {
   inline def unwrap: Y = alt.alt
 
   /** Extends the type to an `Or` with specified favored branch */
-  inline def orIs[X]: X Or Y = alt
+  inline def withIs[X]: X Or Y = alt
 
   /** We're sure this is not the favored branch */
   inline def isIs: Boolean = false
@@ -177,7 +177,7 @@ extension [X](is: Is[X]) {
   inline def unwrap: X = Is unwrap is
 
   /** Extends the type to an `Or` with specified disfavored branch */
-  inline def orAlt[Y]: X Or Y = is
+  inline def withAlt[Y]: X Or Y = is
 
   /** Unwraps this type */
   inline def get: X = Is unwrap is
@@ -549,11 +549,17 @@ extension [X, Y](or: Or[X, Y]) {
 }
 
 extension [A](a: A) {
-  /** Uses a value as the favored branch of an `Or` while specifying the type of a disfavored branch. */
-  inline def or[Y]: A Or Y = Is(a)
+  /** Wraps this as an Is while indicating what the bad alternative would be */
+  inline def orAlt[B]: A Or B = Is(a)
 
-  /** Uses a value as the disfavored branch of an `Or` while specifying the type of a favored branch. */
-  inline def nor[X]: X Or A = Alt(a)
+  /** Wraps this as an Alt while indicating what the good alternative would be */
+  inline def orIs[B]: B Or A = Alt(a)
+
+  /** Marks this as a favored value */
+  inline def asIs: Is[A] = Is(a)
+
+  /** Wraps this as a disfavored value */
+  inline def asAlt: Alt[A] = Alt(a)
 
   /** Separates values into favored and disfavored based on a predicate; true means favored. */
   inline def isIf(inline p: A => Boolean): A Or A =

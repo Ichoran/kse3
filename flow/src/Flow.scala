@@ -58,7 +58,7 @@ extension (float: Float)
     case x if java.lang.Float.isNaN(x) => boundary.break(x)
     case y => y
 
-/** Macro to enable returning Double or Float NaN values from within a method.  Must enclose entire mthod.
+/** Enables returning Double or Float NaN values from within a method.  Must enclose entire mthod.
   *
   * Usage:
   * {{{
@@ -70,7 +70,7 @@ extension (float: Float)
 inline def Ret[A <: Float | Double](inline a: Label[A] ?=> A): A = boundary{ a }
 
 extension (objectOr: Or.type) {
-  /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     *
     * Usage:
     * {{{
@@ -85,7 +85,7 @@ extension (objectOr: Or.type) {
     */
   inline def Ret[X, Y](inline x: Label[X Or Y] ?=> X): X Or Y = boundary{ Is(x) }
 
-  /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow must be the same type of `Or`.
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow must be the same type of `Or`.
     *
     * Usage:
     * {{{
@@ -99,7 +99,7 @@ extension (objectOr: Or.type) {
     */
   inline def FlatRet[X, Y](inline xy: Label[X Or Y] ?=> X Or Y): X Or Y = boundary{ xy }
 
-  /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are converted explicitly by a supplied function mapping `Throwable` to the disfavored case. 
     *
     * Usage:
@@ -109,22 +109,22 @@ extension (objectOr: Or.type) {
     * }
     * }}}
     */
-  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: Label[X Or Y] ?=> X): X Or Y = boundary {
+  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: Label[X Or Y] ?=> X): X Or Y = boundary[X Or Y]{
     try Is(x)
     catch case t if t.catchable => Alt(erf(t))
   }
 
-  /** Macro to enable Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted via a given `Cope`. 
     *
     * Usage:
     * {{{
-    * def parseTwice(s: String): Int Or String = Or.Nice {
+    * def parseTwice(s: String): Int Or String = Or.Nice(using Cope.asString) {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }
     * }}}
     */
-  inline def Nice[X, Y](inline x: Label[X Or Y] ?=> X)(using cope: Cope[Y]): X Or Y = boundary {
+  inline def Nice[X, Y](inline x: Label[X Or Y] ?=> X)(using cope: Cope[Y]): X Or Y = boundary[X Or Y]{
     try Is(x)
     catch case t if t.catchable => Alt(cope fromThrowable t)
   }
@@ -132,14 +132,14 @@ extension (objectOr: Or.type) {
 
 
 extension (objectEither: Either.type){
-  /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
+  /** Enables Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
     * The value from normal control flow is wrapped in a `Right`.
     *
     * Because `Left` and `Right` have two types, this is awkward and not recommended.
     */
   inline def Ret[L, R](inline r: Label[Either[L, R]] ?=> R): Either[L, R] = boundary{ Right[L, R](r) }
 
-  /** Macro to enable Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
+  /** Enables Rust-style early returns of the `Left` branch of an `Either` that match the method's return type.
     * The value from normal control flow must be an `Either` of the same type.
     *
     * Because `Left` and `Right` have two types, this is awkward and not recommended.
@@ -149,7 +149,7 @@ extension (objectEither: Either.type){
 
 
 extension (objectOption: Option.type) {
-  /** Macro to enable Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow is wrapped `Some`.
+  /** Enables Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow is wrapped `Some`.
     *
     * Usage:
     * {{{
@@ -160,7 +160,7 @@ extension (objectOption: Option.type) {
     */   
   inline def Ret[A](inline a: Label[Option[A]] ?=> A): Option[A] = boundary{ Some(a) }
 
-  /** Macro to eable Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow must also be an `Option`.
+  /** Enables Rust-style early returns of the `None` branch of an `Option`.  The value from normal control flow must also be an `Option`.
     *
     * Usage:
     * {{{
@@ -396,7 +396,7 @@ extension [X, Y](or: X Or Y) {
   inline def altOrAutoBreak[W](using am: AutoMap[X, W], l: Label[W]): Y = or.fold{ x => boundary.break(am(x)) }{ y => y }
 }
 
-extension[L, R](either: Either[L, R]) {
+extension [L, R](either: Either[L, R]) {
   /** Exit to boundary matching the left branch, or keep going with the right branch's value. */
   inline def rightOrBreak(using Label[L]): R = either match
     case Right(r) => r
@@ -408,7 +408,7 @@ extension[L, R](either: Either[L, R]) {
     case Right(r) => boundary.break(r)
 }
 
-extension[A](option: Option[A]) {
+extension [A](option: Option[A]) {
   /** Exit to unit-type boundary if the option is empty, or keep going with the option's value. */
   inline def getOrBreak(using Label[Unit]): A = option match
     case Some(a) => a

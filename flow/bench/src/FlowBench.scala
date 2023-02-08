@@ -27,19 +27,19 @@ object Bench {
   class Nicely() {
 
     def foldly(): Unit =
-      val a = 5.or[String]
+      val a = 5.orAlt[String]
       println(a)
       val b = a.fold(_ + 10)(_.length)
       println(b)
 
     def maply(): Unit =
-      val a = 5.or[String]
+      val a = 5.orAlt[String]
       println(a)
       val b = a.map(_ + 10)
       println(b)
 
     def altly(): Unit =
-      val a = 5.or[String]
+      val a = 5.orAlt[String]
       println(a)
       val b = a.mapAlt(_.length)
       println(b)
