@@ -68,12 +68,14 @@ object maths extends Common with PublishKse3 {
   override def extraTestDeps = Seq(flow)
 }
 
-object jsonal extends Common {
+
+object eio extends Common with PublishKse3 {
   def moduleDeps = Seq(flow, maths)
 }
 
-object eio extends Common {
-  def moduleDeps = Seq(flow, maths, jsonal)
+
+object jsonal extends Common {
+  def moduleDeps = Seq(flow, maths)
 }
 
 object all extends Common {

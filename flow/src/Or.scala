@@ -6,7 +6,7 @@ package kse.flow
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
-import scala.util.control.ControlThrowable
+import scala.util.boundary
 
 
 /** Supertype of any boxed branch of an `Or`.
@@ -82,6 +82,9 @@ object Alt {
   def unapply(a: Any): Option[Any] = a match
     case a: Alt[_] => Some(a.asInstanceOf[Alt[Any]].alt)
     case _ => None
+
+  /** Breaks out to a boundary with a value wrapped into an `Alt` */
+  inline def break[Y, L >: Alt[Y]](y: Y)(using boundary.Label[L]): Nothing = boundary.break(Alt(y))
 
   /** A canonical instance for Alt[Unit].  Although others are allowed, why not use this one? */
   val unit = Alt(())
@@ -168,6 +171,10 @@ object Is {
       case _         => None
     case _ => Some(a)
   */
+
+  /** Breaks out to a boundary with a value marked as an `Is` */
+  inline def break[X, L >: Is[X]](x: X)(using boundary.Label[L]): Nothing = boundary.break(Is(x))
+
 
   /** The canonical Is[Unit], which is actually always just `()`, the only possible `Unit`; but this one is typed as `Is[Unit]`. */
   val unit: Is[Unit] = ()

@@ -1,6 +1,8 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2014, 2015, 2020, 2021 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
+/*
+
 package kse.eio
 
 import java.io._
@@ -559,3 +561,5 @@ class PathShouldSafelyDoThis private[eio] (private val underlying: Path) extends
     }
     catch { case e if NonFatal(e) => underlying }
 }
+
+*/

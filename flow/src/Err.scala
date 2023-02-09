@@ -6,7 +6,6 @@ package kse.flow
 
 import scala.util.boundary
 import scala.util.boundary.Label
-import scala.util.boundary.break
 
 
 opaque type Err = String | ErrType
@@ -25,6 +24,10 @@ object Err {
   def or(s: String): kse.flow.Alt[kse.flow.Err] = Alt(s)
   def or(et: ErrType): kse.flow.Alt[kse.flow.Err] = Alt(et)
   def or[E](e: E)(using ef: ErrFrom[E]): kse.flow.Alt[kse.flow.Err] = Alt(ef(e))
+
+  inline def break[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
+  inline def break[L >: Alt[Err]](et: ErrType)(using Label[L]): Nothing = boundary.break(Alt(apply(et)))
+  inline def break[E, L >: Alt[Err]](e: E)(using ef: ErrFrom[E], lb: Label[L]): Nothing = boundary.break(Alt(apply(e)))
 
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
