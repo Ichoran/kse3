@@ -334,16 +334,17 @@ object EioBase85 {
 
   def encodeZmqRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeZmqTable)
 
-  private def decodeWithTable(encoded: Array[Byte], table: Array[Byte]): Array[Byte] Or Err = Or.Ret:
-    val l = (encoded.length.toLong*4)/5
+  private def decodeRangeWithTable(encoded: Array[Byte], i0: Int, iN: Int, table: Array[Byte]): Array[Byte] Or Err = Or.Ret:
+    if i0 < 0 || iN > encoded.length then Err.break(s"Invalid decoding range: $i0 until $iN in array of length ${encoded.length}")
+    val l = ((iN - i0).toLong*4)/5
     var a = new Array[Byte](l.toInt)
     var lead: Int = 0
     var rest: Int = 0
     var stored = 0
-    var i = 0
+    var i = i0
     var j = 0
     val bmax = 9 + table.length - 1
-    while i < encoded.length do
+    while i < iN do
       val b = encoded(i)
       val y =
         if b >= 9 && b <= bmax then table(b - 9)
@@ -384,12 +385,17 @@ object EioBase85 {
           j += 1
     a.shrinkCopy(j)
 
-  def decodeZmq(encoded: Array[Byte]): Array[Byte] Or Err = decodeWithTable(encoded, decodeZmqTable)
+  def decodeZmqRange(encoded: Array[Byte], i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
 
-  def decodeAscii(encoded: Array[Byte]): Array[Byte] Or Err = decodeWithTable(encoded, decodeAsciiTable)
+  def decodeAsciiRange(encoded: Array[Byte], i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
 
-  private def decodeWithTable(encoded: String, table: Array[Byte]): Array[Byte] Or Err = Or.Ret:
-    val l = (encoded.length.toLong*4)/5
+  def decodeZmq(encoded: Array[Byte]): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
+
+  def decodeAscii(encoded: Array[Byte]): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeAsciiTable)
+
+  private def decodeRangeWithTable(encoded: String, i0: Int, iN: Int, table: Array[Byte]): Array[Byte] Or Err = Or.Ret:
+    if i0 < 0 || iN > encoded.length then Err.break(s"Invalid decoding range: $i0 until $iN in string of length ${encoded.length}")
+    val l = ((iN - i0).toLong*4)/5
     var a = new Array[Byte](l.toInt)
     var lead: Int = 0
     var rest: Int = 0
@@ -397,7 +403,7 @@ object EioBase85 {
     var i = 0
     var j = 0
     val bmax = 9 + table.length - 1
-    while i < encoded.length do
+    while i < iN do
       val b = encoded.charAt(i)
       val y =
         if b >= 9 && b <= bmax then table(b - 9)
@@ -441,7 +447,6 @@ object EioBase85 {
   def decodeZmq(encoded: String): Array[Byte] Or Err = decodeWithTable(encoded, decodeZmqTable)
 
   def decodeAscii(encoded: String): Array[Byte] Or Err = decodeWithTable(encoded, decodeAsciiTable)
-
 
   /*
   def encode85(raw: Array[Byte]): Array[Byte] = encode85WithTable(raw, encode85Table)

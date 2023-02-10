@@ -47,6 +47,119 @@ extension [A](a: A)
   inline def copy(using copier: Copies[A]): A = copier copy a
 
 
+object ArrayReform {
+  private def checkBounds(a: Int, i0: Int, iN: Int, b: Int, j0: Int, scale: Int): Int =
+    if i0 < iN then
+      val n =
+        if scale > 0 then (iN - i0) >>> scale
+        else
+          val l = (iN.toLong - i0) << (-scale)
+          if l > Int.MaxValue - 7 then throw new ArrayIndexOutOfBoundsException(b)
+          else l.toInt
+      if i0 < 0 || iN > a then throw new ArrayIndexOutOfBoundsException(if i0 < 0 then i0 else a)
+      if j0 < 0 || j0 > b - n then throw new ArrayIndexOutOfBoundsException(if j0 < 0 then j0 else b)
+      n
+    else if i0 > iN then throw new NegativeArraySizeException()
+    else 0
+
+  def rangeIntoInts(ab: Array[Byte], i0: Int, iN: Int)(target: Array[Int], where: Int): target.type =
+    val n = checkBounds(ab.length, i0, iN, target.length, where, 2)
+    var i = i0
+    var j = 0
+    while j < n do
+      target(j + where) = (ab(i) & 0xFF) | ((ab(i+1) & 0xFF) << 8) | ((ab(i+2) & 0xFF) << 16) | (ab(i+3) << 24)
+      i += 4
+      j += 1
+    target
+
+  def rangeToInts(ab: Array[Byte], i0: Int, iN: Int): Array[Int] =
+    val n = checkBounds(ab.length, i0, iN, Int.MaxValue, 0, 2)
+    rangeIntoInts(ab, i0, iN)(new Array[Int](n), 0)
+
+  inline def toInts(ab: Array[Byte]): Array[Int] = rangeToInts(ab, 0, ab.length)
+
+
+  def rangeIntoFloats(ab: Array[Byte], i0: Int, iN: Int)(target: Array[Float], where: Int): target.type =
+    val n = checkBounds(ab.length, i0, iN, target.length, where, 2)
+    var i = i0
+    var j = 0
+    while j < n do
+      target(j + where) = java.lang.Float.intBitsToFloat(
+        (ab(i) & 0xFF) | ((ab(i+1) & 0xFF) << 8) | ((ab(i+2) & 0xFF) << 16) | (ab(i+3) << 24)
+      )
+      i += 4
+      j += 1
+    target
+
+  def rangeToFloats(ab: Array[Byte], i0: Int, iN: Int): Array[Float] =
+    val n = checkBounds(ab.length, i0, iN, Int.MaxValue, 0, 2)
+    rangeIntoFloats(ab, i0, iN)(new Array[Float](n), 0)
+
+  inline def toFloats(ab: Array[Byte]): Array[Float] = rangeToFloats(ab, 0, ab.length)
+
+
+  def rangeIntoLongs(ab: Array[Byte], i0: Int, iN: Int)(target: Array[Long], where: Int): target.type =
+    val n = checkBounds(ab.length, i0, iN, target.length, where, 3)
+    var i = i0
+    var j = 0
+    while j < n do
+      target(j + where) =
+        ((ab(i  ) & 0xFF) | ((ab(i+1) & 0xFF) << 8) | ((ab(i+2) & 0xFF) << 16) | ((ab(i+3) & 0xFFL) << 24)) |
+        (((ab(i+4) & 0xFF) | ((ab(i+5) & 0xFF) << 8) | ((ab(i+6) & 0xFF) << 16) | ((ab(i+7) & 0xFFL) << 24)) << 32)
+      i += 8
+      j += 1
+    target
+
+  def rangeToLongs(ab: Array[Byte], i0: Int, iN: Int): Array[Long] =
+    val n = checkBounds(ab.length, i0, iN, Int.MaxValue, 0, 3)
+    rangeIntoLongs(ab, i0, iN)(new Array[Long](n), 0)
+
+  inline def toLongs(ab: Array[Byte]): Array[Long] = rangeToLongs(ab, 0, ab.length)
+
+
+  def rangeIntoDoubles(ab: Array[Byte], i0: Int, iN: Int)(target: Array[Double], where: Int): target.type =
+    val n = checkBounds(ab.length, i0, iN, target.length, where, 3)
+    var i = i0
+    var j = 0
+    while j < n do
+      target(j + where) = java.lang.Double.longBitsToDouble(
+        ((ab(i  ) & 0xFF) | ((ab(i+1) & 0xFF) << 8) | ((ab(i+2) & 0xFF) << 16) | ((ab(i+3) & 0xFFL) << 24)) |
+        (((ab(i+4) & 0xFF) | ((ab(i+5) & 0xFF) << 8) | ((ab(i+6) & 0xFF) << 16) | ((ab(i+7) & 0xFFL) << 24)) << 32)
+      )
+      i += 8
+      j += 1
+    target
+
+  def rangeToDoubles(ab: Array[Byte], i0: Int, iN: Int): Array[Double] =
+    val n = checkBounds(ab.length, i0, iN, Int.MaxValue, 0, 3)
+    rangeIntoDoubles(ab, i0, iN)(new Array[Double](n), 0)
+
+  inline def toDoubles(ab: Array[Byte]): Array[Double] = rangeToDoubles(ab, 0, ab.length)
+
+
+  def rangeIntoBytes(ai: Array[Int], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
+    checkBounds(ai.length, i0, iN, target.length, where, -2)
+    var i = i0
+    var j = where
+    while i < iN do
+      if j > target.length - 4 then return target
+      val x = ai(i)
+      target(j  ) = ( x         & 0xFF).toByte
+      target(j+1) = ((x >>>  8) & 0xFF).toByte
+      target(j+2) = ((x >>> 16) & 0xFF).toByte
+      target(j+3) = ( x >>> 24        ).toByte
+      i += 1
+      j += 4
+    target
+
+  def rangeToBytes(ai: Array[Int], i0: Int, iN: Int): Array[Byte] =
+    val n = checkBounds(ai.length, i0, iN, Int.MaxValue - 7, 0, -2)
+    rangeIntoBytes(ai, i0, iN)(new Array[Byte](n.toInt), 0)
+
+  inline def toBytes(ai: Array[Int]): Array[Byte] = rangeToBytes(ai, 0, ai.length)
+}
+
+
 opaque type PythonIndexedBytes = Array[Byte]
 object PythonIndexedBytes {
   extension (a: PythonIndexedBytes)
@@ -147,6 +260,10 @@ extension (ab: Array[Byte])
   inline def copyInto(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, 0, that, where, ab.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte]): that.type = { java.lang.System.arraycopy(ab, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, i0, that, where, iN-i0); that }
+  inline def toInts: Array[Int] = ArrayReform.toInts(ab)
+  inline def toFloats: Array[Float] = ArrayReform.toFloats(ab)
+  inline def toLongs: Array[Long] = ArrayReform.toLongs(ab)
+  inline def toDoubles: Array[Double] = ArrayReform.toDoubles(ab)
   inline def search(b: Byte): Int = java.util.Arrays.binarySearch(ab, b)
   inline def searchRange(i0: Int, iN: Int)(b: Byte): Int = java.util.Arrays.binarySearch(ab, i0, iN, b)
   inline def fill(b: Byte): ab.type = { java.util.Arrays.fill(ab, b); ab }
@@ -243,6 +360,7 @@ extension (ai: Array[Int])
   inline def copyInto(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, 0, that, where, ai.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int]): that.type = { java.lang.System.arraycopy(ai, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, i0, that, where, iN-i0); that }
+  inline def toBytes: Array[Byte] = ArrayReform.toBytes(ai)
   inline def search(i: Int): Int = java.util.Arrays.binarySearch(ai, i)
   inline def searchRange(i0: Int, iN: Int)(i: Int): Int = java.util.Arrays.binarySearch(ai, i0, iN, i)
   inline def fill(i: Int): ai.type = { java.util.Arrays.fill(ai, i); ai }

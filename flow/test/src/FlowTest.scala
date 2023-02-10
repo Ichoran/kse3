@@ -1438,6 +1438,8 @@ class FlowTest {
 
   @Test
   def mutableDataTest(): Unit =
+    import java.lang.Float.{intBitsToFloat => i2f}
+    import java.lang.Double.{longBitsToDouble => l2d}
     val ab = Array[Byte](1, 2, 3)
     val bb = Array[Byte](0, 1, 2, 3, 4)
     T ~ ab.copy                     =**= ab
@@ -1459,6 +1461,10 @@ class FlowTest {
     T ~ ab.py(-3)                   ==== ab(0)
     T ~ bb.py.index(-2)             ==== 3
     T ~ { bb.py(-4) = 0; bb }       =**= Array[Byte](2, 0, 3, 2, 3)
+    T ~ (ab ++ bb).toInts           =**= Array[Int](0x02030201, 0x03020300)
+    T ~ (ab ++ bb).toFloats         =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
+    T ~ (ab ++ bb).toLongs          =**= Array[Long](0x0302030002030201L)
+    T ~ (ab ++ bb).toDoubles        =**= Array[Double](l2d(0x0302030002030201L))
     T ~ bb.isSorted                 ==== false
     T ~ bb.isSortedRange(1, 3)      ==== true
     T ~ ab.search(2)                ==== 1
@@ -1559,6 +1565,7 @@ class FlowTest {
     T ~ ai.py(-3)                   ==== ai(0)
     T ~ bi.py.index(-2)             ==== 3
     T ~ { bi.py(-4) = 0; bi }       =**= Array[Int](2, 0, 3, 2, 3)
+    T ~ Array(0x05030107).toBytes   =**= Array[Byte](7, 1, 3, 5)
     T ~ bi.isSorted                 ==== false
     T ~ bi.isSortedRange(1, 3)      ==== true
     T ~ ai.search(2)                ==== 1
