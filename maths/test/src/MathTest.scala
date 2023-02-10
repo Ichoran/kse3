@@ -1801,6 +1801,7 @@ class MathTest {
     val bz = UByte(0)
     T ~ b               ==== UByte.wrap(-56: Byte)
     T ~ UByte.MaxValue  ==== UByte(255)  --: typed[UByte]
+    T ~ b.s             ==== b           --: typed[Byte]
     T ~ b.unwrap        ==== b           --: typed[Byte]
     T ~ b.signed        ==== b           --: typed[Byte]
     T ~ b.toByte        ==== b           --: typed[Byte]
@@ -1896,6 +1897,7 @@ class MathTest {
     val iz = UInt(0)
     T ~ i                ==== UInt.wrap(-1610612736)
     T ~ UInt.MaxValue    ==== UInt(0xFFFFFFFF)    --: typed[UInt]
+    T ~ i.s              ==== i                   --: typed[Int]
     T ~ i.unwrap         ==== i                   --: typed[Int]
     T ~ i.signed         ==== i                   --: typed[Int]
     T ~ i.toInt          ==== i                   --: typed[Int]
@@ -2021,6 +2023,7 @@ class MathTest {
     val l6 = ULong(2000000000000L)
     val lz = ULong(0)
     T ~ l            ==== ULong.wrap(-6714808247567057791L)
+    T ~ l.s          ==== l                    --: typed[Long]
     T ~ l.unwrap     ==== l                    --: typed[Long]
     T ~ l.signed     ==== l                    --: typed[Long]
     T ~ l.toLong     ==== l                    --: typed[Long]

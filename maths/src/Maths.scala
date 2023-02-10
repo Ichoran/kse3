@@ -1250,6 +1250,7 @@ object UByte {
   inline def clamp(b: Byte): UByte = if b < 0 then 0: Byte else b
 
   extension (b: UByte) {
+    inline def s: Byte      = b
     inline def unwrap: Byte = b
     inline def signed: Byte = b
     inline def toByte: Byte = b
@@ -1384,6 +1385,7 @@ object UInt {
   inline def clamp(i: Int): UInt = if i < 0 then 0 else i
 
   extension (i: UInt) {
+    inline def s: Int      = i
     inline def unwrap: Int = i
     inline def signed: Int = i
     inline def toInt:  Int = i
@@ -1536,6 +1538,7 @@ object ULong {
   inline def clamp(l: Long): ULong = if l < 0 then 0L else l
 
   extension (i: ULong) {
+    inline def s: Long      = i
     inline def unwrap: Long = i
     inline def signed: Long = i
     inline def toLong: Long = i
