@@ -157,6 +157,83 @@ object ArrayReform {
     rangeIntoBytes(ai, i0, iN)(new Array[Byte](n.toInt), 0)
 
   inline def toBytes(ai: Array[Int]): Array[Byte] = rangeToBytes(ai, 0, ai.length)
+
+
+  def rangeIntoBytes(af: Array[Float], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
+    checkBounds(af.length, i0, iN, target.length, where, -2)
+    var i = i0
+    var j = where
+    while i < iN do
+      if j > target.length - 4 then return target
+      val x = java.lang.Float.floatToRawIntBits(af(i))
+      target(j  ) = ( x         & 0xFF).toByte
+      target(j+1) = ((x >>>  8) & 0xFF).toByte
+      target(j+2) = ((x >>> 16) & 0xFF).toByte
+      target(j+3) = ( x >>> 24        ).toByte
+      i += 1
+      j += 4
+    target
+
+  def rangeToBytes(af: Array[Float], i0: Int, iN: Int): Array[Byte] =
+    val n = checkBounds(af.length, i0, iN, Int.MaxValue - 7, 0, -2)
+    rangeIntoBytes(af, i0, iN)(new Array[Byte](n.toInt), 0)
+
+  inline def toBytes(af: Array[Float]): Array[Byte] = rangeToBytes(af, 0, af.length)
+
+
+  def rangeIntoBytes(al: Array[Long], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
+    checkBounds(al.length, i0, iN, target.length, where, -3)
+    var i = i0
+    var j = where
+    while i < iN do
+      if j > target.length - 8 then return target
+      val x = (al(i) & 0xFFFFFFFFL).toInt
+      val y = (al(i) >>> 32).toInt
+      target(j  ) = ( x         & 0xFF).toByte
+      target(j+1) = ((x >>>  8) & 0xFF).toByte
+      target(j+2) = ((x >>> 16) & 0xFF).toByte
+      target(j+3) = ( x >>> 24        ).toByte
+      target(j+4) = ( y         & 0xFF).toByte
+      target(j+5) = ((y >>>  8) & 0xFF).toByte
+      target(j+6) = ((y >>> 16) & 0xFF).toByte
+      target(j+7) = ( y >>> 24        ).toByte
+      i += 1
+      j += 4
+    target
+
+  def rangeToBytes(al: Array[Long], i0: Int, iN: Int): Array[Byte] =
+    val n = checkBounds(al.length, i0, iN, Int.MaxValue - 7, 0, -3)
+    rangeIntoBytes(al, i0, iN)(new Array[Byte](n.toInt), 0)
+
+  inline def toBytes(al: Array[Long]): Array[Byte] = rangeToBytes(al, 0, al.length)
+
+
+  def rangeIntoBytes(ad: Array[Double], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
+    checkBounds(ad.length, i0, iN, target.length, where, -3)
+    var i = i0
+    var j = where
+    while i < iN do
+      if j > target.length - 8 then return target
+      val l = java.lang.Double.doubleToRawLongBits(ad(i))
+      val x = (l & 0xFFFFFFFFL).toInt
+      val y = (l >>> 32).toInt
+      target(j  ) = ( x         & 0xFF).toByte
+      target(j+1) = ((x >>>  8) & 0xFF).toByte
+      target(j+2) = ((x >>> 16) & 0xFF).toByte
+      target(j+3) = ( x >>> 24        ).toByte
+      target(j+4) = ( y         & 0xFF).toByte
+      target(j+5) = ((y >>>  8) & 0xFF).toByte
+      target(j+6) = ((y >>> 16) & 0xFF).toByte
+      target(j+7) = ( y >>> 24        ).toByte
+      i += 1
+      j += 4
+    target
+
+  def rangeToBytes(ad: Array[Double], i0: Int, iN: Int): Array[Byte] =
+    val n = checkBounds(ad.length, i0, iN, Int.MaxValue - 7, 0, -3)
+    rangeIntoBytes(ad, i0, iN)(new Array[Byte](n.toInt), 0)
+
+  inline def toBytes(ad: Array[Double]): Array[Byte] = rangeToBytes(ad, 0, ad.length)
 }
 
 
@@ -260,10 +337,10 @@ extension (ab: Array[Byte])
   inline def copyInto(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, 0, that, where, ab.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte]): that.type = { java.lang.System.arraycopy(ab, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, i0, that, where, iN-i0); that }
-  inline def toInts: Array[Int] = ArrayReform.toInts(ab)
-  inline def toFloats: Array[Float] = ArrayReform.toFloats(ab)
-  inline def toLongs: Array[Long] = ArrayReform.toLongs(ab)
-  inline def toDoubles: Array[Double] = ArrayReform.toDoubles(ab)
+  inline def packInts: Array[Int] = ArrayReform.toInts(ab)
+  inline def packFloats: Array[Float] = ArrayReform.toFloats(ab)
+  inline def packLongs: Array[Long] = ArrayReform.toLongs(ab)
+  inline def packDoubles: Array[Double] = ArrayReform.toDoubles(ab)
   inline def search(b: Byte): Int = java.util.Arrays.binarySearch(ab, b)
   inline def searchRange(i0: Int, iN: Int)(b: Byte): Int = java.util.Arrays.binarySearch(ab, i0, iN, b)
   inline def fill(b: Byte): ab.type = { java.util.Arrays.fill(ab, b); ab }
@@ -360,7 +437,7 @@ extension (ai: Array[Int])
   inline def copyInto(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, 0, that, where, ai.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int]): that.type = { java.lang.System.arraycopy(ai, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, i0, that, where, iN-i0); that }
-  inline def toBytes: Array[Byte] = ArrayReform.toBytes(ai)
+  inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ai)
   inline def search(i: Int): Int = java.util.Arrays.binarySearch(ai, i)
   inline def searchRange(i0: Int, iN: Int)(i: Int): Int = java.util.Arrays.binarySearch(ai, i0, iN, i)
   inline def fill(i: Int): ai.type = { java.util.Arrays.fill(ai, i); ai }
@@ -393,6 +470,7 @@ extension (al: Array[Long])
   inline def copyInto(that: Array[Long], where: Int): that.type = { java.lang.System.arraycopy(al, 0, that, where, al.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Long]): that.type = { java.lang.System.arraycopy(al, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Long], where: Int): that.type = { java.lang.System.arraycopy(al, i0, that, where, iN-i0); that }
+  inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(al)
   inline def search(l: Long): Int = java.util.Arrays.binarySearch(al, l)
   inline def searchRange(i0: Int, iN: Int)(l: Long): Int = java.util.Arrays.binarySearch(al, i0, iN, l)
   inline def fill(l: Long): al.type = { java.util.Arrays.fill(al, l); al }
@@ -425,6 +503,7 @@ extension (af: Array[Float])
   inline def copyInto(that: Array[Float], where: Int): that.type = { java.lang.System.arraycopy(af, 0, that, where, af.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Float]): that.type = { java.lang.System.arraycopy(af, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Float], where: Int): that.type = { java.lang.System.arraycopy(af, i0, that, where, iN-i0); that }
+  inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(af)
   inline def search(f: Float): Int = java.util.Arrays.binarySearch(af, f)
   inline def searchRange(i0: Int, iN: Int)(f: Float): Int = java.util.Arrays.binarySearch(af, i0, iN, f)
   inline def fill(f: Float): af.type = { java.util.Arrays.fill(af, f); af }
@@ -457,6 +536,7 @@ extension (ad: Array[Double])
   inline def copyInto(that: Array[Double], where: Int): that.type = { java.lang.System.arraycopy(ad, 0, that, where, ad.length); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Double]): that.type = { java.lang.System.arraycopy(ad, i0, that, 0, iN-i0); that }
   inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Double], where: Int): that.type = { java.lang.System.arraycopy(ad, i0, that, where, iN-i0); that }
+  inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ad)
   inline def search(d: Double): Int = java.util.Arrays.binarySearch(ad, d)
   inline def searchRange(i0: Int, iN: Int)(d: Double): Int = java.util.Arrays.binarySearch(ad, i0, iN, d)
   inline def fill(d: Double): ad.type = { java.util.Arrays.fill(ad, d); ad }

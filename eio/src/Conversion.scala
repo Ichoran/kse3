@@ -276,6 +276,16 @@ object EioBase85 {
           result(j+3) = table(c)
     result
 
+  def encodeZmqRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeZmqTable)
+
+  def encodeZmq(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeZmqTable)
+
+  def encodeZmq(raw: Array[Int]): Array[Byte] = encodeRangeWithTable(raw.unpackBytes, 0, raw.length*4, encodeZmqTable)
+
+  def stringEncodeZmq(raw: Array[Byte]): String = new String(encodeZmq(raw), ISO_8859_1)
+
+  def encodeAsciiRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeAsciiTable)
+
   def encodeAscii(raw: Array[Byte]): Array[Byte] =
     inline def table(i: Int) = (i + 33).toByte
     val l = (raw.length.toLong*5 + 3)/4
@@ -322,17 +332,8 @@ object EioBase85 {
           result(j+3) = table(c)
     result
 
-  def stringEncodeAscii(raw: Array[Byte]): String =
-    new String(encodeAscii(raw), ISO_8859_1)
+  def stringEncodeAscii(raw: Array[Byte]): String = new String(encodeAscii(raw), ISO_8859_1)
 
-  def encodeAsciiRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeAsciiTable)
-
-  def encodeZmq(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeZmqTable)
-
-  def stringEncodeZmq(raw: Array[Byte]): String =
-    new String(encodeZmq(raw), ISO_8859_1)
-
-  def encodeZmqRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeZmqTable)
 
   private def decodeRangeWithTable(encoded: Array[Byte], i0: Int, iN: Int, table: Array[Byte]): Array[Byte] Or Err = Or.Ret:
     if i0 < 0 || iN > encoded.length then Err.break(s"Invalid decoding range: $i0 until $iN in array of length ${encoded.length}")
@@ -444,17 +445,9 @@ object EioBase85 {
           j += 1
     a.shrinkCopy(j)
 
-  def decodeZmq(encoded: String): Array[Byte] Or Err = decodeWithTable(encoded, decodeZmqTable)
+  def decodeZmq(encoded: String): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
-  def decodeAscii(encoded: String): Array[Byte] Or Err = decodeWithTable(encoded, decodeAsciiTable)
-
-  /*
-  def encode85(raw: Array[Byte]): Array[Byte] = encode85WithTable(raw, encode85Table)
-  def encode85ipv6(raw: Array[Byte]): Array[Byte] = encode85WithTable(raw, encode85ipv6Table)
-  def encode85(raw: Array[Int]): Array[Byte] = encode85WithTable(raw, encode85Table)
-  def encodeZ85(raw: Array[Int]): Array[Byte] = encode85WithTable(raw, encodeZ85Table)
-  def encode85ipv(raw: Array[Byte]): Array[Byte] = encode85WithTable(raw, encode85ipv6Table)
-  */
+  def decodeAscii(encoded: String): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeAsciiTable)
 }
 
 extension (underlying: Array[Byte]) {

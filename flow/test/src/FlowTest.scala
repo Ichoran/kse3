@@ -1461,10 +1461,10 @@ class FlowTest {
     T ~ ab.py(-3)                   ==== ab(0)
     T ~ bb.py.index(-2)             ==== 3
     T ~ { bb.py(-4) = 0; bb }       =**= Array[Byte](2, 0, 3, 2, 3)
-    T ~ (ab ++ bb).toInts           =**= Array[Int](0x02030201, 0x03020300)
-    T ~ (ab ++ bb).toFloats         =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
-    T ~ (ab ++ bb).toLongs          =**= Array[Long](0x0302030002030201L)
-    T ~ (ab ++ bb).toDoubles        =**= Array[Double](l2d(0x0302030002030201L))
+    T ~ (ab ++ bb).packInts         =**= Array[Int](0x02030201, 0x03020300)
+    T ~ (ab ++ bb).packFloats       =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
+    T ~ (ab ++ bb).packLongs        =**= Array[Long](0x0302030002030201L)
+    T ~ (ab ++ bb).packDoubles      =**= Array[Double](l2d(0x0302030002030201L))
     T ~ bb.isSorted                 ==== false
     T ~ bb.isSortedRange(1, 3)      ==== true
     T ~ ab.search(2)                ==== 1
@@ -1565,7 +1565,7 @@ class FlowTest {
     T ~ ai.py(-3)                   ==== ai(0)
     T ~ bi.py.index(-2)             ==== 3
     T ~ { bi.py(-4) = 0; bi }       =**= Array[Int](2, 0, 3, 2, 3)
-    T ~ Array(0x05030107).toBytes   =**= Array[Byte](7, 1, 3, 5)
+    T ~ Array(0x05030107).unpackBytes =**= Array[Byte](7, 1, 3, 5)
     T ~ bi.isSorted                 ==== false
     T ~ bi.isSortedRange(1, 3)      ==== true
     T ~ ai.search(2)                ==== 1
@@ -1599,6 +1599,7 @@ class FlowTest {
     T ~ al.py(-3)                   ==== al(0)
     T ~ bl.py.index(-2)             ==== 3
     T ~ { bl.py(-4) = 0; bl }       =**= Array[Long](2, 0, 3, 2, 3)
+    T ~ Array(0x0102030405060708L).unpackBytes =**= Array[Byte](8, 7, 6, 5, 4, 3, 2, 1)
     T ~ bl.isSorted                 ==== false
     T ~ bl.isSortedRange(1, 3)      ==== true
     T ~ al.search(2)                ==== 1
@@ -1632,6 +1633,7 @@ class FlowTest {
     T ~ af.py(-3)                   ==== af(0)
     T ~ bf.py.index(-2)             ==== 3
     T ~ { bf.py(-4) = 0; bf }       =**= Array[Float](2, 0, 3, 2, 3)
+    T ~ Array(1.4f).unpackBytes     =**= Array[Byte](51, 51, -77, 63)
     T ~ bf.isSorted                 ==== false
     T ~ bf.isSortedRange(1, 3)      ==== true
     T ~ af.search(2)                ==== 1
@@ -1665,6 +1667,7 @@ class FlowTest {
     T ~ ad.py(-3)                   ==== ad(0)
     T ~ bd.py.index(-2)             ==== 3
     T ~ { bd.py(-4) = 0; bd }       =**= Array[Double](2, 0, 3, 2, 3)
+    T ~ Array(1.41).unpackBytes     =**= Array[Byte](-113, -62, -11, 40, 92, -113, -10, 63)
     T ~ bd.isSorted                 ==== false
     T ~ bd.isSortedRange(1, 3)      ==== true
     T ~ ad.search(2)                ==== 1
