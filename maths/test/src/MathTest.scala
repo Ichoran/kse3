@@ -534,8 +534,8 @@ class MathTest {
     T(name) ~ Prng.TextCharacters.forall(c => tmap(c) > 0) ==== true
     val asciis = rng.asciiString(10000)
     val amap = asciis.groupBy(identity).map{ case (c, vs) => c -> vs.length }
-    T(name) ~ amap.forall{ case (c, _) => 0 <= c && c < 256 } ==== true
-    T(name) ~ (0 until 256).forall(i => amap(i.toChar) > 0) ==== true
+    T(name) ~ amap.forall{ case (c, _) => 0 <= c && c < 128 } ==== true
+    T(name) ~ (0 until 128).forall(i => amap(i.toChar) > 0) ==== true
     var nsur = 0
     nFor(1000) { n =>
       val title = s"Valid string iteration $n"

@@ -58,16 +58,16 @@ trait Common extends Base {
     }
     def moduleDeps = Seq(testutilities) ++ extraTestDeps ++ super.moduleDeps
   }
-
-  object bench extends Tests with TestModule.Junit4 {}
 }
 
-object flow extends Common with PublishKse3 {}
+
+object flow extends Common with PublishKse3 {
+  object bench extends Tests with TestModule.Junit4 {}
+}
 
 object maths extends Common with PublishKse3 {
   override def extraTestDeps = Seq(flow)
 }
-
 
 object eio extends Common with PublishKse3 {
   def moduleDeps = Seq(flow, maths)

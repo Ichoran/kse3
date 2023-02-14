@@ -463,7 +463,7 @@ sealed abstract class Prng {
     val sb = new java.lang.StringBuilder(math.max(0, n))
     var i = n
     while i > 0 do
-      sb append (B & 0xFF).toChar
+      sb append (B & 0x7F).toChar
       i -= 1
     sb.toString
   final def validString(n: Int): String =
@@ -474,7 +474,7 @@ sealed abstract class Prng {
       if java.lang.Character.isSurrogate(c) then
         if i > 1 && java.lang.Character.isHighSurrogate(c) then
           sb append c
-          sb append ((c & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
+          sb append ((C & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
           i -= 2
       else
         sb append c

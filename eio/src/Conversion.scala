@@ -52,17 +52,17 @@ object EioBase64 {
     var i = i0
     var j = 0
     var k = 0
-    while i+3 < iN do
+    while i+2 < iN do
       k += 1
       if k > n then
         k = 1
         a(j) = '\n'.toByte
         j += 1
       val chunk = ((raw(i) & 0xFF) << 16) | ((raw(i+1) & 0xFF) << 8) | (raw(i+2) & 0xFF)
-      a(j  ) = encode64urlTable( chunk >> 18        )
-      a(j+1) = encode64urlTable((chunk >> 12) & 0x2F)
-      a(j+2) = encode64urlTable((chunk >>  6) & 0x2F)
-      a(j+3) = encode64urlTable( chunk        & 0x2F)
+      a(j  ) = encode64urlTable( chunk >>> 18        )
+      a(j+1) = encode64urlTable((chunk >>> 12) & 0x3F)
+      a(j+2) = encode64urlTable((chunk >>>  6) & 0x3F)
+      a(j+3) = encode64urlTable( chunk         & 0x3F)
       i += 3
       j += 4
     if i < iN then
@@ -70,14 +70,14 @@ object EioBase64 {
         a(j) = '\n'.toByte
         j += 1
       if i + 1 == iN then
-        val chunk = (raw(i) & 0xFF) << 4
-        a(j  ) = encode64urlTable(chunk >> 6)
-        a(j+1) = encode64urlTable(chunk & 0x2F)
+        val chunk = (raw(i) & 0xFF) << 16
+        a(j  ) = encode64urlTable( chunk >>> 18)
+        a(j+1) = encode64urlTable((chunk >>> 12) & 0x3F)
       else
-        val chunk = ((raw(i) & 0xFF) << 10) | ((raw(i+1) & 0xFF) << 2)
-        a(j  ) = encode64urlTable( chunk >> 12        )
-        a(j+1) = encode64urlTable((chunk >>  6) & 0x2F)
-        a(j+2) = encode64urlTable( chunk        & 0x2F)
+        val chunk = ((raw(i) & 0xFF) << 16) | ((raw(i+1) & 0xFF) << 8)
+        a(j  ) = encode64urlTable( chunk >>> 18        )
+        a(j+1) = encode64urlTable((chunk >>> 12) & 0x3F)
+        a(j+2) = encode64urlTable((chunk >>>  6) & 0x3F)
     a
 
   def encodeUrl(raw: Array[Byte], lineLength: Int = Int.MaxValue): Array[Byte] =
@@ -401,7 +401,7 @@ object EioBase85 {
     var lead: Int = 0
     var rest: Int = 0
     var stored = 0
-    var i = 0
+    var i = i0
     var j = 0
     val bmax = 9 + table.length - 1
     while i < iN do
@@ -444,6 +444,10 @@ object EioBase85 {
           a(j) = ((rest >>> 8) & 0xFF).toByte
           j += 1
     a.shrinkCopy(j)
+
+  def decodeZmqRange(encoded: String, i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
+
+  def decodeAsciiRange(encoded: String, i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
 
   def decodeZmq(encoded: String): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
@@ -502,18 +506,14 @@ extension (underlying: String) {
 }
 
 extension (underlying: java.util.zip.ZipEntry) {
-  def fixedName =
+  def cleanName =
     val n = underlying.getName
     val i = n.indexOf('/')
     val j = n.indexOf('\\')
     if i < 0 && j > 0 then n.replace('\\', '/') else n
-  
-  def nameAsFile =
-    val n = underlying.fixedName
-    new File(if File.separatorChar == '/' then n else n.replace('/',File.separatorChar))
-  
-  def nameAsPath =
-    val n = underlying.fixedName
+
+  def cleanPath =
+    val n = underlying.cleanName
     val fs = FileSystems.getDefault
     fs.getPath(if fs.getSeparator == "/" then n else n.replace("/", fs.getSeparator))
 }

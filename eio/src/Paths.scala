@@ -1,7 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014, 2015, 2020, 2021 Rex Kerr, UCSF, and Calico Life Sciences LLC
-
-/*
+// Copyright (c) 2014, 2015, 2020, 2021, 2023 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
 package kse.eio
 
@@ -13,13 +11,15 @@ import java.util.zip._
 
 import scala.util.control.NonFatal
 
-import kse.flow._
+import kse.flow.{given, _}
 
 extension (pathname: String) {
   def file = new File(pathname)
   def path = FileSystems.getDefault.getPath(pathname)
-  def pathOption = try { Some(FileSystems.getDefault.getPath(pathname)) } catch { case ipe: java.nio.file.InvalidPathException => None }
+  def pathPlease = nice{ FileSystems.getDefault.getPath(pathname) }
 }
+
+/*
 
 extension (the_path: Path) {
   def name = the_path.getFileName.toString
