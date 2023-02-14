@@ -9,17 +9,12 @@ import java.nio.file.attribute.FileTime
 import java.time._
 import java.util.zip._
 
-import scala.util.control.NonFatal
-
 import kse.flow.{given, _}
 
 extension (pathname: String) {
   def file = new File(pathname)
   def path = FileSystems.getDefault.getPath(pathname)
-  def pathPlease = nice{ FileSystems.getDefault.getPath(pathname) }
 }
-
-/*
 
 extension (the_path: Path) {
   def name = the_path.getFileName.toString
@@ -31,54 +26,50 @@ extension (the_path: Path) {
   def ext =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if (i < 1) "" else n.substring(i+1)
+    if i < 1 then "" else n.substring(i+1)
   
   def extTo(x: String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if (i < 1) {
-      if (x.isEmpty) the_path
+    if i < 1 then
+      if x.isEmpty then the_path
       else the_path resolveSibling n + "." + x
-    }
-    else {
-      if (x.isEmpty) the_path resolveSibling n.substring(0, i)
+    else
+      if x.isEmpty then the_path resolveSibling n.substring(0, i)
       else the_path resolveSibling n.substring(0, i+1) + x
-    }
   
-  def extFn(f: String => String) =
+  def extOp(f: String => String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    val e = if (i < 1) "" else n.substring(i+1)
+    val e = if i < 1 then "" else n.substring(i+1)
     val x = f(e)
-    if (x == e) the_path
-    else if (i < 1) the_path resolveSibling n + "." + x
-    else if (x.isEmpty) the_path resolveSibling n.substring(0, i)
+    if x == e then the_path
+    else if i < 1 then the_path resolveSibling n + "." + x
+    else if x.isEmpty then the_path resolveSibling n.substring(0, i)
     else the_path resolveSibling n.substring(0, i+1) + x
   
   def base =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if (i < 1) n else n.substring(0, i)
+    if i < 1 then n else n.substring(0, i)
   
   def baseTo(b: String) = 
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if (i < 1) {
-      if (n == b) the_path
+    if i < 1 then
+      if n == b then the_path
       else the_path resolveSibling b
-    }
-    else {
-      if (i == b.length && n.substring(0, i) == b) the_path
+    else
+      if i == b.length && n.substring(0, i) == b then the_path
       else the_path resolveSibling b + n.substring(i)
-    }
   
-  def baseFn(f: String => String) =
+  def baseOp(f: String => String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    val b = if (i < 1) n else n.substring(0, i)
+    val b = if i < 1 then n else n.substring(0, i)
     val x = f(b)
-    if (b == x) the_path
-    else if (i < 1) the_path resolveSibling x
+    if b == x then the_path
+    else if i < 1 then the_path resolveSibling x
     else the_path resolveSibling x+n.substring(i)
   
   def parentName = the_path.getParent match { case null => ""; case p => p.getFileName.toString }
@@ -95,12 +86,11 @@ extension (the_path: Path) {
     var abs = the_path.toAbsolutePath().normalize()
     var tail: Path = null
     var found = false
-    while (abs != null && !{ found = Files exists abs; found }) {
-      tail = if (tail eq null) abs.getFileName else abs.getFileName resolve tail
+    while abs != null && !{ found = Files exists abs; found } do
+      tail = if tail eq null then abs.getFileName else abs.getFileName resolve tail
       abs = abs.getParent
-    }
-    val trunk = if (found) abs.toRealPath() else abs
-    if (tail eq null) trunk else trunk resolve tail
+    val trunk = if found then abs.toRealPath() else abs
+    if tail eq null then trunk else trunk resolve tail
   
   def file = the_path.toFile
 
@@ -114,15 +104,15 @@ extension (the_path: Path) {
 
   def sib(that: Path) = the_path resolveSibling that
 
-  def reroot(oldRoot: Path, newRoot: Path): Option[Path] =
-    if (the_path startsWith oldRoot) Some(newRoot resolve oldRoot.relativize(the_path))
-    else None
+  def reroot(oldRoot: Path, newRoot: Path): Path Or Unit =
+    if the_path startsWith oldRoot then Is(newRoot resolve oldRoot.relativize(the_path))
+    else Alt.unit
 
-  def reroot(roots: (Path, Path)): Option[Path] = reroot(roots._1, roots._2)
+  def reroot(roots: (Path, Path)): Path Or Unit = reroot(roots._1, roots._2)
 
-  def prune(child: Path): Option[Path] =
-    if (child startsWith the_path) Some(the_path relativize child)
-    else None
+  def prune(child: Path): Path Or Unit =
+    if child startsWith the_path then Is(the_path relativize child)
+    else Alt.unit
 
   def exists = Files exists the_path
 
@@ -132,12 +122,11 @@ extension (the_path: Path) {
 
   def size = Files size the_path
 
-  def safely = new PathShouldSafelyDoThis(the_path)
+  def safely: kse.eio.PathsHelper.Safely = PathsHelper.Safely(the_path)
 
   def t: FileTime = Files getLastModifiedTime the_path
 
-  def t_=(ft: FileTime): Unit =
-    Files.setLastModifiedTime(the_path, ft)
+  def t_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
   
   def mkdir() = Files createDirectory the_path
 
@@ -146,30 +135,30 @@ extension (the_path: Path) {
   def delete() = Files delete the_path
 
   def touch(): Unit =
-    if (Files exists the_path) Files.setLastModifiedTime(the_path, FileTime from Instant.now)
+    if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
     else Files.write(the_path, new Array[Byte](0))
 
   def paths =
-    if (!(Files exists the_path)) PathsHelper.emptyPathArray
-    else if (!(Files isDirectory the_path)) PathsHelper.emptyPathArray
-    else safe{ 
+    if !(Files exists the_path) then PathsHelper.emptyPathArray
+    else if !(Files isDirectory the_path) then PathsHelper.emptyPathArray
+    else safe { 
       val list = Files.list(the_path)
       val ans = list.toArray(i => new Array[Path](i))
       list.close
       ans
-    }.yesOr(_ => PathsHelper.emptyPathArray)
+    }.getOrElse(_ => PathsHelper.emptyPathArray)
 
-  def slurp: Ok[String, Array[String]] = safe {
+  def slurp: Array[String] Or Err = nice {
     val s = Files lines the_path
     val vb = Array.newBuilder[String]
     s.forEach(vb += _)
     s.close
     vb.result
-  }.mapNo(_.explain())
+  }
 
-  def gulp: Ok[String, Array[Byte]] = safe {
+  def gulp: Array[Byte] Or Err = nice {
     Files readAllBytes the_path
-  }.mapNo(_.explain())
+  }
 
   /*
   // TODO -- evaluate whether it's better to use a ZipFileSystem to do this
@@ -186,32 +175,30 @@ extension (the_path: Path) {
 
   def atomicCopy(to: Path): Unit =
     val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
+    to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
     Files.copy(the_path, temp, StandardCopyOption.REPLACE_EXISTING)
     Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
 
   def atomicMove(to: Path): Unit =
     val up = to.getParent
-    if (up != null) {
-      if (!Files.exists(up)) Files.createDirectories(up)
-    }
-    if (up != null && Files.getFileStore(the_path) == Files.getFileStore(up))
+    if up != null then
+      if !Files.exists(up) then Files.createDirectories(up)
+    if up != null && Files.getFileStore(the_path) == Files.getFileStore(up) then
       Files.move(the_path, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    else {        
+    else       
       val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-      to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
+      to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
       Files.copy(the_path, temp, StandardCopyOption.REPLACE_EXISTING)
       Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
       Files.delete(the_path)
-    }
 
-  def atomicZipCopy(to: Path, compression: Option[Int] = None, maxDirectoryDepth: Int = 10): Unit =
+  def atomicZipCopy(to: Path, compression: Int Or Unit = Alt.unit, maxDirectoryDepth: Int = 10): Unit =
     val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
+    to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
     val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
     compression.foreach(zos.setLevel)
-    if (Files.isDirectory(the_path)) {
-      val base = the_path.getParent.fn{ fp => if (fp eq null) FileSystems.getDefault.getPath("") else fp }
+    if Files.isDirectory(the_path) then
+      val base = the_path.getParent.fn{ fp => if fp eq null then FileSystems.getDefault.getPath("") else fp }
       def recurse(current: Path, maxDepth: Int): Unit = {
         val stable = current.paths
         val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
@@ -223,24 +210,22 @@ extension (the_path: Path) {
           Files.copy(fi, zos)
           zos.closeEntry
         }
-        if (maxDepth > 1) directories.foreach(d => recurse(d, maxDepth-1))
+        if maxDepth > 1 then directories.foreach(d => recurse(d, maxDepth-1))
       }
       recurse(the_path, maxDirectoryDepth)
-    }
-    else {
+    else
       val ze = new ZipEntry(the_path.getFileName.toString)
       ze.setLastModifiedTime(Files.getLastModifiedTime(the_path))
       zos.putNextEntry(ze)
       Files.copy(the_path, zos)
       zos.closeEntry
-    }
     zos.close
     Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
 
   def recursively = new PathsHelper.RootedRecursion(the_path, the_path)
 
   def recurseIn(inside: Path) =
-    if (the_path startsWith inside) new PathsHelper.RootedRecursion(inside, the_path)
+    if the_path startsWith inside then new PathsHelper.RootedRecursion(inside, the_path)
     else throw new IOException(s"Trying recursive operation in $inside but started outside at $the_path")
 }
 
@@ -483,83 +468,77 @@ object PathsHelper {
   }
 
   private[PathsHelper] def recursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
-    if (f startsWith root) {
-      if (Files.isDirectory(f) && !Files.isSymbolicLink(f)) {
-        f.paths.foreach(fi => recursiveDelete(fi, root, hook))
-      }
-      hook(f)
-      Files delete f
-    }
-    else throw new IOException(s"Tried to delete $f but escaped root path $root")
+    if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
+    if Files.isDirectory(f) && !Files.isSymbolicLink(f) then
+      f.paths.foreach(fi => recursiveDelete(fi, root, hook))
+    hook(f)
+    Files delete f
 
   private[PathsHelper] def atomicRecursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
-    if (f startsWith root) {
-      val name = f.getFileName.toString
-      val i = name.lastIndexOf('.')
-      val delext = if (i > 0) name.substring(i+1) else ""
-      val delnum = 
-        if (!delext.startsWith("deleted")) None
-        else if (delext.length > "deleted".length + 8) None
-        else if (delext.length > "deleted".length) {
-          val more = delext.substring("deleted".length)
-          if (!more.forall(_.isDigit)) None
-          else safe{ more.toInt }.toOption
-        }
-        else Some(1)
-      val delname = delnum match {
-        case Some(n) => name.substring(0, i) + ".deleted" + (n+1).toString
-        case _ => name + ".deleted"
-      }
-      val del = f.resolveSibling(delname).normalize
-      if (Files exists del) atomicRecursiveDelete(del, root, hook)
-      Files.move(f, del, StandardCopyOption.ATOMIC_MOVE)
-      val drp = del.toRealPath()
-      recursiveDelete(drp, drp, hook)
-    }
-    else throw new IOException(s"Tried to delete $f but escaped root path $root")
+    if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
+    val name = f.getFileName.toString
+    val i = name.lastIndexOf('.')
+    val delext = if i > 0 then name.substring(i+1) else ""
+    val delnum = 
+      if !delext.startsWith("deleted") then None
+      else if delext.length > "deleted".length + 8 then None
+      else if delext.length > "deleted".length then
+        val more = delext.substring("deleted".length)
+        if !more.forall(_.isDigit) then None
+        else safe{ more.toInt }.toOption
+      else Some(1)
+    val delname = delnum match
+      case Some(n) => name.substring(0, i) + ".deleted" + (n+1).toString
+      case _ => name + ".deleted"
+    val del = f.resolveSibling(delname).normalize
+    if Files exists del then atomicRecursiveDelete(del, root, hook)
+    Files.move(f, del, StandardCopyOption.ATOMIC_MOVE)
+    val drp = del.toRealPath()
+    recursiveDelete(drp, drp, hook)
+
+  opaque type Safely = Path
+  object Safely {
+    def apply(path: Path): kse.eio.PathsHelper.Safely = path
+
+    extension (path: Safely)
+      def underlying: Path = path
+
+    extension (path: kse.eio.PathsHelper.Safely) {
+      def exists: Boolean =
+        try Files.exists(path.underlying)
+        catch case e if catchable(e) => false
+
+      def isDirectory: Boolean =
+        try Files.isDirectory(path.underlying)
+        catch case e if catchable(e) => false
+
+      def isSymbolic: Boolean =
+        try Files.isSymbolicLink(path.underlying)
+        catch case e if catchable(e) => false
+
+      def size: Long =
+        try
+          if Files.exists(path.underlying) then Files.size(path.underlying)
+          else -1L
+        catch case e if catchable(e) => -1L
+
+      def real: Path =
+        try
+          val abs = path.underlying.toAbsolutePath()
+          try
+            val norm = abs.normalize()
+            try
+              var p = norm
+              var tail: Path = null
+              var found = false
+              while p != null && !{ found = Files.exists(p); found } do
+                tail = if tail eq null then p.getFileName else p.getFileName resolve tail
+                p = p.getParent
+              val trunk = if found then p.toRealPath() else p
+              if tail eq null then trunk else trunk resolve tail
+            catch case e if catchable(e) => norm
+          catch case e if catchable(e) => abs
+        catch case e if catchable(e) => path.underlying
+    }  
   }
-
-class PathShouldSafelyDoThis private[eio] (private val underlying: Path) extends AnyVal {
-  def exists =
-    try { Files exists underlying }
-    catch { case e if NonFatal(e) => false }
-
-  def isDirectory =
-    try { Files isDirectory underlying }
-    catch { case e if NonFatal(e) => false }
-
-  def isSymbolic =
-    try { Files isSymbolicLink underlying }
-    catch { case e if NonFatal(e) => false }
-
-  def size =
-    try { 
-      if (Files exists underlying) Files size underlying
-      else -1L
-    }
-    catch { case e if NonFatal(e) => -1L }
-
-  def real =
-    try {
-      val abs = underlying.toAbsolutePath()
-      try {
-        val norm = abs.normalize()
-        try {
-          var p = norm
-          var tail: Path = null
-          var found = false
-          while (p != null && !{ found = Files exists p; found }) {
-            tail = if (tail eq null) p.getFileName else p.getFileName resolve tail
-            p = p.getParent
-          }
-          val trunk = if (found) p.toRealPath() else p
-          if (tail eq null) trunk else trunk resolve tail
-        }
-        catch { case e if NonFatal(e) => norm }
-      }
-      catch { case e if NonFatal(e) => abs }
-    }
-    catch { case e if NonFatal(e) => underlying }
 }
-
-*/
