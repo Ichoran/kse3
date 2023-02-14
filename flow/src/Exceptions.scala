@@ -228,7 +228,7 @@ trait Cope[E] {
 }
 object Cope {
   /** The default coping strategy: store throwables */
-  given Cope[kse.flow.Err] = new Cope[kse.flow.Err] {
+  val asErr = new Cope[kse.flow.Err] {
     def fromThrowable(t: Throwable) = Err(t)
   }
 

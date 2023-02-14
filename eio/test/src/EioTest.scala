@@ -9,6 +9,12 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
+import java.io._
+import java.nio.file._
+import java.nio.file.attribute.FileTime
+import java.time._
+import java.util.zip._
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -140,21 +146,57 @@ class EioTest {
     T ~ EioBase85.decodeAsciiRange(b.encode85ascii, 90, 105).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
     T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, 90, 105).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
 
-    val zok = new java.util.zip.ZipEntry("all/fine/here.txt")
-    val zwin = new java.util.zip.ZipEntry("bad\\win\\name.txt")
+    val zok = new ZipEntry("all/fine/here.txt")
+    val zwin = new ZipEntry("bad\\win\\name.txt")
     T ~ zok.cleanName  ==== "all/fine/here.txt"
     T ~ zwin.cleanName ==== "bad/win/name.txt"
     T ~ zok.cleanPath  ==== (new java.io.File("all/fine/here.txt")).toPath
     T ~ zwin.cleanPath ==== (new java.io.File("bad/win/name.txt")).toPath
+
+  @Test
+  def pathTest: Unit =
+    val p = "temp/eio".path
+    val q = "temp/eio/quartz.txt".path
+    T ~ p                        ==== FileSystems.getDefault.getPath("temp/eio")
+    T ~ "temp/eio".file          ==== p.file
+    T ~ "temp/eio".file.path     ==== p
+    T ~ p.name                   ==== "eio"
+    T ~ p.nameTo("fred")         ==== "temp/fred".path
+    T ~ p.nameOp(_ + "s")        ==== "temp/eios".path
+    T ~ p.ext                    ==== ""
+    T ~ ".foo".path.ext          ==== ""
+    T ~ q.ext                    ==== "txt"
+    T ~ p.extTo("png")           ==== "temp/eio.png".path
+    T ~ ".foo".path.extTo("png") ==== ".foo.png".path
+    T ~ q.extTo("png")           ==== "temp/eio/quartz.png".path
 }
 object EioTest {
-  val testPath = "temp/eio"
+  import kse.flow.{given, _}
 
-  def cleanTempEio(): Unit = {}
+  val testPath = FileSystems.getDefault.getPath("temp/eio")
+
+  def cleanTempEio(): Unit Or Err = nice:
+    var targets: List[(Path, Boolean)] = List((testPath, false), (testPath.getParent, false))
+    while targets.nonEmpty do
+      val (t, del) = targets.head
+      targets = targets.tail
+      if del then Files delete t
+      else if Files exists t then
+        if (Files isDirectory t) || !(Files isSymbolicLink t) then
+          Resource(Files list t)(_.close): fs =>
+            targets = ((t, true)) :: targets
+            iFor(fs.iterator){ (q, _) => targets = ((q, false)) :: targets }
+        else Files delete t
+
+  def createTempEio(): Unit Or Err = nice:
+    Files.createDirectories(testPath)
 
   @BeforeClass
-  def before(): Unit = { println("Should create temp/eio") }
+  def before(): Unit =
+    cleanTempEio().foreachAlt(e => e.explainBy(s"Error pre-cleaning test arena at $testPath").tap(println))
+    createTempEio().foreachAlt(e => e.explainBy(s"Error creating test arena at $testPath").tap(println))
 
   @AfterClass
-  def after(): Unit = { println("Should remove temp/eio") }
+  def after(): Unit =
+    cleanTempEio().foreachAlt(e => e.explainBy(s"Error cleaning test arena at $testPath"))
 }

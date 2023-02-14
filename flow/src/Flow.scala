@@ -115,18 +115,18 @@ extension (objectOr: Or.type) {
   }
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
-    * Any exceptions are caught and converted via a given `Cope`. 
+    * Any exceptions are caught and converted into `Err`. 
     *
     * Usage:
     * {{{
-    * def parseTwice(s: String): Int Or String = Or.Nice(using Cope.asString) {
+    * def parseTwice(s: String): Int Or String = Or.Nice {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }
     * }}}
     */
-  inline def Nice[X, Y](inline x: Label[X Or Y] ?=> X)(using cope: Cope[Y]): X Or Y = boundary[X Or Y]{
+  inline def Nice[X](inline x: Label[X Or Err] ?=> X): X Or Err = boundary[X Or Err]{
     try Is(x)
-    catch case t if t.catchable => Alt(cope fromThrowable t)
+    catch case t if t.catchable => Alt(Err(t))
   }
 }
 
@@ -194,10 +194,17 @@ inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
   try Is(x)
   catch case e if e.catchable => Alt(f(e))
 
+/** Run something safely, packing all non-fatal exceptions into an `Err`, and returning
+  * the no-exception result as the favored branch of an `Or`.
+  */
+inline def nice[X](inline x: => X): X Or Err =
+  try Is(x)
+  catch case e if e.catchable => Alt(Err(e))    
+
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
   */
-inline def nice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
+inline def cope[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
   catch case e if e.catchable => Alt(cope fromThrowable e)
 
@@ -206,12 +213,22 @@ inline def threadsafe[X](inline x: => X): X Or Throwable =
   try Is(x)
   catch case e if e.threadCatchable => Alt(e)
 
+/** Run something safely and pack errors into an Err, also catching any control constructs that might escape. */
+inline def threadnice[X](inline x: => X): X Or Err =
+  try Is(x)
+  catch case e if e.threadCatchable => Alt(Err(e))
+
 /** Run something safely, using a `Cope` to map any non-fatal exceptions into a disfavored branch,
   * and returning the non-exception result as the favored branch of an `Or`.
   */
-inline def threadnice[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
+inline def threadcope[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
   catch case e if e.threadCatchable => Alt(cope fromThrowable e)
+
+/** Run something safely, with a pregenerated value if things go wrong */
+inline def ratchet[A](default: A)(inline f: A => A): A =
+  try f(default)
+  catch case e if e.catchable => default
 
 
 
@@ -317,8 +334,11 @@ extension [A](`try`: Try[A]) {
   /** Converts to an `Or`, mapping a failure to a disfavored value, or keeping a success as the favored branch. */
   inline def toOrWith[B](f: Throwable => B): A Or B = Or.from(`try`, f)
 
+  /** Converts to an `Or`, storing failures in `Err`, or keeping a success as the favored branch. */
+  inline def niceOr: A Or Err = Or.from(`try`, t => Err(t))
+
   /** Converts to an `Or`, mapping a failure automatically to a disfavored value, or keeping a success as the favored branch. */
-  inline def niceOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
+  inline def copeOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
 }
 
 

@@ -66,12 +66,15 @@ class FlowTest {
     T ~ short.last ==== s". . . (+$lines lines and 1 more exception)"
 
     def copeT[E](t: Throwable)(using c: Cope[E]): E = c fromThrowable t
-
     val e = new Exception("salmon")
-    val cT = copeT(e)
-    T ~ cT.toString.contains("salmon") ==== true
-    T ~ cT                             ==== typed[Err]
-    T ~ cT                             ==== ErrType.ThrowableErr(e)
+
+    {
+      given Cope[Err] = Cope.asErr
+      val cT = copeT(e)
+      T ~ cT.toString.contains("salmon") ==== true
+      T ~ cT                             ==== typed[Err]
+      T ~ cT                             ==== ErrType.ThrowableErr(e)
+    }
 
     {
       given Cope[Array[String]] = Cope.fullTrace
@@ -184,9 +187,43 @@ class FlowTest {
     val fish = new StringBuilder
     iFor(xs.iterator){ (s, i) =>
       if fish.nonEmpty then fish ++= ", "
-      fish ++= s*(i+1)
+      fish ++= s*(i + 1)
     }
     T("iFor") ~ fish.result ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
+
+    fish.clear
+    iFor(xs.stepper){ (s, i) =>
+      if fish.nonEmpty then fish ++= ", "
+      fish ++= s*(4-i)
+    }
+    T("stepper iFor") ~ fish.result ==== "codcodcodcod, bassbassbass, perchperch, salmon"
+
+    val ys = Array("pigeon", "sparrow", "hawk")
+    val birds = new StringBuilder
+    iFor(java.util.Arrays.stream(ys).iterator){ (s, i) =>
+      if birds.nonEmpty then birds ++= ", "
+      birds ++= s*(i+1)
+    }
+    T("java iFor") ~ birds.result ==== "pigeon, sparrowsparrow, hawkhawkhawk"
+
+    val e = new java.util.Enumeration[String](){
+      var i = 0
+      def hasMoreElements = i < ys.length
+      def nextElement = { i += 1; ys(i-1) }
+    } 
+    birds.clear
+    iFor(e){ (s, i) =>
+      birds ++= s.take(2*(i+1))
+    }
+    T("java enumeration iFor") ~ birds.result ==== "pisparhawk"
+
+    birds.clear
+    iFor(java.util.Arrays.stream(ys).spliterator){ (s, i) =>
+      if birds.nonEmpty then birds ++= ", "
+      birds ++= s*(3-i)
+    }
+    T("java spliterator iFor") ~ birds.result ==== "pigeonpigeonpigeon, sparrowsparrow, hawk"
+
 
 
   @Test
@@ -1215,10 +1252,10 @@ class FlowTest {
     T ~ optionQ2("88")      ==== Some(88)
 
     import scala.util.control.{ControlThrowable => ControlThrow}
-    def toss(): Nothing = throw new ControlThrow() {}
+    def toss(): Nothing = throw new ControlThrow("tossed") {}
     T ~ safe{ "17".toInt }                                              ==== 17 --: typed[Int Or Throwable]
     T ~ safe{ "e".toInt }.foreachAlt(throw _)                           ==== thrown[NumberFormatException]
-    T ~ safe{ "e".toInt }.isBoxed                                       ==== true
+    T ~ safe{ "e".toInt }.isAlt                                         ==== true
     T ~ safeWith(_.getMessage.isEmpty){ "17".toInt }                    ==== 17 --: typed[Int Or Boolean]
     T ~ safeWith(_.getMessage.isEmpty){ "e".toInt }                     ==== Alt(false)
     T ~ nice{ "17".toInt }                                              ==== 17 --: typed[Int Or Err]
@@ -1228,6 +1265,15 @@ class FlowTest {
     T ~ threadsafe{ toss(); 0 }.existsAlt(_.isInstanceOf[ControlThrow]) ==== true
     T ~ threadnice{ "17".toInt }                                        ==== 17 --: typed[Int Or Err]
     T ~ threadnice{ "e".toInt }.existsAlt(_.toString contains "Number") ==== true
+    T ~ ratchet(7){ i => i + "17".toInt }                               ==== 24
+    T ~ ratchet(7){ i => i + "e".toInt }                                ==== 7
+    {
+      given Cope[String] = Cope.asString
+      T ~ cope{ "17".toInt }                                     ==== 17 --: typed[Int Or String]
+      T ~ cope{ "e".toInt }.existsAlt(_ contains "NumberFormat") ==== true
+      T ~ threadcope{ "17".toInt }                               ==== 17 --: typed[Int Or String]
+      T ~ threadcope{ toss(); 0 }.existsAlt(_ contains "tossed") ==== true
+    }
 
     val l = Left("herring")
     val r = Right(15)
@@ -2433,6 +2479,59 @@ class FlowTest {
     T ~ a.get         ==== ("albacore", 25)
     m.set("minnow")
     T ~ m2.get        ==== (6, 18)
+
+
+  @Test
+  def resourceTest: Unit =
+    val m = Mu(0)
+    T ~ Resource(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4
+    T ~ m.value                                                 ==== 3
+    T ~ Resource(m)(_.zap(_ * 2)){ x => throw new Exception("oops"); () } ==== thrown[Exception]
+    T ~ m.value                                                 ==== 6
+    T ~ Err.Or[Int]{ Resource(m)(_.zap(- _)){ x => if x.value > 0 then Is.break(x.value) else if x.value < 0 then Err.break("negative") else 0 } } ==== 6 --: typed[Int Or Err]
+    T ~ m.value                                                 ==== -6
+
+    T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Throwable]
+    T ~ m.value                                                      ==== 3
+    T ~ Resource.safe(m)(_.zap(_ * 2)){ x => 
+          throw new Exception("oops"); ()
+        }.existsAlt(_.isInstanceOf[Exception])                       ==== true
+    T ~ m.value                                                      ==== 6
+    T ~ Or.FlatRet{
+          Resource.safe(m)(_.zap(- _)){ x => 
+            if x.value > 0 then Is.break(x.value)
+            else if x.value < 0 then Err.break("negative")
+            else 0
+          }.mapAlt(Err apply _)
+        }                                                            ==== 6 --: typed[Int Or Err]
+    T ~ m.value                                                      ==== -6
+    T ~ Resource.safe(m){ x =>
+          throw new Exception("oops"); x.zap(_ * 2)
+        }{ x => 
+          x.zap(_ * 3); x.value
+        }.existsAlt(_.isInstanceOf[Exception])                       ==== true
+    T ~ m.value                                                      ==== -18
+
+    T ~ Resource.nice(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ m.value                                                      ==== 3
+    T ~ Resource.nice(m)(_.zap(_ * 2)){ x => 
+          throw new Exception("oops"); ()
+        }.existsAlt(_.toString contains "oops")                      ==== true
+    T ~ m.value                                                      ==== 6
+    T ~ Or.FlatRet{
+          Resource.nice(m)(_.zap(- _)){ x => 
+            if x.value > 0 then Is.break(x.value)
+            else if x.value < 0 then Err.break("negative")
+            else 0
+          }
+        }                                                            ==== 6
+    T ~ m.value                                                      ==== -6
+    T ~ Resource.nice(m){ x =>
+          throw new Exception("oops"); x.zap(_ * 2)
+        }{ x => 
+          x.zap(_ * 3); x.value
+        }.existsAlt(_.toString contains "closing resource")          ==== true
+    T ~ m.value                                                      ==== -18
 }
 object FlowTest {
   // @BeforeClass

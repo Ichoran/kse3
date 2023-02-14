@@ -108,3 +108,29 @@ inline def iFor[A](i: Iterator[A])(inline f: (A, Int) => Unit): Unit =
   while i.hasNext do
     f(i.next, n)
     n += 1
+
+/** For everything in stepper `s`, run `f` on the item plus its index */
+inline def iFor[A](s: scala.collection.Stepper[A])(inline f: (A, Int) => Unit): Unit =
+  var n = 0
+  while s.hasStep do
+    f(s.nextStep, n)
+    n += 1
+
+/** For everything in java Iterator `j`, run `f` on the item plus its index */
+inline def iFor[A](j: java.util.Iterator[A])(inline f: (A, Int) => Unit): Unit =
+  var n = 0
+  while j.hasNext do
+    f(j.next, n)
+    n += 1
+
+/** For everything in a java Enumeration `e`, run `f` on the item plus its index */
+inline def iFor[A](e: java.util.Enumeration[A])(inline f: (A, Int) => Unit): Unit =
+  var n = 0
+  while e.hasMoreElements do
+    f(e.nextElement, n)
+    n += 1
+
+/** For everything in a java Spliterator `s`, run `f` on the item plus its index */
+inline def iFor[A](s: java.util.Spliterator[A])(inline f: (A, Int) => Unit): Unit =
+  var n = 0
+  while s.tryAdvance(a => f(a, n)) do n += 1

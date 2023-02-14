@@ -45,6 +45,11 @@ object Err {
     try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
     catch case t if t.catchable => Alt(Err(t))
   }
+
+  /** Catches exceptions and packs them into an Err. */
+  inline def nice[X](x: => X): X Or Err =
+    try Is(x)
+    catch case t if t.catchable => Alt(Err(t))
 }
 
 
@@ -70,7 +75,7 @@ object ErrType {
       b.append(string, i, string.length)
     b.toString
 
-  final class ThrowableErr(val error: Throwable, explainer: Throwable => String = _.explain(60, 10)) extends ErrType {
+  final class ThrowableErr(val error: Throwable, explainer: Throwable => String = _.explain(40, 10)) extends ErrType {
     type E = Throwable
 
     override def equals(a: Any) = a match

@@ -12,16 +12,20 @@ import java.util.zip._
 import kse.flow.{given, _}
 
 extension (pathname: String) {
-  def file = new File(pathname)
-  def path = FileSystems.getDefault.getPath(pathname)
+  inline def file = new File(pathname)
+  inline def path = FileSystems.getDefault.getPath(pathname)
+}
+
+extension (the_file: File) {
+  inline def path = the_file.toPath
 }
 
 extension (the_path: Path) {
-  def name = the_path.getFileName.toString
+  inline def name = the_path.getFileName.toString
 
-  def nameTo(s: String) = the_path resolveSibling s
+  inline def nameTo(s: String) = the_path resolveSibling s
 
-  def nameFn(f: String => String) = the_path resolveSibling f(the_path.getFileName.toString)
+  inline def nameOp(inline f: String => String) = the_path resolveSibling f(the_path.getFileName.toString)
 
   def ext =
     val n = the_path.getFileName.toString
@@ -72,7 +76,7 @@ extension (the_path: Path) {
     else if i < 1 then the_path resolveSibling x
     else the_path resolveSibling x+n.substring(i)
   
-  def parentName = the_path.getParent match { case null => ""; case p => p.getFileName.toString }
+  inline def parentName = the_path.getParent match { case null => ""; case p => p.getFileName.toString }
 
   def namesIterator = Iterator.iterate(the_path)(_.getParent).takeWhile(_ != null).map(_.getFileName.toString)
 
@@ -80,7 +84,7 @@ extension (the_path: Path) {
 
   def parentOption = Option(the_path.getParent)
 
-  def absolute = the_path.toAbsolutePath()
+  inline def absolute = the_path.toAbsolutePath()
 
   def real =
     var abs = the_path.toAbsolutePath().normalize()
@@ -92,61 +96,59 @@ extension (the_path: Path) {
     val trunk = if found then abs.toRealPath() else abs
     if tail eq null then trunk else trunk resolve tail
   
-  def file = the_path.toFile
+  inline def file = the_path.toFile
 
-  def /(that: String) = the_path resolve that
+  inline def /(that: String) = the_path resolve that
 
-  def /(that: Path) = the_path resolve that
+  inline def /(that: Path) = the_path resolve that
 
-  def `..` = the_path.getParent match { case null => the_path; case p => p }
+  inline def `..` = the_path.getParent match { case null => the_path; case p => p }
 
-  def sib(that: String) = the_path resolveSibling that
+  inline def sib(that: String) = the_path resolveSibling that
 
-  def sib(that: Path) = the_path resolveSibling that
+  inline def sib(that: Path) = the_path resolveSibling that
 
   def reroot(oldRoot: Path, newRoot: Path): Path Or Unit =
     if the_path startsWith oldRoot then Is(newRoot resolve oldRoot.relativize(the_path))
     else Alt.unit
 
-  def reroot(roots: (Path, Path)): Path Or Unit = reroot(roots._1, roots._2)
+  inline def reroot(roots: (Path, Path)): Path Or Unit = reroot(roots._1, roots._2)
 
   def prune(child: Path): Path Or Unit =
     if child startsWith the_path then Is(the_path relativize child)
     else Alt.unit
 
-  def exists = Files exists the_path
+  inline def exists = Files exists the_path
 
-  def isDirectory = Files isDirectory the_path
+  inline def isDirectory = Files isDirectory the_path
 
-  def isSymbolic = Files isSymbolicLink the_path
+  inline def isSymbolic = Files isSymbolicLink the_path
 
-  def size = Files size the_path
+  inline def size = Files size the_path
 
-  def safely: kse.eio.PathsHelper.Safely = PathsHelper.Safely(the_path)
+  inline def safely: kse.eio.PathsHelper.Safely = PathsHelper.Safely(the_path)
 
-  def t: FileTime = Files getLastModifiedTime the_path
+  inline def t: FileTime = Files getLastModifiedTime the_path
 
-  def t_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
+  inline def t_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
   
-  def mkdir() = Files createDirectory the_path
+  inline def mkdir() = Files createDirectory the_path
 
-  def mkdirs() = Files createDirectories the_path
+  inline def mkdirs() = Files createDirectories the_path
 
-  def delete() = Files delete the_path
+  inline def delete() = Files delete the_path
 
   def touch(): Unit =
     if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
     else Files.write(the_path, new Array[Byte](0))
 
   def paths =
-    if !(Files exists the_path) then PathsHelper.emptyPathArray
-    else if !(Files isDirectory the_path) then PathsHelper.emptyPathArray
-    else safe { 
-      val list = Files.list(the_path)
-      val ans = list.toArray(i => new Array[Path](i))
-      list.close
-      ans
-    }.getOrElse(_ => PathsHelper.emptyPathArray)
+    if !(Files exists the_path) || !(Files isDirectory the_path) then
+      PathsHelper.emptyPathArray
+    else
+      Resource.safe(Files list the_path)(_.close){ list =>
+        list.toArray(i => new Array[Path](i))
+      }.getOrElse(_ => PathsHelper.emptyPathArray)
 
   def slurp: Array[String] Or Err = nice {
     val s = Files lines the_path
@@ -156,7 +158,7 @@ extension (the_path: Path) {
     vb.result
   }
 
-  def gulp: Array[Byte] Or Err = nice {
+  inline def gulp: Array[Byte] Or Err = nice {
     Files readAllBytes the_path
   }
 
@@ -167,10 +169,10 @@ extension (the_path: Path) {
   }.mapNo(e => s"Could not open path $the_path\n${e.explain()}").flatten
   */
 
-  def copyTo(to: Path): Unit =
+  inline def copyTo(to: Path): Unit =
     Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
-  def moveTo(to: Path): Unit =
+  inline def moveTo(to: Path): Unit =
     Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
   def atomicCopy(to: Path): Unit =
@@ -222,7 +224,7 @@ extension (the_path: Path) {
     zos.close
     Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
 
-  def recursively = new PathsHelper.RootedRecursion(the_path, the_path)
+  inline def recursively = new PathsHelper.RootedRecursion(the_path, the_path)
 
   def recurseIn(inside: Path) =
     if the_path startsWith inside then new PathsHelper.RootedRecursion(inside, the_path)
@@ -505,29 +507,26 @@ object PathsHelper {
 
     extension (path: kse.eio.PathsHelper.Safely) {
       def exists: Boolean =
-        try Files.exists(path.underlying)
-        catch case e if catchable(e) => false
+        ratchet(false): _ =>
+          Files.exists(path.underlying)
 
       def isDirectory: Boolean =
-        try Files.isDirectory(path.underlying)
-        catch case e if catchable(e) => false
+        ratchet(false): _ =>
+          Files.isDirectory(path.underlying)
 
       def isSymbolic: Boolean =
-        try Files.isSymbolicLink(path.underlying)
-        catch case e if catchable(e) => false
+        ratchet(false): _ =>
+          Files.isSymbolicLink(path.underlying)
 
       def size: Long =
-        try
+        ratchet(-1L): _ =>
           if Files.exists(path.underlying) then Files.size(path.underlying)
           else -1L
-        catch case e if catchable(e) => -1L
 
       def real: Path =
-        try
-          val abs = path.underlying.toAbsolutePath()
-          try
-            val norm = abs.normalize()
-            try
+        ratchet(path.underlying): upath =>
+          ratchet(upath.toAbsolutePath): abs =>
+            ratchet(abs.normalize): norm =>
               var p = norm
               var tail: Path = null
               var found = false
@@ -536,9 +535,6 @@ object PathsHelper {
                 p = p.getParent
               val trunk = if found then p.toRealPath() else p
               if tail eq null then trunk else trunk resolve tail
-            catch case e if catchable(e) => norm
-          catch case e if catchable(e) => abs
-        catch case e if catchable(e) => path.underlying
     }  
   }
 }
