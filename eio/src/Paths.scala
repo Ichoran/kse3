@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014, 2015, 2020, 2021, 2023 Rex Kerr, UCSF, and Calico Life Sciences LLC
+// Copyright (c) 2014-15, 2020-23 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
 package kse.eio
 
@@ -188,14 +188,14 @@ extension (the_path: Path) {
   inline def gulp: Array[Byte] =
     Files readAllBytes the_path
 
-  inline def openRead(): java.io.InputStream =
-    Files newInputStream the_path
+  inline def openRead(): java.io.BufferedInputStream =
+    new BufferedInputStream(Files newInputStream the_path, 8192)
 
-  def write(data: Array[Byte]): Unit =
+  inline def write(data: Array[Byte]): Unit =
     Files.write(the_path, data)
     ()
 
-  def append(data: Array[Byte]): Unit =
+  inline def append(data: Array[Byte]): Unit =
     Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
 
   def create(data: Array[Byte]): Boolean =
@@ -218,17 +218,23 @@ extension (the_path: Path) {
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
       true
 
-  def openWrite(): java.io.OutputStream =
-    Files newOutputStream the_path
+  def openWrite(): java.io.BufferedOutputStream =
+    new BufferedOutputStream(Files newOutputStream the_path, 8192)
 
-  def openAppend(): java.io.OutputStream =
-    Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+  def openAppend(): java.io.BufferedOutputStream =
+    new BufferedOutputStream(
+      Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
+      8192
+    )
 
-  def openCreate(): java.io.OutputStream =
-    Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW)
+  def openCreate(): java.io.BufferedOutputStream =
+    new BufferedOutputStream(
+      Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
+      8192
+    )
 
   def openIO(): SeekableByteChannel =
-    Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+    Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
 
   inline def copyTo(to: Path): Unit =
     Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)

@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences, LLC.
+// Copyright (c) 2023 Rex Kerr and Calico Life Sciences, LLC.
 
 package kse.eio.test
 
@@ -12,6 +12,7 @@ import org.junit.Assert._
 import java.io._
 import java.nio.file._
 import java.nio.file.attribute.FileTime
+import java.nio.channels.SeekableByteChannel
 import java.time._
 import java.util.zip._
 
@@ -153,8 +154,63 @@ class EioTest {
     T ~ zok.cleanPath  ==== (new java.io.File("all/fine/here.txt")).toPath
     T ~ zwin.cleanPath ==== (new java.io.File("bad/win/name.txt")).toPath
 
-  @Test
-  def pathTest: Unit =
+    val f = new File("temp/eio/raf.txt")
+    val ab2 = new Array[Byte](2)
+    def nraf = new RandomAccessFile(f, "rw")
+    val mos = Mu[OutputStream](null)
+    val mis = Mu[InputStream](null)
+    T ~ { mos.set(nraf.output); mos.value } ==== runtype[OutputStream]
+    T ~ mos.value.write('e')                ==== ()
+    T ~ mos.value.write("el".bytes)         ==== ()
+    T ~ mos.value.write("bass".bytes, 2, 1) ==== ()
+    T ~ mos.value.close                     ==== ()
+    T ~ mos.value.write('x')                ==== thrown[IOException]
+    T ~ f.exists                            ==== true
+    T ~ Files.readAllBytes(f.toPath).utf8   ==== "eels"
+    T ~ { mis.set(nraf.input); mis.value }  ==== runtype[InputStream]
+    T ~ mis.value.skip(1)                   ==== 1   --: typed[Long]
+    T ~ mis.value.read()                    ==== 'e' --: typed[Int]
+    T ~ mis.value.markSupported             ==== true
+    T ~ mis.value.mark(1)                   ==== ()
+    T ~ mis.value.available()               ==== 2
+    T ~ mis.value.read(ab2)                 ==== 2
+    T ~ ab2.utf8                            ==== "ls"
+    T ~ mis.value.reset                     ==== ()
+    T ~ mis.value.read(ab2, 1, 1)           ==== 1
+    T ~ ab2.utf8                            ==== "ll"
+    T ~ mis.value.read(ab2)                 ==== 1
+    T ~ ab2.utf8                            ==== "sl"
+    T ~ mis.value.close()                   ==== ()
+    T ~ mis.value.read()                    ==== thrown[IOException]
+
+    def nsbc = {
+      val sbc = Files.newByteChannel(f.toPath, StandardOpenOption.WRITE, StandardOpenOption.READ)
+      sbc.position(1)
+    }
+    T ~ { mos.set(nsbc.output); mos.value }    ==== runtype[OutputStream]
+    T ~ mos.value.write("beagles".bytes, 2, 4) ==== ()
+    T ~ mos.value.close                        ==== ()
+    T ~ Files.readAllBytes(f.toPath).utf8      ==== "eagle"
+    T ~ { mis.set(nsbc.input); mis.value }     ==== runtype[InputStream]
+    T ~ mis.value.skip(1)                      ==== 1   --: typed[Long]
+    T ~ mis.value.read()                       ==== 'g' --: typed[Int]
+    T ~ mis.value.markSupported                ==== true
+    T ~ mis.value.mark(1)                      ==== ()
+    T ~ mis.value.available()                  ==== 2
+    T ~ mis.value.read(ab2)                    ==== 2
+    T ~ ab2.utf8                               ==== "le"
+    T ~ mis.value.reset                        ==== ()
+    T ~ mis.value.read(ab2, 1, 1)              ==== 1
+    T ~ ab2.utf8                               ==== "ll"
+    T ~ mis.value.read(ab2)                    ==== 1
+    T ~ ab2.utf8                               ==== "el"
+    T ~ mis.value.close()                      ==== ()
+    T ~ mis.value.read()                       ==== thrown[IOException]
+    T ~ f.delete()                             ==== true
+
+
+   @Test
+   def pathTest: Unit =
     val p = "temp/eio".path
     val q = "temp/eio/quartz.txt".path
     val r = "temp/flow/../eio/quartz.txt".path
@@ -263,15 +319,15 @@ class EioTest {
     T ~ q.exists                     ==== false
 
     val ab2 = "ft".bytes
-    T ~ q.openCreate().tap(_.close)                                      ==== runtype[OutputStream]
+    T ~ q.openCreate().tap(_.close)                                      ==== runtype[BufferedOutputStream]
     T ~ q.exists                                                         ==== true
     T ~ q.size                                                           ==== 0L
-    T ~ q.openAppend().tap{o => o.write('e'); o.close}                   ==== runtype[OutputStream]
+    T ~ q.openAppend().tap{o => o.write('e'); o.close}                   ==== runtype[BufferedOutputStream]
     T ~ q.size                                                           ==== 1L
-    T ~ q.openRead().tap(_.close)                                        ==== runtype[InputStream]
+    T ~ q.openRead().tap(_.close)                                        ==== runtype[BufferedInputStream]
     T ~ Resource(q.openRead())(_.close)(_.available)                     ==== 1
     T ~ Resource(q.openRead())(_.close)(_.read)                          ==== 'e'
-    T ~ q.openWrite().tap{o => o.write("eel".bytes); o.close}            ==== runtype[OutputStream]
+    T ~ q.openWrite().tap{o => o.write("eel".bytes); o.close}            ==== runtype[BufferedOutputStream]
     T ~ Resource(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
     T ~ Resource(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
 

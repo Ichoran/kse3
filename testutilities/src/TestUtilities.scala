@@ -68,10 +68,6 @@ object TestUtilities {
     given defaultDoubleApprox: Approximation[Double] = new OfDouble(1e-9, 1.0, 1e-9)
   }
 
-  object Whatever {
-    override def equals(a: Any) = true
-  }
-
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
@@ -109,7 +105,6 @@ object TestUtilities {
             if !tag.runtimeClass.isAssignableFrom(x.getClass) then
               assertEquals(message, ta, Failure(t))
           case _ => assertEquals(message, ta, Failure(t))
-        case Whatever => () // Always true
         case _ => assertEquals(message, ta.get, vb)
 
     def ====(n: Null): Unit =

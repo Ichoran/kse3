@@ -10,36 +10,6 @@ import java.nio.channels._
 import java.nio.file._
 
 
-class RandomAccessFileOutputStream(val raf: RandomAccessFile) extends OutputStream {
-  override def close(): Unit = raf.close()
-  override def write(b: Array[Byte]): Unit = raf.write(b)
-  override def write(b: Array[Byte], off: Int, len: Int): Unit = raf.write(b, off, len)
-  def write(b: Int): Unit = raf.writeByte(b)
-}
-
-class SeekableByteChannelOutputStream(val sbc: SeekableByteChannel) extends OutputStream {
-  private val oneByte = ByteBuffer.wrap(new Array[Byte](1))
-  override def close(): Unit = sbc.close()
-  override def write(b: Array[Byte]): Unit =
-    val bb = ByteBuffer wrap b
-    val n = sbc.write(bb)
-    if (n < b.length) throw new IOException("Tried to write ${b.length} bytes but only could write $n")
-  override def write(b: Array[Byte], off: Int, len: Int): Unit =
-    if (len > 0) {
-      val bb = ByteBuffer wrap b
-      b.position = off
-      b.limit = off + len
-      val n = sbc.write(bb)
-      if (n < len) throw new IOException("Tried to write ${b.length} bytes but could only write $n")
-    }
-  override def write(b: Int): Unit = synchronized {
-    oneByte.clear
-    oneByte put b.toByte
-    oneByte.flip
-    val n = sbc.write(oneByte)
-    if (n != 1) throw new IOException("Tried to write a byte but couldn't")
-  }
-}
 
 object LineOutput {
   private def outputTo(pw: PrintWriter, separator: String, lines: IterableOnce[String]): Unit =

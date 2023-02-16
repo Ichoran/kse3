@@ -13,23 +13,28 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.1 due to its particular use of macros**
-(This is subject to change--in particular, kse3 only has a goal of working
-with one scala x.y version at any time.  more is nice, not a guarantee.)
+**Warning: kse3 only works on Scala 3.3 and later due to its use of
+`scala.util.boundary`**
+
+**Warning: when you use extensions with Scala 3 in multiple libraries,
+they clobber each other because they all share the same namespace.
+Do NOT use extensions in libraries!  Except...kse3 does it anyway,
+in the hope that someday extensions will be usable, and because it's
+meant to cover core functionality.**
 
 ## How do I get it?
 
-Only kse3-flow is available presently.  In mill, make sure your module has
+Only kse3-flow and kse3-maths (and kse3-testing) are available presently.  In mill, make sure your module has
 
 ```scala
-def scalaVersion = "3.1.3"
+def scalaVersion = "3.3.0-RC2"
 ```
 
-**(warning: it must be 3.1...3.0 and 3.2 don't work!)**
-and add the dependency
+And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.0.3"
+ivy"com.github.ichoran::kse3-flow:0.1.0"
+ivy"com.github.ichoran::kse3-maths:0.1.0"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -52,10 +57,11 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 
 ### kse.flow
 
-The flow module is available separately (but you probably don't want to use it separately).  In mill, add the dependency
+The flow module is available separately (but you probably don't want to use it
+separately).  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.0.3"
+ivy"com.github.ichoran::kse3-flow:0.1.0"
 ```
 
 and in your code,
@@ -120,7 +126,7 @@ There are inlined index-based loops, as fast as `while` but without risk of an i
 
 ```scala
 val list = List("salmon", "herring", "perch")
-iFor(list.iterator){ (i, s) => println(s*i) }  // prints nothing, then "herring", then "perchperch"
+iFor(list.iterator){ (i, s) => println(s*i) }  // prints newline, then "herring", then "perchperch"
 ```
 
 Standard mutable containers for primitive and object types for counting, callbacks, and other such use:
@@ -151,6 +157,10 @@ And a variety of other nice things that you can find by perusing the ScalaDoc, t
 ### kse.maths
 
 This exists but presently is undocumented.  Feel free to look through the unit tests to see what can be done, however!
+
+### kse.eio
+
+This also partly exists but isn't published to maven, and is also undocumented.  There are some tests, though!
 
 ## More to come
 

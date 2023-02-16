@@ -34,6 +34,7 @@ class FlowTest {
   def nullone[N >: Null](n: N) = if n == null then 1 else -1
 
 
+
   @Test
   def exceptionsTest(): Unit =
     val basic = new Exception("basic-exception")

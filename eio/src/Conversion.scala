@@ -6,6 +6,7 @@ package kse.eio
 import java.io._
 import java.nio._
 import java.nio.file._
+import java.nio.channels.SeekableByteChannel
 import java.nio.charset.StandardCharsets._
 import java.util.Base64
 
@@ -505,6 +506,8 @@ extension (underlying: String) {
   inline def decode85ascii = EioBase85.decodeAscii(underlying)
 }
 
+
+
 extension (underlying: java.util.zip.ZipEntry) {
   def cleanName =
     val n = underlying.getName
@@ -517,3 +520,116 @@ extension (underlying: java.util.zip.ZipEntry) {
     val fs = FileSystems.getDefault
     fs.getPath(if fs.getSeparator == "/" then n else n.replace("/", fs.getSeparator))
 }
+
+
+
+class RandomAccessFileOutputStream(val raf: RandomAccessFile) extends OutputStream {
+  override def close(): Unit = raf.close()
+  override def write(b: Array[Byte]): Unit = raf.write(b)
+  override def write(b: Array[Byte], off: Int, len: Int): Unit = raf.write(b, off, len)
+  def write(b: Int): Unit = raf.writeByte(b)
+}
+
+class RandomAccessFileInputStream(val raf: RandomAccessFile) extends InputStream {
+  private var markedPosition: Long = -1L
+
+  override def available(): Int = 
+    (raf.length() - raf.getFilePointer()).clamp(0, Int.MaxValue).toInt
+  override def close(): Unit = raf.close()
+  override def mark(readlimit: Int): Unit =
+    markedPosition = raf.getFilePointer()
+  override def markSupported = true
+  def read(): Int = raf.read()
+  override def read(b: Array[Byte]): Int = raf.read(b)
+  override def read(b: Array[Byte], offset: Int, len: Int): Int = raf.read(b, offset, len)
+  override def reset: Unit =
+    if markedPosition >= 0 then
+      val l = raf.length()
+      if markedPosition > l then throw new IOException(s"Reset to $markedPosition in file shortened to $l")
+      else raf.seek(markedPosition)
+    else throw new IOException("Reset on unmarked stream")
+  override def skip(n: Long): Long =
+    val l = raf.length()
+    val p = raf.getFilePointer()
+    if n > l - p then
+      raf.seek(l)
+      l - p
+    else
+      raf.seek(p+n)
+      n
+}
+
+extension (raf: RandomAccessFile)
+  def output = new RandomAccessFileOutputStream(raf)
+  def input = new RandomAccessFileInputStream(raf)
+
+
+
+class SeekableByteChannelOutputStream(val sbc: SeekableByteChannel) extends OutputStream {
+  private val oneByte = ByteBuffer.wrap(new Array[Byte](1))
+
+  override def close(): Unit = sbc.close()
+  override def write(b: Array[Byte]): Unit =
+    val bb = ByteBuffer wrap b
+    val n = sbc.write(bb)
+    if (n < b.length) throw new IOException("Tried to write ${b.length} bytes but only could write $n")
+  override def write(b: Array[Byte], off: Int, len: Int): Unit =
+    if (len > 0) {
+      val bb = ByteBuffer wrap b
+      bb.position(off)
+      bb.limit(off + len)
+      val n = sbc.write(bb)
+      if (n < len) throw new IOException("Tried to write ${b.length} bytes but could only write $n")
+    }
+  override def write(b: Int): Unit = synchronized {
+    oneByte.clear
+    oneByte put b.toByte
+    oneByte.flip
+    val n = sbc.write(oneByte)
+    if (n != 1) throw new IOException("Tried to write a byte but couldn't")
+  }
+}
+
+class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends InputStream {
+  private var markedPosition: Long = -1L
+  private val oneByte = ByteBuffer.wrap(new Array[Byte](1))
+
+  override def available(): Int = 
+    (sbc.size - sbc.position).clamp(0, Int.MaxValue).toInt
+  override def close(): Unit = sbc.close()
+  override def mark(readlimit: Int): Unit =
+    markedPosition = sbc.position
+  override def markSupported = true
+  def read(): Int =
+    if sbc.position >= sbc.size then throw new IOException("Read at end of SeekableByteChannel")
+    oneByte.clear
+    val i = sbc.read(oneByte)
+    if i != 1 then throw new IOException(s"Read failed")
+    oneByte.flip
+    oneByte.get & 0xFF
+  /*
+  override def read(b: Array[Byte]): Int = raf.read(b)
+  override def read(b: Array[Byte], offset: Int, len: Int): Int = raf.read(b, offset, len)
+  */
+  override def reset: Unit =
+    if markedPosition >= 0 then
+      val l = sbc.size
+      if sbc.position > l then throw new IOException(s"Reset to $markedPosition in SeekableByteChannel shortened to $l")
+      else sbc.position(markedPosition)
+    else throw new IOException("Reset on unmarked stream")
+  /*
+  override def skip(n: Long): Long =
+    val l = raf.length()
+    val p = raf.getFilePointer()
+    if n > l - p then
+      raf.seek(l)
+      l - p
+    else
+      raf.seek(p+n)
+      n
+  */
+}
+
+extension (sbc: SeekableByteChannel)
+  def output = new SeekableByteChannelOutputStream(sbc)
+  def input = new SeekableByteChannelInputStream(sbc)
