@@ -49,12 +49,15 @@ object testutilities extends Base with PublishKse3 {
 
 trait Common extends Base {
   def extraTestDeps: Seq[ScalaModule] = Seq.empty
+  def extraTestIvy: T[Agg[Dep]] = T{ Agg.empty[Dep] }
 
   object test extends Tests with TestModule.Junit4 {
     override def ivyDeps = T{
-      super.ivyDeps() ++ Agg(
+      super.ivyDeps() ++
+      Agg(
         ivy"com.lihaoyi::sourcecode:0.2.7"
-      )
+      ) ++
+      extraTestIvy()
     }
     def moduleDeps = Seq(testutilities) ++ extraTestDeps ++ super.moduleDeps
   }
@@ -71,6 +74,9 @@ object maths extends Common with PublishKse3 {
 
 object eio extends Common with PublishKse3 {
   def moduleDeps = Seq(flow, maths)
+  override def extraTestIvy = T { Agg(
+    ivy"com.github.marschall:memoryfilesystem:2.5.0"
+  ) }
 }
 
 

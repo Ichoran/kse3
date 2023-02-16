@@ -459,14 +459,12 @@ class FlowTest {
 
     T ~ i.union      ==== 5
     T ~ a.union      ==== "cod"
-    T ~ oi.union     ==== 5
-    T ~ oa.union     ==== "cod"
+    T ~ oi.union     ==== 5      --: typed[Int | String]
+    T ~ oa.union     ==== "cod"  --: typed[Int | String]
     T ~ oii.union    ==== Is(5)
     T ~ oia.union    ==== Alt("cod")
     T ~ oai.union    ==== Is(5)
     T ~ oaa.union    ==== Alt("cod")
-    T ~ oa.union     ==== typed[Int | String]
-    T ~ oi.union     ==== typed[Int | String]
     T ~ n.union      ==== null
     T ~ m.union      ==== null
     T ~ on.union     ==== null
@@ -2159,6 +2157,7 @@ class FlowTest {
     T ~ xs.validOrIndexedResults                ==== Alt((Vector(5, 6), Vector((1, xs(1).alt), (3, xs(3).alt))))
 
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== typed[List[Int] Or Err]
+    T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[_]]
     T ~ List("2", "3").validMap(s => nice{ s.toInt }) ==== List(2, 3)
 
 

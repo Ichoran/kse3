@@ -4,6 +4,7 @@
 package kse.eio
 
 import java.io._
+import java.nio.channels.SeekableByteChannel
 import java.nio.file._
 import java.nio.file.attribute.{ FileTime, BasicFileAttributes }
 import java.time._
@@ -16,6 +17,8 @@ import kse.flow.{given, _}
 extension (pathname: String) {
   inline def file = new File(pathname)
   inline def path = FileSystems.getDefault.getPath(pathname)
+  inline def pathIn(fs: FileSystem) = fs.getPath(pathname)
+  inline def pathLike(p: Path) = p.getFileSystem.getPath(pathname)
 }
 
 extension (the_file: File) {
@@ -126,9 +129,17 @@ extension (the_path: Path) {
 
   inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
   
-  inline def mkdir() = Files createDirectory the_path
+  inline def mkdir(): Unit = Files createDirectory the_path
 
-  inline def mkdirs() = Files createDirectories the_path
+  inline def mkdirs(): Unit = Files createDirectories the_path
+
+  inline def mkParents(): the_path.type =
+    val p = the_path.getParent
+    if (p ne null) && !Files.exists(p) then
+      if Files.isSymbolicLink(p) then
+        Files.createDirectories(PathsHelper.symlinkToReal(the_path.toAbsolutePath().normalize()))
+      else Files.createDirectories(p)
+    the_path
 
   inline def delete() = Files deleteIfExists the_path
 
@@ -177,6 +188,9 @@ extension (the_path: Path) {
   inline def gulp: Array[Byte] =
     Files readAllBytes the_path
 
+  inline def openRead(): java.io.InputStream =
+    Files newInputStream the_path
+
   def write(data: Array[Byte]): Unit =
     Files.write(the_path, data)
     ()
@@ -204,59 +218,25 @@ extension (the_path: Path) {
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
       true
 
+  def openWrite(): java.io.OutputStream =
+    Files newOutputStream the_path
+
+  def openAppend(): java.io.OutputStream =
+    Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+
+  def openCreate(): java.io.OutputStream =
+    Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW)
+
+  def openIO(): SeekableByteChannel =
+    Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+
   inline def copyTo(to: Path): Unit =
     Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
   inline def moveTo(to: Path): Unit =
     Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
-  def atomicCopy(to: Path): Unit =
-    val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
-    Files.copy(the_path, temp, StandardCopyOption.REPLACE_EXISTING)
-    Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-
-  def atomicMove(to: Path): Unit =
-    val up = to.getParent
-    if up != null then
-      if !Files.exists(up) then Files.createDirectories(up)
-    if up != null && Files.getFileStore(the_path) == Files.getFileStore(up) then
-      Files.move(the_path, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    else       
-      val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-      to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
-      Files.copy(the_path, temp, StandardCopyOption.REPLACE_EXISTING)
-      Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-      Files.delete(the_path)
-
-  def atomicZipCopy(to: Path, compression: Int Or Unit = Alt.unit, maxDirectoryDepth: Int = 10): Unit =
-    val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
-    val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
-    compression.foreach(zos.setLevel)
-    if Files.isDirectory(the_path) then
-      val base = the_path.getParent.fn{ fp => if fp eq null then the_path.getFileSystem.getPath("") else fp }
-      def recurse(current: Path, maxDepth: Int): Unit =
-        val stable = current.paths
-        val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
-        files.foreach{ fi =>
-          val rel = base relativize fi
-          val ze = new ZipEntry(rel.toString)
-          ze.setLastModifiedTime(Files.getLastModifiedTime(fi))
-          zos.putNextEntry(ze)
-          Files.copy(fi, zos)
-          zos.closeEntry
-        }
-        if maxDepth > 1 then directories.foreach(d => recurse(d, maxDepth-1))
-      recurse(the_path, maxDirectoryDepth)
-    else
-      val ze = new ZipEntry(the_path.getFileName.toString)
-      ze.setLastModifiedTime(Files.getLastModifiedTime(the_path))
-      zos.putNextEntry(ze)
-      Files.copy(the_path, zos)
-      zos.closeEntry
-    zos.close
-    Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+  inline def atomically: PathsHelper.AtomicPathOps = PathsHelper.AtomicPathOps(the_path)
 
   inline def recursively = new PathsHelper.RootedRecursion(the_path, the_path)
 
@@ -542,6 +522,68 @@ object PathsHelper {
       def hasNext: Boolean = i.hasNext
     }
   }
+
+
+  opaque type AtomicPathOps = Path
+  object AtomicPathOps {
+    def apply(the_path: Path): kse.eio.PathsHelper.AtomicPathOps = the_path
+
+    extension (the_path: AtomicPathOps)
+      def underlying: Path = the_path
+
+    extension (the_path: kse.eio.PathsHelper.AtomicPathOps) {
+      def tempPath: Path = the_path.underlying.resolveSibling(the_path.underlying.getFileName.toString + ".atomic")
+
+      def copyTo(to: Path): Unit =
+        val temp = apply(to).tempPath
+        to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+        Files.copy(the_path.underlying, temp, StandardCopyOption.REPLACE_EXISTING)
+        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+
+      def moveTo(to: Path): Unit =
+        val up = to.getParent
+        if up != null then
+          if !Files.exists(up) then Files.createDirectories(up)
+        if up != null && Files.getFileStore(the_path) == Files.getFileStore(up) then
+          Files.move(the_path.underlying, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        else       
+          val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
+          to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+          Files.copy(the_path.underlying, temp, StandardCopyOption.REPLACE_EXISTING)
+          Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+          Files.delete(the_path.underlying)
+
+      def zipTo(to: Path, compression: Int Or Unit = Alt.unit, maxDirectoryDepth: Int = 10): Unit =
+        val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
+        to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+        val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
+        compression.foreach(zos.setLevel)
+        if Files.isDirectory(the_path.underlying) then
+          val base = the_path.underlying.getParent.fn{ fp => if fp eq null then the_path.underlying.getFileSystem.getPath("") else fp }
+          def recurse(current: Path, maxDepth: Int): Unit =
+            val stable = current.paths
+            val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
+            files.foreach{ fi =>
+              val rel = base relativize fi
+              val ze = new ZipEntry(rel.toString)
+              ze.setLastModifiedTime(Files.getLastModifiedTime(fi))
+              zos.putNextEntry(ze)
+              Files.copy(fi, zos)
+              zos.closeEntry
+            }
+            if maxDepth > 1 then directories.foreach(d => recurse(d, maxDepth-1))
+          recurse(the_path, maxDirectoryDepth)
+        else
+          val ze = new ZipEntry(the_path.underlying.getFileName.toString)
+          ze.setLastModifiedTime(Files.getLastModifiedTime(the_path))
+          zos.putNextEntry(ze)
+          Files.copy(the_path, zos)
+          zos.closeEntry
+        zos.close
+        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    }
+  }
+
 
   val doNothingHook: Path => Unit = _ => ()
 

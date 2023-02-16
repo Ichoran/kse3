@@ -68,6 +68,10 @@ object TestUtilities {
     given defaultDoubleApprox: Approximation[Double] = new OfDouble(1e-9, 1.0, 1e-9)
   }
 
+  object Whatever {
+    override def equals(a: Any) = true
+  }
+
   case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
@@ -82,6 +86,9 @@ object TestUtilities {
   }
   def typed[A]: Typed[A] = new Typed[A]()
   def typedLike[A](a: A): Typed[A] = new Typed[A]()
+
+  case class RunType[A](tag: ClassTag[A]) {}
+  def runtype[A](using tag: ClassTag[A]): RunType[A] = RunType(tag)
 
   trait Messaging {
     def message: String = if mline.isEmpty then mline else s"${mline}\n"
@@ -102,6 +109,7 @@ object TestUtilities {
             if !tag.runtimeClass.isAssignableFrom(x.getClass) then
               assertEquals(message, ta, Failure(t))
           case _ => assertEquals(message, ta, Failure(t))
+        case Whatever => () // Always true
         case _ => assertEquals(message, ta.get, vb)
 
     def ====(n: Null): Unit =
@@ -111,6 +119,11 @@ object TestUtilities {
       isEqual(bc.gen())
 
     def ====[B](t: Typed[B])(using B =:= A): Unit = {}
+
+    def ====[B](t: RunType[B]): Unit =
+      val v = value()
+      if !t.tag.runtimeClass.isAssignableFrom(v.getClass) then 
+        assertEquals(message, v.getClass, t.tag.runtimeClass)
 
     def ====[B](b: => B): Unit =
       isEqual(b)

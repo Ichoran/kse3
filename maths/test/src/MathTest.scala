@@ -1675,8 +1675,7 @@ class MathTest {
     T ~ f.closeTo(f+1e-5f)  ==== false
     T ~ f.closeTo(1f,1f,1f) ==== true
     T ~ f.bitsI             ==== 1067030938
-    T ~ f.f64               ==== 1.2f.toDouble
-    T ~ f.f64               ==== typed[Double]
+    T ~ f.f64               ==== 1.2f.toDouble  --: typed[Double]
 
     T ~ Array(1f, 2f, 4f).isIncreasing  ==== true
     T ~ Array(1f, 4f, 2f).isIncreasing  ==== false
@@ -1772,8 +1771,7 @@ class MathTest {
     T ~ d.closeTo(d+1e-8)     ==== false
     T ~ d.closeTo(1.0,1,1)    ==== true
     T ~ d.bitsL               ==== 4608083138725491507L
-    T ~ d.f32                 ==== 1.2f
-    T ~ d.f32                 ==== typed[Float]
+    T ~ d.f32                 ==== 1.2f  --: typed[Float]
 
     val dd = Array(5.0, 4.0, 3.0, 2.0, 1.0)
     T ~ Array(1.0, 2.0).accumulateInto(dd) =**= Array(1.0, 3.0, 3.0, 2.0, 1.0)
@@ -2320,18 +2318,13 @@ class MathTest {
     T ~ Frac(-18, 35)  ==== f2
     T ~ Frac.MinValue  ==== (-Int.MaxValue over 1)
     T ~ Frac.MaxValue  ==== (Int.MaxValue over 1)
-    T ~ fr.unwrap      ==== ((20L << 32) | 3)
-    T ~ fr.unwrap      ==== typed[Long]
-    T ~ fr.numerator   ==== 20
-    T ~ fr.denominator ==== 3
-    T ~ fr.numer       ==== 20
-    T ~ fr.denom       ==== 3
-    T ~ fr.numer       ==== typed[Int]
-    T ~ fr.denom       ==== typed[Int]
-    T ~ fr.numerL      ==== 20
-    T ~ fr.denomL      ==== 3
-    T ~ fr.numerL      ==== typed[Long]
-    T ~ fr.denomL      ==== typed[Long]
+    T ~ fr.unwrap      ==== ((20L << 32) | 3)  --: typed[Long]
+    T ~ fr.numerator   ==== 20  --: typed[Int]
+    T ~ fr.denominator ==== 3   --: typed[Int]
+    T ~ fr.numer       ==== 20  --: typed[Int]
+    T ~ fr.denom       ==== 3   --: typed[Int]
+    T ~ fr.numerL      ==== 20  --: typed[Long]
+    T ~ fr.denomL      ==== 3   --: typed[Long]
     T ~ badf.numer     ==== -Int.MaxValue
     T ~ badf.denom     ==== 1
     T ~ fr.isExact               ==== true

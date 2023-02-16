@@ -217,16 +217,19 @@ class EioTest {
     T ~ p.isDirectory                ==== true
     T ~ q.isDirectory                ==== false
     T ~ (p / "dir").exists           ==== false
-    T ~ (p / "dir").mkdir()          ==== (p / "dir")
+    T ~ (p / "dir").mkdir()          ==== ()
     T ~ (p / "a").exists             ==== false
     T ~ (p / "a/b").exists           ==== false
-    T ~ (p / "a/b").mkdirs()         ==== (p.absolute / "a/b")
+    T ~ (p / "a/b").mkdirs()         ==== ()
     T ~ (p / "a").exists             ==== true
     T ~ (p / "a" / "b").exists       ==== true
+    T ~ (p / "eel").exists           ==== false
+    T ~ (p / "eel/x").mkParents()    ==== (p / "eel/x")
+    T ~ (p / "eel").exists           ==== true
     T ~ (q.time - ft).in(0.s, 10.s)  ==== true
     T ~ { q.time = ft; q.time }      ==== ft
     T ~ { q.touch(); q.time == ft }  ==== false
-    T ~ p.paths.sorted               =**= Array(p / "a", p / "dir", p / "quartz.txt")
+    T ~ p.paths.sorted               =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt")
     T ~ q.write("blorp".bytes)       ==== ()
     T ~ q.gulp                       =**= "blorp".bytes
     T ~ q.append("y".bytes)          ==== ()
@@ -259,6 +262,19 @@ class EioTest {
     T ~ (p / "move.txt").slurp       =**= Array("cod")
     T ~ q.exists                     ==== false
 
+    val ab2 = "ft".bytes
+    T ~ q.openCreate().tap(_.close)                                      ==== runtype[OutputStream]
+    T ~ q.exists                                                         ==== true
+    T ~ q.size                                                           ==== 0L
+    T ~ q.openAppend().tap{o => o.write('e'); o.close}                   ==== runtype[OutputStream]
+    T ~ q.size                                                           ==== 1L
+    T ~ q.openRead().tap(_.close)                                        ==== runtype[InputStream]
+    T ~ Resource(q.openRead())(_.close)(_.available)                     ==== 1
+    T ~ Resource(q.openRead())(_.close)(_.read)                          ==== 'e'
+    T ~ q.openWrite().tap{o => o.write("eel".bytes); o.close}            ==== runtype[OutputStream]
+    T ~ Resource(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
+    T ~ Resource(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
+
     val ps = "temp/eio/sym".path
     T ~ (p / "sym").isSymlink               ==== false
     T ~ ps.symlink                          ==== Alt.unit --: typed[String Or Unit]
@@ -276,6 +292,8 @@ class EioTest {
     T ~ ps.isSymlink                        ==== true
     T ~ ps.real                             ==== (p.real / "a")
     T ~ (ps / "b").real                     ==== (p.real / "a/b")
+    T ~ (ps / "b").mkParents()              ==== (ps / "b")
+    T ~ ps.exists                           ==== true
     val a2b = "temp/eio/ab".path
     val b2a = "temp/eio/ba".path
     a2b.symlinkTo(b2a)
@@ -287,6 +305,14 @@ class EioTest {
     T ~ a2b.real                            ==== (p.real / "ab")
     T ~ b2a.real                            ==== (p.real / "ba")
     T ~ (a2b / "x").real                    ==== (p.real / "ab/x")
+
+    val mfs = com.github.marschall.memoryfilesystem.MemoryFileSystemBuilder.newEmpty().build()
+    T ~ "/life/fish".pathIn(mfs).exists          ==== false
+    T ~ "/life/fish".pathIn(mfs).mkdirs()        ==== ()
+    T ~ "/life/fish".pathIn(mfs).file            ==== thrown[Exception]
+    val mp = "/life/fish".pathIn(mfs)
+    T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
+    T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
 }
 object EioTest {
   import kse.flow.{given, _}
@@ -315,5 +341,5 @@ object EioTest {
 
   @AfterClass
   def after(): Unit =
-    () // cleanTempEio().foreachAlt(e => e.explainBy(s"Error cleaning test arena at $testPath"))
+    cleanTempEio().foreachAlt(e => e.explainBy(s"Error cleaning test arena at $testPath"))
 }
