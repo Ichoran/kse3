@@ -5,9 +5,11 @@ package kse.eio
 
 import java.io._
 import java.nio.file._
-import java.nio.file.attribute.FileTime
+import java.nio.file.attribute.{ FileTime, BasicFileAttributes }
 import java.time._
 import java.util.zip._
+
+import scala.annotation.tailrec
 
 import kse.flow.{given, _}
 
@@ -82,25 +84,13 @@ extension (the_path: Path) {
 
   def pathsIterator = Iterator.iterate(the_path)(_.getParent).takeWhile(_ != null)
 
-  def parentOption = Option(the_path.getParent)
+  def parent: Path Or Unit = { val p = the_path.getParent; if p eq null then Alt.unit else Is(p) }
 
   inline def absolute = the_path.toAbsolutePath()
 
-  def real =
-    var abs = the_path.toAbsolutePath().normalize()
-    var tail: Path = null
-    var found = false
-    while abs != null && !{ found = Files exists abs; found } do
-      tail = if tail eq null then abs.getFileName else abs.getFileName resolve tail
-      abs = abs.getParent
-    val trunk = if found then abs.toRealPath() else abs
-    if tail eq null then trunk else trunk resolve tail
+  def real = PathsHelper.symlinkToReal(the_path.toAbsolutePath().normalize())
   
   inline def file = the_path.toFile
-
-  inline def /(that: String) = the_path resolve that
-
-  inline def /(that: Path) = the_path resolve that
 
   inline def `..` = the_path.getParent match { case null => the_path; case p => p }
 
@@ -118,8 +108,6 @@ extension (the_path: Path) {
     if child startsWith the_path then Is(the_path relativize child)
     else Alt.unit
 
-  inline def exists = Files exists the_path
-
   inline def isDirectory = Files isDirectory the_path
 
   inline def isSymbolic = Files isSymbolicLink the_path
@@ -136,7 +124,7 @@ extension (the_path: Path) {
 
   inline def mkdirs() = Files createDirectories the_path
 
-  inline def delete() = Files delete the_path
+  inline def delete() = Files deleteIfExists the_path
 
   def touch(): Unit =
     if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
@@ -229,6 +217,14 @@ extension (the_path: Path) {
   def recurseIn(inside: Path) =
     if the_path startsWith inside then new PathsHelper.RootedRecursion(inside, the_path)
     else throw new IOException(s"Trying recursive operation in $inside but started outside at $the_path")
+}
+
+implicit class ExtensionMethodsClobberMethodNames(private val the_path: Path) extends AnyVal {
+  inline def /(that: String) = the_path resolve that
+
+  inline def /(that: Path) = the_path resolve that
+
+  inline def exists = Files exists the_path
 }
 
 /*
@@ -469,6 +465,37 @@ object PathsHelper {
     def atomicDelete(hook: Path => Unit = doNothingHook) = atomicRecursiveDelete(origin, root, hook)
   }
 
+  @tailrec
+  private[eio] def symlinkToReal(norm: Path, syms: List[(Path, Object, Int, Path)] = Nil): Path =
+    var extant = norm
+    var last: Path = null
+    var n = 0
+    while extant != null && !Files.exists(extant) do
+      last = extant
+      extant = extant.getParent
+      n += 1
+    if extant == null then
+      norm
+    else if n == 0 then
+      extant.toRealPath()
+    else if !Files.isSymbolicLink(last) then
+      extant.toRealPath() resolve norm.subpath(norm.getNameCount - n, norm.getNameCount)
+    else
+      val real = extant.toRealPath()
+      val symname = last.getFileName
+      val direct = real resolve norm.subpath(norm.getNameCount - n, norm.getNameCount)
+      val sympath = if n == 1 then direct else real resolve last.getFileName
+      val key = Files.readAttributes(sympath, classOf[BasicFileAttributes], LinkOption.NOFOLLOW_LINKS).fileKey
+      if syms.exists{ case (p, o, i, q) => (p == sympath || (o != null && key != null & o == key)) && !(n < i) } then
+        syms.reduce{ (l, r) =>
+          if l._3 < r._3 || (l._3 == r._3 && l._1.getNameCount < r._1.getNameCount) then l else r
+        }._4
+      else
+        val link = Files.readSymbolicLink(sympath)
+        val target = (if link.isAbsolute then link else real resolve link).normalize()
+        val full = if n < 2 then target else target resolve norm.subpath(norm.getNameCount - (n-1), norm.getNameCount)
+        symlinkToReal(full, ((sympath, key, n, direct)) :: syms)
+
   private[PathsHelper] def recursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
     if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
     if Files.isDirectory(f) && !Files.isSymbolicLink(f) then
@@ -527,14 +554,7 @@ object PathsHelper {
         ratchet(path.underlying): upath =>
           ratchet(upath.toAbsolutePath): abs =>
             ratchet(abs.normalize): norm =>
-              var p = norm
-              var tail: Path = null
-              var found = false
-              while p != null && !{ found = Files.exists(p); found } do
-                tail = if tail eq null then p.getFileName else p.getFileName resolve tail
-                p = p.getParent
-              val trunk = if found then p.toRealPath() else p
-              if tail eq null then trunk else trunk resolve tail
+              symlinkToReal(norm)
     }  
   }
 }
