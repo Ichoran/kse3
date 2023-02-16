@@ -39,7 +39,7 @@ extension (the_path: Path) {
     val i = n.lastIndexOf('.')
     if i < 1 then
       if x.isEmpty then the_path
-      else the_path resolveSibling n + "." + x
+      else the_path resolveSibling (n + "." + x)
     else
       if x.isEmpty then the_path resolveSibling n.substring(0, i)
       else the_path resolveSibling n.substring(0, i+1) + x
@@ -50,7 +50,7 @@ extension (the_path: Path) {
     val e = if i < 1 then "" else n.substring(i+1)
     val x = f(e)
     if x == e then the_path
-    else if i < 1 then the_path resolveSibling n + "." + x
+    else if i < 1 then the_path resolveSibling (n + "." + x)
     else if x.isEmpty then the_path resolveSibling n.substring(0, i)
     else the_path resolveSibling n.substring(0, i+1) + x
   
@@ -78,13 +78,17 @@ extension (the_path: Path) {
     else if i < 1 then the_path resolveSibling x
     else the_path resolveSibling x+n.substring(i)
   
-  inline def parentName = the_path.getParent match { case null => ""; case p => p.getFileName.toString }
+  inline def parentName = the_path.getParent match
+    case null => ""
+    case p => p.getFileName.toString
 
   def namesIterator = Iterator.iterate(the_path)(_.getParent).takeWhile(_ != null).map(_.getFileName.toString)
 
   def pathsIterator = Iterator.iterate(the_path)(_.getParent).takeWhile(_ != null)
 
-  def parent: Path Or Unit = { val p = the_path.getParent; if p eq null then Alt.unit else Is(p) }
+  def parent: Path Or Unit =
+    val p = the_path.getParent
+    if p eq null then Alt.unit else Is(p)
 
   inline def absolute = the_path.toAbsolutePath()
 
@@ -92,7 +96,9 @@ extension (the_path: Path) {
   
   inline def file = the_path.toFile
 
-  inline def `..` = the_path.getParent match { case null => the_path; case p => p }
+  inline def `..` = the_path.getParent match
+    case null => the_path
+    case p => p
 
   inline def sib(that: String) = the_path resolveSibling that
 
@@ -104,21 +110,21 @@ extension (the_path: Path) {
 
   inline def reroot(roots: (Path, Path)): Path Or Unit = reroot(roots._1, roots._2)
 
-  def prune(child: Path): Path Or Unit =
+  def adopt(child: Path): Path Or Unit =
     if child startsWith the_path then Is(the_path relativize child)
     else Alt.unit
 
   inline def isDirectory = Files isDirectory the_path
 
-  inline def isSymbolic = Files isSymbolicLink the_path
+  inline def isSymlink = Files isSymbolicLink the_path
 
   inline def size = Files size the_path
 
   inline def safely: kse.eio.PathsHelper.Safely = PathsHelper.Safely(the_path)
 
-  inline def t: FileTime = Files getLastModifiedTime the_path
+  inline def time: FileTime = Files getLastModifiedTime the_path
 
-  inline def t_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
+  inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
   
   inline def mkdir() = Files createDirectory the_path
 
@@ -126,36 +132,77 @@ extension (the_path: Path) {
 
   inline def delete() = Files deleteIfExists the_path
 
+  def makeSymlink(s: String): Unit =
+    Files.createSymbolicLink(the_path, the_path.getFileSystem.getPath(s))
+    ()
+
+  def symlinkTo(p: Path): Unit =
+    if p.isAbsolute then Files.createSymbolicLink(the_path, p)
+    else the_path.getParent match
+      case null => Files.createSymbolicLink(the_path, p)
+      case q    => Files.createSymbolicLink(the_path, q relativize p)
+    ()
+
+  def symlink: String Or Unit =
+    if Files isSymbolicLink the_path then Is((Files readSymbolicLink the_path).toString)
+    else Alt.unit
+
+  def followSymlink: Path Or Unit =
+    if Files isSymbolicLink the_path then
+      val q = Files readSymbolicLink the_path
+      if q.isAbsolute then Is(q)
+      else the_path.getParent match
+        case null => Is(q)
+        case p    => Is((p resolve q).normalize)
+    else Alt.unit
+
   def touch(): Unit =
     if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
     else Files.write(the_path, new Array[Byte](0))
 
   def paths =
-    if !(Files exists the_path) || !(Files isDirectory the_path) then
-      PathsHelper.emptyPathArray
-    else
-      Resource.safe(Files list the_path)(_.close){ list =>
+    if !(Files exists the_path) || !(Files isDirectory the_path) then PathsHelper.emptyPathArray
+    else Resource
+      .safe(Files list the_path)(_.close): list =>
         list.toArray(i => new Array[Path](i))
-      }.getOrElse(_ => PathsHelper.emptyPathArray)
+      .getOrElse(_ => PathsHelper.emptyPathArray)
 
-  def slurp: Array[String] Or Err = nice {
+  def slurp: Array[String] =
     val s = Files lines the_path
     val vb = Array.newBuilder[String]
     s.forEach(vb += _)
     s.close
     vb.result
-  }
 
-  inline def gulp: Array[Byte] Or Err = nice {
+  inline def gulp: Array[Byte] =
     Files readAllBytes the_path
-  }
 
-  /*
-  // TODO -- evaluate whether it's better to use a ZipFileSystem to do this
-  def unzipMap[A](selector: ZipEntry => Option[Array[Byte] => A]): Ok[String, List[A]] = safe{
-    (new InputStreamShouldDoThis(Files newInputStream the_path)).unzipMap(selector).mapNo(e => s"Error while unzipping $the_path\n$e")
-  }.mapNo(e => s"Could not open path $the_path\n${e.explain()}").flatten
-  */
+  def write(data: Array[Byte]): Unit =
+    Files.write(the_path, data)
+    ()
+
+  def append(data: Array[Byte]): Unit =
+    Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+
+  def create(data: Array[Byte]): Boolean =
+    if Files.exists(the_path) then false
+    else
+      Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
+      true
+
+  def writeLines(coll: scala.collection.IterableOnce[String]): Unit =
+    Files.write(the_path, PathsHelper.javaIterable(coll))
+    ()
+
+  def appendLines(coll: scala.collection.IterableOnce[String]): Unit =
+    Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+    ()
+
+  def createLines(coll: scala.collection.IterableOnce[String]): Boolean =
+    if Files.exists(the_path) then false
+    else
+      Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
+      true
 
   inline def copyTo(to: Path): Unit =
     Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
@@ -188,8 +235,8 @@ extension (the_path: Path) {
     val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
     compression.foreach(zos.setLevel)
     if Files.isDirectory(the_path) then
-      val base = the_path.getParent.fn{ fp => if fp eq null then FileSystems.getDefault.getPath("") else fp }
-      def recurse(current: Path, maxDepth: Int): Unit = {
+      val base = the_path.getParent.fn{ fp => if fp eq null then the_path.getFileSystem.getPath("") else fp }
+      def recurse(current: Path, maxDepth: Int): Unit =
         val stable = current.paths
         val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
         files.foreach{ fi =>
@@ -201,7 +248,6 @@ extension (the_path: Path) {
           zos.closeEntry
         }
         if maxDepth > 1 then directories.foreach(d => recurse(d, maxDepth-1))
-      }
       recurse(the_path, maxDirectoryDepth)
     else
       val ze = new ZipEntry(the_path.getFileName.toString)
@@ -458,13 +504,6 @@ extension (underlying: File) {
 object PathsHelper {
   val emptyPathArray = new Array[Path](0)
 
-  val doNothingHook: Path => Unit = _ => ()
-
-  class RootedRecursion(val root: Path, val origin: Path) {
-    def delete(hook: Path => Unit = doNothingHook) = recursiveDelete(origin, root, hook)
-    def atomicDelete(hook: Path => Unit = doNothingHook) = atomicRecursiveDelete(origin, root, hook)
-  }
-
   @tailrec
   private[eio] def symlinkToReal(norm: Path, syms: List[(Path, Object, Int, Path)] = Nil): Path =
     var extant = norm
@@ -496,6 +535,20 @@ object PathsHelper {
         val full = if n < 2 then target else target resolve norm.subpath(norm.getNameCount - (n-1), norm.getNameCount)
         symlinkToReal(full, ((sympath, key, n, direct)) :: syms)
 
+  def javaIterable(i1: scala.collection.IterableOnce[String]): java.lang.Iterable[String] = new java.lang.Iterable[String] {
+    def iterator(): java.util.Iterator[String] = new java.util.Iterator[String] {
+      private val i = i1.iterator
+      def next: String = i.next
+      def hasNext: Boolean = i.hasNext
+    }
+  }
+
+  val doNothingHook: Path => Unit = _ => ()
+
+  class RootedRecursion(val root: Path, val origin: Path) {
+    def delete(hook: Path => Unit = doNothingHook) = recursiveDelete(origin, root, hook)
+    def atomicDelete(hook: Path => Unit = doNothingHook) = atomicRecursiveDelete(origin, root, hook)
+  }
   private[PathsHelper] def recursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
     if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
     if Files.isDirectory(f) && !Files.isSymbolicLink(f) then

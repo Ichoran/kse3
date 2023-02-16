@@ -158,80 +158,135 @@ class EioTest {
     val p = "temp/eio".path
     val q = "temp/eio/quartz.txt".path
     val r = "temp/flow/../eio/quartz.txt".path
+    val s = "temp/eio/s/s".path
     val ft = Instant.now.round.ms.filetime
-    T ~ p                           ==== FileSystems.getDefault.getPath("temp/eio")
-    T ~ "temp/eio".file             ==== p.file
-    T ~ "temp/eio".file.path        ==== p
-    T ~ p.name                      ==== "eio"
-    T ~ p.nameTo("fred")            ==== "temp/fred".path
-    T ~ p.nameOp(_ + "s")           ==== "temp/eios".path
-    T ~ p.ext                       ==== ""
-    T ~ ".foo".path.ext             ==== ""
-    T ~ q.ext                       ==== "txt"
-    T ~ p.extTo("png")              ==== "temp/eio.png".path
-    T ~ ".foo".path.extTo("png")    ==== ".foo.png".path
-    T ~ q.extTo("png")              ==== "temp/eio/quartz.png".path
-    T ~ p.extOp(_ + "xls")          ==== "temp/eio.xls".path
-    T ~ ".foo".path.extOp(_ + "e")  ==== ".foo.e".path
-    T ~ q.extOp(_ drop 4)           ==== "temp/eio/quartz".path
-    T ~ p.base                      ==== "eio"
-    T ~ ".foo".path.base            ==== ".foo"
-    T ~ q.base                      ==== "quartz"
-    T ~ p.baseTo("flow")            ==== "temp/flow".path
-    T ~ ".foo".path.baseTo(".bar")  ==== ".bar".path
-    T ~ q.baseTo("pearl")           ==== "temp/eio/pearl.txt".path
-    T ~ p.baseOp(_ drop 1)          ==== "temp/io".path
-    T ~ ".foo".path.baseOp(_ + "t") ==== ".foot".path
-    T ~ q.baseOp(_ dropRight 1)     ==== "temp/eio/quart.txt".path
-    T ~ p.parentName                ==== "temp"
-    T ~ ".foo".path.parentName      ==== ""
-    T ~ q.parentName                ==== "eio"
-    T ~ p.namesIterator.toVector    ==== Vector("eio", "temp")
-    T ~ q.namesIterator.toVector    ==== Vector("quartz.txt", "eio", "temp")
-    T ~ p.pathsIterator.toVector    ==== Vector(p, "temp".path)
-    T ~ q.pathsIterator.toVector    ==== Vector(q, p, "temp".path)
-    T ~ p.parent                    ==== "temp".path --: typed[Path Or Unit]
-    T ~ ".foo".path.parent          ==== Alt.unit
-    T ~ q.parent                    ==== p
-    T ~ r.real                      ==== q.absolute
-    T ~ p.absolute.isAbsolute       ==== true
-    T ~ p.isAbsolute                ==== false
-    T ~ (p / "quartz.txt")          ==== q
-    T ~ (p / q)                     ==== "temp/eio/temp/eio/quartz.txt".path
-    T ~ p.`..`                      ==== "temp".path
-    T ~ p.`..`.`..`                 ==== "temp".path
-    T ~ p.sib("flow")               ==== "temp/flow".path
-    T ~ q.sib(p)                    ==== (p / p)
-    T ~ q.reroot(p, ".foo".path)    ==== ".foo/quartz.txt".path
-    T ~ q.reroot("temp".path, p)    ==== "temp/eio/eio/quartz.txt".path
-    T ~ p.prune(q)                  ==== "quartz.txt".path --: typed[Path Or Unit]
-    T ~ q.prune(p)                  ==== Alt.unit
-    T ~ p.prune(p)                  ==== "".path
-    T ~ p.prune("temp/eios".path)   ==== Alt.unit
-    T ~ p.exists                    ==== true
-    T ~ q.exists                    ==== false
-    T ~ { q.touch(); q.exists }     ==== true
-    T ~ q.size                      ==== 0L
-    T ~ p.isDirectory               ==== true
-    T ~ q.isDirectory               ==== false
-    T ~ (p / "dir").exists          ==== false
-    T ~ (p / "dir").mkdir()         ==== (p / "dir")
-    T ~ (p / "a").exists            ==== false
-    T ~ (p / "a/b").exists          ==== false
-    T ~ (p / "a/b").mkdirs().exists ==== true // (p / "a/b")
-    T ~ (p / "a").exists            ==== true
-    T ~ (p / "a" / "b").exists      ==== true
-    Files.createSymbolicLink(p / "sym", "a".path)
-    T ~ (p / "sym" / "b").exists    ==== true
-    T ~ (p / "a").isSymbolic        ==== false
-    T ~ (p / "sym").isSymbolic      ==== true
-    T ~ (p / "sym").real            ==== (p.absolute / "a")
-    T ~ (p / "sym" / "b").real      ==== (p.absolute / "a/b")
-    T ~ (q.t - ft).in(0.s, 10.s)    ==== true
-    T ~ { q.t = ft; q.t }           ==== ft
-    T ~ q.delete()                  ==== true
-    T ~ q.delete()                  ==== false
-    T ~ q.exists                    ==== false
+    Thread.sleep(10)
+    T ~ p                            ==== FileSystems.getDefault.getPath("temp/eio")
+    T ~ "temp/eio".file              ==== p.file
+    T ~ "temp/eio".file.path         ==== p
+    T ~ p.name                       ==== "eio"
+    T ~ p.nameTo("fred")             ==== "temp/fred".path
+    T ~ p.nameOp(_ + "s")            ==== "temp/eios".path
+    T ~ p.ext                        ==== ""
+    T ~ ".foo".path.ext              ==== ""
+    T ~ q.ext                        ==== "txt"
+    T ~ p.extTo("png")               ==== "temp/eio.png".path
+    T ~ ".foo".path.extTo("png")     ==== ".foo.png".path
+    T ~ q.extTo("png")               ==== "temp/eio/quartz.png".path
+    T ~ p.extOp(_ + "xls")           ==== "temp/eio.xls".path
+    T ~ ".foo".path.extOp(_ + "e")   ==== ".foo.e".path
+    T ~ q.extOp(_ drop 4)            ==== "temp/eio/quartz".path
+    T ~ p.base                       ==== "eio"
+    T ~ ".foo".path.base             ==== ".foo"
+    T ~ q.base                       ==== "quartz"
+    T ~ p.baseTo("flow")             ==== "temp/flow".path
+    T ~ ".foo".path.baseTo(".bar")   ==== ".bar".path
+    T ~ q.baseTo("pearl")            ==== "temp/eio/pearl.txt".path
+    T ~ p.baseOp(_ drop 1)           ==== "temp/io".path
+    T ~ ".foo".path.baseOp(_ + "t")  ==== ".foot".path
+    T ~ q.baseOp(_ dropRight 1)      ==== "temp/eio/quart.txt".path
+    T ~ p.parentName                 ==== "temp"
+    T ~ ".foo".path.parentName       ==== ""
+    T ~ q.parentName                 ==== "eio"
+    T ~ p.namesIterator.toVector     ==== Vector("eio", "temp")
+    T ~ q.namesIterator.toVector     ==== Vector("quartz.txt", "eio", "temp")
+    T ~ p.pathsIterator.toVector     ==== Vector(p, "temp".path)
+    T ~ q.pathsIterator.toVector     ==== Vector(q, p, "temp".path)
+    T ~ p.parent                     ==== "temp".path --: typed[Path Or Unit]
+    T ~ ".foo".path.parent           ==== Alt.unit
+    T ~ q.parent                     ==== p
+    T ~ r.real                       ==== q.absolute
+    T ~ p.absolute.isAbsolute        ==== true
+    T ~ p.isAbsolute                 ==== false
+    T ~ (p / "quartz.txt")           ==== q
+    T ~ (p / q)                      ==== "temp/eio/temp/eio/quartz.txt".path
+    T ~ p.`..`                       ==== "temp".path
+    T ~ p.`..`.`..`                  ==== "temp".path
+    T ~ p.sib("flow")                ==== "temp/flow".path
+    T ~ q.sib(p)                     ==== (p / p)
+    T ~ q.reroot(p, ".foo".path)     ==== ".foo/quartz.txt".path
+    T ~ q.reroot("temp".path, p)     ==== "temp/eio/eio/quartz.txt".path
+    T ~ p.adopt(q)                   ==== "quartz.txt".path --: typed[Path Or Unit]
+    T ~ q.adopt(p)                   ==== Alt.unit
+    T ~ p.adopt(p)                   ==== "".path
+    T ~ p.adopt("temp/eios".path)    ==== Alt.unit
+    T ~ p.exists                     ==== true
+    T ~ q.exists                     ==== false
+    T ~ { q.touch(); q.exists }      ==== true
+    T ~ q.size                       ==== 0L
+    T ~ p.isDirectory                ==== true
+    T ~ q.isDirectory                ==== false
+    T ~ (p / "dir").exists           ==== false
+    T ~ (p / "dir").mkdir()          ==== (p / "dir")
+    T ~ (p / "a").exists             ==== false
+    T ~ (p / "a/b").exists           ==== false
+    T ~ (p / "a/b").mkdirs()         ==== (p.absolute / "a/b")
+    T ~ (p / "a").exists             ==== true
+    T ~ (p / "a" / "b").exists       ==== true
+    T ~ (q.time - ft).in(0.s, 10.s)  ==== true
+    T ~ { q.time = ft; q.time }      ==== ft
+    T ~ { q.touch(); q.time == ft }  ==== false
+    T ~ p.paths.sorted               =**= Array(p / "a", p / "dir", p / "quartz.txt")
+    T ~ q.write("blorp".bytes)       ==== ()
+    T ~ q.gulp                       =**= "blorp".bytes
+    T ~ q.append("y".bytes)          ==== ()
+    T ~ q.slurp                      =**= Array("blorpy")
+    T ~ q.create("bad".bytes)        ==== false
+    T ~ q.delete()                   ==== true
+    T ~ q.delete()                   ==== false
+    T ~ q.exists                     ==== false
+    T ~ q.create("hi\nworld".bytes)  ==== true
+    T ~ q.slurp                      =**= Array("hi", "world")
+    T ~ q.delete()                   ==== true
+    T ~ q.exists                     ==== false
+    T ~ q.append("foo".bytes)        ==== ()
+    T ~ q.gulp.utf8                  ==== "foo"
+    T ~ q.writeLines("eel" :: Nil)   ==== ()
+    T ~ q.slurp                      =**= Array("eel")
+    T ~ q.appendLines("cod" :: Nil)  ==== ()
+    T ~ q.slurp                      =**= Array("eel", "cod")
+    T ~ q.append("perch".bytes)      ==== ()
+    T ~ q.slurp                      =**= Array("eel", "cod", "perch")
+    T ~ q.append("bass".bytes)       ==== ()
+    T ~ q.slurp                      =**= Array("eel", "cod", "perchbass")
+    T ~ q.delete()                   ==== true
+    T ~ q.createLines("cod" :: Nil)  ==== true
+    T ~ q.gulp.utf8                  ==== "cod\n"
+    T ~ q.createLines("eel" :: Nil)  ==== false
+    T ~ q.copyTo(p / "fish.txt")     ==== ()
+    T ~ (p / "fish.txt").slurp       =**= Array("cod")
+    T ~ q.moveTo(p / "move.txt")     ==== ()
+    T ~ (p / "move.txt").slurp       =**= Array("cod")
+    T ~ q.exists                     ==== false
+
+    val ps = "temp/eio/sym".path
+    T ~ (p / "sym").isSymlink               ==== false
+    T ~ ps.symlink                          ==== Alt.unit --: typed[String Or Unit]
+    T ~ { ps.makeSymlink("a"); ps.symlink } ==== "a"
+    T ~ ps.followSymlink                    ==== (p / "a") --: typed[Path Or Unit]
+    T ~ ps.exists                           ==== true
+    T ~ (ps / "b").exists                   ==== true
+    T ~ (p / "a").isSymlink                 ==== false
+    T ~ ps.isSymlink                        ==== true
+    T ~ ps.real                             ==== (p.real / "a")
+    T ~ (ps / "b").real                     ==== (p.real / "a/b")
+    (p / "a" / "b").delete()
+    (p / "a").delete()
+    T ~ ps.exists                           ==== false
+    T ~ ps.isSymlink                        ==== true
+    T ~ ps.real                             ==== (p.real / "a")
+    T ~ (ps / "b").real                     ==== (p.real / "a/b")
+    val a2b = "temp/eio/ab".path
+    val b2a = "temp/eio/ba".path
+    a2b.symlinkTo(b2a)
+    b2a.symlinkTo(a2b)
+    T ~ (a2b.exists || b2a.exists)          ==== false
+    T ~ (a2b.isSymlink && b2a.isSymlink)    ==== true
+    T ~ a2b.followSymlink                   ==== b2a
+    T ~ b2a.followSymlink                   ==== a2b
+    T ~ a2b.real                            ==== (p.real / "ab")
+    T ~ b2a.real                            ==== (p.real / "ba")
+    T ~ (a2b / "x").real                    ==== (p.real / "ab/x")
 }
 object EioTest {
   import kse.flow.{given, _}
