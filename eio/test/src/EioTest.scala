@@ -199,17 +199,35 @@ class EioTest {
     T ~ wsbc.position                       ==== 0
     T ~ wsbc.position(1)                    ==== wsbc
     T ~ wsbc.size                           ==== 0
-    T ~ wsbc.write("hi".bytes.buffer)       ==== 2
+    T ~ wsbc.write("sup".bytes.input)       ==== 3
+    T ~ wsbc.size                           ==== 4
+    T ~ wsbc.write("person".bytes.input)    ==== 4
+    T ~ ba.drop(1).utf8                     ==== "suppers"
+    T ~ wsbc.position(3)                    ==== wsbc
+    T ~ wsbc.write("mm".bytes.readChannel)  ==== 2
+    T ~ wsbc.position(7)                    ==== wsbc
+    T ~ wsbc.write("yes".bytes.readChannel) ==== 1
+    T ~ ba.drop(1).utf8                     ==== "summery"
+    T ~ wsbc.position(1)                    ==== wsbc
+    T ~ wsbc.write("hi".bytes)              ==== 2
     T ~ wsbc.write("everyone".bytes.buffer) ==== 5
-    T ~ wsbc.write("here".bytes.buffer)     ==== thrown[IOException]
+    T ~ wsbc.write("here".bytes.buffer)     ==== -1
     T ~ wsbc.position(0)                    ==== wsbc
     T ~ { wsbc.read(ab2.buffer); ab2 }      =**= Array[Byte](0, 'h'.toByte)
+    T ~ wsbc.position(0)                    ==== wsbc
+    T ~ wsbc.write("e".bytes.input)         ==== 1
+    T ~ wsbc.position(0)                    ==== wsbc
+    T ~ { wsbc.read(ab2.buffer); ab2 }      =**= "eh".bytes
+    T ~ wsbc.position(0)                    ==== wsbc
+    T ~ wsbc.write("YETI".bytes, 2)(1)      ==== 1
     T ~ wsbc.close                          ==== ()
     T ~ wsbc.position(3)                    ==== thrown[ClosedChannelException]
     ba(0) = 'T'
     bb.clear
     val rsbc = ba.readChannel
     val bc = ByteBuffer.allocate(12)
+    val ab3 = new Array[Byte](3)
+    val ab9 = new Array[Byte](9)
     T ~ rsbc.bufferAvailableToWrite              ==== 8
     T ~ rsbc.maxAvailableToWrite                 ==== 8
     T ~ rsbc.availableToRead                     ==== 8
@@ -217,18 +235,39 @@ class EioTest {
     T ~ rsbc.position                            ==== 0
     T ~ rsbc.read(bc)                            ==== 8
     T ~ rsbc.read(bc)                            ==== -1
-    T ~ rsbc.write(bc.tap(_.flip))               ==== thrown[IOException]
+    T ~ rsbc.read(ab3)                           ==== -1
+    T ~ rsbc.write(bc.tap(_.flip))               ==== -1
     T ~ bc.getBytes.utf8                         ==== "Thievery"
     T ~ rsbc.position(3)                         ==== rsbc
     T ~ { bc.clear; bc.limit(3); rsbc.read(bc) } ==== 3
     T ~ rsbc.availableToRead                     ==== 2
+    T ~ rsbc.read(ab3)                           ==== 2
     T ~ bc.tap(_.flip).getBytes.utf8             ==== "eve"
+    T ~ ab3                                      =**= Array('r'.toByte, 'y'.toByte, 0: Byte)
+    T ~ rsbc.position(1)                         ==== rsbc
+    T ~ rsbc.read(ab2.writeChannel)              ==== 2
+    T ~ ab2.utf8                                 ==== "hi"
+    T ~ rsbc.read(ab9.writeChannel)              ==== 5
+    T ~ ab9.utf8                                 ==== "every\u0000\u0000\u0000\u0000"
+    T ~ rsbc.position(3)                         ==== rsbc
+    T ~ rsbc.read(ab3)                           ==== 3
+    T ~ rsbc.read(ab3, 1)(1)                     ==== 1
+    T ~ ab3.utf8                                 ==== "ere"
+    T ~ rsbc.position(1)                         ==== rsbc
+    T ~ rsbc.read(ab3.output)(3)                 ==== 3
+    T ~ ab3.utf8                                 ==== "hie"
+    T ~ rsbc.position(4)                         ==== rsbc
+    T ~ rsbc.read(ab3.output)(1)                 ==== 1
+    T ~ ab3.utf8                                 ==== "vie"
+    T ~ rsbc.position(6)                         ==== rsbc
+    T ~ rsbc.read(ab3.output)                    ==== 2
+    T ~ ab3.utf8                                 ==== "rye"
     T ~ rsbc.close                               ==== ()
     T ~ rsbc.position(1)                         ==== thrown[ClosedChannelException]
     val rng = Pcg64(342552345346L)
     val big = rng.arrayB(32768)
     val sbc = Array.empty[Byte].growCopyBy(512)
-    T ~ sbc ==== typed[SeekableGrowingByteChannel]
+    T ~ sbc ==== typed[MultiArrayChannel]
     var nwrote = 0
     var counter = 0
     while nwrote < big.length do
@@ -246,17 +285,26 @@ class EioTest {
       T ~ sbc.read(bx)            ==== (bx.capacity min readable)
       T ~ bx.tap(_.flip).getBytes =**= big.copyOfRange(ptarg, ptarg + (bx.capacity min readable))
       sbc.position(p)
-    sbc.position(0)
     val bx = ByteBuffer.allocate(big.length)
-    T ~ sbc.read(bx)                         ==== big.length
+    val abx = new Array[Byte](big.length)
+    T ~ sbc.position(0).read(bx)             ==== big.length
     T ~ bx.tap(_.flip).getBytes              =**= big
+    T ~ sbc.position(0).read(abx)            ==== big.length
+    T ~ abx                                  =**= big
+    val weird = new Array[Byte](1917)
+    val sbc2 = Array.empty[Byte].growCopyBy(337)
+    T ~ sbc.position(0)                      ==== sbc
+    T ~ sbc.read(weird.writeChannel)         ==== weird.length
+    T ~ sbc.read(sbc2)                       ==== (big.length - weird.length)
+    T ~ weird                                =**= big.take(weird.length)
+    T ~ { sbc2.close; sbc2.getBytes.get }    =**= big.drop(weird.length)
     T ~ sbc.detatchBuffers()                 ==== thrown[IllegalArgumentException]
+    T ~ sbc.getBytes                         ==== thrown[IllegalArgumentException]
     sbc.close
+    T ~ sbc.getBytes.get                     =**= big
     T ~ sbc.detatchBuffers().map(_.toVector) =**= big.grouped(512).toArray.map(_.toVector)
     T ~ sbc.detatchBuffers()                 ==== thrown[IllegalArgumentException]
-
-
-
+    T ~ sbc.getBytes                         ==== thrown[IllegalArgumentException]
 
     val f = new File("temp/eio/raf.txt")
     def nraf = new RandomAccessFile(f, "rw")

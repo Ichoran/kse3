@@ -6,7 +6,7 @@ package kse.eio
 import java.io._
 import java.nio._
 import java.nio.file._
-import java.nio.channels.SeekableByteChannel
+import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByteChannel}
 import java.nio.charset.StandardCharsets._
 import java.util.Base64
 
@@ -520,21 +520,101 @@ extension (underlying: java.util.zip.ZipEntry) {
 }
 
 
-//////////////////////////////////////////////////////////
-// Conversions between different ways to hold/view data //
-//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////
+// Adaptors between different ways to hold/view binary data //
+//////////////////////////////////////////////////////////////
+
+trait CountedTransfer[S, T] {
+  def apply(source: S, offset: Int)(target: T, index: Int)(count: Int): Int
+}
+object CountedTransfer {
+  val array2buffer: CountedTransfer[Array[Byte], ByteBuffer] = new CountedTransfer[Array[Byte], ByteBuffer] {
+    def apply(source: Array[Byte], offset: Int)(target: ByteBuffer, index: Int)(count: Int): Int =
+      target.put(source, offset, count)
+      count
+  }
+  val array2array: CountedTransfer[Array[Byte], Array[Byte]] = new CountedTransfer[Array[Byte], Array[Byte]] {
+    def apply(source: Array[Byte], offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      System.arraycopy(source, offset, target, index, count)
+      count
+  }
+  val buffer2array: CountedTransfer[ByteBuffer, Array[Byte]] = new CountedTransfer[ByteBuffer, Array[Byte]] {
+    def apply(source: ByteBuffer, offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      source.get(target, index, count)
+      count
+  }
+  val array2stream: CountedTransfer[Array[Byte], OutputStream] = new CountedTransfer[Array[Byte], OutputStream] {
+    def apply(source: Array[Byte], offset: Int)(target: OutputStream, index: Int)(count: Int): Int =
+      target.write(source, offset, count)
+      count
+  }
+  val stream2array: CountedTransfer[InputStream, Array[Byte]] = new CountedTransfer[InputStream, Array[Byte]] {
+    def apply(source: InputStream, offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      source.read(target, index, count)
+  }
+  val array2channel: CountedTransfer[Array[Byte], WritableByteChannel] = new CountedTransfer[Array[Byte], WritableByteChannel] {
+    def apply(source: Array[Byte], offset: Int)(target: WritableByteChannel, index: Int)(count: Int): Int =
+      target.write(ByteBuffer.wrap(source, offset, count))
+  }
+  val channel2array: CountedTransfer[ReadableByteChannel, Array[Byte]] = new CountedTransfer[ReadableByteChannel, Array[Byte]] {
+    def apply(source: ReadableByteChannel, offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      source.read(ByteBuffer.wrap(target, index, count))
+  }
+  val array2seeker: CountedTransfer[Array[Byte], SeekableByteChannel] = new CountedTransfer[Array[Byte], SeekableByteChannel] {
+    def apply(source: Array[Byte], offset: Int)(target: SeekableByteChannel, index: Int)(count: Int): Int =
+      target.write(ByteBuffer.wrap(source, offset, count))
+  }
+  val seeker2array: CountedTransfer[SeekableByteChannel, Array[Byte]] = new CountedTransfer[SeekableByteChannel, Array[Byte]] {
+    def apply(source: SeekableByteChannel, offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      source.read(ByteBuffer.wrap(target, index, count))
+  }
+  val array2multi: CountedTransfer[Array[Byte], MultiArrayChannel] = new CountedTransfer[Array[Byte], MultiArrayChannel] {
+    def apply(source: Array[Byte], offset: Int)(target: MultiArrayChannel, index: Int)(count: Int): Int =
+      target.write(source, offset)(count)
+  }
+  val multi2array: CountedTransfer[MultiArrayChannel, Array[Byte]] = new CountedTransfer[MultiArrayChannel, Array[Byte]] {
+    def apply(source: MultiArrayChannel, offset: Int)(target: Array[Byte], index: Int)(count: Int): Int =
+      source.read(target, index)(count)
+  }
+}
+
 
 extension (underlying: Array[Byte])
   inline def buffer = ByteBuffer.wrap(underlying).order(ByteOrder.LITTLE_ENDIAN)
   inline def input = new ByteArrayInputStream(underlying)
-  inline def readChannel = SeekableGrowingByteChannel.fixedBuffer(underlying, underlying.length)
-  inline def writeChannel = SeekableGrowingByteChannel.fixedBuffer(underlying, 0)
-  inline def growCopy = SeekableGrowingByteChannel.copyOf(underlying)
-  inline def growCopyBy(chunk: Int) = SeekableGrowingByteChannel.chunked(chunk).copyOf(underlying)
-  inline def growCopyMax(maxSize: Long) = SeekableGrowingByteChannel.copyOf(underlying, maxSize)
-  inline def growCopyMaxBy(maxSize: Long, chunk: Int) = SeekableGrowingByteChannel.chunked(chunk).copyOf(underlying, maxSize)
+  inline def output = new FixedArrayOutputStream(underlying, 0, underlying.length)
+  inline def readChannel = MultiArrayChannel.fixedBuffer(underlying, underlying.length)
+  inline def writeChannel = MultiArrayChannel.fixedBuffer(underlying, 0)
+  inline def growCopy = MultiArrayChannel.copyOf(underlying)
+  inline def growCopyBy(chunk: Int) = MultiArrayChannel.chunked(chunk).copyOf(underlying)
+  inline def growCopyMax(maxSize: Long) = MultiArrayChannel.copyOf(underlying, maxSize)
+  inline def growCopyMaxBy(maxSize: Long, chunk: Int) = MultiArrayChannel.chunked(chunk).copyOf(underlying, maxSize)
 
-final class SeekableGrowingByteChannel private (val growthLimit: Long, val maxChunkSize: Int, existing: Array[Array[Byte]])
+final class FixedArrayOutputStream(val buffer: Array[Byte], val i0: Int, val iN: Int) extends OutputStream {
+  private var isNowOpen = true
+  private var index = i0
+  private def checkOpen(): Unit = if !isNowOpen then throw new IOException("OutputStream is closed")
+
+  override def close: Unit =
+    isNowOpen = false
+  def write(b: Int): Unit =
+    checkOpen()
+    if index >= iN then throw new IOException("FixedArrayOutputStream is full")
+    buffer(index) = (b & 0xFF).toByte
+    index += 1
+  override def write(ab: Array[Byte], offset: Int, length: Int): Unit =
+    if length > 0 then
+      checkOpen()
+      if index >= iN then throw new IOException("FixedArrayOutputStream is full")
+      if iN - index < 0 || iN - index < length then throw new IOException("Buffer underflow for FixedArrayOutputStream")
+      System.arraycopy(ab, offset, buffer, index, length)
+      index += length
+  override def write(ab: Array[Byte]) = write(ab, 0, ab.length)
+
+  def count: Int = index - i0
+}
+
+final class MultiArrayChannel private (val growthLimit: Long, val maxChunkSize: Int, existing: Array[Array[Byte]])
 extends SeekableByteChannel {
   private val initialLimit = {
     var n = 0L
@@ -646,9 +726,7 @@ extends SeekableByteChannel {
         position(p)
       limit = p
     this
-  /*
-  def read(buffer: Array[Byte]): Int = read(buffer, 0)(buffer.length)
-  def read(buffer: Array[Byte], offset: Int)(count: Int): Int =
+  def readTo[T](target: T, start: Int)(count: Int)(using transfer: CountedTransfer[Array[Byte], T]): Int =
     if count <= 0 then 0
     else
       checkOpen()
@@ -657,24 +735,12 @@ extends SeekableByteChannel {
         var m = count
         var n = 0
         while index < limit && m > 0 do
-          val r = index - limit
-          val k = (index - zero).toInt
-          val h = active.length - k
-          val g = if h < r then h else r.toInt
-  */
-  def read(buffer: ByteBuffer): Int =
-    var m = buffer.remaining
-    if m == 0 then 0
-    else
-      checkOpen()
-      if index >= limit then -1
-      else 
-        var n = 0
-        while index < limit && m > 0 do
           val i = (index - zero).toInt
           val r = (limit - index).toInt min (active.length - i)
-          val h = if m < r then m else r
-          buffer.put(active, i, h)
+          var h = transfer(active, i)(target, n + start)(if m < r then m else r)
+          if h < 0 then
+            h = 0
+            if m == count then n = -1
           index += h
           if i + h == active.length then
             zero += active.length
@@ -682,38 +748,96 @@ extends SeekableByteChannel {
             active = if iactive < storage.length then storage(iactive) else null
           n += h
           m -= h
+          if h == 0 then m = 0
         n
-  def write(buffer: ByteBuffer): Int =
-    var m = buffer.remaining
-    if m == 0 then 0
+  private[this] def readAsMuchAsPossible[T](target: T)(using transfer: CountedTransfer[Array[Byte], T]): Long =
+    var n: Long = 0
+    var m = 0
+    var cycles = 0L
+    while m >= 0 && cycles <= n do
+      val count =
+        if index >= limit || iactive >= storage.length then 1
+        else availableToRead.clampToInt min active.length - (index - zero).toInt
+      m = readTo(target, 0)(count)
+      if m > 0 then n += m
+      if m >= 0 then cycles += 1
+    if cycles == 0 then -1L else n
+  def read(buffer: Array[Byte]): Int =
+    readTo(buffer, 0)(buffer.length)(using CountedTransfer.array2array)
+  def read(buffer: Array[Byte], offset: Int)(count: Int): Int =
+    readTo(buffer, offset)(count)(using CountedTransfer.array2array)
+  def read(buffer: ByteBuffer): Int =
+    readTo[ByteBuffer](buffer, 0)(buffer.remaining)(using CountedTransfer.array2buffer)
+  def read(target: OutputStream): Long =
+    readAsMuchAsPossible(target)(using CountedTransfer.array2stream)
+  def read(target: OutputStream)(count: Int): Int =
+    readTo(target, 0)(count)(using CountedTransfer.array2stream)
+  def read(target: WritableByteChannel): Long = target match
+    case that: MultiArrayChannel => readAsMuchAsPossible(that  )(using CountedTransfer.array2multi)
+    case _                       => readAsMuchAsPossible(target)(using CountedTransfer.array2channel)
+  def read(target: WritableByteChannel)(count: Int): Int = target match
+    case that: MultiArrayChannel => readTo(that,   0)(count)(using CountedTransfer.array2multi)
+    case _                       => readTo(target, 0)(count)(using CountedTransfer.array2channel)
+  def writeFrom[S](source: S, start: Int)(count: Int)(using transfer: CountedTransfer[S, Array[Byte]]): Int =
+    if count <= 0 then 0
     else
       checkOpen()
+      if index >= initialLimit + growthLimit then return -1
       var n = 0
-      if index >= initialLimit + growthLimit then throw new IOException("Cannot write to the end of a maximum capacity channel")
+      var m = count
       if limit < index then zeroToIndexOrEnd()
       if allocated - index < m then ensureExtraCapacity(m)
       while index < allocated && m > 0 do
-        val k = (index - zero).toInt
-        val h = active.length - k
-        if m <= h then
-          buffer.get(active, k, m)
-          index += m
-          n += m
-          if index > limit then limit = index
-          if m == h then
-            zero += active.length
-            iactive += 1
-            active = if iactive < storage.length then storage(iactive) else null
-          m = 0
-        else
-          buffer.get(active, k, h)
-          m -= h
-          index += h
-          n += h
+        val i = (index - zero).toInt
+        val r = active.length - i
+        var h = transfer(source, start + n)(active, i)(if m < r then m else r)
+        if h < 0 then
+          h = 0
+          if m == count then n = -1
+        index += h
+        if index > limit then limit = index
+        if h == r then
           zero += active.length
           iactive += 1
           active = if iactive < storage.length then storage(iactive) else null
+        n += h
+        m -= h
+        if h == 0 then m = 0
       n
+  def writeAsMuchAsPossible[S](source: S)(available: S => Long)(using transfer: CountedTransfer[S, Array[Byte]]): Long =
+    var n: Long = 0
+    var attempt = 4096 min maxChunkSize
+    var m = 0
+    var cycles = 0L
+    while m >= 0 do
+      val a = available(source)
+      val count =
+        if a > 0 && !(cycles > 16 && (n >> 4) < cycles) then a.clampToInt
+        else if index >= allocated then attempt
+        else attempt min active.length - (index - zero).toInt
+      m = writeFrom(source, 0)(count)
+      if m > 0 then
+        n += m
+        if n >= attempt then
+          attempt = if attempt > (maxChunkSize >> 1) then maxChunkSize else attempt * 2
+        if index >= initialLimit + growthLimit then m = -1
+        cycles += 1
+      else if m == 0 then cycles += 1
+    if cycles == 0 then -1L else n
+  def write(buffer: Array[Byte]): Int =
+    writeFrom[Array[Byte]](buffer, 0)(buffer.length)(using CountedTransfer.array2array)
+  def write(buffer: Array[Byte], offset: Int)(count: Int): Int =
+    writeFrom[Array[Byte]](buffer, offset)(count)(using CountedTransfer.array2array)
+  def write(buffer: ByteBuffer): Int =
+    writeFrom[ByteBuffer](buffer, 0)(buffer.remaining)(using CountedTransfer.buffer2array)
+  def write(source: InputStream): Long =
+    writeAsMuchAsPossible(source)(_.available)(using CountedTransfer.stream2array)
+  def write(source: InputStream)(count: Int): Int =
+    writeFrom(source, 0)(count)(using CountedTransfer.stream2array)
+  def write(source: ReadableByteChannel): Long = source match
+    case that: MultiArrayChannel => writeAsMuchAsPossible(that  )(_.availableToRead       )(using CountedTransfer.multi2array)
+    case sb: SeekableByteChannel => writeAsMuchAsPossible(sb    )(c => c.size - c.position)(using CountedTransfer.seeker2array)
+    case _                       => writeAsMuchAsPossible(source)(_ => 0                  )(using CountedTransfer.channel2array)
 
   def availableToRead: Long =
     if !isNowOpen then -1L
@@ -726,6 +850,23 @@ extends SeekableByteChannel {
     else initialLimit + growthLimit - index
   def canWrite(buffer: ByteBuffer): Boolean =
     buffer.remaining == 0 || (maxAvailableToWrite >= buffer.remaining)
+  def getBytes: Array[Byte] Or Array[Byte] =
+    if isNowOpen then throw new IllegalArgumentException("Cannot get bytes from open channel")
+    if storage eq null then throw new IllegalArgumentException("Buffers already detatched")
+    if limit == 0 then Is(MultiArrayChannel.noBytes)
+    else
+      if storage.length == 1 || limit <= storage(0).length then Is(storage(0).copyToSize(limit.toInt))
+      else
+        val a = new Array[Byte](if limit > Int.MaxValue - 7 then Int.MaxValue - 7 else limit.toInt)
+        var m = 0
+        var i = 0
+        while m < a.length do
+          val ai = storage(i)
+          val h = (a.length - m) min ai.length
+          System.arraycopy(ai, 0, a, m, h)
+          m += h
+          i += 1
+        a.isIf(_.length == limit)
   def detatchBuffers(): Array[Array[Byte]] =
     if isNowOpen then throw new IllegalArgumentException("Cannot detatch buffers from open channel")
     if storage eq null then throw new IllegalArgumentException("Buffers already detatched")
@@ -755,21 +896,23 @@ extends SeekableByteChannel {
       storage = null
       a
 }
-object SeekableGrowingByteChannel {
+object MultiArrayChannel {
   val noInitialArrays = Array.empty[Array[Byte]]
+  val noBytes = Array.empty[Byte]
+
   inline val defaultMaxSize = 0x200000000L
   inline val defaultChunkSize = 0x20000000
 
   private def make(chunk: Int, xs: Array[Byte]) =
-    new SeekableGrowingByteChannel(defaultMaxSize - xs.length, chunk, if xs == null || xs.length == 0 then noInitialArrays else Array(xs))
+    new MultiArrayChannel(defaultMaxSize - xs.length, chunk, if xs == null || xs.length == 0 then noInitialArrays else Array(xs))
   private def make(limit: Long, chunk: Int, xs: Array[Byte]) =
-    new SeekableGrowingByteChannel(0L max limit, chunk, if xs == null || xs.length == 0 then noInitialArrays else Array(xs))
+    new MultiArrayChannel(0L max limit, chunk, if xs == null || xs.length == 0 then noInitialArrays else Array(xs))
 
   def empty() = make(defaultChunkSize, null)
   def empty(growthLimit: Long) = make(growthLimit, defaultChunkSize, null)
 
   def fixedBuffer(b: Array[Byte], readableLength: Int) =
-    val sgbc = new SeekableGrowingByteChannel(0L, b.length, Array(b))
+    val sgbc = new MultiArrayChannel(0L, b.length, Array(b))
     if readableLength < 0 then sgbc.truncate(0L)
     else if readableLength < b.length then sgbc.truncate(readableLength)
     sgbc
@@ -782,7 +925,7 @@ object SeekableGrowingByteChannel {
   def copyOf(bb: ByteBuffer) = make(defaultChunkSize, bb.getBytes)
   def copyOf(bb: ByteBuffer, growthLimit: Long) = make(growthLimit, defaultChunkSize, bb.getBytes)
 
-  def chunked(size: Int): kse.eio.SeekableGrowingByteChannel.ChannelChunkSize = ChannelChunkSize(size)
+  def chunked(size: Int): kse.eio.MultiArrayChannel.ChannelChunkSize = ChannelChunkSize(size)
 
   opaque type ChannelChunkSize = Int
   object ChannelChunkSize {
@@ -791,7 +934,7 @@ object SeekableGrowingByteChannel {
     extension (chunkSize: ChannelChunkSize)
       def value: Int = (chunkSize: Int) max 0x8
 
-    extension (chunkSize: kse.eio.SeekableGrowingByteChannel.ChannelChunkSize) {
+    extension (chunkSize: kse.eio.MultiArrayChannel.ChannelChunkSize) {
       def empty() = make(chunkSize.value, null)
       def empty(growthLimit: Long) = make(growthLimit, chunkSize.value, null)
 
