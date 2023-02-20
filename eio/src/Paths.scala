@@ -35,12 +35,12 @@ extension (the_path: Path) {
   def ext =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if i < 1 then "" else n.substring(i+1)
+    if i < 1 || i == n.length - 1 then "" else n.substring(i+1)
   
   def extTo(x: String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if i < 1 then
+    if i < 1 || i == n.length - 1 then
       if x.isEmpty then the_path
       else the_path resolveSibling (n + "." + x)
     else
@@ -50,22 +50,22 @@ extension (the_path: Path) {
   def extOp(f: String => String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    val e = if i < 1 then "" else n.substring(i+1)
+    val e = if i < 1 || i == n.length -1 then "" else n.substring(i+1)
     val x = f(e)
     if x == e then the_path
-    else if i < 1 then the_path resolveSibling (n + "." + x)
+    else if e.isEmpty then the_path resolveSibling (n + "." + x)
     else if x.isEmpty then the_path resolveSibling n.substring(0, i)
     else the_path resolveSibling n.substring(0, i+1) + x
   
   def base =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if i < 1 then n else n.substring(0, i)
+    if i < 1 || i == n.length - 1 then n else n.substring(0, i)
   
   def baseTo(b: String) = 
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    if i < 1 then
+    if i < 1 || i == n.length - 1 then
       if n == b then the_path
       else the_path resolveSibling b
     else
@@ -75,10 +75,10 @@ extension (the_path: Path) {
   def baseOp(f: String => String) =
     val n = the_path.getFileName.toString
     val i = n.lastIndexOf('.')
-    val b = if i < 1 then n else n.substring(0, i)
+    val b = if i < 1 || i == n.length - 1 then n else n.substring(0, i)
     val x = f(b)
     if b == x then the_path
-    else if i < 1 then the_path resolveSibling x
+    else if (b eq n) then the_path resolveSibling x
     else the_path resolveSibling x+n.substring(i)
   
   inline def parentName = the_path.getParent match
@@ -532,10 +532,10 @@ object PathsHelper {
 
   opaque type AtomicPathOps = Path
   object AtomicPathOps {
-    def apply(the_path: Path): kse.eio.PathsHelper.AtomicPathOps = the_path
+    inline def apply(the_path: Path): kse.eio.PathsHelper.AtomicPathOps = the_path
 
     extension (the_path: AtomicPathOps)
-      def underlying: Path = the_path
+      inline def underlying: Path = the_path
 
     extension (the_path: kse.eio.PathsHelper.AtomicPathOps) {
       def tempPath: Path = the_path.underlying.resolveSibling(the_path.underlying.getFileName.toString + ".atomic")

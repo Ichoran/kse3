@@ -27,6 +27,7 @@ import scala.util.boundary.break
 import sourcecode.{Line, given}
 
 
+
 @RunWith(classOf[JUnit4])
 class EioTest {
   import kse.testutilities.TestUtilities.{given, _}
@@ -378,21 +379,27 @@ class EioTest {
     T ~ p.nameOp(_ + "s")            ==== "temp/eios".path
     T ~ p.ext                        ==== ""
     T ~ ".foo".path.ext              ==== ""
+    T ~ "No.".path.ext               ==== ""
     T ~ q.ext                        ==== "txt"
     T ~ p.extTo("png")               ==== "temp/eio.png".path
     T ~ ".foo".path.extTo("png")     ==== ".foo.png".path
+    T ~ "No.".path.extTo("png")      ==== "No..png".path
     T ~ q.extTo("png")               ==== "temp/eio/quartz.png".path
     T ~ p.extOp(_ + "xls")           ==== "temp/eio.xls".path
     T ~ ".foo".path.extOp(_ + "e")   ==== ".foo.e".path
+    T ~ "No.".path.extOp(_ + "!")    ==== "No..!".path
     T ~ q.extOp(_ drop 4)            ==== "temp/eio/quartz".path
     T ~ p.base                       ==== "eio"
     T ~ ".foo".path.base             ==== ".foo"
+    T ~ "No.".path.base              ==== "No."
     T ~ q.base                       ==== "quartz"
     T ~ p.baseTo("flow")             ==== "temp/flow".path
     T ~ ".foo".path.baseTo(".bar")   ==== ".bar".path
+    T ~ "No.".path.baseTo("Yes")     ==== "Yes".path
     T ~ q.baseTo("pearl")            ==== "temp/eio/pearl.txt".path
     T ~ p.baseOp(_ drop 1)           ==== "temp/io".path
     T ~ ".foo".path.baseOp(_ + "t")  ==== ".foot".path
+    T ~ "No.".path.baseOp(_ + "!")   ==== "No.!".path
     T ~ q.baseOp(_ dropRight 1)      ==== "temp/eio/quart.txt".path
     T ~ p.parentName                 ==== "temp"
     T ~ ".foo".path.parentName       ==== ""
