@@ -17,6 +17,15 @@ extension (t: Throwable) {
   inline def threadCatchable: Boolean = t match
     case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError => false
     case _ => true
+
+  /** True if the Throwable or any causes has a stack trace */
+  def hasAnyStackTrace: Boolean =
+    var x = t
+    var found = false
+    while !found && (x ne null) do
+      found = x.getStackTrace.length > 0
+      x = x.getCause
+    found
 }
 
 

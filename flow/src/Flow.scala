@@ -4,6 +4,8 @@
 
 package kse.flow
 
+import scala.annotation.targetName
+
 import scala.util.control.ControlThrowable
 import scala.util.boundary
 import scala.util.boundary.Label
@@ -318,7 +320,21 @@ extension [X, Y](or: X Or Y) {
   inline def swapToTry: Try[Y] = or match
     case a: Alt[_] => Success(a.alt.asInstanceOf[Y])
     case _ => Failure(new WrongBranchException(Is unwrap or.asInstanceOf[Is[X]]))
+
+  /** Tries to get this value, throwing the disfavored branch directly, if possible. */
+  @targetName("grabXOrY")
+  inline def grab: X = or.getOrElse{ a => (a: Any) match
+    case s: String => throw new ErrType.StringErrException(s)
+    case t: Throwable if t.catchable => throw t
+    case e: ErrType => throw e.toThrowable
+    case y => throw new WrongBranchException(y)
+  }
 }
+
+
+extension [X](or: X Or Err)
+  @targetName("grabXOrErr")
+  inline def grab: X = or.getOrElse(_.toss)
 
 
 extension [L, R](either: Either[L, R]) {

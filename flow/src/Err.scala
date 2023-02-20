@@ -16,6 +16,13 @@ object Err {
   extension (e: kse.flow.Err)
     def explainWith(f: kse.flow.Err => String, indent: String = "  "): kse.flow.Err = Err.apply(ErrType.Explained(f(e), e, indent))
     def explainBy(s: String, indent: String = "  "): Err = Err.apply(ErrType.Explained(s, e, indent))
+    def toThrowable: Throwable = e.underlying match
+      case s: String => ErrType.StringErrException(s)
+      case t: ErrType => t.toThrowable
+    def toss: Nothing = throw e.toThrowable
+    def toOr: String Or ErrType = e.underlying match
+      case s: String => Is(s)
+      case t: ErrType => Alt(t)
 
   def apply(s: String): kse.flow.Err = s
   def apply(et: ErrType): kse.flow.Err = et
@@ -56,6 +63,9 @@ object Err {
 trait ErrType {
   type E
   def error: E
+
+  /** Converts this into a `Throwable`.  This `Throwable` should be `catchable`--wrap in `ErrType.CatchableException` if necessary. */
+  def toThrowable: Throwable
 }
 object ErrType {
   private def indentString(string: String, indent: String = "  ", header: String = ""): String =
@@ -75,6 +85,16 @@ object ErrType {
       b.append(string, i, string.length)
     b.toString
 
+  final class StringErrException(msg: String) extends RuntimeException(msg, null, true, false) {
+    override def toString = 
+      if msg.indexOf('\n') < 0 then "Error message: " + msg
+      else "Error message:\n" + msg
+  }
+
+  final class CatchableException(msg: String, cause: Throwable) extends RuntimeException(msg, cause, true, false) {
+    override def toString = if msg.isEmpty then "(Catchable) " + cause.toString else super.toString
+  }
+
   final class ThrowableErr(val error: Throwable, explainer: Throwable => String = _.explain(40, 10)) extends ErrType {
     type E = Throwable
 
@@ -85,9 +105,11 @@ object ErrType {
     override def hashCode = error.hashCode
 
     override lazy val toString = explainer(error)
+
+    def toThrowable = if error.catchable then error else new CatchableException("", error)
   }
 
-  final class Explained(val explanation: String, val error: kse.flow.Err, indent: String = "  ") extends ErrType {
+  final class Explained(val explanation: String, val error: kse.flow.Err, val indent: String = "  ") extends ErrType {
     type E = kse.flow.Err
 
     override def equals(a: Any) = a match
@@ -97,6 +119,25 @@ object ErrType {
     override def hashCode = explanation.## ^ error.##
 
     override lazy val toString = indentString(error.toString, indent = indent, header = explanation)
+
+    override def toThrowable =
+      var explanations: List[Explained] = Nil
+      var x: kse.flow.Err = Err(this)
+      var last: String | ErrType = ""
+      var continue = true
+      while continue do x match
+        case e: Explained =>
+          explanations = e :: explanations
+          x = e.error
+        case _ =>
+          last = x.underlying
+          continue = false
+      last match
+        case s: String => new StringErrException(this.toString)
+        case t: ErrType =>
+          val u = t.toThrowable
+          val msg = explanations.foldLeft(u.toString)((m, x) => indentString(m, indent = x.indent, header = x.explanation))
+          new CatchableException(msg, u)
   }
 }
 

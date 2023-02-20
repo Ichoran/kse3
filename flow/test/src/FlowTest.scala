@@ -59,6 +59,14 @@ class FlowTest {
     T ~ circular.explainSuppressedAsArray()   exists { x => x.contains("circular-exception-2") }
     T ~ caused.explainAsArray()               exists { x => x startsWith "| " }
     T ~ caused.explainAsArray(childLines = 3) exists { x => x startsWith "| . . ." }
+    def wrce(t: Throwable) = ErrType.CatchableException("", t)
+    T ~ basic.hasAnyStackTrace                             ==== true 
+    T ~ caused.hasAnyStackTrace                            ==== true
+    T ~ stackless.hasAnyStackTrace                         ==== false
+    T ~ wrce(basic).hasAnyStackTrace                       ==== true
+    T ~ wrce(stackless).hasAnyStackTrace                   ==== false
+    T ~ wrce(wrce(wrce(wrce(basic)))).hasAnyStackTrace     ==== true
+    T ~ wrce(wrce(wrce(wrce(stackless)))).hasAnyStackTrace ==== false
 
     val short = caused.explainAsArray(lines = 10)
     val full  = caused.explainAsArray()
@@ -107,6 +115,8 @@ class FlowTest {
     T ~ Err(ErrType.Explained("fish", herr)) ==== herr.explainBy("fish")  --: typed[Err]
     T ~ herr.explainBy("fish")               ==== typed[Err]
     T ~ herr.explainWith(_.toString.take(4)) ==== herr.explainBy("herr")  --: typed[Err]
+    T ~ herr.toThrowable                     ==== runtype[Throwable]
+    T ~ herr.toss                            ==== thrown[ErrType.StringErrException]
     T ~ "herring".errIf(_.length < 5)        ==== Err.or("herring")       --: typed[String Or Err]
     T ~ 5.errCase{ case x if x < 6 => Err("x") } ==== Err.or("x")         --: typed[Int Or Err]
    
@@ -1273,6 +1283,17 @@ class FlowTest {
       T ~ threadcope{ "17".toInt }                               ==== 17 --: typed[Int Or String]
       T ~ threadcope{ toss(); 0 }.existsAlt(_ contains "tossed") ==== true
     }
+    T ~ safe{ "17".toInt }.get                                   ==== 17
+    T ~ safe{ "e".toInt }.get                                    ==== thrown[NoSuchElementException]
+    T ~ safe{ "17".toInt }.grab                                  ==== 17
+    T ~ safe{ "e".toInt }.grab                                   ==== thrown[NumberFormatException]
+    T ~ Alt("e").grab                                            ==== thrown[ErrType.StringErrException]
+    T ~ nice{ "17".toInt }.grab                                  ==== 17
+    T ~ nice{ "e".toInt }.grab                                   ==== thrown[NumberFormatException]
+    T ~ threadnice{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
+    T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
+    T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[_]]
+
 
     val l = Left("herring")
     val r = Right(15)
