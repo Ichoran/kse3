@@ -839,6 +839,51 @@ extends SeekableByteChannel {
     case sb: SeekableByteChannel => writeAsMuchAsPossible(sb    )(c => c.size - c.position)(using CountedTransfer.seeker2array)
     case _                       => writeAsMuchAsPossible(source)(_ => 0                  )(using CountedTransfer.channel2array)
 
+  private def compactImpl(before: Boolean, after: Boolean): Unit =
+    val high = index max limit
+    val low = index min limit
+    var li = iactive
+    var lz = zero
+    while low < lz && li > 0 do
+      li -= 1
+      lz -= storage(li).length
+    var hi = iactive
+    var hz = zero
+    while hi < storage.length && high >= hz + storage(hi).length do
+      hz += storage(hi).length
+      hi += 1
+    if hi > li && before && li > 0 then
+      storage = storage.copyOfRange(li, storage.length)
+      iactive -= li
+      zero -= lz
+      index -= lz
+      limit -= lz
+      allocated -= lz
+      hi -= li
+      hz -= lz
+      li = 0
+      lz = 0
+    if hi > li && after && hi+1 < storage.length then
+      val dropped = allocated - (hz + storage(hi).length)
+      storage = storage.copyOfRange(0, hi+1)
+      allocated -= dropped
+    if storage.length == 1 && before then
+      if limit == low then
+        index -= limit
+        limit = 0
+      else if index >= limit-index then
+        System.arraycopy(active, index.toInt, active, 0, (limit - index).toInt)
+        limit -= index
+        index = 0
+  def releasePassed(): Long =
+    val i = index
+    compactImpl(true, false)
+    i - index
+  def releaseUnused(): Unit = compactImpl(false, true)
+  def compact(): this.type =
+    compactImpl(true, true)
+    this
+    
   def availableToRead: Long =
     if !isNowOpen then -1L
     else if index > limit then 0L else limit - index

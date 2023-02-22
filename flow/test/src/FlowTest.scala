@@ -1290,6 +1290,7 @@ class FlowTest {
     T ~ Alt("e").grab                                            ==== thrown[ErrType.StringErrException]
     T ~ nice{ "17".toInt }.grab                                  ==== 17
     T ~ nice{ "e".toInt }.grab                                   ==== thrown[NumberFormatException]
+    T ~ threadsafe{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
     T ~ threadnice{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
     T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
     T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[_]]

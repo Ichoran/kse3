@@ -209,7 +209,12 @@ created with the `wrap` method.  If there is a `wrap` method to create it,
 the should be a corresponding `unwrap` method to get the same type back out.
 A `wrap/unwrap/wrap` cycle should produce functionally identical objects.
 
-3. TODO: figure out when to use `of`, `from`, `parse`, and so on, but these
+3. An opaque type or a class that is just a label or adds functionality,
+and works on every wrapped value, will reveal its contents with
+`underlying`, if it is not container-like, or `value`, if it is
+container-like, instead of `unwrap`.
+
+4. TODO: figure out when to use `of`, `from`, `parse`, and so on, but these
 are allowed to return Option/Or types when appropriate.
 
 #### Access to contents of objects.
@@ -220,9 +225,11 @@ save in an error state (e.g. being "closed"), that value is called `value`.
 2. If an object may contain a single unique value, or a value correspoding
 to some parameters, you get that value _unsafely_ by calling `get` (a new
 exception will be thrown on failure).  If there is a stored error to
-propagate, `grab` instead of `get` will try to propagate the error, without
-a new stack trace if possible.  Safe alternatives are named `getFoo`, where
-`Foo` specifies how to recover.
+propagate, `grab` instead of `get` will try to propagate the error as a
+catchable exception, without a new stack trace, if possible.  Safe
+alternatives are named `getSping`, where `Sping` specifies an alterative
+strategy.  For instance, `getOrElse(bippy)` should do `bippy` when the
+value is not there (perhaps `bippy` is a default value).
 
 3. If an object may be able to give values when supplied a parameter, the
 method used is `apply`.  It may return an Option/Or type if errors are

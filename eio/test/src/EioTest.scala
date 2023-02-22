@@ -294,11 +294,21 @@ class EioTest {
     T ~ abx                                  =**= big
     val weird = new Array[Byte](1917)
     val sbc2 = Array.empty[Byte].growCopyBy(337)
+    val sbc3 = Array.empty[Byte].growCopyBy(294)
     T ~ sbc.position(0)                      ==== sbc
     T ~ sbc.read(weird.writeChannel)         ==== weird.length
     T ~ sbc.read(sbc2)                       ==== (big.length - weird.length)
     T ~ weird                                =**= big.take(weird.length)
     T ~ { sbc2.close; sbc2.getBytes.get }    =**= big.drop(weird.length)
+    T ~ sbc.position(0)                      ==== sbc
+    T ~ sbc.read(sbc3)                       ==== big.length
+    T ~ sbc3.position(0)                     ==== sbc3
+    T ~ sbc3.availableToRead                 ==== big.length
+    T ~ sbc3.position(294*20 + 170)          ==== sbc3
+    T ~ sbc3.availableToRead                 ==== big.length - 294*20 - 170
+    T ~ sbc3.compact().position              ==== 170
+    T ~ sbc3.availableToRead                 ==== big.length - 294*20 - 170
+    T ~ { sbc3.close; sbc3.getBytes.get }    =**= big.drop(294*20)
     T ~ sbc.detatchBuffers()                 ==== thrown[IllegalArgumentException]
     T ~ sbc.getBytes                         ==== thrown[IllegalArgumentException]
     sbc.close

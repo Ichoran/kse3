@@ -325,7 +325,7 @@ extension [X, Y](or: X Or Y) {
   @targetName("grabXOrY")
   inline def grab: X = or.getOrElse{ a => (a: Any) match
     case s: String => throw new ErrType.StringErrException(s)
-    case t: Throwable if t.catchable => throw t
+    case t: Throwable => { if t.catchable then throw t else throw ErrType.CatchableException("", t) }
     case e: ErrType => throw e.toThrowable
     case y => throw new WrongBranchException(y)
   }
