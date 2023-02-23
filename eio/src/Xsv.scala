@@ -26,6 +26,7 @@ class Xsv[A](
   if separator == '\n' || separator == '\r' then throw new IllegalArgumentException("Separator cannot be a newline character")
   if separator == '"' then throw new IllegalArgumentException("Separator cannot be a double quote character")
 
+  /*
   def readFrom(p: Path): Array[Xsv.Data] Or Err = p.gulp.flatMap(decode)
 
   def writeTo(p: Path, content: Array[Array[String]]): Unit Or Err = ???
@@ -128,16 +129,16 @@ class Xsv[A](
   def decode(content: String): Array[Array[String]] Or Err = ???
   def decode(lines: Array[String]): Array[Array[String]] Or Err = ???
 
-  def decode(input: InputBuffer): Array[Array[String]] Or Err = Err.Or:
+  def decode(input: InputBuffer): Array[Array[String]] Or Err =
     val mac = new MultiArrayChannel()
-    nice{ mac.read(input) }.?
-    decode(mac.getBytes)
+    nice{ mac.read(input) } >>> decode(mac.getBytes)
 
   def decode(seeker: SeekableByteChannel): Array[Array[String]] Or Err =
     decode(seeker.input)
 
   def decode(multi: MultiArrayChannel): Array[Array[String]] Or Err =
     decode(multi.getBytes)
+  */
 }
 object Xsv {
   def comma = new Xsv(',')
