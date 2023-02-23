@@ -489,15 +489,15 @@ class EioTest {
     T ~ q.exists                     ==== false
 
     val ab2 = "ft".bytes
-    T ~ q.openCreate().tap(_.close)                                      ==== runtype[BufferedOutputStream]
+    Resource(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
     T ~ q.exists                                                         ==== true
     T ~ q.size                                                           ==== 0L
-    T ~ q.openAppend().tap{o => o.write('e'); o.close}                   ==== runtype[BufferedOutputStream]
+    Resource(q.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }
     T ~ q.size                                                           ==== 1L
-    T ~ q.openRead().tap(_.close)                                        ==== runtype[BufferedInputStream]
+    Resource(q.openRead())(_.close)(x => T ~ x ==== runtype[BufferedInputStream])
     T ~ Resource(q.openRead())(_.close)(_.available)                     ==== 1
     T ~ Resource(q.openRead())(_.close)(_.read)                          ==== 'e'
-    T ~ q.openWrite().tap{o => o.write("eel".bytes); o.close}            ==== runtype[BufferedOutputStream]
+    Resource(q.openWrite())(_.close){ o => o.write("eel".bytes); T ~ o ==== runtype[BufferedOutputStream] }
     T ~ Resource(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
     T ~ Resource(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
 

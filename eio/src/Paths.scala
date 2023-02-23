@@ -188,7 +188,7 @@ extension (the_path: Path) {
   inline def gulp: Array[Byte] =
     Files readAllBytes the_path
 
-  inline def openRead(): java.io.BufferedInputStream =
+  def openRead()(using Tidy[java.io.BufferedInputStream]): java.io.BufferedInputStream =
     new BufferedInputStream(Files newInputStream the_path, 8192)
 
   inline def write(data: Array[Byte]): Unit =
@@ -218,22 +218,22 @@ extension (the_path: Path) {
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
       true
 
-  def openWrite(): java.io.BufferedOutputStream =
+  def openWrite()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
     new BufferedOutputStream(Files newOutputStream the_path, 8192)
 
-  def openAppend(): java.io.BufferedOutputStream =
+  def openAppend()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
     new BufferedOutputStream(
       Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
       8192
     )
 
-  def openCreate(): java.io.BufferedOutputStream =
+  def openCreate()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
     new BufferedOutputStream(
       Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
       8192
     )
 
-  def openIO(): SeekableByteChannel =
+  def openIO()(using Tidy[SeekableByteChannel]): SeekableByteChannel =
     Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
 
   inline def copyTo(to: Path): Unit =

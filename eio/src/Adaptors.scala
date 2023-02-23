@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014, 2015, 2020, 2021 Rex Kerr, UCSF, and Calico Life Sciences LLC
+// Copyright (c) 2014-15, 2020-23 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
 package kse.eio
 
@@ -883,7 +883,7 @@ extends SeekableByteChannel {
   def compact(): this.type =
     compactImpl(true, true)
     this
-    
+
   def availableToRead: Long =
     if !isNowOpen then -1L
     else if index > limit then 0L else limit - index

@@ -988,6 +988,29 @@ class FlowTest {
     T ~ x                                ==== 0
     T ~ (oa || { x += 1; 9.orAlt[Int] }) ==== 9
     T ~ x                                ==== 1
+    T ~ (oi && 9.orAlt[String])          ==== (5, 9)     --: typed[(Int, Int) Or String]
+    T ~ (oa && oi)                       ==== oa
+    T ~ (oi && oa)                       ==== oa
+    T ~ (oi && { x += 1; 9.orAlt[Int]})  ==== (5, 9)
+    T ~ x                                ==== 2
+    T ~ (oa && { x += 1; 9.orAlt[Int]})  ==== oa
+    T ~ x                                ==== 2
+    val ui = ().orAlt[String]
+    val ua = "eel".orIs[Unit]
+    T ~ (oi && oi)                       ==== (5, 5)     --: typed[(Int, Int) Or String]
+    T ~ (oi && oa)                       ==== Alt("cod") --: typed[(Int, Int) Or String]
+    T ~ (oa && oi)                       ==== Alt("cod") --: typed[(Int, Int) Or String]
+    T ~ (oa && oa)                       ==== Alt("cod") --: typed[(Int, Int) Or String]
+    T ~ (ui && oi)                       ==== 5          --: typed[Int Or String]
+    T ~ (oi && ui)                       ==== 5          --: typed[Int Or String]
+    T ~ (ui && ui)                       ==== ()         --: typed[Unit Or String]
+    T ~ (oi && ua)                       ==== Alt("eel") --: typed[Int Or String]
+    T ~ (ua && oi)                       ==== Alt("eel") --: typed[Int Or String]
+    T ~ (oa && ui)                       ==== Alt("cod") --: typed[Int Or String]
+    T ~ (ui && oa)                       ==== Alt("cod") --: typed[Int Or String]
+    T ~ (oa && ua)                       ==== Alt("cod") --: typed[Int Or String]
+    T ~ (ua && oa)                       ==== Alt("eel") --: typed[Int Or String]
+    T ~ (ua && ua)                       ==== Alt("eel") --: typed[Unit Or String]
 
     T ~ i.discard{ case x if x > 0 => "!"*x }                  ==== Alt("!!!!!")    --: typed[Int Or String]
     T ~ i.discard{ case x if x < 0 => "@"*(-x) }               ==== 5               --: typed[Int Or String]

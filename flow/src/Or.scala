@@ -419,6 +419,30 @@ extension [X, Y](or: Or[X, Y]) {
     case _: Alt[_] => that
     case _         => or.asInstanceOf[Is[XX]]
 
+  /** Pairs two existing favored values, or returns the earliest disfavored value.
+    * If the first or second `Or` is a unit success, just return the second; don't bother tupling.
+    *
+    * Equivalent to `o1.flatMap{ x1 => o2.map{ x2 => (x1, x2) } }` if neither `Or` has a `Unit` success type,
+    * or `o1.flatMap{_ => o2}` if `o1` has `Unit` success type,
+    * or `o1.flatMap{x => o2.map(_ => x)}` if `o2` has `Unit` success type and `o1` does not.
+    */
+  transparent inline def &&[XX, YY >: Y](inline that: => XX Or YY) =
+    inline erasedValue[X] match
+      case _: Unit => (or: X Or Y) match
+        case a: Alt[_] => a.asInstanceOf[XX Or YY]
+        case _         => that
+      case _ => inline erasedValue[XX] match
+        case _: Unit => (or: X Or Y) match
+          case a: Alt[_] => a.asInstanceOf[X Or YY]
+          case _ => (that: XX Or YY) match
+            case b: Alt[_] => b.asInstanceOf[X Or YY]
+            case _ => or.asInstanceOf[X Or YY]
+        case _ => (or: X Or Y) match
+          case a: Alt[_] => a.asInstanceOf[(X, XX) Or YY]
+          case _ => (that: XX Or YY) match
+            case b: Alt[_] => b.asInstanceOf[(X, XX) Or YY]
+            case xx => Is((Is unwrap or.asInstanceOf[Is[X]], Is unwrap xx.asInstanceOf[Is[XX]])): (X, XX) Or YY
+
   /** Operate on the favored value if it exists. */
   inline def foreach(inline f: X => Unit): Unit = (or: X Or Y) match
     case _: Alt[_] => ()
