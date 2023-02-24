@@ -270,6 +270,29 @@ object Transfer {
       n
   }
 
+  final class IterBytesToMulti(endline: Array[Byte] = emptyByteArray, allowFullTarget: Boolean = false)
+  extends Transfer[Iterator[Array[Byte]], MultiArrayChannel] {
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: MultiArrayChannel): Long Or Err = Err.Or:
+      var m = 0L max count
+      var n = 0L
+      while in.hasNext & m - n > 0 do
+        val ab = in.next
+        val h = if m - n < ab.length then (m - n).toInt else ab.length
+        val k = out.write(ab, 0)(h)
+        if k < h then
+          if allowFullTarget then Is.break(n + (k max 0))
+          else Err.break(s"Output channel full with at least ${h - k} bytes remaining")
+        n += h
+        if endline.length > 0 then
+          val g = if m - n < endline.length then (m - n).toInt else endline.length
+          val j = out.write(endline, 0)(g)
+          if j < g then
+            if allowFullTarget then Is.break(n + (j max 0))
+            else Err.break(s"Output channelf ull with at least ${g - j} bytes remaining")
+          n += g
+      n
+  }
+
   final class IterStringToStream(endline: String = "\n")
   extends Transfer[Iterator[String], OutputStream] {
     private val actual = new IterBytesToStream(if endline.isEmpty then emptyByteArray else endline.bytes)
@@ -284,6 +307,13 @@ object Transfer {
       actual.limited(count)(in.map(_.bytes), out)
   }
 
+  final class IterStringToMulti(endline: String = "\n", allowFullTarget: Boolean = false)
+  extends Transfer[Iterator[String], MultiArrayChannel] {
+    private val actual = new IterBytesToMulti(if endline.isEmpty then emptyByteArray else endline.bytes, allowFullTarget)
+    def limited(count: Long)(in: Iterator[String], out: MultiArrayChannel): Long Or Err =
+      actual.limited(count)(in.map(_.bytes), out)
+  }
+
   given stream2stream: Transfer[InputStream, OutputStream] = StreamToStream()
   given stream2channel: Transfer[InputStream, WritableByteChannel] = StreamToChannel()
   given channel2stream: Transfer[ReadableByteChannel, OutputStream] = ChannelToStream()
@@ -292,8 +322,10 @@ object Transfer {
   given multi2channel: Transfer[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
   given iterbytes2stream: Transfer[Iterator[Array[Byte]], OutputStream] = IterBytesToStream()
   given iterbytes2channel: Transfer[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
+  given iterbytes2multi: Transfer[Iterator[Array[Byte]], MultiArrayChannel] = IterBytesToMulti()
   given iterstring2stream: Transfer[Iterator[String], OutputStream] = IterStringToStream()
   given iterstring2channel: Transfer[Iterator[String], WritableByteChannel] = IterStringToChannel()
+  given iterstring2multi: Transfer[Iterator[String], MultiArrayChannel] = IterStringToMulti()
 }
 
 extension (in: InputStream)

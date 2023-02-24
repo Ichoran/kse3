@@ -628,6 +628,16 @@ class EioTest {
     T ~ biter.transferTo(zws)(using smb2c)                 ==== 1024L
     T ~ z1024                                              =**= b9999.take(1024)
 
+    val smb2m = Transfer.IterBytesToMulti(allowFullTarget = true)
+    z9999.fill(0)
+    T ~ biter.transferTo(z9999.writeChannel)               ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ biter.transferTo(z1024.writeChannel).isAlt         ==== true
+    T ~ biter.transferTo(z1024.writeChannel).alt.toss      ==== thrown[ErrType.StringErrException]
+    z1024.fill(0)
+    T ~ biter.transferTo(z1024.writeChannel)(using smb2m)  ==== 1024L
+    T ~ z1024                                              =**= b9999.take(1024)
+
     val strings = List("salmon", "herring", "cod", "perch")
     def siter = strings.iterator
     z9999.fill(0)
@@ -645,6 +655,17 @@ class EioTest {
     z20.fill(0)
     T ~ siter.transferTo(w20)(using smi2c)                 ==== 20L
     T ~ z20.utf8                                           ==== "salmon\nherring\ncod\np"
+
+    val smi2m = Transfer.IterStringToMulti(allowFullTarget = true)
+    z9999.fill(0)
+    T ~ siter.transferTo(z9999.writeChannel)               ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8     ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.transferTo(z20.writeChannel).isAlt           ==== true
+    T ~ siter.transferTo(z20.writeChannel).alt.toss        ==== thrown[ErrType.StringErrException]
+    z20.fill(0)
+    T ~ siter.transferTo(z20.writeChannel)(using smi2m)    ==== 20L
+    T ~ z20.utf8                                           ==== "salmon\nherring\ncod\np"
+
 
 }
 object EioTest {
