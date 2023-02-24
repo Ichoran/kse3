@@ -13,7 +13,7 @@ import java.io._
 import java.nio._
 import java.nio.file._
 import java.nio.file.attribute.FileTime
-import java.nio.channels.{ClosedChannelException, SeekableByteChannel}
+import java.nio.channels._
 import java.time._
 import java.util.zip._
 
@@ -539,6 +539,72 @@ class EioTest {
     val mp = "/life/fish".pathIn(mfs)
     T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
     T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
+
+
+  @Test
+  def readwriteTest(): Unit =
+    val rng = Pcg64(9569856892L)
+    val sms2s = Transfer.StreamToStream(391)
+    val sms2c = Transfer.StreamToChannel(391, allowFullTarget = true)
+    val smc2s = Transfer.ChannelToStream(391)
+    val smc2c = Transfer.ChannelToChannel(391, allowFullTarget = true)
+    val smm2c = Transfer.MultiToChannel(allowFullTarget = true)
+    val b9999 = rng.arrayB(9999)
+    val z9999 = new Array[Byte](9999)
+    val z1024 = new Array[Byte](1024)
+    def rsbc: SeekableByteChannel = b9999.readChannel
+    def rmac: MultiArrayChannel = b9999.readChannel
+    def zwc: WritableByteChannel = z9999.writeChannel
+    def zws: WritableByteChannel = z1024.writeChannel
+    T ~ b9999.input.transferTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
+    T ~ z9999                                             =**= b9999
+    z9999.fill(0)
+    T ~ b9999.input.transferTo(z9999.output)(using sms2s) ==== 9999L
+    T ~ z9999                                             =**= b9999
+    T ~ b9999.input.transferTo(z1024.output).isAlt        ==== true
+    T ~ b9999.input.transferTo(z1024.output).alt.toss     ==== thrown[IOException]
+    z9999.fill(0)
+    T ~ b9999.input.transferTo(zwc)                        ==== 9999L
+    T ~ z9999                                              =**= b9999
+    z9999.fill(0)
+    T ~ b9999.input.transferTo(zwc)(using sms2c)           ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ b9999.input.transferTo(zws).isAlt                  ==== true
+    T ~ b9999.input.transferTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
+    T ~ b9999.input.transferTo(zws)(using sms2c)           ==== 1024
+    T ~ z1024                                              =**= b9999.take(1024)
+    z9999.fill(0)
+    T ~ rsbc.transferTo(z9999.output)                      ==== 9999L
+    T ~ z9999                                              =**= b9999
+    z9999.fill(0)
+    T ~ rsbc.transferTo(z9999.output)(using smc2s)         ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ rsbc.transferTo(z1024.output).isAlt                ==== true
+    T ~ rsbc.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+    z9999.fill(0)
+    T ~ rsbc.transferTo(zwc)                               ==== 9999L
+    T ~ z9999                                              =**= b9999
+    z9999.fill(0)
+    T ~ rsbc.transferTo(zwc)(using smc2c)                  ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ rsbc.transferTo(zws).isAlt                         ==== true
+    T ~ rsbc.transferTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    z1024.fill(0)
+    T ~ rsbc.transferTo(zws)(using smc2c)                  ==== 1024
+    T ~ z1024                                              =**= b9999.take(1024)
+    z9999.fill(0)
+    T ~ rmac.transferTo(z9999.output)                      ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ rmac.transferTo(z1024.output).isAlt                ==== true
+    T ~ rmac.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+    z9999.fill(0)
+    T ~ rmac.transferTo(zwc)                               ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ rmac.transferTo(zws).isAlt                         ==== true
+    T ~ rmac.transferTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    z1024.fill(0)
+    T ~ rmac.transferTo(zws)(using smm2c)                  ==== 1024L
+    T ~ z1024                                              =**= b9999.take(1024)
 }
 object EioTest {
   import kse.flow.{given, _}

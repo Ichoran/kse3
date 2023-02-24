@@ -1,7 +1,6 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2014, 2015, 2020, 2021 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
-/*
 package kse.eio
 
 import java.io._
@@ -9,6 +8,236 @@ import java.nio._
 import java.nio.channels._
 import java.nio.file._
 
+import kse.flow.{given, _}
+import kse.maths.{given, _}
+
+trait Transfer[A, -B] {
+  inline final def apply(in: A, out: B): Long Or Err = limited(Long.MaxValue)(in, out)
+  def limited(count: Long)(in: A, out: B): Long Or Err
+}
+object Transfer {
+  final class StreamToStream(maxBuffer: Int = 0x1000000)
+  extends Transfer[InputStream, OutputStream] {
+    private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
+    def limited(count: Long)(in: InputStream, out: OutputStream): Long Or Err = Err.nice:
+      var buffer: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
+      var n = 0L
+      var m = 0L max count
+      while m-n > 0L do
+        val k =
+          if m-n >= buffer.length then in.read(buffer)
+          else in.read(buffer, 0, (m-n).toInt)
+        if k < 0 then m = 0L
+        else
+          out.write(buffer, 0, k)
+          n += k
+          if k == buffer.length && buffer.length < maxb && n - m > 2L*buffer.length then
+            var bigger = (buffer.length *# 2) min maxb
+            if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
+            buffer = new Array[Byte](bigger)
+      out.flush
+      n
+  }
+
+  final class StreamToChannel(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
+  extends Transfer[InputStream, WritableByteChannel] {
+    private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
+    private val maxr = maxRetries.clamp(0, Int.MaxValue)
+    private val msdr = msDelayRetry.toInt
+    def limited(count: Long)(in: InputStream, out: WritableByteChannel): Long Or Err = Err.Or:
+      var data: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
+      var buffer: ByteBuffer = data.buffer
+      var n = 0L
+      var m = 0L max count
+      var k = 0
+      while m - n > 0L do
+        if k == 0 then
+          k = if m-n >= data.length then in.read(data) else in.read(data, 0, (m-n).toInt)
+        if k < 0 then m = 0L
+        else
+          buffer.position(0).limit(k)
+          var nr = 0
+          var r = out.write(buffer)
+          while r < k && nr < maxr && r >= 0 do
+            if msdr > 0 then Thread.sleep(msdr)
+            nr += 1
+            val w = out.write(buffer)
+            if w < 0 then r = w else r += w 
+          if r < 0 then
+            n += buffer.position
+            if allowFullTarget then m = 0
+            else Err.break(s"Full output after $n bytes with at least ${buffer.remaining} remaining")
+          else if r < k then
+            Err.break(s"After $maxr tries, write $n bytes but at least ${buffer.remaining} remaining")
+          else
+            n += k
+            if k == data.length && data.length < maxb && n - m > 2L*data.length then
+              var bigger = (data.length *# 2) min maxb
+              if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
+              data = new Array[Byte](bigger)
+              buffer = data.buffer
+            k = 0
+      n
+  }
+
+  final class ChannelToStream(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0))
+  extends Transfer[ReadableByteChannel, OutputStream] {
+    private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
+    private val maxr = maxRetries.clamp(0, Int.MaxValue)
+    private val msdr = msDelayRetry.toInt
+    def limited(count: Long)(in: ReadableByteChannel, out: OutputStream): Long Or Err = Err.Or:
+      val speculativeSize = in match
+        case sbc: SeekableByteChannel => (sbc.size - sbc.position).clamp(0L, Int.MaxValue - 7).toInt
+        case _ => 4096
+      var data: Array[Byte] = new Array[Byte]( speculativeSize.clamp(if maxb < 4096 then maxb else 4096, maxb) )
+      var buffer: ByteBuffer = data.buffer
+      var n = 0L
+      var m = 0L max count
+      var nz = 0
+      while m - n > 0L do
+        if m - n < data.length then buffer.limit((m - n).toInt)
+        val k = in.read(buffer)
+        if k < 0 then m = 0L
+        else if k == 0 then
+          nz += 1
+          if nz > maxr then Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+          else if msdr > 0 then Thread.sleep(msdr)
+        else
+          nz = 0
+          out.write(data, 0, k)
+          n += k
+          if k == data.length && data.length < maxb && n - m > 2L*data.length then
+            var bigger = (data.length *# 2) min maxb
+            if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
+            data = new Array[Byte](bigger)
+            buffer = data.buffer
+          else buffer.clear
+      n
+  }
+
+  final class ChannelToChannel(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
+  extends Transfer[ReadableByteChannel, WritableByteChannel] {
+    private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
+    private val maxr = maxRetries.clamp(0, Int.MaxValue)
+    private val msdr = msDelayRetry.toInt
+    def limited(count: Long)(in: ReadableByteChannel, out: WritableByteChannel): Long Or Err = Err.Or:
+      val speculativeSize = in match
+        case sbc: SeekableByteChannel => (sbc.size - sbc.position).clamp(0L, Int.MaxValue - 7).toInt
+        case _ => 4096
+      var buffer = ByteBuffer.allocate( speculativeSize.clamp(if maxb < 4096 then maxb else 4096, maxb) )
+      var n = 0L
+      var m = 0L max count
+      var nz = 0
+      var k = 0
+      var r = 0
+      while m - n > 0L do
+        if k == 0 then
+          if m - n < buffer.capacity then buffer.limit((m - n).toInt)
+          k = in.read(buffer)
+          if k > 0 then
+            buffer.flip
+            nz = 0
+        if k < 0 then
+          m = 0L
+        else if k == 0 then
+          nz += 1
+          if nz > maxr then Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+          else if msdr > 0 then Thread.sleep(msdr)
+        else
+          val w = out.write(buffer)
+          if w < 0 then
+            n += buffer.position
+            if allowFullTarget then m = 0
+            else Err.break(s"Full output after $n bytes with at least ${buffer.remaining} remaining")
+          else if w == 0 then
+            nz += 1
+            if nz > maxr then
+              n += buffer.position
+              Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+            else if msdr > 0 then Thread.sleep(msdr)
+          else
+            nz = 0
+            r += w
+            if r >= k then
+              n += k
+              if k == buffer.capacity && buffer.capacity < maxb && n - m > 2L*buffer.capacity then
+                var bigger = (buffer.capacity *# 2) min maxb
+                if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
+                buffer = ByteBuffer.allocate(bigger)
+              else buffer.clear
+              k = 0
+              r = 0
+      n
+  }
+
+  final class MultiToStream()
+  extends Transfer[MultiArrayChannel, OutputStream] {
+    def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Long Or Err = Err.Or:
+      if count == Long.MaxValue then in.read(out)
+      else if count <= 0 then 0L
+      else
+        val nchunk = ((count - 1) / 0x20000000L) + 1
+        val chunk = (count / nchunk).toInt
+        var m = count
+        var n = 0L
+        while m - n > 0L do
+          val h = if m - n < chunk then (m - n).toInt else chunk
+          val k = in.read(out)(h)
+          if k > 0 then n += k
+          if k < h then m = 0
+        n
+  }
+
+
+  final class MultiToChannel(maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
+  extends Transfer[MultiArrayChannel, WritableByteChannel] {
+    private val maxr = maxRetries.clamp(0, Int.MaxValue)
+    private val msdr = msDelayRetry.toInt
+    def limited(count: Long)(in: MultiArrayChannel, out: WritableByteChannel): Long Or Err = Err.Or:
+      if count <= 0 then 0L
+      else
+        val nchunk = ((count - 1) / 0x20000000L) + 1
+        val chunk = (count / nchunk).toInt
+        var m = count
+        var n = 0L
+        var nz = 0
+        while m - n > 0L do
+          val h = if m - n < chunk then (m - n).toInt else chunk
+          val k = in.read(out)(h)
+          if k > 0 then
+            nz = 0
+            n += k
+          else if k < 0 then
+            if in.availableToRead == 0 || allowFullTarget then m = 0
+            else Err.break(s"Output full with ${in.availableToRead min (m-n)} bytes remaining")
+          else
+            nz += 1
+            if nz > maxr then
+              Err.break(s"Made no progress writing after $nz tries with ${in.availableToRead min (m-n)} bytes remaining")
+            else
+              if msdr > 0 then Thread.sleep(msdr)
+        n
+  }
+
+  given stream2stream: Transfer[InputStream, OutputStream] = StreamToStream()
+  given stream2channel: Transfer[InputStream, WritableByteChannel] = StreamToChannel()
+  given channel2stream: Transfer[ReadableByteChannel, OutputStream] = ChannelToStream()
+  given channel2channel: Transfer[ReadableByteChannel, WritableByteChannel] = ChannelToChannel()
+  given multi2stream: Transfer[MultiArrayChannel, OutputStream] = MultiToStream()
+  given multi2channel: Transfer[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
+}
+
+extension (in: InputStream)
+  def transferTo[B](out: B)(using tr: Transfer[InputStream, B]): Long Or Err = tr(in, out)
+
+extension (rbc: ReadableByteChannel)
+  def transferTo[B](out: B)(using tr: Transfer[ReadableByteChannel, B]): Long Or Err = tr(rbc, out)
+
+extension (mac: MultiArrayChannel)
+  def transferTo[B](out: B)(using tr: Transfer[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
+
+
+/*
 
 
 object LineOutput {
