@@ -238,10 +238,49 @@ object Transfer {
       n
   }
 
+  final class IterBytesToChannel(endline: Array[Byte] = emptyByteArray, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
+  extends Transfer[Iterator[Array[Byte]], WritableByteChannel] {
+    private val maxr = maxRetries.clamp(0, Int.MaxValue)
+    private val msdr = msDelayRetry.toInt
+    private val ebuf = endline.buffer
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: WritableByteChannel): Long Or Err = Err.Or:
+      var m = 0L max count
+      var n = 0L
+      while in.hasNext && m - n > 0 do
+        val ab = in.next
+        val passes = if endline.length == 0 then 1 else 2
+        var i = if ab.length > 0 then 0 else 1
+        while i < passes do
+          val bb = if i == 0 then ab.buffer else { ebuf.clear; ebuf }
+          i += 1
+          if m - n < bb.limit then bb.limit((m - n).toInt)
+          var nr = 0
+          while bb.remaining > 0 && nr <= maxr do
+            val w = out.write(bb)
+            if w < 0 then
+              if allowFullTarget then Is.break(n + bb.position)
+              else Err.break(s"Output channel full with at least ${bb.remaining} bytes remaining")
+            if w == 0 then
+              nr += 1
+              if msdr > 0 then Thread.sleep(msdr)
+            else nr = 0
+            nr += 1
+          if bb.remaining > 0 then Err.break(s"Made no progress writing after $nr attempts with at least ${bb.remaining} bytes remaining")
+          n += bb.limit
+      n
+  }
+
   final class IterStringToStream(endline: String = "\n")
   extends Transfer[Iterator[String], OutputStream] {
     private val actual = new IterBytesToStream(if endline.isEmpty then emptyByteArray else endline.bytes)
     def limited(count: Long)(in: Iterator[String], out: OutputStream): Long Or Err =
+      actual.limited(count)(in.map(_.bytes), out)
+  }
+
+  final class IterStringToChannel(endline: String = "\n", maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
+  extends Transfer[Iterator[String], WritableByteChannel] {
+    private val actual = new IterBytesToChannel(if endline.isEmpty then emptyByteArray else endline.bytes, maxRetries, msDelayRetry, allowFullTarget)
+    def limited(count: Long)(in: Iterator[String], out: WritableByteChannel): Long Or Err =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
@@ -252,9 +291,9 @@ object Transfer {
   given multi2stream: Transfer[MultiArrayChannel, OutputStream] = MultiToStream()
   given multi2channel: Transfer[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
   given iterbytes2stream: Transfer[Iterator[Array[Byte]], OutputStream] = IterBytesToStream()
-  // given iterbytes2channel: Transfer[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
+  given iterbytes2channel: Transfer[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
   given iterstring2stream: Transfer[Iterator[String], OutputStream] = IterStringToStream()
-  // given iterstring2channel: Transfer[Iterator[String], WritableByteChannel] = IterStringToChannel()
+  given iterstring2channel: Transfer[Iterator[String], WritableByteChannel] = IterStringToChannel()
 }
 
 extension (in: InputStream)

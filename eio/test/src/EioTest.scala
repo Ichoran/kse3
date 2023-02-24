@@ -544,11 +544,6 @@ class EioTest {
   @Test
   def readwriteTest(): Unit =
     val rng = Pcg64(9569856892L)
-    val sms2s = Transfer.StreamToStream(391)
-    val sms2c = Transfer.StreamToChannel(391, allowFullTarget = true)
-    val smc2s = Transfer.ChannelToStream(391)
-    val smc2c = Transfer.ChannelToChannel(391, allowFullTarget = true)
-    val smm2c = Transfer.MultiToChannel(allowFullTarget = true)
     val b9999 = rng.arrayB(9999)
     val z9999 = new Array[Byte](9999)
     val z1024 = new Array[Byte](1024)
@@ -557,6 +552,7 @@ class EioTest {
     def zwc: WritableByteChannel = z9999.writeChannel
     def zws: WritableByteChannel = z1024.writeChannel
 
+    val sms2s = Transfer.StreamToStream(391)
     T ~ b9999.input.transferTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
     T ~ z9999                                             =**= b9999
     z9999.fill(0)
@@ -565,6 +561,7 @@ class EioTest {
     T ~ b9999.input.transferTo(z1024.output).isAlt        ==== true
     T ~ b9999.input.transferTo(z1024.output).alt.toss     ==== thrown[IOException]
 
+    val sms2c = Transfer.StreamToChannel(391, allowFullTarget = true)
     z9999.fill(0)
     T ~ b9999.input.transferTo(zwc)                        ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -576,6 +573,7 @@ class EioTest {
     T ~ b9999.input.transferTo(zws)(using sms2c)           ==== 1024
     T ~ z1024                                              =**= b9999.take(1024)
 
+    val smc2s = Transfer.ChannelToStream(391)
     z9999.fill(0)
     T ~ rsbc.transferTo(z9999.output)                      ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -585,6 +583,7 @@ class EioTest {
     T ~ rsbc.transferTo(z1024.output).isAlt                ==== true
     T ~ rsbc.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
 
+    val smc2c = Transfer.ChannelToChannel(391, allowFullTarget = true)
     z9999.fill(0)
     T ~ rsbc.transferTo(zwc)                               ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -603,6 +602,7 @@ class EioTest {
     T ~ rmac.transferTo(z1024.output).isAlt                ==== true
     T ~ rmac.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
 
+    val smm2c = Transfer.MultiToChannel(allowFullTarget = true)
     z9999.fill(0)
     T ~ rmac.transferTo(zwc)                               ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -618,11 +618,34 @@ class EioTest {
     T ~ biter.transferTo(z9999.output)                     ==== 9999L
     T ~ z9999                                              =**= b9999
 
+    val smb2c = Transfer.IterBytesToChannel(allowFullTarget = true)
+    z9999.fill(0)
+    T ~ biter.transferTo(zwc)                              ==== 9999L
+    T ~ z9999                                              =**= b9999
+    T ~ biter.transferTo(zws).isAlt                        ==== true
+    T ~ biter.transferTo(zws).alt.toss                     ==== thrown[ErrType.StringErrException]
+    z1024.fill(0)
+    T ~ biter.transferTo(zws)(using smb2c)                 ==== 1024L
+    T ~ z1024                                              =**= b9999.take(1024)
+
     val strings = List("salmon", "herring", "cod", "perch")
     def siter = strings.iterator
     z9999.fill(0)
     T ~ siter.transferTo(z9999.output)                     ==== strings.map(_.length + 1).sum
     T ~ z9999.take(strings.map(_.length + 1).sum)          =**= "salmon\nherring\ncod\nperch\n".bytes
+
+    val smi2c = Transfer.IterStringToChannel(allowFullTarget = true)
+    val z20 = new Array[Byte](20)
+    def w20: WritableByteChannel = z20.writeChannel
+    z9999.fill(0)
+    T ~ siter.transferTo(zwc)                              ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8     ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.transferTo(w20).isAlt                        ==== true
+    T ~ siter.transferTo(w20).alt.toss                     ==== thrown[ErrType.StringErrException]
+    z20.fill(0)
+    T ~ siter.transferTo(w20)(using smi2c)                 ==== 20L
+    T ~ z20.utf8                                           ==== "salmon\nherring\ncod\np"
+
 }
 object EioTest {
   import kse.flow.{given, _}
