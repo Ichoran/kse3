@@ -117,8 +117,19 @@ class FlowTest {
     T ~ herr.explainWith(_.toString.take(4)) ==== herr.explainBy("herr")  --: typed[Err]
     T ~ herr.toThrowable                     ==== runtype[Throwable]
     T ~ herr.toss                            ==== thrown[ErrType.StringErrException]
-    T ~ "herring".errIf(_.length < 5)        ==== Err.or("herring")       --: typed[String Or Err]
-    T ~ 5.errCase{ case x if x < 6 => Err("x") } ==== Err.or("x")         --: typed[Int Or Err]
+    T ~ "herring".errIfNot(_.length < 5)     ==== Err.or("herring")       --: typed[String Or Err]
+    T ~ "herring".errIf(_.length < 5)        ==== "herring"               --: typed[String Or Err]
+    T ~ "herring".errIfNot(_.length > 5)     ==== "herring"
+    T ~ "herring".errIf(_.length > 5)        ==== Err.or("herring")
+    T ~ 5.errCase{case x if x<6 => Err("x")} ==== Err.or("x")             --: typed[Int Or Err]
+    T ~ Err.nice{ 5.toInt }                  ==== 5                       --: typed[Int Or Err]
+    T ~ Err.nice{"hi".toInt}.alt.toThrowable ==== runtype[NumberFormatException]
+    T ~ Err.flatNice{ "e".errIf(_.isEmpty) } ==== "e"                     --: typed[String Or Err]
+    T ~ Err.flatNice{"e".errIf(_(0) == 'e')} ==== Err.or("e")
+    T ~ Err.flatNice{
+         "e".toInt.errCase:
+           case x if x < 0 => Err("x")
+       }.alt.toThrowable                     ==== runtype[NumberFormatException]
    
 
   @Test
@@ -1226,6 +1237,17 @@ class FlowTest {
     def orQ7(s: String): Int Or Err = Err.Or {
       s.isIf(_.nonEmpty).?.toInt
     }
+    T ~ orQ7("perch").existsAlt(_.toString contains "NumberF") ==== true
+    T ~ orQ7("")                                               ==== Alt(Err(""))
+    T ~ orQ7("1858")                                           ==== 1858 --: typed[Int Or Err]
+
+    def orQ8(s: String): Int Or Err = Err.FlatOr {
+      s.isIf(_.nonEmpty).?.toInt.altCase{ case i if i < 0 => Err(s"Negative: $i") }
+    }
+    T ~ orQ8("perch").existsAlt(_.toString contains "NumberF") ==== true
+    T ~ orQ8("")                                               ==== Alt(Err(""))
+    T ~ orQ8("1858")                                           ==== 1858 --: typed[Int Or Err]
+    T ~ orQ8("-3")                                             ==== Alt(Err("Negative: -3"))
 
     def floatQ(f: Float) = Ret[Float]{
       val g = f.?

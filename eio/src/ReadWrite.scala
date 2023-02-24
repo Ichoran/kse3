@@ -8,6 +8,8 @@ import java.nio._
 import java.nio.channels._
 import java.nio.file._
 
+import scala.annotation.targetName
+
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 
@@ -16,6 +18,8 @@ trait Transfer[A, -B] {
   def limited(count: Long)(in: A, out: B): Long Or Err
 }
 object Transfer {
+  val emptyByteArray = Array.empty[Byte]
+
   final class StreamToStream(maxBuffer: Int = 0x1000000)
   extends Transfer[InputStream, OutputStream] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
@@ -172,7 +176,7 @@ object Transfer {
 
   final class MultiToStream()
   extends Transfer[MultiArrayChannel, OutputStream] {
-    def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Long Or Err = Err.Or:
+    def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Long Or Err = Err.nice:
       if count == Long.MaxValue then in.read(out)
       else if count <= 0 then 0L
       else
@@ -187,7 +191,6 @@ object Transfer {
           if k < h then m = 0
         n
   }
-
 
   final class MultiToChannel(maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
   extends Transfer[MultiArrayChannel, WritableByteChannel] {
@@ -219,12 +222,39 @@ object Transfer {
         n
   }
 
+  final class IterBytesToStream(endline: Array[Byte] = emptyByteArray)
+  extends Transfer[Iterator[Array[Byte]], OutputStream] {
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: OutputStream): Long Or Err = Err.nice:
+      var m = 0L max count
+      var n = 0L
+      while in.hasNext && m - n > 0 do
+        val ab = in.next
+        if ab.length > 0 then
+          out.write(ab)
+          n += ab.length
+        if endline.length > 0 then
+          out.write(endline)
+          n += endline.length
+      n
+  }
+
+  final class IterStringToStream(endline: String = "\n")
+  extends Transfer[Iterator[String], OutputStream] {
+    private val actual = new IterBytesToStream(if endline.isEmpty then emptyByteArray else endline.bytes)
+    def limited(count: Long)(in: Iterator[String], out: OutputStream): Long Or Err =
+      actual.limited(count)(in.map(_.bytes), out)
+  }
+
   given stream2stream: Transfer[InputStream, OutputStream] = StreamToStream()
   given stream2channel: Transfer[InputStream, WritableByteChannel] = StreamToChannel()
   given channel2stream: Transfer[ReadableByteChannel, OutputStream] = ChannelToStream()
   given channel2channel: Transfer[ReadableByteChannel, WritableByteChannel] = ChannelToChannel()
   given multi2stream: Transfer[MultiArrayChannel, OutputStream] = MultiToStream()
   given multi2channel: Transfer[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
+  given iterbytes2stream: Transfer[Iterator[Array[Byte]], OutputStream] = IterBytesToStream()
+  // given iterbytes2channel: Transfer[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
+  given iterstring2stream: Transfer[Iterator[String], OutputStream] = IterStringToStream()
+  // given iterstring2channel: Transfer[Iterator[String], WritableByteChannel] = IterStringToChannel()
 }
 
 extension (in: InputStream)
@@ -235,6 +265,14 @@ extension (rbc: ReadableByteChannel)
 
 extension (mac: MultiArrayChannel)
   def transferTo[B](out: B)(using tr: Transfer[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
+
+extension (iter: Iterator[Array[Byte]])
+  @targetName("iterArrayByteTransferTo")
+  def transferTo[B](out: B)(using tr: Transfer[Iterator[Array[Byte]], B]): Long Or Err = tr(iter, out)
+
+extension (iter: Iterator[String])
+  @targetName("iterStringTransferTo")
+  def transferTo[B](out: B)(using tr: Transfer[Iterator[String], B]): Long Or Err = tr(iter, out)
 
 
 /*

@@ -43,9 +43,8 @@ object Err {
     *
     * Usage:
     * {{{
-    * def parseTwice(s: String): Int Or Err = Err.Or {
+    * def parseTwice(s: String): Int Or Err = Err.Or:
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
-    * }
     * }}}
     */
   inline def Or[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): X Or Err = boundary[X Or Err] { label ?=>
@@ -53,9 +52,30 @@ object Err {
     catch case t if t.catchable => Alt(Err(t))
   }
 
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
+    * something `Or Err`.
+    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
+    * Strings and ErrTypes are allowed to jump out too.
+    *
+    * Usage:
+    * {{{
+    * def parseTwice(s: String): Int Or Err = Err.FlatOr:
+    *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
+    * }}}
+    */
+  inline def FlatOr[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X Or Err): X Or Err = boundary[X Or Err]{ label ?=>
+    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])
+    catch case t if t.catchable => Alt(Err(t))
+  }
+
   /** Catches exceptions and packs them into an Err. */
   inline def nice[X](x: => X): X Or Err =
     try Is(x)
+    catch case t if t.catchable => Alt(Err(t))
+
+  /** Catches exceptions and packs them into an Err while evaluating something that might return an `Err` anyway. */
+  inline def flatNice[X](x: => X Or Err): X Or Err =
+    try x
     catch case t if t.catchable => Alt(Err(t))
 }
 
@@ -153,6 +173,9 @@ object ErrFrom {
 
 extension [A](a: A) {
   inline def errIf(p: A => Boolean)(using ef: ErrFrom[A]): A Or Err =
+    if p(a) then Alt(ef(a)) else Is(a)
+
+  inline def errIfNot(p: A => Boolean)(using ef: ErrFrom[A]): A Or Err =
     if p(a) then Is(a) else Alt(ef(a))
 
   inline def errCase(pf: PartialFunction[A, Err]): A Or Err =

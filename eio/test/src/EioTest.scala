@@ -556,6 +556,7 @@ class EioTest {
     def rmac: MultiArrayChannel = b9999.readChannel
     def zwc: WritableByteChannel = z9999.writeChannel
     def zws: WritableByteChannel = z1024.writeChannel
+
     T ~ b9999.input.transferTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
     T ~ z9999                                             =**= b9999
     z9999.fill(0)
@@ -563,6 +564,7 @@ class EioTest {
     T ~ z9999                                             =**= b9999
     T ~ b9999.input.transferTo(z1024.output).isAlt        ==== true
     T ~ b9999.input.transferTo(z1024.output).alt.toss     ==== thrown[IOException]
+
     z9999.fill(0)
     T ~ b9999.input.transferTo(zwc)                        ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -573,6 +575,7 @@ class EioTest {
     T ~ b9999.input.transferTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
     T ~ b9999.input.transferTo(zws)(using sms2c)           ==== 1024
     T ~ z1024                                              =**= b9999.take(1024)
+
     z9999.fill(0)
     T ~ rsbc.transferTo(z9999.output)                      ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -581,6 +584,7 @@ class EioTest {
     T ~ z9999                                              =**= b9999
     T ~ rsbc.transferTo(z1024.output).isAlt                ==== true
     T ~ rsbc.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+
     z9999.fill(0)
     T ~ rsbc.transferTo(zwc)                               ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -592,11 +596,13 @@ class EioTest {
     z1024.fill(0)
     T ~ rsbc.transferTo(zws)(using smc2c)                  ==== 1024
     T ~ z1024                                              =**= b9999.take(1024)
+
     z9999.fill(0)
     T ~ rmac.transferTo(z9999.output)                      ==== 9999L
     T ~ z9999                                              =**= b9999
     T ~ rmac.transferTo(z1024.output).isAlt                ==== true
     T ~ rmac.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+
     z9999.fill(0)
     T ~ rmac.transferTo(zwc)                               ==== 9999L
     T ~ z9999                                              =**= b9999
@@ -605,6 +611,18 @@ class EioTest {
     z1024.fill(0)
     T ~ rmac.transferTo(zws)(using smm2c)                  ==== 1024L
     T ~ z1024                                              =**= b9999.take(1024)
+
+    val bits = (Array.fill(27)(rng % 9999) ++ Array(0, 9999)).sorted.sliding(2).map(xs => b9999.copyOfRange(xs(0), xs(1))).toList
+    def biter = bits.iterator
+    z9999.fill(0)
+    T ~ biter.transferTo(z9999.output)                     ==== 9999L
+    T ~ z9999                                              =**= b9999
+
+    val strings = List("salmon", "herring", "cod", "perch")
+    def siter = strings.iterator
+    z9999.fill(0)
+    T ~ siter.transferTo(z9999.output)                     ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum)          =**= "salmon\nherring\ncod\nperch\n".bytes
 }
 object EioTest {
   import kse.flow.{given, _}
