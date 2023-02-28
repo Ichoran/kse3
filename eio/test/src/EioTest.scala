@@ -552,119 +552,119 @@ class EioTest {
     def zwc: WritableByteChannel = z9999.writeChannel
     def zws: WritableByteChannel = z1024.writeChannel
 
-    val sms2s = Transfer.StreamToStream(391)
-    T ~ b9999.input.transferTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
-    T ~ z9999                                             =**= b9999
+    val sms2s = Send.StreamToStream(391)
+    T ~ b9999.input.sendTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
+    T ~ z9999                                         =**= b9999
     z9999.fill(0)
-    T ~ b9999.input.transferTo(z9999.output)(using sms2s) ==== 9999L
-    T ~ z9999                                             =**= b9999
-    T ~ b9999.input.transferTo(z1024.output).isAlt        ==== true
-    T ~ b9999.input.transferTo(z1024.output).alt.toss     ==== thrown[IOException]
+    T ~ b9999.input.sendTo(z9999.output)(using sms2s) ==== 9999L
+    T ~ z9999                                         =**= b9999
+    T ~ b9999.input.sendTo(z1024.output).isAlt        ==== true
+    T ~ b9999.input.sendTo(z1024.output).alt.toss     ==== thrown[IOException]
 
-    val sms2c = Transfer.StreamToChannel(391, allowFullTarget = true)
+    val sms2c = Send.StreamToChannel(391, allowFullTarget = true)
     z9999.fill(0)
-    T ~ b9999.input.transferTo(zwc)                        ==== 9999L
-    T ~ z9999                                              =**= b9999
+    T ~ b9999.input.sendTo(zwc)                        ==== 9999L
+    T ~ z9999                                          =**= b9999
     z9999.fill(0)
-    T ~ b9999.input.transferTo(zwc)(using sms2c)           ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ b9999.input.transferTo(zws).isAlt                  ==== true
-    T ~ b9999.input.transferTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
-    T ~ b9999.input.transferTo(zws)(using sms2c)           ==== 1024
-    T ~ z1024                                              =**= b9999.take(1024)
+    T ~ b9999.input.sendTo(zwc)(using sms2c)           ==== 9999L
+    T ~ z9999                                          =**= b9999
+    T ~ b9999.input.sendTo(zws).isAlt                  ==== true
+    T ~ b9999.input.sendTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
+    T ~ b9999.input.sendTo(zws)(using sms2c)           ==== 1024
+    T ~ z1024                                          =**= b9999.take(1024)
 
-    val smc2s = Transfer.ChannelToStream(391)
+    val smc2s = Send.ChannelToStream(391)
     z9999.fill(0)
-    T ~ rsbc.transferTo(z9999.output)                      ==== 9999L
-    T ~ z9999                                              =**= b9999
+    T ~ rsbc.sendTo(z9999.output)                      ==== 9999L
+    T ~ z9999                                          =**= b9999
     z9999.fill(0)
-    T ~ rsbc.transferTo(z9999.output)(using smc2s)         ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ rsbc.transferTo(z1024.output).isAlt                ==== true
-    T ~ rsbc.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+    T ~ rsbc.sendTo(z9999.output)(using smc2s)         ==== 9999L
+    T ~ z9999                                          =**= b9999
+    T ~ rsbc.sendTo(z1024.output).isAlt                ==== true
+    T ~ rsbc.sendTo(z1024.output).alt.toss             ==== thrown[IOException]
 
-    val smc2c = Transfer.ChannelToChannel(391, allowFullTarget = true)
+    val smc2c = Send.ChannelToChannel(391, allowFullTarget = true)
     z9999.fill(0)
-    T ~ rsbc.transferTo(zwc)                               ==== 9999L
-    T ~ z9999                                              =**= b9999
+    T ~ rsbc.sendTo(zwc)                               ==== 9999L
+    T ~ z9999                                          =**= b9999
     z9999.fill(0)
-    T ~ rsbc.transferTo(zwc)(using smc2c)                  ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ rsbc.transferTo(zws).isAlt                         ==== true
-    T ~ rsbc.transferTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    T ~ rsbc.sendTo(zwc)(using smc2c)                  ==== 9999L
+    T ~ z9999                                          =**= b9999
+    T ~ rsbc.sendTo(zws).isAlt                         ==== true
+    T ~ rsbc.sendTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ rsbc.transferTo(zws)(using smc2c)                  ==== 1024
-    T ~ z1024                                              =**= b9999.take(1024)
+    T ~ rsbc.sendTo(zws)(using smc2c)                  ==== 1024
+    T ~ z1024                                          =**= b9999.take(1024)
 
     z9999.fill(0)
-    T ~ rmac.transferTo(z9999.output)                      ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ rmac.transferTo(z1024.output).isAlt                ==== true
-    T ~ rmac.transferTo(z1024.output).alt.toss             ==== thrown[IOException]
+    T ~ rmac.sendTo(z9999.output)                      ==== 9999L
+    T ~ z9999                                          =**= b9999
+    T ~ rmac.sendTo(z1024.output).isAlt                ==== true
+    T ~ rmac.sendTo(z1024.output).alt.toss             ==== thrown[IOException]
 
-    val smm2c = Transfer.MultiToChannel(allowFullTarget = true)
+    val smm2c = Send.MultiToChannel(allowFullTarget = true)
     z9999.fill(0)
-    T ~ rmac.transferTo(zwc)                               ==== 9999L
+    T ~ rmac.sendTo(zwc)                               ==== 9999L
     T ~ z9999                                              =**= b9999
-    T ~ rmac.transferTo(zws).isAlt                         ==== true
-    T ~ rmac.transferTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    T ~ rmac.sendTo(zws).isAlt                         ==== true
+    T ~ rmac.sendTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ rmac.transferTo(zws)(using smm2c)                  ==== 1024L
-    T ~ z1024                                              =**= b9999.take(1024)
+    T ~ rmac.sendTo(zws)(using smm2c)                  ==== 1024L
+    T ~ z1024                                          =**= b9999.take(1024)
 
     val bits = (Array.fill(27)(rng % 9999) ++ Array(0, 9999)).sorted.sliding(2).map(xs => b9999.copyOfRange(xs(0), xs(1))).toList
     def biter = bits.iterator
     z9999.fill(0)
-    T ~ biter.transferTo(z9999.output)                     ==== 9999L
-    T ~ z9999                                              =**= b9999
+    T ~ biter.sendTo(z9999.output)                     ==== 9999L
+    T ~ z9999                                          =**= b9999
 
-    val smb2c = Transfer.IterBytesToChannel(allowFullTarget = true)
+    val smb2c = Send.IterBytesToChannel(allowFullTarget = true)
     z9999.fill(0)
-    T ~ biter.transferTo(zwc)                              ==== 9999L
+    T ~ biter.sendTo(zwc)                              ==== 9999L
     T ~ z9999                                              =**= b9999
-    T ~ biter.transferTo(zws).isAlt                        ==== true
-    T ~ biter.transferTo(zws).alt.toss                     ==== thrown[ErrType.StringErrException]
+    T ~ biter.sendTo(zws).isAlt                        ==== true
+    T ~ biter.sendTo(zws).alt.toss                     ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ biter.transferTo(zws)(using smb2c)                 ==== 1024L
-    T ~ z1024                                              =**= b9999.take(1024)
+    T ~ biter.sendTo(zws)(using smb2c)                 ==== 1024L
+    T ~ z1024                                          =**= b9999.take(1024)
 
-    val smb2m = Transfer.IterBytesToMulti(allowFullTarget = true)
+    val smb2m = Send.IterBytesToMulti(allowFullTarget = true)
     z9999.fill(0)
-    T ~ biter.transferTo(z9999.writeChannel)               ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ biter.transferTo(z1024.writeChannel).isAlt         ==== true
-    T ~ biter.transferTo(z1024.writeChannel).alt.toss      ==== thrown[ErrType.StringErrException]
+    T ~ biter.sendTo(z9999.writeChannel)               ==== 9999L
+    T ~ z9999                                          =**= b9999
+    T ~ biter.sendTo(z1024.writeChannel).isAlt         ==== true
+    T ~ biter.sendTo(z1024.writeChannel).alt.toss      ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ biter.transferTo(z1024.writeChannel)(using smb2m)  ==== 1024L
+    T ~ biter.sendTo(z1024.writeChannel)(using smb2m)  ==== 1024L
     T ~ z1024                                              =**= b9999.take(1024)
 
     val strings = List("salmon", "herring", "cod", "perch")
     def siter = strings.iterator
     z9999.fill(0)
-    T ~ siter.transferTo(z9999.output)                     ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum)          =**= "salmon\nherring\ncod\nperch\n".bytes
+    T ~ siter.sendTo(z9999.output)                     ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum)      =**= "salmon\nherring\ncod\nperch\n".bytes
 
-    val smi2c = Transfer.IterStringToChannel(allowFullTarget = true)
+    val smi2c = Send.IterStringToChannel(allowFullTarget = true)
     val z20 = new Array[Byte](20)
     def w20: WritableByteChannel = z20.writeChannel
     z9999.fill(0)
-    T ~ siter.transferTo(zwc)                              ==== strings.map(_.length + 1).sum
+    T ~ siter.sendTo(zwc)                              ==== strings.map(_.length + 1).sum
     T ~ z9999.take(strings.map(_.length + 1).sum).utf8     ==== "salmon\nherring\ncod\nperch\n"
-    T ~ siter.transferTo(w20).isAlt                        ==== true
-    T ~ siter.transferTo(w20).alt.toss                     ==== thrown[ErrType.StringErrException]
+    T ~ siter.sendTo(w20).isAlt                        ==== true
+    T ~ siter.sendTo(w20).alt.toss                     ==== thrown[ErrType.StringErrException]
     z20.fill(0)
-    T ~ siter.transferTo(w20)(using smi2c)                 ==== 20L
-    T ~ z20.utf8                                           ==== "salmon\nherring\ncod\np"
+    T ~ siter.sendTo(w20)(using smi2c)                 ==== 20L
+    T ~ z20.utf8                                       ==== "salmon\nherring\ncod\np"
 
-    val smi2m = Transfer.IterStringToMulti(allowFullTarget = true)
+    val smi2m = Send.IterStringToMulti(allowFullTarget = true)
     z9999.fill(0)
-    T ~ siter.transferTo(z9999.writeChannel)               ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8     ==== "salmon\nherring\ncod\nperch\n"
-    T ~ siter.transferTo(z20.writeChannel).isAlt           ==== true
-    T ~ siter.transferTo(z20.writeChannel).alt.toss        ==== thrown[ErrType.StringErrException]
+    T ~ siter.sendTo(z9999.writeChannel)               ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.sendTo(z20.writeChannel).isAlt           ==== true
+    T ~ siter.sendTo(z20.writeChannel).alt.toss        ==== thrown[ErrType.StringErrException]
     z20.fill(0)
-    T ~ siter.transferTo(z20.writeChannel)(using smi2m)    ==== 20L
-    T ~ z20.utf8                                           ==== "salmon\nherring\ncod\np"
+    T ~ siter.sendTo(z20.writeChannel)(using smi2m)    ==== 20L
+    T ~ z20.utf8                                       ==== "salmon\nherring\ncod\np"
 
 
 }

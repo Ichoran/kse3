@@ -26,12 +26,7 @@ class Xsv[A](
   if separator == '\n' || separator == '\r' then throw new IllegalArgumentException("Separator cannot be a newline character")
   if separator == '"' then throw new IllegalArgumentException("Separator cannot be a double quote character")
 
-  /*
-  def readFrom(p: Path): Array[Xsv.Data] Or Err = p.gulp.flatMap(decode)
-
-  def writeTo(p: Path, content: Array[Array[String]]): Unit Or Err = ???
-
-  private var line: UInt = 0
+  private var line: UInt = UInt(0)
   private var char: Int = 0
   private var erronious: Int = 0
 
@@ -42,13 +37,17 @@ class Xsv[A](
     * there was valid data, and if there is an error, erronious will be set
     * to a non-zero error value.
     */
+  /*
   private def decodeRow(row: Builder[Array[String]], data: Array[Byte], i0: Int, moreAvailable: Boolean): Int =
-    erronious = false
+    // Assume line and char are in sensible positions
+    erronious = 0
     var i = i0
-    var j = i0
-    var q = false
-    var c0 = i0 - char
-    while i < bytes.length do
+    var inQuote = false
+    // Update these
+    var valid = i0
+    var l = line
+    var c = char
+    while i < bytes.length && erronious == 0 do
       bytes(i) match
         case b if b == '\n' || b == '\r' =>
           line += 1
@@ -76,6 +75,13 @@ class Xsv[A](
       i += 1
     row += (if i <= j then "" else new String(data, j, i))
     Pack.L(i, lines+1)
+  */
+
+  /*
+  def readFrom(p: Path): Array[Xsv.Data] Or Err = p.gulp.flatMap(decode)
+
+  def writeTo(p: Path, content: Array[Array[String]]): Unit Or Err = ???
+
 
   def decode(bytes: Array[Byte]): Array[Array[String]] Or Err =
     line = 0

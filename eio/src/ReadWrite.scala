@@ -13,15 +13,15 @@ import scala.annotation.targetName
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 
-trait Transfer[A, -B] {
+trait Send[A, -B] {
   inline final def apply(in: A, out: B): Long Or Err = limited(Long.MaxValue)(in, out)
   def limited(count: Long)(in: A, out: B): Long Or Err
 }
-object Transfer {
+object Send {
   val emptyByteArray = Array.empty[Byte]
 
   final class StreamToStream(maxBuffer: Int = 0x1000000)
-  extends Transfer[InputStream, OutputStream] {
+  extends Send[InputStream, OutputStream] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     def limited(count: Long)(in: InputStream, out: OutputStream): Long Or Err = Err.nice:
       var buffer: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
@@ -44,7 +44,7 @@ object Transfer {
   }
 
   final class StreamToChannel(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
-  extends Transfer[InputStream, WritableByteChannel] {
+  extends Send[InputStream, WritableByteChannel] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
@@ -85,7 +85,7 @@ object Transfer {
   }
 
   final class ChannelToStream(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0))
-  extends Transfer[ReadableByteChannel, OutputStream] {
+  extends Send[ReadableByteChannel, OutputStream] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
@@ -120,7 +120,7 @@ object Transfer {
   }
 
   final class ChannelToChannel(maxBuffer: Int = 0x1000000, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
-  extends Transfer[ReadableByteChannel, WritableByteChannel] {
+  extends Send[ReadableByteChannel, WritableByteChannel] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
@@ -175,7 +175,7 @@ object Transfer {
   }
 
   final class MultiToStream()
-  extends Transfer[MultiArrayChannel, OutputStream] {
+  extends Send[MultiArrayChannel, OutputStream] {
     def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Long Or Err = Err.nice:
       if count == Long.MaxValue then in.read(out)
       else if count <= 0 then 0L
@@ -193,7 +193,7 @@ object Transfer {
   }
 
   final class MultiToChannel(maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
-  extends Transfer[MultiArrayChannel, WritableByteChannel] {
+  extends Send[MultiArrayChannel, WritableByteChannel] {
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
     def limited(count: Long)(in: MultiArrayChannel, out: WritableByteChannel): Long Or Err = Err.Or:
@@ -223,7 +223,7 @@ object Transfer {
   }
 
   final class IterBytesToStream(endline: Array[Byte] = emptyByteArray)
-  extends Transfer[Iterator[Array[Byte]], OutputStream] {
+  extends Send[Iterator[Array[Byte]], OutputStream] {
     def limited(count: Long)(in: Iterator[Array[Byte]], out: OutputStream): Long Or Err = Err.nice:
       var m = 0L max count
       var n = 0L
@@ -239,7 +239,7 @@ object Transfer {
   }
 
   final class IterBytesToChannel(endline: Array[Byte] = emptyByteArray, maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
-  extends Transfer[Iterator[Array[Byte]], WritableByteChannel] {
+  extends Send[Iterator[Array[Byte]], WritableByteChannel] {
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
     private val ebuf = endline.buffer
@@ -271,7 +271,7 @@ object Transfer {
   }
 
   final class IterBytesToMulti(endline: Array[Byte] = emptyByteArray, allowFullTarget: Boolean = false)
-  extends Transfer[Iterator[Array[Byte]], MultiArrayChannel] {
+  extends Send[Iterator[Array[Byte]], MultiArrayChannel] {
     def limited(count: Long)(in: Iterator[Array[Byte]], out: MultiArrayChannel): Long Or Err = Err.Or:
       var m = 0L max count
       var n = 0L
@@ -294,56 +294,56 @@ object Transfer {
   }
 
   final class IterStringToStream(endline: String = "\n")
-  extends Transfer[Iterator[String], OutputStream] {
+  extends Send[Iterator[String], OutputStream] {
     private val actual = new IterBytesToStream(if endline.isEmpty then emptyByteArray else endline.bytes)
     def limited(count: Long)(in: Iterator[String], out: OutputStream): Long Or Err =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
   final class IterStringToChannel(endline: String = "\n", maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
-  extends Transfer[Iterator[String], WritableByteChannel] {
+  extends Send[Iterator[String], WritableByteChannel] {
     private val actual = new IterBytesToChannel(if endline.isEmpty then emptyByteArray else endline.bytes, maxRetries, msDelayRetry, allowFullTarget)
     def limited(count: Long)(in: Iterator[String], out: WritableByteChannel): Long Or Err =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
   final class IterStringToMulti(endline: String = "\n", allowFullTarget: Boolean = false)
-  extends Transfer[Iterator[String], MultiArrayChannel] {
+  extends Send[Iterator[String], MultiArrayChannel] {
     private val actual = new IterBytesToMulti(if endline.isEmpty then emptyByteArray else endline.bytes, allowFullTarget)
     def limited(count: Long)(in: Iterator[String], out: MultiArrayChannel): Long Or Err =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
-  given stream2stream: Transfer[InputStream, OutputStream] = StreamToStream()
-  given stream2channel: Transfer[InputStream, WritableByteChannel] = StreamToChannel()
-  given channel2stream: Transfer[ReadableByteChannel, OutputStream] = ChannelToStream()
-  given channel2channel: Transfer[ReadableByteChannel, WritableByteChannel] = ChannelToChannel()
-  given multi2stream: Transfer[MultiArrayChannel, OutputStream] = MultiToStream()
-  given multi2channel: Transfer[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
-  given iterbytes2stream: Transfer[Iterator[Array[Byte]], OutputStream] = IterBytesToStream()
-  given iterbytes2channel: Transfer[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
-  given iterbytes2multi: Transfer[Iterator[Array[Byte]], MultiArrayChannel] = IterBytesToMulti()
-  given iterstring2stream: Transfer[Iterator[String], OutputStream] = IterStringToStream()
-  given iterstring2channel: Transfer[Iterator[String], WritableByteChannel] = IterStringToChannel()
-  given iterstring2multi: Transfer[Iterator[String], MultiArrayChannel] = IterStringToMulti()
+  given stream2stream: Send[InputStream, OutputStream] = StreamToStream()
+  given stream2channel: Send[InputStream, WritableByteChannel] = StreamToChannel()
+  given channel2stream: Send[ReadableByteChannel, OutputStream] = ChannelToStream()
+  given channel2channel: Send[ReadableByteChannel, WritableByteChannel] = ChannelToChannel()
+  given multi2stream: Send[MultiArrayChannel, OutputStream] = MultiToStream()
+  given multi2channel: Send[MultiArrayChannel, WritableByteChannel] = MultiToChannel()
+  given iterbytes2stream: Send[Iterator[Array[Byte]], OutputStream] = IterBytesToStream()
+  given iterbytes2channel: Send[Iterator[Array[Byte]], WritableByteChannel] = IterBytesToChannel()
+  given iterbytes2multi: Send[Iterator[Array[Byte]], MultiArrayChannel] = IterBytesToMulti()
+  given iterstring2stream: Send[Iterator[String], OutputStream] = IterStringToStream()
+  given iterstring2channel: Send[Iterator[String], WritableByteChannel] = IterStringToChannel()
+  given iterstring2multi: Send[Iterator[String], MultiArrayChannel] = IterStringToMulti()
 }
 
 extension (in: InputStream)
-  def transferTo[B](out: B)(using tr: Transfer[InputStream, B]): Long Or Err = tr(in, out)
+  def sendTo[B](out: B)(using tr: Send[InputStream, B]): Long Or Err = tr(in, out)
 
 extension (rbc: ReadableByteChannel)
-  def transferTo[B](out: B)(using tr: Transfer[ReadableByteChannel, B]): Long Or Err = tr(rbc, out)
+  def sendTo[B](out: B)(using tr: Send[ReadableByteChannel, B]): Long Or Err = tr(rbc, out)
 
 extension (mac: MultiArrayChannel)
-  def transferTo[B](out: B)(using tr: Transfer[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
+  def sendTo[B](out: B)(using tr: Send[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
 
 extension (iter: Iterator[Array[Byte]])
-  @targetName("iterArrayByteTransferTo")
-  def transferTo[B](out: B)(using tr: Transfer[Iterator[Array[Byte]], B]): Long Or Err = tr(iter, out)
+  @targetName("iterArrayByteSendTo")
+  def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter, out)
 
 extension (iter: Iterator[String])
-  @targetName("iterStringTransferTo")
-  def transferTo[B](out: B)(using tr: Transfer[Iterator[String], B]): Long Or Err = tr(iter, out)
+  @targetName("iterStringSendTo")
+  def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter, out)
 
 
 /*

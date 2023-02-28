@@ -14,7 +14,7 @@ writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.3 and later due to its use of
-`scala.util.boundary`**
+`scala.util.boundary`.  It also assumes at least Java 17.**
 
 **Warning: when you use extensions with Scala 3 in multiple libraries,
 they clobber each other because they all share the same namespace.
@@ -27,14 +27,14 @@ meant to cover core functionality.**
 Only kse3-flow and kse3-maths (and kse3-testing) are available presently.  In mill, make sure your module has
 
 ```scala
-def scalaVersion = "3.3.0-RC2"
+def scalaVersion = "3.3.0-RC3"
 ```
 
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.1"
-ivy"com.github.ichoran::kse3-maths:0.1.1"
+ivy"com.github.ichoran::kse3-flow:0.1.2"
+ivy"com.github.ichoran::kse3-maths:0.1.2"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
