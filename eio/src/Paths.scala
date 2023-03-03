@@ -248,14 +248,14 @@ extension (the_path: Path) {
     }
 
 
-  def openRead()(using Tidy.Nice[java.io.BufferedInputStream]): java.io.BufferedInputStream Or Err =
+  def openRead()(using Tidy.Nice[BufferedInputStream]): BufferedInputStream Or Err =
     if Files exists the_path then nice{ new BufferedInputStream(Files newInputStream the_path, 8192) }
     else Err.or(s"$the_path not found")
 
-  def openWrite()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+  def openWrite()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
     nice{ new BufferedOutputStream(Files newOutputStream the_path, 8192) }
 
-  def openAppend()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+  def openAppend()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
     nice {
       new BufferedOutputStream(
         Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
@@ -263,7 +263,7 @@ extension (the_path: Path) {
       )
     }
 
-  def openCreate()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+  def openCreate()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
     if Files.exists(the_path) then Err.or(s"$the_path not found")
     else nice {
       new BufferedOutputStream(

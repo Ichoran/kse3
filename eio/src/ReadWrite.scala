@@ -337,53 +337,65 @@ extension (rbc: ReadableByteChannel)
 extension (mac: MultiArrayChannel)
   def sendTo[B](out: B)(using tr: Send[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
 
-extension (iter: Iterator[Array[Byte]])
-  @targetName("iterArrayByteSendTo")
-  def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter, out)
-
-extension (iter: Iterator[String])
-  @targetName("iterStringSendTo")
-  def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter, out)
-
-extension (iter: IterableOnce[Array[Byte]])
-  @targetName("iOnceArrayByteSendTo")
+extension (iter: IterableOnce[Array[Byte]]) {
+  @targetName("ioArrayByteSendTo")
   def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter.iterator, out)
 
-extension (iter: IterableOnce[String])
-  @targetName("iOnceStringSendTo")
+  @targetName("ioArrayByteWriteAt")
+  def writeAt(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openWrite())(_.close): out =>
+      var m = 0L
+      val n = iter.iterator
+        .map{ a => m += a.length; a }
+        .fn(it => tr(it, out)).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+
+  @targetName("ioArrayByteAppendTo")
+  def appendTo(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openAppend())(_.close): out =>
+      var m = 0L
+      val n = iter.iterator
+        .map{ a => m += a.length; a }
+        .fn(it => tr(it, out)).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+
+  @targetName("ioArrayByteCreateAt")
+  def createAt(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openCreate())(_.close): out =>
+      var m = 0L
+      val n = iter.iterator
+        .map{ a => m += a.length; a }
+        .fn(it => tr(it, out)).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+}
+
+extension (iter: IterableOnce[String]) {
+  @targetName("ioStringSendTo")
   def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter.iterator, out)
 
+  @targetName("ioStringWriteAt")
+  def writeAt(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openWrite())(_.close): out =>
+      val it = iter.iterator
+      tr(it, out)
+      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+
+  @targetName("ioStringAppendTo")
+  def appendTo(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openAppend())(_.close): out =>
+      val it = iter.iterator
+      tr(it, out)
+      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+
+  @targetName("ioStringCreateAt")
+  def createAt(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+    Resource.Nice(p.openCreate())(_.close): out =>
+      val it = iter.iterator
+      tr(it, out)
+      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+}
 
 /*
-extension (iter: Iterator[Array[Byte]])
-  @targetName("iabWriteAt")
-  def writeAt(p: Path): Unit Or Err = Resource.Nice(p.openWrite())(_.close): sbc =>
-      var m = 0L
-      val n = iter
-        .map{ a => m += a.length; a }
-        .sendTo(sbc).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
-
-  @targetName("iabAppendTo")
-  def appendTo(p: Path): Unit Or Err = Resource.Nice(p.openAppend())(_.close): sbc =>
-      var m = 0L
-      val n = iter
-        .map{ a => m += a.length; a }
-        .sendTo(sbc).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
-
-  @targetName("iabAppendTo")
-  def createNewAt(p: Path): Unit Or Err = Resource.Nice(p.openCreateNew())(_.close): sbc =>
-      var m = 0L
-      val n = iter
-        .map{ a => m += a.length; a }
-        .sendTo(sbc).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
-*/
-
-/*
-
-
 object LineOutput {
   private def outputTo(pw: PrintWriter, separator: String, lines: IterableOnce[String]): Unit =
     try { if (separator eq null) lines.foreach(p.println) else lines.foreach(x => p.print(x + lineEnding)) }

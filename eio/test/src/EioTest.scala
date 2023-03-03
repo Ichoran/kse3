@@ -459,12 +459,13 @@ class EioTest {
     T ~ (p / "eel").exists           ==== true
 
     val ft1 = ft - 1.s
+    (p / "rw").mkdir()   // Might be race with readWriteTest, but it shouldn't matter!
     T ~ (q.raw.time - ft).in(0.s, 10.s)       ==== true
     T ~ (q.time.get - ft).in(0.s, 10.s)       ==== true
     T ~ { q.raw.time = ft; q.raw.time }       ==== ft
     T ~ { ((q.time = ft1).isIs, q.time.get) } ==== ((true, ft1))
     T ~ { q.touch(); q.time.get == ft }       ==== false
-    T ~ p.paths.sorted                        =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt")
+    T ~ p.paths.sorted                        =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt", p / "rw")
     T ~ q.raw.delete()                        ==== ()
     T ~ q.raw.delete()                        ==== thrown[IOException]
     T ~ q.raw.time                            ==== thrown[IOException]
@@ -583,25 +584,27 @@ class EioTest {
     T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
     T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
 
-    /*
     val ps = "temp/eio/sym".path
+    T ~ (p / "x" / "y").mkdirs().isIs       ==== true
     T ~ (p / "sym").isSymlink               ==== false
-    T ~ ps.symlink                          ==== Alt.unit --: typed[String Or Unit]
-    T ~ { ps.makeSymlink("a"); ps.symlink } ==== "a"
-    T ~ ps.followSymlink                    ==== (p / "a") --: typed[Path Or Unit]
+    T ~ ps.raw.symlink                      ==== thrown[IOException]
+    T ~ ps.symlink.alt                      ==== runtype[String]
+    T ~ { ps.makeSymlink("x"); ps.symlink } ==== "x"       --: typed[String Or Err]
+    T ~ ps.followSymlink                    ==== (p / "x") --: typed[Path Or Err]
     T ~ ps.exists                           ==== true
-    T ~ (ps / "b").exists                   ==== true
-    T ~ (p / "a").isSymlink                 ==== false
+    T ~ (ps / "y").exists                   ==== true
+    T ~ (p / "x").isSymlink                 ==== false
     T ~ ps.isSymlink                        ==== true
-    T ~ ps.real                             ==== (p.real / "a")
-    T ~ (ps / "b").real                     ==== (p.real / "a/b")
-    (p / "a" / "b").delete()
-    (p / "a").delete()
+    T ~ ps.real                             ==== (p.real / "x")
+    T ~ (ps / "y").real                     ==== (p.real / "x/y")
+    (p / "x" / "y").delete()
+    (p / "x").delete()
+    T ~ (p / "x").exists                    ==== false
     T ~ ps.exists                           ==== false
     T ~ ps.isSymlink                        ==== true
-    T ~ ps.real                             ==== (p.real / "a")
-    T ~ (ps / "b").real                     ==== (p.real / "a/b")
-    T ~ (ps / "b").mkParents()              ==== (ps / "b")
+    T ~ ps.real                             ==== (p.real / "x")
+    T ~ (ps / "y").real                     ==== (p.real / "x/y")
+    T ~ (ps / "y").mkParents()              ==== ()
     T ~ ps.exists                           ==== true
     val a2b = "temp/eio/ab".path
     val b2a = "temp/eio/ba".path
@@ -613,16 +616,16 @@ class EioTest {
     T ~ b2a.followSymlink                   ==== a2b
     T ~ a2b.real                            ==== (p.real / "ab")
     T ~ b2a.real                            ==== (p.real / "ba")
-    T ~ (a2b / "x").real                    ==== (p.real / "ab/x")
+    T ~ (a2b / "w").real                    ==== (p.real / "ab/w")
 
     val mfs = com.github.marschall.memoryfilesystem.MemoryFileSystemBuilder.newEmpty().build()
     T ~ "/life/fish".pathIn(mfs).exists          ==== false
     T ~ "/life/fish".pathIn(mfs).mkdirs()        ==== ()
-    T ~ "/life/fish".pathIn(mfs).file            ==== thrown[Exception]
+    T ~ "/life/fish".pathIn(mfs).raw.file        ==== thrown[Exception]
+    T ~ "/life/fish".pathIn(mfs).file            ==== runtype[Alt[_]]
     val mp = "/life/fish".pathIn(mfs)
     T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
     T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
-    */
 
 
   @Test
@@ -767,6 +770,37 @@ class EioTest {
     z20.fill(0)
     T ~ siter.sendTo(z20.writeChannel)(using smi2m)    ==== 20L
     T ~ z20.utf8                                       ==== "salmon\nherring\ncod\np"
+
+    val p = "temp/eio".path
+    val q = p / "rw"
+    val r = p / "wr"
+    q.mkdirs()   // Might be race with pathsTest, but it shouldn't matter!
+    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(r / "fish.bin") ==== runtype[Alt[_]]
+    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(q / "fish.bin") ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncod".bytes
+    T ~ List("herring", "sturgeon").map(_.bytes).appendTo(r / "fish.bin")  ==== runtype[Alt[_]]
+    T ~ List("herring", "sturgeon").map(_.bytes).appendTo(q / "fish.bin")  ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncodherringsturgeon".bytes
+    T ~ List("herring", "sturgeon").map(_.bytes).appendTo(q / "fishy.bin") ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fishy.bin").gulp.get                                         =**= "herringsturgeon".bytes
+    T ~ List("pike", "halibut").map(_.bytes).createAt(r / "fish.bin")      ==== runtype[Alt[_]]
+    T ~ List("pike", "halibut").map(_.bytes).createAt(q / "fish.bin")      ==== runtype[Alt[_]]
+    T ~ List("heron", "pelican").map(_.bytes).createAt(q / "birds.bin")    ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "birds.bin").gulp.get                                         =**= "heronpelican".bytes
+    List("fish", "fishy", "birds").foreach(n => (q/n).extTo("bin").delete())
+    T ~ List("bass", "salmon", "cod").writeAt(r / "fish.txt") ==== runtype[Alt[_]]
+    T ~ List("bass", "salmon", "cod").writeAt(q / "fish.txt") ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fish.txt").slurp.get.mkString                   ==== "basssalmoncod"
+    T ~ List("herring", "sturgeon").appendTo(r / "fish.txt")  ==== runtype[Alt[_]]
+    T ~ List("herring", "sturgeon").appendTo(q / "fish.txt")  ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fish.txt").slurp.get.mkString                   ==== "basssalmoncodherringsturgeon"
+    T ~ List("herring", "sturgeon").appendTo(q / "fishy.txt") ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "fishy.txt").slurp.get.mkString                  ==== "herringsturgeon"
+    T ~ List("pike", "halibut").createAt(r / "fish.txt")      ==== runtype[Alt[_]]
+    T ~ List("pike", "halibut").createAt(q / "fish.txt")      ==== runtype[Alt[_]]
+    T ~ List("heron", "pelican").createAt(q / "birds.txt")    ==== ()  --: typed[Unit Or Err]
+    T ~ (q / "birds.txt").slurp.get.mkString                  ==== "heronpelican"
+    T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
 
 
 }
