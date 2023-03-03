@@ -345,6 +345,41 @@ extension (iter: Iterator[String])
   @targetName("iterStringSendTo")
   def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter, out)
 
+extension (iter: IterableOnce[Array[Byte]])
+  @targetName("iOnceArrayByteSendTo")
+  def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter.iterator, out)
+
+extension (iter: IterableOnce[String])
+  @targetName("iOnceStringSendTo")
+  def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter.iterator, out)
+
+
+/*
+extension (iter: Iterator[Array[Byte]])
+  @targetName("iabWriteAt")
+  def writeAt(p: Path): Unit Or Err = Resource.Nice(p.openWrite())(_.close): sbc =>
+      var m = 0L
+      val n = iter
+        .map{ a => m += a.length; a }
+        .sendTo(sbc).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+
+  @targetName("iabAppendTo")
+  def appendTo(p: Path): Unit Or Err = Resource.Nice(p.openAppend())(_.close): sbc =>
+      var m = 0L
+      val n = iter
+        .map{ a => m += a.length; a }
+        .sendTo(sbc).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+
+  @targetName("iabAppendTo")
+  def createNewAt(p: Path): Unit Or Err = Resource.Nice(p.openCreateNew())(_.close): sbc =>
+      var m = 0L
+      val n = iter
+        .map{ a => m += a.length; a }
+        .sendTo(sbc).?
+      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+*/
 
 /*
 

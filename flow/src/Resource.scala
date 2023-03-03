@@ -12,6 +12,8 @@ trait Tidy[-T] extends (T => Unit) {
 }
 object Tidy {
   val doNothing: Tidy[Any] = (a: Any) => ()
+
+  trait Nice[-T] extends Tidy[T] {}
 }
 
 
@@ -32,18 +34,32 @@ object Resource {
         catch case e if e.catchable => wrong = e
     if result.isIs && (wrong ne null) then Alt(wrong) else result
 
-  def nice[R, A](rsc: Tidy[R] ?=> R)(done: Tidy[R])(f: R => A): A Or Err = boundary:
+  def nice[R, A](rsc: Tidy.Nice[R] ?=> R Or Err)(done: Tidy.Nice[R])(f: R => A): A Or Err = boundary:
     var wrong: Throwable = null
     val result =
-      val r = try { rsc(using done) } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
       try Is(f(r))
       catch case e if e.catchable => Err.or(e)
       finally
         try done(r)
         catch case e if e.catchable => wrong = e
     if result.isIs && (wrong ne null) then
-      Alt(Err(wrong).explainBy("Operation succeeded but error encountered while closing resource"))
+      Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
+
+  inline def Nice[R, A](rsc: Tidy.Nice[R] ?=> R Or Err)(done: Tidy.Nice[R])(inline f: boundary.Label[A Or Err] ?=> (R => A)): A Or Err =
+    boundary:
+      var wrong: Throwable = null
+      val result =
+        val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+        try Is(f(r))
+        catch case e if e.catchable => Err.or(e)
+        finally
+          try done(r)
+          catch case e if e.catchable => wrong = e
+      if result.isIs && (wrong ne null) then
+        Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
+      else result
 
   def unmanaged[R](rsc: Tidy[R] ?=> R): R = rsc(using Tidy.doNothing)
 }

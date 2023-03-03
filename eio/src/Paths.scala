@@ -95,10 +95,6 @@ extension (the_path: Path) {
 
   inline def absolute = the_path.toAbsolutePath()
 
-  def real = PathsHelper.symlinkToReal(the_path.toAbsolutePath().normalize())
-  
-  inline def file = the_path.toFile
-
   inline def `..` = the_path.getParent match
     case null => the_path
     case p => p
@@ -117,59 +113,90 @@ extension (the_path: Path) {
     if child startsWith the_path then Is(the_path relativize child)
     else Alt.unit
 
+  inline def relativeTo(other: Path) = other relativize the_path
+
+
+  inline def raw: kse.eio.PathsHelper.RawPath = PathsHelper.RawPath(the_path)
+
+  def real: Path =
+    ratchet(the_path): upath =>
+      ratchet(upath.toAbsolutePath): abs =>
+        ratchet(abs.normalize): norm =>
+          PathsHelper.symlinkToReal(norm)
+  
+  inline def file: File Or Err = nice{ the_path.toFile }
+
   inline def isDirectory = Files isDirectory the_path
 
   inline def isSymlink = Files isSymbolicLink the_path
 
-  inline def size = Files size the_path
+  def size: Long = ratchet(-1L): _ =>
+    if Files.exists(the_path) then Files.size(the_path)
+    else -1L
 
-  inline def safely: kse.eio.PathsHelper.Safely = PathsHelper.Safely(the_path)
+  def time: FileTime Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice{ Files getLastModifiedTime the_path }
 
-  inline def time: FileTime = Files getLastModifiedTime the_path
+  def time_=(ft: FileTime): Unit Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice{ Files.setLastModifiedTime(the_path, ft) }
 
-  inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path, ft)
-  
-  inline def mkdir(): Unit = Files createDirectory the_path
-
-  inline def mkdirs(): Unit = Files createDirectories the_path
-
-  inline def mkParents(): the_path.type =
-    val p = the_path.getParent
-    if (p ne null) && !Files.exists(p) then
-      if Files.isSymbolicLink(p) then
-        Files.createDirectories(PathsHelper.symlinkToReal(the_path.toAbsolutePath().normalize()))
-      else Files.createDirectories(p)
-    the_path
-
-  inline def delete() = Files deleteIfExists the_path
-
-  def makeSymlink(s: String): Unit =
-    Files.createSymbolicLink(the_path, the_path.getFileSystem.getPath(s))
-    ()
-
-  def symlinkTo(p: Path): Unit =
-    if p.isAbsolute then Files.createSymbolicLink(the_path, p)
+  def mkdir(): Boolean Or Err =
+    if Files.exists(the_path) then
+      if Files.isDirectory(the_path) then Is(false) else Err.or(s"$the_path already exists and is not a directory")
     else the_path.getParent match
-      case null => Files.createSymbolicLink(the_path, p)
-      case q    => Files.createSymbolicLink(the_path, q relativize p)
-    ()
+      case null => nice{ Files createDirectory the_path ; true }
+      case p =>
+        if !Files.exists(p) then Err.or(s"Cannot create $the_path because $p not found")
+          else nice{ Files createDirectory the_path ; true }
 
-  def symlink: String Or Unit =
-    if Files isSymbolicLink the_path then Is((Files readSymbolicLink the_path).toString)
-    else Alt.unit
+  inline def mkdirs(): Unit Or Err = nice{ Files createDirectories the_path ; () }
 
-  def followSymlink: Path Or Unit =
-    if Files isSymbolicLink the_path then
-      val q = Files readSymbolicLink the_path
-      if q.isAbsolute then Is(q)
+  inline def mkParents(): Unit Or Err = nice{ PathsHelper.RawPath(the_path).mkParents() }
+
+  inline def delete(): Boolean = ratchet(false): _ =>
+    Files deleteIfExists the_path
+
+  def makeSymlink(s: String): Unit Or Err = Err.Or:
+    val target = the_path.getFileSystem.getPath(s)
+    if Files.exists(the_path) then
+      if Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == target then ()
+      else Err.break(s"$the_path exists so can't create it as a symbolic link")
+    else
+      if Files.isSymbolicLink(the_path) then Files.delete(the_path)
+      Files.createSymbolicLink(the_path, target)
+      ()
+
+  def symlinkTo(p: Path): Unit Or Err = Err.Or:
+    if Files.exists(the_path) then
+      if Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == p then ()
+      else Err.break(s"$the_path exists so can't create it as a symbolic link")
+    else
+      if Files.isSymbolicLink(the_path) then Files.delete(the_path)
+      if p.isAbsolute then Files.createSymbolicLink(the_path, p)
       else the_path.getParent match
-        case null => Is(q)
-        case p    => Is((p resolve q).normalize)
-    else Alt.unit
+        case null => Files.createSymbolicLink(the_path, p)
+        case q    => Files.createSymbolicLink(the_path, q relativize p)
 
-  def touch(): Unit =
+  def symlink: String Or Err =
+    if Files isSymbolicLink the_path then nice{ (Files readSymbolicLink the_path).toString }
+    else Err.or(s"$the_path is not a symbolic link")
+
+  def followSymlink: Path Or Err =
+    if Files isSymbolicLink the_path then nice {
+      val q = Files readSymbolicLink the_path
+      if q.isAbsolute then q
+      else the_path.getParent match
+        case null => q
+        case p    => (p resolve q).normalize
+    }
+    else Err.or(s"$the_path is not a symbolic link")
+
+  def touch(): Unit Or Err = nice {
     if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
     else Files.write(the_path, new Array[Byte](0))
+  }
 
   def paths =
     if !(Files exists the_path) || !(Files isDirectory the_path) then PathsHelper.emptyPathArray
@@ -178,69 +205,104 @@ extension (the_path: Path) {
         list.toArray(i => new Array[Path](i))
       .getOrElse(_ => PathsHelper.emptyPathArray)
 
-  def slurp: Array[String] =
-    val s = Files lines the_path
-    val vb = Array.newBuilder[String]
-    s.forEach(vb += _)
-    s.close
-    vb.result
+  def slurp: Array[String] Or Err =
+    if Files exists the_path then
+      nice{ Resource(Files lines the_path)(_.close)(_.toArray(i => new Array[String](i))) }
+    else Err.or(s"$the_path not found")
 
-  inline def gulp: Array[Byte] =
-    Files readAllBytes the_path
+  def gulp: Array[Byte] Or Err =
+    if Files exists the_path then nice{ Files readAllBytes the_path }
+    else Err.or(s"$the_path not found")
 
-  def openRead()(using Tidy[java.io.BufferedInputStream]): java.io.BufferedInputStream =
-    new BufferedInputStream(Files newInputStream the_path, 8192)
+  def write(data: Array[Byte]): Unit Or Err = nice{ Files.write(the_path, data) }
 
-  inline def write(data: Array[Byte]): Unit =
-    Files.write(the_path, data)
-    ()
+  def append(data: Array[Byte]): Unit Or Err =
+    nice{ Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
-  inline def append(data: Array[Byte]): Unit =
-    Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+  def create(data: Array[Byte]): Unit Or Err =
+    if Files exists the_path then Err.or(s"$the_path already exists")
+    else nice{ Files.write(the_path, data, StandardOpenOption.CREATE_NEW) }
 
-  def create(data: Array[Byte]): Boolean =
-    if Files.exists(the_path) then false
-    else
+  def createIfAbsent(data: Array[Byte]): Boolean Or Err =
+    if Files.exists(the_path) then Is(false)
+    else nice {
       Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
       true
+    }
 
-  def writeLines(coll: scala.collection.IterableOnce[String]): Unit =
-    Files.write(the_path, PathsHelper.javaIterable(coll))
-    ()
+  def writeLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
+    nice{ Files.write(the_path, PathsHelper.javaIterable(coll)) }
 
-  def appendLines(coll: scala.collection.IterableOnce[String]): Unit =
-    Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE)
-    ()
+  def appendLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
+    nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
-  def createLines(coll: scala.collection.IterableOnce[String]): Boolean =
-    if Files.exists(the_path) then false
-    else
+  def createLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
+    if Files exists the_path then Err.or(s"$the_path already exists")
+    else nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) }
+
+  def createLinesIfAbsent(coll: scala.collection.IterableOnce[String]): Boolean Or Err =
+    if Files.exists(the_path) then Is(false)
+    else nice {
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
       true
+    }
 
-  def openWrite()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
-    new BufferedOutputStream(Files newOutputStream the_path, 8192)
 
-  def openAppend()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
-    new BufferedOutputStream(
-      Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
-      8192
-    )
+  def openRead()(using Tidy.Nice[java.io.BufferedInputStream]): java.io.BufferedInputStream Or Err =
+    if Files exists the_path then nice{ new BufferedInputStream(Files newInputStream the_path, 8192) }
+    else Err.or(s"$the_path not found")
 
-  def openCreate()(using Tidy[BufferedOutputStream]): java.io.BufferedOutputStream =
-    new BufferedOutputStream(
-      Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
-      8192
-    )
+  def openWrite()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+    nice{ new BufferedOutputStream(Files newOutputStream the_path, 8192) }
 
-  def openIO()(using Tidy[SeekableByteChannel]): SeekableByteChannel =
+  def openAppend()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+    nice {
+      new BufferedOutputStream(
+        Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
+        8192
+      )
+    }
+
+  def openCreate()(using Tidy.Nice[BufferedOutputStream]): java.io.BufferedOutputStream Or Err =
+    if Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice {
+      new BufferedOutputStream(
+        Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
+        8192
+      )
+    }
+
+  def openIO()(using Tidy.Nice[SeekableByteChannel]): SeekableByteChannel Or Err = nice {
     Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+  }
 
-  inline def copyTo(to: Path): Unit =
-    Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
-  inline def moveTo(to: Path): Unit =
-    Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING)
+  def copyTo(to: Path): Unit Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice{ Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING) }
+
+  def copyCreate(to: Path): Unit Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else if Files.exists(to) then Err.or(s"$to already exists")
+    else nice{ Files.copy(the_path, to) }
+
+  def moveTo(to: Path): Unit Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice{ Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING) }
+
+  def moveCreate(to: Path): Unit Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else nice{ Files.move(the_path, to) }
+
+  def moveInto(that: Path): Path Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
+    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
+    else nice:
+      val target = that resolve the_path.getFileName
+      Files.move(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+      target
+
 
   inline def atomically: PathsHelper.AtomicPathOps = PathsHelper.AtomicPathOps(the_path)
 
@@ -251,12 +313,21 @@ extension (the_path: Path) {
     else throw new IOException(s"Trying recursive operation in $inside but started outside at $the_path")
 }
 
-implicit class ExtensionMethodsClobberMethodNames(private val the_path: Path) extends AnyVal {
+implicit class DisambiguateExtensionMethodNames(private val the_path: Path) extends AnyVal {
   inline def /(that: String) = the_path resolve that
 
   inline def /(that: Path) = the_path resolve that
 
   inline def exists = Files exists the_path
+
+  def copyInto(that: Path): Path Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
+    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
+    else nice:
+      val target = that resolve the_path.getFileName
+      Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+      target
 }
 
 /*
@@ -626,36 +697,110 @@ object PathsHelper {
     val drp = del.toRealPath()
     recursiveDelete(drp, drp, hook)
 
-  opaque type Safely = Path
-  object Safely {
-    def apply(path: Path): kse.eio.PathsHelper.Safely = path
+  opaque type RawPath = Path
+  object RawPath {
+    def apply(path: Path): kse.eio.PathsHelper.RawPath = path
 
-    extension (path: Safely)
-      def underlying: Path = path
+    extension (the_path: RawPath)
+      def path: Path = the_path
 
-    extension (path: kse.eio.PathsHelper.Safely) {
-      def exists: Boolean =
-        ratchet(false): _ =>
-          Files.exists(path.underlying)
+    extension (the_path: kse.eio.PathsHelper.RawPath) {
+      def real = PathsHelper.symlinkToReal(the_path.path.toAbsolutePath().normalize())
 
-      def isDirectory: Boolean =
-        ratchet(false): _ =>
-          Files.isDirectory(path.underlying)
+      inline def file = the_path.path.toFile
 
-      def isSymbolic: Boolean =
-        ratchet(false): _ =>
-          Files.isSymbolicLink(path.underlying)
+      inline def size = Files size the_path.path
 
-      def size: Long =
-        ratchet(-1L): _ =>
-          if Files.exists(path.underlying) then Files.size(path.underlying)
-          else -1L
+      inline def time: FileTime = Files getLastModifiedTime the_path.path
 
-      def real: Path =
-        ratchet(path.underlying): upath =>
-          ratchet(upath.toAbsolutePath): abs =>
-            ratchet(abs.normalize): norm =>
-              symlinkToReal(norm)
+      inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path.path, ft)
+
+
+      inline def mkdir(): Unit = Files createDirectory the_path.path
+
+      inline def mkdirs(): Unit = Files createDirectories the_path.path
+
+      def mkParents(): Unit =
+        val p = the_path.path.getParent
+        if (p ne null) && !Files.exists(p) then
+          if Files.isSymbolicLink(p) then
+            Files.createDirectories(PathsHelper.symlinkToReal(the_path.path.toAbsolutePath().normalize()))
+          else Files.createDirectories(p)
+
+      inline def delete() = Files delete the_path.path
+
+      def makeSymlink(s: String): Unit =
+        Files.createSymbolicLink(the_path.path, the_path.path.getFileSystem.getPath(s))
+        ()
+
+      def symlinkTo(p: Path): Unit =
+        if p.isAbsolute then Files.createSymbolicLink(the_path.path, p)
+        else the_path.path.getParent match
+          case null => Files.createSymbolicLink(the_path.path, p)
+          case q    => Files.createSymbolicLink(the_path.path, q relativize p)
+        ()
+
+      inline def symlink: String = (Files readSymbolicLink the_path.path).toString
+
+      def followSymlink: Path =
+        val q = Files readSymbolicLink the_path.path
+        if q.isAbsolute then q
+        else the_path.path.getParent match
+          case null => q
+          case p    => (p resolve q).normalize
+
+      def touch(): Unit =
+        if Files exists the_path.path then Files.setLastModifiedTime(the_path.path, FileTime from Instant.now)
+        else Files.write(the_path.path, new Array[Byte](0))
+
+      def slurp: Array[String] =
+        Resource(Files lines the_path.path)(_.close)(_.toArray(i => new Array[String](i)))
+
+      inline def gulp: Array[Byte] = Files readAllBytes the_path.path
+
+      inline def openRead(): java.io.BufferedInputStream =
+        new BufferedInputStream(Files newInputStream the_path, 8192)
+
+      inline def write(data: Array[Byte]): Unit =
+        Files.write(the_path, data)
+
+      inline def append(data: Array[Byte]): Unit =
+        Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+
+      inline def create(data: Array[Byte]): Unit =
+        Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
+
+      def writeLines(coll: scala.collection.IterableOnce[String]): Unit =
+        Files.write(the_path, PathsHelper.javaIterable(coll))
+
+      def appendLines(coll: scala.collection.IterableOnce[String]): Unit =
+        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+
+      def createLines(coll: scala.collection.IterableOnce[String]): Unit =
+        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
+
+      inline def openWrite(): java.io.BufferedOutputStream =
+        new BufferedOutputStream(Files newOutputStream the_path, 8192)
+
+      inline def openAppend(): java.io.BufferedOutputStream =
+        new BufferedOutputStream(
+          Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
+          8192
+        )
+
+      inline def openCreate(): java.io.BufferedOutputStream =
+        new BufferedOutputStream(
+          Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
+          8192
+        )
+
+      inline def openIO(): SeekableByteChannel =
+        Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+
+
+      inline def copyTo(to: Path): Unit = Files.copy(the_path.path, to, StandardCopyOption.REPLACE_EXISTING)
+
+      inline def moveTo(to: Path): Unit = Files.move(the_path.path, to, StandardCopyOption.REPLACE_EXISTING)
     }  
   }
 }

@@ -438,69 +438,152 @@ class EioTest {
     T ~ p.adopt("temp/eios".path)    ==== Alt.unit
     T ~ p.exists                     ==== true
     T ~ q.exists                     ==== false
+
+    T ~ q.size                       ==== -1L
+    T ~ q.raw.size                   ==== thrown[IOException]
     T ~ { q.touch(); q.exists }      ==== true
     T ~ q.size                       ==== 0L
     T ~ p.isDirectory                ==== true
     T ~ q.isDirectory                ==== false
     T ~ (p / "dir").exists           ==== false
-    T ~ (p / "dir").mkdir()          ==== ()
+    T ~ (p / "dir").mkdir()          ==== true  --: typed[Boolean Or Err]
+    T ~ (p / "dir").mkdir()          ==== false
+    T ~ (p / "dir").raw.mkdir()      ==== thrown[IOException]
     T ~ (p / "a").exists             ==== false
     T ~ (p / "a/b").exists           ==== false
-    T ~ (p / "a/b").mkdirs()         ==== ()
+    T ~ (p / "a/b").mkdirs()         ==== ()    --: typed[Unit Or Err]
     T ~ (p / "a").exists             ==== true
     T ~ (p / "a" / "b").exists       ==== true
     T ~ (p / "eel").exists           ==== false
-    T ~ (p / "eel/x").mkParents()    ==== (p / "eel/x")
+    T ~ (p / "eel/x").mkParents()    ==== ()    --: typed[Unit Or Err]
     T ~ (p / "eel").exists           ==== true
-    T ~ (q.time - ft).in(0.s, 10.s)  ==== true
-    T ~ { q.time = ft; q.time }      ==== ft
-    T ~ { q.touch(); q.time == ft }  ==== false
-    T ~ p.paths.sorted               =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt")
-    T ~ q.write("blorp".bytes)       ==== ()
-    T ~ q.gulp                       =**= "blorp".bytes
-    T ~ q.append("y".bytes)          ==== ()
-    T ~ q.slurp                      =**= Array("blorpy")
-    T ~ q.create("bad".bytes)        ==== false
-    T ~ q.delete()                   ==== true
-    T ~ q.delete()                   ==== false
-    T ~ q.exists                     ==== false
-    T ~ q.create("hi\nworld".bytes)  ==== true
-    T ~ q.slurp                      =**= Array("hi", "world")
-    T ~ q.delete()                   ==== true
-    T ~ q.exists                     ==== false
-    T ~ q.append("foo".bytes)        ==== ()
-    T ~ q.gulp.utf8                  ==== "foo"
-    T ~ q.writeLines("eel" :: Nil)   ==== ()
-    T ~ q.slurp                      =**= Array("eel")
-    T ~ q.appendLines("cod" :: Nil)  ==== ()
-    T ~ q.slurp                      =**= Array("eel", "cod")
-    T ~ q.append("perch".bytes)      ==== ()
-    T ~ q.slurp                      =**= Array("eel", "cod", "perch")
-    T ~ q.append("bass".bytes)       ==== ()
-    T ~ q.slurp                      =**= Array("eel", "cod", "perchbass")
-    T ~ q.delete()                   ==== true
-    T ~ q.createLines("cod" :: Nil)  ==== true
-    T ~ q.gulp.utf8                  ==== "cod\n"
-    T ~ q.createLines("eel" :: Nil)  ==== false
-    T ~ q.copyTo(p / "fish.txt")     ==== ()
-    T ~ (p / "fish.txt").slurp       =**= Array("cod")
-    T ~ q.moveTo(p / "move.txt")     ==== ()
-    T ~ (p / "move.txt").slurp       =**= Array("cod")
-    T ~ q.exists                     ==== false
+
+    val ft1 = ft - 1.s
+    T ~ (q.raw.time - ft).in(0.s, 10.s)       ==== true
+    T ~ (q.time.get - ft).in(0.s, 10.s)       ==== true
+    T ~ { q.raw.time = ft; q.raw.time }       ==== ft
+    T ~ { ((q.time = ft1).isIs, q.time.get) } ==== ((true, ft1))
+    T ~ { q.touch(); q.time.get == ft }       ==== false
+    T ~ p.paths.sorted                        =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt")
+    T ~ q.raw.delete()                        ==== ()
+    T ~ q.raw.delete()                        ==== thrown[IOException]
+    T ~ q.raw.time                            ==== thrown[IOException]
+    T ~ { q.raw.time = ft1 }                  ==== thrown[IOException]
+    T ~ q.time.alt                            ==== runtype[String]
+    T ~ { q.time = ft1 }.alt                  ==== runtype[String]
+    T ~ q.exists                              ==== false
+
+    T ~ q.slurp     ==== runtype[Alt[_]]
+    T ~ q.slurp.alt ==== runtype[String]
+    T ~ q.gulp      ==== runtype[Alt[_]]
+    T ~ q.gulp.alt  ==== runtype[String]
+    T ~ q.raw.slurp ==== thrown[IOException]
+    T ~ q.raw.gulp  ==== thrown[IOException]
+
+    val correctly: Unit Or Err = Or.Ret:
+      T ~ q.write("blorp".bytes)              ==== ()              --: typed[Unit Or Err]
+      T ~ q.gulp.?                            =**= "blorp".bytes
+      T ~ q.append("y".bytes)                 ==== ()              --: typed[Unit Or Err]
+      T ~ q.slurp.?                           =**= Array("blorpy")
+      T ~ q.createIfAbsent("bad".bytes)       ==== false           --: typed[Boolean Or Err]
+      T ~ q.create("bad".bytes)               ==== runtype[Alt[_]]
+      T ~ q.create("bad".bytes).alt           ==== runtype[String]
+      T ~ q.raw.create("bad".bytes)           ==== thrown[IOException]
+      T ~ q.delete()                          ==== true
+      T ~ q.delete()                          ==== false
+      T ~ q.exists                            ==== false
+      T ~ q.createIfAbsent("hi\nworld".bytes) ==== true
+      T ~ q.slurp.?                           =**= Array("hi", "world")
+      T ~ q.delete()                          ==== true
+      T ~ q.create("hello\nworld".bytes)      ==== ()              --: typed[Unit Or Err]
+      T ~ q.slurp.?                           =**= Array("hello", "world")
+      T ~ q.delete()                          ==== true
+      T ~ q.exists                            ==== false
+      T ~ q.append("foo".bytes)               ==== ()
+      T ~ q.gulp.?.utf8                       ==== "foo"
+      T ~ q.raw.write("cod".bytes)            ==== ()
+      T ~ q.gulp.?.utf8                       ==== "cod"
+      T ~ q.raw.append("fish".bytes)          ==== ()
+      T ~ q.gulp.?.utf8                       ==== "codfish"
+      T ~ q.writeLines("eel" :: Nil)          ==== ()
+      T ~ q.raw.slurp                         =**= Array("eel")
+      T ~ q.appendLines("cod" :: Nil)         ==== ()
+      T ~ q.raw.slurp                         =**= Array("eel", "cod")
+      T ~ q.append("perch".bytes)             ==== ()
+      T ~ q.raw.slurp                         =**= Array("eel", "cod", "perch")
+      T ~ q.append("bass".bytes)              ==== ()
+      T ~ q.raw.slurp                         =**= Array("eel", "cod", "perchbass")
+      T ~ q.delete()                          ==== true
+      T ~ q.createLines("cod" :: Nil)         ==== ()
+      T ~ q.raw.gulp.utf8                     ==== "cod\n"
+      T ~ q.delete()                          ==== true
+      T ~ q.raw.createLines("cod" :: Nil)     ==== ()
+      T ~ q.raw.gulp.utf8                     ==== "cod\n"
+      T ~ q.delete()                          ==== true
+      T ~ q.createLinesIfAbsent("cod" :: Nil) ==== true
+      T ~ q.raw.gulp.utf8                     ==== "cod\n"
+      T ~ q.createLinesIfAbsent("eel" :: Nil) ==== false
+      T ~ q.raw.createLines("cod" :: Nil)     ==== thrown[IOException]
+      T ~ q.createLines("cod" :: Nil)         ==== runtype[Alt[_]]
+      T ~ q.createLines("cod" :: Nil).alt     ==== runtype[String]
+      T ~ q.copyTo(p / "fish.txt")            ==== ()             --: typed[Unit Or Err]
+      T ~ (p / "fish.txt").slurp.?            =**= Array("cod")
+      T ~ (p / "swan.txt").copyTo(q).alt      ==== runtype[String]
+      T ~ q.moveTo(p / "move.txt")            ==== ()             --: typed[Unit Or Err]
+      T ~ (p / "move.txt").slurp.?            =**= Array("cod")
+      T ~ q.moveTo(p / "move.txt").alt        ==== runtype[String]
+      T ~ q.exists                            ==== false
+      T ~ (p / "move.txt").raw.moveTo(q)      ==== ()
+      T ~ (p / "move.txt").raw.moveTo(q)      ==== thrown[IOException]
+      T ~ (p / "swan.txt").raw.copyTo(q)      ==== thrown[IOException]
+      T ~ q.raw.copyTo(p / "bass.txt")        ==== ()
+      T ~ (p / "bass.txt").slurp.?            =**= Array("cod")
+      T ~ q.writeLines("eel" :: Nil)          ==== ()
+      T ~ q.copyCreate(p / "pike.txt")        ==== ()
+      T ~ q.copyTo(p / "bass.txt")            ==== ()
+      T ~ q.copyCreate(p / "bass.txt").alt    ==== runtype[String]
+      T ~ (p / "pike.txt").copyInto(p / "a")  ==== (p / "a/pike.txt")
+      T ~ (p / "like.txt").copyInto(p / "a")  ==== runtype[Alt[_]]
+      T ~ (p / "pike.txt").copyInto(p / "c")  ==== runtype[Alt[_]]
+      T ~ (p / "pike.txt").write("pike".bytes)==== ()
+      T ~ (p / "pike.txt").copyInto(p / "a")  ==== (p / "a/pike.txt")
+      T ~ (p / "a/pike.txt").gulp.?           =**= "pike".bytes
+      T ~ (p / "bass.txt").moveInto(p / "a")  ==== (p / "a/bass.txt")
+      T ~ (p / "bass.txt").moveInto(p / "a")  ==== runtype[Alt[_]]
+      T ~ (p / "move.txt").moveInto(p / "c")  ==== runtype[Alt[_]]
+      T ~ (p / "a/bass.txt").gulp.?           =**= "eel\n".bytes
+
+    T ~ correctly ==== ()
 
     val ab2 = "ft".bytes
-    Resource(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
-    T ~ q.exists                                                         ==== true
-    T ~ q.size                                                           ==== 0L
-    Resource(q.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }
-    T ~ q.size                                                           ==== 1L
-    Resource(q.openRead())(_.close)(x => T ~ x ==== runtype[BufferedInputStream])
-    T ~ Resource(q.openRead())(_.close)(_.available)                     ==== 1
-    T ~ Resource(q.openRead())(_.close)(_.read)                          ==== 'e'
-    Resource(q.openWrite())(_.close){ o => o.write("eel".bytes); T ~ o ==== runtype[BufferedOutputStream] }
-    T ~ Resource(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
-    T ~ Resource(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
+    q.delete()
+    Resource(q.raw.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
+    T ~ q.exists                                     ==== true
+    T ~ q.size                                       ==== 0L
+    Resource(q.raw.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }
+    T ~ q.size                                                      ==== 1L
+    Resource(q.raw.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream])
+    T ~ Resource(q.raw.openRead())(_.close)(_.available) ==== 1
+    T ~ Resource(q.raw.openRead())(_.close)(_.read)      ==== 'e'
+    Resource(q.raw.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o ==== runtype[BufferedOutputStream] }
+    T ~ Resource(q.raw.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
+    T ~ Resource(q.raw.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
 
+    "ft".bytes copyInto ab2
+    q.delete()
+    Resource.nice(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
+    T ~ q.exists                                      ==== true
+    T ~ q.size                                        ==== 0L
+    Resource.nice(q.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }
+    T ~ q.size                                                       ==== 1L
+    Resource.nice(q.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream])
+    T ~ Resource.nice(q.openRead())(_.close)(_.available) ==== 1
+    T ~ Resource.nice(q.openRead())(_.close)(_.read)      ==== 'e'
+    Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o ==== runtype[BufferedOutputStream] }
+    T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
+    T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
+
+    /*
     val ps = "temp/eio/sym".path
     T ~ (p / "sym").isSymlink               ==== false
     T ~ ps.symlink                          ==== Alt.unit --: typed[String Or Unit]
@@ -539,6 +622,7 @@ class EioTest {
     val mp = "/life/fish".pathIn(mfs)
     T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
     T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
+    */
 
 
   @Test
@@ -617,11 +701,17 @@ class EioTest {
     z9999.fill(0)
     T ~ biter.sendTo(z9999.output)                     ==== 9999L
     T ~ z9999                                          =**= b9999
+    z9999.fill(0)
+    T ~ bits.sendTo(z9999.output)                      ==== 9999L
+    T ~ z9999                                          =**= b9999
 
     val smb2c = Send.IterBytesToChannel(allowFullTarget = true)
     z9999.fill(0)
     T ~ biter.sendTo(zwc)                              ==== 9999L
-    T ~ z9999                                              =**= b9999
+    T ~ z9999                                          =**= b9999
+    z9999.fill(0)
+    T ~ bits.sendTo(zwc)                               ==== 9999L
+    T ~ z9999                                          =**= b9999
     T ~ biter.sendTo(zws).isAlt                        ==== true
     T ~ biter.sendTo(zws).alt.toss                     ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
@@ -632,16 +722,22 @@ class EioTest {
     z9999.fill(0)
     T ~ biter.sendTo(z9999.writeChannel)               ==== 9999L
     T ~ z9999                                          =**= b9999
+    z9999.fill(0)
+    T ~ bits.sendTo(z9999.writeChannel)                ==== 9999L
+    T ~ z9999                                          =**= b9999
     T ~ biter.sendTo(z1024.writeChannel).isAlt         ==== true
     T ~ biter.sendTo(z1024.writeChannel).alt.toss      ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
     T ~ biter.sendTo(z1024.writeChannel)(using smb2m)  ==== 1024L
-    T ~ z1024                                              =**= b9999.take(1024)
+    T ~ z1024                                          =**= b9999.take(1024)
 
     val strings = List("salmon", "herring", "cod", "perch")
     def siter = strings.iterator
     z9999.fill(0)
     T ~ siter.sendTo(z9999.output)                     ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum)      =**= "salmon\nherring\ncod\nperch\n".bytes
+    z9999.fill(0)
+    T ~ strings.sendTo(z9999.output)                   ==== strings.map(_.length + 1).sum
     T ~ z9999.take(strings.map(_.length + 1).sum)      =**= "salmon\nherring\ncod\nperch\n".bytes
 
     val smi2c = Send.IterStringToChannel(allowFullTarget = true)
@@ -649,7 +745,10 @@ class EioTest {
     def w20: WritableByteChannel = z20.writeChannel
     z9999.fill(0)
     T ~ siter.sendTo(zwc)                              ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8     ==== "salmon\nherring\ncod\nperch\n"
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
+    z9999.fill(0)
+    T ~ strings.sendTo(zwc)                            ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
     T ~ siter.sendTo(w20).isAlt                        ==== true
     T ~ siter.sendTo(w20).alt.toss                     ==== thrown[ErrType.StringErrException]
     z20.fill(0)
@@ -659,6 +758,9 @@ class EioTest {
     val smi2m = Send.IterStringToMulti(allowFullTarget = true)
     z9999.fill(0)
     T ~ siter.sendTo(z9999.writeChannel)               ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
+    z9999.fill(0)
+    T ~ strings.sendTo(z9999.writeChannel)             ==== strings.map(_.length + 1).sum
     T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
     T ~ siter.sendTo(z20.writeChannel).isAlt           ==== true
     T ~ siter.sendTo(z20.writeChannel).alt.toss        ==== thrown[ErrType.StringErrException]

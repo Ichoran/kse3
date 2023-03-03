@@ -16,6 +16,7 @@ object Err {
   extension (e: kse.flow.Err)
     def explainWith(f: kse.flow.Err => String, indent: String = "  "): kse.flow.Err = Err.apply(ErrType.Explained(f(e), e, indent))
     def explainBy(s: String, indent: String = "  "): Err = Err.apply(ErrType.Explained(s, e, indent))
+    def explainValue[A](s: String, value: A): kse.flow.Err = Err.apply(ErrType.Explained(s, e, context = Some(value)))
     def toThrowable: Throwable = e.underlying match
       case s: String => ErrType.StringErrException(s)
       case t: ErrType => t.toThrowable
@@ -129,14 +130,25 @@ object ErrType {
     def toThrowable = if error.catchable then error else new CatchableException("", error)
   }
 
-  final class Explained(val explanation: String, val error: kse.flow.Err, val indent: String = "  ") extends ErrType {
+  final class Explained(val explanation: String, val error: kse.flow.Err, val indent: String = "  ", val context: Option[Any] = None) extends ErrType {
     type E = kse.flow.Err
 
+    def withoutContext: Explained =
+      if context.isEmpty then this else new Explained(explanation, error, indent, None)
+
+    def withContext[A](value: A): Explained =
+      new Explained(explanation, error, indent, Some(value))
+
+    def mapContext[A](f: Option[Any] => Option[A]): Explained =
+      val c2 = f(context)
+      if c2.isEmpty then withoutContext
+      else new Explained(explanation, error, indent, c2)
+
     override def equals(a: Any) = a match
-      case ex: Explained => explanation == ex.explanation && error == ex.error
+      case ex: Explained => explanation == ex.explanation && error == ex.error && context == ex.context
       case _ => false
 
-    override def hashCode = explanation.## ^ error.##
+    override def hashCode = explanation.## ^ error.## ^ context.##
 
     override lazy val toString = indentString(error.toString, indent = indent, header = explanation)
 
@@ -172,6 +184,8 @@ object ErrFrom {
 
 
 extension [A](a: A) {
+  inline def orErr: A Or Err = Is(a)
+
   inline def errIf(p: A => Boolean)(using ef: ErrFrom[A]): A Or Err =
     if p(a) then Alt(ef(a)) else Is(a)
 

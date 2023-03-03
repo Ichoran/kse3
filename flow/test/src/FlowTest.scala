@@ -477,7 +477,7 @@ class FlowTest {
     T ~ oap.get ==== thrown[NoSuchElementException]
     T ~ oap.alt ==== null    
     T ~ oaq.get ==== thrown[NoSuchElementException]
-    T ~ oaq.alt ==== Alt(null)   
+    T ~ oaq.alt ==== Alt(null)
 
     T ~ i.union      ==== 5
     T ~ a.union      ==== "cod"
@@ -2550,12 +2550,17 @@ class FlowTest {
 
   @Test
   def resourceTest: Unit =
+    def oops(): Nothing = throw new Exception("oops")
     val m = Mu(0)
     T ~ Resource(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4
     T ~ m.value                                                 ==== 3
-    T ~ Resource(m)(_.zap(_ * 2)){ x => throw new Exception("oops"); () } ==== thrown[Exception]
+    T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }            ==== thrown[Exception]
     T ~ m.value                                                 ==== 6
-    T ~ Err.Or[Int]{ Resource(m)(_.zap(- _)){ x => if x.value > 0 then Is.break(x.value) else if x.value < 0 then Err.break("negative") else 0 } } ==== 6 --: typed[Int Or Err]
+    T ~ Err.Or[Int]{ Resource(m)(_.zap(- _)){ x => 
+          if x.value > 0 then Is.break(x.value)
+          else if x.value < 0 then Err.break("negative")
+          else 0
+        } }                                                     ==== 6 --: typed[Int Or Err]
     T ~ m.value                                                 ==== -6
 
     T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Throwable]
@@ -2576,29 +2581,82 @@ class FlowTest {
           throw new Exception("oops"); x.zap(_ * 2)
         }{ x => 
           x.zap(_ * 3); x.value
-        }.existsAlt(_.isInstanceOf[Exception])                       ==== true
-    T ~ m.value                                                      ==== -18
+        }.existsAlt(_.isInstanceOf[Exception])                             ==== true
+    T ~ m.value                                                            ==== -18
 
-    T ~ Resource.nice(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Err]
-    T ~ m.value                                                      ==== 3
-    T ~ Resource.nice(m)(_.zap(_ * 2)){ x => 
-          throw new Exception("oops"); ()
-        }.existsAlt(_.toString contains "oops")                      ==== true
-    T ~ m.value                                                      ==== 6
+    T ~ Resource.nice(m.orErr)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ m.value                                                            ==== 3
+    T ~ Resource.nice(m.orErr)(_.zap(_ * 2)){ x => 
+          oops(); ()
+        }.existsAlt(_.toString contains "oops")                            ==== true
+    T ~ m.value                                                            ==== 6
     T ~ Or.FlatRet{
-          Resource.nice(m)(_.zap(- _)){ x => 
+          Resource.nice(m.orErr)(_.zap(- _)){ x => 
             if x.value > 0 then Is.break(x.value)
             else if x.value < 0 then Err.break("negative")
             else 0
           }
-        }                                                            ==== 6
-    T ~ m.value                                                      ==== -6
-    T ~ Resource.nice(m){ x =>
-          throw new Exception("oops"); x.zap(_ * 2)
+        }                                                                  ==== 6
+    T ~ m.value                                                            ==== -6
+    T ~ Resource.nice(m.orErr){ x =>
+          oops(); x.zap(_ * 2)
         }{ x => 
           x.zap(_ * 3); x.value
         }.existsAlt(_.toString contains "closing resource")          ==== true
-    T ~ m.value                                                      ==== -18
+    T ~ Resource.nice(m.orErr){ x =>
+          oops(); x.zap(_ * 3)
+        }{ x => 
+          x.zap(_ / 2); x.value
+        }.mapAlt(_.underlying match
+          case ete: ErrType.Explained => ete.context match
+            case Some(i: Int) => ete.withContext(i+1).context
+            case _ => None
+          case _ => None
+        ).altOrElse(_ => None)                                       ==== Some(-8)
+    T ~ m.value                                                      ==== -9
+    T ~ Resource.nice{ oops(); m.orErr }(_.zap(- _)) {
+          x => x.zap(_ * 3); x.value
+        }                                                            ==== runtype[Alt[_]]
+    T ~ m.value                                                      ==== -9
+    T ~ Resource.nice{
+          m.errCase{ case x if x.value < 0 => Err("bad") }
+        }(_.zap(- _)) {
+          x => x.zap(_ * 3); x.value
+        }                                                            ==== Err.or("bad")
+    T ~ m.value                                                      ==== -9
+    T ~ Resource.Nice(m.orErr)(_.zap(_ + 3)){ x =>
+          x.zap(_ * 2); x.value
+        }                                                            ==== -18
+    T ~ m.value                                                      ==== -15
+    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
+          oops()
+          x.set(7); x.value
+        }                                                            ==== runtype[Alt[_]]
+    T ~ m.value                                                      ==== 15
+    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
+          x.zap(_ - 8)
+          Err.break(x.value.toString)
+          x.set(4); x.value
+        }                                                            ==== Alt(Err("7"))
+    T ~ m.value                                                      ==== -7
+    T ~ Resource.Nice(m.orErr){ x =>
+          oops(); x.zap(_ * 3)
+        }{ x => 
+          x.zap(_ + 2); x.value
+        }.mapAlt(_.underlying match
+          case ete: ErrType.Explained =>
+            ete.mapContext(x => x.map(_.toString)).context
+          case _ => None
+        ).altOrElse(_ => None)                                       ==== Some("-5")
+    T ~ m.value                                                      ==== -5
+    T ~ Resource.Nice{
+          m.errCase{ case x if x.value < 0 => Err("bad") }
+        }(_.zap(- _)){ x =>
+          x.zap(_ - 8)
+          Err.break(x.value.toString)
+          x.set(4); x.value
+        }                                                            ==== Err.or("bad")
+    T ~ m.value                                                      ==== -5
 }
 object FlowTest {
   // @BeforeClass
