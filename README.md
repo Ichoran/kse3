@@ -24,7 +24,8 @@ meant to cover core functionality.**
 
 ## How do I get it?
 
-Only kse3-flow and kse3-maths (and kse3-testing) are available presently.  In mill, make sure your module has
+Only kse3-flow and some of kse3-maths and a bit of kse3-eio (and kse3-testing) are available presently.
+In mill, make sure your module has
 
 ```scala
 def scalaVersion = "3.3.0-RC3"
@@ -33,8 +34,9 @@ def scalaVersion = "3.3.0-RC3"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.2"
-ivy"com.github.ichoran::kse3-maths:0.1.2"
+ivy"com.github.ichoran::kse3-flow:0.1.3"
+ivy"com.github.ichoran::kse3-maths:0.1.3"
+ivy"com.github.ichoran::kse3-eio:0.1.3"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -43,9 +45,16 @@ Then in your code,
 
 ```scala
 import kse.flow.{given, _}
+import kse.maths.{given, _}
+import kse.maths.packed.{given, _}
+import kse.eio.{given, }
 ```
 
 and you're ready to go.
+
+(Note: I don't test without the `given` imports.  They may work, as Kse3 generally puts
+givens in places where they'll be automatically found.  No givens would be defined that
+aren't essential for functionality, so if they're there, you want to import them.)
 
 #### Is this stable?  Binary compatible?
 
@@ -71,7 +80,7 @@ The flow module is available separately (but you probably don't want to use it
 separately).  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.1"
+ivy"com.github.ichoran::kse3-flow:0.1.3"
 ```
 
 and in your code,
@@ -170,7 +179,7 @@ This exists but presently is undocumented.  Feel free to look through the unit t
 
 ### kse.eio
 
-This also partly exists but isn't published to maven, and is also undocumented.  There are some tests, though!
+This also partly exists but is also undocumented.  There are some tests, though!
 
 
 ## Naming Conventions

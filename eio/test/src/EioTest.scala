@@ -803,6 +803,71 @@ class EioTest {
     T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
 
 
+  @Test
+  def xsvTest(): Unit =
+              //          1           2             3           4          5
+              //01234567890 1 234567890 1 2345678 9 0 12 34567890 1234567890123456
+    val text = "hi,it's,me\n\"everyone \"\"agrees\"\"\",\"it's me\",don't you see\n"
+    val bint = text.bytes
+    val vs = Xsv.Visitor.TableFromString()
+    val vz = Xsv.Visitor.TableFromString(true)
+    val vb = Xsv.Visitor.TableFromBytes()
+    val vd = Xsv.Visitor.TableFromBytes(true)
+    def lls(in: Array[Array[String]] Or Err) = in.map(_.map(_.toList).toList)
+    T ~ vs.unquoted(text, 3, 7)   ==== ()   --: typed[Unit Or Err]
+    T ~ vs.complete(1.u).fn(lls)  ==== List(List("it's"))
+    T ~ vs.unquoted(text, 0, 2)   ==== ()
+    T ~ vs.newline(1.u)           ==== ()  --: typed[Unit Or Err]
+    T ~ vs.quoted(text, 34, 41)   ==== ()
+    T ~ vs.endquote()             ==== ()  --: typed[Unit Or Err]
+    T ~ vs.newline(2.u)           ==== ()
+    T ~ vs.quoted(text, 12, 21)   ==== ()
+    T ~ vs.quoted(text, 23, 29)   ==== ()
+    T ~ vs.quoted(text, 31, 31)   ==== ()
+    T ~ vs.endquote()             ==== ()
+    T ~ vs.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
+    T ~ vs.unquoted(text, 43, 56) ==== ()
+    T ~ vs.endquote()             ==== runtype[Alt[_]]
+    T ~ vs.clear()                ==== ()
+    T ~ vs.quoted(text, 12, 21)   ==== ()
+    T ~ vs.newline(1.u)           ==== runtype[Alt[_]]
+    T ~ vs.clear()                ==== ()
+    T ~ vs.quoted(text, 12, 21)   ==== ()
+    T ~ vs.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vs.clear()                ==== ()
+    T ~ vs.newline(1.u)           ==== ()
+    T ~ vs.unquoted(text, 0, 2)   ==== ()
+    T ~ vs.complete(2.u).fn(lls)  ==== List(Nil, List("hi"))
+    T ~ vz.newline(1.u)           ==== ()
+    T ~ vz.unquoted(text, 0, 2)   ==== ()
+    T ~ vz.complete(2.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vb.unquoted(bint, 3, 7)   ==== ()   --: typed[Unit Or Err]
+    T ~ vb.complete(1.u).fn(lls)  ==== List(List("it's"))
+    T ~ vb.unquoted(bint, 0, 2)   ==== ()
+    T ~ vb.newline(1.u)           ==== ()  --: typed[Unit Or Err]
+    T ~ vb.quoted(bint, 34, 41)   ==== ()
+    T ~ vb.endquote()             ==== ()  --: typed[Unit Or Err]
+    T ~ vb.newline(2.u)           ==== ()
+    T ~ vb.quoted(bint, 12, 21)   ==== ()
+    T ~ vb.quoted(bint, 23, 29)   ==== ()
+    T ~ vb.quoted(bint, 31, 31)   ==== ()
+    T ~ vb.endquote()             ==== ()
+    T ~ vb.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
+    T ~ vb.unquoted(bint, 43, 56) ==== ()
+    T ~ vb.endquote()             ==== runtype[Alt[_]]
+    T ~ vb.clear()                ==== ()
+    T ~ vb.quoted(bint, 12, 21)   ==== ()
+    T ~ vb.newline(1.u)           ==== runtype[Alt[_]]
+    T ~ vb.clear()                ==== ()
+    T ~ vb.quoted(bint, 12, 21)   ==== ()
+    T ~ vb.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vb.clear()                ==== ()
+    T ~ vb.newline(1.u)           ==== ()
+    T ~ vb.unquoted(bint, 0, 2)   ==== ()
+    T ~ vb.complete(2.u).fn(lls)  ==== List(Nil, List("hi"))
+    T ~ vd.newline(1.u)           ==== ()
+    T ~ vd.unquoted(bint, 0, 2)   ==== ()
+    T ~ vd.complete(2.u).fn(lls)  ==== runtype[Alt[_]]
 }
 object EioTest {
   import kse.flow.{given, _}

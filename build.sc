@@ -25,7 +25,7 @@ trait PublishKse3 extends PublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.1.2"
+  def publishVersion = "0.1.3"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
