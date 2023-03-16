@@ -828,13 +828,13 @@ class EioTest {
     T ~ vs.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
     T ~ vs.unquoted(text, 43, 56) ==== ()
     T ~ vs.endquote()             ==== runtype[Alt[_]]
-    T ~ vs.clear()                ==== ()
+    T ~ vs.clear()                ==== vs
     T ~ vs.quoted(text, 12, 21)   ==== ()
     T ~ vs.newline(1.u)           ==== runtype[Alt[_]]
-    T ~ vs.clear()                ==== ()
+    T ~ vs.clear()                ==== vs
     T ~ vs.quoted(text, 12, 21)   ==== ()
     T ~ vs.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
-    T ~ vs.clear()                ==== ()
+    T ~ vs.clear()                ==== vs
     T ~ vs.newline(1.u)           ==== ()
     T ~ vs.unquoted(text, 0, 2)   ==== ()
     T ~ vs.unquoted(text, 8, 10)  ==== ()
@@ -857,13 +857,13 @@ class EioTest {
     T ~ vb.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
     T ~ vb.unquoted(bint, 43, 56) ==== ()
     T ~ vb.endquote()             ==== runtype[Alt[_]]
-    T ~ vb.clear()                ==== ()
+    T ~ vb.clear()                ==== vb
     T ~ vb.quoted(bint, 12, 21)   ==== ()
     T ~ vb.newline(1.u)           ==== runtype[Alt[_]]
-    T ~ vb.clear()                ==== ()
+    T ~ vb.clear()                ==== vb
     T ~ vb.quoted(bint, 12, 21)   ==== ()
     T ~ vb.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
-    T ~ vb.clear()                ==== ()
+    T ~ vb.clear()                ==== vb
     T ~ vb.newline(1.u)           ==== ()
     T ~ vb.unquoted(bint, 0, 2)   ==== ()
     T ~ vb.unquoted(bint, 8, 10)  ==== ()
