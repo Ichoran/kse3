@@ -262,6 +262,8 @@ class FlowTest {
     T ~ aoc.unwrap   ==== Some("cod")
 
     T ~ Alt.unit ==== Alt(())
+    T ~ Alt.F    ==== Alt(false)
+    T ~ Alt.T    ==== Alt(true)
 
     T ~ aoc.withIs[Int] ==== aoc --: typed[Int Or Option[String]]
 
@@ -287,7 +289,10 @@ class FlowTest {
     T ~ ioc.unwrap   ==== Some("cod")
     T ~ iaoc.unwrap  ==== aoc
     T ~ iiaoc.unwrap ==== iaoc
+
     T ~ Is.unit      ==== Is(())
+    T ~ Is.F         ==== Is(false)
+    T ~ Is.T         ==== Is(true)
 
     T ~ ioc.withAlt[Int] ==== ioc --: typed[Option[String] Or Int]
 

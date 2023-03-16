@@ -88,6 +88,12 @@ object Alt {
 
   /** A canonical instance for Alt[Unit].  Although others are allowed, why not use this one? */
   val unit = Alt(())
+
+  /** A canonical instance for Alt[Boolean] which is false. */
+  val F = Alt(false)
+
+  /** A canonical instance for Alt[Boolean] which is true. */
+  val T = Alt(true)
 }
 extension[Y](alt: Alt[Y]) {
   /** Extracts the value stored in this `Alt`, if we are sure that the type is `Alt` and not an `Or`. */
@@ -178,6 +184,12 @@ object Is {
 
   /** The canonical Is[Unit], which is actually always just `()`, the only possible `Unit`; but this one is typed as `Is[Unit]`. */
   val unit: Is[Unit] = ()
+
+  /** A canonical Is[Boolean] which is false.*/
+  val F = Is(false)
+
+  /** A canonical Is[Boolean] which is true. */
+  val T = Is(true)
 }
 extension [X](is: Is[X]) {
   /** Unwraps this type. */
