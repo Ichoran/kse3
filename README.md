@@ -196,9 +196,11 @@ naming conventions; violations without good reason can be considered bugs.
 to read, don't follow it.
 
 2. Convenience over documentation.  Method names should be short and to the
-point if they are expected to be used heavily.  Only rarely-used or
-discouraged method names should be long.  If you want to know what 'py' does,
-read the documentation or the source code!
+point if they are expected to be used heavily--in that case we can assume
+the reader knows what they mean.  Only rarely-used or discouraged method names
+should be long.  If you want to know what 'py' does (the first time),
+read the documentation or the source code!  However, it is important to avoid
+method names that are so terse as to be easily confused.
 
 3. Assume infix.  Even if it's not marked, assume anything could be used
 infix if it might possibly read more clearly.  That is: infix notation is
