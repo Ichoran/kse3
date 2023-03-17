@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets._
 
 import scala.collection.mutable.Builder
 import scala.util.boundary
+import scala.annotation.targetName
+import scala.collection.{ IterableOnce => IOnce }
 
 import kse.flow.{given, _}
 import kse.maths.{given, _}
@@ -51,6 +53,12 @@ class Xsv private (
 
   private given AutoMap[Err, Err] = _.explainBy(sayWhere("Error"))
 
+  private def clear(): Unit =
+    line = UInt(0)
+    pos = 0
+    index = 0
+    state = 0
+
   // Ignores spaces after a quote in input.
   // If input runs out, index will be iN and state will stay Sp
   // Otherwise state will transition to Tn, Tr, or Tc, or an error will be emitted.
@@ -76,7 +84,7 @@ class Xsv private (
             pos = 0
             index = i + 1
             state = if c == '\n' then Tn else Tr
-            visitor.newline(line).mapAlt(summon[AutoMap[Err, Err]]).break
+            visitor.newline(line).?*
           case _ =>
             pos += i - i0
             index = i
@@ -252,7 +260,7 @@ class Xsv private (
                   case '"' =>
                     if i > index then
                       if !permissiveWhitespace || { while index < i && lookup(data, index).fn(c => c == ' ' || c == '\t') do { index += 1; pos += 1 }; index < i } then
-                        Err.or(s"Extra content before quote.").?*
+                        visitor.error(Err(sayWhere("Extra content before quote."))).asAlt.break
                     i += 1
                     index = i
                     state = Q1
@@ -293,9 +301,10 @@ class Xsv private (
         // Make sure we consumed all the data and are not in a quote
         if (state & (Q1 | Qq | Qt | Qr)) != 0 then
           if state == Qq then visitor.endquote().?*
-          else Err.or(s"Input ended inside of quote").?*
+          else visitor.error(Err(sayWhere("Input ended inside of quote"))).asAlt.break
         else if i > index || state == Tc then
           (if permissiveWhitespace then trim(data, index, i, visitor) else visitor.unquoted(data, index, i)).?*
+          index = i
       ()
 
   private def visitRange[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U], e: Int): Unit Or Err =
@@ -320,11 +329,77 @@ class Xsv private (
       i0, iN, visitor, e
     )
 
-  def visit[U](content: Array[Byte], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err = visitRange(content, 0, content.length, visitor.clear(), EoF) && visitor.complete(line)
-  def visit[U](content: String,      visitor: Xsv.Visitor[String,      U]): U Or Err = visitRange(content, 0, content.length, visitor.clear(), EoF) && visitor.complete(line)
+  def visit[U](content: Array[Byte], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+    clear()
+    visitor.clear()
+    visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
 
-  def decode[U](content: Array[Byte])(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(content.length))
-  def decode[U](content: String     )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(content.length))
+  @targetName("visitByteArrays")
+  def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+    Or.FlatRet:
+      clear()
+      visitor.clear()
+      var buffer: Array[Byte] = null
+      var k: Int = 0
+      val it = content.iterator
+      var more = it.hasNext
+      while more do
+        val a = it.next
+        more = it.hasNext
+        index = 0
+        if k > 0 then
+          var n = (128 min a.length) min (buffer.length - k)
+          a.copyRangeInto(0, n)(buffer, k)
+          while index < k && n < a.length do
+            visitRange(buffer, index, k + n, visitor, if more && n == a.length then EoF else EoI).?
+            if index < k then
+              var m = ((4L * n) min a.length.toLong).toInt
+              if m > buffer.length - k then
+                val h = (((k.toLong + m) max (2L * buffer.length)) min (Int.MaxValue - 7L)).toInt
+                if h <= buffer.length then visitor.error(Err(sayWhere("Buffer overflow"))).asAlt.break
+                val b = new Array[Byte](h)
+                buffer.copyRangeInto(0, k + n)(b)
+                buffer = b
+                if m > b.length - k then m = b.length - k
+              a.copyRangeInto(n, m)(buffer, k + n)
+              n = m
+        if index < a.length then
+          visitRange(a, index, a.length, visitor, if more then EoF else EoI).?
+          if index < a.length then
+            k = a.length - index
+            if (buffer eq null) || buffer.length - 128 < k then
+              val h = (((k + 128L) max (2L * buffer.length)) min (Int.MaxValue - 7L)).toInt
+              if k >= h then visitor.error(Err(sayWhere(s"Buffer overflow"))).asAlt.break
+              buffer = new Array[Byte](h)
+            a.copyRangeInto(index, a.length)(buffer)
+          else k = 0        
+      visitor.complete(line)
+
+  def visit[U](content: String, visitor: Xsv.Visitor[String, U]): U Or Err =
+    clear()
+    visitor.clear()
+    visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
+
+  @targetName("visitStrings")
+  def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): U Or Err =
+    Or.FlatRet:
+      clear()
+      visitor.clear()
+      val it = content.iterator
+      var more = it.hasNext
+      while more do
+        index = 0
+        val s = it.next
+        visitRange(s, 0, s.length, visitor, { more = it.hasNext; if more then EoL else EoF })
+        if index < s.length then visitor.error(Err(sayWhere(s"Only consumed $index of ${s.length} characters"))).asAlt.break
+      visitor.complete(line)
+
+  def decode[U](content: Array[Byte]       )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(content.length))
+  @targetName("decodeByteArrays")
+  def decode[U](content: IOnce[Array[Byte]])(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](content: String            )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(content.length))
+  @targetName("decodeStrings")
+  def decode[U](content: IOnce[String]     )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(-1))
 }
 object Xsv {
   def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =
@@ -482,11 +557,19 @@ object Xsv {
 }
 
 object Csv {
-  def decode(content: Array[Byte]): Array[Array[String]] Or Err = Xsv.comma.decode(content)
-  def decode(content: String     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  @targetName("decodeByteArrays")
+  def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(content: String            ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  @targetName("decodeStrings")
+  def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
 }
 
 object Tsv {
-  def decode(content: Array[Byte]): Array[Array[String]] Or Err = Xsv.tab.decode(content)
-  def decode(content: String     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  @targetName("decodeByteArrays")
+  def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(content: String            ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  @targetName("decodeStrings")
+  def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
 }

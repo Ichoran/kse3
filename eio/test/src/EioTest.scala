@@ -874,43 +874,58 @@ class EioTest {
     T ~ vd.complete(2.u).fn(lls)  ==== runtype[Alt[_]]
 
     val wanted = List(List("hi", "it's", "me"), List("""everyone "agrees"""", "it's me", "don't you see"))
-    def duo(s: String) =
-      (Csv.decode(s).fn(lls), Csv.decode(s.bytes).fn(lls))
-    def two(ans: List[List[String]]) =
-      (ans, ans)
-    T ~ duo(""        ) ==== two( Nil                          )
-    T ~ duo("e"       ) ==== two( List(List("e"))              )
-    T ~ duo(","       ) ==== two( List(List("", ""))           )
-    T ~ duo("e,"      ) ==== two( List(List("e", ""))          )
-    T ~ duo(",e"      ) ==== two( List(List("", "e"))          )
-    T ~ duo("e,e"     ) ==== two( List(List("e", "e"))         )
-    T ~ duo("\n"      ) ==== two( List(List(""))               )
-    T ~ duo("\r\n"    ) ==== two( List(List(""))               )
-    T ~ duo("\r"      ) ==== two( List(List(""))               )
-    T ~ duo("e\n"     ) ==== two( List(List("e"))              )
-    T ~ duo("\ne"     ) ==== two( List(List(""), List("e"))    )
-    T ~ duo("e\r\n"   ) ==== two( List(List("e"))              )
-    T ~ duo("\r\ne"   ) ==== two( List(List(""), List("e"))    )
-    T ~ duo("e\r"     ) ==== two( List(List("e"))              )
-    T ~ duo("\re"     ) ==== two( List(List(""), List("e"))    )
-    T ~ duo(",\n"     ) ==== two( List(List("", ""))           )
-    T ~ duo("\n,"     ) ==== two( List(List(""), List("", "")) )
-    T ~ duo(",\r\n"   ) ==== two( List(List("", ""))           )
-    T ~ duo("\r\n,"   ) ==== two( List(List(""), List("", "")) )
-    T ~ duo(",\r"     ) ==== two( List(List("", ""))           )
-    T ~ duo("\r,"     ) ==== two( List(List(""), List("", "")) )
-    T ~ duo("\"\""    ) ==== two( List(List(""))               )
-    T ~ duo("\"e\""   ) ==== two( List(List("e"))              )
-    T ~ duo("\",\""   ) ==== two( List(List(","))              )
-    T ~ duo("\"\n\""  ) ==== two( List(List("\n"))             )
-    T ~ duo("\"\r\n\"") ==== two( List(List("\n"))             )
-    T ~ duo("\"\r\""  ) ==== two( List(List("\n"))             )
-    T ~ duo("\"\","   ) ==== two( List(List("", ""))           )
-    T ~ duo(",\"\""   ) ==== two( List(List("", ""))           )
-    T ~ duo("\"\"\n"  ) ==== two( List(List(""))               )
-    T ~ duo("\"\"\r\n") ==== two( List(List(""))               )
-    T ~ duo("\"\"\r"  ) ==== two( List(List(""))               )
-    T ~ duo(text      ) ==== two( wanted                       )
+    def asLines(s: String): Array[String] =
+      val ss = s.linesIterator.toArray
+      if s.length > 0 && s.last.fn(c => c == '\n' || c == '\r') && ss.last.isEmpty then ss :+ "" else ss
+
+    case class Those[A](a: A, b: A, c: A, d: A) {
+      override def toString = s"\n1: $a\n2: $b\n3: $c\n4: $d\n"
+    }
+    def each(s: String) =
+      Those(
+        Csv.decode(s).fn(lls),
+        Csv.decode(s.bytes).fn(lls),
+        Csv.decode(asLines(s)).fn(lls),
+        Csv.decode(s.bytes.flatMap(b => Array(b))).fn(lls)
+      )
+    def same(ans: List[List[String]]) =
+      Those(ans, ans, ans, ans)
+    T ~ each(""        ) ==== same( Nil                          )
+    T ~ each("e"       ) ==== same( List(List("e"))              )
+    T ~ each(","       ) ==== same( List(List("", ""))           )
+    T ~ each("e,"      ) ==== same( List(List("e", ""))          )
+    T ~ each(",e"      ) ==== same( List(List("", "e"))          )
+    T ~ each("e,e"     ) ==== same( List(List("e", "e"))         )
+    T ~ each("\n"      ) ==== same( List(List(""))               )
+    T ~ each("\r\n"    ) ==== same( List(List(""))               )
+    T ~ each("\r"      ) ==== same( List(List(""))               )
+    T ~ each("\n\n"    ) ==== same( List(List(""), List(""))     )
+    T ~ each("\r\n\r\n") ==== same( List(List(""), List(""))     )
+    T ~ each("\r\r"    ) ==== same( List(List(""), List(""))     )
+    T ~ each("e\n"     ) ==== same( List(List("e"))              )
+    T ~ each("\ne"     ) ==== same( List(List(""), List("e"))    )
+    T ~ each("e\r\n"   ) ==== same( List(List("e"))              )
+    T ~ each("\r\ne"   ) ==== same( List(List(""), List("e"))    )
+    T ~ each("e\r"     ) ==== same( List(List("e"))              )
+    T ~ each("\re"     ) ==== same( List(List(""), List("e"))    )
+    T ~ each(",\n"     ) ==== same( List(List("", ""))           )
+    T ~ each("\n,"     ) ==== same( List(List(""), List("", "")) )
+    T ~ each(",\r\n"   ) ==== same( List(List("", ""))           )
+    T ~ each("\r\n,"   ) ==== same( List(List(""), List("", "")) )
+    T ~ each(",\r"     ) ==== same( List(List("", ""))           )
+    T ~ each("\r,"     ) ==== same( List(List(""), List("", "")) )
+    T ~ each("\"\""    ) ==== same( List(List(""))               )
+    T ~ each("\"e\""   ) ==== same( List(List("e"))              )
+    T ~ each("\",\""   ) ==== same( List(List(","))              )
+    T ~ each("\"\n\""  ) ==== same( List(List("\n"))             )
+    T ~ each("\"\r\n\"") ==== same( List(List("\n"))             )
+    T ~ each("\"\r\""  ) ==== same( List(List("\n"))             )
+    T ~ each("\"\","   ) ==== same( List(List("", ""))           )
+    T ~ each(",\"\""   ) ==== same( List(List("", ""))           )
+    T ~ each("\"\"\n"  ) ==== same( List(List(""))               )
+    T ~ each("\"\"\r\n") ==== same( List(List(""))               )
+    T ~ each("\"\"\r"  ) ==== same( List(List(""))               )
+    T ~ each(text      ) ==== same( wanted                       )
 }
 object EioTest {
   import kse.flow.{given, _}
