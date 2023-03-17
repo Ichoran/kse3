@@ -334,6 +334,14 @@ class Xsv private (
     visitor.clear()
     visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
 
+  def visit[U](content: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+    clear()
+    visitor.clear()
+    val j0 = 0 max i0
+    val jN = (iN min content.length) max j0
+    index = j0
+    visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
+
   @targetName("visitByteArrays")
   def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
     Or.FlatRet:
@@ -350,8 +358,9 @@ class Xsv private (
         if k > 0 then
           var n = (128 min a.length) min (buffer.length - k)
           a.copyRangeInto(0, n)(buffer, k)
-          while index < k && n < a.length do
-            visitRange(buffer, index, k + n, visitor, if more && n == a.length then EoF else EoI).?
+          var moreExtra = n > 0
+          while index < k && moreExtra do
+            visitRange(buffer, index, k + n, visitor, if !more && n == a.length then EoF else EoI).?
             if index < k then
               var m = ((4L * n) min a.length.toLong).toInt
               if m > buffer.length - k then
@@ -361,24 +370,37 @@ class Xsv private (
                 buffer.copyRangeInto(0, k + n)(b)
                 buffer = b
                 if m > b.length - k then m = b.length - k
+              moreExtra = m > n
               a.copyRangeInto(n, m)(buffer, k + n)
               n = m
+          if index >= k then
+            index -= k
+            k = 0
         if index < a.length then
-          visitRange(a, index, a.length, visitor, if more then EoF else EoI).?
+          visitRange(a, index, a.length, visitor, if more then EoI else EoF).?
           if index < a.length then
             k = a.length - index
             if (buffer eq null) || buffer.length - 128 < k then
-              val h = (((k + 128L) max (2L * buffer.length)) min (Int.MaxValue - 7L)).toInt
+              val g = if buffer eq null then 64 else buffer.length
+              val h = (((k + 128L) max (2L * g)) min (Int.MaxValue - 7L)).toInt
               if k >= h then visitor.error(Err(sayWhere(s"Buffer overflow"))).asAlt.break
               buffer = new Array[Byte](h)
             a.copyRangeInto(index, a.length)(buffer)
-          else k = 0        
+          else k = 0
       visitor.complete(line)
 
   def visit[U](content: String, visitor: Xsv.Visitor[String, U]): U Or Err =
     clear()
     visitor.clear()
     visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
+
+  def visit[U](content: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): U Or Err =
+    clear()
+    visitor.clear()
+    val j0 = 0 max i0
+    val jN = (iN min content.length) max j0
+    index = j0
+    visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
   @targetName("visitStrings")
   def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): U Or Err =
@@ -394,12 +416,35 @@ class Xsv private (
         if index < s.length then visitor.error(Err(sayWhere(s"Only consumed $index of ${s.length} characters"))).asAlt.break
       visitor.complete(line)
 
-  def decode[U](content: Array[Byte]       )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(content.length))
+  def visitInputStream[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): U Or Err =
+    Or.FlatRet:
+      nice{ visit(Send.IterateInputStream(content, startBufferSize, maxBufferSize), visitor).? }
+
+  def visit[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err = visitInputStream[U](content, visitor)
+
+  def visitByteChannel[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): U Or Err =
+    Or.FlatRet:
+      nice{ visit(Send.IterateByteChannel(content, startBufferSize, maxBufferSize), visitor).? }
+
+  def visit[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err = visitByteChannel[U](content, visitor)
+
+  def visit[U](content: Path, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+      if !content.exists then Err.or(s"File not found: $content")
+      else Resource.Nice(content.openRead(0))(_.close): input =>
+        val sz = content.raw.size
+        var n = sz.clamp(256, 4194304).toInt
+        if sz > n && sz - n < 65536 then n = 2621440
+        visit(Send.IterateInputStream(input, n, n), visitor).?
+
+  def decode[U](content: Array[Byte]        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(content.length))
   @targetName("decodeByteArrays")
-  def decode[U](content: IOnce[Array[Byte]])(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
-  def decode[U](content: String            )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(content.length))
+  def decode[U](content: IOnce[Array[Byte]] )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](content: String             )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(content.length))
   @targetName("decodeStrings")
-  def decode[U](content: IOnce[String]     )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](content: IOnce[String]      )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](content: InputStream        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
+  def decode[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(path,    gv.get(path.size))
 }
 object Xsv {
   def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =
@@ -412,6 +457,11 @@ object Xsv {
   def tab   = Xsv.create('\t').get
   def space = Xsv.create(' ') .get
   def semi  = Xsv.create(';') .get
+
+  def trimComma = Xsv.create(',',  permissiveWhitespace = true) .get
+  def trimTab   = Xsv.create('\t', permissiveWhitespace = true) .get
+  def trimSpace = Xsv.create(' ',  permissiveWhitespace = true) .get
+  def trimSemi  = Xsv.create(';',  permissiveWhitespace = true) .get
 
   val lfByte = Array[Byte]('\n'.toByte)
 
@@ -553,6 +603,10 @@ object Xsv {
           case sb: java.lang.StringBuilder =>
             sb append x
     }
+
+    def onString(strictRect: Boolean = false) = new TableFromString(strictRect)
+
+    def onBytes( strictRect: Boolean = false) = new TableFromBytes( strictRect)
   }
 }
 
@@ -563,6 +617,8 @@ object Csv {
   def decode(content: String            ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
   @targetName("decodeStrings")
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.comma.decode(path)
 }
 
 object Tsv {
@@ -572,4 +628,6 @@ object Tsv {
   def decode(content: String            ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
   @targetName("decodeStrings")
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.tab.decode(path)
 }

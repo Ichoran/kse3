@@ -326,6 +326,73 @@ object Send {
   given iterstring2stream: Send[Iterator[String], OutputStream] = IterStringToStream()
   given iterstring2channel: Send[Iterator[String], WritableByteChannel] = IterStringToChannel()
   given iterstring2multi: Send[Iterator[String], MultiArrayChannel] = IterStringToMulti()
+
+  /*
+  def pv(i: Int): String = i match
+    case '\r' => """\r"""
+    case '\n' => """\n"""
+    case '\t' => """\t"""
+    case b if b < ' ' => "#" + b.hexString
+    case c => c.toChar.toString
+
+  def pbc(a: Any, i0: Int = 0, iN: Int = Int.MaxValue, leftMarker: String = "|_", rightMarker: String = "_|"): String = a match
+    case ab: Array[Byte] =>
+      val sb = new java.lang.StringBuilder
+      sb append leftMarker
+      var i = i0 max 0
+      while i < (iN min ab.length) do
+        sb append pv(ab(i))
+        i += 1
+      sb append rightMarker
+      sb.toString
+    case s: String =>
+      val sb = new java.lang.StringBuilder
+      sb append leftMarker
+      var i = i0 max 0
+      while i < (iN min s.length) do
+        sb append pv(s.charAt(i))
+        i += 1
+      sb append rightMarker
+      sb.toString
+    case _ => s"???$a???"
+  */
+
+  final class IterateInputStream(input: InputStream, initialSize: Int = 256, maxSize: Int = 4194304) extends Iterator[Array[Byte]] {
+    private var buffer: Array[Byte] = new Array[Byte](initialSize max 4)
+    private var n = 0
+    private var k = 0
+    def hasNext: Boolean = n >= 0
+    def next: Array[Byte] =
+      if n < 0 then throw new IOException("next on empty InputStream")
+      else
+        if (k & 3) == 3 then
+          val h = buffer.length max ((buffer.length * 4L) min (maxSize.toLong min (Int.MaxValue - 7))).toInt
+          if h > buffer.length then buffer = new Array[Byte](h)
+        n = input.read(buffer)
+        if n == buffer.length && k < Int.MaxValue - 7 then k += 1
+        buffer.copyToSize(n max 0)
+  }
+
+  final class IterateByteChannel(input: ReadableByteChannel, initialSize: Int = 256, maxSize: Int = 4194304) extends Iterator[Array[Byte]] {
+    private var buffer: Array[Byte] = new Array[Byte](initialSize max 4)
+    private var bb: ByteBuffer = ByteBuffer.wrap(buffer)
+    private var n = 0
+    private var k = 0
+    def hasNext: Boolean = n >= 0
+    def next: Array[Byte] =
+      if n < 0 then throw new IOException("next on empty InputStream")
+      else
+        if (k & 3) == 3 then
+          val h = buffer.length max ((buffer.length * 4L) min (maxSize.toLong min (Int.MaxValue - 7))).toInt
+          if h > buffer.length then
+            buffer = new Array[Byte](h)
+            bb = ByteBuffer.wrap(buffer)
+          else bb.clear()
+        else bb.clear()
+        n = input.read(bb)
+        if n == buffer.length && k < Int.MaxValue - 7 then k += 1
+        buffer.copyToSize(n max 0)
+  }
 }
 
 extension (in: InputStream)
@@ -342,7 +409,7 @@ extension (iter: IterableOnce[Array[Byte]]) {
   def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter.iterator, out)
 
   @targetName("ioArrayByteWriteAt")
-  def writeAt(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+  def writeAt(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
     Resource.Nice(p.openWrite())(_.close): out =>
       var m = 0L
       val n = iter.iterator
@@ -351,7 +418,7 @@ extension (iter: IterableOnce[Array[Byte]]) {
       if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
 
   @targetName("ioArrayByteAppendTo")
-  def appendTo(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+  def appendTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
     Resource.Nice(p.openAppend())(_.close): out =>
       var m = 0L
       val n = iter.iterator
@@ -360,7 +427,7 @@ extension (iter: IterableOnce[Array[Byte]]) {
       if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
 
   @targetName("ioArrayByteCreateAt")
-  def createAt(p: Path)(using tr: Send[Iterator[Array[Byte]], BufferedOutputStream]): Unit Or Err =
+  def createAt(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
     Resource.Nice(p.openCreate())(_.close): out =>
       var m = 0L
       val n = iter.iterator
@@ -374,21 +441,21 @@ extension (iter: IterableOnce[String]) {
   def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter.iterator, out)
 
   @targetName("ioStringWriteAt")
-  def writeAt(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+  def writeAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
     Resource.Nice(p.openWrite())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
       if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
 
   @targetName("ioStringAppendTo")
-  def appendTo(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+  def appendTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
     Resource.Nice(p.openAppend())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
       if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
 
   @targetName("ioStringCreateAt")
-  def createAt(p: Path)(using tr: Send[Iterator[String], BufferedOutputStream]): Unit Or Err =
+  def createAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
     Resource.Nice(p.openCreate())(_.close): out =>
       val it = iter.iterator
       tr(it, out)

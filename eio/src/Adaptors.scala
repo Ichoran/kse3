@@ -1199,3 +1199,36 @@ final class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends
 extension (sbc: SeekableByteChannel)
   inline def output = new SeekableByteChannelOutputStream(sbc)
   inline def input = new SeekableByteChannelInputStream(sbc)
+
+
+final class InputStreamByteChannel(input: InputStream) extends ReadableByteChannel {
+  private val certainlyClosed = java.util.concurrent.atomic.AtomicBoolean(false)
+  private val backingBuffer: java.util.concurrent.atomic.AtomicReference[Array[Byte]] = java.util.concurrent.atomic.AtomicReference(null)
+  def close =
+    input.close
+    certainlyClosed.set(true)
+  def isOpen = !certainlyClosed.get
+  def read(bb: ByteBuffer): Int =
+    if certainlyClosed.get then -1
+    else
+      if bb.hasArray then
+        val a = bb.array
+        val pos = bb.position
+        val avail = bb.remaining
+        val n = input.read(a, pos, avail)
+        if n > 0 then bb.position(pos + n)
+        if n < 0 then certainlyClosed.set(true)
+        n
+      else
+        var a = backingBuffer.get
+        if (a eq null) || (a.length < bb.remaining) then
+          a = new Array[Byte](bb.remaining max 16)
+          backingBuffer.set(a)
+        val n = input.read(a, 0, bb.remaining)
+        if n > 0 then bb.put(a, 0, n)
+        if n < 0 then certainlyClosed.set(true)
+        n
+}
+
+extension (is: InputStream)
+  inline def channel = new InputStreamByteChannel(is)

@@ -1150,6 +1150,17 @@ class FlowTest {
     T ~ oaq.unpivot ==== Alt(null)     --: typed[(Char Or Int) Or String]
     T ~ csi.unpivot ==== 'e'           --: typed[(Char Or String) Or Int]
 
+    val fynn: (Int Or String) Or String = Is(Is(5))
+    val fnyn: (Int Or String) Or String = Is(Alt("eel"))
+    val fnny: (Int Or String) Or String = Alt("cod")
+    val fann: (Any Or String) Or String = Is(Is(Alt("bass"): Any))
+    T ~ fynn.flatten ==== 5  --: typed[Int Or String]
+    T ~ fnyn.flatten ==== Alt("eel")
+    T ~ fnny.flatten ==== Alt("cod")
+    T ~ fann.flatten ==== Is(Alt("bass"))
+    T ~ fann.flatten.isIs  ==== true
+    T ~ fann.flatten.isAlt ==== false
+
     T ~ i.toEither  ==== Right(5)    --: typed[Either[Nothing, Int]]
     T ~ a.toEither  ==== Left("cod") --: typed[Either[String, Nothing]]
     T ~ oi.toEither ==== Right(5)    --: typed[Either[String, Int]]

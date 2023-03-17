@@ -585,11 +585,19 @@ extension [X, Y](or: Or[X, Y]) {
       case _ => Is(or.asInstanceOf[Is[X]])
     case _ => or.asInstanceOf[Is[Is[X]]]
 
+  /** Flattens `(P Or Y) Or Y` into `P Or Y`. */
+  def flatten[P](using (P Or Y) =:= X): P Or Y = (or: X Or Y) match
+    case b: BoxedOr[_] => b match
+      case y: Alt[_] => y.asInstanceOf[Alt[Y]]
+      case x: IsBox[_] => x.get.asInstanceOf[P Or Y]
+    case _ => or.asInstanceOf[Is[P]]
+
   /** An `Or` with favored and disfavored branches swapped. */
   inline def swap: Y Or X = or match
     case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)
     case _ => Alt(Is unwrap or.asInstanceOf[Is[X]])
 }
+
 
 extension [A](a: A) {
   /** Wraps this as an Is while indicating what the bad alternative would be */

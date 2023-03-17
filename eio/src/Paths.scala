@@ -248,28 +248,30 @@ extension (the_path: Path) {
     }
 
 
-  def openRead()(using Tidy.Nice[BufferedInputStream]): BufferedInputStream Or Err =
-    if Files exists the_path then nice{ new BufferedInputStream(Files newInputStream the_path, 8192) }
+  def openRead(bufferSize: Int = 8192)(using Tidy.Nice[InputStream]): InputStream Or Err =
+    if Files exists the_path then nice {
+      val is = Files newInputStream the_path
+      if bufferSize > 0 then new BufferedInputStream(is, 8192) else is
+    }
     else Err.or(s"$the_path not found")
 
-  def openWrite()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
-    nice{ new BufferedOutputStream(Files newOutputStream the_path, 8192) }
-
-  def openAppend()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
-    nice {
-      new BufferedOutputStream(
-        Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE),
-        8192
-      )
+  def openWrite(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
+    nice{
+      val os = Files newOutputStream the_path
+      if bufferSize > 0 then new BufferedOutputStream(os, 8192) else os 
     }
 
-  def openCreate()(using Tidy.Nice[BufferedOutputStream]): BufferedOutputStream Or Err =
+  def openAppend(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
+    nice {
+      val os = Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+      if bufferSize > 0 then new BufferedOutputStream(os, bufferSize) else os
+    }
+
+  def openCreate(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
     if Files.exists(the_path) then Err.or(s"$the_path not found")
     else nice {
-      new BufferedOutputStream(
-        Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW),
-        8192
-      )
+      val os = Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW)
+      if bufferSize > 0 then new BufferedOutputStream(os, bufferSize) else os
     }
 
   def openIO()(using Tidy.Nice[SeekableByteChannel]): SeekableByteChannel Or Err = nice {

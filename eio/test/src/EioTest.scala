@@ -802,6 +802,10 @@ class EioTest {
     T ~ (q / "birds.txt").slurp.get.mkString                  ==== "heronpelican"
     T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
 
+    z9999.fill(0)
+    b9999.input.channel.sendTo(zwc)
+    T ~ b9999 =**= z9999
+
 
   @Test
   def xsvTest(): Unit =
@@ -926,6 +930,20 @@ class EioTest {
     T ~ each("\"\"\r\n") ==== same( List(List(""))               )
     T ~ each("\"\"\r"  ) ==== same( List(List(""))               )
     T ~ each(text      ) ==== same( wanted                       )
+    T ~ Xsv.comma.visit(text, 4, 22, Xsv.Visitor.onString()).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(bint, 4, 22, Xsv.Visitor.onBytes() ).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma    .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(" \t", ";"), List(";", "\t "))
+    T ~ Xsv.tab      .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(" ", ",;"), List(";,", " "))
+    T ~ Xsv.space    .decode(" \t,;\n;,\t ").fn(lls) ==== List(List("", "\t,;"), List(";,\t", ""))
+    T ~ Xsv.semi     .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(" \t,", ""), List("", ",\t "))
+    T ~ Xsv.trimComma.decode(" \t,;\n;,\t ").fn(lls) ==== List(List("", ";"), List(";", ""))
+    T ~ Xsv.trimTab  .decode(" \t,;\n;,\t ").fn(lls) ==== List(List("", ",;"), List(";,", ""))
+    T ~ Xsv.trimSpace.decode(" \t,;\n;,\t ").fn(lls) ==== List(List("", ",;"), List(";,", ""))
+    T ~ Xsv.trimSemi .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(",", ""), List("", ","))
+    val texe = text.take(32) + "\n" + text.slice(33, 42) + "\n" + text.drop(43)
+    T ~ Xsv.create('e').get.decode(texe).fn(lls) ==== List(List("hi,it's,m", ""), List("everyone \"agrees\""), List("it's me"), List("don't you s", "", ""))
+    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
+    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
 }
 object EioTest {
   import kse.flow.{given, _}
