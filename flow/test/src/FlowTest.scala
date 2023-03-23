@@ -1565,11 +1565,19 @@ class FlowTest {
 
 
   @Test
-  def mutableDataTest(): Unit =
+  def arrayDataTest(): Unit =
     import java.lang.Float.{intBitsToFloat => i2f}
     import java.lang.Double.{longBitsToDouble => l2d}
+
+    val atf = Array(false, false, true, true)
+    val aip = Array(2, 3, -3)
+    val air = Array(3, 4, 3)
+
     val ab = Array[Byte](1, 2, 3)
     val bb = Array[Byte](0, 1, 2, 3, 4)
+    T ~ Iv(5, 8)                    ==== 0x800000005L  --: typed[Iv]
+    T ~ Iv(5, 8).i0                 ==== 5
+    T ~ Iv(5, 8).i1                 ==== 8
     T ~ ab.copy                     =**= ab
     T ~ (ab.copy eq ab)             ==== false
     T ~ ab.copy.tap(_(0) = 4).toSeq =!!= ab.toSeq
@@ -1588,7 +1596,20 @@ class FlowTest {
     T ~ ab.py(1)                    ==== ab(1)
     T ~ ab.py(-3)                   ==== ab(0)
     T ~ bb.py.index(-2)             ==== 3
-    T ~ { bb.py(-4) = 0; bb }       =**= Array[Byte](2, 0, 3, 2, 3)
+    T ~ { bb.py(-4) = (0:Byte); bb }=**= Array[Byte](2, 0, 3, 2, 3)
+    T ~ bb.py(atf)                  =**= Array[Byte](bb(2), bb(3))
+    T ~ { bb.py(atf)=(8:Byte); bb } =**= Array[Byte](2, 0, 8, 8, 3)
+    T ~ { bb.py(atf) = ab; bb }     =**= Array[Byte](2, 0, 1, 2, 3)
+    T ~ bb.py(aip)                  =**= Array[Byte](bb(2), bb(3), bb(2))
+    T ~ { bb.py(aip)=(7:Byte); bb } =**= Array[Byte](2, 0, 7, 7, 3)
+    T ~ { bb.py(aip) = ab; bb }     =**= Array[Byte](2, 0, 3, 2, 3)
+    T ~ ab.R(2)                     ==== ab(1)
+    T ~ bb.R(air)                   =**= Array(bb(2), bb(3), bb(2))
+    T ~ { bb.R(3) = (4:Byte); bb }  =**= Array[Byte](2, 0, 4, 2, 3)
+    T ~ { bb.R(air) = (5:Byte); bb }=**= Array[Byte](2, 0, 5, 5, 3)
+    T ~ bb.R(2 to 4)                =**= Array[Byte](0, 5, 5)
+    T ~ { bb.R(3 to 4)=(6:Byte);bb} =**= Array[Byte](2, 0, 6, 6, 3)
+    T ~ { bb.R(air) = ab; bb }      =**= Array[Byte](2, 0, 3, 2, 3)
     T ~ (ab ++ bb).packInts         =**= Array[Int](0x02030201, 0x03020300)
     T ~ (ab ++ bb).packFloats       =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
     T ~ (ab ++ bb).packLongs        =**= Array[Long](0x0302030002030201L)
@@ -1626,7 +1647,20 @@ class FlowTest {
     T ~ as.py(1)                    ==== as(1)
     T ~ as.py(-3)                   ==== as(0)
     T ~ bs.py.index(-2)             ==== 3
-    T ~ { bs.py(-4) = 0; bs }       =**= Array[Short](2, 0, 3, 2, 3)
+    T ~ { bs.py(-4)=(0:Short); bs } =**= Array[Short](2, 0, 3, 2, 3)
+    T ~ bs.py(atf)                  =**= Array[Short](bs(2), bs(3))
+    T ~ { bs.py(atf)=(8:Short); bs }=**= Array[Short](2, 0, 8, 8, 3)
+    T ~ { bs.py(atf) = as; bs }     =**= Array[Short](2, 0, 1, 2, 3)
+    T ~ bs.py(aip)                  =**= Array[Short](bs(2), bs(3), bs(2))
+    T ~ { bs.py(aip)=(7:Short); bs }=**= Array[Short](2, 0, 7, 7, 3)
+    T ~ { bs.py(aip) = as; bs }     =**= Array[Short](2, 0, 3, 2, 3)
+    T ~ as.R(2)                     ==== as(1)
+    T ~ bs.R(air)                   =**= Array(bs(2), bs(3), bs(2))
+    T ~ { bs.R(3) = (4:Short); bs } =**= Array[Short](2, 0, 4, 2, 3)
+    T ~ { bs.R(air)=(5:Short); bs } =**= Array[Short](2, 0, 5, 5, 3)
+    T ~ bs.R(2 to 4)                =**= Array[Short](0, 5, 5)
+    T ~ {bs.R(3 to 4)=(6:Short);bs} =**= Array[Short](2, 0, 6, 6, 3)
+    T ~ { bs.R(air) = as; bs }      =**= Array[Short](2, 0, 3, 2, 3)
     T ~ bs.isSorted                 ==== false
     T ~ bs.isSortedRange(1, 3)      ==== true
     T ~ as.search(2)                ==== 1
@@ -1660,6 +1694,19 @@ class FlowTest {
     T ~ ac.py(-3)                   ==== ac(0)
     T ~ bc.py.index(-2)             ==== 3
     T ~ { bc.py(-4) = '0'; bc }     =**= Array[Char]('2', '0', '3', '2', '3')
+    T ~ bc.py(atf)                  =**= Array[Char](bc(2), bc(3))
+    T ~ { bc.py(atf) = '8'; bc }    =**= Array[Char]('2', '0', '8', '8', '3')
+    T ~ { bc.py(atf) = ac; bc }     =**= Array[Char]('2', '0', '1', '2', '3')
+    T ~ bc.py(aip)                  =**= Array[Char](bc(2), bc(3), bc(2))
+    T ~ { bc.py(aip) = '7'; bc }    =**= Array[Char]('2', '0', '7', '7', '3')
+    T ~ { bc.py(aip) = ac; bc }     =**= Array[Char]('2', '0', '3', '2', '3')
+    T ~ ac.R(2)                     ==== ac(1)
+    T ~ bc.R(air)                   =**= Array(bc(2), bc(3), bc(2))
+    T ~ { bc.R(3) = '4'; bc }       =**= Array[Char]('2', '0', '4', '2', '3')
+    T ~ { bc.R(air) = '5'; bc }     =**= Array[Char]('2', '0', '5', '5', '3')
+    T ~ bc.R(2 to 4)                =**= Array[Char]('0', '5', '5')
+    T ~ { bc.R(3 to 4) = '6'; bc }  =**= Array[Char]('2', '0', '6', '6', '3')
+    T ~ { bc.R(air) = ac; bc }      =**= Array[Char]('2', '0', '3', '2', '3')
     T ~ bc.isSorted                 ==== false
     T ~ bc.isSortedRange(1, 3)      ==== true
     T ~ ac.search('2')              ==== 1
@@ -1693,6 +1740,19 @@ class FlowTest {
     T ~ ai.py(-3)                   ==== ai(0)
     T ~ bi.py.index(-2)             ==== 3
     T ~ { bi.py(-4) = 0; bi }       =**= Array[Int](2, 0, 3, 2, 3)
+    T ~ bi.py(atf)                  =**= Array[Int](bi(2), bi(3))
+    T ~ { bi.py(atf) = 8; bi }      =**= Array[Int](2, 0, 8, 8, 3)
+    T ~ { bi.py(atf) = ai; bi }     =**= Array[Int](2, 0, 1, 2, 3)
+    T ~ bi.py(aip)                  =**= Array[Int](bi(2), bi(3), bi(2))
+    T ~ { bi.py(aip) = 7; bi }      =**= Array[Int](2, 0, 7, 7, 3)
+    T ~ { bi.py(aip) = ai; bi }     =**= Array[Int](2, 0, 3, 2, 3)
+    T ~ ai.R(2)                     ==== ai(1)
+    T ~ bi.R(air)                   =**= Array(bi(2), bi(3), bi(2))
+    T ~ { bi.R(3) = 4; bi }         =**= Array[Int](2, 0, 4, 2, 3)
+    T ~ { bi.R(air) = 5; bi }       =**= Array[Int](2, 0, 5, 5, 3)
+    T ~ bi.R(2 to 4)                =**= Array[Int](0, 5, 5)
+    T ~ { bi.R(3 to 4) = 6; bi}     =**= Array[Int](2, 0, 6, 6, 3)
+    T ~ { bi.R(air) = ai; bi }      =**= Array[Int](2, 0, 3, 2, 3)
     T ~ Array(0x05030107).unpackBytes =**= Array[Byte](7, 1, 3, 5)
     T ~ bi.isSorted                 ==== false
     T ~ bi.isSortedRange(1, 3)      ==== true
@@ -1727,6 +1787,19 @@ class FlowTest {
     T ~ al.py(-3)                   ==== al(0)
     T ~ bl.py.index(-2)             ==== 3
     T ~ { bl.py(-4) = 0; bl }       =**= Array[Long](2, 0, 3, 2, 3)
+    T ~ bl.py(atf)                  =**= Array[Long](bl(2), bl(3))
+    T ~ { bl.py(atf) = 8; bl }      =**= Array[Long](2, 0, 8, 8, 3)
+    T ~ { bl.py(atf) = al; bl }     =**= Array[Long](2, 0, 1, 2, 3)
+    T ~ bl.py(aip)                  =**= Array[Long](bl(2), bl(3), bl(2))
+    T ~ { bl.py(aip) = 7; bl }      =**= Array[Long](2, 0, 7, 7, 3)
+    T ~ { bl.py(aip) = al; bl }     =**= Array[Long](2, 0, 3, 2, 3)
+    T ~ al.R(2)                     ==== al(1)
+    T ~ bl.R(air)                   =**= Array(bl(2), bl(3), bl(2))
+    T ~ { bl.R(3) = 4; bl }         =**= Array[Long](2, 0, 4, 2, 3)
+    T ~ { bl.R(air) = 5; bl }       =**= Array[Long](2, 0, 5, 5, 3)
+    T ~ bl.R(2 to 4)                =**= Array[Long](0, 5, 5)
+    T ~ { bl.R(3 to 4) = 6; bl}     =**= Array[Long](2, 0, 6, 6, 3)
+    T ~ { bl.R(air) = al; bl }      =**= Array[Long](2, 0, 3, 2, 3)
     T ~ Array(0x0102030405060708L).unpackBytes =**= Array[Byte](8, 7, 6, 5, 4, 3, 2, 1)
     T ~ bl.isSorted                 ==== false
     T ~ bl.isSortedRange(1, 3)      ==== true
@@ -1761,6 +1834,19 @@ class FlowTest {
     T ~ af.py(-3)                   ==== af(0)
     T ~ bf.py.index(-2)             ==== 3
     T ~ { bf.py(-4) = 0; bf }       =**= Array[Float](2, 0, 3, 2, 3)
+    T ~ bf.py(atf)                  =**= Array[Float](bf(2), bf(3))
+    T ~ { bf.py(atf) = 8; bf }      =**= Array[Float](2, 0, 8, 8, 3)
+    T ~ { bf.py(atf) = af; bf }     =**= Array[Float](2, 0, 1, 2, 3)
+    T ~ bf.py(aip)                  =**= Array[Float](bf(2), bf(3), bf(2))
+    T ~ { bf.py(aip) = 7; bf }      =**= Array[Float](2, 0, 7, 7, 3)
+    T ~ { bf.py(aip) = af; bf }     =**= Array[Float](2, 0, 3, 2, 3)
+    T ~ af.R(2)                     ==== af(1)
+    T ~ bf.R(air)                   =**= Array(bf(2), bf(3), bf(2))
+    T ~ { bf.R(3) = 4; bf }         =**= Array[Float](2, 0, 4, 2, 3)
+    T ~ { bf.R(air) = 5; bf }       =**= Array[Float](2, 0, 5, 5, 3)
+    T ~ bf.R(2 to 4)                =**= Array[Float](0, 5, 5)
+    T ~ { bf.R(3 to 4) = 6; bf}     =**= Array[Float](2, 0, 6, 6, 3)
+    T ~ { bf.R(air) = af; bf }      =**= Array[Float](2, 0, 3, 2, 3)
     T ~ Array(1.4f).unpackBytes     =**= Array[Byte](51, 51, -77, 63)
     T ~ bf.isSorted                 ==== false
     T ~ bf.isSortedRange(1, 3)      ==== true
@@ -1795,6 +1881,19 @@ class FlowTest {
     T ~ ad.py(-3)                   ==== ad(0)
     T ~ bd.py.index(-2)             ==== 3
     T ~ { bd.py(-4) = 0; bd }       =**= Array[Double](2, 0, 3, 2, 3)
+    T ~ bd.py(atf)                  =**= Array[Double](bd(2), bd(3))
+    T ~ { bd.py(atf) = 8; bd }      =**= Array[Double](2, 0, 8, 8, 3)
+    T ~ { bd.py(atf) = ad; bd }     =**= Array[Double](2, 0, 1, 2, 3)
+    T ~ bd.py(aip)                  =**= Array[Double](bd(2), bd(3), bd(2))
+    T ~ { bd.py(aip) = 7; bd }      =**= Array[Double](2, 0, 7, 7, 3)
+    T ~ { bd.py(aip) = ad; bd }     =**= Array[Double](2, 0, 3, 2, 3)
+    T ~ ad.R(2)                     ==== ad(1)
+    T ~ bd.R(air)                   =**= Array(bd(2), bd(3), bd(2))
+    T ~ { bd.R(3) = 4; bd }         =**= Array[Double](2, 0, 4, 2, 3)
+    T ~ { bd.R(air) = 5; bd }       =**= Array[Double](2, 0, 5, 5, 3)
+    T ~ bd.R(2 to 4)                =**= Array[Double](0, 5, 5)
+    T ~ { bd.R(3 to 4) = 6; bd}     =**= Array[Double](2, 0, 6, 6, 3)
+    T ~ { bd.R(air) = ad; bd }      =**= Array[Double](2, 0, 3, 2, 3)
     T ~ Array(1.41).unpackBytes     =**= Array[Byte](-113, -62, -11, 40, 92, -113, -10, 63)
     T ~ bd.isSorted                 ==== false
     T ~ bd.isSortedRange(1, 3)      ==== true
@@ -1829,6 +1928,19 @@ class FlowTest {
     T ~ aa.py(-3)                   ==== aa(0)
     T ~ ba.py.index(-2)             ==== 3
     T ~ { ba.py(-4) = "0"; ba }     =**= Array[String]("2", "0", "3", "2", "3")
+    T ~ ba.py(atf)                  =**= Array[String](ba(2), ba(3))
+    T ~ { ba.py(atf) = "8"; ba }    =**= Array[String]("2", "0", "8", "8", "3")
+    T ~ { ba.py(atf) = aa; ba }     =**= Array[String]("2", "0", "1", "2", "3")
+    T ~ ba.py(aip)                  =**= Array[String](ba(2), ba(3), ba(2))
+    T ~ { ba.py(aip) = "7"; ba }    =**= Array[String]("2", "0", "7", "7", "3")
+    T ~ { ba.py(aip) = aa; ba }     =**= Array[String]("2", "0", "3", "2", "3")
+    T ~ aa.R(2)                     ==== aa(1)
+    T ~ ba.R(air)                   =**= Array(ba(2), ba(3), ba(2))
+    T ~ { ba.R(3) = "4"; ba }       =**= Array[String]("2", "0", "4", "2", "3")
+    T ~ { ba.R(air) = "5"; ba }     =**= Array[String]("2", "0", "5", "5", "3")
+    T ~ ba.R(2 to 4)                =**= Array[String]("0", "5", "5")
+    T ~ { ba.R(3 to 4) = "6"; ba }  =**= Array[String]("2", "0", "6", "6", "3")
+    T ~ { ba.R(air) = aa; ba }      =**= Array[String]("2", "0", "3", "2", "3")
     T ~ ba.isSorted                 ==== false
     T ~ ba.isSortedRange(1, 3)      ==== true
     T ~ aa.search("2")              ==== 1
@@ -1842,6 +1954,8 @@ class FlowTest {
     T ~ ba.fill("4")                =**= Array[String]("4", "4", "4", "4", "4")
 
 
+  @Test
+  def mutableDataTest(): Unit =
     val m = Mu(5)
     T ~ m.value            ==== 5
     T ~ { m set 4 }        ==== Mu(4)
