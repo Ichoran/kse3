@@ -369,15 +369,6 @@ extension [A](option: Option[A]) {
 
   /** Converts to an Or by using a default value for the disfavored branch if there is no value */
   inline def toOrElse[B](b: => B): A Or B = Or.fromOrElse(option, b)
-
-  /*
-  /** Do something with a stored value, if present, and keep passing along the Option either way */
-  inline def use(f: A => Unit): option.type =
-    (option: Option[A]) match
-      case Some(a) => f(a)
-      case _       =>
-    option
-  */
 }
 
 

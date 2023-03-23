@@ -226,9 +226,7 @@ extension [X](is: Is[X]) {
   inline def foreach(inline f: X => Unit): Unit =
     f(Is unwrap is)
 
-  /** use is trivial--just apply function and return this Is */
-  inline def use(inline f: X => Unit): is.type =
-    f(Is unwrap is); is
+  // use in OverloadedExtensions
 
   /** exists is trivial--just apply predicate */
   inline def exists(inline p: X => Boolean): Boolean =
@@ -473,12 +471,7 @@ extension [X, Y](or: Or[X, Y]) {
     case a: Alt[_] => g(a.alt.asInstanceOf[Y])
     case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
-  /** Operate on the favored value if it exists, but pass on the original `Or`. */
-  inline def use(inline f: X => Unit): or.type =
-    (or: X Or Y) match
-      case _: Alt[_] =>
-      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
-    or
+  // use in OverloadedExtensions
 
   /** Operate on the disfavored value if it exists, but pass on the original `Or`. */
   inline def useAlt(inline f: Y => Unit): or.type =

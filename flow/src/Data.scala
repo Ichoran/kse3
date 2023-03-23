@@ -890,6 +890,8 @@ extension (ab: Array[Byte])
       ab(i) = f(ab(i))
       i += 1
     ab
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
 extension (as: Array[Short])
@@ -923,6 +925,8 @@ extension (as: Array[Short])
       as(i) = f(as(i))
       i += 1
     as
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ac: Array[Char])
@@ -956,6 +960,8 @@ extension (ac: Array[Char])
       ac(i) = f(ac(i))
       i += 1
     ac
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ai: Array[Int])
@@ -990,6 +996,8 @@ extension (ai: Array[Int])
       ai(i) = f(ai(i))
       i += 1
     ai
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Long Array specific functionality from java.util.Arrays and java.lang.System */
 extension (al: Array[Long])
@@ -1024,6 +1032,8 @@ extension (al: Array[Long])
       al(i) = f(al(i))
       i += 1
     al
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Float Array specific functionality from java.util.Arrays and java.lang.System */
 extension (af: Array[Float])
@@ -1058,6 +1068,8 @@ extension (af: Array[Float])
       af(i) = f(af(i))
       i += 1
     af
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Double Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ad: Array[Double])
@@ -1092,6 +1104,8 @@ extension (ad: Array[Double])
       ad(i) = f(ad(i))
       i += 1
     ad
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 /** Object Array specific functionality from java.util.Arrays and java.lang.System */
 extension [A >: Null <: AnyRef](aa: Array[A])
@@ -1125,6 +1139,8 @@ extension [A >: Null <: AnyRef](aa: Array[A])
       aa(i) = f(aa(i))
       i += 1
     aa
+  // use in OverloadedExtensions
+  // zap in OverloadedExtensions
 
 
 /** Holds mutable data (would be better if standard library exposed this!) */
