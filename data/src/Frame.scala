@@ -6,211 +6,237 @@ package kse.data
 
 import java.lang.{Math => jm}
 
+import scala.compiletime.erasedValue
+import scala.reflect.ClassTag
+
 import kse.flow._
 import kse.maths._
 
-trait Stripe[+A, +D] {
-  def label: A
-  def length: Int
-  def apply(i: Int): D
-  inline def py(i: Int): D = if i < 0 then apply(length - i) else apply(i)
-  inline def R(i: Int): D = apply(i - 1)
+sealed trait Stripe[D <: Stripe.Data] {
+  inline def length: Int
+  inline def apply(i: Int): Stripe.Element[D]
+  inline def py(i: Int): Stripe.Element[D] = if i < 0 then apply(length - i) else apply(i)
+  inline def R(i: Int): Stripe.Element[D] = apply(i - 1)
+  inline def useEveryone(inline f: Stripe.Element[D] => Unit): Unit
+  inline def useNonZero(inline f: (Stripe.Element[D], Int) => Unit): Unit
+  inline def isZero(inline e: Stripe.Element[D]): Boolean = inline e match
+    case ei: Int        => ei == 0
+    case ed: Double     => ed.nan
+    case es: String     => (es eq null) || es.isEmpty
+    case ev: Frame.Cell => ev.value eq null    
+  inline def zero: Stripe.Element[D] = inline erasedValue[D] match
+    case _: Array[Int]        => 0
+    case _: Array[Double]     => Double.NaN
+    case _: Array[String]     => ""
+    case _: Array[Frame.Cell] => Frame.NullCell
 }
 object Stripe {
-  sealed trait Direct[D] {
-    inline def size: Int
-    inline def get(i: Int): D
-    inline def pyGet(i: Int): D = if i < 0 then get(size - i) else get(i)
-    inline def rGet(i: Int): D = get(i - 1)
+  import Frame.Cell
+  type Datum = Int | Double | String | Cell
+  type Data = Array[Int] | Array[Double] | Array[String] | Array[Cell]
+  type Plural[D <: Datum] <: Data = D match
+    case Int    => Array[Int]
+    case Double => Array[Double]
+    case String => Array[String]
+    case Cell   => Array[Cell]
+  type Element[D <: Data] <: Datum = D match
+    case Array[Int]    => Int
+    case Array[Double] => Double
+    case Array[String] => String
+    case Array[Cell]   => Cell
+
+  final class Dense[D <: Data](val data: D) extends Stripe[D] {
+    inline def length = data.length
+    inline def apply(i: Int): Element[D] = inline data match
+      case ai: Array[Int]    => ai(i)
+      case ad: Array[Double] => ad(i)
+      case as: Array[String] => as(i)
+      case ac: Array[Cell]   => ac(i)
+    inline def useEveryone(inline f: Element[D] => Unit): Unit =
+      var i = 0
+      while i < data.length do
+        f(apply(i))
+        i += 1
+    inline def useNonZero(inline f: (Element[D], Int) => Unit): Unit =
+      var i = 0
+      while i < data.length do
+        val x = apply(i)
+        if !isZero(x) then f(x, i)
+        i += 1
+  }
+  object Dense {
+    transparent inline def build[E <: Datum] = inline erasedValue[E] match
+      case _: Int    => Build.DenseInt()
+      case _: Double => Build.DenseDouble()
+      case _: String => Build.DenseString()
+      case _: Cell   => Build.DenseCell()
   }
 
-  trait Mut[A, D, S <: Direct[D]] extends Stripe[A, D] {
-    def update(i: Int, value: D): Unit
-    inline def py_=(i: Int, value: D): Unit = if i < 0 then update(length - i, value) else update(i, value)
-    def direct: S
-  }
-  trait Grow[A, D, S <: Direct[D]] extends Mut[A, D, S] {
-    def push(value: D): Unit
-  }
-
-  trait Stride[+A, C, +D] extends Stripe[A, D] {
-    val data: C
-    val start: Int
-    val step: Int
-    val count: Int
-
-    protected final def checkValid(n: Int): Unit =
-      if start < 0 || start >= n then throw new ArrayIndexOutOfBoundsException(s"$start is not a valid index into data of size $n")
-      if step <= 0 then throw new IllegalArgumentException("step must be positive, not $step")
-      if count < 1 then throw new IllegalArgumentException("strides must have at least one element, not $count")
-      if (start + step.toLong * (count - 1)) > n then throw new IllegalArgumentException(s"Final element ${count-1} at index ${start + step.toLong * (count - 1)} is outside data of size $n")
-  }
-
-  abstract class OfInt[+A](val label: A) extends Stripe[A, Int] {}
-  abstract class OfDouble[+A](val label: A) extends Stripe[A, Double] {}
-  abstract class OfString[+A](val label: A) extends Stripe[A, String] {}
-
-  final class Ints[+A](lb: A, data: Array[Int]) extends OfInt[A](lb) with Direct[Int] {
-    inline def size = data.length
-    inline def get(i: Int) = data(i)
-    def length = data.length
-    def apply(i: Int) = data(i)
-    override def toString = data.mkString("$label: ", ", ", "")
-  }
-  final class GrowInts[A](lb: A) extends OfInt[A](lb) with Grow[A, Int, Ints[A]] {
-    private var data: Array[Int] = new Array[Int](8)
-    private var n: Int = 0
-    def length: Int = n
-    def apply(i: Int): Int =
-      if i >= n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i)
-    def update(i: Int, value: Int): Unit =
-      if i >=n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i) = value
-    def direct: Ints[A] = new Ints(label, data.shrinkCopy(n))
-    def push(value: Int): Unit =
-      if n >= data.length then data = data.copyToSize(n | (n << 1))
-      data(n) = value
-      n += 1
-  }
-  final class StrideI[+A](lb: A, val data: IArray[Int], val start: Int, val step: Int, val count: Int)
-  extends OfInt[A](lb) with Stride[A, IArray[Int], Int] with Direct[Int] {
-    checkValid(data.size)
-    inline def size = count
-    inline def get(i: Int) =
-      if i < 0 || i >= count then throw new IllegalArgumentException("Stride index out of bounds: " + i.toString)
-      data(start + step * i)
-    def length = count
-    def apply(i: Int) = get(i)
-  }
-
-  final class Doubles[+A](lb: A, data: Array[Double]) extends OfDouble[A](lb) with Direct[Double] {
-    inline def size = data.length
-    inline def get(i: Int) = data(i)
-    def length = data.length
-    def apply(i: Int) = data(i)
-    override def toString = data.mkString("$label: ", ", ", "")
-  }
-  final class GrowDoubles[A](lb: A) extends OfDouble[A](lb) with Grow[A, Double, Doubles[A]] {
-    private var data: Array[Double] = new Array[Double](8)
-    private var n: Int = 0
-    def length: Int = n
-    def apply(i: Int): Double =
-      if i >= n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i)
-    def update(i: Int, value: Double): Unit =
-      if i >=n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i) = value
-    def direct: Doubles[A] = new Doubles(label, data.shrinkCopy(n))
-    def push(value: Double): Unit =
-      if n >= data.length then data = data.copyToSize(n | (n << 1))
-      data(n) = value
-      n += 1
-  }
-  final class StrideD[+A](lb: A, val data: IArray[Double], val start: Int, val step: Int, val count: Int)
-  extends OfDouble[A](lb) with Stride[A, IArray[Double], Double] with Direct[Double] {
-    checkValid(data.length)
-    inline def size: Int = count
-    inline def get(i: Int): Double =
-      if i < 0 || i >= count then throw new IllegalArgumentException("Stride index out of bounds: " + i.toString)
-      data(start + step * i)
-    def length = count
-    def apply(i: Int): Double = get(i)
-  }
-
-  final class Strings[+A](lb: A, data: Array[String]) extends OfString[A](lb) with Direct[String] {
-    inline def size = data.length
-    inline def get(i: Int) = data(i)
-    def length = data.length
-    def apply(i: Int) = data(i)
-    override def toString = data.mkString("$label: ", ", ", "")
-  }
-  final class GrowStrings[A](lb: A) extends OfString[A](lb) with Grow[A, String, Strings[A]] {
-    private var data: Array[String] = new Array[String](8)
-    private var n: Int = 0
-    def length: Int = n
-    def apply(i: Int): String =
-      if i >= n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i)
-    def update(i: Int, value: String): Unit =
-      if i >=n then throw new ArrayIndexOutOfBoundsException(s"Index $i out of bounds for length $n")
-      data(i) = value
-    def direct: Strings[A] = new Strings(label, data.shrinkCopy(n))
-    def push(value:String): Unit =
-      if n >= data.length then data = data.copyToSize(n | (n << 1))
-      data(n) = value
-      n += 1
-  }
-  final class StrideString[+A](lb: A, val data: IArray[String], val start: Int, val step: Int, val count: Int)
-  extends OfString[A](lb) with Stride[A, IArray[String], String] with Direct[String] {
-    checkValid(data.length)
-    inline def size: Int = count
-    inline def get(i: Int): String =
-      if i < 0 || i >= count then throw new IllegalArgumentException("Stride index out of bounds: " + i.toString)
-      data(start + step * i)
-    def length = count
-    def apply(i: Int): String = get(i)
-  }
-}
-
-trait Frame[+A, +B, +D] {
-  def title: String
-  def nCols: Int
-  def nRows: Int
-  def col(j: Int): Stripe[A, D]
-  def row(i: Int): Stripe[B, D]
-  def apply(i, j): D
-  inline def pyCol(j: Int): Stripe[A, D]
-  inline def pyRow(i: Int): Stripe[B, D]
-  inline def py(i: Int, j: Int): D
-  inline def rCol(j: Int): Stripe[A, D]
-  inline def rRow(i: Int): Stripe[A, D]
-  inline def R(i: Int, j: Int): D
-}
-object Frame {
-  trait Direct[D] {
-    inline def colsize: Int
-    inline def rowsize: Int
-    inline def get(i: Int, j: Int): D
-    inline def pyGet(i: Int, j: Int): D =
-      get(if i < 0 then rowsize - i else i, if j < 0 then colsize - j else j)
-    inline def rGet(i: Int, j: Int): D = get(i - 1, j - 1)
-  }
-  final class FrameD[+A, +B](val title: String)
-}
-
-
-/*
-final class Frame1D[A] private (val size: Int, preload: Array[Double] | (Array[Int], Array[Double]) = null) {
-  private[maths] var content: Array[Double] | (Array[Int], Array[Double]) = preload match
-    case null => Frame1D.emptySparse
-    case ad: Array[Double] =>
-      if ad.length != size throw new IllegalArgumentException(s"Input size ${ad.length} does not match Frame size $size")
-      ad
-    case aiad: (Array[Int], Array[Double]) => Frame1D.verifySparse(aiad)
-
-      val (ai, ad) = aiad
-      if ai.length == 0 && ad.length == 0 then aiad
+  final class Sparse[D <: Data](val data: D, val indices: Array[Int], val size: Int) extends Stripe[D] {
+    inline def length = size
+    private def lookup(i: Int): Int =
+      if size <= 0 || i < 0 then -1
+      else if indices.length < 7 then
+        var j = 0
+        while j < indices.length do
+          if indices(j) == i then return j
+          j += 1 
+        -1     
       else
-        Frame1D.verifiedSparse(ai, ad)
-        if !(ai.length - 1 == ad.length) then throw new IllegalArgumentException(s"Mismatch in sparse array: 1+${ai.length-1} indices but ${ad.length} data points")
+        var j0 = 0
+        val i0 = indices(j0)
+        if i <= i0 then return (if i == i0 then j0 else -1)
+        var j1 = indices.py.index(-1)
+        val i1 = indices(j1)
+        if i >= i1 then return (if i == i1 then j1 else -1)
+        while j0 + 1 < j1 do
+          val j = (j0 + j1) >>> 1
+          val ix = indices(j)
+          if i == ix then return j
+          else if i > ix then j0 = j
+          else j1 = j
+        -1
+      -1
+    private inline def specific(j: Int): Element[D] = inline data match
+      case ai: Array[Int]    => ai(j)
+      case ad: Array[Double] => ad(j)
+      case as: Array[String] => as(j)
+      case ac: Array[Cell]   => ac(j)
 
+    inline def apply(i: Int): Element[D] =
+      val j = lookup(i)
+      if j < 0 then zero
+      else specific(j)
+    inline def useEveryone(inline f: Element[D] => Unit): Unit =
+      var i = 0
+      var j = 0
+      val z = zero
+      while j < data.length do
+        val i0 = indices(j)
+        while i < i0 do
+          f(z)
+          i += 1
+        f(specific(j))
+        j += 1
+        i += 1
+      while i < size do
+        f(z)
+        i += 1
+    inline def useNonZero(inline f: (Element[D], Int) => Unit): Unit =
+      var j = 0
+      while j < data.length do
+        val i = indices(j)
+        f(specific(j), i)
+        j += 1
+  }
+
+  final class Stride[D <: Data](val data: D, val start: Int, val step: Int, val size: Int) extends Stripe[D] {
+    inline def length = size
+    inline def apply(i: Int): Element[D] = inline data match
+      case ai: Array[Int]    => ai(start + step*i)
+      case ad: Array[Double] => ad(start + step*i)
+      case as: Array[String] => as(start + step*i)
+      case ac: Array[Cell]   => ac(start + step*i)
+    inline def useEveryone(inline f: Element[D] => Unit): Unit =
+      var i = 0
+      while i < size do
+        f(apply(i))
+        i += 1
+    inline def useNonZero(inline f: (Element[D], Int) => Unit): Unit =
+      var i = 0
+      while i < size do
+        val x = apply(i)
+        if !isZero(x) then f(x, i)
+        i += 1
+  }
+
+  final class Labels[D <: Data, S <: [Q <: Data] =>> Stripe[Q]](val underlying: S[D], val labels: S[Array[String]]) extends Stripe[D] {
+    // Note: could also write S[Q <: Data] <: Stripe[Q] but the lambda form makes what's going on with Q more obvious
+    inline def length = underlying.length
+    inline def apply(i: Int): Element[D] = underlying(i)
+    inline def label(i: Int): String = labels(i).asInstanceOf[String]
+    inline def useEveryone(inline f: Element[D] => Unit): Unit = underlying.useEveryone(f)
+    inline def useNonZero(inline f: (Element[D], Int) => Unit): Unit = underlying.useNonZero(f)
+    inline def useEveryoneLabeled(inline f: (Element[D], String) => Unit): Unit =
+      var i = 0
+      underlying.useEveryone{ e => f(e, labels(i)); i += 1 }
+    inline def useNonZeroLabeled(inline f: (Element[D], Int, String) => Unit): Unit =
+      underlying.useNonZero{ (e, i) => f(e, i, labels(i)) }
+  }
+
+  object Build {
+    abstract class DenseBuild[D <: Data]() {
+      def append(e: Element[D]): Unit
+      def result: Dense[D]
+      def clear(): Unit
+    }
+    final class DenseInt() extends DenseBuild[Array[Int]]() {
+      private var buffer: Array[Int] = new Array[Int](8)
+      private var n = 0
+      def append(x: Int): Unit =
+        if n >= buffer.length then buffer = buffer.copyToSize(0x7FFFFFF8 & (buffer.length | (buffer.length << 1)))
+        buffer(n) = x
+        n += 1
+      def result: Dense[Array[Int]] = Dense(buffer.shrinkCopy(n))
+      def clear(): Unit = { buffer = new Array[Int](4); n = 0 }
+    }
+    final class DenseDouble() extends DenseBuild[Array[Double]]() {
+      private var buffer: Array[Double] = new Array[Double](8)
+      private var n = 0
+      def append(x: Double): Unit =
+        if n >= buffer.length then buffer = buffer.copyToSize(0x7FFFFFF8 & (buffer.length | (buffer.length << 1)))
+        buffer(n) = x
+        n += 1
+      def result: Dense[Array[Double]] = Dense(buffer.shrinkCopy(n))
+      def clear(): Unit = { buffer = new Array[Double](8); n = 0 }
+    }
+    final class DenseString() extends DenseBuild[Array[String]]() {
+      private var buffer: Array[String] = new Array[String](8)
+      private var n = 0
+      def append(x: String): Unit =
+        if n >= buffer.length then buffer = buffer.copyToSize(0x7FFFFFF8 & (buffer.length | (buffer.length << 1)))
+        buffer(n) = x
+        n += 1
+      def result: Dense[Array[String]] = Dense(buffer.shrinkCopy(n))
+      def clear(): Unit = { buffer = new Array[String](8); n = 0 }
+    }
+    final class DenseCell() extends DenseBuild[Array[Cell]]() {
+      private var buffer: Array[Cell] = new Array[Cell](8)
+      private var n = 0
+      def append(x: Cell): Unit =
+        if n >= buffer.length then buffer = buffer.copyToSize(0x7FFFFFF8 & (buffer.length | (buffer.length << 1)))
+        buffer(n) = x
+        n += 1
+      def result: Dense[Array[Cell]] = Dense(buffer.shrinkCopy(n))
+      def clear(): Unit = { buffer = new Array[Cell](8); n = 0 }
+    }
+  }
+
+  inline def get[D <: Data, S <: Stripe[D]](s: S, i: Int): Element[D] = inline s match
+    case dense:  Dense[D]     => dense(i)
+    case sparse: Sparse[D]    => sparse(i)
+    case stride: Stride[D]    => stride(i)
+    case label:  Labels[D, _] => label(i)
 }
-object Frame1D {
-  val noDoubles = Array.empty[Double]
-  val noInts = Array.empty[Int]
-  val emptySparse = (noInts, noDoubles)
 
-  def verifySparse(ai: )
-}
-
-
-final class Frame2D[A, B] private (val rowsize: Int, val colsize: Int, preload: Content = null) {
-  private var content: Content =
-    if preload eq null then Array[(Array[Int], Array[Double])].fill(rowsize)(emptySparse)
-}
 object Frame {
-  type Content = Array[Double] | Array[Array[Double] | (Array[Int], Array[Double])]
-
+  abstract class Cell() {
+    type Value >: Null <: AnyRef
+    val value: Value
+    final def get: Value Or Unit =
+      if value eq null then Alt.unit else Is(value)
+    def console(width: Int): (String, Int)
+    override def toString = console(79)._1
+    final override def equals(a: Any) = a match
+      case c: Cell => value == c.value
+      case _ => false
+    final override def hashCode = value.##
+  }
+  object NullCell extends Cell() {
+    type Value = Null
+    val value = null
+    def console(width: Int): (String, Int) =
+      if width >= 6 then ("(null)", 0)
+      else ("_", 0)
+  }
 }
-*/
