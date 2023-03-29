@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 import kse.flow._
 import kse.maths._
 
-sealed trait Stripe[E <: Stripe.Datum] {
+sealed trait Stripe[E <: Frame.Datum] {
   val length: Int
   def genericGet(i: Int): E
   inline def apply(i: Int): E
@@ -27,19 +27,7 @@ sealed trait Stripe[E <: Stripe.Datum] {
     case ev: Frame.Cell => ev.value eq null
 }
 object Stripe {
-  import Frame.Cell
-  type Datum = Int | Double | String | Cell
-  type Data = Array[Int] | Array[Double] | Array[String] | Array[Cell]
-  type Plural[E <: Datum] <: Data = E match
-    case Int    => Array[Int]
-    case Double => Array[Double]
-    case String => Array[String]
-    case Cell   => Array[Cell]
-  type Element[D <: Data] <: Datum = D match
-    case Array[Int]    => Int
-    case Array[Double] => Double
-    case Array[String] => String
-    case Array[Cell]   => Cell
+  import Frame.{Cell, Datum, Data, Plural, Element}
 
   inline def zero[E <: Datum] = summonFrom {
     case _: (E =:= Int)    => 0.asInstanceOf[E]
@@ -47,6 +35,7 @@ object Stripe {
     case _: (E =:= String) => "".asInstanceOf[E]
     case _: (E =:= Cell)   => Frame.NullCell.asInstanceOf[E]
   }
+
   sealed trait HasZero[E <: Datum] { def value: E }
   object HasZero {
     given HasZero[Int]    = new HasZero[Int]    { def value = zero[Int   ] }
@@ -217,7 +206,7 @@ object Stripe {
       useEveryone{ e => es(j) = e; j += 1 }
       Dense(es)
   }
-  
+
   final class Labels[E <: Datum, S <: [F <: Datum] =>> Stripe[F]](val underlying: S[E], val labels: S[String]) extends Stripe[E] {
     // Note: could also write S[F <: Data] <: Stripe[F] but the lambda form makes what's going on with F more obvious
     val length = underlying.length
@@ -284,11 +273,11 @@ object Stripe {
     sealed abstract class SparseBuild[E <: Datum]() {
       protected val buffie = new scala.collection.mutable.TreeMap[Int, E]()
       final def update(i: Int, e: E): Unit = buffie(i) = e
-      def result(max: Int): Sparse[E]
+      def result(max: Int = 0): Sparse[E]
       final def clear(): Unit = buffie.clear
     }
     final class SparseInt() extends SparseBuild[Int]() {
-      def result(max: Int): Sparse[Int] =
+      def result(max: Int = 0): Sparse[Int] =
         val es = new Array[Int](buffie.size)
         val is = new Array[Int](buffie.size)
         iFor(buffie.iterator) { (kv, j) =>
@@ -305,7 +294,7 @@ object Stripe {
         Sparse(es, is, n)
     }
     final class SparseDouble() extends SparseBuild[Double]() {
-      def result(max: Int): Sparse[Double] =
+      def result(max: Int = 0): Sparse[Double] =
         val es = new Array[Double](buffie.size)
         val is = new Array[Int](buffie.size)
         iFor(buffie.iterator) { (kv, j) =>
@@ -322,7 +311,7 @@ object Stripe {
         Sparse(es, is, n)
     }
     final class SparseString() extends SparseBuild[String]() {
-      def result(max: Int): Sparse[String] =
+      def result(max: Int = 0): Sparse[String] =
         val es = new Array[String](buffie.size)
         val is = new Array[Int](buffie.size)
         iFor(buffie.iterator) { (kv, j) =>
@@ -339,7 +328,7 @@ object Stripe {
         Sparse(es, is, n)
     }
     final class SparseCell() extends SparseBuild[Cell]() {
-      def result(max: Int): Sparse[Cell] =
+      def result(max: Int = 0): Sparse[Cell] =
         val es = new Array[Cell](buffie.size)
         val is = new Array[Int](buffie.size)
         iFor(buffie.iterator) { (kv, j) =>
@@ -365,6 +354,13 @@ object Stripe {
     case label:  Labels[E, _] => label(i)
 }
 
+sealed abstract class Frame[E <: Frame.Datum](val numRows: Int, val numCols: Int) {
+  val rowLabels = Array.fill(numRows)("")
+  val colLabels = Array.fill(numCols)("")
+  def genericGet(row: Int, col: Int): E
+  def genericRow(row: Int): IArray[E]
+  def genericCol(col: Int): IArray[E]
+}
 object Frame {
   abstract class Cell() {
     type Value >: Null <: AnyRef
@@ -385,4 +381,17 @@ object Frame {
       if width >= 6 then ("(null)", 0)
       else ("_", 0)
   }
+
+  type Datum = Int | Double | String | Cell
+  type Data = Array[Int] | Array[Double] | Array[String] | Array[Cell]
+  type Plural[E <: Datum] <: Data = E match
+    case Int    => Array[Int]
+    case Double => Array[Double]
+    case String => Array[String]
+    case Cell   => Array[Cell]
+  type Element[D <: Data] <: Datum = D match
+    case Array[Int]    => Int
+    case Array[Double] => Double
+    case Array[String] => String
+    case Array[Cell]   => Cell
 }

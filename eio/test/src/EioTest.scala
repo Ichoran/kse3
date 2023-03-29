@@ -43,6 +43,75 @@ class EioTest {
   )
 
   @Test
+  def displayTest(): Unit =
+    import Display.{PadLeft, PadRight, Pad, ShowSign, OneLine, StrictSize, Flags}
+    T ~ (PadLeft & PadRight)                    ==== Pad
+    T ~ (Pad has PadLeft)                       ==== true
+    T ~ Pad.has(PadLeft & ShowSign)             ==== false
+    T ~ Pad.hasAny(PadLeft & ShowSign)          ==== true
+    T ~ (PadLeft & ShowSign).mask(Pad)          ==== PadLeft
+    T ~ (Pad & StrictSize & OneLine & ShowSign) ==== Flags(0x1F)
+
+    def sb(s: String = ""): java.lang.StringBuilder =
+      val sb = new java.lang.StringBuilder
+      if s.nonEmpty then sb append s
+      sb
+    import Display.addPadding
+    T ~ sb("hi").tap(x => addPadding(3)(x    )).toString ==== "hi   "
+    T ~ sb("hi").tap(x => addPadding(3)(x,  2)).toString ==== "hi   "
+    T ~ sb("hi").tap(x => addPadding(3)(x,  1)).toString ==== "h   i"
+    T ~ sb("hi").tap(x => addPadding(3)(x,  0)).toString ==== "   hi"
+    T ~ sb("hi").tap(x => addPadding(3)(x, -2)).toString ==== " hi"
+    T ~ sb("hi").tap(x => addPadding(3)(x, -5)).toString ==== "hi"
+    T ~ sb("hi").tap(x => addPadding(10007)(x)).toString ==== ("hi" + " "*10007)
+    T ~ sb("hi").tap(x => addPadding(999)(x,0)).toString ==== (" "*999 + "hi")
+
+    import Display.{booleanFmt => bf}
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6                  )(true))._1op(_.toString)  ==== ("hitrue", 4)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = PadLeft )(true))._1op(_.toString)  ==== ("hi  true", 6)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = PadRight)(true))._1op(_.toString)  ==== ("hitrue   ", 4)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = Pad     )(true))._1op(_.toString)  ==== ("hi  true ", 6)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6                  )(false))._1op(_.toString) ==== ("hifalse", 5)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = PadLeft )(false))._1op(_.toString) ==== ("hi false", 6)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = PadRight)(false))._1op(_.toString) ==== ("hifalse  ", 5)
+    T ~ sb("hi").tupWith(x => bf(x, 7, 6, flags = Pad     )(false))._1op(_.toString) ==== ("hi false ", 6)
+    T ~ sb("hi").tupWith(x => bf(x, 3, 2                  )(true))._1op(_.toString)  ==== ("hiT", 1)
+    T ~ sb("hi").tupWith(x => bf(x, 3, 2, flags = Pad     )(true))._1op(_.toString)  ==== ("hi T ", 2)
+    T ~ sb("hi").tupWith(x => bf(x, 3, 2                  )(false))._1op(_.toString) ==== ("hiF", 1)
+    T ~ sb("hi").tupWith(x => bf(x, 3, 2, flags = Pad     )(false))._1op(_.toString) ==== ("hi F ", 2)
+
+    import Display.{numberFmt => nf}
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3)(4))._1op(_.toString)                                     ==== ("hi4", 1)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3)(-4))._1op(_.toString)                                    ==== ("hi-4", 2)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = ShowSign             )(     4))._1op(_.toString) ==== ("hi+4", 2)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = PadLeft              )(     4))._1op(_.toString) ==== ("hi  4", 3)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 9, flags = PadLeft              )(     4))._1op(_.toString) ==== ("hi    4", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = PadRight             )(     4))._1op(_.toString) ==== ("hi4    ", 1)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = Pad                  )(     4))._1op(_.toString) ==== ("hi  4  ", 3)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = StrictSize           )(     4))._1op(_.toString) ==== ("hi4", 1)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = StrictSize           )(123456))._1op(_.toString) ==== ("hi#####", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = StrictSize           )(-12345))._1op(_.toString) ==== ("hi-####", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = StrictSize & ShowSign)( 12345))._1op(_.toString) ==== ("hi+####", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, flags = StrictSize           )( 12345))._1op(_.toString) ==== ("hi12345", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, unsigned = true)( 0x9000000000000000L))._1op(_.toString) ==== ("hi10376293541461622784", 20)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, true, StrictSize)(                -1L))._1op(_.toString) ==== ("hi#####", 5)
+    T ~ sb("hi").tupWith(x => nf(x, 5, 3, true, StrictSize & ShowSign)(     -1L))._1op(_.toString) ==== ("hi#####", 5)
+
+    import Display.Opts
+    T ~ true.display                          ==== "true"
+    T ~ false.displayFmt(Opts.strict(2))      ==== "F"
+    T ~ true.displayFmt(Opts.strictpad(3, 2)) ==== " T "
+    T ~ 'm'.display                           ==== "m"
+    T ~ 'm'.displayFmt(Opts.padded(5, 3))     ==== "  m  "
+    T ~ (-5: Byte).display                    ==== "-5"
+    T ~ UByte(251).display                    ==== "251"
+    T ~ (-555: Short).display                 ==== "-555"
+    T ~ (-555555).display                     ==== "-555555"
+    T ~ UInt(-555555).display                 ==== "4294411741"
+    T ~ (-5555555555L).display                ==== "-5555555555"
+    T ~ ULong(-5555555555L).display           ==== "18446744068153996061"
+
+  @Test
   def conversionTest(): Unit =
     val r: Prng = Pcg64(239751892795L)
     T ~ "fish".bytes =**= Array('f'.toByte, 'i'.toByte, 's'.toByte, 'h'.toByte)
