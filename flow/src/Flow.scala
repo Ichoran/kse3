@@ -443,3 +443,72 @@ extension [A](option: Option[A]) {
     case Some(a) => a
     case _ => break(())
 }
+
+
+opaque type Attempt[+A] = A Or Unit
+object Attempt {
+  opaque type Passed = Unit
+  object Passed {
+    inline def value: Passed = ()
+
+    extension (passed: Passed)
+      inline def &&[A](inline a: => A) = a
+  }
+
+  inline def failed: Attempt[Nothing] = Alt.unit
+
+  inline def asAttempt[A](or: A Or Unit): Attempt[A] = or
+
+  extension [A](att: Attempt[A]) {
+    inline def underlying: A Or Unit = att
+    inline def default(inline a: => A): A = att.getOrElse(_ => a)
+  }
+
+  extension [A](att: kse.flow.Attempt[A]) {
+    inline def attempt(inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+      att || kse.flow.attempt(f).underlying
+    inline def safe(inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+      att || {
+        try kse.flow.attempt(f).underlying
+        catch case e if e.catchable => Attempt.failed: Attempt[A]
+      }
+  }
+}
+object attempt {
+  inline def apply[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+    boundary[Attempt[A]]:
+      Attempt asAttempt Is(f)
+
+  inline def safe[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+    try apply(f)
+    catch case e if e.catchable => Attempt.failed: Attempt[A]
+}
+
+extension [X, Y](or: X Or Y)
+  inline def ~[A](using Label[Attempt[A]]): X =
+    or.getOrElse(_ => break(Attempt.failed))
+
+extension [L, R](either: Either[L, R])
+  inline def ~[A](using Label[Attempt[A]]): R = either match
+    case Right(r) => r
+    case _        => break(Attempt.failed)
+
+extension [O](option: Option[O])
+  inline def ~[A](using Label[Attempt[A]]): O = option match
+    case Some(o) => o
+    case _       => break(Attempt.failed)
+
+extension [T](`try`: Try[T])
+  inline def ~[A](using Label[Attempt[A]]): T = `try` match
+    case Success(t) => t
+    case _          => break(Attempt.failed)
+
+extension [I](iterator: Iterator[I])
+  inline def ~[A](using Label[Attempt[A]]): I =
+    if iterator.hasNext then iterator.next
+    else break(Attempt.failed)
+
+extension (boolean: Boolean)
+  inline def ~[A](using Label[Attempt[A]]): kse.flow.Attempt.Passed =
+    if boolean then Attempt.Passed.value
+    else break(Attempt.failed)

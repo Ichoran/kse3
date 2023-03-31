@@ -44,13 +44,14 @@ class EioTest {
 
   @Test
   def displayTest(): Unit =
-    import Display.{PadLeft, PadRight, Pad, ShowSign, OneLine, StrictSize, Flags}
+    import Display.{PadLeft, PadRight, Pad, ShowSign, OneLine, StrictSize, SixSig, ClipSig, SigFigs, Flags}
     T ~ (PadLeft & PadRight)                    ==== Pad
     T ~ (Pad has PadLeft)                       ==== true
     T ~ Pad.has(PadLeft & ShowSign)             ==== false
     T ~ Pad.hasAny(PadLeft & ShowSign)          ==== true
     T ~ (PadLeft & ShowSign).mask(Pad)          ==== PadLeft
     T ~ (Pad & StrictSize & OneLine & ShowSign) ==== Flags(0x1F)
+    T ~ (SixSig & ClipSig & SigFigs)            ==== Flags(0x60)
 
     def sb(s: String = ""): java.lang.StringBuilder =
       val sb = new java.lang.StringBuilder
@@ -98,18 +99,27 @@ class EioTest {
     T ~ sb("hi").tupWith(x => nf(x, 5, 3, true, StrictSize & ShowSign)(     -1L))._1op(_.toString) ==== ("hi#####", 5)
 
     import Display.Opts
-    T ~ true.display                          ==== "true"
-    T ~ false.displayFmt(Opts.strict(2))      ==== "F"
-    T ~ true.displayFmt(Opts.strictpad(3, 2)) ==== " T "
-    T ~ 'm'.display                           ==== "m"
-    T ~ 'm'.displayFmt(Opts.padded(5, 3))     ==== "  m  "
-    T ~ (-5: Byte).display                    ==== "-5"
-    T ~ UByte(251).display                    ==== "251"
-    T ~ (-555: Short).display                 ==== "-555"
-    T ~ (-555555).display                     ==== "-555555"
-    T ~ UInt(-555555).display                 ==== "4294411741"
-    T ~ (-5555555555L).display                ==== "-5555555555"
-    T ~ ULong(-5555555555L).display           ==== "18446744068153996061"
+    T ~ true.display                             ==== "true"
+    T ~ false.displayFmt(Opts.strict(2))         ==== "F"
+    T ~ true.displayFmt(Opts.strictpad(3, 2))    ==== " T "
+    T ~ 'm'.display                              ==== "m"
+    T ~ 'm'.displayFmt(Opts.padded(5, 3))        ==== "  m  "
+    T ~ (-5: Byte).display                       ==== "-5"
+    T ~ UByte(251).display                       ==== "251"
+    T ~ (-555: Short).display                    ==== "-555"
+    T ~ (-555555).display                        ==== "-555555"
+    T ~ UInt(-555555).display                    ==== "4294411741"
+    T ~ (-5555555555L).display                   ==== "-5555555555"
+    T ~ ULong(-5555555555L).display              ==== "18446744068153996061"
+    T ~ "salmon".display                         ==== "salmon"
+    T ~ "salmon".displayFmt(Opts.strict(5))      ==== "sal.."
+    T ~ "sturgeon".displayFmt(Opts.strict(7))    ==== "stur..."
+    T ~ "sturgeon".displayFmt(Opts.strict(7, 7)) ==== "...geon"
+    T ~ "salmon".displayFmt(Opts.padleft(8))     ==== "  salmon"
+    T ~ "salmon".displayFmt(Opts.padright(8))    ==== "salmon  "
+    T ~ "salmon".displayFmt(Opts.padded(8, 4))   ==== " salmon "
+    T ~ "salmon".displayFmt(Opts.padded(9, 4))   ==== " salmon  "
+    T ~ "salmon".displayFmt(Opts.padded(9, 5))   ==== "  salmon "
 
   @Test
   def conversionTest(): Unit =

@@ -9,6 +9,7 @@ import kse.flow._
 import kse.maths._
 import kse.maths.packed._
 
+
 trait Display[-A] {
   def displayFmt(opts: Display.Opts Or Unit)(target: StB, a: A): Int
   def displayFmt(opts: Display.Opts Or Unit)(a: A): String = (new StB).tap(sb => displayFmt(opts)(sb, a)).toString
@@ -35,6 +36,9 @@ object Display {
   inline def StrictSize: kse.eio.Display.Flags = Flags( 0x4)
   inline def OneLine: kse.eio.Display.Flags    = Flags( 0x8)
   inline def ShowSign: kse.eio.Display.Flags   = Flags(0x10)
+  inline def SixSig: kse.eio.Display.Flags     = Flags(0x20)  // If set alone, use 6 sig figs
+  inline def ClipSig: kse.eio.Display.Flags    = Flags(0x40)  // If set alone, use 12 sig figs; with SixSig, cut to 3
+  inline def SigFigs: kse.eio.Display.Flags    = Flags(0x60)
 
   case class Opts(maxSize: Int = 0, anchor: Int = 0, margin: Int = Int.MaxValue, indent: String = "", flags: Flags = Flags(0)) {}
   object Opts {
@@ -48,6 +52,8 @@ object Display {
       new Opts(maxSize, anchor, margin, indent, Pad & StrictSize)
     def padleft(size: Int, margin: Int = Int.MaxValue, indent: String = ""): Opts =
       new Opts(size, size, margin, indent, PadLeft)
+    def padright(size: Int, margin: Int = Int.MaxValue, indent: String = ""): Opts =
+      new Opts(size, 0, margin, indent, PadRight)
   }
 
   val fixedPadding = Array.fill(200)(' ')
@@ -115,6 +121,30 @@ object Display {
       maxSize
     else
       b
+
+  private def decimalCleanup(target: StB, zero: Int)(maxSize: Int, anchor: Int, flags: Flags = Flags(0)): Int = ???
+    /*
+    var dotn = zero + 1
+    while dotn < target.length && target.charAt(dotn) != '.' do dotn += 1
+    var expn = dotn
+    while expn < target.length && target.charAt(expn) != 'E' do expn += 1
+    val pow =
+      if expn < target.length then
+        target.setCharAt(expn, 'e')
+        var i = expn + 1
+        val neg = target.charAt(i) match
+          case '-' => i += 1; true
+          case '+' => i += 1; false
+          case _   => false
+        var value = 0
+        while i < target.length do
+          value = 10*value + (target.charAt(i) - '0')
+          i += 1
+        if neg then -value else value
+      else 0
+    val figs = (expn - zero) - (if dotn < expn then 1 else 0)
+    val anch = if dotn < target.length then dotn + pow else expn + pow
+    */
 
   given Display[Boolean] with
     def displayFmt(opts: Opts Or Unit)(target: StB, a: Boolean): Int =
@@ -200,6 +230,78 @@ object Display {
           if a.signed < 0 then target append java.lang.Long.toUnsignedString(a.signed)
           else target append a.signed
           target.length - l
+      }
+
+  given Display[Float] with
+    def displayFmt(opts: Opts Or Unit)(target: StB, a: Float): Int =
+      val l = target.length
+      target append a
+      opts.fold{
+        o => decimalCleanup(target, l)(o.maxSize, o.anchor, o.flags)
+      }{
+        _ => decimalCleanup(target, l)(0, 0)
+      }
+
+  given Display[Double] with
+    def displayFmt(opts: Opts Or Unit)(target: StB, a: Double): Int =
+      val l = target.length
+      target append a
+      opts.fold{
+        o => decimalCleanup(target, l)(o.maxSize, o.anchor, o.flags)
+      }{
+        _ => decimalCleanup(target, l)(0, 0)
+      }
+
+  given Display[String] with
+    def displayFmt(opts: Opts Or Unit)(target: StB, a: String): Int =
+      import Flags._
+      opts.fold{
+        o =>
+          if o.maxSize <= 0 then
+            target append a
+            0
+          else
+            if a.length >= o.maxSize then
+              if o.flags.has(StrictSize) && a.length > o.maxSize then
+                if o.maxSize <= 3 then target.append(a, 0, o.maxSize)
+                if o.anchor >= o.maxSize then
+                  val n = (o.maxSize - 3) max 3
+                  target.append("...", 0, (o.maxSize - 3) min 3)
+                  target.append(a, a.length - n, a.length)
+                else
+                  target.append(a, 0, (o.maxSize - 3) max 3)
+                  target.append("...", 0, (o.maxSize - 3) min 3)
+              else target append a
+              if o.anchor >= o.maxSize then o.maxSize else 0
+            else if o.anchor <= 0 then
+              target append a
+              if o.flags.has(PadRight) then addPadding(o.maxSize - a.length)(target)
+              0
+            else if o.anchor >= o.maxSize then
+              if o.flags.has(PadLeft) then addPadding(o.maxSize - a.length)(target)
+              target append a
+              if o.flags.has(PadLeft) then o.maxSize else a.length
+            else
+              var r = o.anchor + a.length/2
+              var l = r - a.length
+              if l < 0 then
+                r -= l
+                l = 0
+              else if r > o.maxSize then
+                l -= r - o.maxSize
+                r = o.maxSize
+              val i = target.length
+              var n = 0
+              if l > 0 && o.flags.has(PadLeft) then
+                addPadding(l)(target)
+                n += l
+              target append a
+              n += a.length / 2
+              val b = target.length - i
+              if b < o.maxSize && o.flags.has(PadRight) then addPadding(o.maxSize - b)(target)
+              n
+      }{
+        _ => target append a; 0
       }
 
 

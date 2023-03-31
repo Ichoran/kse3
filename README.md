@@ -34,9 +34,9 @@ def scalaVersion = "3.3.0-RC3"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.3"
-ivy"com.github.ichoran::kse3-maths:0.1.3"
-ivy"com.github.ichoran::kse3-eio:0.1.3"
+ivy"com.github.ichoran::kse3-flow:0.1.4"
+ivy"com.github.ichoran::kse3-maths:0.1.4"
+ivy"com.github.ichoran::kse3-eio:0.1.4"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -80,7 +80,7 @@ The flow module is available separately (but you probably don't want to use it
 separately).  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.3"
+ivy"com.github.ichoran::kse3-flow:0.1.4"
 ```
 
 and in your code,
@@ -119,10 +119,9 @@ You have Rust-style `.?` early-exit error handling into `Or` (and `Option` and `
 def reverseParse(s: String): Int Or String =
     safe{ s.reverse.toInt }.mapAlt(_ => s"$s is not a number in reverse")
 
-def favorite(i: Int): Int Or String = Or.Ret{
+def favorite(i: Int): Int Or String = Or.Ret:
   val x = little(i).?  // return bad case early, keep going with good value
   x * reverseParse(x.toString).?
-}
 
 val a = favorite(12)
 val b = favorite(999)
@@ -131,6 +130,26 @@ println(a)   // prints: 252
 println(b)   // prints: Alt(999 is not little)
 println(c)   // prints: Alt(-3 is not a number in reverse)
 ```
+
+If you don't care about what the bad values are (usually you should!), you also have `.~` that can be used inside a single or chained attempt block, but otherwise works like `.?`:
+
+```scala
+val opt = Option(42)
+val number =
+  attempt:
+    val a = favorite(999).~  // fails here
+    (a < 30).~               // this would fail too
+    2 * a
+  .attempt:
+    val a = favorite(12).~   // succeeds, giving 21
+    val b = opt.~            // gets 42 from option
+    (a >= b).~               // test passes
+    a * b
+  .default:
+    -1                       // If everything failed, would give this
+```
+
+`.~` works to bail out from `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
 
 You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
 
@@ -148,7 +167,7 @@ val list = List("salmon", "herring", "perch")
 iFor(list.iterator){ (i, s) => println(s*i) }  // prints newline, then "herring", then "perchperch"
 ```
 
-Standard mutable containers for primitive and object types for counting, callbacks, and other such use:
+There are standard mutable containers for primitive and object types for counting, callbacks, and other such use:
 
 ```scala
 def nextEven(m: Mu[Int]): m.type =
@@ -299,7 +318,7 @@ Control flow will not be caught.
 and other errors into an `Or Err` preserving the `Or Err` status if it's
 already there.  `nice{ foo } || bar.nicely(f)` is a sensible fallback pattern.
 
-3. Do not every use `Try`.  It catches control flow.  You are expected to
+3. **Do not every use `Try`.**  It catches control flow.  You are expected to
 understand threading, lazy evaluation, and other situations where control flow
 might escape.  The result will be wrong even if you catch control flow.
 
