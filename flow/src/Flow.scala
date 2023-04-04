@@ -482,6 +482,10 @@ object attempt {
   inline def safe[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
     try apply(f)
     catch case e if e.catchable => Attempt.failed: Attempt[A]
+
+  inline def threadsafe[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+    try apply(f)
+    catch case e if e.threadCatchable => Attempt.failed: Attempt[A]
 }
 
 extension [X, Y](or: X Or Y)
@@ -508,7 +512,21 @@ extension [I](iterator: Iterator[I])
     if iterator.hasNext then iterator.next
     else break(Attempt.failed)
 
-extension (boolean: Boolean)
-  inline def ~[A](using Label[Attempt[A]]): kse.flow.Attempt.Passed =
-    if boolean then Attempt.Passed.value
+extension [I](stepper: scala.collection.Stepper[I])
+  inline def ~[A](using Label[Attempt[A]]): I =
+    if stepper.hasStep then stepper.nextStep
     else break(Attempt.failed)
+
+extension [I](iterator: java.util.Iterator[I])
+  inline def ~[A](using Label[Attempt[A]]): I =
+    if iterator.hasNext then iterator.next
+    else break(Attempt.failed)
+
+extension [I](enumerator: java.util.Enumeration[I])
+  inline def ~[A](using Label[Attempt[A]]): I =
+    if enumerator.hasMoreElements then enumerator.nextElement
+    else break(Attempt.failed)
+
+inline def ensure[A](inline z: Boolean)(using Label[Attempt[A]]): kse.flow.Attempt.Passed =
+  if z then Attempt.Passed.value
+  else break(Attempt.failed)

@@ -585,6 +585,15 @@ extension [X, Y](or: Or[X, Y]) {
       case x: IsBox[_] => x.get.asInstanceOf[P Or Y]
     case _ => or.asInstanceOf[Is[P]]
 
+  /** Keeps only those favored values that pass a test, converting others to a disfavored Unit.
+    * Note that this is only present for `for` compatibility; otherwise, favor `discard` or `flatMap`.
+    */
+  inline def withFilter(inline p: X => Boolean): X Or (Y | Unit) = (or: X Or Y) match
+    case _: Alt[_] => or
+    case _ =>
+      val v = Is unwrap or.asInstanceOf[Is[X]]
+      if p(v) then or else Alt.unit
+
   /** An `Or` with favored and disfavored branches swapped. */
   inline def swap: Y Or X = or match
     case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)

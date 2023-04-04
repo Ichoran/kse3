@@ -1161,6 +1161,15 @@ class FlowTest {
     T ~ fann.flatten.isIs  ==== true
     T ~ fann.flatten.isAlt ==== false
 
+    var n = 0
+    T ~ { for i <- oi do n += i; n          } ==== 5
+    T ~ { for i <- oa do n += i; n          } ==== 5
+    T ~ { for i <- oi if i > 9 do n += 1; n } ==== 5
+    T ~ { for i <- oi yield i + 1 }           ==== 6  --: typed[Int Or String]
+    T ~ { for i <- oi if i > 0 yield i + 1 }  ==== 6  --: typed[Int Or (String | Unit)]
+    T ~ { for i <- oi if i > 9 yield i + 1 }  ==== Alt.unit
+    T ~ { for i <- oa if i > 9 yield i + 1 }  ==== Alt("cod")
+
     T ~ i.toEither  ==== Right(5)    --: typed[Either[Nothing, Int]]
     T ~ a.toEither  ==== Left("cod") --: typed[Either[String, Nothing]]
     T ~ oi.toEither ==== Right(5)    --: typed[Either[String, Int]]
@@ -1355,6 +1364,36 @@ class FlowTest {
     T ~ threadnice{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
     T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
     T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[_]]
+
+    T ~ attempt( optionQ1("eel").~ ).default(0)                               ==== 0
+    T ~ attempt( optionQ1("888").~ ).default(0)                               ==== 888
+    T ~ attempt{ val n = optionQ1("eel").~; ensure(n > 9); n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1("888").~; ensure(n > 9); n - 1 }.default(0) ==== 887
+    T ~ attempt{ val n = optionQ1(  "5").~; ensure(n > 9); n - 1 }.default(0) ==== 0
+    T ~ attempt( eitherQ1("eel").~ ).default(0)                               ==== 0
+    T ~ attempt( eitherQ1("888").~ ).default(0)                               ==== 889
+    T ~ attempt( Try("eel".toInt).~ ).default(0)                              ==== 0
+    T ~ attempt( Try("888".toInt).~ ).default(0)                              ==== 888
+    T ~ attempt( orQ1("eel").~ ).default(0)                                   ==== 0
+    T ~ attempt( orQ1("888").~ ).default(0)                                   ==== 888
+    val itn = Iterator(5)
+    T ~ attempt( itn.~ ).default(0)                                           ==== 5
+    T ~ attempt( itn.~ ).default(0)                                           ==== 0
+    val stn = Array(5).stepper
+    T ~ attempt( stn.~ ).default(0)                                           ==== 5
+    T ~ attempt( stn.~ ).default(0)                                           ==== 0
+    val jtn = java.util.Arrays.stream(Array(5)).iterator
+    T ~ attempt( jtn.~ ).default(0)                                           ==== 5
+    T ~ attempt( jtn.~ ).default(0)                                           ==== 0
+    val enn = new java.util.Enumeration[Int](){ var i = 5; def hasMoreElements = i > 0; def nextElement = { val ans = i; i = 0; ans } }
+    T ~ attempt( enn.~ ).default(0)                                           ==== 5
+    T ~ attempt( enn.~ ).default(0)                                           ==== 0
+    T ~ attempt.safe{ "eel".toInt }.default(0)                                ==== 0
+    T ~ attempt.safe{ "888".toInt }.default(0)                                ==== 888
+    T ~ threadsafe{ attempt.safe{ toss(); 5 }.default(0) }.grab               ==== thrown[ErrType.CatchableException]
+    T ~ attempt.threadsafe{ "eel".toInt }.default(0)                          ==== 0
+    T ~ attempt.threadsafe{ "888".toInt }.default(0)                          ==== 888
+    T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
 
 
     val l = Left("herring")
