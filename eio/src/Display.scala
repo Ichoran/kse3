@@ -9,6 +9,40 @@ import kse.flow._
 import kse.maths._
 import kse.maths.packed._
 
+trait Displey[-A] {
+  def accountable(acc: Displey.Account Or Unit): Displey.Account Or Unit = acc
+  def append(target: StB, a: A, limit: Int, anchor: Int, account: Displey.Account Or Unit): Int
+  def displey(a: A): String = (new StB).tap(stb => append(stb, a, Int.MaxValue, -1, Alt.unit)).toString
+}
+object Displey {
+  trait Account {
+    def seek[A](pf: PartialFunction[Account, A]): A Or Unit = ???
+  }
+  object Account {
+    final class Mixture(val accounts: List[Account]) extends Account {
+      inline def ::(that: Account) = Mixture(that :: accounts)
+      inline def :+(that: Account) = Mixture(accounts :+ that)
+      inline def +:(that: Account) = Mixture(that +: accounts)
+    }
+  }
+
+  given Displey[Boolean] with
+    def append(target: StB, a: Boolean, limit: Int, anchor: Int, account: Account Or Unit): Int =
+      val l = target.length
+      target append (if limit >= 5 then a else if a then "T" else "F")
+      target.length - l
+
+  given Displey[String] with
+    def append(target: StB, a: String, limit: Int, anchor: Int, account: Account Or Unit): Int =
+      val l = target.length
+      if a.length <= limit then target append a
+      else if limit <= 4 then target.append(a, 0, limit)
+      else
+        val ndots = (limit - 4) max 3
+        target.append(a, 0, limit - ndots)
+        target.append("...", 0, ndots)
+      (target.length - l)/2
+}
 
 trait Display[-A] {
   def displayFmt(opts: Display.Opts Or Unit)(target: StB, a: A): Int
@@ -352,10 +386,31 @@ object Display {
 }
 
 
-extension [A](a: A)(using Display[A]) {
-  inline def displayFmt(target: StB, opts: Display.Opts): Int = summon[Display[A]].displayFmt(Is(opts))(target, a)
-  inline def displayFmt(opts: Display.Opts): String = summon[Display[A]].displayFmt(Is(opts))(a)
-  inline def display(target: StB): Int = summon[Display[A]].display(target, a)
-  inline def display: String = summon[Display[A]].display(a)
+extension [A](a: A)(using disp: Display[A]) {
+  inline def displayFmt(target: StB, opts: Display.Opts): Int = disp.displayFmt(Is(opts))(target, a)
+  inline def displayFmt(opts: Display.Opts): String = disp.displayFmt(Is(opts))(a)
+  inline def display(target: StB): Int = disp.display(target, a)
+  inline def display: String = disp.display(a)
 }
 
+extension [A](a: A)(using disp: Displey[A]) {
+  inline def displey(lim: Int): String = (new StB).tap(stb => disp.append(stb, a, lim, -1, Alt.unit)).toString
+}
+
+
+abstract class Displayable extends (StB => Unit) {}
+object Displayable {
+  given displayer[A](using disp: Display[A]): Conversion[A, Displayable] with
+    def apply(a: A): Displayable = (stb: StB) => { disp.display(stb, a); () }
+}
+
+extension (sc: StringContext)
+  def disp(items: Displayable*): String =
+    val ts = sc.parts.iterator
+    val is = items.iterator
+    val stb = new StB()
+    if ts.hasNext then stb append ts.next
+    while is.hasNext do
+      is.next.apply(stb)
+      stb append ts.next
+    stb.toString

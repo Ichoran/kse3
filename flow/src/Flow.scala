@@ -372,6 +372,74 @@ extension [A](option: Option[A]) {
 }
 
 
+extension [A, B](pf: PartialFunction[A, B]) {
+  inline def applyOr(a: A): B Or Unit =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt.unit
+      case b => Is(b.asInstanceOf[B])
+
+  inline def applyOption(a: A): Option[B] =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => None
+      case b => Some(b.asInstanceOf[B])
+
+  inline def applyOrBreak(a: A)(using lb: Label[Unit]): B =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break()
+      case b => b.asInstanceOf[B]
+
+  inline def liftToOr: A => B Or Unit =
+    (a: A) => pf.applyOr(a)
+
+  inline def liftToOption: A => Option[B] = pf.lift
+
+  inline def liftToTry: A => Try[B] =
+    (a: A) => Try(pf(a))
+
+  inline def liftToEither: A => Either[Unit, B] =
+    (a: A) => pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Left[Unit, B](())
+      case b => Right[Unit, B](b.asInstanceOf[B])
+}
+
+
+extension [A, B](f: A => (B Or Unit)) {
+  inline def unlift: PartialFunction[A, B] = new PartialFunction[A, B] {
+    override def applyOrElse[AA <: A, BB >: B](a: AA, default: AA => BB): BB = f(a).fold(b => b)(_ => default(a))
+    def isDefinedAt(a: A) = f(a).isIs
+    def apply(a: A) = f(a).get
+  }
+}
+
+
+extension [A, B](f: A => Either[Unit, B]) {
+  @targetName("unliftEither")
+  def unlift: PartialFunction[A, B] = new PartialFunction[A, B] {
+    override def applyOrElse[AA <: A, BB >: B](a: AA, default: AA => BB): BB = f(a) match
+      case Right(b) => b
+      case _        => default(a)
+    def isDefinedAt(a: A) = f(a).isRight
+    def apply(a: A) = f(a) match
+      case Right(b) => b
+      case _  => throw new NoSuchElementException("Result not defined for this argument")
+  }
+}
+
+
+
+extension [A, B](f: A => Try[B]) {
+  @targetName("unliftTry")
+  def unlift: PartialFunction[A, B] = new PartialFunction[A, B] {
+    override def applyOrElse[AA <: A, BB >: B](a: AA, default: AA => BB): BB = f(a) match
+      case scala.util.Success(b) => b
+      case _                     => default(a)
+    def isDefinedAt(a: A) = f(a).isSuccess
+    def apply(a: A) = f(a).get
+  }
+}
+
+
+
 //////////////////////////////////////////////////////////////////
 /// Empowering sum types and others to work with postfix break ///
 //////////////////////////////////////////////////////////////////

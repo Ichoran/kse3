@@ -1385,7 +1385,11 @@ class FlowTest {
     val jtn = java.util.Arrays.stream(Array(5)).iterator
     T ~ attempt( jtn.~ ).default(0)                                           ==== 5
     T ~ attempt( jtn.~ ).default(0)                                           ==== 0
-    val enn = new java.util.Enumeration[Int](){ var i = 5; def hasMoreElements = i > 0; def nextElement = { val ans = i; i = 0; ans } }
+    val enn = new java.util.Enumeration[Int]() { 
+      private var i = 5
+      def hasMoreElements = i > 0
+      def nextElement = { val ans = i; i = 0; ans } 
+    }
     T ~ attempt( enn.~ ).default(0)                                           ==== 5
     T ~ attempt( enn.~ ).default(0)                                           ==== 0
     T ~ attempt.safe{ "eel".toInt }.default(0)                                ==== 0
@@ -1394,7 +1398,6 @@ class FlowTest {
     T ~ attempt.threadsafe{ "eel".toInt }.default(0)                          ==== 0
     T ~ attempt.threadsafe{ "888".toInt }.default(0)                          ==== 888
     T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
-
 
     val l = Left("herring")
     val r = Right(15)
@@ -1433,6 +1436,53 @@ class FlowTest {
     T ~ os.use(ou += _.length) ==== os
     T ~ ou                     ==== 9
 
+    val pf: PartialFunction[Int, String] = { case x if x > 0 && x < 5 => "!"*x }
+    val orf = (x: Int) => { if x > 0 & x < 5 then Is("!" * x) else Alt.unit }
+    val opf = (i: Int) => orf(i).toOption
+    val eif = (i: Int) => orf(i).toEither
+    val trf = (i: Int) => orf(i).toTry
+    val d = (i: Int) => "..."
+    T ~ pf.applyOr(3)                ==== "!!!"
+    T ~ pf.applyOr(7)                ==== Alt.unit
+    T ~ pf.liftToOr                  ==== typed[Int => (String Or Unit)]
+    T ~ pf.liftToOr(3)               ==== "!!!"
+    T ~ pf.liftToOr(7)               ==== Alt.unit
+    T ~ orf.unlift.isDefinedAt(3)    ==== true
+    T ~ orf.unlift.isDefinedAt(7)    ==== false
+    T ~ orf.unlift(3)                ==== "!!!"
+    T ~ orf.unlift(7)                ==== thrown[NoSuchElementException]
+    T ~ orf.unlift.applyOrElse(3, d) ==== "!!!"
+    T ~ orf.unlift.applyOrElse(7, d) ==== "..."
+    T ~ pf.applyOption(3)            ==== Some("!!!")
+    T ~ pf.applyOption(7)            ==== None
+    T ~ pf.liftToOption              ==== typed[Int => Option[String]]
+    T ~ pf.liftToOption(3)           ==== Some("!!!")
+    T ~ pf.liftToOption(7)           ==== None
+    T ~ opf.unlift.isDefinedAt(3)    ==== true
+    T ~ opf.unlift.isDefinedAt(7)    ==== false
+    T ~ opf.unlift(3)                ==== "!!!"
+    T ~ opf.unlift(7)                ==== thrown[MatchError]
+    T ~ opf.unlift.applyOrElse(3, d) ==== "!!!"
+    T ~ opf.unlift.applyOrElse(7, d) ==== "..."
+    T ~ pf.liftToEither              ==== typed[Int => Either[Unit, String]]
+    T ~ pf.liftToEither(3)           ==== Right("!!!")
+    T ~ pf.liftToEither(7)           ==== Left(())
+    T ~ eif.unlift.isDefinedAt(3)    ==== true
+    T ~ eif.unlift.isDefinedAt(7)    ==== false
+    T ~ eif.unlift(3)                ==== "!!!"
+    T ~ eif.unlift(7)                ==== thrown[NoSuchElementException]
+    T ~ eif.unlift.applyOrElse(3, d) ==== "!!!"
+    T ~ eif.unlift.applyOrElse(7, d) ==== "..."
+    T ~ pf.liftToTry                 ==== typed[Int => Try[String]]
+    T ~ pf.liftToTry(3)              ==== Success("!!!")
+    T ~ pf.liftToTry(7).isFailure    ==== true
+    T ~ trf.unlift.isDefinedAt(3)    ==== true
+    T ~ trf.unlift.isDefinedAt(7)    ==== false
+    T ~ trf.unlift(3)                ==== "!!!"
+    T ~ trf.unlift(7)                ==== thrown[WrongBranchException[_]]
+    T ~ trf.unlift.applyOrElse(3, d) ==== "!!!"
+    T ~ trf.unlift.applyOrElse(7, d) ==== "..."
+
     val fish = List("cod", "eel", "salmon", "bass")
 
     T ~ {
@@ -1445,6 +1495,15 @@ class FlowTest {
       }
       x
     } ==== 6
+
+    T ~ {
+      var x = ""
+      boundary:
+        fish.foreach{ y =>
+          x += pf.applyOrBreak(y.length)
+        }
+      x
+    } ==== "!!!!!!"
 
     T ~ {
       boundary[String] {

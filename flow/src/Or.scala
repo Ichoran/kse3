@@ -609,7 +609,7 @@ extension [A](a: A) {
   inline def orIs[B]: B Or A = Alt(a)
 
   /** Marks this as a favored value */
-  inline def asIs: Is[A] = Is(a)
+  inline def asIs: kse.flow.Is[A] = Is(a)
 
   /** Wraps this as a disfavored value */
   inline def asAlt: Alt[A] = Alt(a)
