@@ -1634,6 +1634,35 @@ class FlowTest {
       }
     } ==== "!!!!"
 
+    T("breakOnIs didn't break") ~ {
+      val or = "cod".orAlt[Boolean]
+      boundary[String Or Int]:
+        or.breakOnIs
+        Alt(5)
+    } ==== "cod" --: typed[String Or Int]
+
+    T("breakOnIs broke") ~ {
+      val or = true.orIs[String]
+      boundary[String Or Int]:
+        or.breakOnIs
+        Alt(5)
+    } ==== Alt(5) --: typed[String Or Int]
+
+    T("breakOnAlt broke") ~ {
+      val or = "cod".orAlt[Boolean]
+      boundary[Int Or Boolean]:
+        or.breakOnAlt
+        Is(5)
+    } ==== 5 --: typed[Int Or Boolean]
+
+    T("breakOnAlt didn't break") ~ {
+      val or = true.orIs[String]
+      boundary[Int Or Boolean]:
+        or.breakOnAlt
+        Is(5)
+    } ==== Alt(true) --: typed[Int Or Boolean]
+
+
     T ~ boundary[Int]{ val o = 7.orIs[String];      o.getOrBreak.length } ==== 7
     T ~ boundary[Int]{ val o = "minnow".orAlt[Int]; o.getOrBreak.length } ==== 6
     T ~ boundary[Int]{ val o = 5.orAlt[String];     o.altOrBreak.length } ==== 5

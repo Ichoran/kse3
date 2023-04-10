@@ -594,6 +594,16 @@ extension [X, Y](or: Or[X, Y]) {
       val v = Is unwrap or.asInstanceOf[Is[X]]
       if p(v) then or else Alt.unit
 
+  /** Breaks with the favored branch leaving the disfavored branch behind. */
+  inline def breakOnIs[Z >: kse.flow.Is[X]](using boundary.Label[Z]): Alt[Y] = (or: X Or Y) match
+    case _: Alt[_] => or.asInstanceOf[Alt[Y]]
+    case _         => boundary.break(or.asInstanceOf[Is[X]])
+
+  /** Breaks with the disfavored branch leaving the favored branch behind */
+  inline def breakOnAlt[Z >: Alt[Y]](using boundary.Label[Z]): kse.flow.Is[X] = (or: X Or Y) match
+    case _: Alt[_] => boundary.break(or.asInstanceOf[Alt[Y]])
+    case _         => or.asInstanceOf[Is[X]]
+
   /** An `Or` with favored and disfavored branches swapped. */
   inline def swap: Y Or X = or match
     case _: Alt[_] => Is(or.asInstanceOf[Alt[Y]].alt)

@@ -9,39 +9,263 @@ import kse.flow._
 import kse.maths._
 import kse.maths.packed._
 
+trait Dysplay[-A] {
+  protected def nesting: Boolean = false
+  protected def limitFrom(limit: Int, ctx: Dysplay.Context) =
+    if limit > 0 then limit min (ctx.width max 1) else ctx.width max 1
+  def append(target: StB, a: A, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info
+  def dysplay(a: A)(using ctx: Dysplay.Context): String =
+    val stb = new StB
+    append(stb, a, ctx.width)
+    stb.toString
+}
+object Dysplay {
+  opaque type Info = Unit
+  object Info {
+    def default: Info = ()
+    def wrap(u: Unit): Info = u
+    extension (info: Info)
+      def unwrap: Unit = info
+  }
+
+  trait Context {
+    def tabular: Boolean = false
+    def humanized: Boolean = false
+    def hashover: Boolean = false
+    def width: Int
+    def sub(count: Int): Context = this
+  }
+  object Context {
+    /*
+    final case class Static(tabular: Boolean, width: Int) extends Context {}
+    final case class Proxy(underlying: Context, tab: Boolean Or Unit = Alt.unit, wid: Int Or Unit = Alt.unit)
+    extends Context {
+      def tabular = tab.getOrElse(_ => underlying.tabular)
+      def width = wid.getOrElse(_ => underlying.width)
+    }
+    */
+    given standard: Context with
+      def width = 65535
+  }
+
+  private val powersOfTen = Array(
+    1L,                 10L,                     100L,                     1_000L,
+                    10_000L,                 100_000L,                 1_000_000L,
+                10_000_000L,             100_000_000L,             1_000_000_000L,
+            10_000_000_000L,         100_000_000_000L,         1_000_000_000_000L,
+        10_000_000_000_000L,     100_000_000_000_000L,     1_000_000_000_000_000L,
+    10_000_000_000_000_000L, 100_000_000_000_000_000L, 1_000_000_000_000_000_000L)
+
+  private val lotsOfHashes = Array.fill(300)('#')
+
+  private def needsSpecialHandling(c: Char): Int = 
+    import java.lang.Character._
+    getType(c) match
+      case UPPERCASE_LETTER |
+           LOWERCASE_LETTER |
+           TITLECASE_LETTER |
+           MODIFIER_LETTER  |
+           OTHER_LETTER     |
+           DECIMAL_DIGIT_NUMBER |
+           LETTER_NUMBER        |
+           OTHER_NUMBER         |
+           CONNECTOR_PUNCTUATION |
+           DASH_PUNCTUATION      |
+           START_PUNCTUATION     |
+           END_PUNCTUATION       |
+           MATH_SYMBOL     |
+           CURRENCY_SYMBOL |
+           MODIFIER_SYMBOL |
+           OTHER_SYMBOL
+        => 0
+      case INITIAL_QUOTE_PUNCTUATION |
+           FINAL_QUOTE_PUNCTUATION   |
+           OTHER_PUNCTUATION
+        => if c == '\'' then 1 else if c == '"' then 2 else 3
+      case SPACE_SEPARATOR => 3
+      case _ => -1
+
+  private val lowEscapeStrings =
+    Array.tabulate(32)(i => s"\\x${UByte.wrap(i.toByte).hexString}").fn{ a =>
+      a('\n') = "\n"
+      a('\r') = "\r"
+      a('\t') = "\t"
+
+    }
+
+  given Dysplay[Char] with
+    def append(target: StB, a: Char, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      needsSpecialHandling(a) match
+        case 0 =>
+          target append a
+        case x if x > 0 =>
+          val space = limitFrom(limit, ctx)
+          if space < 3 then target append '\u2026'
+          else if space > 3 && a == '\'' then target append "'\\''"
+          else
+            target append '\''
+            target append a
+            target append '\''
+        case _ =>
+          val space = limitFrom(limit, ctx)
+          if space < 3 then target append '\u2026'
+          else if space == 3 then target append "'\u2026\'"
+          else if a < ' ' then
+            if a == '\n' then target append "'\\n'"
+            else if a == '\r' then target append "'\\r'"
+            else if a == '\t' then target append "'\\t'"
+            else if a == '\b' then target append "'\\b'"
+            else if a == '\f' then target append "'\\f'"
+            else
+              target append '\''
+              target append '^'
+              target append (a + '@').toChar
+              target append '\''
+          else
+            if space < 8 then target append "'\\u\u2026'"
+            else
+              target append "'\\u"
+              target append a.hexString
+              target append '\''
+      Info.default
+
+  given Dysplay[Boolean] with
+    def append(target: StB, a: Boolean, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      val space = limitFrom(limit, ctx)
+      if space > 4 || (space == 4 && !ctx.tabular) then target append a
+      else target append (if a then 'T' else 'F')
+      Info.default
+
+  given Dysplay[ULong] with
+    def append(target: StB, a: ULong, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      var space = limitFrom(limit, ctx)
+      val l = target.length
+      target append java.lang.Long.toUnsignedString(a.unwrap)
+      if target.length - l > space then
+        if ctx.hashover then
+          target.setLength(l)
+          while space > 0 do
+            val n = space min 300
+            target.append(lotsOfHashes, 0, n)
+            space -= n
+      Info.default
+
+  given Dysplay[UByte] with
+    def append(target: StB, a: UByte, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      summon[Dysplay[ULong]].append(target, a.toULong, limit)
+
+  given Dysplay[Long] with
+    def append(target: StB, a: Long, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      var space = limitFrom(limit, ctx)
+      val l = target.length
+      if ctx.tabular && a >= 0 then target append ' '
+      target append a
+      if target.length - l > space then
+        if ctx.hashover then
+          target.setLength(l)
+          while space > 0 do
+            val n = space min 300
+            target.append(lotsOfHashes, 0, n)
+            space -= n
+      Info.default
+
+  given Dysplay[Byte] with
+    def append(target: StB, a: Byte, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      summon[Dysplay[Long]].append(target, a.toLong, limit)
+
+  given Dysplay[Short] with
+    def append(target: StB, a: Short, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      summon[Dysplay[Long]].append(target, a.toLong, limit)
+
+  given Dysplay[Int] with
+    def append(target: StB, a: Int, limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      summon[Dysplay[Long]].append(target, a.toLong, limit)
+
+  given [A](using db: Dysplay[A]): Dysplay[Array[A]] with
+    protected override def nesting = true
+    def append(target: StB, a: Array[A], limit: Int)(using ctx: Dysplay.Context): Dysplay.Info =
+      val l = target.length
+      val m = limitFrom(limit, ctx) +# l
+      target append '['
+      target append a.length
+      target append ':'
+      var spaci = target.length
+      if spaci > m-2 then
+        if m-l <= 2 then
+          target.setLength(l)
+          if m-l == 2 && a.isEmpty then target append "[]"
+          else target append '\u2026'
+        else target append "[\u2026]"
+      else
+        attempt:
+          given Context = ctx.sub(a.length)
+          aFor(a){ (b, _) =>
+            target append ' '
+            ensure(target.length < m-1)
+            spaci = target.length
+            db.append(target, b, if db.nesting then limit - (spaci - l) - 3 max 1 else limit)
+            ensure(target.length <= m-1)
+          }
+          target append ']'
+        .default:
+          if m-4 > spaci then
+            target.setLength(m-4)
+            target append "\u2026 \u2026]"
+          else
+            target.setLength(spaci)
+            target append "\u2026]"
+      Info.default
+}
+
+
+/*
 trait Displey[-A] {
-  def accountable(acc: Displey.Account Or Unit): Displey.Account Or Unit = acc
-  def append(target: StB, a: A, limit: Int, anchor: Int, account: Displey.Account Or Unit): Int
+  def coordinate(coord: Displey.Coordinator Or Unit): Displey.Coordinator Or Unit = coord
+  def append(target: StB, a: A, limit: Int, anchor: Int, coord: Displey.Coordinator Or Unit): Displey.Info
   def displey(a: A): String = (new StB).tap(stb => append(stb, a, Int.MaxValue, -1, Alt.unit)).toString
 }
 object Displey {
-  trait Account {
-    def seek[A](pf: PartialFunction[Account, A]): A Or Unit = ???
+  opaque type Info = Long
+  object Info {
+    inline def default: kse.eio.Displey.Info = wrap(0L)
+    inline def wrap(l: Long): Info = l
+
+    extension (info: Info)
+      inline def unwrap: Long = info
   }
-  object Account {
-    final class Mixture(val accounts: List[Account]) extends Account {
-      inline def ::(that: Account) = Mixture(that :: accounts)
-      inline def :+(that: Account) = Mixture(accounts :+ that)
-      inline def +:(that: Account) = Mixture(that +: accounts)
+
+  trait Coordinator {
+    def seek[A](pf: PartialFunction[Coordinator, A]): A Or Unit = pf.applyOr(this)
+  }
+  object Coordinator {
+    final class Mixture(val accounts: List[Coordinator]) extends Coordinator {
+      inline def ::(that: Coordinator) = Mixture(that :: accounts)
+      inline def :+(that: Coordinator) = Mixture(accounts :+ that)
+      inline def +:(that: Coordinator) = Mixture(that +: accounts)
+
+      override def seek[A](pf: PartialFunction[Coordinator, A]): A Or Unit =
+        Or.FlatRet:
+          iFor(accounts.iterator){ (a, _) => a.seek(pf).breakOnIs }
+          Alt.unit
     }
   }
 
   given Displey[Boolean] with
-    def append(target: StB, a: Boolean, limit: Int, anchor: Int, account: Account Or Unit): Int =
-      val l = target.length
+    def append(target: StB, a: Boolean, limit: Int, anchor: Int, account: Coordinator Or Unit): Info =
       target append (if limit >= 5 then a else if a then "T" else "F")
-      target.length - l
+      Info.default
 
   given Displey[String] with
-    def append(target: StB, a: String, limit: Int, anchor: Int, account: Account Or Unit): Int =
+    def append(target: StB, a: String, limit: Int, anchor: Int, account: Coordinator Or Unit): Info =
       val l = target.length
+      var m = l +# (limit max 0)
+      var i = 0
+      while i < a.length do
       if a.length <= limit then target append a
-      else if limit <= 4 then target.append(a, 0, limit)
       else
-        val ndots = (limit - 4) max 3
-        target.append(a, 0, limit - ndots)
-        target.append("...", 0, ndots)
-      (target.length - l)/2
+        if limit > 1 then target.append(a, 0, limit - 1)
+        target append '\u2026'
+      Info.default
 }
 
 trait Display[-A] {
@@ -396,8 +620,13 @@ extension [A](a: A)(using disp: Display[A]) {
 extension [A](a: A)(using disp: Displey[A]) {
   inline def displey(lim: Int): String = (new StB).tap(stb => disp.append(stb, a, lim, -1, Alt.unit)).toString
 }
+*/
 
+extension [A](a: A)(using disp: Dysplay[A], ctx: Dysplay.Context) {
+  inline def dysplay: String = disp.dysplay(a)(using ctx)
+}
 
+/*
 abstract class Displayable extends (StB => Unit) {}
 object Displayable {
   given displayer[A](using disp: Display[A]): Conversion[A, Displayable] with
@@ -414,3 +643,4 @@ extension (sc: StringContext)
       is.next.apply(stb)
       stb append ts.next
     stb.toString
+*/
