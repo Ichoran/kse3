@@ -18,6 +18,22 @@ import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
+object BytecodeCheck {
+  class TestValue(val get: Boolean) extends AnyVal { def isEmpty = !get }
+  object TestValue { def unapply(bool: Boolean): TestValue = TestValue(bool) }
+
+  class TestClass(val get: Boolean) extends AnyVal { def isEmpty = !get }
+  object TestClass { def unapply(bool: Boolean): TestClass = TestClass(bool) }
+
+  def tc(b: Boolean) = b match
+    case TestClass(b) => "yay"
+    case _            => "boo"
+
+  def tv(b: Boolean) = b match
+    case TestValue(b) => "yay"
+    case _            => "boo"
+}
+
 
 @RunWith(classOf[JUnit4])
 class FlowTest {
@@ -2536,17 +2552,17 @@ class FlowTest {
     val ww = Worm.of[String]
     val www = Worm.preset("halibut")
     T ~ w.wormAsAtomic ==== typed[java.util.concurrent.atomic.AtomicReference[AnyRef]]
-    T ~ w.value        ==== Alt(()) --: typed[String Or Unit]
+    T ~ w.getOrUnit    ==== Alt(()) --: typed[String Or Unit]
     T ~ w.get          ==== thrown[IllegalStateException]
     w.set("cod")
-    T ~ w.value ==== "cod" --: typed[String Or Unit]
-    T ~ w.get   ==== "cod"
+    T ~ w.getOrUnit ==== "cod" --: typed[String Or Unit]
+    T ~ w.get       ==== "cod"
     T ~ w.setIfEmpty("herring") ==== false
     T ~ w.set("herring")        ==== thrown[IllegalStateException]
     T ~ w.getOrSet("perch")     ==== "cod" --: typed[String]
     T ~ ww.getOrSet("minnow")   ==== "minnow"
     T ~ ww.getOrSet("eel")      ==== "minnow"
-    T ~ www.value               ==== "halibut"
+    T ~ www.getOrUnit           ==== "halibut"
 
     // Not explicitly testing soft memory clearance, but it should clear memory
     var z = 0

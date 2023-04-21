@@ -86,7 +86,7 @@ object Worm {
       case x => x.asInstanceOf[V]
 
     /** If the value is set, return it in a favored branch; otherwise, Unit in the disfavored branch. */
-    inline def value: V Or Unit = worm.wormAsAtomic.get() match
+    inline def getOrUnit: V Or Unit = worm.wormAsAtomic.get() match
       case x if x eq Worm.notSetSentinel => Alt.unit
       case x                             => Is(x.asInstanceOf[V])
   }
@@ -133,7 +133,7 @@ final class Soft[S, V](source: S)(gen: S => V) {
     case x =>
       Is(x.asInstanceOf[V])
 
-  /** Retrieves the value, packed in an `Is`, or recomputes and caches the value, packing it in an `Alt` */
+  /** Retrieves the value, packed in an `Is`, or gives an `Alt` */
   def valueOrUnit: V Or Unit = myCache.get().get() match
     case null =>
       Alt.unit

@@ -206,10 +206,10 @@ class TemporalTest() {
     T ~ dnb.checkedNano    ==== thrown[ArithmeticException]
     T ~ (-dnb).checkedNano ==== (-dnb).nano
     T ~ (-dnc).checkedNano ==== thrown[ArithmeticException]
-    T ~ (4.ns).D           ==== 4e-9 --: typed[DoubleDuration]
-    T ~ (-5.days).D        ==== -432000.0
-    T ~ d.D                ==== 8.395719981568751e11
-    T ~ dmin.D             ==== -9.223372036854776e18
+    T ~ (4.ns).double      ==== 4e-9 --: typed[DoubleDuration]
+    T ~ (-5.days).double   ==== -432000.0
+    T ~ d.double           ==== 8.395719981568751e11
+    T ~ dmin.double        ==== -9.223372036854776e18
     T ~ d.into.ns          ==== Long.MaxValue --: typed[Long]
     T ~ 5.us.into.ns       ==== 5000
     T ~ dna.into.ns        ==== Long.MaxValue
@@ -913,8 +913,8 @@ class TemporalTest() {
     T ~ nd.checkIn(nd2, nd3) ==== thrown[ArithmeticException]
     T ~ nd3.checkIn(nd, nd2) ==== thrown[ArithmeticException]
 
-    T ~ nd.D                 ==== 238.597181528 --: typed[DoubleDuration]
-    T ~ ndmin.D              ==== -9.223372036854775808e9
+    T ~ nd.double            ==== 238.597181528 --: typed[DoubleDuration]
+    T ~ ndmin.double         ==== -9.223372036854775808e9
     T ~ nd.duration          ==== Duration.ofSeconds(238, 597181528)
 
     T ~ nd.into.ns           ==== nd                             --: typed[Long]
@@ -2174,7 +2174,7 @@ class TemporalTest() {
     T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
     T ~ i.age                            ==== typed[Duration]
     T ~ (1.m > i.age)                    ==== true
-    T ~ gig.D                                   ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.double                              ==== 1e9 --: typed[DoubleInstant]
     T ~ gig.filetime                            ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
     T ~ gig.local                               ==== typed[LocalDateTime]
     T ~ (Duration.between(i.local, ldt) < 1.m)  ==== true
@@ -2378,7 +2378,7 @@ class TemporalTest() {
     T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[LocalDateTime]
     T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
     T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
-    T ~ gig.D                                    ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.double                               ==== 1e9 --: typed[DoubleInstant]
     T ~ gig.filetime                             ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
     T ~ gig.instant                              ==== typed[Instant]
     T ~ (Duration.between(l.instant, idt) < 1.m) ==== true
@@ -2578,7 +2578,7 @@ class TemporalTest() {
     T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[OffsetDateTime]
     T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
     T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
-    T ~ gig.D                                    ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.double                               ==== 1e9 --: typed[DoubleInstant]
     T ~ gig.filetime                             ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
     T ~ gig.instant                              ==== typed[Instant]
     T ~ (Duration.between(o.instant, idt) < 1.m) ==== true
@@ -2797,7 +2797,7 @@ class TemporalTest() {
     T ~ (gig + 1.s).checkIn(gig, giggle) ==== (gig + 1.s) --: typed[ZonedDateTime]
     T ~ gig.checkIn(gig + 1.s, giggle)   ==== thrown[DateTimeException]
     T ~ giggle.checkIn(gig, gig + 1.s)   ==== thrown[DateTimeException]
-    T ~ gig.D                            ==== 1e9 --: typed[DoubleInstant]
+    T ~ gig.double                       ==== 1e9 --: typed[DoubleInstant]
     T ~ gig.filetime                     ==== FileTime.fromMillis(1000000000000L) --: typed[FileTime]
     T ~ gig.instant                      ==== typed[Instant]
     T ~ (idt - z.instant < 1.m)          ==== true
@@ -3061,12 +3061,12 @@ class TemporalTest() {
     T ~ gigm.checkIn(gig, gigp)  ==== thrown[DateTimeException]
     T ~ gigp.checkIn(gigm, gig)  ==== thrown[DateTimeException]
 
-    T ~ gig.D                       ==== 1e9 --: typed[DoubleInstant]
-    T ~ gimx.D                      ==== Instant.MAX.getEpochSecond.toDouble
-    T ~ gsmx.D                      ==== Long.MaxValue.toDouble
-    T ~ gmmn.D                      ==== (Long.MinValue.toDouble * 60)
-    T ~ ghmx.D                      ==== (Long.MaxValue.toDouble * 3600)
-    T ~ gdmx.D                      ==== (Long.MaxValue.toDouble * 86400)
+    T ~ gig.double                  ==== 1e9 --: typed[DoubleInstant]
+    T ~ gimx.double                 ==== Instant.MAX.getEpochSecond.toDouble
+    T ~ gsmx.double                 ==== Long.MaxValue.toDouble
+    T ~ gmmn.double                 ==== (Long.MinValue.toDouble * 60)
+    T ~ ghmx.double                 ==== (Long.MaxValue.toDouble * 3600)
+    T ~ gdmx.double                 ==== (Long.MaxValue.toDouble * 86400)
     T ~ gig.instant                 ==== Instant.ofEpochSecond(1000000000) --: typed[Instant]
     T ~ gimx.instant                ==== Instant.MAX
     T ~ (gimx + 1.s).instant        ==== Instant.MAX

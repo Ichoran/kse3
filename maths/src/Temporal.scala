@@ -188,7 +188,7 @@ object NanoDuration {
       if dt.unwrap < lo.unwrap || dt.unwrap > hi.unwrap then throw new ArithmeticException("long overflow")
       else dt
 
-    inline def D: kse.maths.DoubleDuration = DoubleDuration(dt)
+    inline def double: kse.maths.DoubleDuration = DoubleDuration(dt)
     def duration: Duration =
       val s = dt.unwrap/1000000000
       val n = (dt.unwrap - s*1000000000).toInt
@@ -1468,7 +1468,7 @@ extension (d: Duration) {
       else NanoDuration((d.getSeconds + 1) *! 1000000000L +! (d.getNano - 1000000000L))
     else
       NanoDuration(d.getSeconds *! 1000000000L +! d.getNano)
-  inline def D: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
+  inline def double: kse.maths.DoubleDuration = DoubleDuration(d.getNano/1e9 + d.getSeconds)
 
   inline def into:    kse.maths.DurationCompanion.Into  = DurationCompanion.Into (d)
   inline def checked: kse.maths.DurationCompanion.Check = DurationCompanion.Check(d)
@@ -2641,21 +2641,21 @@ extension (instant: Instant) {
 
   inline def age: Duration = Duration.between(Instant.now, instant)
 
-  inline def D: kse.maths.DoubleInstant    = DoubleInstant(instant)
+  inline def double: kse.maths.DoubleInstant = DoubleInstant(instant)
 
-  inline def local: LocalDateTime          = TemporalCompanion.toLocal(instant)
-  inline def checkedLocal: LocalDateTime   = TemporalCompanion.toLocalChecked(instant)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(instant)
+  inline def checkedLocal: LocalDateTime     = TemporalCompanion.toLocalChecked(instant)
 
-  inline def offset: OffsetDateTime        = TemporalCompanion.toOffset(instant)
-  inline def checkedOffset: OffsetDateTime = TemporalCompanion.toOffsetChecked(instant)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(instant)
+  inline def checkedOffset: OffsetDateTime   = TemporalCompanion.toOffsetChecked(instant)
 
-  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(instant)
-  inline def checkedUTC                    = TemporalCompanion.toUTCChecked(instant)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(instant)
+  inline def checkedUTC                      = TemporalCompanion.toUTCChecked(instant)
 
-  inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(instant)
-  inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toZonedChecked(instant)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(instant)
+  inline def checkedZoned: ZonedDateTime     = TemporalCompanion.toZonedChecked(instant)
 
-  inline def filetime: FileTime            = FileTime.from(instant)
+  inline def filetime: FileTime              = FileTime.from(instant)
 
   inline def floor: kse.maths.TemporalCompanion.FloorInstant = TemporalCompanion.FloorInstant(instant)
   inline def round: kse.maths.TemporalCompanion.RoundInstant = TemporalCompanion.RoundInstant(instant)
@@ -2685,7 +2685,7 @@ extension (local: LocalDateTime) {
   // in(LocalDateTime, LocalDateTime) in OverloadedExtensions
   // checkIn(LocalDateTime, LocalDateTime) in OverloadedExtensions
 
-  def D: kse.maths.DoubleInstant =
+  def double: kse.maths.DoubleInstant =
     DoubleInstant.fromSeconds(local.toEpochSecond(ZoneId.systemDefault.getRules.getOffset(local)), local.getNano)
 
   inline def instant: Instant       = TemporalCompanion.toInstant(local)
@@ -2736,25 +2736,25 @@ extension (offset: OffsetDateTime) {
   // in(OffsetDateTime, OffsetDateTime) in OverloadedExtensions
   // checkIn(OffsetDateTime, OffsetDateTime) in OverloadedExtensions
 
-  inline def D: kse.maths.DoubleInstant    = DoubleInstant.fromSeconds(offset.toEpochSecond, offset.getNano)
+  inline def double: kse.maths.DoubleInstant = DoubleInstant.fromSeconds(offset.toEpochSecond, offset.getNano)
 
-  inline def instant: Instant              = offset.toInstant
+  inline def instant: Instant                = offset.toInstant
 
-  inline def discardOffset: LocalDateTime  = offset.toLocalDateTime
+  inline def discardOffset: LocalDateTime    = offset.toLocalDateTime
 
-  inline def local: LocalDateTime          = TemporalCompanion.toLocal(offset)
-  inline def checkedLocal: LocalDateTime   = TemporalCompanion.toLocalChecked(offset)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(offset)
+  inline def checkedLocal: LocalDateTime     = TemporalCompanion.toLocalChecked(offset)
 
-  inline def offset: OffsetDateTime        = TemporalCompanion.toLocalOffset(offset)
-  inline def checkedOffset: OffsetDateTime = TemporalCompanion.toLocalOffsetChecked(offset)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toLocalOffset(offset)
+  inline def checkedOffset: OffsetDateTime   = TemporalCompanion.toLocalOffsetChecked(offset)
 
-  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(offset)
-  inline def checkedUTC: OffsetDateTime    = TemporalCompanion.toUTCChecked(offset)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(offset)
+  inline def checkedUTC: OffsetDateTime      = TemporalCompanion.toUTCChecked(offset)
 
-  inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(offset)
-  inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toZonedChecked(offset)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(offset)
+  inline def checkedZoned: ZonedDateTime     = TemporalCompanion.toZonedChecked(offset)
 
-  inline def filetime: FileTime            = FileTime.from(offset.toInstant)
+  inline def filetime: FileTime              = FileTime.from(offset.toInstant)
 
   inline def floor: kse.maths.TemporalCompanion.FloorOffset = TemporalCompanion.FloorOffset(offset)
   inline def round: kse.maths.TemporalCompanion.RoundOffset = TemporalCompanion.RoundOffset(offset)
@@ -2793,25 +2793,25 @@ extension (zoned: ZonedDateTime) {
   // in(ZonedDateTime, ZonedDateTime) in OverloadedExtensions
   // checkIn(ZonedDateTime, ZonedDateTime) in OverloadedExtensions
 
-  inline def D: kse.maths.DoubleInstant    = DoubleInstant.fromSeconds(zoned.toEpochSecond, zoned.getNano)
+  inline def double: kse.maths.DoubleInstant = DoubleInstant.fromSeconds(zoned.toEpochSecond, zoned.getNano)
 
-  inline def instant: Instant              = zoned.toInstant
+  inline def instant: Instant                = zoned.toInstant
 
-  inline def discardZoned: LocalDateTime   = zoned.toLocalDateTime
+  inline def discardZoned: LocalDateTime     = zoned.toLocalDateTime
 
-  inline def local: LocalDateTime          = TemporalCompanion.toLocal(zoned)
-  inline def checkedLocal: LocalDateTime   = TemporalCompanion.toLocalChecked(zoned)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(zoned)
+  inline def checkedLocal: LocalDateTime     = TemporalCompanion.toLocalChecked(zoned)
 
-  inline def zoned: ZonedDateTime          = TemporalCompanion.toLocalZoned(zoned)
-  inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toLocalZonedChecked(zoned)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toLocalZoned(zoned)
+  inline def checkedZoned: ZonedDateTime     = TemporalCompanion.toLocalZonedChecked(zoned)
 
-  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(zoned)
-  inline def checkedUTC: OffsetDateTime    = TemporalCompanion.toUTCChecked(zoned)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(zoned)
+  inline def checkedUTC: OffsetDateTime      = TemporalCompanion.toUTCChecked(zoned)
 
-  inline def offset: OffsetDateTime        = TemporalCompanion.toLocalOffset(zoned)
-  inline def checkedOffset: OffsetDateTime = TemporalCompanion.toLocalOffsetChecked(zoned)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toLocalOffset(zoned)
+  inline def checkedOffset: OffsetDateTime   = TemporalCompanion.toLocalOffsetChecked(zoned)
 
-  inline def filetime: FileTime            = FileTime.from(zoned.toInstant)
+  inline def filetime: FileTime              = FileTime.from(zoned.toInstant)
 
   inline def floor: kse.maths.TemporalCompanion.FloorZoned = TemporalCompanion.FloorZoned(zoned)
   inline def round: kse.maths.TemporalCompanion.RoundZoned = TemporalCompanion.RoundZoned(zoned)
@@ -2842,24 +2842,24 @@ extension (filetime: FileTime) {
   // in(FileTime, FileTime) in OverloadedExtensions
   // checkIn(FileTime, FileTime) in OverloadedExtensions
 
-  inline def D: kse.maths.DoubleInstant    = DoubleInstant(filetime)
+  inline def double: kse.maths.DoubleInstant = DoubleInstant(filetime)
 
-  inline def instant: Instant              = filetime.toInstant
-  inline def checkedInstant: Instant       = TemporalCompanion.fileTimeValue(filetime) match
+  inline def instant: Instant                = filetime.toInstant
+  inline def checkedInstant: Instant         = TemporalCompanion.fileTimeValue(filetime) match
     case i: Instant => i
     case _          => throw new DateTimeException("Instant out of bounds")
 
-  inline def local: LocalDateTime          = TemporalCompanion.toLocal(filetime.toInstant)
-  inline def checkedLocal: LocalDateTime   = TemporalCompanion.toLocalChecked(filetime.toInstant)
+  inline def local: LocalDateTime            = TemporalCompanion.toLocal(filetime.toInstant)
+  inline def checkedLocal: LocalDateTime     = TemporalCompanion.toLocalChecked(filetime.toInstant)
 
-  inline def utc: OffsetDateTime           = TemporalCompanion.toUTC(filetime.toInstant)
-  inline def checkedUTC: OffsetDateTime    = TemporalCompanion.toUTCChecked(filetime.toInstant)
+  inline def utc: OffsetDateTime             = TemporalCompanion.toUTC(filetime.toInstant)
+  inline def checkedUTC: OffsetDateTime      = TemporalCompanion.toUTCChecked(filetime.toInstant)
 
-  inline def offset: OffsetDateTime        = TemporalCompanion.toOffset(filetime.toInstant)
-  inline def checkedOffset: OffsetDateTime = TemporalCompanion.toOffsetChecked(filetime.toInstant)
+  inline def offset: OffsetDateTime          = TemporalCompanion.toOffset(filetime.toInstant)
+  inline def checkedOffset: OffsetDateTime   = TemporalCompanion.toOffsetChecked(filetime.toInstant)
 
-  inline def zoned: ZonedDateTime          = TemporalCompanion.toZoned(filetime.toInstant)
-  inline def checkedZoned: ZonedDateTime   = TemporalCompanion.toZonedChecked(filetime.toInstant)
+  inline def zoned: ZonedDateTime            = TemporalCompanion.toZoned(filetime.toInstant)
+  inline def checkedZoned: ZonedDateTime     = TemporalCompanion.toZonedChecked(filetime.toInstant)
 
   inline def value: Instant | TemporalCompanion.TimeAndUnit = TemporalCompanion.fileTimeValue(filetime)
 

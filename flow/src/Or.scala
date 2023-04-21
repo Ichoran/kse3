@@ -359,7 +359,7 @@ extension [X, Y](or: Or[X, Y]) {
     *
     * Usage example:
     * {{{
-    * 5.or[String].fold(_ + 1)(_.length)
+    * 5.orAlt[String].fold(_ + 1)(_.length)
     * }}}
     */
   inline def fold[Z](inline f: X => Z)(inline g: Y => Z): Z = inline or match
