@@ -8,7 +8,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.3.0-RC3"
+  def scalaVersion = "3.3.0"
 
   def scalaOptions = T{Seq(
     "-opt",

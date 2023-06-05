@@ -19,19 +19,12 @@ import scala.util.boundary.break
 import sourcecode.{Line, given}
 
 object BytecodeCheck {
-  class TestValue(val get: Boolean) extends AnyVal { def isEmpty = !get }
-  object TestValue { def unapply(bool: Boolean): TestValue = TestValue(bool) }
+  import kse.flow.{given, _}
 
-  class TestClass(val get: Boolean) extends AnyVal { def isEmpty = !get }
-  object TestClass { def unapply(bool: Boolean): TestClass = TestClass(bool) }
-
-  def tc(b: Boolean) = b match
-    case TestClass(b) => "yay"
-    case _            => "boo"
-
-  def tv(b: Boolean) = b match
-    case TestValue(b) => "yay"
-    case _            => "boo"
+  def one(a: Array[Array[Option[Int]]]): Int =
+    var x = 0
+    a.use(0)(_.use(0)(_.use(x = _)))
+    x
 }
 
 

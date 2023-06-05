@@ -28,15 +28,15 @@ Only kse3-flow and some of kse3-maths and a bit of kse3-eio (and kse3-testing) a
 In mill, make sure your module has
 
 ```scala
-def scalaVersion = "3.3.0-RC3"
+def scalaVersion = "3.3.0"
 ```
 
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.4"
-ivy"com.github.ichoran::kse3-maths:0.1.4"
-ivy"com.github.ichoran::kse3-eio:0.1.4"
+ivy"com.github.ichoran::kse3-flow:0.1.5"
+ivy"com.github.ichoran::kse3-maths:0.1.5"
+ivy"com.github.ichoran::kse3-eio:0.1.5"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -80,7 +80,7 @@ The flow module is available separately (but you probably don't want to use it
 separately).  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.4"
+ivy"com.github.ichoran::kse3-flow:0.1.5"
 ```
 
 and in your code,

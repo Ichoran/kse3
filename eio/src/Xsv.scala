@@ -17,6 +17,7 @@ import scala.collection.{ IterableOnce => IOnce }
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
+import kse.eio._
 
 
 class Xsv private (
