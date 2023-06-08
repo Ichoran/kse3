@@ -11,6 +11,7 @@ import java.time._
 import java.util.zip._
 
 import scala.annotation.tailrec
+import scala.util.boundary;
 
 import kse.flow.{given, _}
 
@@ -277,6 +278,24 @@ extension (the_path: Path) {
   def openIO()(using Tidy.Nice[SeekableByteChannel]): SeekableByteChannel Or Err = nice {
     Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
   }
+
+
+  inline def inZip[A](inline f: boundary.Label[Unit Or Err] ?=> (Path => Unit)): Unit Or Err =
+    Resource.Nice{
+      val fsys = FileSystems.newFileSystem(the_path, null: ClassLoader)
+      var result: Path Or Err = Err.or(s"No directory structure inside $the_path")
+      try
+        val i = fsys.getRootDirectories.iterator
+        if i.hasNext then
+          result = Is(i.next)
+          if i.hasNext then result = Err.or(s"Multiple directories inside $the_path\n  $result\n  ${safe(i.next)}")
+      finally
+        if result.isAlt then fsys.close
+      result
+    }(_.getFileSystem.close)(f)
+
+  def asUnmanagedFilesystem(): FileSystem Or Err =
+    nice( FileSystems.newFileSystem(the_path, null: ClassLoader) )
 
 
   def copyTo(to: Path): Unit Or Err =

@@ -2883,3 +2883,25 @@ object Tic {
 }
 
 inline def tic: kse.maths.Tic = Tic()
+
+
+object Cal {
+  def local(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0): LocalDateTime =
+    LocalDateTime.of(year, month, day, hour, minute, second, nanos)
+
+  def utc(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0): OffsetDateTime =
+    OffsetDateTime.of(year, month, day, hour, minute, second, nanos, ZoneOffset.UTC)
+
+  def offset(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0, offset: ZoneOffset = null): OffsetDateTime =
+    if offset eq null then 
+      val local = LocalDateTime.of(year, month, day, hour, minute, second, nanos)
+      local.atOffset(ZoneId.systemDefault.getRules.getOffset(local))
+    else
+      OffsetDateTime.of(year, month, day, hour, minute, second, nanos, offset)
+
+  def zoned(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0, zone: ZoneId = null): ZonedDateTime =
+    ZonedDateTime.of(year, month, day, hour, minute, second, nanos, if zone eq null then ZoneId.systemDefault else zone)
+
+  def instant(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0): Instant =
+    OffsetDateTime.of(year, month, day, hour, minute, second, nanos, ZoneOffset.UTC).toInstant
+}

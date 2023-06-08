@@ -2592,6 +2592,9 @@ class MathTest {
 
   @Test
   def temporalTestFileTime(): Unit = temporalTester.testFileTime()
+
+  @Test
+  def tempralTestCal(): Unit = temporalTester.testCal()
 }
 object MathsTest {
   // @BeforeClass

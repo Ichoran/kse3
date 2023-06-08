@@ -3309,5 +3309,20 @@ class TemporalTest() {
     T ~ uft(Long.MaxValue, 'm').ceil.d  ==== uft(Long.MaxValue/1440 + 1, 'd')
     T ~ uft(Long.MinValue, 'h').floor.d ==== uft(Long.MinValue/24 - 1, 'd')
     T ~ uft(Long.MaxValue, 'h').ceil.d  ==== uft(Long.MaxValue/24 + 1, 'd')
-}
 
+  def testCal(): Unit =
+    val ldt = LocalDateTime.now.round.s + 50.ms
+    T ~ ldt ==== Cal.local(ldt.getYear, ldt.getMonthValue, ldt.getDayOfMonth, ldt.getHour, ldt.getMinute, ldt.getSecond, ldt.getNano)
+
+    val odt = OffsetDateTime.now.round.s + 60.ms
+    T ~ odt ==== Cal.offset(odt.getYear, odt.getMonthValue, odt.getDayOfMonth, odt.getHour, odt.getMinute, odt.getSecond, odt.getNano)
+
+    val zdt = ZonedDateTime.now.round.s + 70.ms
+    T ~ zdt ==== Cal.zoned(zdt.getYear, zdt.getMonthValue, zdt.getDayOfMonth, zdt.getHour, zdt.getMinute, zdt.getSecond, zdt.getNano)
+
+    val udt = ldt.atOffset(ZoneOffset.UTC) + 80.ms
+    T ~ udt ==== Cal.utc(udt.getYear, zdt.getMonthValue, zdt.getDayOfMonth, zdt.getHour, zdt.getMinute, zdt.getSecond, udt.getNano)
+
+    val idt = Instant.now.round.s + 90.ms
+    T ~ idt ==== Cal.instant(idt.utc.getYear, idt.utc.getMonthValue, idt.utc.getDayOfMonth, idt.utc.getHour, idt.utc.getMinute, idt.utc.getSecond, idt.getNano)
+}
