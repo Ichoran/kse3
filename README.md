@@ -46,7 +46,7 @@ Then in your code,
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
-import kse.eio.{given, }
+import kse.eio.{given, _}
 ```
 
 and you're ready to go.
@@ -130,25 +130,25 @@ println(b)   // prints: Alt(999 is not little)
 println(c)   // prints: Alt(-3 is not a number in reverse)
 ```
 
-If you don't care about what the bad values are (usually you should!), you also have `.~` that can be used inside a single or chained attempt block, but otherwise works like `.?`:
+If you don't care about what the bad values are (usually you should!), you also have `.!` that can be used inside a single or chained attempt block, but otherwise works like `.?`:
 
 ```scala
 val opt = Option(42)
 val number =
   attempt:
-    val a = favorite(999).~  // fails here
-    (a < 30).~               // this would fail too
+    val a = favorite(999).!  // fails here
+    (a < 30).!               // this would fail too
     2 * a
   .attempt:
-    val a = favorite(12).~   // succeeds, giving 21
-    val b = opt.~            // gets 42 from option
-    (a >= b).~               // test passes
+    val a = favorite(12).!   // succeeds, giving 21
+    val b = opt.!            // gets 42 from option
+    (a >= b).!               // test passes
     a * b
   .default:
     -1                       // If everything failed, would give this
 ```
 
-`.~` works to bail out from `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
+`.!` works to bail out from `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
 
 You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
 

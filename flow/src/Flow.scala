@@ -557,41 +557,41 @@ object attempt {
 }
 
 extension [X, Y](or: X Or Y)
-  inline def ~[A](using Label[Attempt[A]]): X =
+  inline def ![A](using Label[Attempt[A]]): X =
     or.getOrElse(_ => break(Attempt.failed))
 
 extension [L, R](either: Either[L, R])
-  inline def ~[A](using Label[Attempt[A]]): R = either match
+  inline def ![A](using Label[Attempt[A]]): R = either match
     case Right(r) => r
     case _        => break(Attempt.failed)
 
 extension [O](option: Option[O])
-  inline def ~[A](using Label[Attempt[A]]): O = option match
+  inline def ![A](using Label[Attempt[A]]): O = option match
     case Some(o) => o
     case _       => break(Attempt.failed)
 
 extension [T](`try`: Try[T])
-  inline def ~[A](using Label[Attempt[A]]): T = `try` match
+  inline def ![A](using Label[Attempt[A]]): T = `try` match
     case Success(t) => t
     case _          => break(Attempt.failed)
 
 extension [I](iterator: Iterator[I])
-  inline def ~[A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else break(Attempt.failed)
 
 extension [I](stepper: scala.collection.Stepper[I])
-  inline def ~[A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[Attempt[A]]): I =
     if stepper.hasStep then stepper.nextStep
     else break(Attempt.failed)
 
 extension [I](iterator: java.util.Iterator[I])
-  inline def ~[A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else break(Attempt.failed)
 
 extension [I](enumerator: java.util.Enumeration[I])
-  inline def ~[A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[Attempt[A]]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
     else break(Attempt.failed)
 

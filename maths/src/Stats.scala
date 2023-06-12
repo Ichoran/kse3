@@ -23,8 +23,17 @@ trait Est {
   def snr: Double = mean / sem
 
   def mutableCopy: Est.M = new Est.M(n, mean, sse)
+  def pmSD: PlusMinus = mean.toFloat +- sd.toFloat
+  def pmSEM: PlusMinus = mean.toFloat +- sem.toFloat
 
-  override def toString = s"$mean +- $sem"
+  def ++(that: Est): Est =
+    val e = mutableCopy
+    e += that
+    e
+
+  override def toString =
+    if (n - n.rint).abs < 1e-6 && n.abs < 9e18 then s"$mean +- $sem (n=${n.toLong})"
+    else s"$mean +- $sem (W=$n)"
 }
 object Est {
   def mut: Est.M = new Est.M(0, 0, 0)
@@ -202,5 +211,12 @@ object Est {
     inline val smallestSubtractable = 1.000000001
 
     def empty: M = new M(0, 0, 0)
+    def fromSD(n: Double)(pm: PlusMinus): Est.M =
+      val m = if n > 2 then n else 2.0
+      new M(m, pm.value.toDouble, (m-1)*pm.error.toDouble.sq)
+
+    def fromSEM(n: Double)(pm: PlusMinus): Est.M =
+      val m = if n > 2 then n else 2.0
+      new M(m, pm.value.toDouble, m*(m-1)*pm.error.toDouble.sq)
   }
 }
