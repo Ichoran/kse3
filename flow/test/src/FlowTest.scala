@@ -18,13 +18,37 @@ import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
-object BytecodeCheck {
+object BytecodeCk {
   import kse.flow.{given, _}
 
   def one(a: Array[Array[Option[Int]]]): Int =
     var x = 0
     a.use(0)(_.use(0)(_.use(x = _)))
     x
+
+  def getLongOrNull(l: Long): Long | Null =
+    if (l & 0xF) == 7 then null else l
+
+  def sumLoN: Long =
+    var sum = 0L
+    nFor(1000000){ i =>
+      getLongOrNull(i) match
+        case null =>
+        case l: Long => sum += l
+    }
+    sum
+
+  def getOptionLong(l: Long): Option[Long] =
+    if (l & 0x7F) == 7 then None else Some(l)
+
+  def sumOption: Long =
+    var sum = 0L
+    nFor(1000000){ i =>
+      getOptionLong(i) match
+        case Some(l) => sum += l
+        case _ =>
+    }
+    sum
 }
 
 

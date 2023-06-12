@@ -18,9 +18,8 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: when you use extensions with Scala 3 in multiple libraries,
 they clobber each other because they all share the same namespace.
-Do NOT use extensions in libraries!  Except...kse3 does it anyway,
-in the hope that someday extensions will be usable, and because it's
-meant to cover core functionality.**
+The feature scala.language.experimental.relaxedExtensionImports
+will help once it's not experimental.**
 
 ## How do I get it?
 
@@ -34,9 +33,9 @@ def scalaVersion = "3.3.0"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.6"
-ivy"com.github.ichoran::kse3-maths:0.1.6"
-ivy"com.github.ichoran::kse3-eio:0.1.6"
+ivy"com.github.ichoran::kse3-flow:0.1.7"
+ivy"com.github.ichoran::kse3-maths:0.1.7"
+ivy"com.github.ichoran::kse3-eio:0.1.7"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -80,7 +79,7 @@ The flow module is available separately (but you probably don't want to use it
 separately).  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.6"
+ivy"com.github.ichoran::kse3-flow:0.1.7"
 ```
 
 and in your code,
