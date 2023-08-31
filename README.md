@@ -33,9 +33,9 @@ def scalaVersion = "3.3.0"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.8"
-ivy"com.github.ichoran::kse3-maths:0.1.8"
-ivy"com.github.ichoran::kse3-eio:0.1.8"
+ivy"com.github.ichoran::kse3-flow:0.1.9"
+ivy"com.github.ichoran::kse3-maths:0.1.9"
+ivy"com.github.ichoran::kse3-eio:0.1.9"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.

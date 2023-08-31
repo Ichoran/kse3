@@ -6,6 +6,7 @@ package kse.maths
 
 import scala.annotation.targetName
 
+import scala.compiletime.erasedValue
 import kse.maths._
 
 trait Est {
@@ -20,12 +21,12 @@ trait Est {
   def semSq: Double = if n > 2 then sse/(n*(n-1)) else if n > 1 then sse/n else Double.NaN
   def sem: Double = if n > 2 then (sse/(n*(n-1))).sqrt else if n > 1 then (sse/n).sqrt else Double.NaN
   def cv: Double = sd / mean
-  def snr: Double = mean / sem
+  def snr: Double = mean.abs / sem
 
-  def mutableCopy: Est.M = new Est.M(n, mean, sse)
   def pmSD: PlusMinus = mean.toFloat +- sd.toFloat
   def pmSEM: PlusMinus = mean.toFloat +- sem.toFloat
 
+  def mutableCopy: Est.M = new Est.M(n, mean, sse)
   def ++(that: Est): Est =
     val e = mutableCopy
     e += that
@@ -34,9 +35,21 @@ trait Est {
   override def toString =
     if (n - n.rint).abs < 1e-6 && n.abs < 9e18 then s"$mean +- $sem (n=${n.toLong})"
     else s"$mean +- $sem (W=$n)"
+
+  override def equals(a: Any): Boolean = a match
+    case e: Est => e.n == n && e.mean == mean && e.sse == sse
+    case _      => false
 }
 object Est {
-  def mut: Est.M = new Est.M(0, 0, 0)
+  inline def mut: Est.M = new Est.M(0, 0, 0)
+
+  inline def from(values: Array[Int]): Est = Est.M.from(values)
+
+  inline def from(values: Array[Long]): Est = Est.M.from(values)
+
+  inline def from(values: Array[Float]): Est = Est.M.from(values)
+
+  inline def from(values: Array[Double]): Est = Est.M.from(values)
 
   /** Provide a running update of weighted mean and standard deviation (variance).
     *
@@ -51,6 +64,11 @@ object Est {
 
     def reset: this.type = { n = 0; mean = 0; sse = 0; this }
 
+    def +=(value: Long): Unit =
+      val mold = mean
+      mean = (n*mean + value)/(n+1)
+      sse += (value - mean)*(value - mold)
+      n += 1
     def +=(value: Double): Unit =
       if !value.nan then
         val mold = mean
@@ -155,6 +173,35 @@ object Est {
           sse += (v - mean)*(v - mold)
           n += 1
         i += 1
+    inline def ++=[P <: Int | Long | Float | Double](values: Iterator[P]): Unit = inline erasedValue[P] match
+      case _: Int =>
+        val i = values.asInstanceOf[Iterator[Int]]
+        while i.hasNext do
+          this += i.next
+      case _: Long =>
+        val i = values.asInstanceOf[Iterator[Long]]
+        while i.hasNext do
+          this += i.next
+      case _: Float =>
+        val i = values.asInstanceOf[Iterator[Float]]
+        while i.hasNext do
+          this += i.next
+      case _: Double =>
+        val i = values.asInstanceOf[Iterator[Double]]
+        while i.hasNext do
+          this += i.next
+
+    inline def addBy[A](values: Array[A])(inline f: A => Double): Unit = addRangeBy(0, values.length)(values)(f)
+
+    def addBy[A](values: Iterator[A])(f: A => Double): Unit =
+      while values.hasNext do
+        this += f(values.next)
+
+    def addSomeBy[A](values: Iterator[A], n: Int)(f: A => Double): Unit =
+      var k = n
+      while k > 0 && values.hasNext do
+        this += f(values.next)
+        k -= 1
 
     def addRange(i0: Int, iN: Int)(values: Array[Int]): Unit =
       var i = i0
@@ -198,7 +245,8 @@ object Est {
       while i < iM do
         this += values(i)
         i += 1
-    inline def addRangeBy[A](i0: Int, iN: Int)(values: Array[A])(f: A => Double): Unit =
+
+    inline def addRangeBy[A](i0: Int, iN: Int)(values: Array[A])(inline f: A => Double): Unit =
       var i = i0
       if i < 0 then i = 0
       val iM = if iN < values.length then iN else values.length
@@ -210,7 +258,28 @@ object Est {
     inline val smallestNonzeroWeight = 1e-9
     inline val smallestSubtractable = 1.000000001
 
-    def empty: M = new M(0, 0, 0)
+    inline def empty: M = new M(0, 0, 0)
+
+    inline def from(values: Array[Int]): M =
+      val m = new M(0, 0, 0)
+      m ++= values
+      m
+
+    inline def from(values: Array[Long]): M =
+      val m = new M(0, 0, 0)
+      m ++= values
+      m
+
+    inline def from(values: Array[Float]): M =
+      val m = new M(0, 0, 0)
+      m ++= values
+      m
+
+    inline def from(values: Array[Double]): M =
+      val m = new M(0, 0, 0)
+      m ++= values
+      m
+
     def fromSD(n: Double)(pm: PlusMinus): Est.M =
       val m = if n > 2 then n else 2.0
       new M(m, pm.value.toDouble, (m-1)*pm.error.toDouble.sq)
@@ -220,3 +289,56 @@ object Est {
       new M(m, pm.value.toDouble, m*(m-1)*pm.error.toDouble.sq)
   }
 }
+
+extension (values: Array[Int])
+  inline def est: Est = Est from values
+  inline def estRange(i0: Int, iN: Int): Est =
+    val e = Est.M.empty
+    e.addRange(i0, iN)(values)
+    e
+
+extension (values: Array[Long])
+  inline def est: Est = Est from values
+  inline def estRange(i0: Int, iN: Int): Est =
+    val e = Est.M.empty
+    e.addRange(i0, iN)(values)
+    e
+
+extension (values: Array[Float])
+  inline def est: Est = Est from values
+  inline def estRange(i0: Int, iN: Int): Est =
+    val e = Est.M.empty
+    e.addRange(i0, iN)(values)
+    e
+
+extension (values: Array[Double])
+  inline def est: Est = Est from values
+  inline def estRange(i0: Int, iN: Int): Est =
+    val e = Est.M.empty
+    e.addRange(i0, iN)(values)
+    e
+
+extension [A](values: Array[A])
+  inline def estBy(inline f: A => Double): Est =
+    val m = Est.M.empty
+    var i = 0
+    while i < values.length do
+      m += f(values(i))
+      i += 1
+    m
+  inline def estRangeBy(i0: Int, iN: Int)(inline f: A => Double): Est =
+    val m = Est.M.empty
+    m.addRangeBy(i0, iN)(values)(f)
+    m
+
+extension [A <: Int | Long | Float | Double](values: IterableOnce[A])
+  inline def est: Est =
+    val m = Est.M.empty
+    m ++= values.iterator
+    m
+
+extension [A](values: IterableOnce[A])
+  inline def estBy(f: A => Double): Est =
+    val m = Est.M.empty
+    m.addBy(values.iterator)(f)
+    m

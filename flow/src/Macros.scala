@@ -5,10 +5,19 @@ package kse.flow.flowMacroImpl
 
 import scala.quoted.*
 
-def inclusiveRangePackedInLongExpr(range: Expr[Any])(using Quotes): Expr[Long] =
-  range match
-    case '{ ($a: Int) to ($b: Int) } => '{ ($a & 0xFFFFFFFFL) | (($b).toLong << 32) }
-    case _ => quotes.reflect.report.errorAndAbort("Can only accept literal range of the form x to y")
+inline def packRangeInLongInclusive(i0: Int, i1: Int): Long =
+  (i0 & 0xFFFFFFFFL) | (i1.toLong << 32)
 
-inline def inclusiveRangePackedInLong(inline range: scala.collection.immutable.Range): Long =
-  ${ inclusiveRangePackedInLongExpr('range) }
+inline def packRangeInLongExclusive(i0: Int, iN: Int): Long =
+  if iN > Int.MinValue then (i0 & 0xFFFFFFFFL) | ((iN - 1).toLong << 32)
+  else (i0 & 0xFFFFFFFFL) | 0x8000000000000000L
+
+def rangePackedInLongExpr(range: Expr[Any])(using qt: Quotes): Expr[Long] =
+  import qt.reflect._
+  range match
+    case '{ ($a: Int) to ($b: Int) }    => '{ packRangeInLongInclusive($a, $b) }
+    case '{ ($a: Int) until ($b: Int) } => '{ packRangeInLongExclusive($a, $b) }
+    case _ => report.errorAndAbort("Iv-interval literal must be `x to y` or `x until z`")
+
+inline def rangePackedInLong(inline range: scala.collection.immutable.Range): Long =
+  ${ rangePackedInLongExpr('range) }

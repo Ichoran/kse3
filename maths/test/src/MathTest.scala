@@ -2552,6 +2552,189 @@ class MathTest {
     T ~ Frac.scaleExactly(100000000000L, Int.MinValue over 1) ==== thrown[ArithmeticException]
 
   @Test
+  def estTest(): Unit =
+    val ai = Array(1, 3, 4, 5, 9, 7, 2)
+    val al = ai.map(_.toLong)
+    val af = ai.map(_.toFloat)
+    val ad = ai.map(_.toDouble)
+    val as = Array("a", "eel", "bass", "perch", "barracuda", "herring", "bb")
+    val ls = as.toList
+    val two = Array(2, 3).est
+    val one = Array(7).est
+    val m = Est.mut
+    m ++= ai
+    T ~ m.n               ==== 7
+    T ~ m.mean            =~~= 4.42857142857143
+    T ~ m.ssq             =~~= ai.map(x => x.toDouble.sq).sum
+    T ~ m.sse             =~~= ai.map(x => (x - 4.42857142857143).sq).sum
+    T ~ m.sum             =~~= ai.sum.toDouble
+    T ~ m.variance        =~~= 7.95238095238095
+    T ~ two.variance      =~~= 0.5
+    T ~ one.variance      =~~= 0.0
+    T ~ m.sd              =~~= 2.81999662276056
+    T ~ two.sd            =~~= 0.5.sqrt
+    T ~ one.sd            =~~= 0.0
+    T ~ m.semSq           =~~= 1.06585853740949.sq
+    T ~ two.semSq         =~~= 0.25
+    T ~ one.semSq         ==== Double.NaN
+    T ~ m.sem             =~~= 1.06585853740949
+    T ~ two.sem           =~~= 0.5
+    T ~ one.sem           =~~= Double.NaN
+    T ~ m.cv              =~~= m.sd / m.mean
+    T ~ m.snr             =~~= m.mean / m.sem
+    T ~ m.pmSD.value      =~~= m.mean.toFloat
+    T ~ m.pmSD.error      =~~= m.sd.toFloat
+    T ~ m.pmSEM.value     =~~= m.mean.toFloat
+    T ~ m.pmSEM.error     =~~= m.sem.toFloat
+    T ~ m.mutableCopy     ==== m
+    T ~ (m ++ m).n        ==== 2*m.n
+    T ~ (m ++ m).mean     =~~= m.mean
+    T ~ (m ++ m).sse      =~~= 2*m.sse
+    T ~ Est.from(ai).n    =~~= m.n
+    T ~ Est.from(ai).mean =~~= m.mean
+    T ~ Est.from(ai).sse  =~~= m.sse
+    T ~ Est.from(al).n    =~~= m.n
+    T ~ Est.from(al).mean =~~= m.mean
+    T ~ Est.from(al).sse  =~~= m.sse
+    T ~ Est.from(af).n    =~~= m.n
+    T ~ Est.from(af).mean =~~= m.mean
+    T ~ Est.from(af).sse  =~~= m.sse
+    T ~ Est.from(ad).n    =~~= m.n
+    T ~ Est.from(ad).mean =~~= m.mean
+    T ~ Est.from(ad).sse  =~~= m.sse
+
+    val m2 = m.snapshot
+    m -= 1
+    m -= 7
+    m -= 2
+    T ~ ai.est.n               ==== m2.n
+    T ~ ai.est.mean            =~~= m2.mean
+    T ~ ai.est.sse             =~~= m2.sse
+    T ~ ai.estRange(1, 5).n    ==== 4
+    T ~ ai.estRange(1, 5).mean =~~= m.mean
+    T ~ ai.estRange(1, 5).sse  =~~= m.sse
+    T ~ al.est.n               ==== m2.n
+    T ~ al.est.mean            =~~= m2.mean
+    T ~ al.est.sse             =~~= m2.sse
+    T ~ al.estRange(1, 5).n    ==== 4
+    T ~ al.estRange(1, 5).mean =~~= m.mean
+    T ~ al.estRange(1, 5).sse  =~~= m.sse
+    T ~ af.est.n               ==== m2.n
+    T ~ af.est.mean            =~~= m2.mean
+    T ~ af.est.sse             =~~= m2.sse
+    T ~ af.estRange(1, 5).n    ==== 4
+    T ~ af.estRange(1, 5).mean =~~= m.mean
+    T ~ af.estRange(1, 5).sse  =~~= m.sse
+    T ~ ad.est.n               ==== m2.n
+    T ~ ad.est.mean            =~~= m2.mean
+    T ~ ad.est.sse             =~~= m2.sse
+    T ~ ad.estRange(1, 5).n    ==== 4
+    T ~ ad.estRange(1, 5).mean =~~= m.mean
+    T ~ ad.estRange(1, 5).sse  =~~= m.sse
+    T ~ ai.toVector.est        ==== m2
+    T ~ as.estBy(_.length)     ==== m2
+    T ~ ls.estBy(_.length)     ==== m2
+    T ~ Est.M.empty            ==== Est.mut
+    T ~ Est.M.from(ai)         ==== Est.from(ai)
+    T ~ Est.M.from(al)         ==== Est.from(al)
+    T ~ Est.M.from(af)         ==== Est.from(af)
+    T ~ Est.M.from(ad)         ==== Est.from(ad)
+
+    T ~ as.estRangeBy(1, 5)(_.length).n    ==== m.n
+    T ~ as.estRangeBy(1, 5)(_.length).mean =~~= m.mean
+    T ~ as.estRangeBy(1, 5)(_.length).sse  =~~= m.sse
+
+    T ~ Est.M.fromSD(m2.n)(m2.pmSD).n              ==== m2.n
+    T ~ Est.M.fromSD(m2.n)(m2.pmSD).mean.toFloat   =~~= m2.mean.toFloat
+    T ~ Est.M.fromSD(m2.n)(m2.pmSD).sse.toFloat    =~~= m2.sse.toFloat
+    T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).n            ==== m2.n
+    T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).mean.toFloat =~~= m2.mean.toFloat
+    T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).sse.toFloat  =~~= m2.sse.toFloat
+
+    val m3 = m.snapshot
+    T ~ m.tap(_.reset)                               ==== Est.mut
+    T ~ m2.mutableCopy.tap(_ += 400L).n              ==== m2.n + 1
+    T ~ m2.mutableCopy.tap(_ += 400L).mean           =~~= (al :+ 400L).est.mean
+    T ~ m2.mutableCopy.tap(_ += 400L).sse            =~~= (al :+ 400L).est.sse
+    T ~ m2.mutableCopy.tap(_ += 0.17).n              ==== m2.n + 1
+    T ~ m2.mutableCopy.tap(_ += 0.17).mean           =~~= (ad :+ 0.17).est.mean
+    T ~ m2.mutableCopy.tap(_ += 0.17).sse            =~~= (ad :+ 0.17).est.sse
+    T ~ m2.mutableCopy.tap(_ += Double.NaN)          ==== m2
+    T ~ m2.mutableCopy.tap(_ += m2).n                ==== (ai ++ ai).est.n
+    T ~ m2.mutableCopy.tap(_ += m2).mean             =~~= (ai ++ ai).est.mean
+    T ~ m2.mutableCopy.tap(_ += m2).sse              =~~= (ai ++ ai).est.sse
+    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).n    =~~= m2.n
+    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).mean =~~= m2.mean
+    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).sse  =~~= m2.sse
+    T ~ m2.mutableCopy.tap(_ ++= ai).n               ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= ai).mean            =~~= (ai ++ ai).est.mean
+    T ~ m2.mutableCopy.tap(_ ++= ai).sse             =~~= (ai ++ ai).est.sse
+    T ~ m2.mutableCopy.tap(_ ++= al).n               ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= al).mean            =~~= (al ++ al).est.mean
+    T ~ m2.mutableCopy.tap(_ ++= al).sse             =~~= (al ++ al).est.sse
+    T ~ m2.mutableCopy.tap(_ ++= af).n               ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= af).mean            =~~= (af ++ af).est.mean
+    T ~ m2.mutableCopy.tap(_ ++= af).sse             =~~= (af ++ af).est.sse
+    T ~ m2.mutableCopy.tap(_ ++= Array(Float.NaN))   ==== m2
+    T ~ m2.mutableCopy.tap(_ ++= ad).n               ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= ad).mean            =~~= (ad ++ ad).est.mean
+    T ~ m2.mutableCopy.tap(_ ++= ad).sse             =~~= (ad ++ ad).est.sse
+    T ~ m2.mutableCopy.tap(_ ++= Array(Double.NaN))  ==== m2
+    T ~ Est.mut.tap(_ ++= ai.iterator).n             ==== m2.n
+    T ~ Est.mut.tap(_ ++= ai.iterator).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= ai.iterator).sse           =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= al.iterator).n             ==== m2.n
+    T ~ Est.mut.tap(_ ++= al.iterator).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= al.iterator).sse           =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= af.iterator).n             ==== m2.n
+    T ~ Est.mut.tap(_ ++= af.iterator).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= af.iterator).sse           =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= ad.iterator).n             ==== m2.n
+    T ~ Est.mut.tap(_ ++= ad.iterator).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= ad.iterator).sse           =~~= m2.sse
+
+    T ~ Est.mut.tap(_.addBy(as)(_.length)).n             ==== m2.n
+    T ~ Est.mut.tap(_.addBy(as)(_.length)).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_.addBy(as)(_.length)).sse           =~~= m2.sse
+    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).n    ==== m2.n
+    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).mean =~~= m2.mean
+    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).sse  =~~= m2.sse
+    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est.n
+    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est.mean
+    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est.sse
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(1, 5)(al)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(1, 5)(al)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(1, 5)(al)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(1, 5)(af)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(1, 5)(af)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(1, 5)(af)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).n       ==== m2.n
+    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).mean    =~~= m2.mean
+    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).sse     =~~= m2.sse
+    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).n         ==== m3.n
+    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).mean      =~~= m3.mean
+    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).sse       =~~= m3.sse
+
+
+  @Test
   def packedBitTest(): Unit = packedTester.packedBitTest()
 
   @Test

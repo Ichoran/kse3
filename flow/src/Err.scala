@@ -9,7 +9,7 @@ import scala.util.boundary.Label
 
 
 opaque type Err = String | ErrType
-object Err {
+object Err extends Translucent.Companion[Err, String | ErrType] {
   extension (e: Err)
     inline def underlying: String | ErrType = e
 

@@ -8,44 +8,6 @@ package kse.flow
 /// Packaging and wrappers to alter behavior ///
 ////////////////////////////////////////////////
 
-/** Typeclass to enable generic copying of mutable things to a decent replica of themselves. */
-trait Copies[A] {
-  /** Creates a copy of a presumably mutable object. */
-  def copy(a: A): A
-}
-object Copies {
-  given copiesArrayByte:   Copies[Array[Byte  ]] with
-    def copy(a: Array[Byte  ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayShort:  Copies[Array[Short ]] with
-    def copy(a: Array[Short ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayChar:   Copies[Array[Char  ]] with
-    def copy(a: Array[Char  ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayInt:    Copies[Array[Int   ]] with
-    def copy(a: Array[Int   ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayLong:   Copies[Array[Long  ]] with
-    def copy(a: Array[Long  ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayFloat:  Copies[Array[Float ]] with
-    def copy(a: Array[Float ]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayDouble: Copies[Array[Double]] with
-    def copy(a: Array[Double]) = java.util.Arrays.copyOf(a, a.length)
-
-  given copiesArrayGeneric[A <: AnyRef]: Copies[Array[A]] with
-    def copy(a: Array[A]) = java.util.Arrays.copyOf[A & AnyRef](a, a.length)
-
-  given copiesAnon[A](using Copies[A]): Copies[Anon[A]] with
-    def copy(a: Anon[A]) = new Anon[A](summon[Copies[A]] copy a.value)
-}
-
-/** Use copier typeclasses, if available, to copy a (presumably mutable) object. */
-extension [A](a: A)
-  inline def copy(using copier: Copies[A]): A = copier copy a
-
 
 object ArrayReform {
   private def checkBounds(a: Int, i0: Int, iN: Int, b: Int, j0: Int, scale: Int): Int =
@@ -238,17 +200,20 @@ object ArrayReform {
 
 
 opaque type Iv = Long
-object Iv {
+object Iv extends Translucent.Companion[Iv, Long] {
   def apply(i0: Int, i1: Int): Iv = (i0 & 0xFFFFFFFFL) | (i1.toLong << 32)
   def wrap(l: Long): Iv = l
-  inline def of(inline r: scala.collection.immutable.Range): Iv = flowMacroImpl.inclusiveRangePackedInLong(r)
+  inline def of(inline r: scala.collection.immutable.Range): Iv = flowMacroImpl.rangePackedInLong(r)
 
   extension (iv: Iv)
     inline def packedInLong: Long = iv
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
     inline def i1: Int = (iv >>> 32).toInt
+    def contains(i: Int): Boolean =
+      (i >= Iv.i0(iv)) && { val j = Iv.i1(iv); i <= j && j != Int.MinValue }
+    def pr: String = s"${Iv.i0(iv)}..${Iv.i1(iv)}"
 
-  val empty: Iv = 1L
+  val empty: Iv = 0xF0000000F0000001L
 
   val emptyByteArray = new Array[Byte](0)
   val emptyShortArray = new Array[Short](0)
@@ -285,6 +250,7 @@ object Iv {
     if j1 < 0 then j1 = len + j1
     if j0 <= j1 then sac(u, 0, a, j0, 1 + j1 - j0)
 }
+
 
 
 object IndicatorImpl {
@@ -860,7 +826,9 @@ extension (ab: Array[Byte])
   inline def R: kse.flow.RIndexedBytes = ab
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ab, size)
   inline def shrinkCopy(size: Int) = if size < ab.length then java.util.Arrays.copyOf(ab, size) else ab
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ab, i0, iN)
+  inline def copyOfRange(i0: Int, iN: Int): Array[Byte] = java.util.Arrays.copyOfRange(ab, i0, iN)
+  inline def copyOfRange(iv: Iv): Array[Byte] = java.util.Arrays.copyOfRange(ab, Iv.i0(iv), { val i1 = Iv.i1(iv); if (i1 < Int.MaxValue) i1+1 else i1 })
+  inline def copyOfRange(inline range: scala.collection.immutable.Range): Array[Byte] = copyOfRange(Iv.of(range))
   inline def addLeftSlots(n: Int) = { val a = new Array[Byte](ab.length + n); java.lang.System.arraycopy(ab, 0, a, n, ab.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(ab, if n < 0 then n else ab.length + n)
   inline def copyInto(that: Array[Byte]): that.type = { java.lang.System.arraycopy(ab, 0, that, 0, ab.length); that }
@@ -892,6 +860,9 @@ extension (ab: Array[Byte])
     ab
   // use in OverloadedExtensions
   // zap in OverloadedExtensions
+
+extension[O] (aob: Array[O])(using tlc: Translucent[Array[O], Array[Byte]])
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(aob), size) )
 
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
 extension (as: Array[Short])
@@ -1220,6 +1191,9 @@ final class Anon[A](val value: A) {
 }
 object Anon {
   def apply[A](a: A) = new Anon(a)
+
+  given [A](using Copies[A]): Copies[Anon[A]] with
+    def copy(a: Anon[A]): Anon[A] = new Anon(summon[Copies[A]].copy(a.value))
 }
 
 
@@ -1230,6 +1204,10 @@ final class Identity[A](val value: A) {
   override def toString = value.toString
   override def hashCode = java.lang.System.identityHashCode(value)
   override def equals(a: Any) = a.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef]
+}
+object Identity {
+  given [A](using Copies[A]): Copies[Identity[A]] with
+    def copy(i: Identity[A]): Identity[A] = new Identity(summon[Copies[A]].copy(i.value))
 }
 
 

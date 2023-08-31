@@ -40,8 +40,6 @@ final class LinearInterp(in: Array[Double], out: Array[Double]) extends Interpol
       val z0 = parameters(size + i0)
       val z1 = parameters(size + i1)
       z0 + (z1 - z0)*(a - a0)/(a1 - a0)
-
-
 }
 object LinearInterp {
   def apply(in: Array[Double], out: Array[Double]) = new LinearInterp(in, out)

@@ -27,7 +27,6 @@ import scala.util.boundary.break
 import sourcecode.{Line, given}
 
 
-
 @RunWith(classOf[JUnit4])
 class EioTest {
   import kse.testutilities.TestUtilities.{given, _}
