@@ -27,7 +27,7 @@ Only kse3-flow and some of kse3-maths and a bit of kse3-eio (and kse3-testing) a
 In mill, make sure your module has
 
 ```scala
-def scalaVersion = "3.3.0"
+def scalaVersion = "3.3.1"
 ```
 
 And add at least the first line out of
