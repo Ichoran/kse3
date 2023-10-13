@@ -291,7 +291,7 @@ object Est {
 }
 
 
-class Bootstrapped[T](val value: T, val variants: Array[T]) {
+class Bootstrap[T](val value: T, val variants: Array[T]) {
   def n = variants.length
   def estOfVariants(f: T => Double): Est.M =
     val e = Est.M.empty
@@ -305,8 +305,8 @@ class Bootstrapped[T](val value: T, val variants: Array[T]) {
     e.mean = f(value)
     e.pmSD
 }
-object Bootstrapped {
-  inline def apply[T](n: Int)(rng: Prng)(i0: Int, iN: Int)(init: => T)(inline update: (T, Int) => Unit)(using tag: reflect.ClassTag[T]): Bootstrapped[T] =
+object Bootstrap {
+  inline def apply[T](n: Int)(rng: Prng)(i0: Int, iN: Int)(init: => T)(inline update: (T, Int) => Unit)(using tag: reflect.ClassTag[T]): Bootstrap[T] =
     val value = init
     val variants = Array.fill(n)(init)
     if i0 < iN then
@@ -319,7 +319,9 @@ object Bootstrapped {
           update(variants(j), (rng % m) + i0)
           j += 1
         i += 1
-    new Bootstrapped(value, variants)
+    new Bootstrap(value, variants)
+  inline def apply[T](n: Int)(i0: Int, iN: Int)(init: => T)(inline update: (T, Int) => Unit)(using reflect.ClassTag[T], AutoPrng): Bootstrap[T] =
+    apply(n)(summon[AutoPrng].get)(i0, iN)(init)(update)
 }
 
 extension (values: Array[Int])

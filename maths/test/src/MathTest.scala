@@ -3061,7 +3061,29 @@ class MathTest {
     T ~ lln.orthV(fln.c)                 =~~= lln.c
     T ~ fln.orthV(lln.c)                 =~~= fln.c
 
-    fittingErrorsTest()  
+    fittingErrorsTest()
+
+
+  @Test
+  def bootstrapTest(): Unit =
+    given AutoPrng = AutoPrng wrap Pcg64(1789157893427L)
+    given Approximation[PlusMinus] = new Approximation[PlusMinus] {
+      def approx(pma: PlusMinus, pmb: PlusMinus) =
+        Approximation.defaultFloatApprox.approx(pma.value, pmb.value) && Approximation.defaultFloatApprox.approx(pma.error, pmb.error)
+    }
+    val N = 64
+    val a = (new Array[Double](N)).randomGaussian(Pcg64(897158911235L)).sorted
+    val e = a.est
+    val b = Bootstrap(1024)(                       0, N)(Est.M.empty)((m, i) => m += a(i))
+    val c = Bootstrap(1024)(Pcg64(1789157893427L))(0, N)(Est.M.empty)((m, i) => m += a(i))
+    val p = b.pm(_.mean)
+    val q = c.pm(_.mean)
+    T ~ e.pmSEM =~~= b.value.pmSEM
+    T ~ e.pmSEM =~~= c.value.pmSEM
+    T ~ p.value =~~= e.mean.toFloat
+    T ~ q.value =~~= e.mean.toFloat
+    T ~ p.error =~~= q.error
+    T ~ (((p.error - e.sem).abs/(p.error + e.sem)) < 0.05) ==== true
 
 
   @Test
