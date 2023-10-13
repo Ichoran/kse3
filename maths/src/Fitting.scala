@@ -85,6 +85,17 @@ object X2Y {
       case _ => x2y match
         case linf: LinearFn2D => linf
         case fit2: Fit2D.Impl => LinearFn2D(fit2.exactXsampleY_intercept, fit2.exactXsampleY_slope)
+
+    inline def toLine2D: Line2D = inline x2y match
+      case linf: LinearFn2D =>
+        val l = (1.0 + linf.slope*linf.slope).sqrt
+        Line2D.Immutable(0, linf.intercept, 1.0/l, linf.slope/l)
+      case fit2: Fit2D.Impl => fit2.line.immutable
+      case _ => x2y match        
+        case linf: LinearFn2D =>
+          val l = (1.0 + linf.slope*linf.slope).sqrt
+          Line2D.Immutable(0, linf.intercept, 1.0/l, linf.slope/l)
+        case fit2: Fit2D.Impl => fit2.line.immutable
   }
 }
 
@@ -167,6 +178,17 @@ object Y2X {
       case _ => y2x match
         case linf: LinearFn2D => linf
         case fit2: Fit2D.Impl => LinearFn2D(fit2.exactYsampleX_intercept, fit2.exactYsampleX_slope)
+
+    inline def toLine2D: Line2D = inline y2x match
+      case linf: LinearFn2D =>
+        val l = (1.0 + linf.slope*linf.slope).sqrt
+        Line2D.Immutable(linf.intercept, 0, linf.slope/l, 1.0/l)
+      case fit2: Fit2D.Impl => fit2.line.immutable
+      case _ => y2x match        
+        case linf: LinearFn2D =>
+          val l = (1.0 + linf.slope*linf.slope).sqrt
+          Line2D.Immutable(linf.intercept, 0, linf.slope/l, 1.0/l)
+        case fit2: Fit2D.Impl => fit2.line.immutable
   }
 }
 
@@ -202,6 +224,8 @@ sealed trait Line2D {
   final def orthV(xy: Vc): Vc =
     val o = orth(xy)
     Vc.D(-uy*o + cx, ux*o + cy)
+
+  def immutable: Line2D.Immutable = Line2D.Immutable(cx, cy, ux, uy)
 }
 object Line2D {
   final case class Immutable(cx: Double, cy: Double, ux: Double, uy: Double) extends Line2D {
@@ -212,6 +236,8 @@ object Line2D {
     def centered =
       if cx == 0 && cy == 0 then this
       else Immutable(0, 0, ux, uy)
+
+    override def immutable: Line2D.Immutable = this
   }
 }
 
@@ -232,6 +258,13 @@ sealed abstract class Fit2D() {
 
   final inline def -=(xy: Vc): Unit = this.-=(xy.x, xy.y)
   def -=(x: Double, y: Double): Unit
+
+  def ++=(xs: Array[Double], ys: Array[Double]): Unit
+  def ++=(xs: IterableOnce[Double], ys: IterableOnce[Double]): Unit
+  def ++=(vs: Array[Vc]): Unit
+  def ++=(vs: IterableOnce[Vc]): Unit
+  def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], j0: Int, jN: Int): Unit
+  def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit
   def reset(): Unit
 }
 object Fit2D {
@@ -466,6 +499,16 @@ object Fit2D {
         if !(x + y).nan then plusImpl(x, y)
       if n > n0 then cached = 0
 
+    def ++=(vs: Array[Vc]): Unit =
+      var i = 0
+      while i < vs.length do
+        this += vs(i)
+        i += 1
+
+    def ++=(vs: IterableOnce[Vc]): Unit =
+      val vi = vs.iterator
+      while vi.hasNext do this += vi.next
+
     def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], j0: Int, jN: Int): Unit =
       val k0 = math.max(0, i0)
       val kN = math.min(xs.length, iN)
@@ -475,6 +518,13 @@ object Fit2D {
         if l0 < lN then
           val m = math.min(kN - k0, lN - l0)
           addRangeImpl(xs, k0)(ys, l0)(m)
+
+    def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit =
+      val j = math.min(iN, vs.length)
+      var i = math.max(0, i0)
+      while i < j do
+        this += vs(i)
+        i += 1
 
     private def addRangeImpl(xs: Array[Double], i0: Int)(ys: Array[Double], j0: Int)(m: Int): Unit =
       var i = i0

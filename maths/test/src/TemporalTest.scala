@@ -3321,7 +3321,7 @@ class TemporalTest() {
     T ~ zdt ==== Cal.zoned(zdt.getYear, zdt.getMonthValue, zdt.getDayOfMonth, zdt.getHour, zdt.getMinute, zdt.getSecond, zdt.getNano)
 
     val udt = ldt.atOffset(ZoneOffset.UTC) + 80.ms
-    T ~ udt ==== Cal.utc(udt.getYear, zdt.getMonthValue, zdt.getDayOfMonth, zdt.getHour, zdt.getMinute, zdt.getSecond, udt.getNano)
+    T ~ udt ==== Cal.utc(udt.getYear, udt.getMonthValue, udt.getDayOfMonth, udt.getHour, udt.getMinute, udt.getSecond, udt.getNano)
 
     val idt = Instant.now.round.s + 90.ms
     T ~ idt ==== Cal.instant(idt.utc.getYear, idt.utc.getMonthValue, idt.utc.getDayOfMonth, idt.utc.getHour, idt.utc.getMinute, idt.utc.getSecond, idt.getNano)

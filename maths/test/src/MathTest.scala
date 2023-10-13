@@ -2815,6 +2815,121 @@ class MathTest {
     T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).sse       =~~= m3.sse
 
 
+  def fittingErrorsTest(): Unit =
+    given Approximation[Double] = Approximation.OfDouble(3e-4, 3e-4, 1e-7)
+    given Approximation[PlusMinus] = new Approximation[PlusMinus] {
+      def approx(pma: PlusMinus, pmb: PlusMinus) =
+        summon[Approximation[Double]].approx(pma.value, pmb.value) && 
+        summon[Approximation[Double]].approx(pma.error, pmb.error)
+    }
+    val fot = Fit2D.Impl()
+    val fit: Fit2D = fot
+    val xs = Array(1, 1.5, 2.1, 2.4, 3.1)
+    val ys = Array(3.5, 2.4, 1.6, 0.7, 0.1)
+    val vs = (xs zip ys).map{ case (x, y) => Vc.D(x, y) }
+    aFor(xs)((x, i) => fit += (x, ys(i)))
+    T ~ fit.samples             ==== 5
+    T ~ fit.x2y.slope           =~~= -1.6423
+    T ~ fit.x2y.intercept       =~~= 4.9775
+    T ~ fit.x2y.rsq             =~~= 0.9627
+    T ~ fit.x2y.slopeError      =~~= 0.1608
+    T ~ fit.x2y.pm(0)           =~~= (4.9775 +- 0.3450)
+    T ~ fit.x2y.pm(0.0 +- 0.03) =~~= (4.9775 +- 0.3485)
+    T ~ fit.y2x.slope           =~~= -0.59188
+    T ~ fit.y2x.intercept       =~~= 3.00252
+    T ~ fit.y2x.rsq             =~~= 0.9627
+    T ~ fit.y2x.slopeError      =~~= 0.05794
+    T ~ fit.y2x.pm(0)           =~~= (3.00252 +- 0.11894)
+    T ~ fit.y2x.pm(0.0 +- 0.11) =~~= (3.00252 +- 0.13559)
+    T ~ fit.estX.pmSD           =~~= xs.est.pmSD
+    T ~ fit.estY.pmSD           =~~= ys.est.pmSD
+    val fyt = Fit2D.Impl()
+    val fet = fit.mutableCopy
+    aFor(xs){ (x, i) => val v = Vc.D(x, ys(i)); fyt += v }
+    T ~ fyt.samples       ==== fit.samples
+    T ~ fet.samples       ==== fet.samples
+    T ~ fyt.estX.pmSD     =~~= fit.estX.pmSD
+    T ~ fyt.estY.pmSD     =~~= fit.estY.pmSD
+    T ~ fet.estX.pmSD     =~~= fit.estX.pmSD 
+    T ~ fet.estY.pmSD     =~~= fit.estY.pmSD
+    T ~ fyt.x2y.pm(1.5)   =~~= fit.x2y.pm(1.5)
+    T ~ fet.x2y.pm(1.5)   =~~= fit.x2y.pm(1.5)
+    fyt -= (xs(0), ys(0))
+    fet -= Vc.D(xs(0), ys(0))
+    T ~ fyt.samples       ==== fet.samples
+    T ~ fyt.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    T ~ fet.samples       ==== 0
+    aFor(xs)((x, i) => if i > 0 then fet += (x, ys(i)))
+    T ~ fyt.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1, 4)(ys, 1, 4)
+    fyt -= (xs(4), ys(4))
+    T ~ fyt.samples       ==== fet.samples
+    T ~ fyt.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    aFor(xs)((x, i) => fet += (x, ys(i)))
+    fit.reset()
+    fit ++= (xs, ys)
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit ++= (xs ++ xs, ys)
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit ++= (xs, ys ++ ys)
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 0, 14)(ys, 0, 8)
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1, 4)(ys, 1, 4)
+    T ~ fit.samples       ==== fyt.samples
+    T ~ fit.estX.pmSD     =~~= fyt.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fyt.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit ++= (xs.toVector, ys.iterator)
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit ++= vs
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit ++= vs.toList
+    T ~ fit.samples       ==== fet.samples
+    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(vs, 1, 4)
+    T ~ fit.samples       ==== fyt.samples
+    T ~ fit.estX.pmSD     =~~= fyt.estX.pmSD
+    T ~ fit.estY.pmSD     =~~= fyt.estY.pmSD
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+
   @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
@@ -2895,6 +3010,10 @@ class MathTest {
       def approx(pma: PlusMinus, pmb: PlusMinus) =
         Approximation.defaultFloatApprox.approx(pma.value, pmb.value) && Approximation.defaultFloatApprox.approx(pma.error, pmb.error)
     }
+    given Approximation[Vc] = new Approximation[Vc] {
+      def approx(vca: Vc, vcb: Vc) =
+        Approximation.defaultFloatApprox.approx(vca.x, vcb.x) && Approximation.defaultFloatApprox.approx(vca.y, vcb.y)
+    }
     T ~ lin.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
     T ~ xyl.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
     T ~ xyg.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
@@ -2908,7 +3027,41 @@ class MathTest {
     T ~ xyg.toLinFn.slope     =~~= lin.slope
     T ~ yxg.toLinFn.intercept =~~= lym.intercept
     T ~ yxg.toLinFn.slope     =~~= lym.slope
+    T ~ xyl.toLine2D.c        =~~= Vc.D(0, xyl.intercept)
+    T ~ xyl.toLine2D.u        =~~= Vc.D(1, xyl.slope).hat
+    T ~ xyg.toLine2D.c        =~~= Vc.D(-4/3.0, -4/3.0)
+    T ~ xyg.toLine2D.u        =~~= Vc.D(1, xyl.slope).hat
+    T ~ yxm.toLine2D.c        =~~= Vc.D(yxm.intercept, 0)
+    T ~ yxm.toLine2D.u        =~~= Vc.D(yxm.slope, 1).hat
+    T ~ yxg.toLine2D.c        =~~= xyg.toLine2D.c
+    T ~ yxg.toLine2D.u        =~~= xyg.toLine2D.u
 
+    val lln = xyl.toLine2D
+    val fln = xyg.toLine2D.immutable
+    T ~ lln.c.x                          =~~= lln.cx.toFloat
+    T ~ lln.c.y                          =~~= lln.cy.toFloat
+    T ~ fln.c.x                          =~~= fln.cx.toFloat
+    T ~ fln.c.y                          =~~= fln.cy.toFloat
+    T ~ lln.u.x                          =~~= lln.ux.toFloat
+    T ~ lln.u.y                          =~~= lln.uy.toFloat
+    T ~ fln.u.x                          =~~= fln.ux.toFloat
+    T ~ fln.u.y                          =~~= fln.uy.toFloat
+    T ~ lln.theta                        =~~= fln.theta
+    T ~ lln.theta                        =~~= scala.math.atan(lln.uy/lln.ux)
+    T ~ lln.proj(fln.c).toFloat          =~~= -(fln.c - lln.c).len
+    T ~ fln.proj(lln.c).toFloat          =~~= (fln.c - lln.c).len
+    T ~ lln.proj(fln.cx, fln.cy).toFloat =~~= lln.proj(fln.c).toFloat
+    T ~ fln.proj(lln.cx, lln.cy).toFloat =~~= fln.proj(lln.c).toFloat
+    T ~ lln.projV(fln.c)                 =~~= fln.c
+    T ~ fln.projV(lln.c)                 =~~= lln.c
+    T ~ lln.orth(fln.c).toFloat          =~~= 0.0f
+    T ~ fln.orth(fln.c).toFloat          =~~= 0.0f
+    T ~ lln.orth(fln.cx, fln.cy).toFloat =~~= lln.orth(fln.c).toFloat
+    T ~ fln.orth(lln.cx, lln.cy).toFloat =~~= fln.orth(lln.c).toFloat
+    T ~ lln.orthV(fln.c)                 =~~= lln.c
+    T ~ fln.orthV(lln.c)                 =~~= fln.c
+
+    fittingErrorsTest()  
 
 
   @Test
