@@ -992,6 +992,7 @@ extension (d: Double) {
 
   inline def cube = d * d * d
   inline def sqrt = jm.sqrt(d)
+  inline def zsqrt = if d < 0 then 0.0 else jm.sqrt(d)
   inline def cbrt = jm.cbrt(d)
   inline def hypot(e: Double) = jm.hypot(d, e)
   inline def pow(e: Double) = jm.pow(d, e)
@@ -1018,6 +1019,41 @@ extension (d: Double) {
   inline def rad2rev = d * NumericConstants.OverTwoPi
   inline def deg2rad = d * NumericConstants.RadiansPerDegree
   inline def rev2rad = d * NumericConstants.TwoPi
+
+  inline def between(x0: Double, x1: Double): Double = x0 + d*(x1 - x0)
+  def between(xs: Array[Double]): Double =
+    if d >= -1e-6 && d <= (xs.length - 0.999999) then
+      var i = d.toInt
+      if i >= xs.length - 1 then xs(xs.length - 1)
+      else if d <= i then xs(i)
+      else (d - i).between(xs(i), xs(i+1))
+    else Double.NaN
+
+  inline def wherein(x0: Double, x1: Double): Double = if d == x0 then 0.0 else (d - x0)/(x1 - x0)
+  def wherein(xs: Array[Double]): Double =
+    if xs.length > 1 then
+      var i0 = 0
+      var i1 = xs.length - 1
+      while i1 > i0 + 1 do
+        val i = (i0 + i1) >>> 1  // Prevents overflow
+        val x = xs(i)
+        if d == x then return i.toDouble
+        else if d < x then i1 = i
+        else i0 = i
+      val x0 = xs(i0)
+      val x1 = xs(i1)
+      if d > x0 then
+        if d < x1 then i0 + (d - x0)/(x1 -x0)
+        else if d == x1 then i1.toDouble
+        else xs.length - 2 + (d - x0)/(x1 - x0)
+      else if d == x0 then i0.toDouble
+      else d.wherein(x0, x1)
+    else if xs.length == 1 then
+      if jm.abs(d - xs(0)) <= 1e-6 then 0
+      else if d < xs(0) then Double.NegativeInfinity
+      else if d > xs(0) then Double.PositiveInfinity
+      else Double.NaN
+    else Double.NaN
 
   inline def gamma = NumericFunctions.gamma(d)
   inline def lnGamma = NumericFunctions.lnGamma(d)
@@ -1902,6 +1938,8 @@ object PlusMinus {
   inline def exact(value: Float): kse.maths.PlusMinus =
     java.lang.Float.floatToRawIntBits(value).toLong << 32
 
+  final val NaN: kse.maths.PlusMinus = apply(Float.NaN, Float.NaN)
+
   extension (pm: PlusMinus) {
     inline def value: Float = java.lang.Float.intBitsToFloat((pm >>> 32).toInt)
     inline def valueTo(value: Float): kse.maths.PlusMinus =
@@ -1922,6 +1960,7 @@ object PlusMinus {
 
   extension (pm: kse.maths.PlusMinus) {
     def +(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value + f, pm.error)
+    def +(d: Double): kse.maths.PlusMinus = PlusMinus((pm.value + d).toFloat, pm.error)
 
     def +(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
       val v = pm.value
@@ -1931,6 +1970,7 @@ object PlusMinus {
       PlusMinus(v + u, jm.sqrt((e*e + f*f).toDouble).toFloat)
 
     def -(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value - f, pm.error)
+    def -(d: Double): kse.maths.PlusMinus = PlusMinus((pm.value - d).toFloat, pm.error)
 
     def -(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
       val v = pm.value
@@ -1940,6 +1980,7 @@ object PlusMinus {
       PlusMinus(v - u, jm.sqrt(e*e + f*f).toFloat)
 
     def *(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value * f, pm.error * f)
+    def *(d: Double): kse.maths.PlusMinus = PlusMinus.D(pm.value * d, pm.error * d)
 
     def *(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
       val v = pm.value.toDouble
@@ -1956,6 +1997,7 @@ object PlusMinus {
       PlusMinus.D(r, pm.error*r*r)
 
     def /(f: Float): kse.maths.PlusMinus = PlusMinus(pm.value / f, pm.error / f)
+    def /(d: Double): kse.maths.PlusMinus = PlusMinus.D(pm.value / d, pm.error / d)
 
     def /(qm: kse.maths.PlusMinus): kse.maths.PlusMinus =
       val iu = 1.0 / qm.value.toDouble
@@ -1976,7 +2018,15 @@ object PlusMinus {
       if e == 0 then PlusMinus(r.toFloat, 0f)
       else           PlusMinus.D(r, 0.5*e/r)
 
-    def pow(exponent: Float): kse.maths.PlusMinus =
+    def zsqrt: kse.maths.PlusMinus =
+      val v = pm.value.toDouble
+      val e = pm.error.toDouble
+      val r = if v < 0 then 0.0 else jm.sqrt(v)
+      if e == 0 then PlusMinus(r.toFloat, 0f)
+      else           PlusMinus.D(r, 0.5*e/r)
+
+
+    def pow(exponent: Double): kse.maths.PlusMinus =
       val v = pm.value.toDouble
       val e = pm.error.toDouble
       val p = jm.pow(v, exponent)
@@ -2002,9 +2052,14 @@ object PlusMinus {
       sb.toString
   }
 }
-extension (value: Float) {
-  inline def +-(error: Float): kse.maths.PlusMinus = PlusMinus(value, error)
-
+extension (value: Float | Double) {
+  inline def +-(inline error: Float | Double): kse.maths.PlusMinus = inline value match
+    case vf: Float => inline error match
+      case ef: Float  => PlusMinus(vf, ef)
+      case ed: Double => PlusMinus(vf, ed.toFloat)
+    case vd: Double => inline error match
+      case ef: Float => PlusMinus(vd.toFloat, ef)
+      case ed: Double => PlusMinus(vd.toFloat, ed.toFloat)
   // +(PlusMinus) in OverloadedExtensions
   // -(PlusMinus) in OverloadedExtensions
   // *(PlusMinus) in OverloadedExtensions

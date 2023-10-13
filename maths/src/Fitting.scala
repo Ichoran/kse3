@@ -28,6 +28,63 @@ object X2Y {
       case _ => x2y match
         case linf: LinearFn2D => linf.inverse(value)
         case fit2: Fit2D.Impl => fit2.exactXsampleY_y2x(value)
+    inline def intercept: Double = inline x2y match
+      case linf: LinearFn2D => linf.intercept
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_intercept
+      case _ => x2y match
+        case linf: LinearFn2D => linf.intercept
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_intercept
+    inline def slope: Double = inline x2y match
+      case linf: LinearFn2D => linf.slope
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_slope
+      case _ => x2y match
+        case linf: LinearFn2D => linf.slope
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_slope
+
+    inline def mirror: kse.maths.fitting.Y2X = inline x2y match
+      case linf: LinearFn2D => Y2X.wrap(linf.mirror)
+      case fit2: Fit2D.Impl => Y2X.wrap(fit2)
+      case _ => x2y match
+        case linf: LinearFn2D => Y2X.wrap(linf.mirror)
+        case fit2: Fit2D.Impl => Y2X.wrap(fit2)
+
+    inline def rsq: Double = inline x2y match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_rsq
+      case _ => x2y match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_rsq
+    inline def offsetError: Double = inline x2y match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_offsetError
+      case _ => x2y match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_offsetError
+    inline def slopeError: Double = inline x2y match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_slopeError
+      case _ => x2y match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_slopeError
+    inline def pm(value: Double): PlusMinus = inline x2y match
+      case linf: LinearFn2D => PlusMinus(linf(value).toFloat, Float.NaN)
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_pm(value)
+      case _ => x2y match
+        case linf: LinearFn2D => PlusMinus(linf(value).toFloat, Float.NaN)
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_pm(value)
+    inline def pm(value: PlusMinus): PlusMinus = inline x2y match
+      case linf: LinearFn2D => linf.pm(value)
+      case fit2: Fit2D.Impl => fit2.exactXsampleY_pm(value)
+      case _ => x2y match
+        case linf: LinearFn2D => linf.pm(value)
+        case fit2: Fit2D.Impl => fit2.exactXsampleY_pm(value)
+
+    inline def toLinFn: LinearFn2D = inline x2y match
+      case linf: LinearFn2D => linf
+      case fit2: Fit2D.Impl => LinearFn2D(fit2.exactXsampleY_intercept, fit2.exactXsampleY_slope)
+      case _ => x2y match
+        case linf: LinearFn2D => linf
+        case fit2: Fit2D.Impl => LinearFn2D(fit2.exactXsampleY_intercept, fit2.exactXsampleY_slope)
   }
 }
 
@@ -53,6 +110,63 @@ object Y2X {
       case _ => y2x match
         case linf: LinearFn2D => linf.inverse(value)
         case fit2: Fit2D.Impl => fit2.exactYsampleX_x2y(value)
+    inline def intercept: Double = inline y2x match
+      case linf: LinearFn2D => linf.intercept
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_intercept
+      case _ => y2x match
+        case linf: LinearFn2D => linf.intercept
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_intercept
+    inline def slope: Double = inline y2x match
+      case linf: LinearFn2D => linf.slope
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_slope
+      case _ => y2x match
+        case linf: LinearFn2D => linf.slope
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_slope
+
+    inline def mirror: kse.maths.fitting.X2Y = inline y2x match
+      case linf: LinearFn2D => X2Y.wrap(linf.mirror)
+      case fit2: Fit2D.Impl => X2Y.wrap(fit2)
+      case _ => y2x match
+        case linf: LinearFn2D => X2Y.wrap(linf.mirror)
+        case fit2: Fit2D.Impl => X2Y.wrap(fit2)
+
+    inline def rsq: Double = inline y2x match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_rsq
+      case _ => y2x match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_rsq
+    inline def offsetError: Double = inline y2x match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_offsetError
+      case _ => y2x match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_offsetError
+    inline def slopeError: Double = inline y2x match
+      case linf: LinearFn2D => Double.NaN
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_slopeError
+      case _ => y2x match
+        case linf: LinearFn2D => Double.NaN
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_slopeError
+    inline def pm(value: Double): PlusMinus = inline y2x match
+      case linf: LinearFn2D => PlusMinus(linf(value).toFloat, Float.NaN)
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_pm(value)
+      case _ => y2x match
+        case linf: LinearFn2D => PlusMinus(linf(value).toFloat, Float.NaN)
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_pm(value)
+    inline def pm(value: PlusMinus): PlusMinus = inline y2x match
+      case linf: LinearFn2D => linf.pm(value)
+      case fit2: Fit2D.Impl => fit2.exactYsampleX_pm(value)
+      case _ => y2x match
+        case linf: LinearFn2D => linf.pm(value)
+        case fit2: Fit2D.Impl => fit2.exactYsampleX_pm(value)     
+
+    inline def toLinFn: LinearFn2D = inline y2x match
+      case linf: LinearFn2D => linf
+      case fit2: Fit2D.Impl => LinearFn2D(fit2.exactYsampleX_intercept, fit2.exactYsampleX_slope)
+      case _ => y2x match
+        case linf: LinearFn2D => linf
+        case fit2: Fit2D.Impl => LinearFn2D(fit2.exactYsampleX_intercept, fit2.exactYsampleX_slope)
   }
 }
 
@@ -61,11 +175,13 @@ object Y2X {
 final case class LinearFn2D(val intercept: Double, val slope: Double) extends (Double => Double) {
   def apply(value: Double): Double = value*slope + intercept
   def inverse(value: Double): Double = (value - intercept)/slope
+  def pm(value: PlusMinus): PlusMinus = PlusMinus.D(value.value * slope + intercept, value.error * slope)
   def mirror: LinearFn2D = LinearFn2D(-intercept/slope, 1/slope)
 }
 
 
 sealed trait Line2D {
+  def c: Vc
   def cx: Double
   def cy: Double
 
@@ -88,7 +204,9 @@ sealed trait Line2D {
     Vc.D(-uy*o + cx, ux*o + cy)
 }
 object Line2D {
-  final case class Immutable(cx: Double, cy: Double, ux: Double, uy: Double) {
+  final case class Immutable(cx: Double, cy: Double, ux: Double, uy: Double) extends Line2D {
+    val c = Vc.D(cx, cy)
+    val u = Vc.D(ux, uy)
     def theta = math.atan2(uy, ux)
 
     def centered =
@@ -98,7 +216,7 @@ object Line2D {
 }
 
 
-sealed trait Fit2D {
+sealed abstract class Fit2D() {
   def samples: Long
 
   def x2y: X2Y
@@ -117,7 +235,7 @@ sealed trait Fit2D {
   def reset(): Unit
 }
 object Fit2D {
-  final class Impl() extends Fit2D with Line2D {
+  final class Impl() extends Fit2D() with Line2D {
     var n = 0L
     var cx = 0.0
     var cy = 0.0
@@ -130,36 +248,23 @@ object Fit2D {
 
     private var xb = Double.NaN
     private var xm = Double.NaN
-    private var xe = Double.NaN
-    private var ym = Double.NaN
+    private var xe = Vc.NaN
     private var yb = Double.NaN
-    private var ye = Double.NaN
+    private var ym = Double.NaN
+    private var ye = Vc.NaN
+    private var th = Double.NaN
     private var ex = Double.NaN
     private var ey = Double.NaN
 
     private def exactX(): Unit =
       if (cached & 1) != 1 then
-        if n >= 2 then
-          val den = (Sxx - n*cx*cx)
-          xm = if den != 0 then (Sxy - n*cx*cy)/den else Double.NaN
-          xb = cy - xm*cx
-          xe = Sxx - n*cx*cx - xm*xm*den
-        else
-          xb = Double.NaN
-          xm = Double.NaN
-          xe = Double.NaN
+        xm = if n >= 2 then Sxy/Sxx else Double.NaN
+        xb = cy - xm*cx
         cached |= 1
     private def exactY(): Unit =
       if (cached & 2) != 2 then
-        if n >= 2 then
-          val den = (Syy - n*cy*cy)
-          ym = if den != 0 then (Sxy - n*cx*cy)/den else Double.NaN
-          yb = cx - ym*cy
-          ye = Syy - n*cy*cy - ym*ym*den
-        else
-          yb = Double.NaN
-          ym = Double.NaN
-          ye = Double.NaN
+        ym = if n >= 2 then Sxy/Syy else Double.NaN
+        yb = cx - ym*cy
         cached |= 2
     private def bestFit(): Unit =
       if (cached & 4) != 4 then
@@ -168,27 +273,28 @@ object Fit2D {
             ex = 1
             ey = 0
           else
-            val tn = 2*Sxy/(Sxx - Sxy)
-            val tnsq = tn*tn
-            if tnsq >= 1 then
-              val cosq = 1/(1 + tnsq)
-              ex = cosq.sqrt
-              ey = (1-cosq).sqrt
-              if tn < 0 then ey = -ey
-            else
-              val sisq = tnsq/(tnsq+1)
-              ex = (1-sisq).sqrt
-              ey = sisq.sqrt
-              if tn < 0 then ey = -ey
-            val ssq = ex*ex + ey*ey
-            if ssq > 1 then
-              val len = ssq.sqrt
-              ex /= len
-              ey /= len
+            th = 0.5 * math.atan2(2*Sxy, Sxx - Syy)
+            ex = math.cos(th)
+            ey = math.sin(th)
         else
           ex = Double.NaN
           ey = Double.NaN
         cached |= 4
+    private def errorX(): Unit =
+      if (cached & 0x10) != 0x10 then
+        if n < 3 then xe = Vc.NaN
+        else
+          val ee = (Syy - Sxy.sq/Sxx) / (n-2)
+          xe = Vc.D((ee/Sxx).zsqrt, ee.zsqrt)
+        cached |= 0x10
+    private def errorY(): Unit =
+      if (cached & 0x20) != 0x20 then
+        if n < 3 then ye = Vc.NaN
+        else
+          val ee = (Sxx - Sxy.sq/Syy) / (n-2)
+          ye = Vc.D(ee.zsqrt, (ee/Syy).zsqrt)
+        cached |= 0x20
+
 
     def samples = n
 
@@ -197,6 +303,8 @@ object Fit2D {
     def line: Line2D = this
     def estX: Est = Est.M(n, cx, Sxx)
     def estY: Est = Est.M(n, cy, Syy)
+
+    def c: Vc = Vc.D(cx, cy)
 
     def u: Vc =
       bestFit()
@@ -209,7 +317,11 @@ object Fit2D {
       ey
     def theta: Double =
       bestFit()
-      math.atan2(ey, ex)
+      th
+
+    def exactRsq =
+      if n < 3 then Double.NaN
+      else 1 - (n-1)*(1 - Sxy.sq/(Sxx * Syy))/(n-2)
 
     def exactXsampleY_x2y(value: Double): Double =
       exactX()
@@ -217,6 +329,31 @@ object Fit2D {
     def exactXsampleY_y2x(value: Double): Double =
       exactX()
       (value - xb)/xm
+    def exactXsampleY_intercept: Double =
+      exactX()
+      xb
+    def exactXsampleY_slope: Double =
+      exactX()
+      xm
+    inline def exactXsampleY_rsq: Double = exactRsq
+    def exactXsampleY_offsetError: Float =
+      if n < 3 then Float.NaN
+      else
+        errorX()
+        (xe.y/n.toDouble.sqrt).toFloat
+    def exactXsampleY_slopeError: Float =
+      if n < 3 then Float.NaN
+      else
+        errorX()
+        xe.x
+    def exactXsampleY_pm(value: Double): PlusMinus =
+      exactX()
+      errorX()
+      PlusMinus.D(xm*value + xb, xe.y * (1.0/n + (value-cx).sq/Sxx).zsqrt)
+    def exactXsampleY_pm(value: PlusMinus): PlusMinus =
+      exactX()
+      errorX()
+      PlusMinus.D(xm*value.value + xb, (xe.y.sq * (1.0/n + (value.value-cx).sq/Sxx) + (xm*value.error).sq).zsqrt)
 
     def exactYsampleX_y2x(value: Double): Double =
       exactY()
@@ -224,45 +361,31 @@ object Fit2D {
     def exactYsampleX_x2y(value: Double): Double =
       exactY()
       (value - yb)/ym
-
-    /*
-    def errSumSq =
-      if !cached then compute()
-      cE
-
-    def rmse = errSumSq.sqrt / n
-
-    def apply(t: Double): Double = ???/*
-      if !cached then compute()
-      ca0 + ca1*(t - Ot) + Ox*/
-
-    def apply(ts: Array[Double]): Array[Double] = ???/*
-      if !cached then compute()
-      val xs = new Array[Double](ts.length)
-      var i = 0
-      val x0 = ca0 + Ox
-      while i < ts.length do
-        xs(i) = x0 + ca1*(ts(i) - Ot)
-        i += 1
-      xs*/
-
-    def inverse(x: Double): Double = ???/*
-      if !cached then compute()
-      if ca1 == 0 then Double.NaN
+    def exactYsampleX_intercept: Double =
+      exactY()
+      yb
+    def exactYsampleX_slope: Double =
+      exactY()
+      ym
+    inline def exactYsampleX_rsq: Double = exactRsq
+    def exactYsampleX_offsetError: Float =
+      if n < 3 then Float.NaN
       else
-        (x - ca0 - Ox)/ca1 + Ot*/
-
-    def inverse(xs: Array[Double]): Array[Double] = ???/*
-      if !cached then compute()
-      if ca1 == 0 then Array.fill(xs.length)(Double.NaN)
+        errorY()
+        (ye.x/n.toDouble.sqrt).toFloat
+    def exactYsampleX_slopeError: Float =
+      if n < 3 then Float.NaN
       else
-        val ts = new Array[Double](xs.length)
-        var i = 0
-        val x0 = ca0 + Ox
-        while i < xs.length do
-          ts(i) = (xs(i) - x0)/ca1 + Ot
-        xs*/
-    */
+        errorY()
+        ye.y
+    def exactYsampleX_pm(value: Double): PlusMinus =
+      exactY()
+      errorY()
+      PlusMinus.D(ym*value + yb, ye.x * (1.0/n + (value-cy).sq/Syy).zsqrt)
+    def exactYsampleX_pm(value: PlusMinus): PlusMinus =
+      exactY()
+      errorY()
+      PlusMinus.D(ym*value.value + yb, (ye.x.sq * (1.0/n + (value.value-cy).sq/Syy) + (ym*value.error).sq).zsqrt)
 
     def reset(): Unit =
       cached = 0
@@ -283,39 +406,6 @@ object Fit2D {
       fit2.Sxy = Sxy
       fit2
 
-    /*
-    def setOrigin(ot: Double, ox: Double): Unit =
-      if n > 0 then
-        cached = false
-        val dt = Ot - ot
-        val dx = Ox - ox
-        val ndt = n*dt
-        val ndx = n*dx
-        Stt += dt*(2*St + ndt)
-        Sxx += dx*(2*Sx + ndx)
-        Stx += dt*Sx + dx*(St + ndt)
-        St += ndt
-        Sx += ndx
-      Ot = ot
-      Ox = ox
-    */
-
-    /*
-    def recenter(): Unit =
-      if n > 0 then
-        val mt = St/n
-        val mx = Sx/n
-        val nmt = n * mt
-        val nmx = n * mx
-        Stt -= mt * (2*St - nmt)
-        Sxx -= mx * (2*Sx - nmx)
-        Stx -= mt*Sx + mx*(St - nmt)
-        St = 0
-        Sx = 0
-        Ot += mt
-        Ox += mx
-    */
-
     private def plusImpl(x: Double, y: Double): Unit =
       val cx_ = (n*cx + x)/(n+1)
       val cy_ = (n*cy + y)/(n+1)
@@ -335,7 +425,6 @@ object Fit2D {
       cx = cx_
       cy = cy_
       n -= 1
-
 
     def +=(x: Double, y: Double): Unit =
       if !(x + y).nan then
@@ -363,43 +452,41 @@ object Fit2D {
             n = 0
         else minusImpl(x, y)
 
-    def ++=(ts: Array[Double], xs: Array[Double]): Unit = ???/*
-      val m = math.min(ts.length, xs.length)
-      addRangeImpl(ts, 0)(xs, 0)(m)*/
+    def ++=(xs: Array[Double], ys: Array[Double]): Unit =
+      val m = math.min(xs.length, ys.length)
+      addRangeImpl(xs, 0)(ys, 0)(m)
 
-    def ++=(ts: IterableOnce[Double], xs: IterableOnce[Double]): Unit = ???/*
-      val ti = ts.iterator
+    def ++=(xs: IterableOnce[Double], ys: IterableOnce[Double]): Unit =
       val xi = xs.iterator
-      while ti.hasNext && xi.hasNext do
-        this += (ti.next, xi.next)*/
+      val yi = ys.iterator
+      val n0 = n
+      while xi.hasNext && yi.hasNext do
+        val x = xi.next
+        val y = yi.next
+        if !(x + y).nan then plusImpl(x, y)
+      if n > n0 then cached = 0
 
-    def addRange(ts: Array[Double], i0: Int, iN: Int)(xs: Array[Double], j0: Int, jN: Int): Unit = ???/*
+    def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], j0: Int, jN: Int): Unit =
       val k0 = math.max(0, i0)
-      val kN = math.min(ts.length, iN)
+      val kN = math.min(xs.length, iN)
       if k0 < kN then
         val l0 = math.max(0, j0)
-        val lN = math.min(xs.length, jN)
+        val lN = math.min(ys.length, jN)
         if l0 < lN then
           val m = math.min(kN - k0, lN - l0)
-          addRangeImpl(ts, k0)(xs, l0)(m)*/
+          addRangeImpl(xs, k0)(ys, l0)(m)
 
-    private def addRangeImpl(ts: Array[Double], i0: Int)(xs: Array[Double], j0: Int)(m: Int): Unit = ???/*
-      if m > 0 then
-        if (n & 0x3F) == 0 then
-          if n == 0 then
-            Ot = ts(i0)
-            Ox = xs(j0)
-            if (Ot + Ox).nan then
-              Ot = 0.0
-              Ox = 0.0
-            else
-              n += 1
-          else
-            recenter()
-            this += (ts(i0), xs(j0))
-        else
-          this += (ts(i0), xs(j0))
-        addRangeImpl(ts, i0 + 1)(xs, j0 + 1)(m - 1)*/
+    private def addRangeImpl(xs: Array[Double], i0: Int)(ys: Array[Double], j0: Int)(m: Int): Unit =
+      var i = i0
+      var j = j0
+      var k = m
+      val n0 = n
+      while k > 0 do
+        plusImpl(xs(i), ys(j))
+        i += 1
+        j += 1
+        k -= 1
+      if n > n0 then cached = 0
 
     override def toString = s"Fit centered at [$cx, $cy], n=$n"
   }

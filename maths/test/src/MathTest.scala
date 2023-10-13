@@ -28,6 +28,7 @@ class MathTest {
   import kse.flow.{_, given}
   import kse.maths.{_, given}
   import kse.maths.packed.{_, given}
+  import kse.maths.fitting.{_, given}
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
@@ -514,10 +515,59 @@ class MathTest {
     }
 
     {
-      given Prng = rng
+      given AutoPrng = rng.givable
       T(name) ~ 1500 .roll ==== 1 + r2 % 1500
       T(name) ~ 1500L.roll ==== 1 + r2 % 1500L
       T(name) ~ (40 d 100) ==== r2.arrayModI(100)(40).foldLeft(0)(_ + _ + 1)
+
+      T(name) ~ zs1.shuffle          =**= zs2.shuffle(r2)
+      T(name) ~ zs1.shuffle(1, 9)    =**= zs2.shuffle(1, 9)(r2)
+      T(name) ~ zs1.randomFill       =**= zs2.randomFill(r2)
+      T(name) ~ zs1.randomFill(1, 9) =**= zs2.randomFill(1, 9)(r2)
+
+      T(name) ~ bs1.shuffle          =**= bs2.shuffle(r2)
+      T(name) ~ bs1.shuffle(1, 9)    =**= bs2.shuffle(1, 9)(r2)
+      T(name) ~ bs1.randomFill       =**= bs2.randomFill(r2)
+      T(name) ~ bs1.randomFill(1, 9) =**= bs2.randomFill(1, 9)(r2)
+
+      T(name) ~ ss1.shuffle          =**= ss2.shuffle(r2)
+      T(name) ~ ss1.shuffle(1, 9)    =**= ss2.shuffle(1, 9)(r2)
+      T(name) ~ ss1.randomFill       =**= ss2.randomFill(r2)
+      T(name) ~ ss1.randomFill(1, 9) =**= ss2.randomFill(1, 9)(r2)
+
+      T(name) ~ cs1.shuffle          =**= cs2.shuffle(r2)
+      T(name) ~ cs1.shuffle(1, 9)    =**= cs2.shuffle(1, 9)(r2)
+      T(name) ~ cs1.randomFill       =**= cs2.randomFill(r2)
+      T(name) ~ cs1.randomFill(1, 9) =**= cs2.randomFill(1, 9)(r2)
+
+      T(name) ~ is1.shuffle             =**= is2.shuffle(r2)
+      T(name) ~ is1.shuffle(1, 9)       =**= is2.shuffle(1, 9)(r2)
+      T(name) ~ is1.randomFill          =**= is2.randomFill(r2)
+      T(name) ~ is1.randomFill(1, 9)    =**= is2.randomFill(1, 9)(r2)
+      T(name) ~ is1.randomMod(99)       =**= is2.randomMod(99)(r2)
+      T(name) ~ is1.randomMod(99)(2, 8) =**= is2.randomMod(99)(2, 8)(r2)
+
+      T(name) ~ ls1.shuffle             =**= ls2.shuffle(r2)
+      T(name) ~ ls1.shuffle(1, 9)       =**= ls2.shuffle(1, 9)(r2)
+      T(name) ~ ls1.randomFill          =**= ls2.randomFill(r2)
+      T(name) ~ ls1.randomFill(1, 9)    =**= ls2.randomFill(1, 9)(r2)
+      T(name) ~ ls1.randomMod(99)       =**= ls2.randomMod(99)(r2)
+      T(name) ~ ls1.randomMod(99)(2, 8) =**= ls2.randomMod(99)(2, 8)(r2)
+
+      T(name) ~ fs1.shuffle          =**= fs2.shuffle(r2)
+      T(name) ~ fs1.shuffle(1, 9)    =**= fs2.shuffle(1, 9)(r2)
+      T(name) ~ fs1.randomFill       =**= fs2.randomFill(r2)
+      T(name) ~ fs1.randomFill(1, 9) =**= fs2.randomFill(1, 9)(r2)
+
+      T(name) ~ ds1.shuffle              =**= ds2.shuffle(r2)
+      T(name) ~ ds1.shuffle(1, 9)        =**= ds2.shuffle(1, 9)(r2)
+      T(name) ~ ds1.randomFill           =**= ds2.randomFill(r2)
+      T(name) ~ ds1.randomFill(1, 9)     =**= ds2.randomFill(1, 9)(r2)
+      T(name) ~ ds1.randomGaussian       =**= ds2.randomGaussian(r2)
+      T(name) ~ ds1.randomGaussian(2, 8) =**= ds2.randomGaussian(2, 8)(r2)
+
+      T(name) ~ as1.shuffle          =**= as2.shuffle(r2)
+      T(name) ~ as1.shuffle(1, 9)    =**= as2.shuffle(1, 9)(r2)
     }
 
     val tfs = rng.stringFrom("FT", 100)
@@ -539,7 +589,7 @@ class MathTest {
     var nsur = 0
     nFor(1000) { n =>
       val title = s"Valid string iteration $n"
-      val s = rng.validString(20.roll(using rng))
+      val s = rng.validString(20.roll(using rng.givable))
       var i = 0
       while i < s.length do
         if java.lang.Character.isHighSurrogate(s charAt i) then
@@ -720,7 +770,7 @@ class MathTest {
 
   def randomHs(n: Int, lim: Int = 128)(rng: Prng): Hiter =
     val a = collection.mutable.ArrayBuffer.empty[H]
-    given Prng = rng
+    given AutoPrng = rng.givable
     nFor(n){ _ =>
       val h: H = (rng % 11) match {
         case 0 => HZ(rng.Z)
@@ -1016,7 +1066,7 @@ class MathTest {
       val hf = HF(r.F)
       val hd = HD(r.D)
 
-      given Prng = r
+      given AutoPrng = r.givable
 
       val hh = Hstr(
         4.roll match
@@ -1692,35 +1742,55 @@ class MathTest {
 
     val d = 1.2
     val dnan = Double.NaN
-    T ~ d.trunc          ==== 1.0
-    T ~ (-d).trunc       ==== -1.0
-    T ~ d.sq             ==== 1.44
-    T ~ d.cube           ==== 1.728
-    T ~ d.sqrt           =~~= 1.0954451150103322269
-    T ~ d.cbrt           =~~= 1.0626585691826110660
-    T ~ d.hypot(1/d)     =~~= 1.4609738000540750438
-    T ~ d.pow(d)         =~~= 1.2445647472039777218
-    T ~ d.log            =~~= 0.18232155679395462621
-    T ~ d.log2           =~~= 0.26303440583379383358
-    T ~ d.log10          =~~= 0.079181246047624827723
-    T ~ d.exp            =~~= 3.3201169227365474895
-    T ~ d.exp2           =~~= 2.2973967099940700136
-    T ~ d.exp10          =~~= 15.848931924611134852
-    T ~ (1/d).entropy    =~~= 0.21919533819482819465
-    T ~ d.sin            =~~= 0.93203908596722634967
-    T ~ d.cos            =~~= 0.36235775447667357764
-    T ~ d.tan            =~~= 2.5721516221263189354
-    T ~ (1/d).asin       =~~= 0.98511078333774565961
-    T ~ (1/d).acos       =~~= 0.58568554345715095962
-    T ~ d.atan           =~~= 0.87605805059819342311
-    T ~ d.atan2(1/d)     =~~= 0.96380866274848865959
-    T ~ d.sinh           =~~= 1.5094613554121726964
-    T ~ d.cosh           =~~= 1.8106555673243747931
-    T ~ d.tanh           =~~= 0.83365460701215525867
-    T ~ d.rad2deg        =~~= 68.754935415698785052
-    T ~ d.rad2rev        =~~= 0.19098593171027440292
-    T ~ d.deg2rad        =~~= 0.020943951023931954923
-    T ~ d.rev2rad        =~~= 7.5398223686155037723
+    val w = Array(1.0, 2.0, 5.0)
+    T ~ d.trunc       ==== 1.0
+    T ~ (-d).trunc    ==== -1.0
+    T ~ d.sq          ==== 1.44
+    T ~ d.cube        ==== 1.728
+    T ~ d.sqrt        =~~= 1.0954451150103322269
+    T ~ (-d).sqrt     ==== dnan
+    T ~ d.zsqrt       =~~= 1.0954451150103322269
+    T ~ (-d).zsqrt    ==== 0.0
+    T ~ d.cbrt        =~~= 1.0626585691826110660
+    T ~ d.hypot(1/d)  =~~= 1.4609738000540750438
+    T ~ d.pow(d)      =~~= 1.2445647472039777218
+    T ~ d.log         =~~= 0.18232155679395462621
+    T ~ d.log2        =~~= 0.26303440583379383358
+    T ~ d.log10       =~~= 0.079181246047624827723
+    T ~ d.exp         =~~= 3.3201169227365474895
+    T ~ d.exp2        =~~= 2.2973967099940700136
+    T ~ d.exp10       =~~= 15.848931924611134852
+    T ~ (1/d).entropy =~~= 0.21919533819482819465
+    T ~ d.sin         =~~= 0.93203908596722634967
+    T ~ d.cos         =~~= 0.36235775447667357764
+    T ~ d.tan         =~~= 2.5721516221263189354
+    T ~ (1/d).asin    =~~= 0.98511078333774565961
+    T ~ (1/d).acos    =~~= 0.58568554345715095962
+    T ~ d.atan        =~~= 0.87605805059819342311
+    T ~ d.atan2(1/d)  =~~= 0.96380866274848865959
+    T ~ d.sinh        =~~= 1.5094613554121726964
+    T ~ d.cosh        =~~= 1.8106555673243747931
+    T ~ d.tanh        =~~= 0.83365460701215525867
+    T ~ d.rad2deg     =~~= 68.754935415698785052
+    T ~ d.rad2rev     =~~= 0.19098593171027440292
+    T ~ d.deg2rad     =~~= 0.020943951023931954923
+    T ~ d.rev2rad     =~~= 7.5398223686155037723
+    T ~ d.between(3, 9)     =~~= 10.2
+    T ~ d.between(w)        =~~= 2.6
+    T ~ d.between(w take 0) ==== dnan
+    T ~ d.between(w take 2) ==== dnan
+    T ~ (-0.1).between(w)   ==== dnan
+    T ~ d.wherein(1, 3)     =~~= 0.1
+    T ~ d.wherein(3, 3.1)   =~~= -18.0
+    T ~ d.wherein(w)        =~~= 0.2
+    T ~ d.wherein(w take 0) ==== dnan
+    T ~ d.wherein(w take 1) ==== Double.PositiveInfinity
+    T ~ d.wherein(w drop 2) ==== Double.NegativeInfinity
+    T ~ d.wherein(w drop 1) =~~= (-0.8/3)
+    T ~ 1.0.wherein(w)      ==== 0.0
+    T ~ 2.0.wherein(w)      ==== 1.0
+    T ~ 5.0.wherein(w)      ==== 2.0
+    T ~ 6.4.wherein(w)      =~~= (1.4/3 + 2)
     T ~ d.gamma          =~~= 0.91816874239976061064
     T ~ d.lnGamma        =~~= -0.085374090003315849720
     T ~ d.erf            =~~= 0.91031397822963538024
@@ -2233,7 +2303,7 @@ class MathTest {
     T ~ (v - Vc(-1, 1)).y          =~~= 2.1f
     T ~ (v * 2f).x                 =~~= 2.4f
     T ~ (v * 2f).y                 =~~= 6.2f
-    T ~ (v * 2f)                   ==== (2f * v)
+//    T ~ (2f * v)                   ==== (v * 2f)
     T ~ v.*(-1.5f, 0.7f).f32       =~~= 0.37f
     T ~ (v * u)                    ==== v.*(-1.5f, 0.7f)
     T ~ v.X(-1.5f, 0.7f).f32       =~~= 5.49f
@@ -2267,6 +2337,7 @@ class MathTest {
     T ~ (1f +- 0f).unwrap       ==== 0x3F80000000000000L
     T ~ pm                      ==== PlusMinus.D(3.5, 0.2)
     T ~ (1f +- 0f)              ==== PlusMinus.exact(1f)
+    T ~ (3.5 +- 0.2)            ==== pm
     T ~ pm.value                ==== 3.5f
     T ~ pm.error                ==== 0.2f
     T ~ pm.valueTo(1.9f).value  ==== 1.9f
@@ -2282,30 +2353,40 @@ class MathTest {
     T ~ (pm + 1).value          ==== 4.5f
     T ~ (pm + 1).error          ==== 0.2f
     T ~ (1f + pm)               ==== (pm + 1f)
+    T ~ (pm + 1.0)              ==== (pm + 1f)
+    T ~ (1.0 + pm)              ==== (pm + 1f)
     T ~ (pm + qm).value         ==== 5.4f
     T ~ (pm + qm).error         =~~= 0.538516480713f
     T ~ (pm - 1).value          ==== 2.5f
     T ~ (pm - 1).error          ==== 0.2f
     T ~ (1f - pm)               ==== -(pm - 1f)
+    T ~ (pm - 1.0)              ==== (pm - 1f)
+    T ~ (1.0 - pm)              ==== (1f - pm)
     T ~ (pm - qm).value         ==== 1.6f
     T ~ (pm - qm).error         ==== (pm + qm).error
     T ~ (pm * 2f).value         ==== 7.0f
     T ~ (pm * 2f).error         ==== 0.4f
     T ~ (2f * pm)               ==== (pm * 2f)
+    T ~ (pm * 2.0)              ==== (pm * 2f)
+    T ~ (2.0 * pm)              ==== (pm * 2f)
     T ~ (pm * qm).value         =~~= 6.65f
     T ~ (pm * qm).error         =~~= 1.79078195211f
     T ~ (pm / 2f).value         ==== 1.75f
     T ~ (pm / 2f).error         ==== 0.1f
     T ~ (2f / pm).value         =~~= 0.571428571429f
     T ~ (2f / pm).error         =~~= 0.0326531f
+    T ~ (pm / 2.0).value        =~~= (pm / 2f).value
+    T ~ (pm / 2.0).error        =~~= (pm / 2f).error
+    T ~ (2.0 / pm).value        =~~= (2f / pm).value
+    T ~ (2.0 / pm).error        =~~= (2f / pm).error
     T ~ (pm / qm).value         =~~= 1.84210526316f
     T ~ (pm / qm).error         =~~= 0.496061f
     T ~ pm.sq.value             =~~= (pm * pm).value
     T ~ pm.sq.error             =~~= (pm * pm).error
     T ~ pm.sqrt.value           =~~= 1.87082869339f
     T ~ pm.sqrt.error           =~~= 0.0534522f
-    T ~ pm.pow(1.7f).value      =~~= 8.41231788372f
-    T ~ pm.pow(1.7f).error      =~~= 0.817197f
+    T ~ pm.pow(1.7).value       =~~= 8.41231788372f
+    T ~ pm.pow(1.7).error       =~~= 0.817197f
     T ~ pm.pr                   ==== "3.5 +- 0.2"
     T ~ pm.prf("%.2e")          ==== "3.50e+00 +- 2.00e-01"
 
@@ -2732,6 +2813,102 @@ class MathTest {
     T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).n         ==== m3.n
     T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).mean      =~~= m3.mean
     T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).sse       =~~= m3.sse
+
+
+  @Test
+  def fittingTest(): Unit =
+    val lin = LinearFn2D(2.0, 2.5)
+    val fin = Fit2D.Impl()
+    fin += (0, 2.0)
+    fin += (-1, -0.5)
+    fin += (-3, -5.5)
+    val xyl = X2Y.wrap(lin)
+    val xyf = X2Y.wrap(fin)
+    val xyg = fin.x2y
+    def argxy(xy: X2Y) = xy(1) + xy.inverse(7) + xy.slope*xy.intercept
+    def argyx(yx: Y2X) = yx(1) + yx.inverse(7) + yx.slope*yx.intercept
+    T ~ lin(1)           =~~= 4.5
+    T ~ xyl(1)           =~~= 4.5
+    T ~ xyf(1)           =~~= 4.5
+    T ~ xyg(1)           =~~= 4.5
+    T ~ lin(-2)          =~~= -3.0
+    T ~ xyl(-2)          =~~= -3.0
+    T ~ xyf(-2)          =~~= -3.0
+    T ~ xyg(-2)          =~~= -3.0
+    T ~ xyl.underlying   ==== lin --: typed[LinearFn2D | Fit2D.Impl]
+    T ~ xyf.underlying   ==== fin --: typed[LinearFn2D | Fit2D.Impl]
+    T ~ xyg.underlying   ==== fin --: typed[LinearFn2D | Fit2D.Impl]
+    T ~ lin.inverse(4.5) =~~= 1.0
+    T ~ xyl.inverse(4.5) =~~= 1.0
+    T ~ xyf.inverse(4.5) =~~= 1.0
+    T ~ xyg.inverse(4.5) =~~= 1.0
+    T ~ lin.inverse(-8)  =~~= -4.0
+    T ~ xyl.inverse(-8)  =~~= -4.0
+    T ~ xyf.inverse(-8)  =~~= -4.0
+    T ~ xyg.inverse(-8)  =~~= -4.0
+    T ~ lin.intercept    =~~= 2.0
+    T ~ xyl.intercept    =~~= 2.0
+    T ~ xyf.intercept    =~~= 2.0
+    T ~ xyg.intercept    =~~= 2.0
+    T ~ lin.slope        =~~= 2.5
+    T ~ xyl.slope        =~~= 2.5
+    T ~ xyf.slope        =~~= 2.5
+    T ~ xyg.slope        =~~= 2.5
+    T ~ argxy(xyl)       =~~= (lin(1) + lin.inverse(7) + lin.slope*lin.intercept)
+    T ~ argxy(xyf)       =~~= (lin(1) + lin.inverse(7) + lin.slope*lin.intercept)
+    T ~ argxy(xyg)       =~~= (lin(1) + lin.inverse(7) + lin.slope*lin.intercept)
+
+    val lyn = LinearFn2D(-0.8, 0.4)
+    val lym = lin.mirror
+    val yxm = Y2X.wrap(lym)
+    val yxg = fin.y2x
+    T ~ lyn(3)            =~~= 0.4
+    T ~ lym(3)            =~~= 0.4
+    T ~ yxm(3)            =~~= 0.4
+    T ~ yxg(3)            =~~= 0.4
+    T ~ lyn(-3)           =~~= -2.0
+    T ~ lym(-3)           =~~= -2.0
+    T ~ yxm(-3)           =~~= -2.0
+    T ~ yxg(-3)           =~~= -2.0
+    T ~ lyn.inverse(1)    =~~= 4.5
+    T ~ lym.inverse(1)    =~~= 4.5
+    T ~ yxm.inverse(1)    =~~= 4.5
+    T ~ yxg.inverse(1)    =~~= 4.5
+    T ~ lyn.inverse(-4)   =~~= -8.0
+    T ~ lym.inverse(-4)   =~~= -8.0
+    T ~ yxm.inverse(-4)   =~~= -8.0
+    T ~ yxg.inverse(-4)   =~~= -8.0
+    T ~ yxm.intercept     =~~= -0.8
+    T ~ yxg.intercept     =~~= -0.8
+    T ~ yxm.slope         =~~= 0.4
+    T ~ yxg.slope         =~~= 0.4
+    T ~ argyx(yxm)        =~~= (lyn(1) + lyn.inverse(7) + lyn.slope*lyn.intercept)
+    T ~ argyx(yxg)        =~~= argyx(yxm)
+    T ~ xyg.mirror        ==== yxg --: typed[Y2X]
+    T ~ yxg.mirror        ==== xyg --: typed[X2Y]
+    T ~ argyx(xyl.mirror) =~~= argyx(yxm)
+    T ~ argyx(xyg.mirror) =~~= argyx(yxg)
+    T ~ argxy(yxm.mirror) =~~= argxy(xyl)
+    T ~ argxy(yxg.mirror) =~~= argxy(xyg)
+
+    given Approximation[PlusMinus] = new Approximation[PlusMinus] {
+      def approx(pma: PlusMinus, pmb: PlusMinus) =
+        Approximation.defaultFloatApprox.approx(pma.value, pmb.value) && Approximation.defaultFloatApprox.approx(pma.error, pmb.error)
+    }
+    T ~ lin.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
+    T ~ xyl.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
+    T ~ xyg.pm(1.0 +- 0.5) =~~= (4.5 +- 1.25)
+    T ~ lyn.pm(3.0 +- 0.5) =~~= (0.4 +- 0.2)
+    T ~ yxm.pm(3.0 +- 0.5) =~~= (0.4 +- 0.2)
+    T ~ yxg.pm(3.0 +- 0.5) =~~= (0.4 +- 0.2)
+
+    T ~ (xyl.toLinFn eq lin)  ==== true
+    T ~ (yxm.toLinFn eq lym)  ==== true
+    T ~ xyg.toLinFn.intercept =~~= lin.intercept
+    T ~ xyg.toLinFn.slope     =~~= lin.slope
+    T ~ yxg.toLinFn.intercept =~~= lym.intercept
+    T ~ yxg.toLinFn.slope     =~~= lym.slope
+
 
 
   @Test

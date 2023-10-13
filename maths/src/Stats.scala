@@ -290,6 +290,38 @@ object Est {
   }
 }
 
+
+class Bootstrapped[T](val value: T, val variants: Array[T]) {
+  def n = variants.length
+  def estOfVariants(f: T => Double): Est.M =
+    val e = Est.M.empty
+    var i = 0
+    while i < variants.length do
+      e += f(variants(i))
+      i += 1
+    e
+  def pm(f: T => Double): PlusMinus =
+    val e = estOfVariants(f)
+    e.mean = f(value)
+    e.pmSD
+}
+object Bootstrapped {
+  inline def apply[T](n: Int)(rng: Prng)(i0: Int, iN: Int)(init: => T)(inline update: (T, Int) => Unit)(using tag: reflect.ClassTag[T]): Bootstrapped[T] =
+    val value = init
+    val variants = Array.fill(n)(init)
+    if i0 < iN then
+      val m = iN -# i0
+      var i = i0
+      while i < iN do
+        update(value, i)
+        var j = 0
+        while j < n do
+          update(variants(j), (rng % m) + i0)
+          j += 1
+        i += 1
+    new Bootstrapped(value, variants)
+}
+
 extension (values: Array[Int])
   inline def est: Est = Est from values
   inline def estRange(i0: Int, iN: Int): Est =

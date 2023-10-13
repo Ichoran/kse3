@@ -240,31 +240,29 @@ extension (value: Float) {
   inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
 
 
-  ////////////////////////////////////////
-  // Float _ Vc Operators (Maths.scala) //
-  ////////////////////////////////////////
-  @targetName("Float_add_Vc")
-  inline def +(v: kse.maths.Vc): kse.maths.Vc = Vc(value + v.x, value + v.y)
+  //////////////////////////////////////////////////////  NOTE: need argument union to resolve successfully
+  // Float _ Vc and PlusMinus Operators (Maths.scala) //  when not only are there opaque arguments with identical
+  //////////////////////////////////////////////////////  types but also an overload shared with Double (or anything??)
 
-  @targetName("Float_sub_Vc")
-  inline def -(v: kse.maths.Vc): kse.maths.Vc = Vc(value - v.x, value - v.y)
+  @targetName("Float_add_Vc_PM")
+  transparent inline def +(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case v: kse.maths.Vc => Vc(value + v.x, value + v.y)
+    case pm: kse.maths.PlusMinus => pm.valueTo(value + pm.value)
 
-  @targetName("Float_mul_Vc")
-  inline def *(v: kse.maths.Vc): kse.maths.Vc = Vc(value * v.x, value * v.y)
+  @targetName("Float_sub_Vc_PM")
+  transparent inline def -(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case v: kse.maths.Vc => Vc(value - v.x, value - v.y)
+    case pm: kse.maths.PlusMinus => pm.valueTo(value - pm.value)
+
+  @targetName("Float_mul_Vc_PM")
+  transparent inline def *(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case v: kse.maths.Vc => Vc(value * v.x, value * v.y)
+    case pm: kse.maths.PlusMinus => PlusMinus(value * pm.value, value * pm.error)
 
 
   ///////////////////////////////////////////////
   // Float _ PlusMinus Operators (Maths.scala) //
   ///////////////////////////////////////////////
-  @targetName("Float_add_PlusMinus")
-  inline def +(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo(value + pm.value)
-
-  @targetName("Float_sub_PlusMinus")
-  inline def -(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo(value - pm.value)
-
-  @targetName("Float_mul_PlusMinus")
-  inline def *(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = PlusMinus(value * pm.value, value * pm.error)
-
   @targetName("Float_div_PlusMinus")
   inline def /(pm: kse.maths.PlusMinus): kse.maths.PlusMinus =
     val v = pm.value.toDouble
@@ -296,12 +294,31 @@ extension (value: Double) {
     if value >= lo && value <= hi then value
     else throw new ArithmeticException("double overflow")
 
-  final def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
+  def closeTo(that: Double, abstol: Double = 1e-12, fractol: Double = 1e-12) = 
     jm.abs(value - that) match
       case x if x <= abstol =>
         val big = jm.max(jm.abs(value), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
+
+
+  ////////////////////////////////////////////////
+  // Double _ PlusMinus Operators (Maths.scala) //
+  ////////////////////////////////////////////////
+  @targetName("Double_add_PlusMinus")
+  inline def +(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo((value + pm.value).toFloat)
+
+  @targetName("Double_sub_PlusMinus")
+  inline def -(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = pm.valueTo((value - pm.value).toFloat)
+
+  @targetName("Double_mul_PlusMinus")
+  inline def *(pm: kse.maths.PlusMinus): kse.maths.PlusMinus = PlusMinus.D(value * pm.value, value * pm.error)
+
+  @targetName("Double_div_PlusMinus")
+  def /(pm: kse.maths.PlusMinus): kse.maths.PlusMinus =
+    val v = pm.value.toDouble
+    val r = 1.0/v
+    PlusMinus.D(value*r, pm.error.toDouble*value*r*r)
 }
 
 

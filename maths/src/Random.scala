@@ -6,6 +6,8 @@ package kse.maths
 
 import java.lang.{Math => jm}
 
+import scala.annotation.targetName
+
 
 /** Random number generator intended to be fast, low-state, but reasonably well-distributed.
  *  You can serialize this into a few Longs--in many cases only one Long!--when the cache is
@@ -16,6 +18,7 @@ sealed abstract class Prng {
   protected final var bits: Int = 0
 
   def copy: Prng
+  inline def givable: AutoPrng = AutoPrng.wrap(this)
 
   /** Removes the cache, rendering this Prng ready for serialization into Longs. */
   final def clean: this.type = { bits = 0; this }
@@ -560,80 +563,130 @@ final class Pcg64(initialState: Long = java.lang.System.nanoTime) extends PrngSt
 }
 
 
+opaque type AutoPrng = Prng
+object AutoPrng {
+  inline def wrap(prng: Prng): kse.maths.AutoPrng = prng
+
+  extension (aprng: AutoPrng) {
+    inline def get: Prng = aprng
+  }
+}
+
+
 extension (a: Array[Boolean])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeZ(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillZ(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeZ(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeZ(a, i0, iN); a }
 
 extension (a: Array[Byte])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillB(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeB(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillB(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillB(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeB(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeB(a, i0, iN); a }
 
 extension (a: Array[Short])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillS(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeS(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillS(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillS(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeS(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeS(a, i0, iN); a }
 
 extension (a: Array[Char])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillC(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeC(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillC(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillC(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeC(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeC(a, i0, iN); a }
 
 extension (a: Array[Int])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillI(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeI(a, i0, iN); a }
-  inline def randomMod(m: Int)(r: Prng): a.type = { r.fillModI(m)(a); a }
-  inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModI(m)(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillI(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillI(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeI(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeI(a, i0, iN); a }
+  @targetName("that_randMod") inline def randomMod(m: Int)(r: Prng): a.type = { r.fillModI(m)(a); a }
+  @targetName("auto_randMod") inline def randomMod(m: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModI(m)(a); a }
+  @targetName("that_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModI(m)(a, i0, iN); a }
+  @targetName("auto_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModI(m)(a, i0, iN); a }
 
 extension (a: Array[Long])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillL(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeL(a, i0, iN); a }
-  inline def randomMod(m: Long)(r: Prng): a.type = { r.fillModL(m)(a); a }
-  inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModL(m)(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillL(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillL(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeL(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeL(a, i0, iN); a }
+  @targetName("that_randMod") inline def randomMod(m: Long)(r: Prng): a.type = { r.fillModL(m)(a); a }
+  @targetName("auto_randMod") inline def randomMod(m: Long)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModL(m)(a); a }
+  @targetName("that_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModL(m)(a, i0, iN); a }
+  @targetName("auto_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModL(m)(a, i0, iN); a }
 
 extension (a: Array[Float])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillF(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeF(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillF(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillF(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeF(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeF(a, i0, iN); a }
 
 extension (a: Array[Double])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
-  inline def randomFill(r: Prng): a.type = { r.fillD(a); a }
-  inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeD(a, i0, iN); a }
-  inline def randomGaussian(r: Prng): a.type = { r.fillGaussian(a); a }
-  inline def randomGaussian(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeGaussian(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillD(a); a }
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillD(a); a }
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeD(a, i0, iN); a }
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeD(a, i0, iN); a }
+  @targetName("that_randGau") inline def randomGaussian(r: Prng): a.type = { r.fillGaussian(a); a }
+  @targetName("auto_randGau") inline def randomGaussian(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillGaussian(a); a }
+  @targetName("that_randGau") inline def randomGaussian(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeGaussian(a, i0, iN); a }
+  @targetName("auto_randGau") inline def randomGaussian(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeGaussian(a, i0, iN); a }
 
 extension [A <: AnyRef](a: Array[A])
-  inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
-  inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("that_shuffle") inline def shuffle(r: Prng): a.type = { r.shuffle(a); a }
+  @targetName("auto_shuffle") inline def shuffle(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffle(a); a }
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a, i0, iN); a }
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a, i0, iN); a }
 
-extension (i: Int)(using r: Prng)
-  inline def roll: Int = 1 + (r % i)
-  inline def d(m: Int): Int =
+extension (i: Int)(using ar: AutoPrng)
+  inline def roll: Int = 1 + (AutoPrng.get(ar) % i)
+  inline infix def d(m: Int): Int =
     var sum = 0
     var j = 0
     while j < i do
-      sum += 1 + (r % m)
+      sum += 1 + (AutoPrng.get(ar) % m)
       j += 1
     sum
-  inline def d(m: Long): Long =
+  inline infix def d(m: Long): Long =
     var sum = 0L
     var j = 0
     while j < i do
-      sum += 1L + (r % m)
+      sum += 1L + (AutoPrng.get(ar) % m)
       j += 1
     sum
 
-extension (l: Long)(using r: Prng)
-  inline def roll: Long = 1L + (r % l)
+extension (l: Long)(using ar: AutoPrng)
+  inline def roll: Long = 1L + (AutoPrng.get(ar) % l)
