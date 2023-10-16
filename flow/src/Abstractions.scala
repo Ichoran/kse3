@@ -29,26 +29,29 @@ trait Copies[A] {
   def copy(a: A): A
 }
 object Copies {
-  given copiesArrayByte:   Copies[Array[Byte  ]] with
-    def copy(a: Array[Byte  ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayBoolean: Copies[Array[Boolean]] with
+    def copy(a: Array[Boolean]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayShort:  Copies[Array[Short ]] with
-    def copy(a: Array[Short ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayByte:    Copies[Array[Byte  ]] with
+    def copy(a: Array[Byte   ]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayChar:   Copies[Array[Char  ]] with
-    def copy(a: Array[Char  ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayShort:   Copies[Array[Short ]] with
+    def copy(a: Array[Short  ]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayInt:    Copies[Array[Int   ]] with
-    def copy(a: Array[Int   ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayChar:    Copies[Array[Char  ]] with
+    def copy(a: Array[Char   ]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayLong:   Copies[Array[Long  ]] with
-    def copy(a: Array[Long  ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayInt:     Copies[Array[Int   ]] with
+    def copy(a: Array[Int    ]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayFloat:  Copies[Array[Float ]] with
-    def copy(a: Array[Float ]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayLong:    Copies[Array[Long  ]] with
+    def copy(a: Array[Long   ]) = java.util.Arrays.copyOf(a, a.length)
 
-  given copiesArrayDouble: Copies[Array[Double]] with
-    def copy(a: Array[Double]) = java.util.Arrays.copyOf(a, a.length)
+  given copiesArrayFloat:   Copies[Array[Float ]] with
+    def copy(a: Array[Float  ]) = java.util.Arrays.copyOf(a, a.length)
+
+  given copiesArrayDouble:  Copies[Array[Double]] with
+    def copy(a: Array[Double ]) = java.util.Arrays.copyOf(a, a.length)
 
   given copiesArrayGeneric[A <: AnyRef]: Copies[Array[A]] with
     def copy(a: Array[A]) = java.util.Arrays.copyOf[A & AnyRef](a, a.length)

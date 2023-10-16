@@ -112,7 +112,9 @@ println(z)             // prints: -30
 println(w)             // prints: Alt("No negatives please")
 ```
 
-You have Rust-style `.?` early-exit error handling into `Or` (and `Option` and `Either` and `Try`, but once you have `Or`, why ever use those?), and `safe{ }` to intercept exceptions and pack the result into `A Or Throwable`.
+You have Rust-style `.?` early-exit error handling for `Or` (and `Option` and `Either` and `Try`, but once you have `Or`, why ever use those?), and `safe{ }` to intercept exceptions and pack the result into `A Or Throwable`.
+
+Note that `.?` does not need to exit an entire method; it will instead exit an `Or.Ret:` block (there are other variants available, but this is the most general).  To exit a method, wrap the entire method body in an `Or.Ret:` block.
 
 ```scala
 def reverseParse(s: String): Int Or String =
@@ -148,7 +150,7 @@ val number =
     -1                       // If everything failed, would give this
 ```
 
-`.!` works to bail out from `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
+`.!` can be used on an `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  It will return the success branch if available, or will discard the error value and proceed to the next attempt or default block if it's   When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
 
 You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
 

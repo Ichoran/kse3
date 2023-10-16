@@ -233,6 +233,17 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
   catch case e if e.catchable => default
 
 
+extension [A](or: A Or Err)
+  inline def niceMap[B](f: A => B): B Or Err =
+    or.flatMap(a => Err.nice(f(a)))
+
+extension [A, E](or: A Or E)
+  def copeMap[B](f: A => B)(using cope: Cope[E]): B Or E =
+    or.flatMap{ a =>
+      try Is(f(a))
+      catch case t if t.catchable => Alt(cope fromThrowable t)
+    }
+
 
 //////////////////////////////////////////
 /// Interconversions between sum types ///

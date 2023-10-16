@@ -1737,6 +1737,10 @@ class FlowTest {
     val air = Array(3, 4, 3)
     var used = 0
 
+    val az = Array[Boolean](true, true, false)
+    T ~ az.copy         =**= az
+    T ~ (az.copy eq az) ==== false
+
     val ab = Array[Byte](1, 2, 3)
     val bb = Array[Byte](0, 1, 2, 3, 4)
     T ~ Iv(5, 8)                    ==== 0x800000005L  --: typed[Iv]
