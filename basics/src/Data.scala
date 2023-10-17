@@ -1,7 +1,9 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2011-15, 2021-23 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
 
-package kse.flow
+package kse.basics
+
+import scala.annotation.targetName
 
 
 ////////////////////////////////////////////////
@@ -203,7 +205,7 @@ opaque type Iv = Long
 object Iv extends Translucent.Companion[Iv, Long] {
   def apply(i0: Int, i1: Int): Iv = (i0 & 0xFFFFFFFFL) | (i1.toLong << 32)
   def wrap(l: Long): Iv = l
-  inline def of(inline r: scala.collection.immutable.Range): Iv = flowMacroImpl.rangePackedInLong(r)
+  inline def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
 
   extension (iv: Iv)
     inline def packedInLong: Long = iv
@@ -223,7 +225,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
   val emptyFloatArray = new Array[Float](0)
   val emptyDoubleArray = new Array[Double](0)
 
-  private[flow]
+  private[basics]
   transparent inline def pyApplyImpl[A](a: A, iv: Iv)(inline sz: A => Int, inline e: => A, inline cor: (A, Int, Int) => A): A =
     val len = sz(a)
     var j0 = iv.i0
@@ -232,7 +234,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
     if j1 < 0 then j1 = len + j1
     if j0 > j1 then e else cor(a, j0, j1+1)
 
-  private[flow]
+  private[basics]
   transparent inline def pyUpdateValueImpl[A, X](a: A, x: X, iv: Iv)(inline sz: A => Int, inline arf: (A, Int, Int, X) => Unit): Unit =
     val len = sz(a)
     var j0 = iv.i0
@@ -241,7 +243,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
     if j1 < 0 then j1 = len + j1
     if j0 <= j1 then arf(a, j0, j1+1, x)
 
-  private[flow]
+  private[basics]
   transparent inline def pyUpdateArrayImpl[A](a: A, u: A, iv: Iv)(inline sz: A => Int, inline sac: (A, Int, A, Int, Int) => Unit): Unit =
     val len = sz(a)
     var j0 = iv.i0
@@ -298,24 +300,38 @@ object PythonIndexedBytes {
   extension (a: PythonIndexedBytes)
     inline def underlying: Array[Byte] = a
 
-  extension (a: kse.flow.PythonIndexedBytes) {
+  extension (a: kse.basics.PythonIndexedBytes) {
     inline def apply(i: Int): Byte = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Byte): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Byte] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyByteArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Byte] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyByteArray, cor)
     inline def apply(inline r: Range): Array[Byte] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Byte): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Byte): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Byte): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Byte]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Byte]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Byte]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Byte] =
       val aa = new Array[Byte](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Byte ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Byte]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Byte): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Byte]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Byte] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Byte](n), (a, i, aa, n) => aa(n) = a(i))
@@ -335,26 +351,40 @@ object RIndexedBytes {
   extension (a: RIndexedBytes)
     inline def underlying: Array[Byte] = a
 
-  extension (a: kse.flow.RIndexedBytes)
+  extension (a: kse.basics.RIndexedBytes)
     inline def apply(i: Int): Byte = a.underlying(i - 1)
     inline def update(i: Int, value: Byte): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Byte] =
+    def apply(iv: kse.basics.Iv): Array[Byte] =
       if iv.i0 > iv.i1 then Iv.emptyByteArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Byte] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Byte): Unit =
+    def update(iv: kse.basics.Iv, value: Byte): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Byte): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Byte]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Byte]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Byte]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Byte] =
       val aa = new Array[Byte](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Byte        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Byte]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Byte): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Byte]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 
@@ -365,24 +395,38 @@ object PythonIndexedShorts {
   extension (a: PythonIndexedShorts)
     inline def underlying: Array[Short] = a
 
-  extension (a: kse.flow.PythonIndexedShorts) {
+  extension (a: kse.basics.PythonIndexedShorts) {
     inline def apply(i: Int): Short = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Short): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Short] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyShortArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Short] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyShortArray, cor)
     inline def apply(inline r: Range): Array[Short] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Short): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Short): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Short): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Short]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Short]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Short]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Short] =
       val aa = new Array[Short](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Short ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Short]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Short): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Short]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Short] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Short](n), (a, i, aa, n) => aa(n) = a(i))
@@ -402,26 +446,40 @@ object RIndexedShorts {
   extension (a: RIndexedShorts)
     inline def underlying: Array[Short] = a
 
-  extension (a: kse.flow.RIndexedShorts)
+  extension (a: kse.basics.RIndexedShorts)
     inline def apply(i: Int): Short = a.underlying(i - 1)
     inline def update(i: Int, value: Short): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Short] =
+    def apply(iv: kse.basics.Iv): Array[Short] =
       if iv.i0 > iv.i1 then Iv.emptyShortArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Short] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Short): Unit =
+    def update(iv: kse.basics.Iv, value: Short): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Short): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Short]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Short]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Short]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Short] =
       val aa = new Array[Short](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Short        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Short]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Short): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Short]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedChars = Array[Char]
@@ -431,24 +489,38 @@ object PythonIndexedChars {
   extension (a: PythonIndexedChars)
     inline def underlying: Array[Char] = a
 
-  extension (a: kse.flow.PythonIndexedChars) {
+  extension (a: kse.basics.PythonIndexedChars) {
     inline def apply(i: Int): Char = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Char): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Char] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyCharArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Char] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyCharArray, cor)
     inline def apply(inline r: Range): Array[Char] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Char): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Char): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Char): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Char]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Char]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Char]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Char] =
       val aa = new Array[Char](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Char ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Char]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Char): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Char]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Char] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Char](n), (a, i, aa, n) => aa(n) = a(i))
@@ -468,26 +540,40 @@ object RIndexedChars {
   extension (a: RIndexedChars)
     inline def underlying: Array[Char] = a
 
-  extension (a: kse.flow.RIndexedChars)
+  extension (a: kse.basics.RIndexedChars)
     inline def apply(i: Int): Char = a.underlying(i - 1)
     inline def update(i: Int, value: Char): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Char] =
+    def apply(iv: kse.basics.Iv): Array[Char] =
       if iv.i0 > iv.i1 then Iv.emptyCharArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Char] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Char): Unit =
+    def update(iv: kse.basics.Iv, value: Char): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Char): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Char]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Char]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Char]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Char] =
       val aa = new Array[Char](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Char        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Char]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Char): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Char]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedInts = Array[Int]
@@ -497,24 +583,38 @@ object PythonIndexedInts {
   extension (a: PythonIndexedInts)
     inline def underlying: Array[Int] = a
 
-  extension (a: kse.flow.PythonIndexedInts) {
+  extension (a: kse.basics.PythonIndexedInts) {
     inline def apply(i: Int): Int = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Int): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Int] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyIntArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Int] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyIntArray, cor)
     inline def apply(inline r: Range): Array[Int] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Int): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Int): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Int): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Int]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Int]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Int]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Int] =
       val aa = new Array[Int](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Int ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Int]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Int ): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Int]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Int] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Int](n), (a, i, aa, n) => aa(n) = a(i))
@@ -534,26 +634,40 @@ object RIndexedInts {
   extension (a: RIndexedInts)
     inline def underlying: Array[Int] = a
 
-  extension (a: kse.flow.RIndexedInts)
+  extension (a: kse.basics.RIndexedInts)
     inline def apply(i: Int): Int = a.underlying(i - 1)
     inline def update(i: Int, value: Int): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Int] =
+    def apply(iv: kse.basics.Iv): Array[Int] =
       if iv.i0 > iv.i1 then Iv.emptyIntArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Int] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Int): Unit =
+    def update(iv: kse.basics.Iv, value: Int): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Int): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Int]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Int]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Int]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Int] =
       val aa = new Array[Int](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Int        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Int]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Int): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Int]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedLongs = Array[Long]
@@ -563,24 +677,38 @@ object PythonIndexedLongs {
   extension (a: PythonIndexedLongs)
     inline def underlying: Array[Long] = a
 
-  extension (a: kse.flow.PythonIndexedLongs) {
+  extension (a: kse.basics.PythonIndexedLongs) {
     inline def apply(i: Int): Long = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Long): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Long] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyLongArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Long] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyLongArray, cor)
     inline def apply(inline r: Range): Array[Long] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Long): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Long): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Long): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Long]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Long]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Long]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Long] =
       val aa = new Array[Long](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Long ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Long]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Long ): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Long]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Long] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Long](n), (a, i, aa, n) => aa(n) = a(i))
@@ -600,26 +728,40 @@ object RIndexedLongs {
   extension (a: RIndexedLongs)
     inline def underlying: Array[Long] = a
 
-  extension (a: kse.flow.RIndexedLongs)
+  extension (a: kse.basics.RIndexedLongs)
     inline def apply(i: Int): Long = a.underlying(i - 1)
     inline def update(i: Int, value: Long): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Long] =
+    def apply(iv: kse.basics.Iv): Array[Long] =
       if iv.i0 > iv.i1 then Iv.emptyLongArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Long] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Long): Unit =
+    def update(iv: kse.basics.Iv, value: Long): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Long): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Long]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Long]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Long]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Long] =
       val aa = new Array[Long](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Long        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Long]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Long): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Long]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedFloats = Array[Float]
@@ -629,24 +771,38 @@ object PythonIndexedFloats {
   extension (a: PythonIndexedFloats)
     inline def underlying: Array[Float] = a
 
-  extension (a: kse.flow.PythonIndexedFloats) {
+  extension (a: kse.basics.PythonIndexedFloats) {
     inline def apply(i: Int): Float = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Float): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Float] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyFloatArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Float] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyFloatArray, cor)
     inline def apply(inline r: Range): Array[Float] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Float): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Float): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Float): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Float]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Float]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Float]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Float] =
       val aa = new Array[Float](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Float ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Float]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Float): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Float]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Float] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Float](n), (a, i, aa, n) => aa(n) = a(i))
@@ -666,26 +822,40 @@ object RIndexedFloats {
   extension (a: RIndexedFloats)
     inline def underlying: Array[Float] = a
 
-  extension (a: kse.flow.RIndexedFloats)
+  extension (a: kse.basics.RIndexedFloats)
     inline def apply(i: Int): Float = a.underlying(i - 1)
     inline def update(i: Int, value: Float): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Float] =
+    def apply(iv: kse.basics.Iv): Array[Float] =
       if iv.i0 > iv.i1 then Iv.emptyFloatArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Float] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Float): Unit =
+    def update(iv: kse.basics.Iv, value: Float): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Float): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Float]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Float]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Float]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Float] =
       val aa = new Array[Float](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Float        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Float]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Float): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Float]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedDoubles = Array[Double]
@@ -695,24 +865,38 @@ object PythonIndexedDoubles {
   extension (a: PythonIndexedDoubles)
     inline def underlying: Array[Double] = a
 
-  extension (a: kse.flow.PythonIndexedDoubles) {
+  extension (a: kse.basics.PythonIndexedDoubles) {
     inline def apply(i: Int): Double = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: Double): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[Double] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyDoubleArray, cor)
+    def apply(iv: kse.basics.Iv): Array[Double] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyDoubleArray, cor)
     inline def apply(inline r: Range): Array[Double] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Double): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.Iv, value: Double): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Double): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Double]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[Double]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Double]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Double] =
       val aa = new Array[Double](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        Double ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[Double]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: Double ): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Double]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean): Array[Double] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Double](n), (a, i, aa, n) => aa(n) = a(i))
@@ -732,26 +916,40 @@ object RIndexedDoubles {
   extension (a: RIndexedDoubles)
     inline def underlying: Array[Double] = a
 
-  extension (a: kse.flow.RIndexedDoubles)
+  extension (a: kse.basics.RIndexedDoubles)
     inline def apply(i: Int): Double = a.underlying(i - 1)
     inline def update(i: Int, value: Double): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[Double] =
+    def apply(iv: kse.basics.Iv): Array[Double] =
       if iv.i0 > iv.i1 then Iv.emptyDoubleArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Double] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: Double): Unit =
+    def update(iv: kse.basics.Iv, value: Double): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Double): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[Double]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[Double]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Double]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Double] =
       val aa = new Array[Double](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: Double        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[Double]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: Double): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Double]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 opaque type PythonIndexedAnyRefs[A <: AnyRef] = Array[A]
@@ -761,24 +959,38 @@ object PythonIndexedAnyRefs {
   extension [A <: AnyRef](a: PythonIndexedAnyRefs[A])
     inline def underlying: Array[A] = a
 
-  extension [A <: AnyRef](a: kse.flow.PythonIndexedAnyRefs[A]) {
+  extension [A <: AnyRef](a: kse.basics.PythonIndexedAnyRefs[A]) {
     inline def apply(i: Int): A = a.underlying(if i < 0 then a.underlying.length + i else i)
     inline def update(i: Int, value: A): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.flow.Iv): Array[A] = Iv.pyApplyImpl(a.underlying, iv)(_.length, cor(a, 0, 0), cor)
+    def apply(iv: kse.basics.Iv): Array[A] = Iv.pyApplyImpl(a.underlying, iv)(_.length, cor(a, 0, 0), cor)
     inline def apply(inline r: Range): Array[A] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: A): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, (a, i, j, x) => arf(a.asInstanceOf[Array[AnyRef]], i, j, x: AnyRef))
+    def update(iv: kse.basics.Iv, value: A): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, (a, i, j, x) => arf(a.asInstanceOf[Array[AnyRef]], i, j, x: AnyRef))
     inline def update(inline r: Range, value: A): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[A]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.Iv, values: Array[A]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[A]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int])(using scala.reflect.ClassTag[A]): Array[A] =
       val aa = new Array[A](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(index(i)) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
       aa
-    def update(indices: Array[Int], value:        A ): Unit = aFor(indices){ (i, _) => a.underlying(index(i)) = value }
-    def update(indices: Array[Int], values: Array[A]): Unit = aFor(indices){ (i, j) => a.underlying(index(i)) = values(j) }
+    def update(indices: Array[Int], value: A): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[A]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
 
     inline def apply(inline indicator: Int => Boolean)(using scala.reflect.ClassTag[A]): Array[A] =
       IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[A](n), (a, i, aa, n) => aa(n) = a(i))
@@ -798,32 +1010,46 @@ object RIndexedAnyRefs {
   extension [A <: AnyRef](a: RIndexedAnyRefs[A])
     inline def underlying: Array[A] = a
 
-  extension [A <: AnyRef](a: kse.flow.RIndexedAnyRefs[A])
+  extension [A <: AnyRef](a: kse.basics.RIndexedAnyRefs[A])
     inline def apply(i: Int): A = a.underlying(i - 1)
     inline def update(i: Int, value: A): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.flow.Iv): Array[A] =
+    def apply(iv: kse.basics.Iv): Array[A] =
       java.util.Arrays.copyOfRange(a.underlying, if iv.i0 > iv.i1 then iv.i1 else iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[A] = apply(Iv of r)
-    def update(iv: kse.flow.Iv, value: A): Unit =
+    def update(iv: kse.basics.Iv, value: A): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying.asInstanceOf[Array[AnyRef]], iv.i0 - 1, iv.i1, value: AnyRef)
     inline def update(inline r: Range, value: A): Unit = update(Iv of r, value)
-    def update(iv: kse.flow.Iv, values: Array[A]): Unit =
+    def update(iv: kse.basics.Iv, values: Array[A]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[A]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int])(using scala.reflect.ClassTag[A]): Array[A] =
       val aa = new Array[A](indices.length)
-      aFor(indices){ (i, j) => aa(j) = a.underlying(i - 1) }
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
       aa
-    def update(indices: Array[Int], value: A        ): Unit = aFor(indices){ (i, _) => a.underlying(i - 1) = value }
-    def update(indices: Array[Int], values: Array[A]): Unit = aFor(indices){ (i, j) => a.underlying(i - 1) = values(j) }
+    def update(indices: Array[Int], value: A): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[A]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
 }
 
 /** Byte Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ab: Array[Byte])
-  inline def py: kse.flow.PythonIndexedBytes = ab
-  inline def R: kse.flow.RIndexedBytes = ab
+  inline def py: kse.basics.PythonIndexedBytes = ab
+  inline def R: kse.basics.RIndexedBytes = ab
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ab, size)
   inline def shrinkCopy(size: Int) = if size < ab.length then java.util.Arrays.copyOf(ab, size) else ab
   inline def copyOfRange(i0: Int, iN: Int): Array[Byte] = java.util.Arrays.copyOfRange(ab, i0, iN)
@@ -852,22 +1078,16 @@ extension (ab: Array[Byte])
       var i = i0 + 1
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Byte => Byte): ab.type =
-    var i = 0
-    while i < ab.length do
-      ab(i) = f(ab(i))
-      i += 1
-    ab
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
 
-extension[O] (aob: Array[O])(using tlc: Translucent[Array[O], Array[Byte]])
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(aob), size) )
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Byte]])
+  @targetName("copyToSize_ArrB")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
 extension (as: Array[Short])
-  inline def py: kse.flow.PythonIndexedShorts = as
-  inline def R: kse.flow.RIndexedShorts = as
+  inline def py: kse.basics.PythonIndexedShorts = as
+  inline def R: kse.basics.RIndexedShorts = as
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(as, size)
   inline def shrinkCopy(size: Int) = if size < as.length then java.util.Arrays.copyOf(as, size) else as
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(as, i0, iN)
@@ -890,19 +1110,16 @@ extension (as: Array[Short])
       var i = i0 + 1
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Short => Short): as.type =
-    var i = 0
-    while i < as.length do
-      as(i) = f(as(i))
-      i += 1
-    as
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Short]])
+  @targetName("copyToSize_ArrS")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ac: Array[Char])
-  inline def py: kse.flow.PythonIndexedChars = ac
-  inline def R: kse.flow.RIndexedChars = ac
+  inline def py: kse.basics.PythonIndexedChars = ac
+  inline def R: kse.basics.RIndexedChars = ac
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ac, size)
   inline def shrinkCopy(size: Int) = if size < ac.length then java.util.Arrays.copyOf(ac, size) else ac
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ac, i0, iN)
@@ -925,19 +1142,16 @@ extension (ac: Array[Char])
       var i = i0 + 1
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Char => Char): ac.type =
-    var i = 0
-    while i < ac.length do
-      ac(i) = f(ac(i))
-      i += 1
-    ac
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Char]])
+  @targetName("copyToSize_ArrC")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ai: Array[Int])
-  inline def py: kse.flow.PythonIndexedInts = ai
-  inline def R: kse.flow.RIndexedInts = ai
+  inline def py: kse.basics.PythonIndexedInts = ai
+  inline def R: kse.basics.RIndexedInts = ai
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ai, size)
   inline def shrinkCopy(size: Int) = if size < ai.length then java.util.Arrays.copyOf(ai, size) else ai
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ai, i0, iN)
@@ -961,19 +1175,16 @@ extension (ai: Array[Int])
       var i = i0 + 1
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Int => Int): ai.type =
-    var i = 0
-    while i < ai.length do
-      ai(i) = f(ai(i))
-      i += 1
-    ai
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Int]])
+  @targetName("copyToSize_ArrI")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Long Array specific functionality from java.util.Arrays and java.lang.System */
 extension (al: Array[Long])
-  inline def py: kse.flow.PythonIndexedLongs = al
-  inline def R: kse.flow.RIndexedLongs = al
+  inline def py: kse.basics.PythonIndexedLongs = al
+  inline def R: kse.basics.RIndexedLongs = al
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(al, size)
   inline def shrinkCopy(size: Int) = if size < al.length then java.util.Arrays.copyOf(al, size) else al
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(al, i0, iN)
@@ -997,19 +1208,16 @@ extension (al: Array[Long])
       var i = i0 + 1
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Long => Long): al.type =
-    var i = 0
-    while i < al.length do
-      al(i) = f(al(i))
-      i += 1
-    al
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Long]])
+  @targetName("copyToSize_ArrL")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Float Array specific functionality from java.util.Arrays and java.lang.System */
 extension (af: Array[Float])
-  inline def py: kse.flow.PythonIndexedFloats = af
-  inline def R: kse.flow.RIndexedFloats = af
+  inline def py: kse.basics.PythonIndexedFloats = af
+  inline def R: kse.basics.RIndexedFloats = af
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(af, size)
   inline def shrinkCopy(size: Int) = if size < af.length then java.util.Arrays.copyOf(af, size) else af
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(af, i0, iN)
@@ -1033,19 +1241,16 @@ extension (af: Array[Float])
       var i = i0 + 1
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Float => Float): af.type =
-    var i = 0
-    while i < af.length do
-      af(i) = f(af(i))
-      i += 1
-    af
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Float]])
+  @targetName("copyToSize_ArrF")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Double Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ad: Array[Double])
-  inline def py: kse.flow.PythonIndexedDoubles = ad
-  inline def R: kse.flow.RIndexedDoubles = ad
+  inline def py: kse.basics.PythonIndexedDoubles = ad
+  inline def R: kse.basics.RIndexedDoubles = ad
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ad, size)
   inline def shrinkCopy(size: Int) = if size < ad.length then java.util.Arrays.copyOf(ad, size) else ad
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ad, i0, iN)
@@ -1069,19 +1274,16 @@ extension (ad: Array[Double])
       var i = i0 + 1
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
-  inline def zapAll(inline f: Double => Double): ad.type =
-    var i = 0
-    while i < ad.length do
-      ad(i) = f(ad(i))
-      i += 1
-    ad
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Double]])
+  @targetName("copyToSize_ArrD")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 /** Object Array specific functionality from java.util.Arrays and java.lang.System */
 extension [A >: Null <: AnyRef](aa: Array[A])
-  inline def py: kse.flow.PythonIndexedAnyRefs[A] = aa
-  inline def R: kse.flow.RIndexedAnyRefs[A] = aa
+  inline def py: kse.basics.PythonIndexedAnyRefs[A] = aa
+  inline def R: kse.basics.RIndexedAnyRefs[A] = aa
   inline def copyToSize(size: Int): Array[A] = java.util.Arrays.copyOf(aa, size)
   inline def shrinkCopy(size: Int): Array[A] = if size < aa.length then java.util.Arrays.copyOf(aa, size) else aa
   inline def copyOfRange(i0: Int, iN: Int): Array[A] = java.util.Arrays.copyOfRange(aa, i0, iN)
@@ -1104,14 +1306,11 @@ extension [A >: Null <: AnyRef](aa: Array[A])
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
-  inline def zapAll(inline f: A => A): aa.type =
-    var i = 0
-    while i < aa.length do
-      aa(i) = f(aa(i))
-      i += 1
-    aa
-  // use in OverloadedExtensions
-  // zap in OverloadedExtensions
+
+extension[O, A >: Null <: AnyRef] (ao: Array[O])(using tlc: Translucent[Array[O], Array[A]])
+  @targetName("copyToSize_ArrA")
+  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
+
 
 
 /** Holds mutable data (would be better if standard library exposed this!) */
@@ -2116,89 +2315,3 @@ extension [A, B, C, D, E, F, G, H, I](q: (A, B, C, D, E, F, G, H, I)) {
   /** Split this tuple after element 8, creating an 8-tuple and a singleton. */
   inline def cutAt8: ((A, B, C, D, E, F, G, H), I) = ((q._1, q._2, q._3, q._4, q._5, q._6, q._7, q._8), q._9)
 }
-
-
-
-//////////////////////////////////////////////////////////////
-/// Methods for dealing with errors and Ors in collections ///
-//////////////////////////////////////////////////////////////
-
-extension [X, Y, CC[_]](coll: CC[X Or Y])(using iter: scala.collection.generic.IsIterableOnce[CC[X Or Y]]) {
-  def collectIs(using factory: scala.collection.Factory[X, CC[X]], id: iter.A =:= (X Or Y)): CC[X] =
-    factory.fromSpecific(iter(coll).iterator.asInstanceOf[Iterator[X Or Y]].collect{ case xy if xy.isIs => xy.get })
-
-  def collectAlt(using factory: scala.collection.Factory[Y, CC[Y]], id: iter.A =:= (X Or Y)): CC[Y] =
-    factory.fromSpecific(iter(coll).iterator.asInstanceOf[Iterator[X Or Y]].collect{ case xy if xy.isAlt => xy.alt })
-}
-
-
-extension [A, CC[_]](coll: CC[A Or Err])(using iter: scala.collection.generic.IsIterable[CC[A Or Err]]) {
-  /** Collects all favored results as favored, or gives the first disfavored result as disfavored */
-  def valid(using factory: scala.collection.Factory[A, CC[A]], id: iter.A =:= (A Or Err)): CC[A] Or Err = Or.Ret:
-    val b = factory.newBuilder
-    val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]] // id witnesses that this must be the case
-    while i.hasNext do
-      b += i.next.?
-    b.result()
-
-  /** Extracts all disfavored results */
-  def errors(using factory: scala.collection.Factory[Err, CC[Err]], id: iter.A =:= (A Or Err)): CC[Err] =
-    val b = factory.newBuilder
-    val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]]
-    while i.hasNext do
-      i.next.foreachAlt(b += _)
-    b.result()
-
-  /** Collects all favored results as favored, or if there are any errors, collects all those as disfavored */
-  def validOrErrors(
-    using fa: scala.collection.Factory[A, CC[A]], ferr: scala.collection.Factory[Err, CC[Err]], id: iter.A =:= (A Or Err)
-  ): CC[A] Or CC[Err] =
-    var ba: scala.collection.mutable.Builder[A, CC[A]] = null
-    var berr: scala.collection.mutable.Builder[Err, CC[Err]] = null
-    val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]]
-    if i.hasNext then
-      i.next.foreachThem{ a =>
-        ba = fa.newBuilder; ba += a
-      }{ err =>
-        berr = ferr.newBuilder; berr += err
-      }
-      while (berr eq null) && i.hasNext do
-        i.next.foreachThem{ ba += _ }{ err =>
-          berr = ferr.newBuilder; berr += err
-        }
-      while i.hasNext do
-        i.next.foreachAlt(berr += _)
-      if berr ne null then berr.result().asAlt
-      else ba.result().asIs
-    else fa.newBuilder.result().asIs
-}
-
-
-extension [A, CC[_]](coll: CC[A Or Err])(using seq: scala.collection.generic.IsSeq[CC[A Or Err]])
-  /** Collects all favored results as favored, or partitions the results into favored results and indexed disfavored results */
-  def validOrIndexedResults(
-    using fa: scala.collection.Factory[A, CC[A]], fie: scala.collection.Factory[(Int, Err), CC[(Int, Err)]], id: seq.A =:= (A Or Err)
-  ): CC[A] Or (CC[A], CC[(Int, Err)]) =
-    var ba: scala.collection.mutable.Builder[A, CC[A]] = fa.newBuilder
-    var bie: scala.collection.mutable.Builder[(Int, Err), CC[(Int, Err)]] = null
-    var n = 0
-    val i = seq(coll).iterator.asInstanceOf[Iterator[A Or Err]]
-    while i.hasNext do
-      i.next.foreachThem(ba += _){ err =>
-        if bie eq null then bie = fie.newBuilder; bie += ((n, err))
-      }
-      n += 1
-    if bie eq null then ba.result().asIs
-    else (ba.result(), bie.result()).asAlt
-
-
-extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterable[CC[A]])
-  /** Maps a value where an error might occur, returning the (first) error as disfavored,
-    * and the mapped result as favored if no error is encountered
-    */
-  def validMap[B](f: A => B Or Err)(using factory: scala.collection.Factory[B, CC[B]], id: iter.A =:= A): CC[B] Or Err = Or.Ret:
-    val b = factory.newBuilder
-    val i = iter(coll).iterator.asInstanceOf[Iterator[A]]
-    while i.hasNext do
-      b += f(i.next).?
-    b.result()

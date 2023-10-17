@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2023 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
-package kse.flow
+package kse.basics
 
 
 /** Typeclass that witnesses that A is actually opaquely implemented by B */
