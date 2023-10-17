@@ -7,6 +7,7 @@ import java.lang.{StringBuilder => StB}
 
 import scala.util.{Try, Success, Failure, boundary}
 
+import kse.basics._
 import kse.flow._
 import kse.maths._
 import kse.maths.packed._

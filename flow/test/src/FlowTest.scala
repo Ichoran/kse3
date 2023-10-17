@@ -55,6 +55,7 @@ object BytecodeCk {
 @RunWith(classOf[JUnit4])
 class FlowTest {
   import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.{given, _}
   import kse.flow.{_, given}
 
   given Asserter(

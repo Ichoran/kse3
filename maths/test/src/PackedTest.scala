@@ -24,6 +24,7 @@ class PackedTest() {
   import java.nio.ByteOrder
 
   import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.{given, _}
   import kse.flow.{_, given}
   import kse.maths.{_, given}
   import kse.maths.packed.{_, given}

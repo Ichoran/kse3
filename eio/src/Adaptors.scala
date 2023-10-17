@@ -10,6 +10,7 @@ import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByte
 import java.nio.charset.StandardCharsets._
 import java.util.Base64
 
+import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}

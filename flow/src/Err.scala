@@ -7,6 +7,8 @@ package kse.flow
 import scala.util.boundary
 import scala.util.boundary.Label
 
+import kse.basics._
+
 
 opaque type Err = String | ErrType
 object Err extends Translucent.Companion[Err, String | ErrType] {

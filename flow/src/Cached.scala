@@ -9,6 +9,7 @@ import java.lang.ref.SoftReference
 import java.time._
 import java.util.concurrent.atomic._
 
+import kse.basics._
 
 
 /** A general way to defer a computation but cache the result.

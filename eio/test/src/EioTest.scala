@@ -30,6 +30,7 @@ import sourcecode.{Line, given}
 @RunWith(classOf[JUnit4])
 class EioTest {
   import kse.testutilities.TestUtilities.{given, _}
+  import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.maths.{given, _}
   import kse.maths.packed.{given, _}

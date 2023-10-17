@@ -14,6 +14,7 @@ import scala.util.boundary
 import scala.annotation.targetName
 import scala.collection.{ IterableOnce => IOnce }
 
+import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}

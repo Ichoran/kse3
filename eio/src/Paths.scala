@@ -13,6 +13,7 @@ import java.util.zip._
 import scala.annotation.tailrec
 import scala.util.boundary;
 
+import kse.basics.{given, _}
 import kse.flow.{given, _}
 
 extension (pathname: String) {

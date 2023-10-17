@@ -10,6 +10,7 @@ import java.nio.file._
 
 import scala.annotation.targetName
 
+import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 
