@@ -43,6 +43,7 @@ to try it out.  If you use some other build system, you can probably figure out 
 Then in your code,
 
 ```scala
+import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
@@ -73,13 +74,66 @@ be `kse.` something--a name collision with the original Kse for Scala 2, but
 you shouldn't use that with Scala 3 because Kse is actually still on Scala
 2.12.  So it's all good.
 
-### kse.flow
+### kse.basics
 
-The flow module is available separately (but you probably don't want to use it
-separately).  In mill, add the dependency
+The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.7"
+ivy"com.github.ichoran::kse3-basics:0.1.9"
+```
+
+and in your code,
+
+```scala
+import kse.basics.{given, _}
+```
+
+You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
+
+```scala
+val m = (1 + 2*3).pipe(x => x*x)
+val n = (1 + 2*3).tap(println) + 1 // prints: 7
+println(n)                         // prints: 8
+println(m)                         // prints: 49
+```
+
+Unlike the equivalents in the Scala standard library, these are inlined and thus can be used without a loss in speed.
+
+
+There are standard mutable containers for primitive and object types for counting, callbacks, and other such use:
+
+```scala
+def nextEven(m: Mu[Int]): m.type =
+  m.zap(i => if i % 2 == 0 then i + 2 else i + 1)
+
+val count = Mu(1)
+for (i <- 1 to 5) nextEven(count)
+println(count.value)   // prints: 10
+
+
+def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
+  if s.isEmpty then 0
+  else
+    val tok = s.split("\\s+")
+    tokens.foreach(_.set(tok))
+    tok.length
+
+val tok = Mu(Array.empty[String])
+println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
+println(tok.value.mkString)                         // prints: minnowsalmonbasseel
+```
+
+Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays.  You can also use Python-style indexing of arrays (with `.py`) or R-style (starts at 1) with `.R`.
+
+See the test suite for examples of everything you could do.
+
+
+### kse.flow
+
+The flow module depends only on kse.basics.  In mill, add the dependency
+
+```scala
+ivy"com.github.ichoran::kse3-flow:0.1.9"
 ```
 
 and in your code,
@@ -152,43 +206,11 @@ val number =
 
 `.!` can be used on an `Or`, `Option`, `Either`, `Try`, an empty iterator (if non-empty, it will get the next item), or a `Boolean` test which is false.  It will return the success branch if available, or will discard the error value and proceed to the next attempt or default block if it's   When a `Boolean` test succeeds, you can chain `&&` afterwards to run the next computation.  If you want `attempt` to catch exceptions too, use `attempt.safe` and chain with `.safe` instead of `.attempt`.
 
-You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
-
-```scala
-val m = (1 + 2*3).pipe(x => x*x)
-val n = (1 + 2*3).tap(println) + 1 // prints: 7
-println(n)                         // prints: 8
-println(m)                         // prints: 49
-```
-
 There are inlined index-based loops, as fast as `while` but without risk of an indexing error:
 
 ```scala
 val list = List("salmon", "herring", "perch")
 iFor(list.iterator){ (i, s) => println(s*i) }  // prints newline, then "herring", then "perchperch"
-```
-
-There are standard mutable containers for primitive and object types for counting, callbacks, and other such use:
-
-```scala
-def nextEven(m: Mu[Int]): m.type =
-  m.zap(i => if i % 2 == 0 then i + 2 else i + 1)
-
-val count = Mu(1)
-for (i <- 1 to 5) nextEven(count)
-println(count.value)   // prints: 10
-
-
-def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
-  if s.isEmpty then 0
-  else
-    val tok = s.split("\\s+")
-    tokens.foreach(_.set(tok))
-    tok.length
-
-val tok = Mu(Array.empty[String])
-println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
-println(tok.value.mkString)                         // prints: minnowsalmonbasseel
 ```
 
 And a variety of other nice things that you can find by perusing the ScalaDoc, the unit tests, or the code.
