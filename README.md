@@ -242,7 +242,7 @@ point if they are expected to be used heavily--in that case we can assume
 the reader knows what they mean.  Only rarely-used or discouraged method names
 should be long.  If you want to know what 'py' does (the first time),
 read the documentation or the source code!  However, it is important to avoid
-method names that are so terse as to be easily confused.
+method names that are so terse as to be easily confused (see: readability first).
 
 3. Assume infix.  Even if it's not marked, assume anything could be used
 infix if it might possibly read more clearly.  That is: infix notation is
@@ -341,9 +341,10 @@ Control flow will not be caught.
 and other errors into an `Or Err` preserving the `Or Err` status if it's
 already there.  `nice{ foo } || bar.nicely(f)` is a sensible fallback pattern.
 
-3. **Do not every use `Try`.**  It catches control flow.  You are expected to
+3. **Do not ever use `Try`.**  It catches control flow.  You need to
 understand threading, lazy evaluation, and other situations where control flow
-might escape.  The result will be wrong even if you catch control flow.
+might escape.  The result will be wrong even if you catch control flow
+with `Try`.
 
 4. If you must catch control flow-style errors, use `threadsafe{ ... }`.
 `ControlThrowable` will be caught too.

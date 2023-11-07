@@ -24,52 +24,93 @@ infix trait AutoMap[Y, YY] extends Function1[Y, YY] {}
 
 extension [X, Y](or: X Or Y)
   /** Delivers the favored branch or returns, perhaps nonlocally the disfavored branch. */
-  inline def ?[L >: Alt[Y]](using Label[L]) : X = (or: @unchecked) match
+  inline def ?[L >: Alt[Y]](using Label[L]): X = (or: @unchecked) match
     case y: Alt[Y @unchecked] => boundary.break(y)
     case _ => Is unwrap or.asInstanceOf[Is[X]]
 
   /** Delivers the favored branch or remaps the disfavored branch and returns it perhaps nonlocally. */
-  inline def ?+[YY, L >: Alt[YY]](inline f: Y => YY)(using Label[L]) : X =
+  inline def ?+[YY, L >: Alt[YY]](inline f: Y => YY)(using Label[L]): X =
     or.mapAlt(f).?
 
   /** Delivers the favored branch or automatically remaps the disfavored branch before returning it perhaps nonlocally. */
-  inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY) : X =
+  inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY): X =
     or.mapAlt(m).?
 
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
-  inline def ?[E >: Left[L, R]](using Label[E]) : R = either match
+  inline def ?[E >: Left[L, R]](using Label[E]): R = either match
     case Right(r) => r
     case l: Left[L, R] => boundary.break(l)
 
 extension [A](option: Option[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `None`. */
-  inline def ?[N >: None.type](using Label[N]) : A = option match
+  inline def ?[N >: None.type](using Label[N]): A = option match
     case Some(a) => a
     case n: None.type => boundary.break(n)
 
+extension [A](iterator: Iterator[A])
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
+  inline def ?(using Label[Unit]): A =
+    if iterator.hasNext then iterator.next else boundary.break()
+
+extension [A](stepper: scala.collection.Stepper[A])
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
+  inline def ?(using Label[Unit]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break()
+
+extension [A](iterator: java.util.Iterator[A])
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
+  inline def ?(using Label[Unit]): A =
+    if iterator.hasNext then iterator.next else boundary.break()
+
+extension [A](enumerator: java.util.Enumeration[A])
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
+  inline def ?(using Label[Unit]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break()
+
 extension (double: Double)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
-  inline def ?(using Label[Double]) : Double = double match
+  inline def ?(using Label[Double]): Double = double match
     case x if java.lang.Double.isNaN(x) => boundary.break(x)
     case y => y
 
 extension (float: Float)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
-  inline def ?(using Label[Float]) : Float = float match
-    case x if java.lang.Float.isNaN(x) => boundary.break(x)
+  inline def ?(using Label[Double]): Float = float match
+    case x if java.lang.Float.isNaN(x) => boundary.break(Double.NaN)
     case y => y
+
+extension (test: Boolean)
+  /** Does a perhaps nonlocal return if the test value is false */
+  inline def ?(using Label[Unit]): Unit =
+    if !test then boundary.break()
+
+
+/** Enables early returns in side-effecting code.  Returns true if completed normally.
+  *
+  * Usage:
+  * {{{
+  * def printFirstThree[A](ia: Iterator[A]) = escape:
+  *   println(ia.?)
+  *   println(ia.?)
+  *   println(ia.?)
+  * }}}
+  */
+inline def escape(inline f: Label[Unit] ?=> Unit): Boolean =
+  var executionComplete = false
+  boundary{ f; executionComplete = true }
+  executionComplete
+
 
 /** Enables returning Double or Float NaN values from within a method.  Must enclose entire mthod.
   *
   * Usage:
   * {{{
-  * def nansgn(d: Double): Double = Ret {
+  * def nansgn(d: Double) = calculate:
   *   if d.? < 0 then -1.0 else 1.0
-  * }
   * }}}
   */
-inline def Ret[A <: Float | Double](inline a: Label[A] ?=> A): A = boundary{ a }
+inline def calculate(inline a: Label[Double] ?=> Double): Double = boundary{ a }
 
 extension (objectOr: Or.type) {
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.

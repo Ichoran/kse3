@@ -5,12 +5,14 @@ package kse.basics.intervalMacroImpl
 
 import scala.quoted.*
 
-inline def packRangeInLongInclusive(i0: Int, i1: Int): Long =
-  (i0 & 0xFFFFFFFFL) | (i1.toLong << 32)
+def packRangeInLongInclusive(i0: Int, i1: Int): Long =
+  if i0 < 0 then throw new IllegalArgumentException(s"Interval start index must be non-negative, not $i0")
+  if i1 == Int.MaxValue then (i0 & 0xFFFFFFFFL) | 0x7FFFFFFF00000000L
+  else (i0 & 0xFFFFFFFFL) | ((i1+1).toLong << 32)
 
-inline def packRangeInLongExclusive(i0: Int, iN: Int): Long =
-  if iN > Int.MinValue then (i0 & 0xFFFFFFFFL) | ((iN - 1).toLong << 32)
-  else (i0 & 0xFFFFFFFFL) | 0x8000000000000000L
+def packRangeInLongExclusive(i0: Int, iN: Int): Long =
+  if i0 < 0 then throw new IllegalArgumentException(s"Interval start index must be non-negative, not $i0")
+  (i0 & 0xFFFFFFFFL) | (iN.toLong << 32)
 
 def rangePackedInLongExpr(range: Expr[Any])(using qt: Quotes): Expr[Long] =
   import qt.reflect._

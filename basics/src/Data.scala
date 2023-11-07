@@ -4,7 +4,9 @@
 package kse.basics
 
 import scala.annotation.targetName
+import scala.reflect.ClassTag
 
+import kse.basics.intervals._
 
 ////////////////////////////////////////////////
 /// Packaging and wrappers to alter behavior ///
@@ -201,57 +203,38 @@ object ArrayReform {
 }
 
 
-opaque type Iv = Long
-object Iv extends Translucent.Companion[Iv, Long] {
-  def apply(i0: Int, i1: Int): Iv = (i0 & 0xFFFFFFFFL) | (i1.toLong << 32)
-  def wrap(l: Long): Iv = l
-  inline def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
+object End {
+  inline def -(i: Int): BeforeEndIdx = BeforeEndIdx.wrap(-1-i) 
+  inline def +(i: Int): BeforeEndIdx = BeforeEndIdx.wrap(-1+i)
+  @targetName("toLiteral")
+  inline def to(j: Int): PIv =
+    if j < 0  then throw new IllegalArgumentException(s"Cannot index ending at $j")
+    PIv(-1, j)
 
-  extension (iv: Iv)
-    inline def packedInLong: Long = iv
-    inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
-    inline def i1: Int = (iv >>> 32).toInt
-    def contains(i: Int): Boolean =
-      (i >= Iv.i0(iv)) && { val j = Iv.i1(iv); i <= j && j != Int.MinValue }
-    def pr: String = s"${Iv.i0(iv)}..${Iv.i1(iv)}"
+  @targetName("toBeforeEndIdx")
+  inline def to(e: BeforeEndIdx): PIv =
+    val j = BeforeEndIdx.unwrap(e)
+    if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
+    PIv(-1, j)
 
-  val empty: Iv = 0xF0000000F0000001L
-
-  val emptyByteArray = new Array[Byte](0)
-  val emptyShortArray = new Array[Short](0)
-  val emptyCharArray = new Array[Char](0)
-  val emptyIntArray = new Array[Int](0)
-  val emptyLongArray = new Array[Long](0)
-  val emptyFloatArray = new Array[Float](0)
-  val emptyDoubleArray = new Array[Double](0)
-
-  private[basics]
-  transparent inline def pyApplyImpl[A](a: A, iv: Iv)(inline sz: A => Int, inline e: => A, inline cor: (A, Int, Int) => A): A =
-    val len = sz(a)
-    var j0 = iv.i0
-    if j0 < 0 then j0 = len + j0
-    var j1 = iv.i1
-    if j1 < 0 then j1 = len + j1
-    if j0 > j1 then e else cor(a, j0, j1+1)
-
-  private[basics]
-  transparent inline def pyUpdateValueImpl[A, X](a: A, x: X, iv: Iv)(inline sz: A => Int, inline arf: (A, Int, Int, X) => Unit): Unit =
-    val len = sz(a)
-    var j0 = iv.i0
-    if j0 < 0 then j0 = len + j0
-    var j1 = iv.i1
-    if j1 < 0 then j1 = len + j1
-    if j0 <= j1 then arf(a, j0, j1+1, x)
-
-  private[basics]
-  transparent inline def pyUpdateArrayImpl[A](a: A, u: A, iv: Iv)(inline sz: A => Int, inline sac: (A, Int, A, Int, Int) => Unit): Unit =
-    val len = sz(a)
-    var j0 = iv.i0
-    if j0 < 0 then j0 = len + j0
-    var j1 = iv.i1
-    if j1 < 0 then j1 = len + j1
-    if j0 <= j1 then sac(u, 0, a, j0, 1 + j1 - j0)
+  @targetName("toEnd")
+  inline def to(end: End.type): PIv = PIv.wrap(-1L)
 }
+
+
+extension (i: Int)
+  @targetName("toEndIdx")
+  inline def to(end: End.type): PIv =
+    if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
+    PIv(i, -1)
+
+  @targetName("toBeforeEndIdx")
+  inline def to(e: BeforeEndIdx): PIv =
+    val j = BeforeEndIdx.unwrap(e)
+    if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
+    if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
+    PIv(i, j)
+
 
 
 
@@ -293,6 +276,122 @@ object IndicatorImpl {
 }
 
 
+
+opaque type PythonIndexed[A] = Array[A]
+object PythonIndexed {
+  inline def apply[A](a: Array[A]): PythonIndexed[A] = a
+
+  extension [A](a: PythonIndexed[A])
+    inline def underlying: Array[A] = a
+
+  extension [A](a: kse.basics.PythonIndexed[A]) {
+    inline def apply(i: Int): A = a.underlying(if i < 0 then a.underlying.length + i else i)
+    inline def update(i: Int, inline value: A): Unit =
+      a.underlying(if i < 0 then a.underlying.length + i else i) = value
+    inline def index(i: Int): Int = if i < 0 then a.underlying.length + i else i
+
+
+  }
+}
+
+
+/*
+opaque type PythonIndexedBooleans = Array[Boolean]
+object PythonIndexedBooleans {
+  import java.util.Arrays.{copyOfRange => cor, fill => arf}
+
+  extension (a: PythonIndexedBooleans)
+    inline def underlying: Array[Boolean] = a
+
+  extension (a: kse.basics.PythonIndexedBooleans) {
+    inline def apply(i: Int): Boolean = a.underlying(if i < 0 then a.underlying.length + i else i)
+    inline def update(i: Int, value: Boolean): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
+    inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
+
+    def apply(iv: kse.basics.intervals.Iv): Array[Boolean] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyBooleanArray, cor)
+    inline def apply(inline r: Range): Array[Boolean] = apply(Iv of r)
+    def update(iv: kse.basics.intervals.Iv, value: Boolean): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    inline def update(inline r: Range, value: Boolean): Unit = update(Iv of r, value)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Boolean]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    inline def update(inline r: Range, values: Array[Boolean]): Unit = update(Iv of r, values)
+
+    def apply(indices: Array[Int]): Array[Boolean] =
+      val aa = new Array[Boolean](indices.length)
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(index(i))
+        j += 1
+      aa
+    def update(indices: Array[Int], value: Boolean): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Boolean]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(index(i)) = values(j)
+        j += 1
+
+    inline def apply(inline indicator: Int => Boolean): Array[Boolean] =
+      IndicatorImpl.applyImpl(a.underlying)(_.length, indicator, n => new Array[Boolean](n), (a, i, aa, n) => aa(n) = a(i))
+    inline def update(inline indicator: Int => Boolean, value: Boolean): Unit =
+      IndicatorImpl.updateValueImpl(a.underlying, value)(_.length, indicator, (xs, i, x) => xs(i) = x)
+    inline def update(inline indicator: Int => Boolean, values: Array[Boolean]): Unit =
+      IndicatorImpl.updateArrayImpl(a.underlying, values)(_.length, indicator, (x, i, y, j) => y(j) = x(i))
+
+    def apply(zs: Array[Boolean]): Array[Boolean] = apply((i: Int) => i < zs.length && zs(i))
+    def update(zs: Array[Boolean], value: Boolean): Unit = update((i: Int) => i < zs.length && zs(i), value)
+    def update(zs: Array[Boolean], values: Array[Boolean]): Unit = update((i: Int) => i < zs.length && zs(i), values)
+  }
+}
+
+opaque type RIndexedBooleans = Array[Boolean]
+object RIndexedBooleans {
+  extension (a: RIndexedBooleans)
+    inline def underlying: Array[Boolean] = a
+
+  extension (a: kse.basics.RIndexedBooleans)
+    inline def apply(i: Int): Boolean = a.underlying(i - 1)
+    inline def update(i: Int, value: Boolean): Unit =  { a.underlying(i - 1) = value }
+
+    def apply(iv: kse.basics.intervals.Iv): Array[Boolean] =
+      if iv.i0 > iv.i1 then Iv.emptyBooleanArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
+    inline def apply(inline r: Range): Array[Boolean] = apply(Iv of r)
+    def update(iv: kse.basics.intervals.Iv, value: Boolean): Unit =
+      if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
+    inline def update(inline r: Range, value: Boolean): Unit = update(Iv of r, value)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Boolean]): Unit =
+      if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
+    inline def update(inline r: Range, values: Array[Boolean]): Unit = update(Iv of r, values)
+
+    def apply(indices: Array[Int]): Array[Boolean] =
+      val aa = new Array[Boolean](indices.length)
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        aa(j) = a.underlying(i - 1)
+        j += 1
+      aa
+    def update(indices: Array[Int], value: Boolean): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = value
+        j += 1
+    def update(indices: Array[Int], values: Array[Boolean]): Unit =
+      var j = 0
+      while j < indices.length do
+        val i = indices(j)
+        a.underlying(i - 1) = values(j)
+        j += 1
+}
+*/
+
+
 opaque type PythonIndexedBytes = Array[Byte]
 object PythonIndexedBytes {
   import java.util.Arrays.{copyOfRange => cor, fill => arf}
@@ -305,11 +404,11 @@ object PythonIndexedBytes {
     inline def update(i: Int, value: Byte): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Byte] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyByteArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Byte] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyByteArray, cor)
     inline def apply(inline r: Range): Array[Byte] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Byte): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Byte): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Byte): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Byte]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Byte]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Byte]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Byte] =
@@ -355,13 +454,13 @@ object RIndexedBytes {
     inline def apply(i: Int): Byte = a.underlying(i - 1)
     inline def update(i: Int, value: Byte): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Byte] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Byte] =
       if iv.i0 > iv.i1 then Iv.emptyByteArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Byte] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Byte): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Byte): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Byte): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Byte]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Byte]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Byte]): Unit = update(Iv of r, values)
 
@@ -400,11 +499,11 @@ object PythonIndexedShorts {
     inline def update(i: Int, value: Short): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Short] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyShortArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Short] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyShortArray, cor)
     inline def apply(inline r: Range): Array[Short] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Short): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Short): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Short): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Short]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Short]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Short]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Short] =
@@ -450,13 +549,13 @@ object RIndexedShorts {
     inline def apply(i: Int): Short = a.underlying(i - 1)
     inline def update(i: Int, value: Short): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Short] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Short] =
       if iv.i0 > iv.i1 then Iv.emptyShortArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Short] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Short): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Short): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Short): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Short]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Short]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Short]): Unit = update(Iv of r, values)
 
@@ -494,11 +593,11 @@ object PythonIndexedChars {
     inline def update(i: Int, value: Char): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Char] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyCharArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Char] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyCharArray, cor)
     inline def apply(inline r: Range): Array[Char] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Char): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Char): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Char): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Char]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Char]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Char]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Char] =
@@ -544,13 +643,13 @@ object RIndexedChars {
     inline def apply(i: Int): Char = a.underlying(i - 1)
     inline def update(i: Int, value: Char): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Char] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Char] =
       if iv.i0 > iv.i1 then Iv.emptyCharArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Char] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Char): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Char): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Char): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Char]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Char]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Char]): Unit = update(Iv of r, values)
 
@@ -588,11 +687,11 @@ object PythonIndexedInts {
     inline def update(i: Int, value: Int): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Int] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyIntArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Int] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyIntArray, cor)
     inline def apply(inline r: Range): Array[Int] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Int): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Int): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Int): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Int]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Int]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Int]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Int] =
@@ -638,13 +737,13 @@ object RIndexedInts {
     inline def apply(i: Int): Int = a.underlying(i - 1)
     inline def update(i: Int, value: Int): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Int] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Int] =
       if iv.i0 > iv.i1 then Iv.emptyIntArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Int] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Int): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Int): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Int): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Int]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Int]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Int]): Unit = update(Iv of r, values)
 
@@ -682,11 +781,11 @@ object PythonIndexedLongs {
     inline def update(i: Int, value: Long): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Long] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyLongArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Long] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyLongArray, cor)
     inline def apply(inline r: Range): Array[Long] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Long): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Long): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Long): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Long]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Long]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Long]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Long] =
@@ -732,13 +831,13 @@ object RIndexedLongs {
     inline def apply(i: Int): Long = a.underlying(i - 1)
     inline def update(i: Int, value: Long): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Long] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Long] =
       if iv.i0 > iv.i1 then Iv.emptyLongArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Long] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Long): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Long): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Long): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Long]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Long]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Long]): Unit = update(Iv of r, values)
 
@@ -776,11 +875,11 @@ object PythonIndexedFloats {
     inline def update(i: Int, value: Float): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Float] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyFloatArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Float] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyFloatArray, cor)
     inline def apply(inline r: Range): Array[Float] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Float): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Float): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Float): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Float]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Float]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Float]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Float] =
@@ -826,13 +925,13 @@ object RIndexedFloats {
     inline def apply(i: Int): Float = a.underlying(i - 1)
     inline def update(i: Int, value: Float): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Float] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Float] =
       if iv.i0 > iv.i1 then Iv.emptyFloatArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Float] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Float): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Float): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Float): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Float]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Float]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Float]): Unit = update(Iv of r, values)
 
@@ -870,11 +969,11 @@ object PythonIndexedDoubles {
     inline def update(i: Int, value: Double): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[Double] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyDoubleArray, cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[Double] = Iv.pyApplyImpl(a.underlying, iv)(_.length, Iv.emptyDoubleArray, cor)
     inline def apply(inline r: Range): Array[Double] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Double): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
+    def update(iv: kse.basics.intervals.Iv, value: Double): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, arf)
     inline def update(inline r: Range, value: Double): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Double]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[Double]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[Double]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int]): Array[Double] =
@@ -920,13 +1019,13 @@ object RIndexedDoubles {
     inline def apply(i: Int): Double = a.underlying(i - 1)
     inline def update(i: Int, value: Double): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[Double] =
+    def apply(iv: kse.basics.intervals.Iv): Array[Double] =
       if iv.i0 > iv.i1 then Iv.emptyDoubleArray else java.util.Arrays.copyOfRange(a.underlying, iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[Double] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: Double): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: Double): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying, iv.i0 - 1, iv.i1, value)
     inline def update(inline r: Range, value: Double): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[Double]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[Double]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[Double]): Unit = update(Iv of r, values)
 
@@ -964,11 +1063,11 @@ object PythonIndexedAnyRefs {
     inline def update(i: Int, value: A): Unit = { a.underlying(if i < 0 then a.underlying.length + i else i) = value }
     inline def index(i: Int) = if i < 0 then a.underlying.length + i else i
 
-    def apply(iv: kse.basics.Iv): Array[A] = Iv.pyApplyImpl(a.underlying, iv)(_.length, cor(a, 0, 0), cor)
+    def apply(iv: kse.basics.intervals.Iv): Array[A] = Iv.pyApplyImpl(a.underlying, iv)(_.length, cor(a, 0, 0), cor)
     inline def apply(inline r: Range): Array[A] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: A): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, (a, i, j, x) => arf(a.asInstanceOf[Array[AnyRef]], i, j, x: AnyRef))
+    def update(iv: kse.basics.intervals.Iv, value: A): Unit = Iv.pyUpdateValueImpl(a.underlying, value, iv)(_.length, (a, i, j, x) => arf(a.asInstanceOf[Array[AnyRef]], i, j, x: AnyRef))
     inline def update(inline r: Range, value: A): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[A]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
+    def update(iv: kse.basics.intervals.Iv, values: Array[A]): Unit = Iv.pyUpdateArrayImpl(a.underlying, values, iv)(_.length, System.arraycopy)
     inline def update(inline r: Range, values: Array[A]): Unit = update(Iv of r, values)
 
     def apply(indices: Array[Int])(using scala.reflect.ClassTag[A]): Array[A] =
@@ -1014,13 +1113,13 @@ object RIndexedAnyRefs {
     inline def apply(i: Int): A = a.underlying(i - 1)
     inline def update(i: Int, value: A): Unit =  { a.underlying(i - 1) = value }
 
-    def apply(iv: kse.basics.Iv): Array[A] =
+    def apply(iv: kse.basics.intervals.Iv): Array[A] =
       java.util.Arrays.copyOfRange(a.underlying, if iv.i0 > iv.i1 then iv.i1 else iv.i0 - 1, iv.i1)
     inline def apply(inline r: Range): Array[A] = apply(Iv of r)
-    def update(iv: kse.basics.Iv, value: A): Unit =
+    def update(iv: kse.basics.intervals.Iv, value: A): Unit =
       if iv.i0 <= iv.i1 then java.util.Arrays.fill(a.underlying.asInstanceOf[Array[AnyRef]], iv.i0 - 1, iv.i1, value: AnyRef)
     inline def update(inline r: Range, value: A): Unit = update(Iv of r, value)
-    def update(iv: kse.basics.Iv, values: Array[A]): Unit =
+    def update(iv: kse.basics.intervals.Iv, values: Array[A]): Unit =
       if iv.i0 <= iv.i1 then System.arraycopy(values, 0, a.underlying, iv.i0 - 1, 1 + iv.i1 - iv.i0)
     inline def update(inline r: Range, values: Array[A]): Unit = update(Iv of r, values)
 
@@ -1046,6 +1145,418 @@ object RIndexedAnyRefs {
         j += 1
 }
 
+
+/** Higher-level high-speed array access (inlined) */
+extension [A](a: Array[A]) {
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      f(a(i), i)
+      i += 1
+  inline def visitPart(i0: Int, iN: Int)(inline f: (A, Int) => Unit): Unit =
+    var i = i0
+    while i < iN do
+      f(a(i), i)
+      i += 1
+  inline def visitPart(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
+    inline v match
+      case piv: PIv => visitPart(PIv.i0(piv)(a), PIv.iN(piv)(a))(f)
+      case iv: Iv => visitPart(Iv.i0(iv), Iv.iN(iv))(f)
+  inline def visitPart(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
+    visitPart(Iv of rg)(f)
+  inline def visitPart(indices: Array[Int])(inline f: (A, Int) => Unit): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      f(a(j), j)
+      i += 1
+  inline def visitPart(indices: scala.collection.IntStepper)(inline f: (A, Int) => Unit): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      f(a(j), j)
+  inline def visitPart(inline select: A => Boolean)(inline f: (A, Int) => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      val x = a(i)
+      if select(x) then f(x, i)
+      i += 1
+
+  transparent inline def accumulate[Z](inline zero: Z)(inline f: (Z, A, Int) => Z) =
+    var i = 0
+    var z = zero
+    while i < a.length do
+      z = f(z, a(i), i)
+      i += 1
+    z
+  transparent inline def accumulatePart[Z](i0: Int, iN: Int)(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    var i = i0
+    var z = zero
+    while i < iN do
+      z = f(z, a(i), i)
+      i += 1
+    z
+  transparent inline def accumulatePart[Z](inline v: Iv | PIv)(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    inline v match
+      case iv: Iv => accumulatePart(Iv.i0(iv), Iv.iN(iv))(zero)(f)
+      case piv: PIv => accumulatePart(PIv.i0(piv)(a), PIv.iN(piv)(a))(zero)(f)
+  transparent inline def accumulatePart[Z](inline rg: collection.immutable.Range)(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    accumulatePart(Iv of rg)(zero)(f)
+  transparent inline def accumulatePart[Z](indices: Array[Int])(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    var i = 0
+    var z = zero
+    while i < indices.length do
+      val j = indices(i)
+      z = f(z, a(j), j)
+      i += 1
+    z
+  transparent inline def accumulatePart[Z](indices: scala.collection.IntStepper)(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    var z = zero
+    while indices.hasStep do
+      val j = indices.nextStep
+      z = f(z, a(j), j)
+    z
+  transparent inline def accumulatePart[Z](select: A => Boolean)(inline zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    var i = 0
+    var z = zero
+    while i < a.length do
+      val x = a(i)
+      if select(x) then z = f(z, x, i)
+      i += 1
+    z
+
+  @targetName("update_Iv_constant")
+  inline def update(iv: Iv, value: A): Unit =
+    var i = Iv.i0(iv)
+    val j = Iv.i1(iv)
+    while i <= j do
+      a(i) = value
+      i += 1
+  @targetName("update_PIv_constant")
+  inline def update(piv: PIv, value: A): Unit =
+    var i = PIv.i0(piv)(a)
+    val j = PIv.i1(piv)(a)
+    while i <= j do
+      a(i) = value
+      i += 1
+  @targetName("update_Iv_array")
+  inline def update(iv: Iv, values: Array[A]): Unit =
+    val i = Iv.i0(iv)
+    java.lang.System.arraycopy(values, 0, a, i, Iv.iN(iv) - i)
+  @targetName("update_Iv_generate")
+  inline def update(iv: Iv, inline generator: () => A): Unit =
+    var i = Iv.i0(iv)
+    val j = Iv.i1(iv)
+    while i <= j do
+      a(i) = generator()
+      i += 1
+  @targetName("update_Iv_index")
+  inline def update(iv: Iv, inline indexer: Int => A): Unit =
+    var i = Iv.i0(iv)
+    val j = Iv.i1(iv)
+    while i <= j do
+      a(i) = indexer(i)
+      i += 1
+  @targetName("update_Iv_function")
+  inline def update(iv: Iv, inline function: (A, Int) => A): Unit =
+    var i = Iv.i0(iv)
+    val j = Iv.i1(iv)
+    while i <= j do
+      a(i) = function(a(i), i)
+      i += 1
+
+  @targetName("update_Range_constant")
+  inline def update(inline rg: collection.immutable.Range, value: A): Unit =
+    update(Iv of rg, value)
+  @targetName("update_Range_array")
+  inline def update(inline rg: collection.immutable.Range, values: Array[A]): Unit =
+    update(Iv of rg, values)
+  @targetName("update_Range_generate")
+  inline def update(inline rg: collection.immutable.Range, inline generator: () => A): Unit =
+    update(Iv of rg, generator)
+  @targetName("update_Range_index")
+  inline def update(inline rg: collection.immutable.Range, inline indexer: Int => A): Unit =
+    update(Iv of rg, indexer)
+  @targetName("update_Range_function")
+  inline def update(inline rg: collection.immutable.Range, inline function: (A, Int) => A): Unit =
+    update(Iv of rg, function)
+
+  /*
+  @targetName("update_Py_constant")
+  inline def update(piv: PIv, value: A): Unit =
+    update(PIv.indexing(piv)(a), value)
+  @targetName("update_Py_array")
+  inline def update(piv: PIv, values: Array[A]): Unit =
+    update(PIv.indexing(piv)(a), values)
+  @targetName("update_Py_generate")
+  inline def update(piv: PIv, inline generator: () => A): Unit =
+    update(PIv.indexing(piv)(a), generator)
+  @targetName("update_Py_index")
+  inline def update(piv: PIv, inline indexer: Int => A): Unit =
+    update(PIv.indexing(piv)(a), indexer)
+  @targetName("update_Py_function")
+  inline def update(piv: PIv, inline function: (A, Int) => A): Unit =
+    update(PIv.indexing(piv)(a), function)
+  */
+
+  @targetName("update_All_constant")
+  inline def update(value: A): Unit =
+    update(Iv(0, a.length-1), value)
+  @targetName("update_All_array")
+  inline def update(values: Array[A]): Unit =
+    update(Iv(0, a.length-1), values)
+  @targetName("update_All_generate")
+  inline def update(inline generator: () => A): Unit =
+    update(Iv(0, a.length-1), generator)
+  @targetName("update_All_index")
+  inline def update(inline indexer: Int => A): Unit =
+    update(Iv(0, a.length-1), indexer)
+  @targetName("update_All_function")
+  inline def update(inline function: (A, Int) => A): Unit =
+    update(Iv(0, a.length-1), function)
+
+  @targetName("update_Places_constant")
+  inline def update(indices: Array[Int], value: A): Unit =
+    var i = 0
+    while i < indices.length do
+      a(indices(i)) = value
+      i += 1
+  @targetName("update_Places_array")
+  inline def update(indices: Array[Int], values: Array[A]): Unit =
+    var i = 0
+    while i < indices.length do
+      a(indices(i)) = values(i)
+      i += 1
+  @targetName("update_Places_generate")
+  inline def update(indices: Array[Int], inline generator: () => A): Unit =
+    var i = 0
+    while i < indices.length do
+      a(indices(i)) = generator()
+      i += 1
+  @targetName("update_Places_index")
+  inline def update(indices: Array[Int], inline indexer: Int => A): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      a(j) = indexer(j)
+      i += 1
+  @targetName("update_Places_function")
+  inline def update(indices: Array[Int], inline function: (A, Int) => A): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      a(j) = function(a(j), j)
+      i += 1
+
+  @targetName("update_Stepper_constant")
+  inline def update(indices: scala.collection.IntStepper, value: A): Unit =
+    while indices.hasStep do
+      a(indices.nextStep) = value
+  @targetName("update_Stepper_array")
+  inline def update(indices: scala.collection.IntStepper, values: Array[A]): Unit =
+    var i = 0
+    while indices.hasStep do
+      a(indices.nextStep) = values(i)
+      i += 1
+  @targetName("update_Stepper_generate")
+  inline def update(indices: scala.collection.IntStepper, inline generator: () => A): Unit =
+    while indices.hasStep do
+      a(indices.nextStep) = generator()
+  @targetName("update_Stepper_index")
+  inline def update(indices: scala.collection.IntStepper, inline indexer: Int => A): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      a(j) = indexer(j)
+  @targetName("update_Stepper_function")
+  inline def update(indices: scala.collection.IntStepper, inline function: (A, Int) => A): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      a(j) = function(a(j), j)
+
+  @targetName("update_Selector")
+  inline def update[V <: A | (() => A) | (Int => A)](inline select: A => Boolean, inline valuation: V): Unit = inline valuation match
+    case value: A =>
+      var i = 0
+      val x = value
+      while i < a.length do
+        if select(a(i)) then
+          a(i) = x
+        i += 1
+    case generator: (() => A) =>
+      var i = 0
+      while i < a.length do
+        if select(a(i)) then
+          a(i) = generator()
+        i += 1
+    case indexer: (Int => A) =>
+      var i = 0
+      while i < a.length do
+        if select(a(i)) then
+          a(i) = indexer(i)
+        i += 1
+
+  inline def where(inline select: A => Boolean): Array[Int] =
+    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      if select(a(i)) then
+        if j >= ix.length then
+          ix = java.util.Arrays.copyOf(ix, ix.length | (ix.length << 1))
+        ix(j) = i
+        j += 1
+      i += 1
+    if j < ix.length then java.util.Arrays.copyOf(ix, j)
+    else ix
+
+  inline def enlargeTo(n: Int)(using ClassTag[A]): Array[A] =
+    if n > a.length then
+      val aa = new Array[A](n)
+      System.arraycopy(a, 0, aa, 0, a.length)
+      aa
+    else a
+
+  inline def shrinkTo(n: Int)(using ClassTag[A]): Array[A] =
+    if n < a.length then
+      val aa = new Array[A](n)
+      System.arraycopy(a, 0, aa, 0, aa.length)
+      aa
+    else a
+
+  inline def copyInto(inline that: Array[A]): Array[A] =
+    java.lang.System.arraycopy(a, 0, that, 0, a.length)
+    that
+  inline def copyInto(inline that: Array[A], where: Int): Array[A] =
+    java.lang.System.arraycopy(a, 0, that, where, a.length)
+    that
+  inline def copyRangeInto(i0: Int, iN: Int)(inline that: Array[A]): Array[A] =
+    java.lang.System.arraycopy(a, i0, that, 0, iN-i0)
+    that
+  inline def copyRangeInto(i0: Int, iN: Int)(inline that: Array[A], where: Int): Array[A] =
+    java.lang.System.arraycopy(a, i0, that, where, iN-i0)
+    that
+
+  inline def copyPart(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
+    val b = new Array[A](iN - i0)
+    java.lang.System.arraycopy(a, i0, b, 0, b.length)
+    b
+  inline def copyPart(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
+    inline v match
+      case iv: Iv => copyPart(Iv.i0(iv), Iv.iN(iv))
+      case piv: PIv => copyPart(PIv.i0(piv)(a), PIv.iN(piv)(a))
+  inline def copyPart(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
+    copyPart(Iv of rg)
+  inline def copyPart(indices: Array[Int])(using ClassTag[A]): Array[A] =
+    val b = new Array[A](indices.length)
+    var i = 0
+    while i < indices.length do
+      b(i) = a(indices(i))
+      i += 1
+    b
+  inline def copyPart(indices: scala.collection.IntStepper)(using ClassTag[A]): Array[A] =
+    var b = new Array[A](if a.length <= 8 then a.length else 8)
+    var j = 0
+    while indices.hasStep do
+      if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
+      b(j) = a(indices.nextStep)
+      j += 1
+    b.shrinkTo(j)
+  inline def copyPart(inline select: A => Boolean)(using ClassTag[A]): Array[A] =
+    var b = new Array[A](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      val x = a(i)
+      if select(x) then
+        if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
+        b(j) = x
+        j += 1
+      i += 1
+    b.shrinkTo(j)
+
+  transparent inline def copyOp[B](inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](a.length)
+    var i = 0
+    while i < a.length do
+      b(i) = op(a(i), i)
+      i += 1
+    b
+  transparent inline def copyPartOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](iN - i0)
+    var i = i0
+    while i < iN do
+      b(i - i0) = op(a(i), i)
+      i += 1
+    b
+  transparent inline def copyPartOp[B](inline v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline v match
+      case iv: Iv => copyPartOp(Iv.i0(iv), Iv.iN(iv))(op)
+      case piv: PIv => copyPartOp(PIv.i0(piv)(a), PIv.iN(piv)(a))(op)
+  transparent inline def copyPartOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    copyPartOp(Iv of rg)(op)
+  transparent inline def copyPartOp[B](indices: Array[Int])(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](indices.length)
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      b(i) = op(a(j), j)
+      i += 1
+    b
+  transparent inline def copyPartOp[B](indices: scala.collection.IntStepper)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    var b = new Array[B](if a.length <= 8 then a.length else 8)
+    var j = 0
+    while indices.hasStep do
+      if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
+      val i = indices.nextStep
+      b(j) = op(a(i), i)
+      j += 1
+    b.shrinkTo(j)
+  transparent inline def copyPartOp[B](inline select: A => Boolean)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    val indices = where(select)
+    copyPartOp(indices)(op)
+
+  transparent inline def fuse[B](inline add: (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+    var bs = new Array[B](if a.length < 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      add(a(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
+      i += 1
+    bs.shrinkTo(j)
+}
+
+
+
+/** Boolean Array specific functionality from java.util.Arrays and java.lang.System */
+/*
+extension (az: Array[Boolean])
+  inline def py: kse.basics.PythonIndexedBooleans = az
+  inline def R: kse.basics.RIndexedBooleans = az
+  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(az, size)
+  inline def shrinkCopy(size: Int) = if size < az.length then java.util.Arrays.copyOf(az, size) else az
+  inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] = java.util.Arrays.copyOfRange(az, i0, iN)
+  inline def copyOfRange(iv: Iv): Array[Boolean] = java.util.Arrays.copyOfRange(az, Iv.i0(iv), { val i1 = Iv.i1(iv); if (i1 < Int.MaxValue) i1+1 else i1 })
+  inline def copyOfRange(inline range: scala.collection.immutazle.Range): Array[Boolean] = copyOfRange(Iv.of(range))
+  inline def addLeftSlots(n: Int) = { val a = new Array[Boolean](az.length + n); java.lang.System.arraycopy(az, 0, a, n, az.length); a }
+  inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(az, if n < 0 then n else az.length + n)
+  inline def packInts: Array[Int] = ArrayReform.toInts(az)
+  inline def packFloats: Array[Float] = ArrayReform.toFloats(az)
+  inline def packLongs: Array[Long] = ArrayReform.toLongs(az)
+  inline def packDoubles: Array[Double] = ArrayReform.toDoubles(az)
+  inline def search(b: Boolean): Int = java.util.Arrays.binarySearch(az, b)
+  inline def searchRange(i0: Int, iN: Int)(b: Boolean): Int = java.util.Arrays.binarySearch(az, i0, iN, b)
+  inline def fill(b: Boolean): az.type = { java.util.Arrays.fill(az, b); az }
+  inline def fillRange(i0: Int, iN: Int)(b: Boolean): az.type = { java.util.Arrays.fill(az, i0, iN, b); az }
+  inline def sort(): az.type = { java.util.Arrays.sort(az); az }
+  inline def sortRange(i0: Int, iN: Int): az.type = { java.util.Arrays.sort(az, i0, iN); az }
+  inline def isSorted: Boolean = isSortedRange(0, az.length)
+  def isSortedRange(i0: Int, iN: Int): Boolean =
+    if i0 >= iN then true
+    else
+      var i = i0 + 1
+      while i < iN && az(i-1) <= az(i) do i += 1
+      i >= iN
+*/
+
 /** Byte Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ab: Array[Byte])
   inline def py: kse.basics.PythonIndexedBytes = ab
@@ -1057,10 +1568,6 @@ extension (ab: Array[Byte])
   inline def copyOfRange(inline range: scala.collection.immutable.Range): Array[Byte] = copyOfRange(Iv.of(range))
   inline def addLeftSlots(n: Int) = { val a = new Array[Byte](ab.length + n); java.lang.System.arraycopy(ab, 0, a, n, ab.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(ab, if n < 0 then n else ab.length + n)
-  inline def copyInto(that: Array[Byte]): that.type = { java.lang.System.arraycopy(ab, 0, that, 0, ab.length); that }
-  inline def copyInto(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, 0, that, where, ab.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte]): that.type = { java.lang.System.arraycopy(ab, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Byte], where: Int): that.type = { java.lang.System.arraycopy(ab, i0, that, where, iN-i0); that }
   inline def packInts: Array[Int] = ArrayReform.toInts(ab)
   inline def packFloats: Array[Float] = ArrayReform.toFloats(ab)
   inline def packLongs: Array[Long] = ArrayReform.toLongs(ab)
@@ -1079,11 +1586,6 @@ extension (ab: Array[Byte])
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Byte]])
-  @targetName("copyToSize_ArrB")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
 extension (as: Array[Short])
   inline def py: kse.basics.PythonIndexedShorts = as
@@ -1093,10 +1595,6 @@ extension (as: Array[Short])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(as, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Short](as.length + n); java.lang.System.arraycopy(as, 0, a, n, as.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(as, if n < 0 then n else as.length + n)
-  inline def copyInto(that: Array[Short]): that.type = { java.lang.System.arraycopy(as, 0, that, 0, as.length); that }
-  inline def copyInto(that: Array[Short], where: Int): that.type = { java.lang.System.arraycopy(as, 0, that, where, as.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Short]): that.type = { java.lang.System.arraycopy(as, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Short], where: Int): that.type = { java.lang.System.arraycopy(as, i0, that, where, iN-i0); that }
   inline def search(s: Short): Int = java.util.Arrays.binarySearch(as, s)
   inline def searchRange(i0: Int, iN: Int)(s: Short): Int = java.util.Arrays.binarySearch(as, i0, iN, s)  
   inline def fill(s: Short): as.type = { java.util.Arrays.fill(as, s); as }
@@ -1111,11 +1609,6 @@ extension (as: Array[Short])
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Short]])
-  @targetName("copyToSize_ArrS")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ac: Array[Char])
   inline def py: kse.basics.PythonIndexedChars = ac
@@ -1125,10 +1618,6 @@ extension (ac: Array[Char])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ac, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Char](ac.length + n); java.lang.System.arraycopy(ac, 0, a, n, ac.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(ac, if n < 0 then n else ac.length + n)
-  inline def copyInto(that: Array[Char]): that.type = { java.lang.System.arraycopy(ac, 0, that, 0, ac.length); that }
-  inline def copyInto(that: Array[Char], where: Int): that.type = { java.lang.System.arraycopy(ac, 0, that, where, ac.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Char]): that.type = { java.lang.System.arraycopy(ac, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Char], where: Int): that.type = { java.lang.System.arraycopy(ac, i0, that, where, iN-i0); that }
   inline def search(c: Char): Int = java.util.Arrays.binarySearch(ac, c)
   inline def searchRange(i0: Int, iN: Int)(c: Char): Int = java.util.Arrays.binarySearch(ac, i0, iN, c)
   inline def fill(c: Char): ac.type = { java.util.Arrays.fill(ac, c); ac }
@@ -1143,11 +1632,6 @@ extension (ac: Array[Char])
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Char]])
-  @targetName("copyToSize_ArrC")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ai: Array[Int])
   inline def py: kse.basics.PythonIndexedInts = ai
@@ -1157,10 +1641,6 @@ extension (ai: Array[Int])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ai, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Int](ai.length + n); java.lang.System.arraycopy(ai, 0, a, n, ai.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(ai, if n < 0 then n else ai.length + n)
-  inline def copyInto(that: Array[Int]): that.type = { java.lang.System.arraycopy(ai, 0, that, 0, ai.length); that }
-  inline def copyInto(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, 0, that, where, ai.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int]): that.type = { java.lang.System.arraycopy(ai, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Int], where: Int): that.type = { java.lang.System.arraycopy(ai, i0, that, where, iN-i0); that }
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ai)
   inline def search(i: Int): Int = java.util.Arrays.binarySearch(ai, i)
   inline def searchRange(i0: Int, iN: Int)(i: Int): Int = java.util.Arrays.binarySearch(ai, i0, iN, i)
@@ -1176,11 +1656,6 @@ extension (ai: Array[Int])
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Int]])
-  @targetName("copyToSize_ArrI")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Long Array specific functionality from java.util.Arrays and java.lang.System */
 extension (al: Array[Long])
   inline def py: kse.basics.PythonIndexedLongs = al
@@ -1190,10 +1665,6 @@ extension (al: Array[Long])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(al, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Long](al.length + n); java.lang.System.arraycopy(al, 0, a, n, al.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(al, if n < 0 then n else al.length + n)
-  inline def copyInto(that: Array[Long]): that.type = { java.lang.System.arraycopy(al, 0, that, 0, al.length); that }
-  inline def copyInto(that: Array[Long], where: Int): that.type = { java.lang.System.arraycopy(al, 0, that, where, al.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Long]): that.type = { java.lang.System.arraycopy(al, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Long], where: Int): that.type = { java.lang.System.arraycopy(al, i0, that, where, iN-i0); that }
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(al)
   inline def search(l: Long): Int = java.util.Arrays.binarySearch(al, l)
   inline def searchRange(i0: Int, iN: Int)(l: Long): Int = java.util.Arrays.binarySearch(al, i0, iN, l)
@@ -1209,11 +1680,6 @@ extension (al: Array[Long])
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Long]])
-  @targetName("copyToSize_ArrL")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Float Array specific functionality from java.util.Arrays and java.lang.System */
 extension (af: Array[Float])
   inline def py: kse.basics.PythonIndexedFloats = af
@@ -1223,10 +1689,6 @@ extension (af: Array[Float])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(af, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Float](af.length + n); java.lang.System.arraycopy(af, 0, a, n, af.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(af, if n < 0 then n else af.length + n)
-  inline def copyInto(that: Array[Float]): that.type = { java.lang.System.arraycopy(af, 0, that, 0, af.length); that }
-  inline def copyInto(that: Array[Float], where: Int): that.type = { java.lang.System.arraycopy(af, 0, that, where, af.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Float]): that.type = { java.lang.System.arraycopy(af, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Float], where: Int): that.type = { java.lang.System.arraycopy(af, i0, that, where, iN-i0); that }
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(af)
   inline def search(f: Float): Int = java.util.Arrays.binarySearch(af, f)
   inline def searchRange(i0: Int, iN: Int)(f: Float): Int = java.util.Arrays.binarySearch(af, i0, iN, f)
@@ -1242,11 +1704,6 @@ extension (af: Array[Float])
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Float]])
-  @targetName("copyToSize_ArrF")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Double Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ad: Array[Double])
   inline def py: kse.basics.PythonIndexedDoubles = ad
@@ -1256,10 +1713,6 @@ extension (ad: Array[Double])
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ad, i0, iN)
   inline def addLeftSlots(n: Int) = { val a = new Array[Double](ad.length + n); java.lang.System.arraycopy(ad, 0, a, n, ad.length); a }
   inline def addRightSlots(n: Int) = java.util.Arrays.copyOf(ad, if n < 0 then n else ad.length + n)
-  inline def copyInto(that: Array[Double]): that.type = { java.lang.System.arraycopy(ad, 0, that, 0, ad.length); that }
-  inline def copyInto(that: Array[Double], where: Int): that.type = { java.lang.System.arraycopy(ad, 0, that, where, ad.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Double]): that.type = { java.lang.System.arraycopy(ad, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[Double], where: Int): that.type = { java.lang.System.arraycopy(ad, i0, that, where, iN-i0); that }
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ad)
   inline def search(d: Double): Int = java.util.Arrays.binarySearch(ad, d)
   inline def searchRange(i0: Int, iN: Int)(d: Double): Int = java.util.Arrays.binarySearch(ad, i0, iN, d)
@@ -1275,11 +1728,6 @@ extension (ad: Array[Double])
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
 
-extension[O] (ao: Array[O])(using tlc: Translucent[Array[O], Array[Double]])
-  @targetName("copyToSize_ArrD")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
-
-
 /** Object Array specific functionality from java.util.Arrays and java.lang.System */
 extension [A >: Null <: AnyRef](aa: Array[A])
   inline def py: kse.basics.PythonIndexedAnyRefs[A] = aa
@@ -1289,10 +1737,6 @@ extension [A >: Null <: AnyRef](aa: Array[A])
   inline def copyOfRange(i0: Int, iN: Int): Array[A] = java.util.Arrays.copyOfRange(aa, i0, iN)
   inline def addLeftSlots(n: Int)(using scala.reflect.ClassTag[A]): Array[A] = { val a = new Array[A](aa.length + n); java.lang.System.arraycopy(aa, 0, a, n, aa.length); a }
   inline def addRightSlots(n: Int)(using scala.reflect.ClassTag[A]): Array[A] = java.util.Arrays.copyOf(aa, if n < 0 then n else aa.length + n)
-  inline def copyInto(that: Array[A]): that.type = { java.lang.System.arraycopy(aa, 0, that, 0, aa.length); that }
-  inline def copyInto(that: Array[A], where: Int): that.type = { java.lang.System.arraycopy(aa, 0, that, where, aa.length); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[A]): that.type = { java.lang.System.arraycopy(aa, i0, that, 0, iN-i0); that }
-  inline def copyRangeInto(i0: Int, iN: Int)(that: Array[A], where: Int): that.type = { java.lang.System.arraycopy(aa, i0, that, where, iN-i0); that }
   inline def search(a: A)(using o: scala.math.Ordering[A]): Int = java.util.Arrays.binarySearch(aa, a, o)
   inline def searchRange(i0: Int, iN: Int)(a: A)(using o: scala.math.Ordering[A]): Int = java.util.Arrays.binarySearch(aa, i0, iN, a, o)
   inline def fill(a: A): aa.type = { java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], a: AnyRef); aa }
@@ -1307,9 +1751,6 @@ extension [A >: Null <: AnyRef](aa: Array[A])
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
 
-extension[O, A >: Null <: AnyRef] (ao: Array[O])(using tlc: Translucent[Array[O], Array[A]])
-  @targetName("copyToSize_ArrA")
-  inline def copyToSize(size: Int): Array[O] = tlc.inlineIntoOpaque( java.util.Arrays.copyOf(tlc.inlineFromOpaque(ao), size) )
 
 
 
@@ -1349,6 +1790,9 @@ object Mu {
   def apply(f: Float):   MuFloat     = new MuFloat(f)
   def apply(d: Double):  MuDouble    = new MuDouble(d)
   def apply[A](a: A):    Mu[A]       = new MuAny(a)
+
+  given [A]: Copies[Mu[A]] with
+    def copy(m: Mu[A]): Mu[A] = m.copy
 }
 
 extension [A, M <: Mu[A]](mu: M)
@@ -1402,35 +1846,13 @@ final class Identity[A](val value: A) {
   inline def use(f: A => Unit): this.type = { f(value); this }
   override def toString = value.toString
   override def hashCode = java.lang.System.identityHashCode(value)
-  override def equals(a: Any) = a.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef]
+  override def equals(a: Any) = a match
+    case i: Identity[_] => i.value.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef] 
+    case _ => false
 }
 object Identity {
   given [A](using Copies[A]): Copies[Identity[A]] with
     def copy(i: Identity[A]): Identity[A] = new Identity(summon[Copies[A]].copy(i.value))
-}
-
-
-/** Way to create new unboxed types.  Use
-  * ```
-  * object MyThing extends NewType[OldThing] {
-  *   extension (t: Type) def myMethodOnMyThing: Bar = whateverComputation(t.value)
-  * }
-  * ```
-  *
-  * To generate a new value, use `val m = MyThing(x)`.  To get the value, use `m.value`.
-  * In addition to that, you can use any extension methods you have defined.
-  */
-trait NewType[A] {
-  opaque type Type = A
-
-  /** Create the newtype */
-  inline def apply(a: A): Type = a
-
-  /** Get the value from the newtype--this is the ONLY way to interact with it */
-  extension (t: Type) inline def value: A = t
-
-  /** Defer to the wrapped type's CanEqual */
-  given (using CanEqual[A, A]): CanEqual[Type, Type] = CanEqual.derived
 }
 
 
@@ -1452,6 +1874,9 @@ extension [A](a: A) {
 
   /** Apply a side-effecting function to this value; return the original value */
   inline def tap(inline f: A => Unit): A = { f(a); a }
+
+  /** Apply a test and alter the value if it passes */
+  inline def fixIf(inline p: A => Boolean)(inline f: A => A): A = if p(a) then f(a) else a
 
 
   /** Make a tuple with this value and another.  Equivalent to `a -> z`. */
