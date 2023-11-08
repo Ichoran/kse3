@@ -10,8 +10,7 @@ import kse.basics._
 
 opaque type Iv = Long
 object Iv extends Translucent.Companion[Iv, Long] {
-  def apply(i0: Int, iN: Int): Iv = 
-    if i0 < 0 then throw new IllegalArgumentException(s"Interval start index must be non-negative, not $i0")
+  def apply(i0: Int, iN: Int): Iv =
     (i0 & 0xFFFFFFFFL) | (iN.toLong << 32)
 
   inline def wrap(l: Long): Iv = l
@@ -23,16 +22,24 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
     inline def iN: Int = (iv >>> 32).toInt
     inline def length: Int =
-      var j = iN
-      if j <= 0 then 0
-      else
-        j -= i0
-        if j <= 0 then 0 else j
-    inline def isEmpty: Boolean = (iv & 0xFFFFFFFFL) >= (iv >>> 32)
+      val i = i0
+      val j = iN
+      if i < j then
+        val n = j - i
+        if n < 0 then Int.MaxValue else n
+      else 0
+    inline def isEmpty: Boolean = (iv & 0xFFFFFFFFL).toInt >= (iv >>> 32).toInt
     inline def contains(i: Int): Boolean = (i >= Iv.i0(iv)) && (i < Iv.iN(iv))
     def pr: String = s"${Iv.i0(iv)}..${Iv.iN(iv)}"
-    inline def clipped[A](a: Array[A]): Iv =
-      if (iv >>> 32).toInt >= a.length then apply((iv & 0xFFFFFFFFL).toInt, a.length) else iv
+    def clipped[A](a: Array[A]): Iv =
+      val i = i0
+      val j = iN
+      if i < 0 then
+        if j > a.length then a.length.toLong << 32
+        else j.toLong << 32
+      else if j > a.length then
+        (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
+      else iv
     inline def visit(inline f: Int => Unit): Unit =
       var i = (iv & 0xFFFFFFFFL).toInt
       val j = (iv >>> 32).toInt

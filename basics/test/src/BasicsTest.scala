@@ -423,7 +423,7 @@ class BasicsTest {
 
 
   @Test
-  def arrayDataTest(): Unit =
+  def arrayPrimitiveDataTest(): Unit =
     import java.lang.Float.{intBitsToFloat => i2f}
     import java.lang.Double.{longBitsToDouble => l2d}
 

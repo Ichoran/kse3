@@ -9,10 +9,10 @@ import scala.util.boundary
 
 import kse.basics.intervals._
 
+
 ////////////////////////////////////////////////
 /// Packaging and wrappers to alter behavior ///
 ////////////////////////////////////////////////
-
 
 object ArrayReform {
   private def checkBounds(a: Int, i0: Int, iN: Int, b: Int, j0: Int, scale: Int): Int =
