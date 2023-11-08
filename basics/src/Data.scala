@@ -918,36 +918,6 @@ object ClippedArray {
       if j > a.length then j = a.length
       if j >= 0 && j - i > values.length then j = i + values.length
       java.lang.System.arraycopy(values, 0, a, i, j - i)
-    @targetName("update_Iv_generate")
-    inline def update(iv: Iv, inline generator: () => A): Unit =
-      val a = ca.unwrap
-      var i = iv.i0
-      if i < 0 then i = 0
-      var j = iv.iN
-      if j > a.length then j = a.length
-      while i < j do
-        a(i) = generator()
-        i += 1
-    @targetName("update_Iv_index")
-    inline def update(iv: Iv, inline indexer: Int => A): Unit =
-      val a = ca.unwrap
-      var i = iv.i0
-      if i < 0 then i = 0
-      var j = iv.iN
-      if j > a.length then j = a.length
-      while i < j do
-        a(i) = indexer(i)
-        i += 1
-    @targetName("update_Iv_function")
-    inline def update(iv: Iv, inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = iv.i0
-      if i < 0 then i = 0
-      var j = iv.iN
-      if j > a.length then j = a.length
-      while i < j do
-        a(i) = function(a(i), i)
-        i += 1
 
     @targetName("update_Range_constant")
     inline def update(inline rg: collection.immutable.Range, value: A): Unit =
@@ -955,15 +925,6 @@ object ClippedArray {
     @targetName("update_Range_array")
     inline def update(inline rg: collection.immutable.Range, values: Array[A]): Unit =
       update(Iv of rg, values)
-    @targetName("update_Range_generate")
-    inline def update(inline rg: collection.immutable.Range, inline generator: () => A): Unit =
-      update(Iv of rg, generator)
-    @targetName("update_Range_index")
-    inline def update(inline rg: collection.immutable.Range, inline indexer: Int => A): Unit =
-      update(Iv of rg, indexer)
-    @targetName("update_Range_function")
-    inline def update(inline rg: collection.immutable.Range, inline function: (A, Int) => A): Unit =
-      update(Iv of rg, function)
 
     @targetName("update_Py_constant")
     inline def update(piv: PIv, value: A): Unit =
@@ -971,15 +932,6 @@ object ClippedArray {
     @targetName("update_Py_array")
     inline def update(piv: PIv, values: Array[A]): Unit =
       update(piv of ca.unwrap, values)
-    @targetName("update_Py_generate")
-    inline def update(piv: PIv, inline generator: () => A): Unit =
-      update(piv of ca.unwrap, generator)
-    @targetName("update_Py_index")
-    inline def update(piv: PIv, inline indexer: Int => A): Unit =
-      update(piv of ca.unwrap, indexer)
-    @targetName("update_Py_function")
-    inline def update(piv: PIv, inline function: (A, Int) => A): Unit =
-      update(piv of ca.unwrap, function)
 
     @targetName("update_All_array")
     inline def update(values: Array[A]): Unit =
@@ -1003,20 +955,6 @@ object ClippedArray {
         val j = indices(i)
         if j >= 0 && j < a.length then a(j) = values(i)
         i += 1
-    @targetName("update_Places_generate")
-    inline def update(indices: Array[Int], inline generator: () => A): Unit =
-      update(indices, (x: A, i: Int) => generator())
-    @targetName("update_Places_index")
-    inline def update(indices: Array[Int], inline indexer: Int => A): Unit =
-      update(indices, (x: A, i: Int) => indexer(i))
-    @targetName("update_Places_function")
-    inline def update(indices: Array[Int], inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = 0
-      while i < indices.length do
-        val j = indices(i)
-        if j >= 0 && j < a.length then a(j) = function(a(j), j)
-        i += 1
 
     @targetName("update_Stepper_constant")
     inline def update(indices: scala.collection.IntStepper, value: A): Unit =
@@ -1032,14 +970,113 @@ object ClippedArray {
         val j = indices.nextStep
         if j >= 0 && j < a.length then a(j) = values(i)
         i += 1
-    @targetName("update_Stepper_generate")
-    inline def update(indices: scala.collection.IntStepper, inline generator: () => A): Unit =
-      update(indices, (x: A, i: Int) => generator())
-    @targetName("update_Stepper_index")
-    inline def update(indices: scala.collection.IntStepper, inline indexer: Int => A): Unit =
-      update(indices, (x: A, i: Int) => indexer(i))
-    @targetName("update_Stepper_function")
-    inline def update(indices: scala.collection.IntStepper, inline function: (A, Int) => A): Unit =
+
+    @targetName("set_i0iN_generate")
+    inline def set(i0: Int, iN: Int)(inline generator: () => A): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j > a.length then j = a.length
+      while i < j do
+        a(i) = generator()
+        i += 1
+    @targetName("set_i0iN_index")
+    inline def set(i0: Int, iN: Int)(inline indexer: Int => A): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j > a.length then j = a.length
+      while i < j do
+        a(i) = indexer(i)
+        i += 1
+    @targetName("set_i0iN_function")
+    inline def set(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j > a.length then j = a.length
+      while i < j do
+        a(i) = function(a(i), i)
+        i += 1
+
+    @targetName("set_Iv_generate")
+    inline def set(iv: Iv)(inline generator: () => A): Unit =
+      set(iv.i0, iv.iN)(generator)
+    @targetName("set_Iv_index")
+    inline def set(iv: Iv)(inline indexer: Int => A): Unit =
+      set(iv.i0, iv.iN)(indexer)
+    @targetName("set_Iv_function")
+    inline def set(iv: Iv)(inline function: (A, Int) => A): Unit =
+      set(iv.i0, iv.iN)(function)
+
+    @targetName("set_Range_generate")
+    inline def set(inline rg: collection.immutable.Range, inline generator: () => A): Unit =
+      val iv = Iv of rg
+      set(iv.i0, iv.iN)(generator)
+    @targetName("set_Range_index")
+    inline def set(inline rg: collection.immutable.Range, inline indexer: Int => A): Unit =
+      val iv = Iv of rg
+      set(iv.i0, iv.iN)(indexer)
+    @targetName("set_Range_function")
+    inline def set(inline rg: collection.immutable.Range, inline function: (A, Int) => A): Unit =
+      val iv = Iv of rg
+      set(iv.i0, iv.iN)(function)
+
+    @targetName("set_Py_generate")
+    inline def set(piv: PIv)(inline generator: () => A): Unit =
+      val iv = piv of ca.unwrap
+      set(iv.i0, iv.iN)(generator)
+    @targetName("set_Py_index")
+    inline def set(piv: PIv)(inline indexer: Int => A): Unit =
+      val iv = piv of ca.unwrap
+      set(iv.i0, iv.iN)(indexer)
+    @targetName("set_Py_function")
+    inline def set(piv: PIv)(inline function: (A, Int) => A): Unit =
+      val iv = piv of ca.unwrap
+      set(iv.i0, iv.iN)(function)
+
+    @targetName("set_Places_generate")
+    inline def set(indices: Array[Int])(inline generator: () => A): Unit =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = generator()
+        i += 1
+    @targetName("set_Places_index")
+    inline def set(indices: Array[Int])(inline indexer: Int => A): Unit =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = indexer(j)
+        i += 1
+    @targetName("set_Places_function")
+    inline def set(indices: Array[Int])(inline function: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = function(a(j), j)
+        i += 1
+
+    @targetName("set_Stepper_generate")
+    inline def set(indices: scala.collection.IntStepper)(inline generator: () => A): Unit =
+      val a = ca.unwrap
+      while indices.hasStep do
+        val j = indices.nextStep
+        if j >= 0 && j < a.length then a(j) = generator()
+    @targetName("set_Stepper_index")
+    inline def set(indices: scala.collection.IntStepper)(inline indexer: Int => A): Unit =
+      val a = ca.unwrap
+      while indices.hasStep do
+        val j = indices.nextStep
+        if j >= 0 && j < a.length then a(j) = indexer(j)
+    @targetName("set_Stepper_function")
+    inline def set(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
         val j = indices.nextStep
