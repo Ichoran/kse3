@@ -1317,7 +1317,152 @@ class BasicsTest {
     T ~ car.clip.selectOp(et)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
 
 
+  @Test
+  def arrayBreakIntervalDataTest: Unit =
+    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+    var cuml = 0
+    val str = "ch.#ik."
+    val car = str.c
 
+    val ix = Array(2, 3, 1, 1, 3)
+    def st = ix.stepper
+    val civ = Iv(3, 5)
+    val cpv = 3 to End-2
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ z{ car.breakable.peek()(cuml += _.n) }.cs       ==== str
+    T ~ cuml                                            ==== str.map(_.toInt).sum
+    T ~ z{ car.breakable.peek(3, 5)(cuml += _.n) }.cs   ==== str
+    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.breakable.peek(3 to 4)(cuml += _.n) }.cs ==== str
+    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.breakable.peek(civ)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.breakable.peek(cpv)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.breakable.peek(ix)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                            ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.breakable.peek(st)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                            ==== ".#hh#".map(_.toInt).sum
+
+    T ~ z{ car.breakable.peek(){ c => qIf(!c.l); cuml += c.n } }.cs      ==== str
+    T ~ cuml                                                             ==== str.take(2).map(_.toInt).sum
+    T ~ z{ car.breakable.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
+    T ~ cuml                                                             ==== str(3).toInt
+    T ~ z{ car.breakable.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
+    T ~ cuml                                                             ==== str(3).toInt
+    T ~ z{ car.breakable.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ cuml                                                             ==== str(3).toInt
+    T ~ z{ car.breakable.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ cuml                                                             ==== str(3).toInt
+    T ~ z{ car.breakable.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ cuml                                                             ==== ".#".map(_.toInt).sum
+    T ~ z{ car.breakable.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ cuml                                                             ==== ".#".map(_.toInt).sum
+
+    T ~ n{ qt{ car.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } } }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ n{ qt{ car.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
+    T ~ n{ qt{ car.visit(civ){    (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
+    T ~ n{ qt{ car.visit(3 to 4){ (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
+    T ~ n{ qt{ car.visit(cpv){    (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
+    T ~ n{ qt{ car.visit(ix){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ qt{ car.visit(st){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ car.breakable.gather(0)()(_ + _.n + _)       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
+    T ~ car.breakable.gather(0)(3, 5)(_ + _.n + _)   ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.breakable.gather(0)(civ)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.breakable.gather(0)(3 to 4)(_ + _.n + _) ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.breakable.gather(0)(cpv)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.breakable.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ car.breakable.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+
+    T ~ car.breakable.gather(0)(){ (a, c, i) => qIf(!c.l); a + c.n + i }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ car.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
+    T ~ car.breakable.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
+    T ~ car.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.breakable.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.breakable.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ car.breakable.dupWith(_.n)                   =**= car.map(_.n)
+    T ~ car.breakable.dupWith{ c => qIf(!c.l); c.n } =**= car.take(2).map(_.n)
+
+    T ~ car.breakable.where(_.l)                          =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
+    T ~ car.breakable.where{ c => qIf(c.value>'i'); c.l } =**= car.zipWithIndex.takeWhile(_._1.value <= 'i').collect{ case (c, i) if c.l => i }
+
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs         ==== "1h.#ik."
+    T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                   ==== "0h.#ik."
+    T ~ car.dup{ a => qt{ a.set(){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs       ==== "ci0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(3, 5){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(3, 5){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(3, 5){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs   ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(3 to 4){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs   ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(3 to 4){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs             ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(3 to 4){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(civ){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(civ){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(civ){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs    ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(cpv){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(cpv){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(cpv){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs    ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(ix){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "ch1#ik."
+    T ~ car.dup{ a => qt{ a.set(ix){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "ch23ik."
+    T ~ car.dup{ a => qt{ a.set(ix){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs     ==== "cj0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(st){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "ch1#ik."
+    T ~ car.dup{ a => qt{ a.set(st){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "ch23ik."
+    T ~ car.dup{ a => qt{ a.set(st){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs     ==== "cj0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(_.l){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "1h.#ik."
+    T ~ car.dup{ a => qt{ a.set(_.l){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "0h.#ik."
+
+    val cx = "_________".c
+    var ninja = 0
+    T ~ cx.dup(a => ninja = car.breakable.inject(a)(_.l)).cs                              ==== "chik_____"
+    T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.count(_.l)
+    T ~ cx.dup(a => ninja = car.breakable.inject(a, 2)(_.l)).cs                           ==== "__chik___"
+    T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.count(_.l)
+    T ~ cx.dup(a => ninja = car.breakable.inject(a){ c => qIf(c.value=='#'); c.l }).cs    ==== "ch_______"
+    T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
+    T ~ cx.dup(a => ninja = car.breakable.inject(a, 2){ c => qIf(c.value=='#'); c.l }).cs ==== "__ch_____"
+    T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
+
+    T ~ car.breakable.select(_.l).cs                              ==== "chik"
+    T ~ car.breakable.select{ c => qIf(c.value=='#'); c.l }.cs    ==== "ch"
+
+    T ~ car.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-h-#-k-"
+    T ~ car.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
+    T ~ car.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
+
+    T ~ car.breakable.selectOp(){      (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "h#k"
+    T ~ car.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
+    T ~ car.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
+
+    T ~ car.breakable.selectOp(){      (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "c"
+    T ~ car.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+    T ~ car.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+
+    val lar = "ch.ix.#n.".c
+    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
 
   @Test

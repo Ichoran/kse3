@@ -1454,6 +1454,20 @@ object ShortcutArray {
           i += 1
       shrinkTo(b)(i)
 
+    inline def where(inline pick: A => boundary.Label[shortcut.Quits.type] ?=> Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < a.length do
+          if pick(a(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+
     inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       inject(that, 0)(pick)
     inline def inject(that: Array[A], where: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
@@ -1541,21 +1555,6 @@ object ShortcutArray {
             if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
             b(j) = y
             j += 1
-      b.shrinkTo(j)
-    transparent inline def selectOp[B](inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean)(inline op: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val a = sa.unwrap
-      var b = new Array[B](if a.length < 8 then a.length else 8)
-      var i = 0
-      var j = 0
-      shortcut.quittable:
-        while i < a.length do
-          val x = a(i)
-          if pick(x) then
-            val y = op(x, i)
-            if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
-            b(j) = y
-            j += 1
-          i += 1
       b.shrinkTo(j)
 
     transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
