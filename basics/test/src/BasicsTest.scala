@@ -22,6 +22,7 @@ import sourcecode.{Line, given}
 class BasicsTest {
   import kse.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
+  import kse.basics.intervals._
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
@@ -422,6 +423,903 @@ class BasicsTest {
     T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cutAt8              ==== ((1, 'a', 2, 3, 4, 5, 6, 7), 8)
 
 
+
+  object C extends NewType[Char] {
+    extension (c: C.Type)
+      def n: Int = c.value.toInt
+      def l: Boolean = c.value.isLetter
+      def o: O.Type = O(Some(c.value.toString))
+  }
+  extension (ac: Array[C.Type])
+    def cs: String =
+      val sb = new java.lang.StringBuilder()
+      ac.peek()(sb append _.value)
+      sb.toString
+
+  object O extends NewType[Option[String]] {
+    extension (o: O.Type)
+      def n: Int = o.value.map(_.length).getOrElse(-1)
+      def l: Boolean = o.value.isDefined
+      def c: C.Type = C(o.value.map(s => if s.length > 0 then s(s.length - 1) else '$').getOrElse('#'))
+  }
+  extension (ao: Array[O.Type])
+    def os: String =
+      val sb = new java.lang.StringBuilder()
+      ao.peek()(o => sb append (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#")))
+      sb.toString
+
+  extension (s: String)
+    def c: Array[C.Type] = s.toCharArray.dupWith(c => C(c))
+
+  @Test
+  def arrayInlinedDataTest(): Unit =
+    var cuml = 0
+    val str = "ch.ix.#n."
+    val car = str.c
+    val oar = Array[O.Type](O(Some("ch")), O(Some("ix")), O(None), O(Some("n")))
+    val ix = Array(2, 3, 1, 1, 3)
+    val ex = Array(2, -9, 400, 3)
+
+    val civ = Iv(3, 5)
+    val oiv = Iv(1, 3)
+    val cpv = 3 to End-4
+    val opv = 1 to End-1
+
+    def st = ix.stepper
+    def et = ex.stepper
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ car.cs ==== str
+    T ~ oar.os ==== str
+
+    T ~ car(End).value   ==== '.'
+    T ~ oar(End).value   ==== Some("n")
+    T ~ car(End-1).value ==== 'n'
+    T ~ oar(End-1).value ==== None
+
+    T ~ z{ car.peek()(cuml += _.n) }.cs       ==== str
+    T ~ cuml                                  ==== str.map(_.toInt).sum
+    T ~ z{ oar.peek()(cuml += _.n) }.os       ==== str
+    T ~ cuml                                  ==== oar.map(_.n).sum
+    T ~ z{ car.peek(3, 5)(cuml += _.n) }.cs   ==== str
+    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.peek(1, 3)(cuml += _.n) }.os   ==== str
+    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.peek(civ)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.peek(oiv)(cuml += _.n) }.os    ==== str
+    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.peek(3 to 4)(cuml += _.n) }.cs ==== str
+    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.peek(1 to 2)(cuml += _.n) }.os ==== str
+    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.peek(cpv)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.peek(opv)(cuml += _.n) }.os    ==== str
+    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.peek(ix)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                  ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ oar.peek(ix)(cuml += _.n) }.os     ==== str
+    T ~ cuml                                  ==== ix.map(i => oar(i).n).sum
+    T ~ z{ car.peek(st)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                  ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ oar.peek(st)(cuml += _.n) }.os     ==== str
+    T ~ cuml                                  ==== ix.map(i => oar(i).n).sum
+
+    T ~ n{ car.visit()(cuml += _.n + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
+    T ~ n{ oar.visit()(cuml += _.n + _) }       ==== oar.map(_.n).sum + oar.length*(oar.length-1)/2
+    T ~ n{ car.visit(3, 5)(cuml += _.n + _) }   ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ oar.visit(1, 3)(cuml += _.n + _) }   ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ n{ car.visit(civ)(cuml += _.n + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ oar.visit(oiv)(cuml += _.n + _) }    ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ n{ car.visit(3 to 4)(cuml += _.n + _) } ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ oar.visit(1 to 2)(cuml += _.n + _) } ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ n{ car.visit(cpv)(cuml += _.n + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ oar.visit(opv)(cuml += _.n + _) }    ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ n{ car.visit(ix)(cuml += _.n + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ n{ oar.visit(ix)(cuml += _.n + _) }     ==== ix.map(i => oar(i).n).sum + ix.sum
+    T ~ n{ car.visit(st)(cuml += _.n + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ n{ oar.visit(st)(cuml += _.n + _) }     ==== ix.map(i => oar(i).n).sum + ix.sum
+
+    T ~ n{ car.wander(){  (c, i) => cuml += c.n; i+2 } } ==== str.grouped(2).map(_(0).toInt).sum
+    T ~ n{ oar.wander(){  (o, i) => cuml += o.n; i+2 } } ==== Array(0, 2).map(i => oar(i).n).sum
+    T ~ n{ car.wander(1){ (c, i) => cuml += c.n; i+2 } } ==== str.grouped(2).filter(_.length == 2).map(_(1).toInt).sum
+    T ~ n{ oar.wander(1){ (o, i) => cuml += o.n; i+2 } } ==== Array(1, 3).map(i => oar(i).n).sum
+    T ~    car.wander(){  (_, i) =>              i+2 }   ==== str.grouped(2).map(_(0).toInt).length
+    T ~    oar.wander(){  (_, i) =>              i+2 }   ==== Array(0, 2).map(i => oar(i).n).length
+    T ~    car.wander(1){ (_, i) =>              i+2 }   ==== str.grouped(2).filter(_.length == 2).map(_(1).toInt).length
+    T ~    oar.wander(1){ (_, i) =>              i+2 }   ==== Array(1, 3).map(i => oar(i).n).length
+
+    T ~ car.gather(0)()(_ + _.n + _)       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
+    T ~ oar.gather(0)()(_ + _.n + _)       ==== oar.map(_.n).sum + oar.length*(oar.length-1)/2
+    T ~ car.gather(0)(3, 5)(_ + _.n + _)   ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ oar.gather(0)(1, 3)(_ + _.n + _)   ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ car.gather(0)(civ)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ oar.gather(0)(oiv)(_ + _.n + _)    ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ car.gather(0)(3 to 4)(_ + _.n + _) ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ oar.gather(0)(1 to 2)(_ + _.n + _) ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ car.gather(0)(cpv)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ oar.gather(0)(opv)(_ + _.n + _)    ==== oar.slice(1, 3).map(_.n).sum + 3
+    T ~ car.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ oar.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => oar(i).n).sum + ix.sum
+    T ~ car.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ oar.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => oar(i).n).sum + ix.sum
+
+    T ~ car.dup()                  =**= car
+    T ~ (car.dup() eq car)         ==== false
+    T ~ oar.dup()                  =**= oar
+    T ~ (oar.dup() eq oar)         ==== false
+    T ~ car.dup(_(0) = C('s')).cs  ==== "sh.ix.#n."
+    T ~ oar.dup(_(0) = O(None)).os ==== "#ix.#n."
+    T ~ car.dupWith(_.n)           =**= car.map(_.n)
+    T ~ oar.dupWith(_.n)           =**= oar.map(_.n)
+
+    T ~ car.addLeft(2).cs          ==== "\u0000\u0000ch.ix.#n."
+    T ~ oar.addLeft(2).os          ==== "@@ch.ix.#n."
+    T ~ car.addLeft(2, C('+')).cs  ==== "++ch.ix.#n."
+    T ~ oar.addLeft(2, O(None)).os ==== "##ch.ix.#n."
+    T ~ car.addRight(2).cs          ==== "ch.ix.#n.\u0000\u0000"
+    T ~ oar.addRight(2).os          ==== "ch.ix.#n.@@"
+    T ~ car.addRight(2, C('+')).cs  ==== "ch.ix.#n.++"
+    T ~ oar.addRight(2, O(None)).os ==== "ch.ix.#n.##"
+
+    T ~ car.where(_.l) =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
+    T ~ oar.where(_.l) =**= oar.zipWithIndex.collect{ case (o, i) if o.l => i }
+
+    T ~ car.dup(_() = C('x')).cs          ==== "xxxxxxxxx"
+    T ~ oar.dup(_() = O(None)).os         ==== "####"
+    T ~ car.dup(_() = "abcdefghi".c).cs   ==== "abcdefghi"
+    T ~ oar.dup(_() = oar.reverse)        =**= oar.reverse
+    T ~ car.dup(_(civ) = C('x')).cs       ==== "ch.xx.#n."
+    T ~ oar.dup(_(oiv) = O(None)).os      ==== "ch.##n."
+    T ~ car.dup(_(civ) = "12".c).cs       ==== "ch.12.#n."
+    T ~ oar.dup(_(oiv) = oar).os          ==== "ch.ch.ix.n."
+    T ~ car.dup(_(3 to 4) = C('x')).cs    ==== "ch.xx.#n."
+    T ~ oar.dup(_(1 to 2) = O(None)).os   ==== "ch.##n."
+    T ~ car.dup(_(3 to 4) = "12".c).cs    ==== "ch.12.#n."
+    T ~ oar.dup(_(1 to 2) = oar).os       ==== "ch.ch.ix.n."
+    T ~ car.dup(_(cpv) = C('x')).cs       ==== "ch.xx.#n."
+    T ~ oar.dup(_(opv) = O(None)).os      ==== "ch.##n."
+    T ~ car.dup(_(cpv) = "12".c).cs       ==== "ch.12.#n."
+    T ~ oar.dup(_(opv) = oar).os          ==== "ch.ch.ix.n."
+    T ~ car.dup(_(ix) = C('x')).cs        ==== "cxxxx.#n."
+    T ~ oar.dup(_(ix) = O(None)).os       ==== "ch.###"
+    T ~ car.dup(_(st) = C('x')).cs        ==== "cxxxx.#n."
+    T ~ oar.dup(_(st) = O(None)).os       ==== "ch.###"
+    T ~ car.dup(_(_.l) = C('x')).cs       ==== "xx.xx.#x."
+    T ~ oar.dup(_(_.l) = O(Some("e"))).os ==== "e.e.#e."
+
+    inline def gc(run: (() => C.Type) => Array[C.Type]): String =
+      var x = '0'
+      val f = () => { x = (x+1).toChar; C(x) }
+      run(f).cs
+    inline def go(run: (() => O.Type) => Array[O.Type]): String =
+      var x = ""
+      val f = () => { x = x + "!"; O(Some(x)) }
+      run(f).os
+    inline def ic(run: (Int => C.Type) => Array[C.Type]): String =
+      val f = (i: Int) => C(('0' + i).toChar)
+      run(f).cs
+    inline def io(run: (Int => O.Type) => Array[O.Type]): String =
+      val f = (i: Int) => O(Some("!"*i))
+      run(f).os
+    inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
+      val f = (c: C.Type, i: Int) => C((c.value + i).toChar)
+      run(f).cs
+    inline def fo(run: ((O.Type, Int) => O.Type) => Array[O.Type]): String =
+      val f = (o: O.Type, i: Int) => O(o.value.map(_ + "!"*i) orElse Some(i.toString))
+      run(f).os
+    T ~ gc{ f => car.dup(_.set()(f)) }       ==== "123456789"
+    T ~ go{ f => oar.dup(_.set()(f)) }       ==== "!.!!.!!!.!!!!."
+    T ~ ic{ f => car.dup(_.set()(f)) }       ==== "012345678"
+    T ~ io{ f => oar.dup(_.set()(f)) }       ==== ".!.!!.!!!."
+    T ~ fc{ f => car.dup(_.set()(f)) }       ==== "ci0l|3)u6"
+    T ~ fo{ f => oar.dup(_.set()(f)) }       ==== "ch.ix!.2.n!!!."
+    T ~ gc{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
+    T ~ fc{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.ix!.2.n."
+    T ~ gc{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
+    T ~ fc{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.ix!.2.n."
+    T ~ gc{ f => car.dup(_.set(civ)(f)) }    ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(civ)(f)) }    ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
+    T ~ fc{ f => car.dup(_.set(civ)(f)) }    ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.ix!.2.n."
+    T ~ gc{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
+    T ~ fc{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.ix!.2.n."
+    T ~ gc{ f => car.dup(_.set(ix)(f)) }     ==== "c415x.#n."
+    T ~ go{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!!!!.!.!!!!!."
+    T ~ ic{ f => car.dup(_.set(ix)(f)) }     ==== "c123x.#n."
+    T ~ io{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!.!!.!!!."
+    T ~ fc{ f => car.dup(_.set(ix)(f)) }     ==== "cj0ox.#n."
+    T ~ fo{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
+    T ~ gc{ f => car.dup(_.set(st)(f)) }     ==== "c415x.#n."
+    T ~ go{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!!!!.!.!!!!!."
+    T ~ ic{ f => car.dup(_.set(st)(f)) }     ==== "c123x.#n."
+    T ~ io{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!.!!.!!!."
+    T ~ fc{ f => car.dup(_.set(st)(f)) }     ==== "cj0ox.#n."
+    T ~ fo{ f => oar.dup(_.set(st)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
+    T ~ gc{ f => car.dup(_.set(_.l)(f)) }    ==== "12.34.#5."
+    T ~ go{ f => oar.dup(_.set(_.l)(f)) }    ==== "!.!!.#!!!."
+    T ~ ic{ f => car.dup(_.set(_.l)(f)) }    ==== "01.34.#7."
+    T ~ io{ f => oar.dup(_.set(_.l)(f)) }    ==== ".!.#!!!."
+
+    val cx = "___________".c
+    val ox = Array.fill(6)(O(Some("_")))
+    var ninja = 0
+    T ~ cx.dup(a => ninja = car.inject(a)).cs            ==== "ch.ix.#n.__"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== car.length
+    T ~ ox.dup(a => ninja = oar.inject(a)).os            ==== "ch.ix.#n._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== oar.length
+    T ~ cx.dup(a => ninja = car.inject(a, 2)).cs         ==== "__ch.ix.#n."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== car.length
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)).os         ==== "_._.ch.ix.#n."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== oar.length
+    T ~ cx.dup(a => ninja = car.inject(a)(3, 5)).cs      ==== "ix_________"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a)(1, 3)).os      ==== "ix.#_._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(3, 5)).cs   ==== "__ix_______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(1, 3)).os   ==== "_._.ix.#_._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a)(3 to 4)).cs    ==== "ix_________"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a)(1 to 2)).os    ==== "ix.#_._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(3 to 4)).cs ==== "__ix_______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(1 to 2)).os ==== "_._.ix.#_._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a)(3, 5)).cs      ==== "ix_________"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a)(1, 3)).os      ==== "ix.#_._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(3, 5)).cs   ==== "__ix_______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(1, 3)).os   ==== "_._.ix.#_._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a)(civ)).cs       ==== "ix_________"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a)(oiv)).os       ==== "ix.#_._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(civ)).cs    ==== "__ix_______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(oiv)).os    ==== "_._.ix.#_._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a)(cpv)).cs       ==== "ix_________"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a)(opv)).os       ==== "ix.#_._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(cpv)).cs    ==== "__ix_______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(opv)).os    ==== "_._.ix.#_._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 2
+    T ~ cx.dup(a => ninja = car.inject(a)(ix)).cs        ==== ".ihhi______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ ox.dup(a => ninja = oar.inject(a)(ix)).os        ==== "#n.ix.ix.n._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ cx.dup(a => ninja = car.inject(a, 1)(ix)).cs     ==== "_.ihhi_____"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ ox.dup(a => ninja = oar.inject(a, 1)(ix)).os     ==== "_.#n.ix.ix.n."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ cx.dup(a => ninja = car.inject(a)(st)).cs        ==== ".ihhi______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ ox.dup(a => ninja = oar.inject(a)(st)).os        ==== "#n.ix.ix.n._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ cx.dup(a => ninja = car.inject(a, 1)(st)).cs     ==== "_.ihhi_____"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ ox.dup(a => ninja = oar.inject(a, 1)(st)).os     ==== "_.#n.ix.ix.n."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 5
+    T ~ cx.dup(a => ninja = car.inject(a)(_.l)).cs       ==== "chixn______"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== car.count(_.l)
+    T ~ ox.dup(a => ninja = oar.inject(a)(_.l)).os       ==== "ch.ix.n._._._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== oar.count(_.l)
+    T ~ cx.dup(a => ninja = car.inject(a, 2)(_.l)).cs    ==== "__chixn____"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== car.count(_.l)
+    T ~ ox.dup(a => ninja = oar.inject(a, 2)(_.l)).os    ==== "_._.ch.ix.n._."
+    T ~ { val x = ninja; ninja = 0; x }                  ==== oar.count(_.l)
+
+    T ~ car.select(3, 5).cs   ==== "ix"
+    T ~ oar.select(1, 3).os   ==== "ix.#"
+    T ~ car.select(3 to 4).cs ==== "ix"
+    T ~ oar.select(1 to 2).os ==== "ix.#"
+    T ~ car.select(civ).cs    ==== "ix"
+    T ~ oar.select(oiv).os    ==== "ix.#"
+    T ~ car.select(cpv).cs    ==== "ix"
+    T ~ oar.select(opv).os    ==== "ix.#"
+    T ~ car.select(ix).cs     ==== ".ihhi"
+    T ~ oar.select(ix).os     ==== "#n.ix.ix.n."
+    T ~ car.select(st).cs     ==== ".ihhi"
+    T ~ oar.select(st).os     ==== "#n.ix.ix.n."
+    T ~ car.select(_.l).cs    ==== "chixn"
+    T ~ oar.select(_.l).os    ==== "ch.ix.n."
+
+    T ~ car.selectOp()(      (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#h.#i.#..#n.#"
+    T ~ oar.selectOp()(      (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-x-n"
+    T ~ car.selectOp(3, 5)(  (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
+    T ~ oar.selectOp(1, 3)(  (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "x-"
+    T ~ car.selectOp(3 to 4)((c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
+    T ~ oar.selectOp(1 to 2)((o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "x-"
+    T ~ car.selectOp(civ)(   (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
+    T ~ oar.selectOp(oiv)(   (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "x-"
+    T ~ car.selectOp(cpv)(   (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
+    T ~ oar.selectOp(opv)(   (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "x-"
+    T ~ car.selectOp(ix)(    (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#i.h.h.i."
+    T ~ oar.selectOp(ix)(    (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-nxxn"
+    T ~ car.selectOp(st)(    (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#i.h.h.i."
+    T ~ oar.selectOp(st)(    (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-nxxn"
+    T ~ car.selectOp(_.l)(   (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#h.i.#n."
+    T ~ oar.selectOp(_.l)(   (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-xn"
+
+    T ~ car.fusion[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+
+
+  @Test
+  def arrayClippedIntervalDataTest: Unit =
+    var cuml = 0
+    val str = "ch.#ik."
+    val car = str.c
+
+    val ix = Array(2, 3, 1, 1, 3)
+    val ex = Array(2, 0, -1, 3, 6, 7, -9, 400) 
+    def st = ix.stepper
+    def et = ex.stepper
+
+    val civ = Iv(3, 5)
+    val cpv = 3 to End-2
+    val eiv = Iv(3, 9)
+    val fiv = Iv(-2, 5)
+    val fpv = End-9 to End-2
+    val biv = Iv(-2, 9)
+    val niv = Iv(8, 9)
+    val npv = End-9 to End-8
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
+
+    T ~ z{ car.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.clip.peek(civ)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.clip.peek(cpv)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.clip.peek(ix)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.clip.peek(st)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
+
+    T ~ n{ car.clip.peek(3, 9)(cuml += _.n) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.clip.peek(3 to 8)(cuml += _.n) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.clip.peek(eiv)(cuml += _.n) }     ==== str.substring(3).map(_.toInt).sum
+    T ~    car.     peek(3, 9)(cuml += _.n)      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(3 to 8)(cuml += _.n)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(eiv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.peek(-2, 5)(cuml += _.n) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.clip.peek(-2 to 4)(cuml += _.n) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.clip.peek(fiv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.clip.peek(fpv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~    car.     peek(-2, 5)(cuml += _.n)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(-2 to 4)(cuml += _.n)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(fiv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(fpv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.peek(-2, 9)(cuml += _.n) }   ==== str.map(_.toInt).sum
+    T ~ n{ car.clip.peek(-2 to 9)(cuml += _.n) } ==== str.map(_.toInt).sum
+    T ~ n{ car.clip.peek(biv)(cuml += _.n) }     ==== str.map(_.toInt).sum
+    T ~    car.     peek(-2, 9)(cuml += _.n)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(-2 to 9)(cuml += _.n)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(biv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.peek(8, 9)(cuml += _.n) }    ==== 0
+    T ~ n{ car.clip.peek(8 to 9)(cuml += _.n) }  ==== 0
+    T ~ n{ car.clip.peek(niv)(cuml += _.n) }     ==== 0
+    T ~ n{ car.clip.peek(npv)(cuml += _.n) }     ==== 0
+    T ~    car.     peek(8, 9)(cuml += _.n)      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(8 to 9)(cuml += _.n)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(niv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(npv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.peek(ex)(cuml += _.n) }      ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.clip.peek(et)(cuml += _.n) }      ==== ".c#.".map(_.toInt).sum
+    T ~    car.     peek(ex)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     peek(et)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
+
+    def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
+    T ~ n{ car.clip.visit(3, 5)(cuml += _.n + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.visit(3 to 4)(cuml += _.n + _) }  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.visit(civ)(cuml += _.n + _) }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.visit(cpv)(cuml += _.n + _) }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.visit(ix)(cuml += _.n + _) }      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ n{ car.clip.visit(st)(cuml += _.n + _) }      ==== ".#hh#".map(_.toInt).sum + 10
+
+    T ~ n{ car.clip.visit(3, 9)(cuml += _.n + _) }    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ car.clip.visit(3 to 8)(cuml += _.n + _) }  ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ car.clip.visit(eiv)(cuml += _.n + _) }     ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~    car.     visit(3, 9)(cuml += _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(3 to 8)(cuml += _.n + _)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(eiv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.visit(-2, 5)(cuml += _.n + _) }   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.visit(-2 to 4)(cuml += _.n + _) } ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.visit(fiv)(cuml += _.n + _) }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.visit(fpv)(cuml += _.n + _) }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~    car.     visit(-2, 5)(cuml += _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(-2 to 4)(cuml += _.n + _)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(fiv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(fpv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.visit(-2, 9)(cuml += _.n + _) }   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ car.clip.visit(-2 to 9)(cuml += _.n + _) } ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ car.clip.visit(biv)(cuml += _.n + _) }     ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~    car.     visit(-2, 9)(cuml += _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(-2 to 9)(cuml += _.n + _)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(biv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.visit(8, 9)(cuml += _.n + _) }    ==== 0
+    T ~ n{ car.clip.visit(8 to 9)(cuml += _.n + _) }  ==== 0
+    T ~ n{ car.clip.visit(niv)(cuml += _.n + _) }     ==== 0
+    T ~ n{ car.clip.visit(npv)(cuml += _.n + _) }     ==== 0
+    T ~    car.     visit(8, 9)(cuml += _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(8 to 9)(cuml += _.n + _)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(niv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(npv)(cuml += _.n + _)       ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ n{ car.clip.visit(ex)(cuml += _.n + _) }      ==== ".c#.".map(_.toInt).sum + 11
+    T ~ n{ car.clip.visit(et)(cuml += _.n + _) }      ==== ".c#.".map(_.toInt).sum + 11
+    T ~    car.     visit(ex)(cuml += _.n + _)        ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.     visit(et)(cuml += _.n + _)        ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.gather(0)(3 to 4)(_ + _.n + _)  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.gather(0)(civ)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.gather(0)(cpv)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.gather(0)(ix)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ car.clip.gather(0)(st)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
+
+    T ~ car.clip.gather(0)(3, 9)(_ + _.n + _)    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.clip.gather(0)(3 to 8)(_ + _.n + _)  ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.clip.gather(0)(eiv)(_ + _.n + _)     ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.     gather(0)(3, 9)(_ + _.n + _)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(3 to 8)(_ + _.n + _)  ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(eiv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.gather(0)(-2, 5)(_ + _.n + _)   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.gather(0)(-2 to 4)(_ + _.n + _) ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.gather(0)(fiv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.gather(0)(fpv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.     gather(0)(-2, 5)(_ + _.n + _)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(-2 to 4)(_ + _.n + _) ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(fiv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(fpv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.gather(0)(-2, 9)(_ + _.n + _)   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.clip.gather(0)(-2 to 9)(_ + _.n + _) ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.clip.gather(0)(biv)(_ + _.n + _)     ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.     gather(0)(-2, 9)(_ + _.n + _)   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(-2 to 9)(_ + _.n + _) ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(biv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.gather(0)(8, 9)(_ + _.n + _)    ==== 0
+    T ~ car.clip.gather(0)(8 to 9)(_ + _.n + _)  ==== 0
+    T ~ car.clip.gather(0)(niv)(_ + _.n + _)     ==== 0
+    T ~ car.clip.gather(0)(npv)(_ + _.n + _)     ==== 0
+    T ~ car.     gather(0)(8, 9)(_ + _.n + _)    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(8 to 9)(_ + _.n + _)  ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(niv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(npv)(_ + _.n + _)     ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.gather(0)(ex)(_ + _.n + _)      ==== ".c#.".map(_.toInt).sum + 11
+    T ~ car.clip.gather(0)(et)(_ + _.n + _)      ==== ".c#.".map(_.toInt).sum + 11
+    T ~ car.     gather(0)(ex)(_ + _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.     gather(0)(et)(_ + _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
+
+    val ca9 = "ABCDEFGHI".c
+    val ca7 = "1234567".c
+    val ca3 = "890".c
+    val ca1 = "%".c
+
+    T ~ car.dup(_.clip() = ca7).cs          ==== "1234567"
+    T ~ car.dup(_.clip(civ) = C('x')).cs    ==== "ch.xxk."
+    T ~ car.dup(_.clip(civ) = ca3).cs       ==== "ch.89k."
+    T ~ car.dup(_.clip(3 to 4) = C('x')).cs ==== "ch.xxk."
+    T ~ car.dup(_.clip(3 to 4) = ca3).cs    ==== "ch.89k."
+    T ~ car.dup(_.clip(cpv) = C('x')).cs    ==== "ch.xxk."
+    T ~ car.dup(_.clip(cpv) = ca3).cs       ==== "ch.89k."
+    T ~ car.dup(_.clip(ix) = C('x')).cs     ==== "cxxxik."
+    T ~ car.dup(_.clip(ix) = ca7).cs        ==== "c415ik."    
+    T ~ car.dup(_.clip(st) = C('x')).cs     ==== "cxxxik."
+    T ~ car.dup(_.clip(st) = ca7).cs        ==== "c415ik."
+
+    T ~ car.dup(_.clip() = ca3).cs ==== "890#ik."
+    T ~ car.dup(_() = ca3).cs      ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup(_.clip(eiv)    = C('x')).cs ==== "ch.xxxx"
+    T ~ car.dup(_.clip(3 to 8) = C('x')).cs ==== "ch.xxxx"
+    T ~ car.dup(_.clip(eiv)    = ca7).cs    ==== "ch.1234"
+    T ~ car.dup(_.clip(3 to 8) = ca7).cs    ==== "ch.1234"
+    T ~ car.dup(_.clip(eiv)    = ca3).cs    ==== "ch.890."
+    T ~ car.dup(_.clip(3 to 8) = ca3).cs    ==== "ch.890."
+    T ~ car.dup(_(eiv)         = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(3 to 8)      = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(eiv)         = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(3 to 8)      = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(eiv)         = ca3).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(3 to 8)      = ca3).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup(_.clip(fiv)     = C('x')).cs ==== "xxxxxk."
+    T ~ car.dup(_.clip(fpv)     = C('x')).cs ==== "xxxxxk."
+    T ~ car.dup(_.clip(-2 to 4) = C('x')).cs ==== "xxxxxk."
+    T ~ car.dup(_.clip(fiv)     = ca7).cs    ==== "12345k."
+    T ~ car.dup(_.clip(fpv)     = ca7).cs    ==== "12345k."
+    T ~ car.dup(_.clip(-2 to 4) = ca7).cs    ==== "12345k."
+    T ~ car.dup(_.clip(fiv)     = ca3).cs    ==== "890#ik."
+    T ~ car.dup(_.clip(fpv)     = ca3).cs    ==== "890#ik."
+    T ~ car.dup(_.clip(-2 to 4) = ca3).cs    ==== "890#ik."
+    T ~ car.dup(_(fiv)          = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(fpv)          = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(-2 to 4)      = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(fiv)          = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(fpv)          = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(-2 to 4)      = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup(_.clip(biv)     = C('x')).cs ==== "xxxxxxx"
+    T ~ car.dup(_.clip(-2 to 8) = C('x')).cs ==== "xxxxxxx"
+    T ~ car.dup(_.clip(biv)     = ca7).cs    ==== "1234567"
+    T ~ car.dup(_.clip(-2 to 8) = ca7).cs    ==== "1234567"
+    T ~ car.dup(_.clip(biv)     = ca3).cs    ==== "890#ik."
+    T ~ car.dup(_.clip(-2 to 8) = ca3).cs    ==== "890#ik."
+
+    T ~ car.dup(_.clip(niv)    = C('x')).cs ==== "ch.#ik."
+    T ~ car.dup(_.clip(npv)    = C('x')).cs ==== "ch.#ik."
+    T ~ car.dup(_.clip(8 to 9) = C('x')).cs ==== "ch.#ik."
+    T ~ car.dup(_.clip(niv)    = ca1).cs    ==== "ch.#ik."
+    T ~ car.dup(_.clip(npv)    = ca1).cs    ==== "ch.#ik."
+    T ~ car.dup(_.clip(8 to 9) = ca1).cs    ==== "ch.#ik."
+    T ~ car.dup(_(niv)         = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(npv)         = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(8 to 9)      = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(niv)         = ca1).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(npv)         = ca1).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(8 to 9)      = ca1).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup(_.clip(ix) = ca3).cs ==== "c089ik."    
+    T ~ car.dup(_.clip(st) = ca3).cs ==== "c089ik."    
+    T ~ car.dup(_(ix)      = ca3).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(st)      = ca3).cs ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup(_.clip(ex) = C('x')).cs ==== "xhxxikx"
+    T ~ car.dup(_.clip(et) = C('x')).cs ==== "xhxxikx"
+    T ~ car.dup(_.clip(ex) = ca7).cs    ==== "2h13ik4"
+    T ~ car.dup(_.clip(et) = ca7).cs    ==== "2h13ik4"
+    T ~ car.dup(_.clip(ex) = ca3).cs    ==== "9h80ik."
+    T ~ car.dup(_.clip(et) = ca3).cs    ==== "9h80ik."
+    T ~ car.dup(_(ex)      = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(et)      = C('x')).cs ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(ex)      = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ car.dup(_(et)      = ca7).cs    ==== thrown[ArrayIndexOutOfBoundsException]
+
+    inline def gc(run: (() => C.Type) => Array[C.Type]): String =
+      var x = '0'
+      val f = () => { x = (x+1).toChar; C(x) }
+      run(f).cs
+    inline def ic(run: (Int => C.Type) => Array[C.Type]): String =
+      val f = (i: Int) => C(('0' + i).toChar)
+      run(f).cs
+    inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
+      val f = (c: C.Type, i: Int) => C((c.value + i).toChar)
+      run(f).cs
+    T ~ gc{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.12k."
+    T ~ ic{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.34k."
+    T ~ fc{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.&mk."
+    T ~ gc{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.12k."
+    T ~ ic{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.34k."
+    T ~ fc{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.&mk."
+    T ~ gc{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.12k."
+    T ~ ic{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.34k."
+    T ~ fc{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.&mk."
+    T ~ gc{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.12k."
+    T ~ ic{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.34k."
+    T ~ fc{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.&mk."
+    T ~ gc{ f => car.dup(_.clip.set(ix    )(f)) } ==== "c415ik."
+    T ~ ic{ f => car.dup(_.clip.set(ix    )(f)) } ==== "c123ik."    
+    T ~ fc{ f => car.dup(_.clip.set(ix    )(f)) } ==== "cj0)ik."    
+    T ~ gc{ f => car.dup(_.clip.set(st    )(f)) } ==== "c415ik."
+    T ~ ic{ f => car.dup(_.clip.set(st    )(f)) } ==== "c123ik."
+    T ~ fc{ f => car.dup(_.clip.set(st    )(f)) } ==== "cj0)ik."
+
+    T ~ gc{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.1234"
+    T ~ ic{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.3456"
+    T ~ fc{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.&mp4"
+    T ~ gc{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.1234"
+    T ~ ic{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.3456"
+    T ~ fc{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.&mp4"
+    T ~ gc{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.1234"
+    T ~ ic{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.3456"
+    T ~ fc{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.&mp4"
+    T ~ gc{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ gc{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "12345k."
+    T ~ ic{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "01234k."
+    T ~ fc{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "ci0&mk."
+    T ~ gc{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "12345k."
+    T ~ ic{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "01234k."
+    T ~ fc{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "ci0&mk."
+    T ~ gc{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "12345k."
+    T ~ ic{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "01234k."
+    T ~ fc{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "ci0&mk."
+    T ~ gc{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "12345k."
+    T ~ ic{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "01234k."
+    T ~ fc{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "ci0&mk."
+    T ~ gc{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ gc{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "1234567"
+    T ~ ic{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "0123456"
+    T ~ fc{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "ci0&mp4"
+    T ~ gc{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "1234567"
+    T ~ ic{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "0123456"
+    T ~ fc{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "ci0&mp4"
+    T ~ gc{ f => car.dup(_.clip.set(biv    )(f)) } ==== "1234567"
+    T ~ ic{ f => car.dup(_.clip.set(biv    )(f)) } ==== "0123456"
+    T ~ fc{ f => car.dup(_.clip.set(biv    )(f)) } ==== "ci0&mp4"
+
+    T ~ gc{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
+    T ~ ic{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
+    T ~ gc{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
+    T ~ ic{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
+    T ~ gc{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
+    T ~ ic{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
+    T ~ gc{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
+    T ~ ic{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
+    T ~ gc{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ gc{ f => car.dup(_.clip.set(ex)(f)) } ==== "2h13ik4"
+    T ~ ic{ f => car.dup(_.clip.set(ex)(f)) } ==== "0h23ik6"
+    T ~ fc{ f => car.dup(_.clip.set(ex)(f)) } ==== "ch0&ik4"
+    T ~ gc{ f => car.dup(_.clip.set(et)(f)) } ==== "2h13ik4"
+    T ~ ic{ f => car.dup(_.clip.set(et)(f)) } ==== "0h23ik6"
+    T ~ fc{ f => car.dup(_.clip.set(et)(f)) } ==== "ch0&ik4"
+    T ~ gc{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ gc{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ ic{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+
+    var ninja = 0
+    T ~ ca9.dup(a => ninja += car.clip.inject(a)).cs            ==== "ch.#ik.HI"
+    T ~ ca9.dup(a => ninja += car.clip.inject(a, 2)).cs         ==== "ABch.#ik."
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 2*car.length
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(3, 5)).cs      ==== "#i34567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(3, 5)).cs   ==== "12#i567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(3 to 4)).cs    ==== "#i34567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(3 to 4)).cs ==== "12#i567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(civ)).cs       ==== "#i34567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(civ)).cs    ==== "12#i567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(cpv)).cs       ==== "#i34567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(cpv)).cs    ==== "12#i567"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 8*2
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(ix)).cs        ==== ".#hh#67"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(ix)).cs     ==== "12.#hh#"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(st)).cs        ==== ".#hh#67"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(st)).cs     ==== "12.#hh#"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 4*5
+
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)).cs            ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)).cs         ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)).cs         ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 3+5+0
+
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(3, 5)).cs      ==== "#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 2)(3, 5)).cs   ==== "89#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(3, 5)).cs   ==== "890"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(3 to 4)).cs    ==== "#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 2)(3 to 4)).cs ==== "89#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(3 to 4)).cs ==== "890"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(civ)).cs       ==== "#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 2)(civ)).cs    ==== "89#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(civ)).cs    ==== "890"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(cpv)).cs       ==== "#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 2)(cpv)).cs    ==== "89#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(cpv)).cs    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 4*(1+1+0)
+
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(3, 9)).cs      ==== "#ik"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 5)(3, 9)).cs   ==== "12345#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(3, 9)).cs   ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(3 to 8)).cs    ==== "#ik"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 5)(3 to 8)).cs ==== "12345#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(3 to 8)).cs ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(eiv)).cs       ==== "#ik"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 5)(eiv)).cs    ==== "12345#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(eiv)).cs    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 3*(3+2+0)
+
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(-2, 5)).cs      ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 3)(-2, 5)).cs   ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(-2, 5)).cs   ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(-2 to 4)).cs    ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 3)(-2 to 4)).cs ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(-2 to 4)).cs ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(fiv)).cs        ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 3)(fiv)).cs     ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(fiv)).cs     ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(fpv)).cs        ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 3)(fpv)).cs     ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(fpv)).cs     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 4*(3+4+0)
+
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(-2, 9)).cs      ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(-2, 9)).cs   ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(-2, 9)).cs   ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(-2 to 8)).cs    ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(-2 to 8)).cs ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(-2 to 8)).cs ==== "890"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(biv)).cs        ==== "ch."
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 2)(biv)).cs     ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(biv)).cs     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 3*(3+5+0)
+
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(8, 10)).cs     ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a, 2)(8, 10)).cs  ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(8 to 9)).cs    ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a, 2)(8 to 9)).cs ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(niv)).cs       ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a, 2)(niv)).cs    ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a)(npv)).cs       ==== "%"
+    T ~ ca1.dup(a => ninja += car.clip.inject(a, 2)(npv)).cs    ==== "%"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 0
+
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(ix)).cs        ==== ".#h"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 1)(ix)).cs     ==== "8.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(ix)).cs     ==== "890"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, -1)(ix)).cs    ==== ".#hh#67"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a)(st)).cs        ==== ".#h"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 1)(st)).cs     ==== "8.#"
+    T ~ ca3.dup(a => ninja += car.clip.inject(a, 4)(st)).cs     ==== "890"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, -1)(st)).cs    ==== ".#hh#67"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 2*(3+2+0+5)    
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(ex)).cs        ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 4)(ex)).cs     ==== "1234.c#"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 9)(ex)).cs     ==== "1234567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, -1)(ex)).cs    ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a)(et)).cs        ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 4)(et)).cs     ==== "1234.c#"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, 9)(et)).cs     ==== "1234567"
+    T ~ ca7.dup(a => ninja += car.clip.inject(a, -1)(et)).cs    ==== ".c#.567"
+    T ~ { val x = ninja; ninja = 0; x }                         ==== 2*(4+3+0+4)    
+
+    T ~ car.clip.select(3, 5).cs   ==== "#i"
+    T ~ car.clip.select(3 to 4).cs ==== "#i"
+    T ~ car.clip.select(civ).cs    ==== "#i"
+    T ~ car.clip.select(cpv).cs    ==== "#i"
+    T ~ car.clip.select(ix).cs     ==== ".#hh#"
+    T ~ car.clip.select(st).cs     ==== ".#hh#"
+
+    T ~ car.clip.select(3, 9).cs   ==== "#ik."
+    T ~ car.clip.select(3 to 8).cs ==== "#ik."
+    T ~ car.clip.select(eiv).cs    ==== "#ik."
+
+    T ~ car.clip.select(-2, 5).cs   ==== "ch.#i"
+    T ~ car.clip.select(-2 to 4).cs ==== "ch.#i"
+    T ~ car.clip.select(fiv).cs     ==== "ch.#i"
+    T ~ car.clip.select(fpv).cs     ==== "ch.#i"
+
+    T ~ car.clip.select(-2, 9).cs   ==== "ch.#ik."
+    T ~ car.clip.select(-2 to 8).cs ==== "ch.#ik."
+    T ~ car.clip.select(biv).cs     ==== "ch.#ik."
+
+    T ~ car.clip.select(8, 10).cs  ==== ""
+    T ~ car.clip.select(8 to 9).cs ==== ""
+    T ~ car.clip.select(niv).cs    ==== ""
+    T ~ car.clip.select(npv).cs    ==== ""
+
+    T ~ car.clip.select(et).cs    ==== ".c#."
+    T ~ car.clip.select(et).cs    ==== ".c#."
+
+    T ~ car.clip.selectOp(3, 5  )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.selectOp(3 to 4)((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.selectOp(civ   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.selectOp(cpv   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.selectOp(ix    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
+    T ~ car.clip.selectOp(st    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
+    T ~ car.clip.selectOp(3, 5  )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.selectOp(3 to 4)((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.selectOp(civ   )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.selectOp(cpv   )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.selectOp(ix    )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.selectOp(st    )((c, i) => c.value + i) ==== typed[Array[Int]]
+
+    T ~ car.clip.selectOp(3, 9  )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+    T ~ car.clip.selectOp(3 to 8)((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+    T ~ car.clip.selectOp(eiv   )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+
+    T ~ car.clip.selectOp(-2, 5  )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.selectOp(-2 to 4)((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.selectOp(fiv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.selectOp(fpv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+
+    T ~ car.clip.selectOp(-2, 9  )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ car.clip.selectOp(-2 to 8)((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ car.clip.selectOp(biv    )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+
+    T ~ car.clip.selectOp(8, 10 )((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.selectOp(8 to 9)((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.selectOp(niv   )((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.selectOp(npv   )((c, i) => c.value + i) =**= "".map(_.toInt)
+
+    T ~ car.clip.selectOp(ex)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
+    T ~ car.clip.selectOp(et)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
+
+
+
+
+
   @Test
   def arrayPrimitiveDataTest(): Unit =
     import java.lang.Float.{intBitsToFloat => i2f}
@@ -429,23 +1327,29 @@ class BasicsTest {
 
     T ~ Iv(5, 8)                    ==== 0x800000005L  --: typed[Iv]
     T ~ Iv(5, 8).i0                 ==== 5
-    T ~ Iv(5, 8).i1                 ==== 8
+    T ~ Iv(5, 8).iN                 ==== 8
 
     val atf = Array(false, false, true, true)
     val aip = Array(2, 3, -3)
     val air = Array(3, 4, 3)
-    var cuml = 0
 
     object NuZ extends NewType[Boolean] {}
     val az = Array[Boolean](true, true, false)
     val naz = Array[NuZ.Type](NuZ(true), NuZ(true), NuZ(false))
-    T ~ az.copy         =**= az
-    T ~ (az.copy eq az) ==== false
-    T ~ naz.copy        =**= naz
+    T ~ az.copy                        =**= az
+    T ~ (az.copy eq az)                ==== false
+    T ~ naz.copy                       =**= naz
+    T ~ az.copyToSize(4)               =**= Array(true, true, false, false)
+    T ~ az.copyToSize(2)               =**= Array(true, true)
+    T ~ az.shrinkCopy(4)               =**= az
+    T ~ az.shrinkCopy(2)               =**= az.copyToSize(2)
+    T ~ az.copyOfRange(1, 3)           =**= Array(true, false)
+    T ~ {az.fill(false); az}           =**= Array(false, false, false)
+    T ~ {az.fillRange(1, 3)(true); az} =**= Array(false, true, true)
 
     object NuB extends NewType[Byte] {}
     val ab = Array[Byte](1, 2, 3)
-    val bb = Array[Byte](0, 1, 2, 3, 4)
+    val bb = Array[Byte](2, 0, 3, 2, 3)
     val nab = Array[NuB.Type](NuB(1), NuB(2), NuB(3))
     T ~ ab.copy                     =**= ab
     T ~ (ab.copy eq ab)             ==== false
@@ -457,29 +1361,6 @@ class BasicsTest {
     T ~ ab.shrinkCopy(2)            =**= ab.take(2)
     T ~ (ab.shrinkCopy(4) eq ab)    ==== true
     T ~ ab.copyOfRange(1, 3)        =**= ab.drop(1)
-    T ~ ab.addLeftSlots(1)          =**= (0 +: ab)
-    T ~ ab.addRightSlots(1)         =**= (ab :+ 0)
-    T ~ ab.copyInto(bb)             =**= Array[Byte](1, 2, 3, 3, 4)
-    T ~ ab.copyInto(bb, 2)          =**= Array[Byte](1, 2, 1, 2, 3)
-    T ~ ab.copyRangeInto(1,3)(bb)   =**= Array[Byte](2, 3, 1, 2, 3)
-    T ~ ab.copyRangeInto(1,3)(bb,1) =**= Array[Byte](2, 2, 3, 2, 3)
-    T ~ ab.py(1)                    ==== ab(1)
-    T ~ ab.py(-3)                   ==== ab(0)
-    T ~ bb.py.index(-2)             ==== 3
-    T ~ { bb.py(-4) = (0:Byte); bb }=**= Array[Byte](2, 0, 3, 2, 3)
-    T ~ bb.py(atf)                  =**= Array[Byte](bb(2), bb(3))
-    T ~ { bb.py(atf)=(8:Byte); bb } =**= Array[Byte](2, 0, 8, 8, 3)
-    T ~ { bb.py(atf) = ab; bb }     =**= Array[Byte](2, 0, 1, 2, 3)
-    T ~ bb.py(aip)                  =**= Array[Byte](bb(2), bb(3), bb(2))
-    T ~ { bb.py(aip)=(7:Byte); bb } =**= Array[Byte](2, 0, 7, 7, 3)
-    T ~ { bb.py(aip) = ab; bb }     =**= Array[Byte](2, 0, 3, 2, 3)
-    T ~ ab.R(2)                     ==== ab(1)
-    T ~ bb.R(air)                   =**= Array(bb(2), bb(3), bb(2))
-    T ~ { bb.R(3) = (4:Byte); bb }  =**= Array[Byte](2, 0, 4, 2, 3)
-    T ~ { bb.R(air) = (5:Byte); bb }=**= Array[Byte](2, 0, 5, 5, 3)
-    T ~ bb.R(2 to 4)                =**= Array[Byte](0, 5, 5)
-    T ~ { bb.R(3 to 4)=(6:Byte);bb} =**= Array[Byte](2, 0, 6, 6, 3)
-    T ~ { bb.R(air) = ab; bb }      =**= Array[Byte](2, 0, 3, 2, 3)
     T ~ (ab ++ bb).packInts         =**= Array[Int](0x02030201, 0x03020300)
     T ~ (ab ++ bb).packFloats       =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
     T ~ (ab ++ bb).packLongs        =**= Array[Long](0x0302030002030201L)
@@ -493,14 +1374,11 @@ class BasicsTest {
     T ~ bb.sortRange(0, 3)          =**= Array[Byte](0, 2, 3, 2, 3)
     T ~ bb.sort()                   =**= Array[Byte](0, 2, 2, 3, 3)
     T ~ bb.fillRange(2, 4)(1)       =**= Array[Byte](0, 2, 1, 1, 3)
-    bb.visit((x, i) => cuml += (x+1)*(i+1))
-    bb.visitRange(2, 4)((x, i) => cuml += i - x - 1)
-    T ~ cuml                        ==== 42
     T ~ bb.fill(4)                  =**= Array[Byte](4, 4, 4, 4, 4)
 
     object NuS extends NewType[Short] {}
     val as = Array[Short](1, 2, 3)
-    val bs = Array[Short](0, 1, 2, 3, 4)
+    val bs = Array[Short](2, 0, 3, 2, 3)
     val nas = Array[NuS.Type](NuS(1), NuS(2), NuS(3))
     T ~ as.copy                     =**= as
     T ~ (as.copy eq as)             ==== false
@@ -512,29 +1390,6 @@ class BasicsTest {
     T ~ as.shrinkCopy(2)            =**= as.take(2)
     T ~ (as.shrinkCopy(4) eq as)    ==== true
     T ~ as.copyOfRange(1, 3)        =**= as.drop(1)
-    T ~ as.addLeftSlots(1)          =**= (0 +: as)
-    T ~ as.addRightSlots(1)         =**= (as :+ 0)
-    T ~ as.copyInto(bs)             =**= Array[Short](1, 2, 3, 3, 4)
-    T ~ as.copyInto(bs, 2)          =**= Array[Short](1, 2, 1, 2, 3)
-    T ~ as.copyRangeInto(1,3)(bs)   =**= Array[Short](2, 3, 1, 2, 3)
-    T ~ as.copyRangeInto(1,3)(bs,1) =**= Array[Short](2, 2, 3, 2, 3)
-    T ~ as.py(1)                    ==== as(1)
-    T ~ as.py(-3)                   ==== as(0)
-    T ~ bs.py.index(-2)             ==== 3
-    T ~ { bs.py(-4)=(0:Short); bs } =**= Array[Short](2, 0, 3, 2, 3)
-    T ~ bs.py(atf)                  =**= Array[Short](bs(2), bs(3))
-    T ~ { bs.py(atf)=(8:Short); bs }=**= Array[Short](2, 0, 8, 8, 3)
-    T ~ { bs.py(atf) = as; bs }     =**= Array[Short](2, 0, 1, 2, 3)
-    T ~ bs.py(aip)                  =**= Array[Short](bs(2), bs(3), bs(2))
-    T ~ { bs.py(aip)=(7:Short); bs }=**= Array[Short](2, 0, 7, 7, 3)
-    T ~ { bs.py(aip) = as; bs }     =**= Array[Short](2, 0, 3, 2, 3)
-    T ~ as.R(2)                     ==== as(1)
-    T ~ bs.R(air)                   =**= Array(bs(2), bs(3), bs(2))
-    T ~ { bs.R(3) = (4:Short); bs } =**= Array[Short](2, 0, 4, 2, 3)
-    T ~ { bs.R(air)=(5:Short); bs } =**= Array[Short](2, 0, 5, 5, 3)
-    T ~ bs.R(2 to 4)                =**= Array[Short](0, 5, 5)
-    T ~ {bs.R(3 to 4)=(6:Short);bs} =**= Array[Short](2, 0, 6, 6, 3)
-    T ~ { bs.R(air) = as; bs }      =**= Array[Short](2, 0, 3, 2, 3)
     T ~ bs.isSorted                 ==== false
     T ~ bs.isSortedRange(1, 3)      ==== true
     T ~ as.search(2)                ==== 1
@@ -544,13 +1399,10 @@ class BasicsTest {
     T ~ bs.sortRange(0, 3)          =**= Array[Short](0, 2, 3, 2, 3)
     T ~ bs.sort()                   =**= Array[Short](0, 2, 2, 3, 3)
     T ~ bs.fillRange(2, 4)(1)       =**= Array[Short](0, 2, 1, 1, 3)
-    bs.visit((x, i) => cuml += (x+1)*(i+1))
-    bs.visitRange(2, 4)((x, i) => cuml += i - x - 1)
-    T ~ cuml                        ==== 84
     T ~ bs.fill(4)                  =**= Array[Short](4, 4, 4, 4, 4)
 
     val ac = Array[Char]('1', '2', '3')
-    val bc = Array[Char]('0', '1', '2', '3', '4')
+    val bc = Array[Char]('2', '0', '3', '2', '3')
     T ~ ac.copy                       =**= ac
     T ~ (ac.copy eq ac)               ==== false
     T ~ ac.copy.tap(_(0) = '4').toSeq =!!= ac.toSeq
@@ -560,29 +1412,6 @@ class BasicsTest {
     T ~ ac.shrinkCopy(2)            =**= ac.take(2)
     T ~ (ac.shrinkCopy(4) eq ac)    ==== true
     T ~ ac.copyOfRange(1, 3)        =**= ac.drop(1)
-    T ~ ac.addLeftSlots(1)          =**= ('\u0000' +: ac)
-    T ~ ac.addRightSlots(1)         =**= (ac :+ '\u0000')
-    T ~ ac.copyInto(bc)             =**= Array[Char]('1', '2', '3', '3', '4')
-    T ~ ac.copyInto(bc, 2)          =**= Array[Char]('1', '2', '1', '2', '3')
-    T ~ ac.copyRangeInto(1,3)(bc)   =**= Array[Char]('2', '3', '1', '2', '3')
-    T ~ ac.copyRangeInto(1,3)(bc,1) =**= Array[Char]('2', '2', '3', '2', '3')
-    T ~ ac.py(1)                    ==== ac(1)
-    T ~ ac.py(-3)                   ==== ac(0)
-    T ~ bc.py.index(-2)             ==== 3
-    T ~ { bc.py(-4) = '0'; bc }     =**= Array[Char]('2', '0', '3', '2', '3')
-    T ~ bc.py(atf)                  =**= Array[Char](bc(2), bc(3))
-    T ~ { bc.py(atf) = '8'; bc }    =**= Array[Char]('2', '0', '8', '8', '3')
-    T ~ { bc.py(atf) = ac; bc }     =**= Array[Char]('2', '0', '1', '2', '3')
-    T ~ bc.py(aip)                  =**= Array[Char](bc(2), bc(3), bc(2))
-    T ~ { bc.py(aip) = '7'; bc }    =**= Array[Char]('2', '0', '7', '7', '3')
-    T ~ { bc.py(aip) = ac; bc }     =**= Array[Char]('2', '0', '3', '2', '3')
-    T ~ ac.R(2)                     ==== ac(1)
-    T ~ bc.R(air)                   =**= Array(bc(2), bc(3), bc(2))
-    T ~ { bc.R(3) = '4'; bc }       =**= Array[Char]('2', '0', '4', '2', '3')
-    T ~ { bc.R(air) = '5'; bc }     =**= Array[Char]('2', '0', '5', '5', '3')
-    T ~ bc.R(2 to 4)                =**= Array[Char]('0', '5', '5')
-    T ~ { bc.R(3 to 4) = '6'; bc }  =**= Array[Char]('2', '0', '6', '6', '3')
-    T ~ { bc.R(air) = ac; bc }      =**= Array[Char]('2', '0', '3', '2', '3')
     T ~ bc.isSorted                 ==== false
     T ~ bc.isSortedRange(1, 3)      ==== true
     T ~ ac.search('2')              ==== 1
@@ -592,13 +1421,10 @@ class BasicsTest {
     T ~ bc.sortRange(0, 3)          =**= Array[Char]('0', '2', '3', '2', '3')
     T ~ bc.sort()                   =**= Array[Char]('0', '2', '2', '3', '3')
     T ~ bc.fillRange(2, 4)('e')     =**= Array[Char]('0', '2', 'e', 'e', '3')
-    bc.visit((x, i) => cuml += x.getNumericValue + i)
-    bc.visitRange(2, 4)((x, i) => cuml += x*i - 248)
-    T ~ cuml                        ==== 136
     T ~ bc.fill('4')                =**= Array[Char]('4', '4', '4', '4', '4')
 
     val ai = Array[Int](1, 2, 3)
-    val bi = Array[Int](0, 1, 2, 3, 4)
+    val bi = Array[Int](2, 0, 3, 2, 3)
     T ~ ai.copy                     =**= ai
     T ~ (ai.copy eq ai)             ==== false
     T ~ ai.copy.tap(_(0) = 4).toSeq =!!= ai.toSeq
@@ -608,29 +1434,6 @@ class BasicsTest {
     T ~ ai.shrinkCopy(2)            =**= ai.take(2)
     T ~ (ai.shrinkCopy(4) eq ai)    ==== true
     T ~ ai.copyOfRange(1, 3)        =**= ai.drop(1)
-    T ~ ai.addLeftSlots(1)          =**= (0 +: ai)
-    T ~ ai.addRightSlots(1)         =**= (ai :+ 0)
-    T ~ ai.copyInto(bi)             =**= Array[Int](1, 2, 3, 3, 4)
-    T ~ ai.copyInto(bi, 2)          =**= Array[Int](1, 2, 1, 2, 3)
-    T ~ ai.copyRangeInto(1,3)(bi)   =**= Array[Int](2, 3, 1, 2, 3)
-    T ~ ai.copyRangeInto(1,3)(bi,1) =**= Array[Int](2, 2, 3, 2, 3)
-    T ~ ai.py(1)                    ==== ai(1)
-    T ~ ai.py(-3)                   ==== ai(0)
-    T ~ bi.py.index(-2)             ==== 3
-    T ~ { bi.py(-4) = 0; bi }       =**= Array[Int](2, 0, 3, 2, 3)
-    T ~ bi.py(atf)                  =**= Array[Int](bi(2), bi(3))
-    T ~ { bi.py(atf) = 8; bi }      =**= Array[Int](2, 0, 8, 8, 3)
-    T ~ { bi.py(atf) = ai; bi }     =**= Array[Int](2, 0, 1, 2, 3)
-    T ~ bi.py(aip)                  =**= Array[Int](bi(2), bi(3), bi(2))
-    T ~ { bi.py(aip) = 7; bi }      =**= Array[Int](2, 0, 7, 7, 3)
-    T ~ { bi.py(aip) = ai; bi }     =**= Array[Int](2, 0, 3, 2, 3)
-    T ~ ai.R(2)                     ==== ai(1)
-    T ~ bi.R(air)                   =**= Array(bi(2), bi(3), bi(2))
-    T ~ { bi.R(3) = 4; bi }         =**= Array[Int](2, 0, 4, 2, 3)
-    T ~ { bi.R(air) = 5; bi }       =**= Array[Int](2, 0, 5, 5, 3)
-    T ~ bi.R(2 to 4)                =**= Array[Int](0, 5, 5)
-    T ~ { bi.R(3 to 4) = 6; bi}     =**= Array[Int](2, 0, 6, 6, 3)
-    T ~ { bi.R(air) = ai; bi }      =**= Array[Int](2, 0, 3, 2, 3)
     T ~ Array(0x05030107).unpackBytes =**= Array[Byte](7, 1, 3, 5)
     T ~ bi.isSorted                 ==== false
     T ~ bi.isSortedRange(1, 3)      ==== true
@@ -639,15 +1442,13 @@ class BasicsTest {
     T ~ bi.searchRange(1, 3)(3)     ==== 2
     T ~ bi.searchRange(1, 3)(2)     ==== -3
     T ~ bi.sortRange(0, 3)          =**= Array[Int](0, 2, 3, 2, 3)
+    T ~ ai.copyOfRange(1, 3)        =**= ai.drop(1)
     T ~ bi.sort()                   =**= Array[Int](0, 2, 2, 3, 3)
     T ~ bi.fillRange(2, 4)(1)       =**= Array[Int](0, 2, 1, 1, 3)
-    bi.visit((x, i) => cuml += (x+1)*(i+1))
-    bi.visitRange(2, 4)((x, i) => cuml += i - x - 1)
-    T ~ cuml                        ==== 178
     T ~ bi.fill(4)                  =**= Array[Int](4, 4, 4, 4, 4)
 
     val al = Array[Long](1, 2, 3)
-    val bl = Array[Long](0, 1, 2, 3, 4)
+    val bl = Array[Long](2, 0, 3, 2, 3)
     T ~ al.copy                     =**= al
     T ~ (al.copy eq al)             ==== false
     T ~ al.copy.tap(_(0) = 4).toSeq =!!= al.toSeq
@@ -657,29 +1458,6 @@ class BasicsTest {
     T ~ al.shrinkCopy(2)            =**= al.take(2)
     T ~ (al.shrinkCopy(4) eq al)    ==== true
     T ~ al.copyOfRange(1, 3)        =**= al.drop(1)
-    T ~ al.addLeftSlots(1)          =**= (0 +: al)
-    T ~ al.addRightSlots(1)         =**= (al :+ 0)
-    T ~ al.copyInto(bl)             =**= Array[Long](1, 2, 3, 3, 4)
-    T ~ al.copyInto(bl, 2)          =**= Array[Long](1, 2, 1, 2, 3)
-    T ~ al.copyRangeInto(1,3)(bl)   =**= Array[Long](2, 3, 1, 2, 3)
-    T ~ al.copyRangeInto(1,3)(bl,1) =**= Array[Long](2, 2, 3, 2, 3)
-    T ~ al.py(1)                    ==== al(1)
-    T ~ al.py(-3)                   ==== al(0)
-    T ~ bl.py.index(-2)             ==== 3
-    T ~ { bl.py(-4) = 0; bl }       =**= Array[Long](2, 0, 3, 2, 3)
-    T ~ bl.py(atf)                  =**= Array[Long](bl(2), bl(3))
-    T ~ { bl.py(atf) = 8; bl }      =**= Array[Long](2, 0, 8, 8, 3)
-    T ~ { bl.py(atf) = al; bl }     =**= Array[Long](2, 0, 1, 2, 3)
-    T ~ bl.py(aip)                  =**= Array[Long](bl(2), bl(3), bl(2))
-    T ~ { bl.py(aip) = 7; bl }      =**= Array[Long](2, 0, 7, 7, 3)
-    T ~ { bl.py(aip) = al; bl }     =**= Array[Long](2, 0, 3, 2, 3)
-    T ~ al.R(2)                     ==== al(1)
-    T ~ bl.R(air)                   =**= Array(bl(2), bl(3), bl(2))
-    T ~ { bl.R(3) = 4; bl }         =**= Array[Long](2, 0, 4, 2, 3)
-    T ~ { bl.R(air) = 5; bl }       =**= Array[Long](2, 0, 5, 5, 3)
-    T ~ bl.R(2 to 4)                =**= Array[Long](0, 5, 5)
-    T ~ { bl.R(3 to 4) = 6; bl}     =**= Array[Long](2, 0, 6, 6, 3)
-    T ~ { bl.R(air) = al; bl }      =**= Array[Long](2, 0, 3, 2, 3)
     T ~ Array(0x0102030405060708L).unpackBytes =**= Array[Byte](8, 7, 6, 5, 4, 3, 2, 1)
     T ~ bl.isSorted                 ==== false
     T ~ bl.isSortedRange(1, 3)      ==== true
@@ -690,13 +1468,10 @@ class BasicsTest {
     T ~ bl.sortRange(0, 3)          =**= Array[Long](0, 2, 3, 2, 3)
     T ~ bl.sort()                   =**= Array[Long](0, 2, 2, 3, 3)
     T ~ bl.fillRange(2, 4)(1)       =**= Array[Long](0, 2, 1, 1, 3)
-    bl.visit((x, i) => cuml += (x+1).toInt*(i+1))
-    bl.visitRange(2, 4)((x, i) => cuml += i - x.toInt - 1)
-    T ~ cuml                        ==== 220
     T ~ bl.fill(4)                  =**= Array[Long](4, 4, 4, 4, 4)
 
     val af = Array[Float](1, 2, 3)
-    val bf = Array[Float](0, 1, 2, 3, 4)
+    val bf = Array[Float](2, 0, 3, 2, 3)
     T ~ af.copy                     =**= af
     T ~ (af.copy eq af)             ==== false
     T ~ af.copy.tap(_(0) = 4).toSeq =!!= af.toSeq
@@ -706,29 +1481,6 @@ class BasicsTest {
     T ~ af.shrinkCopy(2)            =**= af.take(2)
     T ~ (af.shrinkCopy(4) eq af)    ==== true
     T ~ af.copyOfRange(1, 3)        =**= af.drop(1)
-    T ~ af.addLeftSlots(1)          =**= (0 +: af)
-    T ~ af.addRightSlots(1)         =**= (af :+ 0)
-    T ~ af.copyInto(bf)             =**= Array[Float](1, 2, 3, 3, 4)
-    T ~ af.copyInto(bf, 2)          =**= Array[Float](1, 2, 1, 2, 3)
-    T ~ af.copyRangeInto(1,3)(bf)   =**= Array[Float](2, 3, 1, 2, 3)
-    T ~ af.copyRangeInto(1,3)(bf,1) =**= Array[Float](2, 2, 3, 2, 3)
-    T ~ af.py(1)                    ==== af(1)
-    T ~ af.py(-3)                   ==== af(0)
-    T ~ bf.py.index(-2)             ==== 3
-    T ~ { bf.py(-4) = 0; bf }       =**= Array[Float](2, 0, 3, 2, 3)
-    T ~ bf.py(atf)                  =**= Array[Float](bf(2), bf(3))
-    T ~ { bf.py(atf) = 8; bf }      =**= Array[Float](2, 0, 8, 8, 3)
-    T ~ { bf.py(atf) = af; bf }     =**= Array[Float](2, 0, 1, 2, 3)
-    T ~ bf.py(aip)                  =**= Array[Float](bf(2), bf(3), bf(2))
-    T ~ { bf.py(aip) = 7; bf }      =**= Array[Float](2, 0, 7, 7, 3)
-    T ~ { bf.py(aip) = af; bf }     =**= Array[Float](2, 0, 3, 2, 3)
-    T ~ af.R(2)                     ==== af(1)
-    T ~ bf.R(air)                   =**= Array(bf(2), bf(3), bf(2))
-    T ~ { bf.R(3) = 4; bf }         =**= Array[Float](2, 0, 4, 2, 3)
-    T ~ { bf.R(air) = 5; bf }       =**= Array[Float](2, 0, 5, 5, 3)
-    T ~ bf.R(2 to 4)                =**= Array[Float](0, 5, 5)
-    T ~ { bf.R(3 to 4) = 6; bf}     =**= Array[Float](2, 0, 6, 6, 3)
-    T ~ { bf.R(air) = af; bf }      =**= Array[Float](2, 0, 3, 2, 3)
     T ~ Array(1.4f).unpackBytes     =**= Array[Byte](51, 51, -77, 63)
     T ~ bf.isSorted                 ==== false
     T ~ bf.isSortedRange(1, 3)      ==== true
@@ -739,13 +1491,10 @@ class BasicsTest {
     T ~ bf.sortRange(0, 3)          =**= Array[Float](0, 2, 3, 2, 3)
     T ~ bf.sort()                   =**= Array[Float](0, 2, 2, 3, 3)
     T ~ bf.fillRange(2, 4)(1)       =**= Array[Float](0, 2, 1, 1, 3)
-    bf.visit((x, i) => cuml += (x+1).toInt*(i+1))
-    bf.visitRange(2, 4)((x, i) => cuml += i - x.toInt - 1)
-    T ~ cuml                        ==== 262
     T ~ bf.fill(4)                  =**= Array[Float](4, 4, 4, 4, 4)
 
     val ad = Array[Double](1, 2, 3)
-    val bd = Array[Double](0, 1, 2, 3, 4)
+    val bd = Array[Double](2, 0, 3, 2, 3)
     T ~ ad.copy                     =**= ad
     T ~ (ad.copy eq ad)             ==== false
     T ~ ad.copy.tap(_(0) = 4).toSeq =!!= ad.toSeq
@@ -755,29 +1504,6 @@ class BasicsTest {
     T ~ ad.shrinkCopy(2)            =**= ad.take(2)
     T ~ (ad.shrinkCopy(4) eq ad)    ==== true
     T ~ ad.copyOfRange(1, 3)        =**= ad.drop(1)
-    T ~ ad.addLeftSlots(1)          =**= (0 +: ad)
-    T ~ ad.addRightSlots(1)         =**= (ad :+ 0)
-    T ~ ad.copyInto(bd)             =**= Array[Double](1, 2, 3, 3, 4)
-    T ~ ad.copyInto(bd, 2)          =**= Array[Double](1, 2, 1, 2, 3)
-    T ~ ad.copyRangeInto(1,3)(bd)   =**= Array[Double](2, 3, 1, 2, 3)
-    T ~ ad.copyRangeInto(1,3)(bd,1) =**= Array[Double](2, 2, 3, 2, 3)
-    T ~ ad.py(1)                    ==== ad(1)
-    T ~ ad.py(-3)                   ==== ad(0)
-    T ~ bd.py.index(-2)             ==== 3
-    T ~ { bd.py(-4) = 0; bd }       =**= Array[Double](2, 0, 3, 2, 3)
-    T ~ bd.py(atf)                  =**= Array[Double](bd(2), bd(3))
-    T ~ { bd.py(atf) = 8; bd }      =**= Array[Double](2, 0, 8, 8, 3)
-    T ~ { bd.py(atf) = ad; bd }     =**= Array[Double](2, 0, 1, 2, 3)
-    T ~ bd.py(aip)                  =**= Array[Double](bd(2), bd(3), bd(2))
-    T ~ { bd.py(aip) = 7; bd }      =**= Array[Double](2, 0, 7, 7, 3)
-    T ~ { bd.py(aip) = ad; bd }     =**= Array[Double](2, 0, 3, 2, 3)
-    T ~ ad.R(2)                     ==== ad(1)
-    T ~ bd.R(air)                   =**= Array(bd(2), bd(3), bd(2))
-    T ~ { bd.R(3) = 4; bd }         =**= Array[Double](2, 0, 4, 2, 3)
-    T ~ { bd.R(air) = 5; bd }       =**= Array[Double](2, 0, 5, 5, 3)
-    T ~ bd.R(2 to 4)                =**= Array[Double](0, 5, 5)
-    T ~ { bd.R(3 to 4) = 6; bd}     =**= Array[Double](2, 0, 6, 6, 3)
-    T ~ { bd.R(air) = ad; bd }      =**= Array[Double](2, 0, 3, 2, 3)
     T ~ Array(1.41).unpackBytes     =**= Array[Byte](-113, -62, -11, 40, 92, -113, -10, 63)
     T ~ bd.isSorted                 ==== false
     T ~ bd.isSortedRange(1, 3)      ==== true
@@ -788,58 +1514,32 @@ class BasicsTest {
     T ~ bd.sortRange(0, 3)          =**= Array[Double](0, 2, 3, 2, 3)
     T ~ bd.sort()                   =**= Array[Double](0, 2, 2, 3, 3)
     T ~ bd.fillRange(2, 4)(1)       =**= Array[Double](0, 2, 1, 1, 3)
-    bd.visit((x, i) => cuml += (x+1).toInt*(i+1))
-    bd.visitRange(2, 4)((x, i) => cuml += i - x.toInt - 1)
-    T ~ cuml                        ==== 304
     T ~ bd.fill(4)                  =**= Array[Double](4, 4, 4, 4, 4)
 
+    object NuA extends NewType[String] {}
     val aa = Array[String]("1", "2", "3")
-    val ba = Array[String]("0", "1", "2", "3", "4")
+    val ba = Array[String]("2", "0", "3", "2", "3")
+    val naa = Array[NuA.Type](NuA("1"), NuA("2"), NuA("3"))
     T ~ aa.copy                       =**= aa
     T ~ (aa.copy eq aa)               ==== false
+    T ~ naa.copy                      =**= naa
     T ~ aa.copy.tap(_(0) = "4").toSeq =!!= aa.toSeq
-    T ~ aa.copyToSize(2).length     ==== 2
-    T ~ aa.copyToSize(2)            =**= aa.take(2)
-    T ~ aa.copyToSize(4)            =**= Array[String]("1", "2", "3", null)
-    T ~ aa.shrinkCopy(2)            =**= aa.take(2)
-    T ~ (aa.shrinkCopy(4) eq aa)    ==== true
-    T ~ aa.copyOfRange(1, 3)        =**= aa.drop(1)
-    T ~ aa.addLeftSlots(1)          =**= (null +: aa)
-    T ~ aa.addRightSlots(1)         =**= (aa :+ null)
-    T ~ aa.copyInto(ba)             =**= Array[String]("1", "2", "3", "3", "4")
-    T ~ aa.copyInto(ba, 2)          =**= Array[String]("1", "2", "1", "2", "3")
-    T ~ aa.copyRangeInto(1,3)(ba)   =**= Array[String]("2", "3", "1", "2", "3")
-    T ~ aa.copyRangeInto(1,3)(ba,1) =**= Array[String]("2", "2", "3", "2", "3")
-    T ~ aa.py(1)                    ==== aa(1)
-    T ~ aa.py(-3)                   ==== aa(0)
-    T ~ ba.py.index(-2)             ==== 3
-    T ~ { ba.py(-4) = "0"; ba }     =**= Array[String]("2", "0", "3", "2", "3")
-    T ~ ba.py(atf)                  =**= Array[String](ba(2), ba(3))
-    T ~ { ba.py(atf) = "8"; ba }    =**= Array[String]("2", "0", "8", "8", "3")
-    T ~ { ba.py(atf) = aa; ba }     =**= Array[String]("2", "0", "1", "2", "3")
-    T ~ ba.py(aip)                  =**= Array[String](ba(2), ba(3), ba(2))
-    T ~ { ba.py(aip) = "7"; ba }    =**= Array[String]("2", "0", "7", "7", "3")
-    T ~ { ba.py(aip) = aa; ba }     =**= Array[String]("2", "0", "3", "2", "3")
-    T ~ aa.R(2)                     ==== aa(1)
-    T ~ ba.R(air)                   =**= Array(ba(2), ba(3), ba(2))
-    T ~ { ba.R(3) = "4"; ba }       =**= Array[String]("2", "0", "4", "2", "3")
-    T ~ { ba.R(air) = "5"; ba }     =**= Array[String]("2", "0", "5", "5", "3")
-    T ~ ba.R(2 to 4)                =**= Array[String]("0", "5", "5")
-    T ~ { ba.R(3 to 4) = "6"; ba }  =**= Array[String]("2", "0", "6", "6", "3")
-    T ~ { ba.R(air) = aa; ba }      =**= Array[String]("2", "0", "3", "2", "3")
-    T ~ ba.isSorted                 ==== false
-    T ~ ba.isSortedRange(1, 3)      ==== true
-    T ~ aa.search("2")              ==== 1
-    T ~ aa.search("0")              ==== -1
-    T ~ ba.searchRange(1, 3)("3")   ==== 2
-    T ~ ba.searchRange(1, 3)("2")   ==== -3
-    T ~ ba.sortRange(0, 3)          =**= Array[String]("0", "2", "3", "2", "3")
-    T ~ ba.sort()                   =**= Array[String]("0", "2", "2", "3", "3")
-    T ~ ba.fillRange(2, 4)("e")     =**= Array[String]("0", "2", "e", "e", "3")
-    ba.visit((x, i) => cuml += x.head.getNumericValue + i)
-    ba.visitRange(2, 4)((x, i) => cuml += x.head*i - 253)
-    T ~ cuml                        ==== 346
-    T ~ ba.fill("4")                =**= Array[String]("4", "4", "4", "4", "4")
+    T ~ aa.copyToSize(2).length       ==== 2
+    T ~ aa.copyToSize(2)              =**= aa.take(2)
+    T ~ aa.copyToSize(4)              =**= Array[String]("1", "2", "3", null)
+    T ~ aa.shrinkCopy(2)              =**= aa.take(2)
+    T ~ (aa.shrinkCopy(4) eq aa)      ==== true
+    T ~ aa.copyOfRange(1, 3)          =**= aa.drop(1)
+    T ~ ba.isSorted                   ==== false
+    T ~ ba.isSortedRange(1, 3)        ==== true
+    T ~ aa.search("2")                ==== 1
+    T ~ aa.search("0")                ==== -1
+    T ~ ba.searchRange(1, 3)("3")     ==== 2
+    T ~ ba.searchRange(1, 3)("2")     ==== -3
+    T ~ ba.sortRange(0, 3)            =**= Array[String]("0", "2", "3", "2", "3")
+    T ~ ba.sort()                     =**= Array[String]("0", "2", "2", "3", "3")
+    T ~ ba.fillRange(2, 4)("e")       =**= Array[String]("0", "2", "e", "e", "3")
+    T ~ ba.fill("4")                  =**= Array[String]("4", "4", "4", "4", "4")
 }
 object BasicsTest {
   // @BeforeClass

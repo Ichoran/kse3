@@ -290,6 +290,37 @@ extension [A](a: Array[A]) {
 
   inline def breakable: kse.basics.ShortcutArray[A] = ShortcutArray wrap a
 
+  inline def peek()(inline f: A => Unit): a.type =
+    var i = 0
+    while i < a.length do
+      f(a(i))
+      i += 1
+    a
+  inline def peek(i0: Int, iN: Int)(inline f: A => Unit): a.type =
+    var i = i0
+    while i < iN do
+      f(a(i))
+      i += 1
+    a
+  inline def peek(v: Iv | PIv)(inline f: A => Unit): a.type =
+    val iv = inline v match
+      case piv: PIv => piv.of(a)
+      case siv: Iv  => siv
+    peek(iv.i0, iv.iN)(f)
+  inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): a.type =
+    val iv = Iv of rg
+    peek(iv.i0, iv.iN)(f)
+  inline def peek(indices: Array[Int])(inline f: A => Unit): a.type =
+    var i = 0
+    while i < indices.length do
+      f(a(indices(i)))
+      i += 1
+    a
+  inline def peek(indices: scala.collection.IntStepper)(inline f: A => Unit): a.type =
+    while indices.hasStep do
+      f(a(indices.nextStep))
+    a
+
   inline def visit()(inline f: (A, Int) => Unit): Unit =
     var i = 0
     while i < a.length do
@@ -323,35 +354,35 @@ extension [A](a: Array[A]) {
     wander(0)(f)
   inline def wander(start: Int)(inline f: (A, Int) => Int): Int =
     var n = 0
-    var i = 0
+    var i = start
     while i >= 0 && i < a.length && n < Int.MaxValue do
       n += 1
       i = f(a(i), i)
     n
 
-  inline def gather[Z]()(zero: Z)(inline f: (Z, A, Int) => Z) =
+  inline def gather[Z](zero: Z)()(inline f: (Z, A, Int) => Z) =
     var i = 0
     var z = zero
     while i < a.length do
       z = f(z, a(i), i)
       i += 1
     z
-  inline def gather[Z](i0: Int, iN: Int)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+  inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, A, Int) => Z): Z =
     var i = i0
     var z = zero
     while i < iN do
       z = f(z, a(i), i)
       i += 1
     z
-  inline def gather[Z](inline v: Iv | PIv)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+  inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
     val iv = inline v match
       case piv: PIv => piv.of(a)
       case siv: Iv  => siv 
-    gather(iv.i0, iv.iN)(zero)(f)
-  inline def gather[Z](inline rg: collection.immutable.Range)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
     val iv = Iv of rg
-    gather(iv.i0, iv.iN)(zero)(f)
-  inline def gather[Z](indices: Array[Int])(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: (Z, A, Int) => Z): Z =
     var i = 0
     var z = zero
     while i < indices.length do
@@ -359,12 +390,19 @@ extension [A](a: Array[A]) {
       z = f(z, a(j), j)
       i += 1
     z
-  inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+  inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: (Z, A, Int) => Z): Z =
     var z = zero
     while indices.hasStep do
       val j = indices.nextStep
       z = f(z, a(j), j)
     z
+
+  @targetName("update_All_constant")
+  inline def update(value: A): Unit =
+    update(Iv(0, a.length), value)
+  @targetName("update_All_array")
+  inline def update(values: Array[A]): Unit =
+    update(Iv(0, a.length), values)
 
   @targetName("update_Iv_constant")
   inline def update(iv: Iv, value: A): Unit =
@@ -391,13 +429,6 @@ extension [A](a: Array[A]) {
   @targetName("update_Py_array")
   inline def update(piv: PIv, values: Array[A]): Unit =
     update(piv of a, values)
-
-  @targetName("update_All_constant")
-  inline def update(value: A): Unit =
-    update(Iv(0, a.length), value)
-  @targetName("update_All_array")
-  inline def update(values: Array[A]): Unit =
-    update(Iv(0, a.length), values)
 
   @targetName("update_Places_constant")
   inline def update(indices: Array[Int], value: A): Unit =
@@ -429,6 +460,16 @@ extension [A](a: Array[A]) {
     while i < a.length do
       if pick(a(i)) then a(i) = value
       i += 1
+
+  @targetName("set_All_generate")
+  inline def set()(inline generator: () => A): Unit =
+    set(0, a.length)(generator)
+  @targetName("set_All_index")
+  inline def set()(inline indexer: Int => A): Unit =
+    set(0, a.length)(indexer)
+  @targetName("set_All_function")
+  inline def set()(inline function: (A, Int) => A): Unit =
+    set(0, a.length)(function)
 
   @targetName("set_i0iN_generate")
   inline def set(i0: Int, iN: Int)(inline generator: () => A): Unit =
@@ -485,16 +526,6 @@ extension [A](a: Array[A]) {
     val iv = piv of a
     set(iv.i0, iv.iN)(function)
 
-  @targetName("set_All_generate")
-  inline def set()(inline generator: () => A): Unit =
-    set(0, a.length)(generator)
-  @targetName("set_All_index")
-  inline def set()(inline indexer: Int => A): Unit =
-    set(0, a.length)(indexer)
-  @targetName("set_All_function")
-  inline def set()(inline function: (A, Int) => A): Unit =
-    set(0, a.length)(function)
-
   @targetName("set_Places_generate")
   inline def set(indices: Array[Int])(inline generator: () => A): Unit =
     var i = 0
@@ -546,18 +577,6 @@ extension [A](a: Array[A]) {
       if pick(a(i)) then
         a(i) = indexer(i)
       i += 1
-
-  inline def where(inline pick: A => Boolean): Array[Int] =
-    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
-    var i = 0
-    var j = 0
-    while i < a.length do
-      if pick(a(i)) then
-        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
-        ix(j) = i
-        j += 1
-      i += 1
-    ix.shrinkTo(j)
 
   inline def enlargeTo(n: Int)(using ClassTag[A]): Array[A] =
     if n > a.length then
@@ -637,6 +656,18 @@ extension [A](a: Array[A]) {
       aa(i+a.length) = f()
       i += 1
     aa
+
+  inline def where(inline pick: A => Boolean): Array[Int] =
+    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      if pick(a(i)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = i
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
 
   inline def inject(that: Array[A]): Int =
     java.lang.System.arraycopy(a, 0, that, 0, a.length)
@@ -787,6 +818,7 @@ extension [A](a: Array[A]) {
       add(a(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
       i += 1
     bs.shrinkTo(j)
+  /*
   transparent inline def fission[B](inline pick: (A, Int) => Boolean)(inline op: (A, Int) => B)(inline cut: (A, Int) => Boolean, discardEmpty: Boolean = false)(using ClassTag[B]): Array[Array[B]] =
     var bss: Array[Array[B]] = null
     var bsi = 0
@@ -821,6 +853,7 @@ extension [A](a: Array[A]) {
         bss = bss.enlargeTo(bss.length + 1)
         bss(bss.length - 1) = bs.shrinkTo(bi)
         bss
+  */
 }
 
 
@@ -834,6 +867,38 @@ object ClippedArray {
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
     inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
+
+    inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      while i < iM do
+        f(a(i))
+        i += 1
+      a
+    inline def peek(v: Iv | PIv)(inline f: A => Unit): Array[A] =
+      val iv = inline v match
+        case piv: PIv => piv of ca.unwrap
+        case siv: Iv  => siv
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): Array[A] =
+      val iv = Iv of rg
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(indices: Array[Int])(inline f: A => Unit): Array[A] =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then f(a(j))
+        i += 1
+      a
+    inline def peek(indices: scala.collection.IntStepper)(inline f: A => Unit): Array[A] =
+      val a = ca.unwrap
+      while indices.hasStep do
+        val j = indices.nextStep
+        if j >= 0 && j < a.length then f(a(j))
+      a
 
     inline def visit(i0: Int, iN: Int)(inline f: (A, Int) => Unit): Unit =
       val a = ca.unwrap
@@ -864,7 +929,7 @@ object ClippedArray {
         val j = indices.nextStep
         if j >= 0 && j < a.length then f(a(j), j)
 
-    inline def gather[Z](i0: Int, iN: Int)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, A, Int) => Z): Z =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -874,15 +939,15 @@ object ClippedArray {
         z = f(z, a(i), i)
         i += 1
       z
-    inline def gather[Z](inline v: Iv | PIv)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
       val iv = inline v match
         case piv: PIv => piv of ca.unwrap
         case siv: Iv  => siv 
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](inline rg: collection.immutable.Range)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
       val iv = Iv of rg
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](indices: Array[Int])(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: (Z, A, Int) => Z): Z =
       val a = ca.unwrap
       var i = 0
       var z = zero
@@ -891,13 +956,17 @@ object ClippedArray {
         if j >= 0 && j < a.length then z = f(z, a(j), j)
         i += 1
       z
-    inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: (Z, A, Int) => Z): Z =
       val a = ca.unwrap
       var z = zero
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then z = f(z, a(j), j)
       z
+
+    @targetName("update_All_array")
+    inline def update(values: Array[A]): Unit =
+      update(Iv(0, ca.unwrap.length), values)
 
     @targetName("update_Iv_constant")
     inline def update(iv: Iv, value: A): Unit =
@@ -917,7 +986,7 @@ object ClippedArray {
       var j = iv.iN
       if j > a.length then j = a.length
       if j >= 0 && j - i > values.length then j = i + values.length
-      java.lang.System.arraycopy(values, 0, a, i, j - i)
+      if j > i then java.lang.System.arraycopy(values, 0, a, i, j - i)
 
     @targetName("update_Range_constant")
     inline def update(inline rg: collection.immutable.Range, value: A): Unit =
@@ -933,10 +1002,6 @@ object ClippedArray {
     inline def update(piv: PIv, values: Array[A]): Unit =
       update(piv of ca.unwrap, values)
 
-    @targetName("update_All_array")
-    inline def update(values: Array[A]): Unit =
-      update(Iv(0, ca.unwrap.length), values)
-
     @targetName("update_Places_constant")
     inline def update(indices: Array[Int], value: A): Unit =
       val a = ca.unwrap
@@ -949,11 +1014,12 @@ object ClippedArray {
     inline def update(indices: Array[Int], values: Array[A]): Unit =
       val a = ca.unwrap
       var i = 0
-      var n = indices.length
-      if n > values.length then n = values.length
-      while i < n do
+      var k = 0
+      while i < indices.length && k < values.length do
         val j = indices(i)
-        if j >= 0 && j < a.length then a(j) = values(i)
+        if j >= 0 && j < a.length then
+          a(j) = values(k)
+          k += 1
         i += 1
 
     @targetName("update_Stepper_constant")
@@ -968,8 +1034,9 @@ object ClippedArray {
       var i = 0
       while indices.hasStep && i < values.length do
         val j = indices.nextStep
-        if j >= 0 && j < a.length then a(j) = values(i)
-        i += 1
+        if j >= 0 && j < a.length then
+          a(j) = values(i)
+          i += 1
 
     @targetName("set_i0iN_generate")
     inline def set(i0: Int, iN: Int)(inline generator: () => A): Unit =
@@ -1013,15 +1080,15 @@ object ClippedArray {
       set(iv.i0, iv.iN)(function)
 
     @targetName("set_Range_generate")
-    inline def set(inline rg: collection.immutable.Range, inline generator: () => A): Unit =
+    inline def set(inline rg: collection.immutable.Range)(inline generator: () => A): Unit =
       val iv = Iv of rg
       set(iv.i0, iv.iN)(generator)
     @targetName("set_Range_index")
-    inline def set(inline rg: collection.immutable.Range, inline indexer: Int => A): Unit =
+    inline def set(inline rg: collection.immutable.Range)(inline indexer: Int => A): Unit =
       val iv = Iv of rg
       set(iv.i0, iv.iN)(indexer)
     @targetName("set_Range_function")
-    inline def set(inline rg: collection.immutable.Range, inline function: (A, Int) => A): Unit =
+    inline def set(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
       val iv = Iv of rg
       set(iv.i0, iv.iN)(function)
 
@@ -1164,7 +1231,7 @@ object ClippedArray {
       var i = i0
       if i < 0 then i = 0
       var j = iN
-      if iN >= a.length then j = iN
+      if j >= a.length then j = a.length
       val b = new Array[A](if i < j then j - i else 0)
       if b.length > 0 then java.lang.System.arraycopy(a, i, b, 0, b.length)
       b
@@ -1204,7 +1271,8 @@ object ClippedArray {
       var i = i0
       if i < 0 then i = 0
       var j = iN
-      if j > a.length then j = a.length else if j < i then j = i
+      if j > a.length then j = a.length
+      if j < i then j = i
       val b = new Array[B](j - i)
       val offset = i
       while i < j do
@@ -1226,7 +1294,7 @@ object ClippedArray {
       var j = 0
       while i < indices.length do
         val k = indices(i)
-        if k >= 0 && i < a.length then
+        if k >= 0 && k < a.length then
           b(j) = op(a(k), k)
           j += 1
         i += 1
@@ -1248,37 +1316,37 @@ object ClippedArray {
 
 object shortcut {
   sealed trait Type {}
-  object Skip extends Type {}
-  object Quit extends Type {}
+  object Skips extends Type {}
+  object Quits extends Type {}
 
-  inline def quittable(inline f: boundary.Label[Quit.type] ?=> Unit): Unit =
-    boundary[Quit.type]:
+  inline def quittable(inline f: boundary.Label[Quits.type] ?=> Unit): Unit =
+    boundary[Quits.type]:
       f
-      Quit
+      Quits
 
-  inline def skippable(inline f: boundary.Label[Skip.type] ?=> Unit): Unit =
-    boundary[Skip.type]:
+  inline def skippable(inline f: boundary.Label[Skips.type] ?=> Unit): Unit =
+    boundary[Skips.type]:
       f
-      Skip
+      Skips
 
   inline def outer(inline f: boundary.Label[Type] ?=> Unit): Unit =
     boundary[Type]:
       f
-      Quit
+      Quits
 
   inline def inner(inline f: boundary.Label[Type] ?=> Unit)(using boundary.Label[Type]): Unit =
     val what = boundary[Type]:
       f
-      Skip
-    if what eq Quit then boundary.break(Quit)
+      Skips
+    if what eq Quits then boundary.break(Quits)
 
-  inline def skip[S >: Skip.type <: Type](using boundary.Label[S]) = boundary.break(Skip: S)
+  inline def skip[S >: Skips.type <: Type](using boundary.Label[S]) = boundary.break(Skips: S)
 
-  inline def skipIf[S >: Skip.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skip: S)
+  inline def skipIf[S >: Skips.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
 
-  inline def quit[Q >: Quit.type <: Type](using boundary.Label[Q]) = boundary.break(Quit: Q)
+  inline def quit[Q >: Quits.type <: Type](using boundary.Label[Q]) = boundary.break(Quits: Q)
 
-  inline def quitIf[Q >: Quit.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quit: Q)
+  inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
 }
 
 
@@ -1292,7 +1360,46 @@ object ShortcutArray {
   extension [A](sa: kse.basics.ShortcutArray[A]) {
     inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray wrap sa.unwrap
 
-    inline def gather[Z]()(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z) =
+    inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          f(a(i))
+          i += 1
+      a
+    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          f(a(i))
+          i += 1
+      a
+    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = Iv of rg
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          f(a(indices(i)))
+          i += 1
+      a
+    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          f(a(indices.nextStep))
+      a
+
+    inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
       var z = zero
       val a = sa.unwrap
       shortcut.quittable:
@@ -1301,7 +1408,7 @@ object ShortcutArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](i0: Int, iN: Int)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       var z = zero
       val a = sa.unwrap
       shortcut.quittable:
@@ -1310,15 +1417,15 @@ object ShortcutArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](inline v: Iv | PIv)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = inline v match
         case piv: PIv => piv of sa.unwrap
         case siv: Iv  => siv 
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](inline rg: collection.immutable.Range)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](indices: Array[Int])(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       var z = zero
       val a = sa.unwrap
       shortcut.quittable:
@@ -1328,7 +1435,7 @@ object ShortcutArray {
           z = f(z, a(j), j)
           i += 1
       z
-    inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       var z = zero
       val a = sa.unwrap
       shortcut.quittable:
@@ -1337,7 +1444,7 @@ object ShortcutArray {
           z = f(z, a(j), j)
       z
 
-    inline def dupWith[B](inline f: boundary.Label[shortcut.Quit.type] ?=> A => B)(using ClassTag[B]): Array[B] =
+    inline def dupWith[B](inline f: boundary.Label[shortcut.Quits.type] ?=> A => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](a.length)
       var i = 0
@@ -1347,9 +1454,9 @@ object ShortcutArray {
           i += 1
       shrinkTo(b)(i)
 
-    inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean): Int =
+    inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       inject(that, 0)(pick)
-    inline def inject(that: Array[A], where: Int)(inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean): Int =
+    inline def inject(that: Array[A], where: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       val a = sa.unwrap
       var i = 0
       var j = where
@@ -1362,7 +1469,7 @@ object ShortcutArray {
           i += 1
       j - where
 
-    inline def select(inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean)(using ClassTag[A]): Array[A] =
+    inline def select(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean)(using ClassTag[A]): Array[A] =
       val a = sa.unwrap
       var b = new Array[A](if a.length <= 8 then a.length else 8)
       var i = 0
@@ -1435,7 +1542,7 @@ object ShortcutArray {
             b(j) = y
             j += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean)(inline op: boundary.Label[shortcut.Quit.type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean)(inline op: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var b = new Array[B](if a.length < 8 then a.length else 8)
       var i = 0
@@ -1451,7 +1558,7 @@ object ShortcutArray {
           i += 1
       b.shrinkTo(j)
 
-    transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quit.type] ?=> (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+    transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var bs = new Array[B](if a.length < 8 then a.length else 8)
       var i = 0
@@ -1473,7 +1580,42 @@ object ShortClipArray {
     inline def unwrap: Array[A] = sc
 
   extension [A](sc: kse.basics.ShortClipArray[A]) {
-    inline def gather[Z](i0: Int, iN: Int)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      shortcut.quittable:
+        while i < iM do
+          f(a(i))
+          i += 1
+      a
+    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = inline v match
+        case piv: PIv => piv of sc.unwrap
+        case siv: Iv  => siv
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = Iv of rg
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(indices: Array[Int])(inline f: A => Unit): Array[A] =
+      val a = sc.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          if j >= 0 && j < a.length then f(a(j))
+          i += 1
+      a
+    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val a = sc.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          if j >= 0 && j < a.length then f(a(j))
+      a
+
+    inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -1484,15 +1626,15 @@ object ShortClipArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](inline v: Iv | PIv)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = inline v match
         case piv: PIv => piv of sc.unwrap
         case siv: Iv  => siv 
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](inline rg: collection.immutable.Range)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
-      gather(iv.i0, iv.iN)(zero)(f)
-    inline def gather[Z](indices: Array[Int])(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
       var i = 0
       var z = zero
@@ -1502,7 +1644,7 @@ object ShortClipArray {
           if j >= 0 && j < a.length then z = f(z, a(j), j)
           i += 1
       z
-    inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: boundary.Label[shortcut.Quit.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
       var z = zero
       shortcut.quittable:
@@ -1511,9 +1653,9 @@ object ShortClipArray {
           if j >= 0 && j < a.length then z = f(z, a(j), j)
       z
 
-    inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean): Int =
+    inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       inject(that, 0)(pick)
-    inline def inject(that: Array[A], where: Int)(inline pick: boundary.Label[shortcut.Quit.type] ?=> A => Boolean): Int =
+    inline def inject(that: Array[A], where: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       val a = sc.unwrap
       var i = 0
       var j = where
