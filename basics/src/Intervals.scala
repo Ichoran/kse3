@@ -40,6 +40,15 @@ object Iv extends Translucent.Companion[Iv, Long] {
       else if j > a.length then
         (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
       else iv
+    def clipped(a: String): Iv =
+      val i = i0
+      val j = iN
+      if i < 0 then
+        if j > a.length then a.length.toLong << 32
+        else j.toLong << 32
+      else if j > a.length then
+        (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
+      else iv
     inline def visit(inline f: Int => Unit): Unit =
       var i = (iv & 0xFFFFFFFFL).toInt
       val j = (iv >>> 32).toInt
@@ -67,6 +76,15 @@ object PIv {
     inline def unwrap: Long = piv
 
     def of[A](a: Array[A]): Iv =
+      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
+      var j = ((piv: Long) >>> 32).toInt
+      if i < 0 then i = a.length+i
+      if j < 0 then
+        if j > Int.MinValue then j = a.length + j + 1
+      else if j < Int.MaxValue then j += 1
+      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+
+    def of(a: String): Iv =
       var i = ((piv: Long) & 0xFFFFFFFFL).toInt
       var j = ((piv: Long) >>> 32).toInt
       if i < 0 then i = a.length+i

@@ -215,7 +215,10 @@ object FromLengthIdx {
     inline def -(i: Int): kse.basics.FromLengthIdx = (idx: Int) - i
     inline def of[A](a: Array[A]): Int =
       val i: Int = idx
-      if i < 0 then a.length+i else i
+      if i < 0 then a.length + i else i
+    inline def of(a: String): Int =
+      val i: Int = idx
+      if i < 0 then a.length + i else i
 
     @targetName("toLiteral")
     def to(j: Int): PIv =
@@ -818,42 +821,6 @@ extension [A](a: Array[A]) {
       add(a(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
       i += 1
     bs.shrinkTo(j)
-  /*
-  transparent inline def fission[B](inline pick: (A, Int) => Boolean)(inline op: (A, Int) => B)(inline cut: (A, Int) => Boolean, discardEmpty: Boolean = false)(using ClassTag[B]): Array[Array[B]] =
-    var bss: Array[Array[B]] = null
-    var bsi = 0
-    var bs = new Array[B](if a.length < 8 then a.length else 8)
-    var bi = 0
-    var i = 0
-    while i < a.length do
-      val x = a(i)
-      if pick(x, i) then
-        val y = op(x, i)
-        if bi >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1))
-        bs(bi) = y
-        bi += 1
-      if cut(x, i) then
-        if !discardEmpty || bi > 0 then
-          if bss eq null then bss = new Array[Array[B]](8)
-          else if bsi >= bss.length then bss = bss.enlargeTo(bss.length | (bss.length << 1))
-          bss(bsi) = bs.shrinkTo(bi)
-          bsi += 1
-          if bi == bs.length then bs = new Array[B](if a.length - i - 1 < 8 then a.length - i - 1 else 8)
-          bi = 0
-      i += 1
-    if discardEmpty && bi == 0 then
-      if bss eq null then new Array[Array[B]](0)
-      else bss.shrinkTo(bsi)
-    else
-      if bss eq null then Array(bs.shrinkTo(bi))
-      else if bsi < bss.length then
-        bss(bsi) = bs.shrinkTo(bi)
-        bss.shrinkTo(bsi+1)
-      else
-        bss = bss.enlargeTo(bss.length + 1)
-        bss(bss.length - 1) = bs.shrinkTo(bi)
-        bss
-  */
 }
 
 
@@ -1597,7 +1564,7 @@ object ShortClipArray {
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv of rg
       peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: A => Unit): Array[A] =
+    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sc.unwrap
       var i = 0
       shortcut.quittable:
@@ -1643,7 +1610,7 @@ object ShortClipArray {
           if j >= 0 && j < a.length then z = f(z, a(j), j)
           i += 1
       z
-    inline def gather[Z](indices: scala.collection.IntStepper)(zero: Z)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
       var z = zero
       shortcut.quittable:
@@ -1666,14 +1633,15 @@ object ShortClipArray {
             if j >= 0 then that(j) = x
             j += 1 
           i += 1
-      j
+      if where < 0 then j else j - where
 
     transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
       var j = iN
-      if j > a.length then j = a.length else if j < i then j = i
+      if j > a.length then j = a.length
+      if j < i then j = i
       val b = new Array[B](j - i)
       var k = 0
       shortcut.outer:
@@ -1699,7 +1667,7 @@ object ShortClipArray {
       shortcut.outer:
         while i < indices.length do
           val k = indices(i)
-          if k >= 0 && i < a.length then shortcut.inner:
+          if k >= 0 && k < a.length then shortcut.inner:
             b(j) = op(a(k), k)
             j += 1
           i += 1
@@ -1775,6 +1743,7 @@ extension (as: Array[Short])
 
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ac: Array[Char])
+  inline def str: String = new String(ac)
   inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ac, size)
   inline def shrinkCopy(size: Int) = if size < ac.length then java.util.Arrays.copyOf(ac, size) else ac
   inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ac, i0, iN)
@@ -1890,6 +1859,308 @@ extension [A >: Null <: AnyRef](aa: Array[A])
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
+
+
+
+/** Higher-level high-speed String access (inlined) */
+extension (a: String) {
+  inline def apply(i: Int) = a.charAt(i)
+
+  @targetName("applyFromLengthIdx")
+  inline def apply(i: kse.basics.FromLengthIdx): Char = a.charAt(i of a)
+
+  inline def apply(e: End.type): Char = a.charAt(a.length - 1)
+
+  inline def arr: Array[Char] = a.toCharArray
+
+  inline def builder(): java.lang.StringBuilder =
+    if a.length == 0 then new java.lang.StringBuilder() else new java.lang.StringBuilder(a)
+
+  inline def build(inline f: java.lang.StringBuilder => Unit): String =
+    val b = new java.lang.StringBuilder(a)
+    f(b)
+    b.toString
+
+
+  /*
+  inline def clip: kse.basics.ClippedString = ClippedString wrap a
+
+  inline def breakable: kse.basics.ShortcutString = ShortcutString wrap a
+  */
+
+  inline def peek()(inline f: Char => Unit): a.type =
+    var i = 0
+    while i < a.length do
+      f(a.charAt(i))
+      i += 1
+    a
+  inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): a.type =
+    var i = i0
+    while i < iN do
+      f(a.charAt(i))
+      i += 1
+    a
+  inline def peek(v: Iv | PIv)(inline f: Char => Unit): a.type =
+    val iv = inline v match
+      case piv: PIv => piv.of(a)
+      case siv: Iv  => siv
+    peek(iv.i0, iv.iN)(f)
+  inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): a.type =
+    val iv = Iv of rg
+    peek(iv.i0, iv.iN)(f)
+  inline def peek(indices: Array[Int])(inline f: Char => Unit): a.type =
+    var i = 0
+    while i < indices.length do
+      f(a.charAt(indices(i)))
+      i += 1
+    a
+  inline def peek(indices: scala.collection.IntStepper)(inline f: Char => Unit): a.type =
+    while indices.hasStep do
+      f(a.charAt(indices.nextStep))
+    a
+
+  inline def visit()(inline f: (Char, Int) => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      f(a.charAt(i), i)
+      i += 1
+  inline def visit(i0: Int, iN: Int)(inline f: (Char, Int) => Unit): Unit =
+    var i = i0
+    while i < iN do
+      f(a.charAt(i), i)
+      i += 1
+  inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
+    val iv = inline v match
+      case piv: PIv => piv.of(a)
+      case siv: Iv  => siv
+    visit(iv.i0, iv.iN)(f)
+  inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
+    val iv = Iv of rg
+    visit(iv.i0, iv.iN)(f)
+  inline def visit(indices: Array[Int])(inline f: (Char, Int) => Unit): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      f(a.charAt(j), j)
+      i += 1
+  inline def visit(indices: scala.collection.IntStepper)(inline f: (Char, Int) => Unit): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      f(a.charAt(j), j)
+
+  inline def wander()(inline f: (Char, Int) => Int): Int =
+    wander(0)(f)
+  inline def wander(start: Int)(inline f: (Char, Int) => Int): Int =
+    var n = 0
+    var i = start
+    while i >= 0 && i < a.length && n < Int.MaxValue do
+      n += 1
+      i = f(a.charAt(i), i)
+    n
+
+  inline def gather[Z](zero: Z)()(inline f: (Z, Char, Int) => Z) =
+    var i = 0
+    var z = zero
+    while i < a.length do
+      z = f(z, a.charAt(i), i)
+      i += 1
+    z
+  inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, Char, Int) => Z): Z =
+    var i = i0
+    var z = zero
+    while i < iN do
+      z = f(z, a.charAt(i), i)
+      i += 1
+    z
+  inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
+    val iv = inline v match
+      case piv: PIv => piv.of(a)
+      case siv: Iv  => siv 
+    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
+    val iv = Iv of rg
+    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: (Z, Char, Int) => Z): Z =
+    var i = 0
+    var z = zero
+    while i < indices.length do
+      val j = indices(i)
+      z = f(z, a.charAt(j), j)
+      i += 1
+    z
+  inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: (Z, Char, Int) => Z): Z =
+    var z = zero
+    while indices.hasStep do
+      val j = indices.nextStep
+      z = f(z, a.charAt(j), j)
+    z
+
+  inline def dupWith(inline f: Char => Char): String =
+    val b = new java.lang.StringBuilder
+    var i = 0
+    while i < a.length do
+      b append f(a.charAt(i))
+      i += 1
+    b.toString
+
+  inline def where(inline pick: Char => Boolean): Array[Int] =
+    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      if pick(a.charAt(i)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = i
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+
+  inline def inject(that: Array[Char]): Int =
+    inject(that, 0)(0, a.length)
+  inline def inject(that: Array[Char], where: Int): Int =
+    inject(that, where)(0, a.length)
+  inline def inject(that: Array[Char])(i0: Int, iN: Int): Int =
+    inject(that, 0)(i0, iN)
+  inline def inject(that: Array[Char], where: Int)(i0: Int, iN: Int): Int =
+    var i = i0
+    var j = where
+    while i < iN do
+      that(j) = a.charAt(i)
+      i += 1
+      j += 1
+    iN - i0
+  inline def inject(that: Array[Char])(inline v: Iv | PIv): Int =
+    val iv = inline v match
+      case piv: PIv => piv of a
+      case siv: Iv  => siv
+    inject(that, 0)(iv.i0, iv.iN)
+  inline def inject(that: Array[Char], where: Int)(inline v: Iv | PIv): Int =
+    val iv = inline v match
+      case piv: PIv => piv of a
+      case siv: Iv  => siv
+    inject(that, where)(iv.i0, iv.iN)
+  inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
+    val iv = Iv of rg
+    inject(that, 0)(iv.i0, iv.iN)
+  inline def inject(that: Array[Char], where: Int)(inline rg: collection.immutable.Range): Int =
+    val iv = Iv of rg
+    inject(that, where)(iv.i0, iv.iN)
+  inline def inject(that: Array[Char])(indices: Array[Int]): Int =
+    inject(that, 0)(indices)
+  inline def inject(that: Array[Char], where: Int)(indices: Array[Int]): Int =
+    var i = 0
+    var j = where
+    while i < indices.length do
+      that(j) = a.charAt(indices(i))
+      i += 1
+      j += 1
+    i
+  inline def inject(that: Array[Char])(indices: scala.collection.IntStepper): Int =
+    inject(that, 0)(indices)
+  inline def inject(that: Array[Char], where: Int)(indices: scala.collection.IntStepper): Int =
+    var j = where
+    while indices.hasStep do
+      that(j) = a.charAt(indices.nextStep)
+      j += 1
+    j - where
+  inline def inject(that: Array[Char])(inline pick: Char => Boolean): Int =
+    inject(that, 0)(pick)
+  inline def inject(that: Array[Char], where: Int)(inline pick: Char => Boolean): Int =
+    var i = 0
+    var j = where
+    while i < a.length do
+      val x = a.charAt(i)
+      if pick(x) then
+        that(j) = x
+        j += 1 
+      i += 1
+    j - where
+
+  inline def select(i0: Int, iN: Int): String =
+    a.substring(i0, iN)
+  inline def select(inline v: Iv | PIv): String =
+    val iv = inline v match
+      case siv: Iv  => siv
+      case piv: PIv => piv.of(a)
+    select(Iv.i0(iv), Iv.iN(iv))
+  inline def select(inline rg: collection.immutable.Range): String =
+    select(Iv of rg)
+  inline def select(indices: Array[Int]): String =
+    val b = new java.lang.StringBuilder(indices.length)
+    var i = 0
+    while i < indices.length do
+      b append a.charAt(indices(i))
+      i += 1
+    b.toString
+  inline def select(indices: scala.collection.IntStepper): String =
+    var b = new java.lang.StringBuilder()
+    var j = 0
+    while indices.hasStep do
+      b append a.charAt(indices.nextStep)
+      j += 1
+    b.toString
+  inline def select(inline pick: Char => Boolean): String =
+    var b = new java.lang.StringBuilder()
+    var i = 0
+    while i < a.length do
+      val x = a.charAt(i)
+      if pick(x) then
+        b append x
+      i += 1
+    b.toString
+
+  transparent inline def selectOp[B]()(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](a.length)
+    var i = 0
+    while i < a.length do
+      b(i) = op(a.charAt(i), i)
+      i += 1
+    b
+  transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](iN - i0)
+    var i = i0
+    while i < iN do
+      b(i - i0) = op(a.charAt(i), i)
+      i += 1
+    b
+  transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val iv = inline v match
+      case piv: PIv => piv.of(a)
+      case siv: Iv  => siv
+    selectOp(Iv.i0(iv), Iv.iN(iv))(op)
+  transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val iv = Iv of rg
+    selectOp(iv.i0, iv.iN)(op)
+  transparent inline def selectOp[B](indices: Array[Int])(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](indices.length)
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      b(i) = op(a.charAt(j), j)
+      i += 1
+    b
+  transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    var b = new Array[B](if a.length <= 8 then a.length else 8)
+    var j = 0
+    while indices.hasStep do
+      if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
+      val i = indices.nextStep
+      b(j) = op(a.charAt(i), i)
+      j += 1
+    b.shrinkTo(j)
+  transparent inline def selectOp[B](inline pick: Char => Boolean)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val indices = where(pick)
+    selectOp(indices)(op)
+
+  transparent inline def fusion[B](inline add: (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+    var bs = new Array[B](if a.length < 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      add(a.charAt(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
+      i += 1
+    bs.shrinkTo(j)
+}
 
 
 
