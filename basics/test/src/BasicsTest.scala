@@ -2091,6 +2091,303 @@ class BasicsTest {
 
     T ~ str.fusion[Int]((c, i, add) => if !c.isLetter then add(i) else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
 
+
+  @Test
+  def stringClippedIntervalDataTest: Unit =
+    var cuml = 0
+    val str = "ch.#ik."
+
+    val ix = Array(2, 3, 1, 1, 3)
+    val ex = Array(2, 0, -1, 3, 6, 7, -9, 400) 
+    def st = ix.stepper
+    def et = ex.stepper
+
+    val civ = Iv(3, 5)
+    val cpv = 3 to End-2
+    val eiv = Iv(3, 9)
+    val fiv = Iv(-2, 5)
+    val fpv = End-9 to End-2
+    val biv = Iv(-2, 9)
+    val niv = Iv(8, 9)
+    val npv = End-9 to End-8
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
+
+    T ~ z{ str.clip.peek(3, 5)(cuml += _) }   ==== str
+    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.clip.peek(3 to 4)(cuml += _) } ==== str
+    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.clip.peek(civ)(cuml += _) }    ==== str
+    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.clip.peek(cpv)(cuml += _) }    ==== str
+    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.clip.peek(ix)(cuml += _) }     ==== str
+    T ~ cuml                                    ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ str.clip.peek(st)(cuml += _) }     ==== str
+    T ~ cuml                                    ==== ".#hh#".map(_.toInt).sum
+
+    T ~ n{ str.clip.peek(3, 9)(cuml += _) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ str.clip.peek(3 to 8)(cuml += _) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ str.clip.peek(eiv)(cuml += _) }     ==== str.substring(3).map(_.toInt).sum
+
+    T ~ n{ str.clip.peek(-2, 5)(cuml += _) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.clip.peek(-2 to 4)(cuml += _) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.clip.peek(fiv)(cuml += _) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.clip.peek(fpv)(cuml += _) }     ==== str.substring(0, 5).map(_.toInt).sum
+
+    T ~ n{ str.clip.peek(-2, 9)(cuml += _) }   ==== str.map(_.toInt).sum
+    T ~ n{ str.clip.peek(-2 to 9)(cuml += _) } ==== str.map(_.toInt).sum
+    T ~ n{ str.clip.peek(biv)(cuml += _) }     ==== str.map(_.toInt).sum
+
+    T ~ n{ str.clip.peek(8, 9)(cuml += _) }    ==== 0
+    T ~ n{ str.clip.peek(8 to 9)(cuml += _) }  ==== 0
+    T ~ n{ str.clip.peek(niv)(cuml += _) }     ==== 0
+    T ~ n{ str.clip.peek(npv)(cuml += _) }     ==== 0
+
+    T ~ n{ str.clip.peek(ex)(cuml += _) }      ==== ".c#.".map(_.toInt).sum
+    T ~ n{ str.clip.peek(et)(cuml += _) }      ==== ".c#.".map(_.toInt).sum
+
+    def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
+    T ~ n{ str.clip.visit(3, 5)(cuml += _ + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.clip.visit(3 to 4)(cuml += _ + _) }  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.clip.visit(civ)(cuml += _ + _) }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.clip.visit(cpv)(cuml += _ + _) }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.clip.visit(ix)(cuml += _ + _) }      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ n{ str.clip.visit(st)(cuml += _ + _) }      ==== ".#hh#".map(_.toInt).sum + 10
+
+    T ~ n{ str.clip.visit(3, 9)(cuml += _ + _) }    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ str.clip.visit(3 to 8)(cuml += _ + _) }  ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ str.clip.visit(eiv)(cuml += _ + _) }     ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+
+    T ~ n{ str.clip.visit(-2, 5)(cuml += _ + _) }   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ str.clip.visit(-2 to 4)(cuml += _ + _) } ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ str.clip.visit(fiv)(cuml += _ + _) }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ str.clip.visit(fpv)(cuml += _ + _) }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ str.clip.visit(-2, 9)(cuml += _ + _) }   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ str.clip.visit(-2 to 9)(cuml += _ + _) } ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ str.clip.visit(biv)(cuml += _ + _) }     ==== str.map(_.toInt).sum + sm(0, 6)
+
+    T ~ n{ str.clip.visit(8, 9)(cuml += _ + _) }    ==== 0
+    T ~ n{ str.clip.visit(8 to 9)(cuml += _ + _) }  ==== 0
+    T ~ n{ str.clip.visit(niv)(cuml += _ + _) }     ==== 0
+    T ~ n{ str.clip.visit(npv)(cuml += _ + _) }     ==== 0
+
+    T ~ n{ str.clip.visit(ex)(cuml += _ + _) }      ==== ".c#.".map(_.toInt).sum + 11
+    T ~ n{ str.clip.visit(et)(cuml += _ + _) }      ==== ".c#.".map(_.toInt).sum + 11
+
+    T ~ str.clip.gather(0)(3, 5)(_ + _ + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ str.clip.gather(0)(3 to 4)(_ + _ + _)  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ str.clip.gather(0)(civ)(_ + _ + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ str.clip.gather(0)(cpv)(_ + _ + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ str.clip.gather(0)(ix)(_ + _ + _)      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ str.clip.gather(0)(st)(_ + _ + _)      ==== ".#hh#".map(_.toInt).sum + 10
+
+    T ~ str.clip.gather(0)(3, 9)(_ + _ + _)    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ str.clip.gather(0)(3 to 8)(_ + _ + _)  ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ str.clip.gather(0)(eiv)(_ + _ + _)     ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+
+    T ~ str.clip.gather(0)(-2, 5)(_ + _ + _)   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ str.clip.gather(0)(-2 to 4)(_ + _ + _) ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ str.clip.gather(0)(fiv)(_ + _ + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ str.clip.gather(0)(fpv)(_ + _ + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+
+    T ~ str.clip.gather(0)(-2, 9)(_ + _ + _)   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ str.clip.gather(0)(-2 to 9)(_ + _ + _) ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ str.clip.gather(0)(biv)(_ + _ + _)     ==== str.map(_.toInt).sum + sm(0, 6)
+
+    T ~ str.clip.gather(0)(8, 9)(_ + _ + _)    ==== 0
+    T ~ str.clip.gather(0)(8 to 9)(_ + _ + _)  ==== 0
+    T ~ str.clip.gather(0)(niv)(_ + _ + _)     ==== 0
+    T ~ str.clip.gather(0)(npv)(_ + _ + _)     ==== 0
+
+    T ~ str.clip.gather(0)(ex)(_ + _ + _)      ==== ".c#.".map(_.toInt).sum + 11
+    T ~ str.clip.gather(0)(et)(_ + _ + _)      ==== ".c#.".map(_.toInt).sum + 11
+
+    val ca9 = "ABCDEFGHI".arr
+    val ca7 = "1234567".arr
+    val ca3 = "890".arr
+    val ca1 = "%".arr
+
+    var ninja = 0
+    T ~ ca9.dup(a => ninja += str.clip.inject(a)).str            ==== "ch.#ik.HI"
+    T ~ ca9.dup(a => ninja += str.clip.inject(a, 2)).str         ==== "ABch.#ik."
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 2*str.length
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(3, 5)).str      ==== "#i34567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(3, 5)).str   ==== "12#i567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(3 to 4)).str    ==== "#i34567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(3 to 4)).str ==== "12#i567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(civ)).str       ==== "#i34567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(civ)).str    ==== "12#i567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(cpv)).str       ==== "#i34567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(cpv)).str    ==== "12#i567"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 8*2
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(ix)).str        ==== ".#hh#67"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(ix)).str     ==== "12.#hh#"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(st)).str        ==== ".#hh#67"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(st)).str     ==== "12.#hh#"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 4*5
+
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)).str    ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)).str ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)).str ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                  ==== 3+5+0
+
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(3, 5)).str      ==== "#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(3, 5)).str   ==== "89#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(3, 5)).str   ==== "890"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(3 to 4)).str    ==== "#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(3 to 4)).str ==== "89#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(3 to 4)).str ==== "890"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(civ)).str       ==== "#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(civ)).str    ==== "89#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(civ)).str    ==== "890"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(cpv)).str       ==== "#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(cpv)).str    ==== "89#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(cpv)).str    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 4*(1+1+0)
+
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(3, 9)).str      ==== "#ik"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 5)(3, 9)).str   ==== "12345#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(3, 9)).str   ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(3 to 8)).str    ==== "#ik"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 5)(3 to 8)).str ==== "12345#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(3 to 8)).str ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(eiv)).str       ==== "#ik"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 5)(eiv)).str    ==== "12345#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(eiv)).str    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 3*(3+2+0)
+
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(-2, 5)).str      ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 3)(-2, 5)).str   ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(-2, 5)).str   ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(-2 to 4)).str    ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 3)(-2 to 4)).str ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(-2 to 4)).str ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(fiv)).str        ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 3)(fiv)).str     ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(fiv)).str     ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(fpv)).str        ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 3)(fpv)).str     ==== "123ch.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(fpv)).str     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                           ==== 4*(3+4+0)
+
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(-2, 9)).str      ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(-2, 9)).str   ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(-2, 9)).str   ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(-2 to 8)).str    ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(-2 to 8)).str ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(-2 to 8)).str ==== "890"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(biv)).str        ==== "ch."
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(biv)).str     ==== "12ch.#i"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(biv)).str     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                           ==== 3*(3+5+0)
+
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(8, 10)).str     ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a, 2)(8, 10)).str  ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(8 to 9)).str    ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a, 2)(8 to 9)).str ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(niv)).str       ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a, 2)(niv)).str    ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a)(npv)).str       ==== "%"
+    T ~ ca1.dup(a => ninja += str.clip.inject(a, 2)(npv)).str    ==== "%"
+    T ~ { val x = ninja; ninja = 0; x }                          ==== 0
+
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(ix)).str     ==== ".#h"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 1)(ix)).str  ==== "8.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(ix)).str  ==== "890"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, -1)(ix)).str ==== ".#hh#67"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(st)).str     ==== ".#h"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 1)(st)).str  ==== "8.#"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 4)(st)).str  ==== "890"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, -1)(st)).str ==== ".#hh#67"
+    T ~ { val x = ninja; ninja = 0; x }                       ==== 2*(3+2+0+5)    
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(ex)).str     ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 4)(ex)).str  ==== "1234.c#"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 9)(ex)).str  ==== "1234567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, -1)(ex)).str ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(et)).str     ==== ".c#.567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 4)(et)).str  ==== "1234.c#"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 9)(et)).str  ==== "1234567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, -1)(et)).str ==== ".c#.567"
+    T ~ { val x = ninja; ninja = 0; x }                       ==== 2*(4+3+0+4)
+
+    T ~ ca7.dup(a => ninja += str.clip.inject(a)(_.isLetter)).str    ==== "chik567"
+    T ~ ca7.dup(a => ninja += str.clip.inject(a, 2)(_.isLetter)).str ==== "12chik7"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a)(_.isLetter)).str    ==== "chi"
+    T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(_.isLetter)).str ==== "89c"
+    T ~ { val x = ninja; ninja = 0; x }                              ==== 2*4 + 3 + 1
+
+    T ~ str.clip.select(3, 5)   ==== "#i"
+    T ~ str.clip.select(3 to 4) ==== "#i"
+    T ~ str.clip.select(civ)    ==== "#i"
+    T ~ str.clip.select(cpv)    ==== "#i"
+    T ~ str.clip.select(ix)     ==== ".#hh#"
+    T ~ str.clip.select(st)     ==== ".#hh#"
+
+    T ~ str.clip.select(3, 9)   ==== "#ik."
+    T ~ str.clip.select(3 to 8) ==== "#ik."
+    T ~ str.clip.select(eiv)    ==== "#ik."
+
+    T ~ str.clip.select(-2, 5)   ==== "ch.#i"
+    T ~ str.clip.select(-2 to 4) ==== "ch.#i"
+    T ~ str.clip.select(fiv)     ==== "ch.#i"
+    T ~ str.clip.select(fpv)     ==== "ch.#i"
+
+    T ~ str.clip.select(-2, 9)   ==== "ch.#ik."
+    T ~ str.clip.select(-2 to 8) ==== "ch.#ik."
+    T ~ str.clip.select(biv)     ==== "ch.#ik."
+
+    T ~ str.clip.select(8, 10)  ==== ""
+    T ~ str.clip.select(8 to 9) ==== ""
+    T ~ str.clip.select(niv)    ==== ""
+    T ~ str.clip.select(npv)    ==== ""
+
+    T ~ str.clip.select(et)    ==== ".c#."
+    T ~ str.clip.select(et)    ==== ".c#."
+
+    T ~ str.clip.selectOp(3, 5  )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.selectOp(3 to 4)((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.selectOp(civ   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.selectOp(cpv   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.selectOp(ix    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.selectOp(st    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.selectOp(3, 5  )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.selectOp(3 to 4)((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.selectOp(civ   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.selectOp(cpv   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.selectOp(ix    )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.selectOp(st    )((c, i) => c + i) ==== typed[Array[Int]]
+
+    T ~ str.clip.selectOp(3, 9  )((c, i) => c + i) =**= "&mp4".map(_.toInt)
+    T ~ str.clip.selectOp(3 to 8)((c, i) => c + i) =**= "&mp4".map(_.toInt)
+    T ~ str.clip.selectOp(eiv   )((c, i) => c + i) =**= "&mp4".map(_.toInt)
+
+    T ~ str.clip.selectOp(-2, 5  )((c, i) => c + i) =**= "ci0&m".map(_.toInt)
+    T ~ str.clip.selectOp(-2 to 4)((c, i) => c + i) =**= "ci0&m".map(_.toInt)
+    T ~ str.clip.selectOp(fiv    )((c, i) => c + i) =**= "ci0&m".map(_.toInt)
+    T ~ str.clip.selectOp(fpv    )((c, i) => c + i) =**= "ci0&m".map(_.toInt)
+
+    T ~ str.clip.selectOp(-2, 9  )((c, i) => c + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ str.clip.selectOp(-2 to 8)((c, i) => c + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ str.clip.selectOp(biv    )((c, i) => c + i) =**= "ci0&mp4".map(_.toInt)
+
+    T ~ str.clip.selectOp(8, 10 )((c, i) => c + i) =**= "".map(_.toInt)
+    T ~ str.clip.selectOp(8 to 9)((c, i) => c + i) =**= "".map(_.toInt)
+    T ~ str.clip.selectOp(niv   )((c, i) => c + i) =**= "".map(_.toInt)
+    T ~ str.clip.selectOp(npv   )((c, i) => c + i) =**= "".map(_.toInt)
+
+    T ~ str.clip.selectOp(ex)((c, i) => c + i) =**= "0c&4".map(_.toInt)
+    T ~ str.clip.selectOp(et)((c, i) => c + i) =**= "0c&4".map(_.toInt)
+
 }
 object BasicsTest {
   // @BeforeClass
