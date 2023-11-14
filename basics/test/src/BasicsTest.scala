@@ -2485,6 +2485,170 @@ class BasicsTest {
     val lar = "ch.ix.#n."
     T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
+
+  @Test
+  def stringClipBreakIntervalTest(): Unit =
+    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+
+    var cuml = 0
+    val str = "ch.#ik."
+
+    val ix = Array(2, 3, 1, 1, 3)
+    val ex = Array(2, 0, -1, 3, 6, 7, -9, 400) 
+    def st = ix.stepper
+    def et = ex.stepper
+
+    val civ = Iv(3, 5)
+    val cpv = 3 to End-2
+    val eiv = Iv(3, 9)
+    val fiv = Iv(-2, 5)
+    val fpv = End-9 to End-2
+    val biv = Iv(-2, 9)
+    val niv = Iv(8, 9)
+    val npv = End-9 to End-8
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ str.clip.breakable ==== typed[ShortClipString]
+    T ~ str.breakable.clip ==== typed[ShortClipString]
+
+    T ~ z{ str.breakable.clip.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
+    T ~ cuml                                                                    ==== str(3).toInt
+    T ~ z{ str.breakable.clip.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
+    T ~ cuml                                                                    ==== str(3).toInt
+    T ~ z{ str.breakable.clip.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ cuml                                                                    ==== str(3).toInt
+    T ~ z{ str.breakable.clip.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ cuml                                                                    ==== str(3).toInt
+    T ~ z{ str.breakable.clip.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
+    T ~ z{ str.breakable.clip.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
+
+    T ~ n{ str.breakable.clip.peek(3, 9){ c => qIf(c.isLetter); cuml += c } }   ==== str(3).toInt
+    T ~ n{ str.breakable.clip.peek(3 to 8){ c => qIf(c.isLetter); cuml += c } } ==== str(3).toInt
+    T ~ n{ str.breakable.clip.peek(eiv){ c => qIf(c.isLetter); cuml += c } }    ==== str(3).toInt
+
+    T ~ n{ str.breakable.clip.peek(-2, 5){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(-2 to 4){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(fiv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(fpv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+
+    T ~ n{ str.breakable.clip.peek(-2, 9){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(-2 to 9){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(biv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+
+    T ~ n{ str.breakable.clip.peek(8, 9){ c => qIf(c.isLetter); cuml += c } }    ==== 0
+    T ~ n{ str.breakable.clip.peek(8 to 9){ c => qIf(c.isLetter); cuml += c } }  ==== 0
+    T ~ n{ str.breakable.clip.peek(niv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
+    T ~ n{ str.breakable.clip.peek(npv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
+
+    T ~ n{ str.breakable.clip.peek(ex){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
+    T ~ n{ str.breakable.clip.peek(et){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
+
+    def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
+    T ~ str.clip.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.clip.breakable.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ str.clip.breakable.gather(0)(3, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(3 to 8){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.clip.breakable.gather(0)(eiv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+
+    T ~ str.clip.breakable.gather(0)(-2, 5){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.breakable.gather(0)(-2 to 4){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.breakable.gather(0)(fiv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.breakable.gather(0)(fpv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ str.clip.breakable.gather(0)(-2, 9){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.breakable.gather(0)(-2 to 9){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.breakable.gather(0)(biv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ str.clip.breakable.gather(0)(8, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== 0
+    T ~ str.clip.breakable.gather(0)(8 to 9){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== 0
+    T ~ str.clip.breakable.gather(0)(niv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
+    T ~ str.clip.breakable.gather(0)(npv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
+
+    T ~ str.clip.breakable.gather(0)(ex){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
+    T ~ str.clip.breakable.gather(0)(et){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
+
+    val ca7 = "1234567".arr
+    val ca3 = "890".arr
+    var ninja = 0
+    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch34567".arr
+    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "12ch567".arr
+    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a, 6){ c => qIf(c == 'i'); c.isLetter }) =**= "123456c".arr
+    T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch0".arr
+    T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "89c".arr
+    T ~ { val x = ninja; ninja = 0; x }                                                          ==== 2+2+1+2+1
+
+    T ~ str.clip.breakable.selectOp(3, 5  )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(3 to 4)((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(civ   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(cpv   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(ix    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(st    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(3, 5  )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.breakable.selectOp(3 to 4)((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.breakable.selectOp(civ   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.breakable.selectOp(cpv   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.breakable.selectOp(ix    )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.breakable.selectOp(st    )((c, i) => c + i) ==== typed[Array[Int]]
+
+    T ~ str.clip.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.clip.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+
+    T ~ str.clip.breakable.selectOp(3, 9  ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(3 to 8){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(eiv   ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(3, 9  ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(3 to 8){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(eiv   ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(-2, 5  ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(-2 to 4){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(fiv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(fpv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(-2, 5  ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(-2 to 4){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(fiv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(fpv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(-2, 9  ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(-2 to 8){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(biv    ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(-2, 9  ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(-2 to 8){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(biv    ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(niv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(npv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(ex){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(et){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
+
+    T ~ str.clip.breakable.selectOp(ex){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
+    T ~ str.clip.breakable.selectOp(et){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
+
 }
 object BasicsTest {
   // @BeforeClass
