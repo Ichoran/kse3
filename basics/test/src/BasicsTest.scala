@@ -2388,6 +2388,103 @@ class BasicsTest {
     T ~ str.clip.selectOp(ex)((c, i) => c + i) =**= "0c&4".map(_.toInt)
     T ~ str.clip.selectOp(et)((c, i) => c + i) =**= "0c&4".map(_.toInt)
 
+
+  @Test
+  def stringBreakIntervalDataTest: Unit =
+    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+
+    var cuml = 0
+    val str = "ch.#ik."
+
+    val ix = Array(2, 3, 1, 1, 3)
+    def st = ix.stepper
+    val civ = Iv(3, 5)
+    val cpv = 3 to End-2
+
+    inline def z[A](inline f: => A): A =
+      cuml = 0
+      f
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ z{ str.breakable.peek(){ c => qIf(!c.isLetter); cuml += c } }      ==== str
+    T ~ cuml                                                               ==== str.take(2).map(_.toInt).sum
+    T ~ z{ str.breakable.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
+    T ~ cuml                                                               ==== str(3).toInt
+    T ~ z{ str.breakable.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
+    T ~ cuml                                                               ==== str(3).toInt
+    T ~ z{ str.breakable.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ cuml                                                               ==== str(3).toInt
+    T ~ z{ str.breakable.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ cuml                                                               ==== str(3).toInt
+    T ~ z{ str.breakable.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ cuml                                                               ==== ".#".map(_.toInt).sum
+    T ~ z{ str.breakable.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ cuml                                                               ==== ".#".map(_.toInt).sum
+
+    T ~ str.breakable.gather(0)(){ (a, c, i) => qIf(!c.isLetter); a + c + i }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ str.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.breakable.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.breakable.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.breakable.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ str.breakable.dupWith{ c => qIf(!c.isLetter); c } ==== str.take(2)
+
+    T ~ str.breakable.where{ c => qIf(c > 'i'); c.isLetter } =**= str.zipWithIndex.takeWhile(_._1 <= 'i').collect{ case (c, i) if c.isLetter => i }
+
+    val cx = "_________".arr
+    var ninja = 0
+    T ~ cx.dup(a => ninja = str.breakable.inject(a)(_.isLetter)).str                          ==== "chik_____"
+    T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.count(_.isLetter)
+    T ~ cx.dup(a => ninja = str.breakable.inject(a, 2)(_.isLetter)) .str                      ==== "__chik___"
+    T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.count(_.isLetter)
+    T ~ cx.dup(a => ninja = str.breakable.inject(a){ c => qIf(c == '#'); c.isLetter }).str    ==== "ch_______"
+    T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
+    T ~ cx.dup(a => ninja = str.breakable.inject(a, 2){ c => qIf(c == '#'); c.isLetter }).str ==== "__ch_____"
+    T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
+
+    T ~ str.breakable.select(_.isLetter)                       ==== "chik"
+    T ~ str.breakable.select{ c => qIf(c == '#'); c.isLetter } ==== "ch"
+
+    T ~ str.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
+    T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
+    T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
+    T ~ str.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+
+    T ~ str.breakable.selectOp(){      (c, i) => sIf(i%2 == 0); c } =**= "h#k".arr
+    T ~ str.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.breakable.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
+    T ~ str.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
+
+    T ~ str.breakable.selectOp(){      (c, i) => qIf(i == 1 || i == 4); c } =**= "c".arr
+    T ~ str.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+
+    val lar = "ch.ix.#n."
+    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+
 }
 object BasicsTest {
   // @BeforeClass

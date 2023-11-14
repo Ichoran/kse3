@@ -1421,7 +1421,7 @@ object ShortcutArray {
           i += 1
       shrinkTo(b)(i)
 
-    inline def where(inline pick: A => boundary.Label[shortcut.Quits.type] ?=> Boolean): Array[Int] =
+    inline def where(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val a = sa.unwrap
       var ix = new Array[Int](if a.length <= 8 then a.length else 8)
       var i = 0
@@ -1883,7 +1883,7 @@ extension (a: String) {
 
   inline def clip: kse.basics.ClippedString = ClippedString wrap a
 
-  //inline def breakable: kse.basics.ShortcutString = ShortcutString wrap a
+  inline def breakable: kse.basics.ShortcutString = ShortcutString wrap a
 
   inline def peek()(inline f: Char => Unit): a.type =
     var i = 0
@@ -2425,6 +2425,225 @@ object ClippedString {
           b(j) = op(a.charAt(i), i)
           j += 1
       b.shrinkTo(j)
+  }
+}
+
+
+
+opaque type ShortcutString = String
+object ShortcutString {
+  inline def wrap(a: String): ShortcutString = a
+
+  extension (sa: ShortcutString)
+    inline def unwrap: String = sa
+
+  extension (sa: kse.basics.ShortcutString) {
+    // inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray wrap sa.unwrap
+
+    inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          f(a.charAt(i))
+          i += 1
+      a
+    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          f(a.charAt(i))
+          i += 1
+      a
+    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val iv = Iv of rg
+      peek(iv.i0, iv.iN)(f)
+    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          f(a.charAt(indices(i)))
+          i += 1
+      a
+    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          f(a.charAt(indices.nextStep))
+      a
+
+    inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z) =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        var i = 0
+        while i < a.length do
+          z = f(z, a.charAt(i), i)
+          i += 1
+      z
+    inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        var i = i0
+        while i < iN do
+          z = f(z, a.charAt(i), i)
+          i += 1
+      z
+    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv 
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      val iv = Iv of rg
+      gather(zero)(iv.i0, iv.iN)(f)
+    inline def gather[Z](zero: Z)(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        var i = 0
+        while i < indices.length do
+          val j = indices(i)
+          z = f(z, a.charAt(j), j)
+          i += 1
+      z
+    inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          z = f(z, a.charAt(j), j)
+      z
+
+    inline def dupWith[B](inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Char): String =
+      val a = sa.unwrap
+      val b = new java.lang.StringBuilder(a.length)
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          b append f(a.charAt(i))
+          i += 1
+      b.toString
+
+    inline def where(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < a.length do
+          if pick(a.charAt(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+
+    inline def inject(that: Array[Char])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Int =
+      inject(that, 0)(pick)
+    inline def inject(that: Array[Char], where: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Int =
+      val a = sa.unwrap
+      var i = 0
+      var j = where
+      shortcut.quittable:
+        while i < a.length do
+          val x = a.charAt(i)
+          if pick(x) then
+            that(j) = x
+            j += 1 
+          i += 1
+      j - where
+
+    inline def select(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): String =
+      val a = sa.unwrap
+      var b = new java.lang.StringBuilder()
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val x = a.charAt(i)
+          if pick(x) then
+            b append x
+          i += 1
+      b.toString
+
+    transparent inline def selectOp[B]()(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      val b = new Array[B](a.length)
+      var i = 0
+      var j = 0
+      shortcut.outer:
+        while i < a.length do
+          shortcut.inner:
+            b(j) = op(a.charAt(i), i)
+            j += 1
+          i += 1
+      b.shrinkTo(j)
+    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      val b = new Array[B](iN - i0)
+      var i = i0
+      var j = 0
+      shortcut.outer:
+        while i < iN do
+          shortcut.inner:
+            b(j) = op(a.charAt(i), i)
+            j += 1
+          i += 1
+      b.shrinkTo(j)
+    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv
+      selectOp(iv.i0, iv.iN)(op)
+    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = Iv of rg
+      selectOp(iv.i0, iv.iN)(op)
+    transparent inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      val b = new Array[B](indices.length)
+      var i = 0
+      var k = 0
+      shortcut.outer:
+        while i < indices.length do
+          val j = indices(i)
+          shortcut.inner:
+            b(k) = op(a.charAt(j), j)
+            k += 1
+          i += 1
+      b.shrinkTo(k)
+    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      var b = new Array[B](if a.length <= 8 then a.length else 8)
+      var j = 0
+      shortcut.outer:
+        while indices.hasStep do
+          val i = indices.nextStep
+          shortcut.inner:
+            val y = op(a.charAt(i), i)
+            if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
+            b(j) = y
+            j += 1
+      b.shrinkTo(j)
+
+    transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      var bs = new Array[B](if a.length < 8 then a.length else 8)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < a.length do
+          add(a.charAt(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
+          i += 1
+      bs.shrinkTo(j)
   }
 }
 
