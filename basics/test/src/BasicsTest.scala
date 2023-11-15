@@ -1917,21 +1917,6 @@ class BasicsTest {
     T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
     T ~ { val x = ninja; ninja = 0; x } ==== 2*(2+3+2+1+0)
 
-
-    /*
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(1 to 8 ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(1 to 8 ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(eiv    ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(eiv    ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
-    */
-
-
     T ~ car.clip.breakable.selectOp(3, 5  )((c, i) => c.value + i) =**= "&m".map(_.toInt)
     T ~ car.clip.breakable.selectOp(3 to 4)((c, i) => c.value + i) =**= "&m".map(_.toInt)
     T ~ car.clip.breakable.selectOp(civ   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
@@ -2342,6 +2327,27 @@ class BasicsTest {
     T ~ cx.dup(a => ninja = str.inject(a, 2)(_.isLetter)).str ==== "__chixn____"
     T ~ { val x = ninja; ninja = 0; x }                       ==== str.count(_.isLetter)
 
+    val ax = "___________".arr.map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)()((c, i) => c + i))              =**= "ci0l|3)u6__".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)()((c, i) => c + i))           =**= "__ci0l|3)u6".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(3, 5)((c, i) => c + i))          =**= "l|_________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(3, 5)((c, i) => c + i))       =**= "__l|_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(3 to 4)((c, i) => c + i))        =**= "l|_________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(3 to 4)((c, i) => c + i))     =**= "__l|_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(3, 5)((c, i) => c + i))          =**= "l|_________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(3, 5)((c, i) => c + i))       =**= "__l|_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(civ)((c, i) => c + i))           =**= "l|_________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(civ)((c, i) => c + i))        =**= "__l|_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(cpv)((c, i) => c + i))           =**= "l|_________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(cpv)((c, i) => c + i))        =**= "__l|_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(ix)((c, i) => c + i))            =**= "0liil______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 1)(ix)((c, i) => c + i))         =**= "_0liil_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(st)((c, i) => c + i))            =**= "0liil______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 1)(st)((c, i) => c + i))         =**= "_0liil_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a)(_.isLetter)((c, i) => c + i))    =**= "cil|u______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.injectOp(a, 2)(_.isLetter)((c, i) => c + i)) =**= "__cil|u____".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 2*str.length + 10*2 + 4*5 + 2*str.count(_.isLetter)
+
     T ~ str.select(3, 5)       ==== "ix"
     T ~ str.select(3 to 4)     ==== "ix"
     T ~ str.select(civ)        ==== "ix"
@@ -2596,6 +2602,119 @@ class BasicsTest {
     T ~ ca3.dup(a => ninja += str.clip.inject(a, 2)(_.isLetter)).str ==== "89c"
     T ~ { val x = ninja; ninja = 0; x }                              ==== 2*4 + 3 + 1
 
+    val aa9 = "ABCDEFGHI".arr.map(_.toInt)
+    val aa7 = "1234567".arr.map(_.toInt)
+    val aa3 = "890".arr.map(_.toInt)
+    val aa1 = "%".arr.map(_.toInt)
+    T ~ aa9.dup(a => ninja += str.clip.injectOp(a)()((c, i) => c + i))              =**= "ci0&mp4HI".map(_.toInt)
+    T ~ aa9.dup(a => ninja += str.clip.injectOp(a, 2)()((c, i) => c + i))           =**= "ABci0&mp4".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*str.length
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(3, 5)((c, i) => c + i))          =**= "&m34567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(3, 5)((c, i) => c + i))       =**= "12&m567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(3 to 4)((c, i) => c + i))        =**= "&m34567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(3 to 4)((c, i) => c + i))     =**= "12&m567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(civ)((c, i) => c + i))           =**= "&m34567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(civ)((c, i) => c + i))        =**= "12&m567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(cpv)((c, i) => c + i))           =**= "&m34567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(cpv)((c, i) => c + i))        =**= "12&m567".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 8*2
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(ix)((c, i) => c + i))            =**= "0&ii&67".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(ix)((c, i) => c + i))         =**= "120&ii&".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(st)((c, i) => c + i))            =**= "0&ii&67".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(st)((c, i) => c + i))         =**= "120&ii&".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*5
+
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)()((c, i) => c + i))              =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)()((c, i) => c + i))           =**= "12ci0&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)()((c, i) => c + i))           =**= "890".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3+5+0
+
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(3, 5)((c, i) => c + i))          =**= "&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 2)(3, 5)((c, i) => c + i))       =**= "89&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(3, 5)((c, i) => c + i))       =**= "890".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(3 to 4)((c, i) => c + i))        =**= "&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 2)(3 to 4)((c, i) => c + i))     =**= "89&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(3 to 4)((c, i) => c + i))     =**= "890".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(civ)((c, i) => c + i))           =**= "&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 2)(civ)((c, i) => c + i))        =**= "89&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(civ)((c, i) => c + i))        =**= "890".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(cpv)((c, i) => c + i))           =**= "&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 2)(cpv)((c, i) => c + i))        =**= "89&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(cpv)((c, i) => c + i))        =**= "890".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*(1+1+0)
+
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(3, 9)((c, i) => c + i))          =**= "&mp".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 5)(3, 9)((c, i) => c + i))       =**= "12345&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(3, 9)((c, i) => c + i))       =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(3 to 8)((c, i) => c + i))        =**= "&mp".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 5)(3 to 8)((c, i) => c + i))     =**= "12345&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(3 to 8)((c, i) => c + i))     =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(eiv)((c, i) => c + i))           =**= "&mp".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 5)(eiv)((c, i) => c + i))        =**= "12345&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(eiv)((c, i) => c + i))        =**= "890".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3*(3+2+0)
+
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(-2, 5)((c, i) => c + i))          =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 3)(-2, 5)((c, i) => c + i))       =**= "123ci0&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(-2, 5)((c, i) => c + i))       =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(-2 to 4)((c, i) => c + i))        =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 3)(-2 to 4)((c, i) => c + i))     =**= "123ci0&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(-2 to 4)((c, i) => c + i))     =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(fiv)((c, i) => c + i))            =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 3)(fiv)((c, i) => c + i))         =**= "123ci0&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(fiv)((c, i) => c + i))         =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(fpv)((c, i) => c + i))            =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 3)(fpv)((c, i) => c + i))         =**= "123ci0&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(fpv)((c, i) => c + i))         =**= "890".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                              ==== 4*(3+4+0)
+
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(-2, 9)((c, i) => c + i))          =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(-2, 9)((c, i) => c + i))       =**= "12ci0&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(-2, 9)((c, i) => c + i))       =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(-2 to 8)((c, i) => c + i))        =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(-2 to 8)((c, i) => c + i))     =**= "12ci0&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(-2 to 8)((c, i) => c + i))     =**= "890".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(biv)((c, i) => c + i))            =**= "ci0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(biv)((c, i) => c + i))         =**= "12ci0&m".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(biv)((c, i) => c + i))         =**= "890".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                              ==== 3*(3+5+0)
+
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(8, 10)((c, i) => c + i))         =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a, 2)(8, 10)((c, i) => c + i))      =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(8 to 9)((c, i) => c + i))        =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a, 2)(8 to 9)((c, i) => c + i))     =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(niv)((c, i) => c + i))           =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a, 2)(niv)((c, i) => c + i))        =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a)(npv)((c, i) => c + i))           =**= "%".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.injectOp(a, 2)(npv)((c, i) => c + i))        =**= "%".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 0
+
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(ix)((c, i) => c + i))            =**= "0&i".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 1)(ix)((c, i) => c + i))         =**= "80&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(ix)((c, i) => c + i))         =**= "890".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, -1)(ix)((c, i) => c + i))        =**= "0&ii&67".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(st)((c, i) => c + i))            =**= "0&i".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 1)(st)((c, i) => c + i))         =**= "80&".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 4)(st)((c, i) => c + i))         =**= "890".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, -1)(st)((c, i) => c + i))        =**= "0&ii&67".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(3+2+0+5)    
+    val ab7 = "abcdefg".arr.map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a)(ex)((c, i) => c + i))            =**= "0c&4efg".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, 4)(ex)((c, i) => c + i))         =**= "abcd0c&".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, 9)(ex)((c, i) => c + i))         =**= "abcdefg".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, -1)(ex)((c, i) => c + i))        =**= "0c&4efg".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a)(et)((c, i) => c + i))            =**= "0c&4efg".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, 4)(et)((c, i) => c + i))         =**= "abcd0c&".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, 9)(et)((c, i) => c + i))         =**= "abcdefg".map(_.toInt)
+    T ~ ab7.dup(a => ninja += str.clip.injectOp(a, -1)(et)((c, i) => c + i))        =**= "0c&4efg".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(4+3+0+4)
+
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a)(_.isLetter)((c, i) => c + i))    =**= "cimp567".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.injectOp(a, 2)(_.isLetter)((c, i) => c + i)) =**= "12cimp7".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a)(_.isLetter)((c, i) => c + i))    =**= "cim".map(_.toInt)
+    T ~ aa3.dup(a => ninja += str.clip.injectOp(a, 2)(_.isLetter)((c, i) => c + i)) =**= "89c".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*4 + 3 + 1
+
     T ~ str.clip.select(3, 5)   ==== "#i"
     T ~ str.clip.select(3 to 4) ==== "#i"
     T ~ str.clip.select(civ)    ==== "#i"
@@ -2717,6 +2836,33 @@ class BasicsTest {
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
     T ~ cx.dup(a => ninja = str.breakable.inject(a, 2){ c => qIf(c == '#'); c.isLetter }).str ==== "__ch_____"
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
+
+    val ax = "_________".arr.map(_.toInt)
+    val div = Iv(1, 5)
+    val dpv = 1 to End-2
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cim______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "___cim___".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 2*3 + 2*4*(1+2) + 2*(1+1)
 
     T ~ str.breakable.select(_.isLetter)                       ==== "chik"
     T ~ str.breakable.select{ c => qIf(c == '#'); c.isLetter } ==== "ch"
@@ -2861,6 +3007,77 @@ class BasicsTest {
     T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch0".arr
     T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "89c".arr
     T ~ { val x = ninja; ninja = 0; x }                                                          ==== 2+2+1+2+1
+
+    val aa7 = "ABCDEFG".arr.map(_.toInt)
+    val aa1 = "H".arr.map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==9); c + i }) =**= "cimpEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 5 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEci".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 2+4+3+2+0
+    val ejv = Iv(1, 9)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 3*(2+3+1+2+1)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 4*(2+3+1+2+1)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 0
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ { val x = ninja; ninja = 0; x } ==== 2*(2+3+2+1+0)
 
     T ~ str.clip.breakable.selectOp(3, 5  )((c, i) => c + i) =**= "&m".map(_.toInt)
     T ~ str.clip.breakable.selectOp(3 to 4)((c, i) => c + i) =**= "&m".map(_.toInt)
