@@ -437,6 +437,7 @@ class BasicsTest {
       def n: Int = c.value.toInt
       def l: Boolean = c.value.isLetter
       def o: O.Type = O(Some(c.value.toString))
+      def ^(i: Int) = (c.value + i).toChar
   }
   extension (ac: Array[C.Type])
     def cs: String =
@@ -620,7 +621,7 @@ class BasicsTest {
       val f = (i: Int) => O(Some("!"*i))
       run(f).os
     inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
-      val f = (c: C.Type, i: Int) => C((c.value + i).toChar)
+      val f = (c: C.Type, i: Int) => C(c ^ i)
       run(f).cs
     inline def fo(run: ((O.Type, Int) => O.Type) => Array[O.Type]): String =
       val f = (o: O.Type, i: Int) => O(o.value.map(_ + "!"*i) orElse Some(i.toString))
@@ -747,6 +748,44 @@ class BasicsTest {
     T ~ { val x = ninja; ninja = 0; x }                  ==== car.count(_.l)
     T ~ ox.dup(a => ninja = oar.inject(a, 2)(_.l)).os    ==== "_._.ch.ix.n._."
     T ~ { val x = ninja; ninja = 0; x }                  ==== oar.count(_.l)
+
+    val ax = "___________".arr
+    T ~ ax.dup(a => ninja = car.injectOp(a)()((c, i) => c ^ i)).str          ==== "ci0l|3)u6__"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== car.length
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)()((c, i) => c ^ i)).str       ==== "__ci0l|3)u6"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== car.length
+    T ~ ax.dup(a => ninja = car.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "l|_________"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "__l|_______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a)(3 to 4)((c, i) => c ^ i)).str    ==== "l|_________"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(3 to 4)((c, i) => c ^ i)).str ==== "__l|_______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "l|_________"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "__l|_______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a)(civ)((c, i) => c ^ i)).str       ==== "l|_________"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(civ)((c, i) => c ^ i)).str    ==== "__l|_______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a)(cpv)((c, i) => c ^ i)).str       ==== "l|_________"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(cpv)((c, i) => c ^ i)).str    ==== "__l|_______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 2
+    T ~ ax.dup(a => ninja = car.injectOp(a)(ix)((c, i) => c ^ i)).str        ==== "0liil______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 5
+    T ~ ax.dup(a => ninja = car.injectOp(a, 1)(ix)((c, i) => c ^ i)).str     ==== "_0liil_____"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 5
+    T ~ ax.dup(a => ninja = car.injectOp(a)(st)((c, i) => c ^ i)).str        ==== "0liil______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 5
+    T ~ ax.dup(a => ninja = car.injectOp(a, 1)(st)((c, i) => c ^ i)).str     ==== "_0liil_____"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== 5
+    T ~ ax.dup(a => ninja = car.injectOp(a)(_.l)((c, i) => c ^ i)).str       ==== "cil|u______"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== car.count(_.l)
+    T ~ ax.dup(a => ninja = car.injectOp(a, 2)(_.l)((c, i) => c ^ i)).str    ==== "__cil|u____"
+    T ~ { val x = ninja; ninja = 0; x }                                      ==== car.count(_.l)
 
     T ~ car.select(3, 5).cs   ==== "ix"
     T ~ oar.select(1, 3).os   ==== "ix.#"
@@ -1046,7 +1085,7 @@ class BasicsTest {
       val f = (i: Int) => C(('0' + i).toChar)
       run(f).cs
     inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
-      val f = (c: C.Type, i: Int) => C((c.value + i).toChar)
+      val f = (c: C.Type, i: Int) => C(c ^ i)
       run(f).cs
     T ~ gc{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.12k."
     T ~ ic{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.34k."
@@ -1268,6 +1307,119 @@ class BasicsTest {
     T ~ ca3.dup(a => ninja += car.clip.inject(a, 2)(_.l)).cs    ==== "89c"
     T ~ { val x = ninja; ninja = 0; x }                         ==== 2*4 + 3 + 1
 
+    val aa9 = "ABCDEFGHI".arr
+    val aa7 = "1234567".arr
+    val aa3 = "890".arr
+    val aa1 = "%".arr
+    T ~ aa9.dup(a => ninja += car.clip.injectOp(a)()((c, i) => c ^ i)).str          ==== "ci0&mp4HI"
+    T ~ aa9.dup(a => ninja += car.clip.injectOp(a, 2)()((c, i) => c ^ i)).str       ==== "ABci0&mp4"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*car.length
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "&m34567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "12&m567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(3 to 4)((c, i) => c ^ i)).str    ==== "&m34567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(3 to 4)((c, i) => c ^ i)).str ==== "12&m567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(civ)((c, i) => c ^ i)).str       ==== "&m34567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(civ)((c, i) => c ^ i)).str    ==== "12&m567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(cpv)((c, i) => c ^ i)).str       ==== "&m34567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(cpv)((c, i) => c ^ i)).str    ==== "12&m567"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 8*2
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(ix)((c, i) => c ^ i)).str        ==== "0&ii&67"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(ix)((c, i) => c ^ i)).str     ==== "120&ii&"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(st)((c, i) => c ^ i)).str        ==== "0&ii&67"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(st)((c, i) => c ^ i)).str     ==== "120&ii&"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*5
+
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)()((c, i) => c ^ i)).str          ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)()((c, i) => c ^ i)).str       ==== "12ci0&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)()((c, i) => c ^ i)).str       ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3+5+0
+
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "89&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(3, 5)((c, i) => c ^ i)).str   ==== "890"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(3 to 4)((c, i) => c ^ i)).str    ==== "&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(3 to 4)((c, i) => c ^ i)).str ==== "89&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(3 to 4)((c, i) => c ^ i)).str ==== "890"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(civ)((c, i) => c ^ i)).str       ==== "&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(civ)((c, i) => c ^ i)).str    ==== "89&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(civ)((c, i) => c ^ i)).str    ==== "890"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(cpv)((c, i) => c ^ i)).str       ==== "&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(cpv)((c, i) => c ^ i)).str    ==== "89&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(cpv)((c, i) => c ^ i)).str    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*(1+1+0)
+
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(3, 9)((c, i) => c ^ i)).str      ==== "&mp"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 5)(3, 9)((c, i) => c ^ i)).str   ==== "12345&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(3, 9)((c, i) => c ^ i)).str   ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(3 to 8)((c, i) => c ^ i)).str    ==== "&mp"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 5)(3 to 8)((c, i) => c ^ i)).str ==== "12345&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(3 to 8)((c, i) => c ^ i)).str ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(eiv)((c, i) => c ^ i)).str       ==== "&mp"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 5)(eiv)((c, i) => c ^ i)).str    ==== "12345&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(eiv)((c, i) => c ^ i)).str    ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3*(3+2+0)
+
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2, 5)((c, i) => c ^ i)).str      ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(-2, 5)((c, i) => c ^ i)).str   ==== "123ci0&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(-2, 5)((c, i) => c ^ i)).str   ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2 to 4)((c, i) => c ^ i)).str    ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(-2 to 4)((c, i) => c ^ i)).str ==== "123ci0&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(-2 to 4)((c, i) => c ^ i)).str ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(fiv)((c, i) => c ^ i)).str        ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(fiv)((c, i) => c ^ i)).str     ==== "123ci0&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(fiv)((c, i) => c ^ i)).str     ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(fpv)((c, i) => c ^ i)).str        ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(fpv)((c, i) => c ^ i)).str     ==== "123ci0&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(fpv)((c, i) => c ^ i)).str     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                              ==== 4*(3+4+0)
+
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2, 9)((c, i) => c ^ i)).str      ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(-2, 9)((c, i) => c ^ i)).str   ==== "12ci0&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(-2, 9)((c, i) => c ^ i)).str   ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2 to 8)((c, i) => c ^ i)).str    ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(-2 to 8)((c, i) => c ^ i)).str ==== "12ci0&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(-2 to 8)((c, i) => c ^ i)).str ==== "890"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(biv)((c, i) => c ^ i)).str        ==== "ci0"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(biv)((c, i) => c ^ i)).str     ==== "12ci0&m"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(biv)((c, i) => c ^ i)).str     ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                              ==== 3*(3+5+0)
+
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(8, 10)((c, i) => c ^ i)).str     ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(8, 10)((c, i) => c ^ i)).str  ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(8 to 9)((c, i) => c ^ i)).str    ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(8 to 9)((c, i) => c ^ i)).str ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(niv)((c, i) => c ^ i)).str       ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(niv)((c, i) => c ^ i)).str    ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(npv)((c, i) => c ^ i)).str       ==== "%"
+    T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(npv)((c, i) => c ^ i)).str    ==== "%"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 0
+
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(ix)((c, i) => c ^ i)).str        ==== "0&i"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 1)(ix)((c, i) => c ^ i)).str     ==== "80&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(ix)((c, i) => c ^ i)).str     ==== "890"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, -1)(ix)((c, i) => c ^ i)).str    ==== "0&ii&67"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(st)((c, i) => c ^ i)).str        ==== "0&i"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 1)(st)((c, i) => c ^ i)).str     ==== "80&"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(st)((c, i) => c ^ i)).str     ==== "890"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, -1)(st)((c, i) => c ^ i)).str    ==== "0&ii&67"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(3+2+0+5)    
+    val ab7 = "abcdefg".arr
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a)(ex)((c, i) => c ^ i)).str        ==== "0c&4efg"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 4)(ex)((c, i) => c ^ i)).str     ==== "abcd0c&"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 9)(ex)((c, i) => c ^ i)).str     ==== "abcdefg"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, -1)(ex)((c, i) => c ^ i)).str    ==== "0c&4efg"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a)(et)((c, i) => c ^ i)).str        ==== "0c&4efg"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 4)(et)((c, i) => c ^ i)).str     ==== "abcd0c&"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 9)(et)((c, i) => c ^ i)).str     ==== "abcdefg"
+    T ~ ab7.dup(a => ninja += car.clip.injectOp(a, -1)(et)((c, i) => c ^ i)).str    ==== "0c&4efg"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(4+3+0+4)
+
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(_.l)((c, i) => c ^ i)).str       ==== "cimp567"
+    T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(_.l)((c, i) => c ^ i)).str    ==== "12cimp7"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(_.l)((c, i) => c ^ i)).str       ==== "cim"
+    T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(_.l)((c, i) => c ^ i)).str    ==== "89c"
+    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*4 + 3 + 1
+
     T ~ car.clip.select(3, 5).cs   ==== "#i"
     T ~ car.clip.select(3 to 4).cs ==== "#i"
     T ~ car.clip.select(civ).cs    ==== "#i"
@@ -1413,29 +1565,29 @@ class BasicsTest {
     T ~ car.breakable.where(_.l)                          =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
     T ~ car.breakable.where{ c => qIf(c.value>'i'); c.l } =**= car.zipWithIndex.takeWhile(_._1.value <= 'i').collect{ case (c, i) if c.l => i }
 
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs         ==== "1h.#ik."
-    T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                   ==== "0h.#ik."
-    T ~ car.dup{ a => qt{ a.set(){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs       ==== "ci0&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(3, 5){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch.1ik."
-    T ~ car.dup{ a => qt{ a.set(3, 5){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(3, 5){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs   ==== "ch.&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(3 to 4){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs   ==== "ch.1ik."
-    T ~ car.dup{ a => qt{ a.set(3 to 4){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs             ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(3 to 4){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs ==== "ch.&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(civ){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "ch.1ik."
-    T ~ car.dup{ a => qt{ a.set(civ){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(civ){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs    ==== "ch.&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(cpv){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "ch.1ik."
-    T ~ car.dup{ a => qt{ a.set(cpv){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(cpv){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs    ==== "ch.&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(ix){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "ch1#ik."
-    T ~ car.dup{ a => qt{ a.set(ix){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "ch23ik."
-    T ~ car.dup{ a => qt{ a.set(ix){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs     ==== "cj0&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(st){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "ch1#ik."
-    T ~ car.dup{ a => qt{ a.set(st){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "ch23ik."
-    T ~ car.dup{ a => qt{ a.set(st){ (c, i) => qIf(i>3 || c.value=='&'); C((c.value+i).toChar) } } }.cs     ==== "cj0&ik."
-    T ~ car.dup{ a => qt{ var x = '0'; a.set(_.l){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs      ==== "1h.#ik."
-    T ~ car.dup{ a => qt{ a.set(_.l){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                ==== "0h.#ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "1h.#ik."
+    T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "0h.#ik."
+    T ~ car.dup{ a => qt{ a.set(){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                  ==== "ci0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(3, 5){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs   ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(3, 5){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs             ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(3, 5){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs              ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(3 to 4){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(3 to 4){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs           ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(3 to 4){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs            ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(civ){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(civ){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(civ){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(cpv){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "ch.1ik."
+    T ~ car.dup{ a => qt{ a.set(cpv){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "ch.3ik."
+    T ~ car.dup{ a => qt{ a.set(cpv){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(ix){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch1#ik."
+    T ~ car.dup{ a => qt{ a.set(ix){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch23ik."
+    T ~ car.dup{ a => qt{ a.set(ix){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                ==== "cj0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(st){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch1#ik."
+    T ~ car.dup{ a => qt{ a.set(st){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch23ik."
+    T ~ car.dup{ a => qt{ a.set(st){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                ==== "cj0&ik."
+    T ~ car.dup{ a => qt{ var x = '0'; a.set(_.l){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "1h.#ik."
+    T ~ car.dup{ a => qt{ a.set(_.l){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "0h.#ik."
 
     val cx = "_________".c
     var ninja = 0
@@ -1447,6 +1599,33 @@ class BasicsTest {
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
     T ~ cx.dup(a => ninja = car.breakable.inject(a, 2){ c => qIf(c.value=='#'); c.l }).cs ==== "__ch_____"
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
+
+    val ax = "_________".arr
+    val div = Iv(1, 5)
+    val dpv = 1 to End-2
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cim______"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "___cim___"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
+    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
+    T ~ { val x = ninja; ninja = 0; x } ==== 2*3 + 2*4*(1+2) + 2*(1+1)
 
     T ~ car.breakable.select(_.l).cs                              ==== "chik"
     T ~ car.breakable.select{ c => qIf(c.value=='#'); c.l }.cs    ==== "ch"
@@ -1650,17 +1829,108 @@ class BasicsTest {
     val ca7 = "1234567".c
     val ca3 = "890".c
     var ninja = 0
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs    ==== "chik567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs ==== "12chik7"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs    ==== "chi"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs ==== "89c"
-    T ~ { val x = ninja; ninja = 0; x }                                ==== 4 + 4 + 3 + 1
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs    ==== "ch34567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs ==== "12ch567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 6){ c => qIf(c.value == 'i'); c.l }).cs ==== "123456c"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs    ==== "ch0"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs ==== "89c"
-    T ~ { val x = ninja; ninja = 0; x }                                                            ==== 2+2+1+2+1
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs     ==== "chik567"
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs  ==== "12chik7"
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, -2)(_.l)).cs ==== "chik567"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs     ==== "chi"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs  ==== "89c"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 8)(_.l)).cs  ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                 ==== 4 + 4 + 4 + 3 + 1 + 0
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch34567"
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "12ch567"
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 6){ c => qIf(c.value == 'i'); c.l }).cs  ==== "123456c"
+    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch34567"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch0"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "89c"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch0"
+    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 8){ c => qIf(c.value == 'i'); c.l }).cs  ==== "890"
+    T ~ { val x = ninja; ninja = 0; x }                                                             ==== 2+2+1+2+2+1+2+0
+
+    val aa7 = "ABCDEFG".arr
+    val aa1 = "H".arr
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==9); c ^ i }).str ==== "cimpEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 5 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEci"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFG"
+    T ~ { val x = ninja; ninja = 0; x } ==== 2+4+3+2+0
+    val ejv = Iv(1, 9)
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ { val x = ninja; ninja = 0; x } ==== 3*(2+3+1+2+1)
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ { val x = ninja; ninja = 0; x } ==== 4*(2+3+1+2+1)
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ { val x = ninja; ninja = 0; x } ==== 0
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
+    T ~ { val x = ninja; ninja = 0; x } ==== 2*(2+3+2+1+0)
+
+
+    /*
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(1 to 8 ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(1 to 8 ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(eiv    ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(eiv    ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "mBCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "mpCDEFG"
+    */
+
 
     T ~ car.clip.breakable.selectOp(3, 5  )((c, i) => c.value + i) =**= "&m".map(_.toInt)
     T ~ car.clip.breakable.selectOp(3 to 4)((c, i) => c.value + i) =**= "&m".map(_.toInt)

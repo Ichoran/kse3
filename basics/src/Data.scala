@@ -731,6 +731,70 @@ extension [A](a: Array[A]) {
       i += 1
     j - where
 
+
+  inline def injectOp[B](that: Array[B])()(inline f: (A, Int) => B): Int =
+    injectOp(that, 0)(0, a.length)(f)
+  inline def injectOp[B](that: Array[B], where: Int)()(inline f: (A, Int) => B): Int =
+    injectOp(that, where)(0, a.length)(f)
+  inline def injectOp[B](that: Array[B])(i0: Int, iN: Int)(inline f: (A, Int) => B): Int =
+    injectOp(that, 0)(i0, iN)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(i0: Int, iN: Int)(inline f: (A, Int) => B): Int =
+    var i = i0
+    var j = where
+    while i < iN do
+      that(j) = f(a(i), i)
+      j += 1
+      i += 1
+    iN - i0
+  inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+    val iv = inline v match
+      case piv: PIv => piv of a
+      case siv: Iv  => siv
+    injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+    val iv = inline v match
+      case piv: PIv => piv of a
+      case siv: Iv  => siv
+    injectOp[B](that, where)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
+    val iv = Iv of rg
+    injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
+    val iv = Iv of rg
+    injectOp[B](that, where)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B])(indices: Array[Int])(inline f: (A, Int) => B): Int =
+    injectOp[B](that, 0)(indices)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Int])(inline f: (A, Int) => B): Int =
+    var i = 0
+    var j = where
+    while i < indices.length do
+      val k = indices(i)
+      that(j) = f(a(k), k)
+      i += 1
+      j += 1
+    i
+  inline def injectOp[B](that: Array[B])(indices: scala.collection.IntStepper)(inline f: (A, Int) => B): Int =
+    injectOp[B](that, 0)(indices)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: (A, Int) => B): Int =
+    var j = where
+    while indices.hasStep do
+      val i = indices.nextStep
+      that(j) = f(a(i), i)
+      j += 1
+    j - where
+  inline def injectOp[B](that: Array[B])(inline pick: A => Boolean)(inline f: (A, Int) => B): Int =
+    injectOp[B](that, 0)(pick)(f)
+  inline def injectOp[B](that: Array[B], where: Int)(inline pick: A => Boolean)(inline f: (A, Int) => B): Int =
+    var i = 0
+    var j = where
+    while i < a.length do
+      val x = a(i)
+      if pick(x) then
+        that(j) = f(x, i)
+        j += 1 
+      i += 1
+    j - where
+
   inline def select(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
     val b = new Array[A](iN - i0)
     java.lang.System.arraycopy(a, i0, b, 0, b.length)
@@ -1193,6 +1257,89 @@ object ClippedArray {
         i += 1
       if where < 0 then j else j - where
 
+    inline def injectOp[B](that: Array[B])()(inline f: (A, Int) => B): Int =
+      injectOp[B](that, 0)(0, ca.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B], where: Int)()(inline f: (A, Int) => B): Int =
+      injectOp[B](that, where)(0, ca.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B])(i0: Int, iN: Int)(inline f: (A, Int) => B): Int =
+      injectOp[B](that, 0)(i0, iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(i0: Int, iN: Int)(inline f: (A, Int) => B): Int =
+      val a = ca.unwrap
+      var w = where
+      if w < 0 then w = 0
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j >= a.length then j = a.length
+      if i < j && w < that.length then
+        var n = that.length - w
+        if n > j - i then n = j - i
+        val n0 = n
+        while n > 0 do
+          that(w) = f(a(i), i)
+          w += 1
+          i += 1
+          n -= 1
+        n0
+      else 0
+    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of ca.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of ca.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(indices: Array[Int])(inline f: (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Int])(inline f: (A, Int) => B): Int =
+      val a = ca.unwrap
+      var i = 0
+      var j = where
+      if j < 0 then j = 0
+      while i < indices.length && j < that.length do
+        val k = indices(i)
+        if k >= 0 && k < a.length then
+          that(j) = f(a(k), k)
+          j += 1
+        i += 1
+      if where < 0 then j else j - where
+    inline def injectOp[B](that: Array[B])(indices: scala.collection.IntStepper)(inline f: (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: (A, Int) => B): Int =
+      val a = ca.unwrap
+      var j = where
+      if j < 0 then j = 0
+      while indices.hasStep && j < that.length do
+        val i = indices.nextStep
+        if i >= 0 && i < a.length then
+          that(j) = f(a(i), i)
+          j += 1
+      if where < 0 then j else j - where
+    inline def injectOp[B](that: Array[B])(inline pick: A => Boolean)(inline f: (A, Int) => B): Int =
+      injectOp[B](that, 0)(pick)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline pick: A => Boolean)(inline f: (A, Int) => B): Int =
+      val a = ca.unwrap
+      var i = 0
+      var j = where
+      if j < 0 then j = 0
+      while i < a.length && j < that.length do
+        val x = a(i)
+        if pick(x) then
+          that(j) = f(x, i)
+          j += 1 
+        i += 1
+      if where < 0 then j else j - where
+
+
     inline def select(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
       val a = ca.unwrap
       var i = i0
@@ -1450,6 +1597,66 @@ object ShortcutArray {
           i += 1
       j - where
 
+    inline def injectOp[B](that: Array[B])()(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, 0)(0, sa.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B], where: Int)()(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, where)(0, sa.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B])(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, 0)(i0, iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sa.unwrap
+      var i = i0
+      var j = where
+      shortcut.outer:
+        while i < iN do
+          shortcut.inner:
+            that(j) = f(a(i), i)
+            j += 1
+          i += 1
+      j - where
+    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of sa.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(indices: Array[Int])(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Int])(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sa.unwrap
+      var i = 0
+      var j = where
+      shortcut.outer:
+        while i < indices.length do
+          val k = indices(i)
+          shortcut.inner:
+            that(j) = f(a(k), k)
+            j += 1
+          i += 1
+      j - where
+    inline def injectOp[B](that: Array[B])(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sa.unwrap
+      var j = where
+      shortcut.outer:
+        while indices.hasStep do
+          val i = indices.nextStep
+          shortcut.inner:
+            that(j) = f(a(i), i)
+            j += 1
+      j - where
+
     inline def select(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean)(using ClassTag[A]): Array[A] =
       val a = sa.unwrap
       var b = new Array[A](if a.length <= 8 then a.length else 8)
@@ -1633,6 +1840,74 @@ object ShortClipArray {
             if j >= 0 then that(j) = x
             j += 1 
           i += 1
+      if where < 0 then j else j - where
+
+    inline def injectOp[B](that: Array[B])()(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, 0)(0, sc.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B], where: Int)()(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, where)(0, sc.unwrap.length)(f)
+    inline def injectOp[B](that: Array[B])(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp(that, 0)(i0, iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = where
+      if j < 0 then j = 0
+      var n = iN
+      if iN > a.length then n = a.length
+      shortcut.outer:
+        while i < n && j < that.length do
+          shortcut.inner:
+            that(j) = f(a(i), i)
+            j += 1
+          i += 1
+      if where < 0 then j else j - where
+    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of sc.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = inline v match
+        case piv: PIv => piv of sc.unwrap
+        case siv: Iv  => siv
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, 0)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = Iv of rg
+      injectOp[B](that, where)(iv.i0, iv.iN)(f)
+    inline def injectOp[B](that: Array[B])(indices: Array[Int])(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Int])(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sc.unwrap
+      var i = 0
+      var j = where
+      if j < 0 then j = 0
+      shortcut.outer:
+        while i < indices.length && j < that.length do
+          val k = indices(i)
+          if k >= 0 && k < a.length then
+            shortcut.inner:
+              that(j) = f(a(k), k)
+              j += 1
+          i += 1
+      if where < 0 then j else j - where
+    inline def injectOp[B](that: Array[B])(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      injectOp[B](that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val a = sc.unwrap
+      var j = where
+      if j < 0 then j = 0
+      shortcut.outer:
+        while indices.hasStep && j < that.length do
+          val i = indices.nextStep
+          if i >= 0 && i < a.length then
+            shortcut.inner:
+              that(j) = f(a(i), i)
+              j += 1
       if where < 0 then j else j - where
 
     transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
