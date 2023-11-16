@@ -219,6 +219,14 @@ object FromLengthIdx {
     inline def of(a: String): Int =
       val i: Int = idx
       if i < 0 then a.length + i else i
+    inline def asEndpointOf[A](a: Array[A]): Int =
+      val i: Int = idx
+      val n = a.length + i + 1
+      if i >= 0 && n < 0 then Int.MaxValue else n
+    inline def asEndpointOf(a: String): Int =
+      val i: Int = idx
+      val n = a.length + i + 1
+      if i >= 0 && n < 0 then Int.MaxValue else n
 
     @targetName("toLiteral")
     def to(j: Int): PIv =
@@ -1965,173 +1973,755 @@ object ShortClipArray {
 
 
 /** Boolean Array specific functionality from java.lang.System */
-extension (az: Array[Boolean])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(az, size)
-  inline def shrinkCopy(size: Int) = if size < az.length then java.util.Arrays.copyOf(az, size) else az
-  inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] = java.util.Arrays.copyOfRange(az, i0, iN)
-  inline def fill(b: Boolean): az.type = { java.util.Arrays.fill(az, b); az }
-  inline def fillRange(i0: Int, iN: Int)(b: Boolean): az.type = { java.util.Arrays.fill(az, i0, iN, b); az }
+extension (az: Array[Boolean]) {
+  inline def shrinkCopy(size: Int): Array[Boolean] =
+    if size < az.length then java.util.Arrays.copyOf(az, size) else az
+
+  inline def copyToSize(size: Int): Array[Boolean] =
+    java.util.Arrays.copyOf(az, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Boolean] =
+    java.util.Arrays.copyOf(az, FromLengthIdx.asEndpointOf(endpoint)(az))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] =
+    java.util.Arrays.copyOfRange(az, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Boolean] =
+    val iv = inline v match
+      case piv: PIv => piv of az
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Boolean] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
+
+  inline def fill(x: Boolean): az.type =
+    java.util.Arrays.fill(az, x)
+    az
+  inline def fillRange(i0: Int, iN: Int)(x: Boolean): az.type = 
+    java.util.Arrays.fill(az, i0, iN, x)
+    az
+  inline def fillRange(inline v: Iv | PIv)(x: Boolean): az.type = 
+    val iv = inline v match
+      case piv: PIv => piv of az
+      case siv: Iv  => siv
+    java.util.Arrays.fill(az, iv.i0, iv.iN, x)
+    az
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Boolean): az.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(az, iv.i0, iv.iN, x)
+    az
+}
 
 /** Byte Array specific functionality from java.util.Arrays and java.lang.System */
-extension (ab: Array[Byte])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ab, size)
-  inline def shrinkCopy(size: Int) = if size < ab.length then java.util.Arrays.copyOf(ab, size) else ab
-  inline def copyOfRange(i0: Int, iN: Int): Array[Byte] = java.util.Arrays.copyOfRange(ab, i0, iN)
+extension (ab: Array[Byte]) {
   inline def packInts: Array[Int] = ArrayReform.toInts(ab)
   inline def packFloats: Array[Float] = ArrayReform.toFloats(ab)
   inline def packLongs: Array[Long] = ArrayReform.toLongs(ab)
   inline def packDoubles: Array[Double] = ArrayReform.toDoubles(ab)
-  inline def search(b: Byte): Int = java.util.Arrays.binarySearch(ab, b)
-  inline def searchRange(i0: Int, iN: Int)(b: Byte): Int = java.util.Arrays.binarySearch(ab, i0, iN, b)
-  inline def fill(b: Byte): ab.type = { java.util.Arrays.fill(ab, b); ab }
-  inline def fillRange(i0: Int, iN: Int)(b: Byte): ab.type = { java.util.Arrays.fill(ab, i0, iN, b); ab }
-  inline def sort(): ab.type = { java.util.Arrays.sort(ab); ab }
-  inline def sortRange(i0: Int, iN: Int): ab.type = { java.util.Arrays.sort(ab, i0, iN); ab }
-  inline def isSorted: Boolean = isSortedRange(0, ab.length)
+
+  inline def shrinkCopy(size: Int): Array[Byte] = if size < ab.length then java.util.Arrays.copyOf(ab, size) else ab
+
+  inline def copyToSize(size: Int): Array[Byte] =
+    java.util.Arrays.copyOf(ab, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Byte] =
+    java.util.Arrays.copyOf(ab, FromLengthIdx.asEndpointOf(endpoint)(ab))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Byte] =
+    java.util.Arrays.copyOfRange(ab, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Byte] =
+    val iv = inline v match
+      case piv: PIv => piv of ab
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Byte] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
+
+  inline def search(x: Byte): Int =
+    java.util.Arrays.binarySearch(ab, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Byte): Int =
+    java.util.Arrays.binarySearch(ab, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Byte): Int =
+    val iv = inline v match
+      case piv: PIv => piv of ab
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Byte): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Byte): ab.type =
+    java.util.Arrays.fill(ab, x)
+    ab
+  inline def fillRange(i0: Int, iN: Int)(x: Byte): ab.type = 
+    java.util.Arrays.fill(ab, i0, iN, x)
+    ab
+  inline def fillRange(inline v: Iv | PIv)(x: Byte): ab.type =
+    val iv = inline v match
+      case piv: PIv => piv of ab
+      case siv: Iv  => siv
+    java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
+    ab
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Byte): ab.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
+    ab
+
+  inline def sort(): ab.type =
+    java.util.Arrays.sort(ab)
+    ab
+  inline def sortRange(i0: Int, iN: Int): ab.type =
+    java.util.Arrays.sort(ab, i0, iN)
+    ab
+  inline def sortRange(inline v: Iv | PIv): ab.type =
+    val iv = inline v match
+      case piv: PIv => piv of ab
+      case siv: Iv  => siv
+    java.util.Arrays.sort(ab, iv.i0, iv.iN)
+    ab
+  inline def sortRange(inline rg: collection.immutable.Range): ab.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(ab, iv.i0, iv.iN)
+    ab
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, ab.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of ab
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Short Array specific functionality from java.util.Arrays and java.lang.System */
-extension (as: Array[Short])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(as, size)
-  inline def shrinkCopy(size: Int) = if size < as.length then java.util.Arrays.copyOf(as, size) else as
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(as, i0, iN)
-  inline def search(s: Short): Int = java.util.Arrays.binarySearch(as, s)
-  inline def searchRange(i0: Int, iN: Int)(s: Short): Int = java.util.Arrays.binarySearch(as, i0, iN, s)  
-  inline def fill(s: Short): as.type = { java.util.Arrays.fill(as, s); as }
-  inline def fillRange(i0: Int, iN: Int)(s: Short): as.type = { java.util.Arrays.fill(as, i0, iN, s); as }
-  inline def sort(): as.type = { java.util.Arrays.sort(as); as }
-  inline def sortRange(i0: Int, iN: Int): as.type = { java.util.Arrays.sort(as, i0, iN); as }
-  inline def isSorted: Boolean = isSortedRange(0, as.length)
+extension (as: Array[Short]) {
+  inline def shrinkCopy(size: Int): Array[Short] = if size < as.length then java.util.Arrays.copyOf(as, size) else as
+
+  inline def copyToSize(size: Int): Array[Short] =
+    java.util.Arrays.copyOf(as, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Short] =
+    java.util.Arrays.copyOf(as, FromLengthIdx.asEndpointOf(endpoint)(as))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Short] =
+    java.util.Arrays.copyOfRange(as, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Short] =
+    val iv = inline v match
+      case piv: PIv => piv of as
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Short] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
+
+  inline def search(x: Short): Int =
+    java.util.Arrays.binarySearch(as, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Short): Int =
+    java.util.Arrays.binarySearch(as, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Short): Int =
+    val iv = inline v match
+      case piv: PIv => piv of as
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Short): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Short): as.type =
+    java.util.Arrays.fill(as, x)
+    as
+  inline def fillRange(i0: Int, iN: Int)(x: Short): as.type = 
+    java.util.Arrays.fill(as, i0, iN, x)
+    as
+  inline def fillRange(inline v: Iv | PIv)(x: Short): as.type =
+    val iv = inline v match
+      case piv: PIv => piv of as
+      case siv: Iv  => siv
+    java.util.Arrays.fill(as, iv.i0, iv.iN, x)
+    as
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Short): as.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(as, iv.i0, iv.iN, x)
+    as
+
+  inline def sort(): as.type =
+    java.util.Arrays.sort(as)
+    as
+  inline def sortRange(i0: Int, iN: Int): as.type =
+    java.util.Arrays.sort(as, i0, iN)
+    as
+  inline def sortRange(inline v: Iv | PIv): as.type =
+    val iv = inline v match
+      case piv: PIv => piv of as
+      case siv: Iv  => siv
+    java.util.Arrays.sort(as, iv.i0, iv.iN)
+    as
+  inline def sortRange(inline rg: collection.immutable.Range): as.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(as, iv.i0, iv.iN)
+    as
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, as.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of as
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Char Array specific functionality from java.util.Arrays and java.lang.System */
-extension (ac: Array[Char])
+extension (ac: Array[Char]) {
   inline def str: String = new String(ac)
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ac, size)
-  inline def shrinkCopy(size: Int) = if size < ac.length then java.util.Arrays.copyOf(ac, size) else ac
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ac, i0, iN)
-  inline def search(c: Char): Int = java.util.Arrays.binarySearch(ac, c)
-  inline def searchRange(i0: Int, iN: Int)(c: Char): Int = java.util.Arrays.binarySearch(ac, i0, iN, c)
-  inline def fill(c: Char): ac.type = { java.util.Arrays.fill(ac, c); ac }
-  inline def fillRange(i0: Int, iN: Int)(c: Char): ac.type = { java.util.Arrays.fill(ac, i0, iN, c); ac }
-  inline def sort(): ac.type = { java.util.Arrays.sort(ac); ac }
-  inline def sortRange(i0: Int, iN: Int): ac.type = { java.util.Arrays.sort(ac, i0, iN); ac }
-  inline def isSorted: Boolean = isSortedRange(0, ac.length)
+
+  inline def shrinkCopy(size: Int): Array[Char] = if size < ac.length then java.util.Arrays.copyOf(ac, size) else ac
+
+  inline def copyToSize(size: Int): Array[Char] =
+    java.util.Arrays.copyOf(ac, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Char] =
+    java.util.Arrays.copyOf(ac, FromLengthIdx.asEndpointOf(endpoint)(ac))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Char] =
+    java.util.Arrays.copyOfRange(ac, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Char] =
+    val iv = inline v match
+      case piv: PIv => piv of ac
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Char] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
+
+  inline def search(x: Char): Int =
+    java.util.Arrays.binarySearch(ac, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Char): Int =
+    java.util.Arrays.binarySearch(ac, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Char): Int =
+    val iv = inline v match
+      case piv: PIv => piv of ac
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Char): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Char): ac.type =
+    java.util.Arrays.fill(ac, x)
+    ac
+  inline def fillRange(i0: Int, iN: Int)(x: Char): ac.type = 
+    java.util.Arrays.fill(ac, i0, iN, x)
+    ac
+  inline def fillRange(inline v: Iv | PIv)(x: Char): ac.type =
+    val iv = inline v match
+      case piv: PIv => piv of ac
+      case siv: Iv  => siv
+    java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
+    ac
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Char): ac.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
+    ac
+
+  inline def sort(): ac.type =
+    java.util.Arrays.sort(ac)
+    ac
+  inline def sortRange(i0: Int, iN: Int): ac.type =
+    java.util.Arrays.sort(ac, i0, iN)
+    ac
+  inline def sortRange(inline v: Iv | PIv): ac.type =
+    val iv = inline v match
+      case piv: PIv => piv of ac
+      case siv: Iv  => siv
+    java.util.Arrays.sort(ac, iv.i0, iv.iN)
+    ac
+  inline def sortRange(inline rg: collection.immutable.Range): ac.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(ac, iv.i0, iv.iN)
+    ac
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, ac.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of ac
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
-extension (ai: Array[Int])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ai, size)
-  inline def shrinkCopy(size: Int) = if size < ai.length then java.util.Arrays.copyOf(ai, size) else ai
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ai, i0, iN)
+extension (ai: Array[Int]) {
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ai)
-  inline def search(i: Int): Int = java.util.Arrays.binarySearch(ai, i)
-  inline def searchRange(i0: Int, iN: Int)(i: Int): Int = java.util.Arrays.binarySearch(ai, i0, iN, i)
-  inline def fill(i: Int): ai.type = { java.util.Arrays.fill(ai, i); ai }
-  inline def fillRange(i0: Int, iN: Int)(i: Int): ai.type = { java.util.Arrays.fill(ai, i0, iN, i); ai }
-  inline def sort(): ai.type = { java.util.Arrays.sort(ai); ai }
-  inline def sortRange(i0: Int, iN: Int): ai.type = { java.util.Arrays.sort(ai, i0, iN); ai }
-  inline def isSorted: Boolean = isSortedRange(0, ai.length)
+
+  inline def shrinkCopy(size: Int): Array[Int] = if size < ai.length then java.util.Arrays.copyOf(ai, size) else ai
+
+  inline def copyToSize(size: Int): Array[Int] =
+    java.util.Arrays.copyOf(ai, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Int] =
+    java.util.Arrays.copyOf(ai, FromLengthIdx.asEndpointOf(endpoint)(ai))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Int] =
+    java.util.Arrays.copyOfRange(ai, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Int] =
+    val iv = inline v match
+      case piv: PIv => piv of ai
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Int] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
+
+  inline def search(x: Int): Int =
+    java.util.Arrays.binarySearch(ai, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Int): Int =
+    java.util.Arrays.binarySearch(ai, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Int): Int =
+    val iv = inline v match
+      case piv: PIv => piv of ai
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Int): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Int): ai.type =
+    java.util.Arrays.fill(ai, x)
+    ai
+  inline def fillRange(i0: Int, iN: Int)(x: Int): ai.type = 
+    java.util.Arrays.fill(ai, i0, iN, x)
+    ai
+  inline def fillRange(inline v: Iv | PIv)(x: Int): ai.type =
+    val iv = inline v match
+      case piv: PIv => piv of ai
+      case siv: Iv  => siv
+    java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
+    ai
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Int): ai.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
+    ai
+
+  inline def sort(): ai.type =
+    java.util.Arrays.sort(ai)
+    ai
+  inline def sortRange(i0: Int, iN: Int): ai.type =
+    java.util.Arrays.sort(ai, i0, iN)
+    ai
+  inline def sortRange(inline v: Iv | PIv): ai.type =
+    val iv = inline v match
+      case piv: PIv => piv of ai
+      case siv: Iv  => siv
+    java.util.Arrays.sort(ai, iv.i0, iv.iN)
+    ai
+  inline def sortRange(inline rg: collection.immutable.Range): ai.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(ai, iv.i0, iv.iN)
+    ai
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, ai.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of ai
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Long Array specific functionality from java.util.Arrays and java.lang.System */
-extension (al: Array[Long])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(al, size)
-  inline def shrinkCopy(size: Int) = if size < al.length then java.util.Arrays.copyOf(al, size) else al
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(al, i0, iN)
+extension (al: Array[Long]) {
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(al)
-  inline def search(l: Long): Int = java.util.Arrays.binarySearch(al, l)
-  inline def searchRange(i0: Int, iN: Int)(l: Long): Int = java.util.Arrays.binarySearch(al, i0, iN, l)
-  inline def fill(l: Long): al.type = { java.util.Arrays.fill(al, l); al }
-  inline def fillRange(i0: Int, iN: Int)(l: Long): al.type = { java.util.Arrays.fill(al, i0, iN, l); al }
-  inline def sort(): al.type = { java.util.Arrays.sort(al); al }
-  inline def sortRange(i0: Int, iN: Int): al.type = { java.util.Arrays.sort(al, i0, iN); al }
-  inline def isSorted: Boolean = isSortedRange(0, al.length)
+
+  inline def shrinkCopy(size: Int): Array[Long] = if size < al.length then java.util.Arrays.copyOf(al, size) else al
+
+  inline def copyToSize(size: Int): Array[Long] =
+    java.util.Arrays.copyOf(al, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Long] =
+    java.util.Arrays.copyOf(al, FromLengthIdx.asEndpointOf(endpoint)(al))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Long] =
+    java.util.Arrays.copyOfRange(al, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Long] =
+    val iv = inline v match
+      case piv: PIv => piv of al
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Long] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
+
+  inline def search(x: Long): Int =
+    java.util.Arrays.binarySearch(al, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Long): Int =
+    java.util.Arrays.binarySearch(al, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Long): Int =
+    val iv = inline v match
+      case piv: PIv => piv of al
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Long): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Long): al.type =
+    java.util.Arrays.fill(al, x)
+    al
+  inline def fillRange(i0: Int, iN: Int)(x: Long): al.type = 
+    java.util.Arrays.fill(al, i0, iN, x)
+    al
+  inline def fillRange(inline v: Iv | PIv)(x: Long): al.type =
+    val iv = inline v match
+      case piv: PIv => piv of al
+      case siv: Iv  => siv
+    java.util.Arrays.fill(al, iv.i0, iv.iN, x)
+    al
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Long): al.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(al, iv.i0, iv.iN, x)
+    al
+
+  inline def sort(): al.type =
+    java.util.Arrays.sort(al)
+    al
+  inline def sortRange(i0: Int, iN: Int): al.type =
+    java.util.Arrays.sort(al, i0, iN)
+    al
+  inline def sortRange(inline v: Iv | PIv): al.type =
+    val iv = inline v match
+      case piv: PIv => piv of al
+      case siv: Iv  => siv
+    java.util.Arrays.sort(al, iv.i0, iv.iN)
+    al
+  inline def sortRange(inline rg: collection.immutable.Range): al.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(al, iv.i0, iv.iN)
+    al
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, al.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of al
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Float Array specific functionality from java.util.Arrays and java.lang.System */
-extension (af: Array[Float])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(af, size)
-  inline def shrinkCopy(size: Int) = if size < af.length then java.util.Arrays.copyOf(af, size) else af
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(af, i0, iN)
+extension (af: Array[Float]) {
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(af)
-  inline def search(f: Float): Int = java.util.Arrays.binarySearch(af, f)
-  inline def searchRange(i0: Int, iN: Int)(f: Float): Int = java.util.Arrays.binarySearch(af, i0, iN, f)
-  inline def fill(f: Float): af.type = { java.util.Arrays.fill(af, f); af }
-  inline def fillRange(i0: Int, iN: Int)(f: Float): af.type = { java.util.Arrays.fill(af, i0, iN, f); af }
-  inline def sort(): af.type = { java.util.Arrays.sort(af); af }
-  inline def sortRange(i0: Int, iN: Int): af.type = { java.util.Arrays.sort(af, i0, iN); af }
-  inline def isSorted: Boolean = isSortedRange(0, af.length)
+
+  inline def shrinkCopy(size: Int): Array[Float] = if size < af.length then java.util.Arrays.copyOf(af, size) else af
+
+  inline def copyToSize(size: Int): Array[Float] =
+    java.util.Arrays.copyOf(af, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Float] =
+    java.util.Arrays.copyOf(af, FromLengthIdx.asEndpointOf(endpoint)(af))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Float] =
+    java.util.Arrays.copyOfRange(af, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Float] =
+    val iv = inline v match
+      case piv: PIv => piv of af
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Float] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
+
+  inline def search(x: Float): Int =
+    java.util.Arrays.binarySearch(af, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Float): Int =
+    java.util.Arrays.binarySearch(af, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Float): Int =
+    val iv = inline v match
+      case piv: PIv => piv of af
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Float): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Float): af.type =
+    java.util.Arrays.fill(af, x)
+    af
+  inline def fillRange(i0: Int, iN: Int)(x: Float): af.type = 
+    java.util.Arrays.fill(af, i0, iN, x)
+    af
+  inline def fillRange(inline v: Iv | PIv)(x: Float): af.type =
+    val iv = inline v match
+      case piv: PIv => piv of af
+      case siv: Iv  => siv
+    java.util.Arrays.fill(af, iv.i0, iv.iN, x)
+    af
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Float): af.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(af, iv.i0, iv.iN, x)
+    af
+
+  inline def sort(): af.type =
+    java.util.Arrays.sort(af)
+    af
+  inline def sortRange(i0: Int, iN: Int): af.type =
+    java.util.Arrays.sort(af, i0, iN)
+    af
+  inline def sortRange(inline v: Iv | PIv): af.type =
+    val iv = inline v match
+      case piv: PIv => piv of af
+      case siv: Iv  => siv
+    java.util.Arrays.sort(af, iv.i0, iv.iN)
+    af
+  inline def sortRange(inline rg: collection.immutable.Range): af.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(af, iv.i0, iv.iN)
+    af
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, af.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of af
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Double Array specific functionality from java.util.Arrays and java.lang.System */
-extension (ad: Array[Double])
-  inline def copyToSize(size: Int) = java.util.Arrays.copyOf(ad, size)
-  inline def shrinkCopy(size: Int) = if size < ad.length then java.util.Arrays.copyOf(ad, size) else ad
-  inline def copyOfRange(i0: Int, iN: Int) = java.util.Arrays.copyOfRange(ad, i0, iN)
+extension (ad: Array[Double]) {
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ad)
-  inline def search(d: Double): Int = java.util.Arrays.binarySearch(ad, d)
-  inline def searchRange(i0: Int, iN: Int)(d: Double): Int = java.util.Arrays.binarySearch(ad, i0, iN, d)
-  inline def fill(d: Double): ad.type = { java.util.Arrays.fill(ad, d); ad }
-  inline def fillRange(i0: Int, iN: Int)(d: Double): ad.type = { java.util.Arrays.fill(ad, i0, iN, d); ad }
-  inline def sort(): ad.type = { java.util.Arrays.sort(ad); ad }
-  inline def sortRange(i0: Int, iN: Int): ad.type = { java.util.Arrays.sort(ad, i0, iN); ad }
-  inline def isSorted: Boolean = isSortedRange(0, ad.length)
+
+  inline def shrinkCopy(size: Int): Array[Double] = if size < ad.length then java.util.Arrays.copyOf(ad, size) else ad
+
+  inline def copyToSize(size: Int): Array[Double] =
+    java.util.Arrays.copyOf(ad, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Double] =
+    java.util.Arrays.copyOf(ad, FromLengthIdx.asEndpointOf(endpoint)(ad))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[Double] =
+    java.util.Arrays.copyOfRange(ad, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[Double] =
+    val iv = inline v match
+      case piv: PIv => piv of ad
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[Double] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
+
+  inline def search(x: Double): Int =
+    java.util.Arrays.binarySearch(ad, x)
+  inline def searchRange(i0: Int, iN: Int)(x: Double): Int =
+    java.util.Arrays.binarySearch(ad, i0, iN, x)
+  inline def searchRange(inline v: Iv | PIv)(x: Double): Int =
+    val iv = inline v match
+      case piv: PIv => piv of ad
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: Double): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
+
+
+  inline def fill(x: Double): ad.type =
+    java.util.Arrays.fill(ad, x)
+    ad
+  inline def fillRange(i0: Int, iN: Int)(x: Double): ad.type = 
+    java.util.Arrays.fill(ad, i0, iN, x)
+    ad
+  inline def fillRange(inline v: Iv | PIv)(x: Double): ad.type =
+    val iv = inline v match
+      case piv: PIv => piv of ad
+      case siv: Iv  => siv
+    java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
+    ad
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Double): ad.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
+    ad
+
+  inline def sort(): ad.type =
+    java.util.Arrays.sort(ad)
+    ad
+  inline def sortRange(i0: Int, iN: Int): ad.type =
+    java.util.Arrays.sort(ad, i0, iN)
+    ad
+  inline def sortRange(inline v: Iv | PIv): ad.type =
+    val iv = inline v match
+      case piv: PIv => piv of ad
+      case siv: Iv  => siv
+    java.util.Arrays.sort(ad, iv.i0, iv.iN)
+    ad
+  inline def sortRange(inline rg: collection.immutable.Range): ad.type =
+    val iv = Iv of rg
+    java.util.Arrays.sort(ad, iv.i0, iv.iN)
+    ad
+
+  inline def isSorted: Boolean =
+    isSortedRange(0, ad.length)
   def isSortedRange(i0: Int, iN: Int): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of ad
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 /** Object Array specific functionality from java.util.Arrays and java.lang.System */
-extension [A >: Null <: AnyRef](aa: Array[A])
-  inline def copyToSize(size: Int): Array[A] = java.util.Arrays.copyOf(aa, size)
+extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def shrinkCopy(size: Int): Array[A] = if size < aa.length then java.util.Arrays.copyOf(aa, size) else aa
-  inline def copyOfRange(i0: Int, iN: Int): Array[A] = java.util.Arrays.copyOfRange(aa, i0, iN)
-  inline def search(a: A)(using o: scala.math.Ordering[A]): Int = java.util.Arrays.binarySearch(aa, a, o)
-  inline def searchRange(i0: Int, iN: Int)(a: A)(using o: scala.math.Ordering[A]): Int = java.util.Arrays.binarySearch(aa, i0, iN, a, o)
-  inline def fill(a: A): aa.type = { java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], a: AnyRef); aa }
-  inline def fillRange(i0: Int, iN: Int)(a: A): aa.type = { java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, a: AnyRef); aa }
-  inline def sort()(using scala.math.Ordering[A]): aa.type = { scala.util.Sorting.stableSort(aa); aa }
-  inline def sortRange(i0: Int, iN: Int)(using scala.math.Ordering[A]): aa.type = { scala.util.Sorting.stableSort(aa, i0, iN); aa }
-  inline def isSorted(using scala.math.Ordering[A]): Boolean = isSortedRange(0, aa.length)
+
+  inline def copyToSize(size: Int): Array[A] =
+    java.util.Arrays.copyOf(aa, size)
+  @targetName("copyToEndpointSize")
+  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[A] =
+    java.util.Arrays.copyOf(aa, FromLengthIdx.asEndpointOf(endpoint)(aa))
+
+  inline def copyOfRange(i0: Int, iN: Int): Array[A] =
+    java.util.Arrays.copyOfRange(aa, i0, iN)
+  inline def copyOfRange(inline v: Iv | PIv): Array[A] =
+    val iv = inline v match
+      case piv: PIv => piv of aa
+      case siv: Iv  => siv
+    java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
+  inline def copyOfRange(inline rg: collection.immutable.Range): Array[A] =
+    val iv = Iv of rg
+    java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
+
+  inline def search(x: A)(using o: scala.math.Ordering[A]): Int =
+    java.util.Arrays.binarySearch(aa, x, o)
+  inline def searchRange(i0: Int, iN: Int)(x: A)(using o: scala.math.Ordering[A]): Int =
+    java.util.Arrays.binarySearch(aa, i0, iN, x, o)
+  inline def searchRange(inline v: Iv | PIv)(x: A)(using o: scala.math.Ordering[A]): Int =
+    val iv = inline v match
+      case piv: PIv => piv of aa
+      case siv: Iv  => siv
+    java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
+  inline def searchRange(inline rg: collection.immutable.Range)(x: A)(using o: scala.math.Ordering[A]): Int =
+    val iv = Iv of rg
+    java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
+
+
+  inline def fill(x: A): aa.type =
+    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], x.asInstanceOf[AnyRef])
+    aa
+  inline def fillRange(i0: Int, iN: Int)(x: A): aa.type = 
+    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, x.asInstanceOf[AnyRef])
+    aa
+  inline def fillRange(inline v: Iv | PIv)(x: A): aa.type =
+    val iv = inline v match
+      case piv: PIv => piv of aa
+      case siv: Iv  => siv
+    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
+    aa
+  inline def fillRange(inline rg: collection.immutable.Range)(x: A): aa.type =
+    val iv = Iv of rg
+    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
+    aa
+
+  inline def sort()(using o: scala.math.Ordering[A]): aa.type =
+    scala.util.Sorting.stableSort(aa)
+    aa
+  inline def sortRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): aa.type =
+    scala.util.Sorting.stableSort(aa, i0, iN)
+    aa
+  inline def sortRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): aa.type =
+    val iv = inline v match
+      case piv: PIv => piv of aa
+      case siv: Iv  => siv
+    scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
+    aa
+  inline def sortRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): aa.type =
+    val iv = Iv of rg
+    scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
+    aa
+
+  inline def isSorted(using o: scala.math.Ordering[A]): Boolean =
+    isSortedRange(0, aa.length)
   def isSortedRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): Boolean =
     if i0 >= iN then true
     else
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
+  inline def isSortedRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): Boolean =
+    val iv = inline v match
+      case piv: PIv => piv of aa
+      case siv: Iv  => siv
+    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): Boolean =
+    val iv = Iv of rg
+    isSortedRange(iv.i0, iv.iN)
+}
 
 
 

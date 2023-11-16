@@ -494,6 +494,9 @@ class BasicsTest {
     T ~ car(End-1).value ==== 'n'
     T ~ oar(End-1).value ==== None
 
+    T ~ (End+1).asEndpointOf("salmon") ==== 7
+    T ~ (End+1).asEndpointOf(ix)       ==== 6
+
     T ~ z{ car.peek()(cuml += _.n) }.cs       ==== str
     T ~ cuml                                  ==== str.map(_.toInt).sum
     T ~ z{ oar.peek()(cuml += _.n) }.os       ==== str
@@ -823,7 +826,7 @@ class BasicsTest {
 
 
   @Test
-  def arrayClippedIntervalDataTest: Unit =
+  def arrayClippedInlinedDataTest: Unit =
     var cuml = 0
     val str = "ch.#ik."
     val car = str.c
@@ -1484,7 +1487,7 @@ class BasicsTest {
 
 
   @Test
-  def arrayBreakIntervalDataTest: Unit =
+  def arrayBreakInlinedDataTest: Unit =
     import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
 
     var cuml = 0
@@ -2008,20 +2011,30 @@ class BasicsTest {
     val atf = Array(false, false, true, true)
     val aip = Array(2, 3, -3)
     val air = Array(3, 4, 3)
+    val piv1Em2 = 1 to End-2
+    val piv0Em2 = 0 to End-2
 
     object NuZ extends NewType[Boolean] {}
     val az = Array[Boolean](true, true, false)
     val naz = Array[NuZ.Type](NuZ(true), NuZ(true), NuZ(false))
-    T ~ az.copy                        =**= az
-    T ~ (az.copy eq az)                ==== false
-    T ~ naz.copy                       =**= naz
-    T ~ az.copyToSize(4)               =**= Array(true, true, false, false)
-    T ~ az.copyToSize(2)               =**= Array(true, true)
-    T ~ az.shrinkCopy(4)               =**= az
-    T ~ az.shrinkCopy(2)               =**= az.copyToSize(2)
-    T ~ az.copyOfRange(1, 3)           =**= Array(true, false)
-    T ~ {az.fill(false); az}           =**= Array(false, false, false)
-    T ~ {az.fillRange(1, 3)(true); az} =**= Array(false, true, true)
+    T ~ az.copy                            =**= az
+    T ~ (az.copy eq az)                    ==== false
+    T ~ naz.copy                           =**= naz
+    T ~ az.copyToSize(4)                   =**= Array(true, true, false, false)
+    T ~ az.copyToSize(2)                   =**= Array(true, true)
+    T ~ az.copyToSize(End+1)               =**= Array(true, true, false, false)
+    T ~ az.copyToSize(End-1)               =**= Array(true, true)
+    T ~ az.shrinkCopy(4)                   =**= az
+    T ~ az.shrinkCopy(2)                   =**= az.copyToSize(2)
+    T ~ az.copyOfRange(1, 3)               =**= Array(true, false)
+    T ~ az.copyOfRange(1 to 2)             =**= Array(true, false)
+    T ~ az.copyOfRange(Iv(1, 3))           =**= Array(true, false)
+    T ~ az.copyOfRange(1 to End-1)         =**= Array(true)
+    T ~ {az.fill(false); az}               =**= Array(false, false, false)
+    T ~ {az.fillRange(1 to End)(true); az} =**= Array(false, true, true)
+    T ~ {az.fillRange(1, 3)(false); az}    =**= Array(false, false, false)
+    T ~ {az.fillRange(Iv(1, 3))(true); az} =**= Array(false, true, true)
+    T ~ {az.fillRange(1 to 2)(false); az}  =**= Array(false, false, false)
 
     object NuB extends NewType[Byte] {}
     val ab = Array[Byte](1, 2, 3)
@@ -2034,22 +2047,42 @@ class BasicsTest {
     T ~ ab.copyToSize(2).length     ==== 2
     T ~ ab.copyToSize(2)            =**= ab.take(2)
     T ~ ab.copyToSize(4)            =**= Array[Byte](1, 2, 3, 0)
+    T ~ ab.copyToSize(End-1)        =**= ab.take(2)
+    T ~ ab.copyToSize(End+1)        =**= Array[Byte](1, 2, 3, 0)
     T ~ ab.shrinkCopy(2)            =**= ab.take(2)
     T ~ (ab.shrinkCopy(4) eq ab)    ==== true
     T ~ ab.copyOfRange(1, 3)        =**= ab.drop(1)
+    T ~ ab.copyOfRange(Iv(1, 3))    =**= ab.drop(1)
+    T ~ ab.copyOfRange(1 to End)    =**= ab.drop(1)
+    T ~ ab.copyOfRange(1 to 2)      =**= ab.drop(1)
     T ~ (ab ++ bb).packInts         =**= Array[Int](0x02030201, 0x03020300)
     T ~ (ab ++ bb).packFloats       =**= Array[Float](i2f(0x02030201), i2f(0x03020300))
     T ~ (ab ++ bb).packLongs        =**= Array[Long](0x0302030002030201L)
     T ~ (ab ++ bb).packDoubles      =**= Array[Double](l2d(0x0302030002030201L))
     T ~ bb.isSorted                 ==== false
     T ~ bb.isSortedRange(1, 3)      ==== true
+    T ~ bb.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bb.isSortedRange(piv1Em2)   ==== true
+    T ~ bb.isSortedRange(1 to 2)    ==== true
     T ~ ab.search(2)                ==== 1
     T ~ ab.search(0)                ==== -1
     T ~ bb.searchRange(1, 3)(3)     ==== 2
     T ~ bb.searchRange(1, 3)(2)     ==== -3
+    T ~ bb.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bb.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bb.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bb.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bb.searchRange(1 to 2)(3)   ==== 2
+    T ~ bb.searchRange(1 to 2)(2)   ==== -3
+    T ~ bb.copy.sortRange(0 to 2)   =**= Array[Byte](0, 2, 3, 2, 3)
+    T ~ bb.copy.sortRange(Iv(0,3))  =**= Array[Byte](0, 2, 3, 2, 3)
+    T ~ bb.copy.sortRange(piv0Em2)  =**= Array[Byte](0, 2, 3, 2, 3)
     T ~ bb.sortRange(0, 3)          =**= Array[Byte](0, 2, 3, 2, 3)
     T ~ bb.sort()                   =**= Array[Byte](0, 2, 2, 3, 3)
     T ~ bb.fillRange(2, 4)(1)       =**= Array[Byte](0, 2, 1, 1, 3)
+    T ~ bb.fillRange(Iv(2, 4))(5)   =**= Array[Byte](0, 2, 5, 5, 3)
+    T ~ bb.fillRange(2 to End-1)(6) =**= Array[Byte](0, 2, 6, 6, 3)
+    T ~ bb.fillRange(2 to 3)(7)     =**= Array[Byte](0, 2, 7, 7, 3)
     T ~ bb.fill(4)                  =**= Array[Byte](4, 4, 4, 4, 4)
 
     object NuS extends NewType[Short] {}
@@ -2063,18 +2096,38 @@ class BasicsTest {
     T ~ as.copyToSize(2).length     ==== 2
     T ~ as.copyToSize(2)            =**= as.take(2)
     T ~ as.copyToSize(4)            =**= Array[Short](1, 2, 3, 0)
+    T ~ as.copyToSize(End-1)        =**= as.take(2)
+    T ~ as.copyToSize(End+1)        =**= Array[Short](1, 2, 3, 0)
     T ~ as.shrinkCopy(2)            =**= as.take(2)
     T ~ (as.shrinkCopy(4) eq as)    ==== true
     T ~ as.copyOfRange(1, 3)        =**= as.drop(1)
+    T ~ as.copyOfRange(Iv(1, 3))    =**= as.drop(1)
+    T ~ as.copyOfRange(1 to End)    =**= as.drop(1)
+    T ~ as.copyOfRange(1 to 2)      =**= as.drop(1)
     T ~ bs.isSorted                 ==== false
     T ~ bs.isSortedRange(1, 3)      ==== true
+    T ~ bs.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bs.isSortedRange(piv1Em2)   ==== true
+    T ~ bs.isSortedRange(1 to 2)    ==== true
     T ~ as.search(2)                ==== 1
     T ~ as.search(0)                ==== -1
     T ~ bs.searchRange(1, 3)(3)     ==== 2
     T ~ bs.searchRange(1, 3)(2)     ==== -3
+    T ~ bs.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bs.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bs.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bs.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bs.searchRange(1 to 2)(3)   ==== 2
+    T ~ bs.searchRange(1 to 2)(2)   ==== -3
     T ~ bs.sortRange(0, 3)          =**= Array[Short](0, 2, 3, 2, 3)
+    T ~ bs.copy.sortRange(0 to 2)   =**= Array[Short](0, 2, 3, 2, 3)
+    T ~ bs.copy.sortRange(Iv(0,3))  =**= Array[Short](0, 2, 3, 2, 3)
+    T ~ bs.copy.sortRange(piv0Em2)  =**= Array[Short](0, 2, 3, 2, 3)
     T ~ bs.sort()                   =**= Array[Short](0, 2, 2, 3, 3)
     T ~ bs.fillRange(2, 4)(1)       =**= Array[Short](0, 2, 1, 1, 3)
+    T ~ bs.fillRange(Iv(2, 4))(5)   =**= Array[Short](0, 2, 5, 5, 3)
+    T ~ bs.fillRange(2 to End-1)(6) =**= Array[Short](0, 2, 6, 6, 3)
+    T ~ bs.fillRange(2 to 3)(7)     =**= Array[Short](0, 2, 7, 7, 3)
     T ~ bs.fill(4)                  =**= Array[Short](4, 4, 4, 4, 4)
 
     val ac = Array[Char]('1', '2', '3')
@@ -2082,22 +2135,42 @@ class BasicsTest {
     T ~ ac.copy                       =**= ac
     T ~ (ac.copy eq ac)               ==== false
     T ~ ac.copy.tap(_(0) = '4').toSeq =!!= ac.toSeq
-    T ~ ac.copyToSize(2).length     ==== 2
-    T ~ ac.copyToSize(2)            =**= ac.take(2)
-    T ~ ac.copyToSize(4)            =**= Array[Char]('1', '2', '3', '\u0000')
-    T ~ ac.shrinkCopy(2)            =**= ac.take(2)
-    T ~ (ac.shrinkCopy(4) eq ac)    ==== true
-    T ~ ac.copyOfRange(1, 3)        =**= ac.drop(1)
-    T ~ bc.isSorted                 ==== false
-    T ~ bc.isSortedRange(1, 3)      ==== true
-    T ~ ac.search('2')              ==== 1
-    T ~ ac.search('0')              ==== -1
-    T ~ bc.searchRange(1, 3)('3')   ==== 2
-    T ~ bc.searchRange(1, 3)('2')   ==== -3
-    T ~ bc.sortRange(0, 3)          =**= Array[Char]('0', '2', '3', '2', '3')
-    T ~ bc.sort()                   =**= Array[Char]('0', '2', '2', '3', '3')
-    T ~ bc.fillRange(2, 4)('e')     =**= Array[Char]('0', '2', 'e', 'e', '3')
-    T ~ bc.fill('4')                =**= Array[Char]('4', '4', '4', '4', '4')
+    T ~ ac.copyToSize(2).length       ==== 2
+    T ~ ac.copyToSize(2)              =**= ac.take(2)
+    T ~ ac.copyToSize(4)              =**= Array[Char]('1', '2', '3', '\u0000')
+    T ~ ac.copyToSize(End-1)          =**= ac.take(2)
+    T ~ ac.copyToSize(End+1)          =**= Array[Char]('1', '2', '3', '\u0000')
+    T ~ ac.shrinkCopy(2)              =**= ac.take(2)
+    T ~ (ac.shrinkCopy(4) eq ac)      ==== true
+    T ~ ac.copyOfRange(1, 3)          =**= ac.drop(1)
+    T ~ ac.copyOfRange(Iv(1, 3))      =**= ac.drop(1)
+    T ~ ac.copyOfRange(1 to End)      =**= ac.drop(1)
+    T ~ ac.copyOfRange(1 to 2)        =**= ac.drop(1)
+    T ~ bc.isSorted                   ==== false
+    T ~ bc.isSortedRange(1, 3)        ==== true
+    T ~ bc.isSortedRange(Iv(1, 3))    ==== true
+    T ~ bc.isSortedRange(piv1Em2)     ==== true
+    T ~ bc.isSortedRange(1 to 2)      ==== true
+    T ~ ac.search('2')                ==== 1
+    T ~ ac.search('0')                ==== -1
+    T ~ bc.searchRange(1, 3)('3')     ==== 2
+    T ~ bc.searchRange(1, 3)('2')     ==== -3
+    T ~ bc.searchRange(Iv(1,3))('3')  ==== 2
+    T ~ bc.searchRange(Iv(1,3))('2')  ==== -3
+    T ~ bc.searchRange(piv1Em2)('3')  ==== 2
+    T ~ bc.searchRange(piv1Em2)('2')  ==== -3
+    T ~ bc.searchRange(1 to 2)('3')   ==== 2
+    T ~ bc.searchRange(1 to 2)('2')   ==== -3
+    T ~ bc.copy.sortRange(0 to 2)     =**= Array[Char]('0', '2', '3', '2', '3')
+    T ~ bc.copy.sortRange(Iv(0,3))    =**= Array[Char]('0', '2', '3', '2', '3')
+    T ~ bc.copy.sortRange(piv0Em2)    =**= Array[Char]('0', '2', '3', '2', '3')
+    T ~ bc.sortRange(0, 3)            =**= Array[Char]('0', '2', '3', '2', '3')
+    T ~ bc.sort()                     =**= Array[Char]('0', '2', '2', '3', '3')
+    T ~ bc.fillRange(2, 4)('e')       =**= Array[Char]('0', '2', 'e', 'e', '3')
+    T ~ bc.fillRange(Iv(2, 4))('d')   =**= Array[Char]('0', '2', 'd', 'd', '3')
+    T ~ bc.fillRange(2 to End-1)('c') =**= Array[Char]('0', '2', 'c', 'c', '3')
+    T ~ bc.fillRange(2 to 3)('b')     =**= Array[Char]('0', '2', 'b', 'b', '3')
+    T ~ bc.fill('4')                  =**= Array[Char]('4', '4', '4', '4', '4')
 
     val ai = Array[Int](1, 2, 3)
     val bi = Array[Int](2, 0, 3, 2, 3)
@@ -2107,20 +2180,40 @@ class BasicsTest {
     T ~ ai.copyToSize(2).length     ==== 2
     T ~ ai.copyToSize(2)            =**= ai.take(2)
     T ~ ai.copyToSize(4)            =**= Array[Int](1, 2, 3, 0)
+    T ~ ai.copyToSize(End-1)        =**= ai.take(2)
+    T ~ ai.copyToSize(End+1)        =**= Array[Int](1, 2, 3, 0)
     T ~ ai.shrinkCopy(2)            =**= ai.take(2)
     T ~ (ai.shrinkCopy(4) eq ai)    ==== true
     T ~ ai.copyOfRange(1, 3)        =**= ai.drop(1)
+    T ~ ai.copyOfRange(Iv(1, 3))    =**= ai.drop(1)
+    T ~ ai.copyOfRange(1 to End)    =**= ai.drop(1)
+    T ~ ai.copyOfRange(1 to 2)      =**= ai.drop(1)
     T ~ Array(0x05030107).unpackBytes =**= Array[Byte](7, 1, 3, 5)
     T ~ bi.isSorted                 ==== false
     T ~ bi.isSortedRange(1, 3)      ==== true
+    T ~ bi.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bi.isSortedRange(1 to End-2)==== true
+    T ~ bi.isSortedRange(1 to 2)    ==== true
     T ~ ai.search(2)                ==== 1
     T ~ ai.search(0)                ==== -1
     T ~ bi.searchRange(1, 3)(3)     ==== 2
     T ~ bi.searchRange(1, 3)(2)     ==== -3
+    T ~ bi.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bi.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bi.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bi.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bi.searchRange(1 to 2)(3)   ==== 2
+    T ~ bi.searchRange(1 to 2)(2)   ==== -3
+    T ~ bi.copy.sortRange(0 to 2)   =**= Array[Int](0, 2, 3, 2, 3)
+    T ~ bi.copy.sortRange(Iv(0,3))  =**= Array[Int](0, 2, 3, 2, 3)
+    T ~ bi.copy.sortRange(piv0Em2)  =**= Array[Int](0, 2, 3, 2, 3)
     T ~ bi.sortRange(0, 3)          =**= Array[Int](0, 2, 3, 2, 3)
     T ~ ai.copyOfRange(1, 3)        =**= ai.drop(1)
     T ~ bi.sort()                   =**= Array[Int](0, 2, 2, 3, 3)
     T ~ bi.fillRange(2, 4)(1)       =**= Array[Int](0, 2, 1, 1, 3)
+    T ~ bi.fillRange(Iv(2, 4))(5)   =**= Array[Int](0, 2, 5, 5, 3)
+    T ~ bi.fillRange(2 to End-1)(6) =**= Array[Int](0, 2, 6, 6, 3)
+    T ~ bi.fillRange(2 to 3)(7)     =**= Array[Int](0, 2, 7, 7, 3)
     T ~ bi.fill(4)                  =**= Array[Int](4, 4, 4, 4, 4)
 
     val al = Array[Long](1, 2, 3)
@@ -2131,19 +2224,39 @@ class BasicsTest {
     T ~ al.copyToSize(2).length     ==== 2
     T ~ al.copyToSize(2)            =**= al.take(2)
     T ~ al.copyToSize(4)            =**= Array[Long](1, 2, 3, 0)
+    T ~ al.copyToSize(End-1)        =**= al.take(2)
+    T ~ al.copyToSize(End+1)        =**= Array[Long](1, 2, 3, 0)
     T ~ al.shrinkCopy(2)            =**= al.take(2)
     T ~ (al.shrinkCopy(4) eq al)    ==== true
     T ~ al.copyOfRange(1, 3)        =**= al.drop(1)
+    T ~ al.copyOfRange(Iv(1, 3))    =**= al.drop(1)
+    T ~ al.copyOfRange(1 to End)    =**= al.drop(1)
+    T ~ al.copyOfRange(1 to 2)      =**= al.drop(1)
     T ~ Array(0x0102030405060708L).unpackBytes =**= Array[Byte](8, 7, 6, 5, 4, 3, 2, 1)
     T ~ bl.isSorted                 ==== false
     T ~ bl.isSortedRange(1, 3)      ==== true
+    T ~ bl.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bl.isSortedRange(1 to End-2)==== true
+    T ~ bl.isSortedRange(1 to 2)    ==== true
     T ~ al.search(2)                ==== 1
     T ~ al.search(0)                ==== -1
     T ~ bl.searchRange(1, 3)(3)     ==== 2
     T ~ bl.searchRange(1, 3)(2)     ==== -3
+    T ~ bl.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bl.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bl.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bl.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bl.searchRange(1 to 2)(3)   ==== 2
+    T ~ bl.searchRange(1 to 2)(2)   ==== -3
+    T ~ bl.copy.sortRange(0 to 2)   =**= Array[Long](0, 2, 3, 2, 3)
+    T ~ bl.copy.sortRange(Iv(0,3))  =**= Array[Long](0, 2, 3, 2, 3)
+    T ~ bl.copy.sortRange(piv0Em2)  =**= Array[Long](0, 2, 3, 2, 3)
     T ~ bl.sortRange(0, 3)          =**= Array[Long](0, 2, 3, 2, 3)
     T ~ bl.sort()                   =**= Array[Long](0, 2, 2, 3, 3)
     T ~ bl.fillRange(2, 4)(1)       =**= Array[Long](0, 2, 1, 1, 3)
+    T ~ bl.fillRange(Iv(2, 4))(5)   =**= Array[Long](0, 2, 5, 5, 3)
+    T ~ bl.fillRange(2 to End-1)(6) =**= Array[Long](0, 2, 6, 6, 3)
+    T ~ bl.fillRange(2 to 3)(7)     =**= Array[Long](0, 2, 7, 7, 3)
     T ~ bl.fill(4)                  =**= Array[Long](4, 4, 4, 4, 4)
 
     val af = Array[Float](1, 2, 3)
@@ -2154,19 +2267,39 @@ class BasicsTest {
     T ~ af.copyToSize(2).length     ==== 2
     T ~ af.copyToSize(2)            =**= af.take(2)
     T ~ af.copyToSize(4)            =**= Array[Float](1, 2, 3, 0)
+    T ~ af.copyToSize(End-1)        =**= af.take(2)
+    T ~ af.copyToSize(End+1)        =**= Array[Float](1, 2, 3, 0)
     T ~ af.shrinkCopy(2)            =**= af.take(2)
     T ~ (af.shrinkCopy(4) eq af)    ==== true
     T ~ af.copyOfRange(1, 3)        =**= af.drop(1)
+    T ~ af.copyOfRange(Iv(1, 3))    =**= af.drop(1)
+    T ~ af.copyOfRange(1 to End)    =**= af.drop(1)
+    T ~ af.copyOfRange(1 to 2)      =**= af.drop(1)
     T ~ Array(1.4f).unpackBytes     =**= Array[Byte](51, 51, -77, 63)
     T ~ bf.isSorted                 ==== false
     T ~ bf.isSortedRange(1, 3)      ==== true
+    T ~ bf.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bf.isSortedRange(1 to End-2)==== true
+    T ~ bf.isSortedRange(1 to 2)    ==== true
     T ~ af.search(2)                ==== 1
     T ~ af.search(0)                ==== -1
     T ~ bf.searchRange(1, 3)(3)     ==== 2
     T ~ bf.searchRange(1, 3)(2)     ==== -3
+    T ~ bf.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bf.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bf.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bf.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bf.searchRange(1 to 2)(3)   ==== 2
+    T ~ bf.searchRange(1 to 2)(2)   ==== -3
+    T ~ bf.copy.sortRange(0 to 2)   =**= Array[Float](0, 2, 3, 2, 3)
+    T ~ bf.copy.sortRange(Iv(0,3))  =**= Array[Float](0, 2, 3, 2, 3)
+    T ~ bf.copy.sortRange(piv0Em2)  =**= Array[Float](0, 2, 3, 2, 3)
     T ~ bf.sortRange(0, 3)          =**= Array[Float](0, 2, 3, 2, 3)
     T ~ bf.sort()                   =**= Array[Float](0, 2, 2, 3, 3)
     T ~ bf.fillRange(2, 4)(1)       =**= Array[Float](0, 2, 1, 1, 3)
+    T ~ bf.fillRange(Iv(2, 4))(5)   =**= Array[Float](0, 2, 5, 5, 3)
+    T ~ bf.fillRange(2 to End-1)(6) =**= Array[Float](0, 2, 6, 6, 3)
+    T ~ bf.fillRange(2 to 3)(7)     =**= Array[Float](0, 2, 7, 7, 3)
     T ~ bf.fill(4)                  =**= Array[Float](4, 4, 4, 4, 4)
 
     val ad = Array[Double](1, 2, 3)
@@ -2177,19 +2310,39 @@ class BasicsTest {
     T ~ ad.copyToSize(2).length     ==== 2
     T ~ ad.copyToSize(2)            =**= ad.take(2)
     T ~ ad.copyToSize(4)            =**= Array[Double](1, 2, 3, 0)
+    T ~ ad.copyToSize(End-1)        =**= ad.take(2)
+    T ~ ad.copyToSize(End+1)        =**= Array[Double](1, 2, 3, 0)
     T ~ ad.shrinkCopy(2)            =**= ad.take(2)
     T ~ (ad.shrinkCopy(4) eq ad)    ==== true
     T ~ ad.copyOfRange(1, 3)        =**= ad.drop(1)
+    T ~ ad.copyOfRange(Iv(1, 3))    =**= ad.drop(1)
+    T ~ ad.copyOfRange(1 to End)    =**= ad.drop(1)
+    T ~ ad.copyOfRange(1 to 2)      =**= ad.drop(1)
     T ~ Array(1.41).unpackBytes     =**= Array[Byte](-113, -62, -11, 40, 92, -113, -10, 63)
     T ~ bd.isSorted                 ==== false
     T ~ bd.isSortedRange(1, 3)      ==== true
+    T ~ bd.isSortedRange(Iv(1, 3))  ==== true
+    T ~ bd.isSortedRange(1 to End-2)==== true
+    T ~ bd.isSortedRange(1 to 2)    ==== true
     T ~ ad.search(2)                ==== 1
     T ~ ad.search(0)                ==== -1
     T ~ bd.searchRange(1, 3)(3)     ==== 2
     T ~ bd.searchRange(1, 3)(2)     ==== -3
+    T ~ bd.searchRange(Iv(1, 3))(3) ==== 2
+    T ~ bd.searchRange(Iv(1, 3))(2) ==== -3
+    T ~ bd.searchRange(piv1Em2)(3)  ==== 2
+    T ~ bd.searchRange(piv1Em2)(2)  ==== -3
+    T ~ bd.searchRange(1 to 2)(3)   ==== 2
+    T ~ bd.searchRange(1 to 2)(2)   ==== -3
+    T ~ bd.copy.sortRange(0 to 2)   =**= Array[Double](0, 2, 3, 2, 3)
+    T ~ bd.copy.sortRange(Iv(0,3))  =**= Array[Double](0, 2, 3, 2, 3)
+    T ~ bd.copy.sortRange(piv0Em2)  =**= Array[Double](0, 2, 3, 2, 3)
     T ~ bd.sortRange(0, 3)          =**= Array[Double](0, 2, 3, 2, 3)
     T ~ bd.sort()                   =**= Array[Double](0, 2, 2, 3, 3)
     T ~ bd.fillRange(2, 4)(1)       =**= Array[Double](0, 2, 1, 1, 3)
+    T ~ bd.fillRange(Iv(2, 4))(5)   =**= Array[Double](0, 2, 5, 5, 3)
+    T ~ bd.fillRange(2 to End-1)(6) =**= Array[Double](0, 2, 6, 6, 3)
+    T ~ bd.fillRange(2 to 3)(7)     =**= Array[Double](0, 2, 7, 7, 3)
     T ~ bd.fill(4)                  =**= Array[Double](4, 4, 4, 4, 4)
 
     object NuA extends NewType[String] {}
@@ -2203,18 +2356,38 @@ class BasicsTest {
     T ~ aa.copyToSize(2).length       ==== 2
     T ~ aa.copyToSize(2)              =**= aa.take(2)
     T ~ aa.copyToSize(4)              =**= Array[String]("1", "2", "3", null)
+    T ~ aa.copyToSize(End-1)          =**= aa.take(2)
+    T ~ aa.copyToSize(End+1)          =**= Array[String]("1", "2", "3", null)
     T ~ aa.shrinkCopy(2)              =**= aa.take(2)
     T ~ (aa.shrinkCopy(4) eq aa)      ==== true
     T ~ aa.copyOfRange(1, 3)          =**= aa.drop(1)
+    T ~ aa.copyOfRange(Iv(1, 3))      =**= aa.drop(1)
+    T ~ aa.copyOfRange(1 to End)      =**= aa.drop(1)
+    T ~ aa.copyOfRange(1 to 2)        =**= aa.drop(1)
     T ~ ba.isSorted                   ==== false
     T ~ ba.isSortedRange(1, 3)        ==== true
+    T ~ ba.isSortedRange(Iv(1, 3))    ==== true
+    T ~ ba.isSortedRange(1 to End-2)  ==== true
+    T ~ ba.isSortedRange(1 to 2)      ==== true
     T ~ aa.search("2")                ==== 1
     T ~ aa.search("0")                ==== -1
     T ~ ba.searchRange(1, 3)("3")     ==== 2
     T ~ ba.searchRange(1, 3)("2")     ==== -3
+    T ~ ba.searchRange(Iv(1, 3))("3") ==== 2
+    T ~ ba.searchRange(Iv(1, 3))("2") ==== -3
+    T ~ ba.searchRange(piv1Em2)("3")  ==== 2
+    T ~ ba.searchRange(piv1Em2)("2")  ==== -3
+    T ~ ba.searchRange(1 to 2)("3")   ==== 2
+    T ~ ba.searchRange(1 to 2)("2")   ==== -3
+    T ~ ba.copy.sortRange(0 to 2)     =**= Array[String]("0", "2", "3", "2", "3")
+    T ~ ba.copy.sortRange(Iv(0,3))    =**= Array[String]("0", "2", "3", "2", "3")
+    T ~ ba.copy.sortRange(piv0Em2)    =**= Array[String]("0", "2", "3", "2", "3")
     T ~ ba.sortRange(0, 3)            =**= Array[String]("0", "2", "3", "2", "3")
     T ~ ba.sort()                     =**= Array[String]("0", "2", "2", "3", "3")
     T ~ ba.fillRange(2, 4)("e")       =**= Array[String]("0", "2", "e", "e", "3")
+    T ~ ba.fillRange(Iv(2, 4))("d")   =**= Array[String]("0", "2", "d", "d", "3")
+    T ~ ba.fillRange(2 to End-1)("c") =**= Array[String]("0", "2", "c", "c", "3")
+    T ~ ba.fillRange(2 to 3)("b")     =**= Array[String]("0", "2", "b", "b", "3")
     T ~ ba.fill("4")                  =**= Array[String]("4", "4", "4", "4", "4")
 
 
@@ -2369,7 +2542,7 @@ class BasicsTest {
 
 
   @Test
-  def stringClippedIntervalDataTest: Unit =
+  def stringClippedInlinedDataTest: Unit =
     var cuml = 0
     val str = "ch.#ik."
 
@@ -2779,7 +2952,7 @@ class BasicsTest {
 
 
   @Test
-  def stringBreakIntervalDataTest: Unit =
+  def stringBreakInlinedDataTest: Unit =
     import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
 
     var cuml = 0
