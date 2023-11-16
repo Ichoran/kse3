@@ -39,69 +39,6 @@ inline def nFor(n: Long)(inline f: Long => Unit): Unit =
     f(i)
     i += 1
 
-/** For every item in array of bytes `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Byte])(inline f: (Byte, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in array of chars `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Char])(inline f: (Char, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every character in string `s`, apply `f` to the item plus its index */
-inline def aFor(s: java.lang.CharSequence)(inline f: (Char, Int) => Unit): Unit =
-  var i = 0
-  while i < s.length do
-    f(s charAt i, i)
-    i += 1
-
-/** For every item in array of shots `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Short])(inline f: (Short, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in array of ints `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Int])(inline f: (Int, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in array of longs `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Long])(inline f: (Long, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in array of floats `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Float])(inline f: (Float, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in array of doubles `a`, apply `f` to the item plus its index */
-inline def aFor(a: Array[Double])(inline f: (Double, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
-/** For every item in arbitrary array `a`, apply `f` to the item plus its index */
-inline def aFor[A](a: Array[A])(inline f: (A, Int) => Unit): Unit =
-  var i = 0
-  while i < a.length do
-    f(a(i), i)
-    i += 1
-
 /** For everything in iterator `i`, run `f` on the item plus its index */
 inline def iFor[A](i: Iterator[A])(inline f: (A, Int) => Unit): Unit =
   var n = 0

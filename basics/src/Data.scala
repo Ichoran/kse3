@@ -904,6 +904,15 @@ object ClippedArray {
     inline def unwrap: Array[A] = ca
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
+    inline def use(i: Int)(inline f: A => Unit): Array[A] =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then f(a(i))
+      a
+    inline def zap(i: Int)(inline f: A => A): Array[A] =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then a(i) = f(a(i))
+      a
+
     inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
 
     inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =

@@ -36,34 +36,6 @@ extension [A](option: Option[A])
       case _       =>
     option
 
-extension (ab: Array[Byte])
-  inline def use(i: Int)(inline f: Byte => Unit): ab.type = { f(ab(i)); ab }
-  inline def zap(i: Int)(inline f: Byte => Byte): ab.type = { ab(i) = f(ab(i)); ab }
-
-extension (as: Array[Short])
-  inline def use(i: Int)(inline f: Short => Unit): as.type = { f(as(i)); as }
-  inline def zap(i: Int)(inline f: Short => Short): as.type = { as(i) = f(as(i)); as }
-
-extension (ac: Array[Char])
-  inline def use(i: Int)(inline f: Char => Unit): ac.type = { f(ac(i)); ac }
-  inline def zap(i: Int)(inline f: Char => Char): ac.type = { ac(i) = f(ac(i)); ac }
-
-extension (ai: Array[Int])
-  inline def use(i: Int)(inline f: Int => Unit): ai.type = { f(ai(i)); ai }
-  inline def zap(i: Int)(inline f: Int => Int): ai.type = { ai(i) = f(ai(i)); ai }
-
-extension (al: Array[Long])
-  inline def use(i: Int)(inline f: Long => Unit): al.type = { f(al(i)); al }
-  inline def zap(i: Int)(inline f: Long => Long): al.type = { al(i) = f(al(i)); al }
-
-extension (af: Array[Float])
-  inline def use(i: Int)(inline f: Float => Unit): af.type = { f(af(i)); af }
-  inline def zap(i: Int)(inline f: Float => Float): af.type = { af(i) = f(af(i)); af }
-
-extension (ad: Array[Double])
-  inline def use(i: Int)(inline f: Double => Unit): ad.type = { f(ad(i)); ad }
-  inline def zap(i: Int)(inline f: Double => Double): ad.type = { ad(i) = f(ad(i)); ad }
-
-extension [A >: Null <: AnyRef](aa: Array[A])
-  inline def use(i: Int)(inline f: A => Unit): aa.type = { f(aa(i)); aa }
-  inline def zap(i: Int)(inline f: A => A): aa.type = { aa(i) = f(aa(i)); aa }
+extension [A](aa: Array[A])
+  transparent inline def use(i: Int)(inline f: A => Unit): Array[A] = { f(aa(i)); aa }
+  transparent inline def zap(i: Int)(inline f: A => A   ): Array[A] = { aa(i) = f(aa(i)); aa }

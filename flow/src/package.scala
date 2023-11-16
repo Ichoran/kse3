@@ -286,7 +286,7 @@ package kse
   * kse.flow defines a typeclass `Copies` that enables an extension method `.copy` on any class `A`
   * for which there is a given `Copies[A]`.  If you import givens, you get `Copies` for array types
   * (the primitives and AnyRef).  Support for arrays of opaques is experimental and trait-based
-  * (see source).
+  * (see source).  **This has moved to kse.basics**
   * 
   * 
   */

@@ -856,6 +856,13 @@ class BasicsTest {
 
     T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
 
+    T ~ (car.clip.use(2){ cuml += _.n } eq car)  ==== true
+    T ~ (car.clip.use(9){ cuml += _.n } eq car)  ==== true
+    T ~ (car.clip.use(-1){ cuml += _.n } eq car) ==== true
+    T ~ { val x = cuml; cuml = 0; x }            ==== '.'.toInt
+    T ~ car.dup().clip.zap(2)(_ => C('^')).cs   ==== "ch^#ik."
+    T ~ car.dup().clip.zap(-1)(_ => C('^')).cs  ==== str
+
     T ~ z{ car.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
     T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
     T ~ z{ car.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str

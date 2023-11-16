@@ -18,65 +18,6 @@ import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
-object BytecodeCk {
-  import kse.basics.{given, _}
-  import kse.flow.{given, _}
-
-  def one(a: Array[Array[Option[Int]]]): Int =
-    var x = 0
-    a.use(0)(_.use(0)(_.use(x = _)))
-    x
-
-  def getLongOrNull(l: Long): Long | Null =
-    if (l & 0xF) == 7 then null else l
-
-  def sumLoN: Long =
-    var sum = 0L
-    nFor(1000000){ i =>
-      getLongOrNull(i) match
-        case null =>
-        case l: Long => sum += l
-    }
-    sum
-
-  def getOptionLong(l: Long): Option[Long] =
-    if (l & 0x7F) == 7 then None else Some(l)
-
-  def sumOption: Long =
-    var sum = 0L
-    nFor(1000000){ i =>
-      getOptionLong(i) match
-        case Some(l) => sum += l
-        case _ =>
-    }
-    sum
-
-  def two(a: Array[Byte]): Int =
-    var sum = 0
-    a.visit((b, _) => sum += b)
-    sum
-
-  def three(a: Array[Byte]): Int =
-    a.accumulate(0)((a, b, _) => a + b)
-
-  def generpy(i: Iv, j: Iv): Int =
-    val a = Array(i, j)
-    usepy(PythonIndexed(a))
-
-  def usepy(p: PythonIndexed[Iv]): Int =
-    p(-1).i1
-
-  def generlpy(l: Long, m: Long): Int =
-    val a = Array(l, m)
-    uselpy(a)
-
-  def uselpy(a: Array[Long]): Int =
-    (a.py(-1) >>> 32).toInt
-
-  def fusor(a: Array[Int]): Array[String] =
-    a.fuse((n, _, append) => { var i = 0; while i < n do { append(n.toString); i += 1 } })
-}
-
 
 @RunWith(classOf[JUnit4])
 class FlowTest {
@@ -213,57 +154,6 @@ class FlowTest {
     var suml = 0L
     nFor(10000L)(l => suml += l*l + 1)
     T("long nFor") ~ suml ==== 333283345000L
-
-    val ab = Array[Byte](1, 3, 5, 7, 9)
-    var sumab = 0L
-    aFor(ab)((b, i) => sumab += b*(i+1))
-    T("byte aFor") ~ sumab ==== 95L
-
-    val ac = Array[Char]('s', 'a', 'l', 'm', 'o', 'n')
-    val sumac = new StringBuilder
-    aFor(ac)((c, i) => sumac ++= c.toString*(i+1))
-    T("char aFor") ~ sumac.result ==== "saalllmmmmooooonnnnnn"
-
-    val s  = ac.mkString
-    val sums = new StringBuilder
-    aFor(s)((c, i) => sums ++= c.toString*(i+1))
-    T("string aFor") ~ sums.result ==== "saalllmmmmooooonnnnnn"
-
-
-    val as = Array[Short](1, 3, 5, 7, 9)
-    var sumas = 0L
-    aFor(as)((s, i) => sumas += s*(i+1))
-    T("short aFor") ~ sumas ==== 95L
-
-    val aj = Array[Int](1, 3, 5, 7 ,9)
-    var sumaj = 0L
-    aFor(aj)((j, i) => sumaj += j*(i+1))
-    T("int aFor") ~ sumaj ==== 95L
-
-    val al = Array[Long](1, 3, 5, 7, 9)
-    var sumal = 0L
-    aFor(al)((l, i) => sumal += l*(i+1))
-    T("long aFor") ~ sumal ==== 95L
-
-    val af = Array[Float](0.1f, 0.3f, 0.5f, 0.7f, 0.9f)
-    var sumaf = 0f
-    aFor(af)((f, i) => sumaf += f*(i+1))
-    T("float aFor") ~ sumaf =~~= 9.5f
-
-    val ad = Array[Double](0.01, 0.03, 0.05, 0.07, 0.09)
-    var sumad = 0.0
-    aFor(ad)((d, i) => sumad += d*(i+1))
-    T("double aFor") ~ sumad =~~= 0.95
-
-    val aa = Array[Option[String]](None, Some("cod"), Some("salmon"))
-    val sumaa = new StringBuilder
-    aFor(aa){ (o, i) => o match
-      case Some(s) =>
-        if sumaa.nonEmpty then sumaa ++= ", "
-        sumaa ++= s*(i+1)
-      case _ =>
-    }
-    T("generic aFor") ~ sumaa.result ==== "codcod, salmonsalmonsalmon"
 
     val xs = "cod" :: "bass" :: "perch" :: "salmon" :: Nil
     val fish = new StringBuilder
@@ -1756,50 +1646,42 @@ class FlowTest {
   def arrayDataTest(): Unit =
     var used = 0
 
-    val bb = Array[Byte](0, 2, 1, 1, 3)
-    T ~ bb.zapAll(b=>(b+1).toByte)  =**= Array[Byte](1, 3, 2, 2, 4)
+    val bb = Array[Byte](1, 3, 2, 2, 4)
     T ~ bb.zap(2)(b=>(b-1).toByte)  =**= Array[Byte](1, 3, 1, 2, 4)
     T ~ bb.use(3)(used += _)        =**= Array[Byte](1, 3, 1, 2, 4)
     T ~ used                        ==== 2
 
-    val bs = Array[Short](0, 2, 1, 1, 3)
-    T ~ bs.zapAll(s=>(s+1).toShort) =**= Array[Short](1, 3, 2, 2, 4)
+    val bs = Array[Short](1, 3, 2, 2, 4)
     T ~ bs.zap(2)(s=>(s-1).toShort) =**= Array[Short](1, 3, 1, 2, 4)
     T ~ bs.use(3)(used += _)        =**= Array[Short](1, 3, 1, 2, 4)
     T ~ used                        ==== 4
 
-    val bc = Array[Char]('0', '2', 'e', 'e', '3')
-    T ~ bc.zapAll(_.toUpper)        =**= Array[Char]('0', '2', 'E', 'E', '3')
+    val bc = Array[Char]('0', '2', 'E', 'E', '3')
     T ~ bc.zap(2)(_.toLower)        =**= Array[Char]('0', '2', 'e', 'E', '3')
     T ~ bc.use(3)(used += _ - 'A')  =**= Array[Char]('0', '2', 'e', 'E', '3')
     T ~ used                        ==== 8
 
-    val bi = Array[Int](0, 2, 1, 1, 3)
-    T ~ bi.zapAll(_ + 1)            =**= Array[Int](1, 3, 2, 2, 4)
+    val bi = Array[Int](1, 3, 2, 2, 4)
     T ~ bi.zap(2)(_ - 1)            =**= Array[Int](1, 3, 1, 2, 4)
     T ~ bi.use(3)(used += _)        =**= Array[Int](1, 3, 1, 2, 4)
     T ~ used                        ==== 10
 
-    val bl = Array[Long](0, 2, 1, 1, 3)
-    T ~ bl.zapAll(_ + 1)            =**= Array[Long](1, 3, 2, 2, 4)
+    val bl = Array[Long](1, 3, 2, 2, 4)
     T ~ bl.zap(2)(_ - 1)            =**= Array[Long](1, 3, 1, 2, 4)
     T ~ bl.use(3)(used += _.toInt)  =**= Array[Long](1, 3, 1, 2, 4)
     T ~ used                        ==== 12
 
-    val bf = Array[Float](0, 2, 1, 1, 3)
-    T ~ bf.zapAll(_ + 1)            =**= Array[Float](1, 3, 2, 2, 4)
+    val bf = Array[Float](1, 3, 2, 2, 4)
     T ~ bf.zap(2)(_ - 1)            =**= Array[Float](1, 3, 1, 2, 4)
     T ~ bf.use(3)(used += _.toInt)  =**= Array[Float](1, 3, 1, 2, 4)
     T ~ used                        ==== 14
 
-    val bd = Array[Double](0, 2, 1, 1, 3)
-    T ~ bd.zapAll(_ + 1)            =**= Array[Double](1, 3, 2, 2, 4)
+    val bd = Array[Double](1, 3, 2, 2, 4)
     T ~ bd.zap(2)(_ - 1)            =**= Array[Double](1, 3, 1, 2, 4)
     T ~ bd.use(3)(used += _.toInt)  =**= Array[Double](1, 3, 1, 2, 4)
     T ~ used                        ==== 16
 
-    val ba = Array[String]("0", "2", "e", "e", "3")
-    T ~ ba.zapAll(_.toUpperCase)    =**= Array[String]("0", "2", "E", "E", "3")
+    val ba = Array[String]("0", "2", "E", "E", "3")
     T ~ ba.zap(2)(_.toLowerCase)    =**= Array[String]("0", "2", "e", "E", "3")
     T ~ ba.use(2)(used += _.length) =**= Array[String]("0", "2", "e", "E", "3")
     T ~ used                        ==== 17

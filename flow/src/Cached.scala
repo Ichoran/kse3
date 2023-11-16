@@ -674,11 +674,11 @@ object Hold {
     private[this] val aCounts = Array.fill(holds.length)(-1L)
 
     def release(): Unit = this.synchronized{
-      aFor(holds){ (h, i) => h.release(); aCounts(i) = -1L }
+      holds.visit(){ (h, i) => h.release(); aCounts(i) = -1L }
     }
     def recompute() = this.synchronized{
       val a = new Array[V](holds.length)
-      aFor(holds){ (h, i) =>
+      holds.visit(){ (h, i) =>
         val (v, c) = holds(i).get
         a(i) = v
         aCounts(i) = c
