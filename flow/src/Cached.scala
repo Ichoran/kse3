@@ -5,6 +5,8 @@
 package kse.flow
 
 
+import scala.language.experimental.relaxedExtensionImports
+
 import java.lang.ref.SoftReference
 import java.time._
 import java.util.concurrent.atomic._
@@ -105,11 +107,11 @@ object Worm {
 final class Soft[S, V](source: S)(gen: S => V) {
   import Soft._
 
-  private[this] val myCache: AtomicReference[SoftReference[AnyRef]] = new AtomicReference(storedSoftNull)
+  private val myCache: AtomicReference[SoftReference[AnyRef]] = new AtomicReference(storedSoftNull)
 
   def forget(): this.type = { myCache.set(storedSoftNull); this }
 
-  private[this] inline def properlySetValue(v: V): Unit =
+  private inline def properlySetValue(v: V): Unit =
     myCache.set(new SoftReference(if (v.asInstanceOf[AnyRef] eq null) Soft.storedNullSentinel else v.asInstanceOf[AnyRef]))
 
   /** Retrieve or recompute the cached value. */
@@ -357,7 +359,7 @@ object Hold {
     new Arrayed(holds)
 
   private final class Fixed[V](underlying: V) extends Hold[V] {
-    private[this] val answer = (underlying, 0L)
+    private val answer = (underlying, 0L)
 
     def release(): Unit = {}
     def recompute() = answer
@@ -365,7 +367,7 @@ object Hold {
   }
 
   private final class Unheld[V](generate: => V) extends Hold[V] {
-    private[this] var count = -1L
+    private var count = -1L
 
     def release(): Unit = {}
     def recompute() = this.synchronized{ count += 1; (generate, count) }
@@ -373,8 +375,8 @@ object Hold {
   }
 
   private final class Lazy[V](generate: => V) extends Hold[V] {
-    private[this] var myValue: (V, Long) Or Unit = Alt.unit
-    private[this] var count = -1L
+    private var myValue: (V, Long) Or Unit = Alt.unit
+    private var count = -1L
 
     def release(): Unit = this.synchronized{ myValue = Alt.unit }
     def recompute() = this.synchronized{
@@ -389,7 +391,7 @@ object Hold {
     * if you reset it, anything that has this as a dependency has the option to recompute itself.
     */
   final class Mutable[V](initial: V) extends Hold[V] {
-    private[this] var myValue = (initial, 0L)
+    private var myValue = (initial, 0L)
 
     /** Set the stored value. */
     def set(next: V): this.type = this.synchronized{ myValue = (next, myValue._2 + 1); this }
@@ -403,8 +405,8 @@ object Hold {
   }
 
   private final class Iterate[V](initial: V)(f: V => V) extends Hold[V] {
-    private[this] var myValue = initial
-    private[this] var count = -1L
+    private var myValue = initial
+    private var count = -1L
 
     def release(): Unit = {}
     def recompute() = this.synchronized{
@@ -417,10 +419,10 @@ object Hold {
   }
 
   private final class Cached[S, V](state0: => S, that: Hold[V])(advance: S => S, test: S => Boolean) extends Hold[V] {
-    private[this] var myValue: (V, Long) Or Unit = Alt.unit
-    private[this] var thatCount = -1L
-    private[this] var count = -1L
-    private[this] var state: S = state0
+    private var myValue: (V, Long) Or Unit = Alt.unit
+    private var thatCount = -1L
+    private var count = -1L
+    private var state: S = state0
 
     def release(): Unit = this.synchronized{ myValue = Alt.unit; thatCount = -1L; that.release() }
     def recompute() = this.synchronized{
@@ -442,7 +444,7 @@ object Hold {
   }
 
   private final class Fragile[S, V](state0: => S, that: Hold[V])(advance: S => S, test: ((V, Long), S) => Boolean) extends Hold[V] {
-    private[this] var state: S Or Unit = Alt.unit
+    private var state: S Or Unit = Alt.unit
 
     def release(): Unit = this.synchronized{ state = Alt.unit; that.release() }
     def recompute() = this.synchronized{
@@ -480,10 +482,10 @@ object Hold {
   }
 
   private final class Tuple2[U, V](hu: Hold[U], hv: Hold[V]) extends Hold[(U, V)] {
-    private[this] var myValue: ((U, V), Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var uCount = -1L
-    private[this] var vCount = -1L
+    private var myValue: ((U, V), Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var uCount = -1L
+    private var vCount = -1L
 
     def release(): Unit = this.synchronized{
       hu.release(); uCount = -1
@@ -509,11 +511,11 @@ object Hold {
   }
 
   private final class Tuple3[T, U, V](ht: Hold[T], hu: Hold[U], hv: Hold[V]) extends Hold[(T, U, V)] {
-    private[this] var myValue: ((T, U, V), Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var tCount = -1L
-    private[this] var uCount = -1L
-    private[this] var vCount = -1L
+    private var myValue: ((T, U, V), Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var tCount = -1L
+    private var uCount = -1L
+    private var vCount = -1L
 
     def release(): Unit = this.synchronized{
       ht.release(); tCount = -1
@@ -541,12 +543,12 @@ object Hold {
   }
 
   private final class Tuple4[S, T, U, V](hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V]) extends Hold[(S, T, U, V)] {
-    private[this] var myValue: ((S, T, U, V), Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var sCount = -1L
-    private[this] var tCount = -1L
-    private[this] var uCount = -1L
-    private[this] var vCount = -1L
+    private var myValue: ((S, T, U, V), Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var sCount = -1L
+    private var tCount = -1L
+    private var uCount = -1L
+    private var vCount = -1L
 
     def release(): Unit = this.synchronized{
       hs.release(); sCount = -1
@@ -579,13 +581,13 @@ object Hold {
 
   private final class Tuple5[R, S, T, U, V](hr: Hold[R], hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V])
   extends Hold[(R, S, T, U, V)] {
-    private[this] var myValue: ((R, S, T, U, V), Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var rCount = -1L
-    private[this] var sCount = -1L
-    private[this] var tCount = -1L
-    private[this] var uCount = -1L
-    private[this] var vCount = -1L
+    private var myValue: ((R, S, T, U, V), Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var rCount = -1L
+    private var sCount = -1L
+    private var tCount = -1L
+    private var uCount = -1L
+    private var vCount = -1L
 
     def release(): Unit = this.synchronized{
       hr.release(); rCount = -1
@@ -622,14 +624,14 @@ object Hold {
 
   private final class Tuple6[Q, R, S, T, U, V](hq: Hold[Q], hr: Hold[R], hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V])
   extends Hold[(Q, R, S, T, U, V)] {
-    private[this] var myValue: ((Q, R, S, T, U, V), Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var qCount = -1L
-    private[this] var rCount = -1L
-    private[this] var sCount = -1L
-    private[this] var tCount = -1L
-    private[this] var uCount = -1L
-    private[this] var vCount = -1L
+    private var myValue: ((Q, R, S, T, U, V), Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var qCount = -1L
+    private var rCount = -1L
+    private var sCount = -1L
+    private var tCount = -1L
+    private var uCount = -1L
+    private var vCount = -1L
 
     def release(): Unit = this.synchronized{
       hq.release(); qCount = -1
@@ -669,9 +671,9 @@ object Hold {
   }
 
   private final class Arrayed[V: scala.reflect.ClassTag](holds: Array[Hold[V]]) extends Hold[Array[V]] {
-    private[this] var myValue: (Array[V], Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] val aCounts = Array.fill(holds.length)(-1L)
+    private var myValue: (Array[V], Long) Or Unit = Alt.unit
+    private var count = -1L
+    private val aCounts = Array.fill(holds.length)(-1L)
 
     def release(): Unit = this.synchronized{
       holds.visit(){ (h, i) => h.release(); aCounts(i) = -1L }
@@ -699,9 +701,9 @@ object Hold {
   }
 
   private final class Map[A, V](source: Hold[A])(compute: A => V) extends Hold[V] {
-    private[this] var myValue: (V, Long) Or Unit = Alt.unit
-    private[this] var count = -1L
-    private[this] var sourceCount = -1L
+    private var myValue: (V, Long) Or Unit = Alt.unit
+    private var count = -1L
+    private var sourceCount = -1L
 
     def release(): Unit = { source.release(); sourceCount = -1L; myValue = Alt.unit }
     def recompute() = this.synchronized{

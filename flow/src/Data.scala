@@ -3,6 +3,8 @@
 
 package kse.flow
 
+import scala.language.experimental.relaxedExtensionImports
+
 
 //////////////////////////////////////////////////////////////
 /// Methods for dealing with errors and Ors in collections ///

@@ -13,6 +13,8 @@ import java.time._
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.TimeUnit
 
+import scala.language.experimental.relaxedExtensionImports
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}

@@ -3,11 +3,14 @@
 
 package kse.eio
 
+
 import java.io._
 import java.nio._
 import java.nio.file._
 import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByteChannel}
 import java.nio.charset.StandardCharsets._
+
+import scala.language.experimental.relaxedExtensionImports
 
 import scala.collection.mutable.Builder
 import scala.util.boundary
@@ -359,7 +362,7 @@ class Xsv private (
         index = 0
         if k > 0 then
           var n = (128 min a.length) min (buffer.length - k)
-          a.copyRangeInto(0, n)(buffer, k)
+          a.inject(buffer, k)(0, n)
           var moreExtra = n > 0
           while index < k && moreExtra do
             visitRange(buffer, index, k + n, visitor, if !more && n == a.length then EoF else EoI).?
@@ -368,12 +371,10 @@ class Xsv private (
               if m > buffer.length - k then
                 val h = (((k.toLong + m) max (2L * buffer.length)) min (Int.MaxValue - 7L)).toInt
                 if h <= buffer.length then visitor.error(Err(sayWhere("Buffer overflow"))).asAlt.break
-                val b = new Array[Byte](h)
-                buffer.copyRangeInto(0, k + n)(b)
-                buffer = b
-                if m > b.length - k then m = b.length - k
+                buffer = buffer.copyToSize(h)
+                if m > buffer.length - k then m = buffer.length - k
               moreExtra = m > n
-              a.copyRangeInto(n, m)(buffer, k + n)
+              a.inject(buffer, k + n)(n, m)
               n = m
           if index >= k then
             index -= k
@@ -387,7 +388,7 @@ class Xsv private (
               val h = (((k + 128L) max (2L * g)) min (Int.MaxValue - 7L)).toInt
               if k >= h then visitor.error(Err(sayWhere(s"Buffer overflow"))).asAlt.break
               buffer = new Array[Byte](h)
-            a.copyRangeInto(index, a.length)(buffer)
+            a.inject(buffer)(index to End)
           else k = 0
       visitor.complete(line)
 

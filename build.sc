@@ -8,7 +8,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.3.1"
+  def scalaVersion = "3.4.0-RC1-bin-20231114-18ada51-NIGHTLY"
 
   def scalaOptions = T{Seq(
     "-opt",
@@ -25,7 +25,7 @@ trait PublishKse3 extends PublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.1.9"
+  def publishVersion = "0.2.0"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),

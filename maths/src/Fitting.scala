@@ -3,6 +3,9 @@
 
 package kse.maths.fitting
 
+
+import scala.language.experimental.relaxedExtensionImports
+
 import kse.maths.{given, _}
 
 

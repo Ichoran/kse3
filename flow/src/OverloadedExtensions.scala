@@ -13,7 +13,10 @@ Annoying, but at least it's possible.
 
 package kse.flow
 
+
+import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.targetName
+
 
 extension [X](is: Is[X])
   /** use is trivial--just apply function and return this Is */
@@ -24,7 +27,7 @@ extension [X, Y](or: Or[X, Y])
   /** Operate on the favored value if it exists, but pass on the original `Or`. */
   inline def use(inline f: X => Unit): or.type =
     (or: X Or Y) match
-      case _: Alt[_] =>
+      case _: Alt[?] =>
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])
     or
 

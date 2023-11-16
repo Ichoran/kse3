@@ -12,6 +12,8 @@ import org.junit.Assert._
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.control.ControlThrowable
 
+import scala.language.experimental.relaxedExtensionImports
+
 import kse.basics.{given, _}
 import kse.flow._
 

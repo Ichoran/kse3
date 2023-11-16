@@ -13,29 +13,29 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.3 and later due to its use of
-`scala.util.boundary`.  It also assumes at least Java 17.**
+**Warning: kse3 only works on Scala 3.4 and later due to its use of
+`scala.util.boundary` and extensions.  It also assumes at least Java 17.**
 
 **Warning: when you use extensions with Scala 3 in multiple libraries,
 they clobber each other because they all share the same namespace.
-The feature scala.language.experimental.relaxedExtensionImports
-will help once it's not experimental.**
+Use `import scala.language.experimental.relaxedExtensionImports` everywhere!**
 
 ## How do I get it?
 
-Only kse3-flow and some of kse3-maths and a bit of kse3-eio (and kse3-testing) are available presently.
-In mill, make sure your module has
+Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
+In mill, make sure your module has the latest 3.4 nightly, e.g.
 
 ```scala
-def scalaVersion = "3.3.1"
+def scalaVersion = "3.4.0-RC1-bin-20231114-18ada51-NIGHTLY"
 ```
 
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.9"
-ivy"com.github.ichoran::kse3-maths:0.1.9"
-ivy"com.github.ichoran::kse3-eio:0.1.9"
+ivy"com.github.ichoran::kse3-basics:0.2.0"
+ivy"com.github.ichoran::kse3-flow:0.2.0"
+ivy"com.github.ichoran::kse3-maths:0.2.0"
+ivy"com.github.ichoran::kse3-eio:0.2.0"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -123,7 +123,18 @@ println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
 println(tok.value.mkString)                         // prints: minnowsalmonbasseel
 ```
 
-Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays.  You can also use Python-style indexing of arrays (with `.py`) or R-style (starts at 1) with `.R`.
+Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays with full hand-rolled speed by virtue of extensive use of inlines.
+
+```scala
+val a = Array(1, 2, 3, 4, 5)
+val b = a.select(_ % 2 == 1)  // Array(1, 3, 5)
+b(1 to End) = a  // b is now Array(1, 1, 2)
+b(End - 1) = 4   // b is now Arary(1, 4, 2)
+b.inject(a, 2)() // a is now Array(1, 2, 1, 4, 2)
+var n = 0
+a.peek(n += _)
+println(n)      // Prints 10
+```
 
 See the test suite for examples of everything you could do.
 

@@ -4,7 +4,9 @@
 
 package kse.flow
 
-import scala.util.boundary;
+
+import scala.language.experimental.relaxedExtensionImports
+import scala.util.boundary
 
 
 trait Tidy[-T] extends (T => Unit) {

@@ -17,6 +17,8 @@ import java.nio.channels._
 import java.time._
 import java.util.zip._
 
+import scala.language.experimental.relaxedExtensionImports
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -206,13 +208,13 @@ class EioTest {
     T ~ { EioBase64.decodeRangeInto(b.encode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ { EioBase64.decodeInto(b.encode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
-    aFor(target){ (_, i) => target(i) = 0: Byte }
+    target.fill(0)
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24, 48)(target, 16) ==== 18 --: typed[Int Or Err]
     T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ { EioBase64.decodeInto(b.stringEncode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
 
-    aFor(target){ (_, i) => target(i) = 0: Byte }
+    target.fill(0)
     T ~ EioBase85.encodeZmqRange(b, 83, 99) =**= b.slice(83, 99).encode85zmq
     T ~ EioBase85.encodeAsciiRange(b, 83, 99) =**= b.slice(83, 99).encode85ascii
     T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!", 6, 16).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
@@ -556,9 +558,9 @@ class EioTest {
     T ~ { q.time = ft1 }.alt                  ==== runtype[String]
     T ~ q.exists                              ==== false
 
-    T ~ q.slurp     ==== runtype[Alt[_]]
+    T ~ q.slurp     ==== runtype[Alt[?]]
     T ~ q.slurp.alt ==== runtype[String]
-    T ~ q.gulp      ==== runtype[Alt[_]]
+    T ~ q.gulp      ==== runtype[Alt[?]]
     T ~ q.gulp.alt  ==== runtype[String]
     T ~ q.raw.slurp ==== thrown[IOException]
     T ~ q.raw.gulp  ==== thrown[IOException]
@@ -569,7 +571,7 @@ class EioTest {
       T ~ q.append("y".bytes)                 ==== ()              --: typed[Unit Or Err]
       T ~ q.slurp.?                           =**= Array("blorpy")
       T ~ q.createIfAbsent("bad".bytes)       ==== false           --: typed[Boolean Or Err]
-      T ~ q.create("bad".bytes)               ==== runtype[Alt[_]]
+      T ~ q.create("bad".bytes)               ==== runtype[Alt[?]]
       T ~ q.create("bad".bytes).alt           ==== runtype[String]
       T ~ q.raw.create("bad".bytes)           ==== thrown[IOException]
       T ~ q.delete()                          ==== true
@@ -607,7 +609,7 @@ class EioTest {
       T ~ q.raw.gulp.utf8                     ==== "cod\n"
       T ~ q.createLinesIfAbsent("eel" :: Nil) ==== false
       T ~ q.raw.createLines("cod" :: Nil)     ==== thrown[IOException]
-      T ~ q.createLines("cod" :: Nil)         ==== runtype[Alt[_]]
+      T ~ q.createLines("cod" :: Nil)         ==== runtype[Alt[?]]
       T ~ q.createLines("cod" :: Nil).alt     ==== runtype[String]
       T ~ q.copyTo(p / "fish.txt")            ==== ()             --: typed[Unit Or Err]
       T ~ (p / "fish.txt").slurp.?            =**= Array("cod")
@@ -626,14 +628,14 @@ class EioTest {
       T ~ q.copyTo(p / "bass.txt")            ==== ()
       T ~ q.copyCreate(p / "bass.txt").alt    ==== runtype[String]
       T ~ (p / "pike.txt").copyInto(p / "a")  ==== (p / "a/pike.txt")
-      T ~ (p / "like.txt").copyInto(p / "a")  ==== runtype[Alt[_]]
-      T ~ (p / "pike.txt").copyInto(p / "c")  ==== runtype[Alt[_]]
+      T ~ (p / "like.txt").copyInto(p / "a")  ==== runtype[Alt[?]]
+      T ~ (p / "pike.txt").copyInto(p / "c")  ==== runtype[Alt[?]]
       T ~ (p / "pike.txt").write("pike".bytes)==== ()
       T ~ (p / "pike.txt").copyInto(p / "a")  ==== (p / "a/pike.txt")
       T ~ (p / "a/pike.txt").gulp.?           =**= "pike".bytes
       T ~ (p / "bass.txt").moveInto(p / "a")  ==== (p / "a/bass.txt")
-      T ~ (p / "bass.txt").moveInto(p / "a")  ==== runtype[Alt[_]]
-      T ~ (p / "move.txt").moveInto(p / "c")  ==== runtype[Alt[_]]
+      T ~ (p / "bass.txt").moveInto(p / "a")  ==== runtype[Alt[?]]
+      T ~ (p / "move.txt").moveInto(p / "c")  ==== runtype[Alt[?]]
       T ~ (p / "a/bass.txt").gulp.?           =**= "eel\n".bytes
 
     T ~ correctly ==== ()
@@ -652,7 +654,7 @@ class EioTest {
     T ~ Resource(q.raw.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
     T ~ Resource(q.raw.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
 
-    "ft".bytes copyInto ab2
+    "ft".bytes.inject(ab2)
     q.delete()
     Resource.nice(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
     T ~ q.exists                                      ==== true
@@ -704,7 +706,7 @@ class EioTest {
     T ~ "/life/fish".pathIn(mfs).exists          ==== false
     T ~ "/life/fish".pathIn(mfs).mkdirs()        ==== ()
     T ~ "/life/fish".pathIn(mfs).raw.file        ==== thrown[Exception]
-    T ~ "/life/fish".pathIn(mfs).file            ==== runtype[Alt[_]]
+    T ~ "/life/fish".pathIn(mfs).file            ==== runtype[Alt[?]]
     val mp = "/life/fish".pathIn(mfs)
     T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
     T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
@@ -857,29 +859,29 @@ class EioTest {
     val q = p / "rw"
     val r = p / "wr"
     q.mkdirs()   // Might be race with pathsTest, but it shouldn't matter!
-    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(r / "fish.bin") ==== runtype[Alt[_]]
+    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(r / "fish.bin") ==== runtype[Alt[?]]
     T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(q / "fish.bin") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncod".bytes
-    T ~ List("herring", "sturgeon").map(_.bytes).appendTo(r / "fish.bin")  ==== runtype[Alt[_]]
+    T ~ List("herring", "sturgeon").map(_.bytes).appendTo(r / "fish.bin")  ==== runtype[Alt[?]]
     T ~ List("herring", "sturgeon").map(_.bytes).appendTo(q / "fish.bin")  ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncodherringsturgeon".bytes
     T ~ List("herring", "sturgeon").map(_.bytes).appendTo(q / "fishy.bin") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fishy.bin").gulp.get                                         =**= "herringsturgeon".bytes
-    T ~ List("pike", "halibut").map(_.bytes).createAt(r / "fish.bin")      ==== runtype[Alt[_]]
-    T ~ List("pike", "halibut").map(_.bytes).createAt(q / "fish.bin")      ==== runtype[Alt[_]]
+    T ~ List("pike", "halibut").map(_.bytes).createAt(r / "fish.bin")      ==== runtype[Alt[?]]
+    T ~ List("pike", "halibut").map(_.bytes).createAt(q / "fish.bin")      ==== runtype[Alt[?]]
     T ~ List("heron", "pelican").map(_.bytes).createAt(q / "birds.bin")    ==== ()  --: typed[Unit Or Err]
     T ~ (q / "birds.bin").gulp.get                                         =**= "heronpelican".bytes
     List("fish", "fishy", "birds").foreach(n => (q/n).extTo("bin").delete())
-    T ~ List("bass", "salmon", "cod").writeAt(r / "fish.txt") ==== runtype[Alt[_]]
+    T ~ List("bass", "salmon", "cod").writeAt(r / "fish.txt") ==== runtype[Alt[?]]
     T ~ List("bass", "salmon", "cod").writeAt(q / "fish.txt") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.txt").slurp.get.mkString                   ==== "basssalmoncod"
-    T ~ List("herring", "sturgeon").appendTo(r / "fish.txt")  ==== runtype[Alt[_]]
+    T ~ List("herring", "sturgeon").appendTo(r / "fish.txt")  ==== runtype[Alt[?]]
     T ~ List("herring", "sturgeon").appendTo(q / "fish.txt")  ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.txt").slurp.get.mkString                   ==== "basssalmoncodherringsturgeon"
     T ~ List("herring", "sturgeon").appendTo(q / "fishy.txt") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fishy.txt").slurp.get.mkString                  ==== "herringsturgeon"
-    T ~ List("pike", "halibut").createAt(r / "fish.txt")      ==== runtype[Alt[_]]
-    T ~ List("pike", "halibut").createAt(q / "fish.txt")      ==== runtype[Alt[_]]
+    T ~ List("pike", "halibut").createAt(r / "fish.txt")      ==== runtype[Alt[?]]
+    T ~ List("pike", "halibut").createAt(q / "fish.txt")      ==== runtype[Alt[?]]
     T ~ List("heron", "pelican").createAt(q / "birds.txt")    ==== ()  --: typed[Unit Or Err]
     T ~ (q / "birds.txt").slurp.get.mkString                  ==== "heronpelican"
     T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
@@ -913,13 +915,13 @@ class EioTest {
     T ~ vs.endquote()             ==== ()
     T ~ vs.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
     T ~ vs.unquoted(text, 43, 56) ==== ()
-    T ~ vs.endquote()             ==== runtype[Alt[_]]
+    T ~ vs.endquote()             ==== runtype[Alt[?]]
     T ~ vs.clear()                ==== vs
     T ~ vs.quoted(text, 12, 21)   ==== ()
-    T ~ vs.newline(1.u)           ==== runtype[Alt[_]]
+    T ~ vs.newline(1.u)           ==== runtype[Alt[?]]
     T ~ vs.clear()                ==== vs
     T ~ vs.quoted(text, 12, 21)   ==== ()
-    T ~ vs.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vs.complete(1.u).fn(lls)  ==== runtype[Alt[?]]
     T ~ vs.clear()                ==== vs
     T ~ vs.newline(1.u)           ==== ()
     T ~ vs.unquoted(text, 0, 2)   ==== ()
@@ -928,7 +930,7 @@ class EioTest {
     T ~ vz.newline(1.u)           ==== ()
     T ~ vz.unquoted(text, 0, 2)   ==== ()
     T ~ vz.unquoted(text, 8, 10)  ==== ()
-    T ~ vz.complete(2.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vz.complete(2.u).fn(lls)  ==== runtype[Alt[?]]
     T ~ vb.unquoted(bint, 3, 7)   ==== ()   --: typed[Unit Or Err]
     T ~ vb.complete(1.u).fn(lls)  ==== List(List("it's"))
     T ~ vb.unquoted(bint, 0, 2)   ==== ()
@@ -942,13 +944,13 @@ class EioTest {
     T ~ vb.endquote()             ==== ()
     T ~ vb.complete(3.u).fn(lls)  ==== List(List("hi"), List("it's me"), List("""everyone "agrees""""))
     T ~ vb.unquoted(bint, 43, 56) ==== ()
-    T ~ vb.endquote()             ==== runtype[Alt[_]]
+    T ~ vb.endquote()             ==== runtype[Alt[?]]
     T ~ vb.clear()                ==== vb
     T ~ vb.quoted(bint, 12, 21)   ==== ()
-    T ~ vb.newline(1.u)           ==== runtype[Alt[_]]
+    T ~ vb.newline(1.u)           ==== runtype[Alt[?]]
     T ~ vb.clear()                ==== vb
     T ~ vb.quoted(bint, 12, 21)   ==== ()
-    T ~ vb.complete(1.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vb.complete(1.u).fn(lls)  ==== runtype[Alt[?]]
     T ~ vb.clear()                ==== vb
     T ~ vb.newline(1.u)           ==== ()
     T ~ vb.unquoted(bint, 0, 2)   ==== ()
@@ -957,7 +959,7 @@ class EioTest {
     T ~ vd.newline(1.u)           ==== ()
     T ~ vd.unquoted(bint, 0, 2)   ==== ()
     T ~ vd.unquoted(bint, 8, 10)  ==== ()
-    T ~ vd.complete(2.u).fn(lls)  ==== runtype[Alt[_]]
+    T ~ vd.complete(2.u).fn(lls)  ==== runtype[Alt[?]]
 
     val wanted = List(List("hi", "it's", "me"), List("""everyone "agrees"""", "it's me", "don't you see"))
     def asLines(s: String): Array[String] =
@@ -1028,6 +1030,7 @@ class EioTest {
     T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
 }
 object EioTest {
+  import kse.basics.{given, _}
   import kse.flow.{given, _}
 
   val testPath = FileSystems.getDefault.getPath("temp/eio")

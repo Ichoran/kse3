@@ -4,10 +4,13 @@
 package kse.maths
 
 
+import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.targetName
-
 import scala.compiletime.erasedValue
+
 import kse.maths._
+
+
 
 trait Est {
   def n: Double

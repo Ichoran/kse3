@@ -14,6 +14,9 @@ import java.lang.Long.{rotateLeft => rotl64, rotateRight => rotr64 }
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util.concurrent.atomic.AtomicReference
 
+import scala.language.experimental.relaxedExtensionImports
+
+
 
 trait SimpleIncrementalHash {
   def begin(): this.type
@@ -162,14 +165,14 @@ trait Hash128 extends FullHash128 with IncrementalHash[HashCode128, HashCode128]
 
 final class XxHash32() extends Hash32 {
   import XxHash.{Prime32_1, Prime32_2, Prime32_3, Prime32_4, Prime32_5}
-  private[this] var v1: Int = Prime32_1 + Prime32_2
-  private[this] var v2: Int = Prime32_2
-  private[this] var v3: Int = 0
-  private[this] var v4: Int = -Prime32_1
-  private[this] var v5: Int = 0
-  private[this] var hadBlock: Boolean = false
-  private[this] var finalized: Boolean = false
-  private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
+  private var v1: Int = Prime32_1 + Prime32_2
+  private var v2: Int = Prime32_2
+  private var v3: Int = 0
+  private var v4: Int = -Prime32_1
+  private var v5: Int = 0
+  private var hadBlock: Boolean = false
+  private var finalized: Boolean = false
+  private var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
 
   private def mimicState(u1: Int, u2: Int, u3: Int, u4: Int, u5: Int, had: Boolean, fz: Boolean, bb: ByteBuffer): Unit =
     v1 = u1
@@ -203,7 +206,7 @@ final class XxHash32() extends Hash32 {
     if (myBuffer ne null) myBuffer.clear
     this
 
-  private[this] inline def createBufferIfNeeded(): Boolean =
+  private inline def createBufferIfNeeded(): Boolean =
     if myBuffer eq null then
       myBuffer = ByteBuffer allocate 16
       myBuffer order ByteOrder.LITTLE_ENDIAN
@@ -211,7 +214,7 @@ final class XxHash32() extends Hash32 {
     else
       false
   
-  private[this] def appendBy16(bb: ByteBuffer): this.type =
+  private def appendBy16(bb: ByteBuffer): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
     var x1 = v1
     var x2 = v2
@@ -231,7 +234,7 @@ final class XxHash32() extends Hash32 {
     v4 = x4
     this
   
-  private[this] def appendIx4(one: Int, two: Int, three: Int, four: Int): this.type =
+  private def appendIx4(one: Int, two: Int, three: Int, four: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl32(v1 +   one * Prime32_2, 13) * Prime32_1
     v2 = rotl32(v2 +   two * Prime32_2, 13) * Prime32_1
@@ -241,28 +244,28 @@ final class XxHash32() extends Hash32 {
     hadBlock = true
     this
 
-  private[this] def appendMyBuffer(): Unit =
+  private def appendMyBuffer(): Unit =
     myBuffer.flip()
     appendIx4(myBuffer.getInt, myBuffer.getInt, myBuffer.getInt, myBuffer.getInt)
     myBuffer.clear()
   
-  private[this] def counting(extra: Int): this.type =
+  private def counting(extra: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = if (!hadBlock) v3 + Prime32_5 else rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18)
     v1 += v5 + extra
     this
   
-  private[this] def trailing(one: Int): this.type =
+  private def trailing(one: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl32(v1 + one * Prime32_3, 17) * Prime32_4
     this
   
-  private[this] def trailing(quarter: Byte): this.type =
+  private def trailing(quarter: Byte): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XXhash32 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl32(v1 + (quarter&0xFF) * Prime32_5, 11) * Prime32_1
     this      
   
-  private[this] def complete(): Int =
+  private def complete(): Int =
     if finalized then v1
     else
       finalized = true
@@ -355,7 +358,7 @@ final class XxHash32() extends Hash32 {
       myBuffer putInt ((l >>> 32).toInt)
     this
 
-  private[this] def myAppendInt(i: Int): Unit = 
+  private def myAppendInt(i: Int): Unit = 
     if myBuffer.remaining >= 4 then
       myBuffer putInt i
       if myBuffer.remaining == 0 then
@@ -383,7 +386,7 @@ final class XxHash32() extends Hash32 {
       myAppendInt(i)
     this
 
-  private[this] def myAppendChar(c: Char): Unit =
+  private def myAppendChar(c: Char): Unit =
     if myBuffer.remaining >= 2 then
       myBuffer putChar c
       if myBuffer.remaining == 0 then
@@ -456,14 +459,14 @@ final class XxHash32() extends Hash32 {
 
 final class XxHash64() extends Hash64 {
   import XxHash.{Prime64_1, Prime64_2, Prime64_3, Prime64_4, Prime64_5}
-  private[this] var v1: Long = Prime64_1 + Prime64_2
-  private[this] var v2: Long = Prime64_2
-  private[this] var v3: Long = 0
-  private[this] var v4: Long = -Prime64_1
-  private[this] var v5: Long = 0
-  private[this] var hadBlock: Boolean = false
-  private[this] var finalized: Boolean = false
-  private[this] var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
+  private var v1: Long = Prime64_1 + Prime64_2
+  private var v2: Long = Prime64_2
+  private var v3: Long = 0
+  private var v4: Long = -Prime64_1
+  private var v5: Long = 0
+  private var hadBlock: Boolean = false
+  private var finalized: Boolean = false
+  private var myBuffer: ByteBuffer = null    // Do NOT mark--can't copy cleanly in that case
 
   private def mimicState(u1: Long, u2: Long, u3: Long, u4: Long, u5: Long, had: Boolean, fz: Boolean, bb: ByteBuffer): Unit =
     v1 = u1
@@ -496,7 +499,7 @@ final class XxHash64() extends Hash64 {
     if myBuffer ne null then myBuffer.clear
     this
 
-  private[this] def createBufferIfNeeded(): Boolean =
+  private def createBufferIfNeeded(): Boolean =
     if myBuffer eq null then
       myBuffer = ByteBuffer allocate 32
       myBuffer order ByteOrder.LITTLE_ENDIAN
@@ -504,7 +507,7 @@ final class XxHash64() extends Hash64 {
     else
       false
   
-  private[this] def appendBy32(bb: ByteBuffer): this.type =
+  private def appendBy32(bb: ByteBuffer): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     var x1 = v1
     var x2 = v2
@@ -524,7 +527,7 @@ final class XxHash64() extends Hash64 {
     v4 = x4
     this        
   
-  private[this] def appendLx4(one: Long, two: Long, three: Long, four: Long): this.type =
+  private def appendLx4(one: Long, two: Long, three: Long, four: Long): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl64(v1 +   one * Prime64_2, 31) * Prime64_1
     v2 = rotl64(v2 +   two * Prime64_2, 31) * Prime64_1
@@ -534,12 +537,12 @@ final class XxHash64() extends Hash64 {
     hadBlock = true
     this
 
-  private[this] inline def appendMyBuffer(): Unit =
+  private inline def appendMyBuffer(): Unit =
     myBuffer.flip()
     appendLx4(myBuffer.getLong, myBuffer.getLong, myBuffer.getLong, myBuffer.getLong)
     myBuffer.clear()
   
-  private[this] def counting(extra: Int): this.type =
+  private def counting(extra: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 =
       if !hadBlock then v3 + Prime64_5
@@ -556,22 +559,22 @@ final class XxHash64() extends Hash64 {
     v1 += v5 + extra
     this
   
-  private[this] def trailing(one: Long): this.type =
+  private def trailing(one: Long): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl64(v1 ^ (rotl64(one * Prime64_2, 31) * Prime64_1), 27)*Prime64_1 + Prime64_4
     this
   
-  private[this] def trailing(one: Int): this.type =
+  private def trailing(one: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl64(v1 ^ ((one & 0xFFFFFFFFL) * Prime64_1), 23) * Prime64_2 + Prime64_3
     this
   
-  private[this] def trailing(quarter: Byte): this.type =
+  private def trailing(quarter: Byte): this.type =
     if finalized then SimpleIncrementalHash.fzerr("XxHash64 hasher finalized (use begin() or begin(seed) to reuse)")
     v1 = rotl64(v1 ^ ((quarter & 0xFF) * Prime64_5), 11) * Prime64_1
     this      
   
-  private[this] def complete(): Long =
+  private def complete(): Long =
     if finalized then v1
     else
       finalized = true
@@ -676,7 +679,7 @@ final class XxHash64() extends Hash64 {
       myBuffer putInt ((l >>> 32).toInt)
     this
 
-  private[this] def myAppendInt(i: Int): Unit = 
+  private def myAppendInt(i: Int): Unit = 
     if myBuffer.remaining >= 4 then
       myBuffer putInt i
       if myBuffer.remaining == 0 then
@@ -704,7 +707,7 @@ final class XxHash64() extends Hash64 {
       myAppendInt(i)
     this
 
-  private[this] def myAppendChar(c: Char): Unit =
+  private def myAppendChar(c: Char): Unit =
     if myBuffer.remaining >= 2 then
       myBuffer putChar c
       if myBuffer.remaining == 0 then
@@ -1101,11 +1104,11 @@ object XxHash extends FullHash32 with FullHash64 {
 
 /// Austin Appleby's MurmurHash3, commit 92cf370 -- x86 32 bit algorithm
 final class MurmurHash32() extends Hash32 {
-  private[this] var state = 0
-  private[this] var n = 0
-  private[this] var partial = 0
-  private[this] var partialN = 0
-  private[this] var finalized = false
+  private var state = 0
+  private var n = 0
+  private var partial = 0
+  private var partialN = 0
+  private var finalized = false
 
   private def mimicState(st: Int, m: Int, p: Int, pN: Int, fz: Boolean): Unit =
     state = st
@@ -1119,20 +1122,20 @@ final class MurmurHash32() extends Hash32 {
     ans.mimicState(state, n, partial, partialN, finalized)
     ans
 
-  private[this] def appendI(i: Int): this.type =
+  private def appendI(i: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("MurmurHash32 hasher finalized (use begin() or begin(seed) to reuse)")
     n += 4
     val x = state ^ (0x1B873593 * rotl32(i * 0xCC9E2D51, 15))
     state = (5 * rotl32(x, 13)) + 0xE6546B64
     this
 
-  private[this] def appendLastI(i: Int, bytes: Int): this.type =
+  private def appendLastI(i: Int, bytes: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("MurmurHash32 hasher finalized (use begin() or begin(seed) to reuse)")
     n += (bytes&3)
     state = state ^ (0x1B873593 * rotl32(i * 0xCC9E2D51, 15))
     this
 
-  private[this] def finalizer(): Unit =
+  private def finalizer(): Unit =
     if !finalized then
       val x = state ^ n
       val y = 0x85EBCA6B * (x ^ (x >>> 16))
@@ -1274,11 +1277,11 @@ final class MurmurHash32() extends Hash32 {
 
 
 final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, HashCode128] {
-  private[this] var state0, state1 = 0L
-  private[this] var partial0, partial1 = 0L
-  private[this] var partialN = 0
-  private[this] var n = 0
-  private[this] var finalized = false
+  private var state0, state1 = 0L
+  private var partial0, partial1 = 0L
+  private var partialN = 0
+  private var n = 0
+  private var finalized = false
 
   private def mimicState(s0: Long, s1: Long, p0: Long, p1: Long, pN: Int, m: Int, fz: Boolean): Unit =
     state0 = s0
@@ -1307,7 +1310,7 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
     finalized = false
     this
 
-  private[this] def appendLx2(la: Long, lb: Long) =
+  private def appendLx2(la: Long, lb: Long) =
     if finalized then SimpleIncrementalHash.fzerr("MurmurHash128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
     n += 16
     val x0 = state0 ^ (0x4CF5AD432745937FL * rotl64(la * 0x87C37B91114253D5L, 31))
@@ -1316,7 +1319,7 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
     state1 = ((rotl64(x1, 31) + state0) * 5) + 0x38495AB5
     this
   
-  private[this] def appendLastLx2(la: Long, lb: Long, bytes: Int): this.type =
+  private def appendLastLx2(la: Long, lb: Long, bytes: Int): this.type =
     if finalized then SimpleIncrementalHash.fzerr("MurmurHash128 hasher finalized (use begin() or begin(seed0, seed1) to reuse)")
     val m = bytes & 0xF
     n += m
@@ -1324,12 +1327,12 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
     state0 = state0 ^ (0x4CF5AD432745937FL * rotl64(la * 0x87C37B91114253D5L, 31))
     this
   
-  private[this] def mixer(l: Long): Long =
+  private def mixer(l: Long): Long =
     val x = 0xFF51AFD7ED558CCDL * (l ^ (l >>> 33))
     val y = 0xC4CEB9FE1A85EC53L * (x ^ (x >>> 33))
     y ^ (y >>> 33)
   
-  private[this] def finalizer(): Unit =
+  private def finalizer(): Unit =
     if !finalized then
       state0 ^= n
       state1 ^= n
@@ -1532,7 +1535,7 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
 
 
 object MurmurHash extends FullHash32 with FullHash128 {
-  private[this] val cached32 = new AtomicReference[MurmurHash32]()
+  private val cached32 = new AtomicReference[MurmurHash32]()
 
   def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
@@ -1555,7 +1558,7 @@ object MurmurHash extends FullHash32 with FullHash128 {
     cached32.set(h)
     result
 
-  private[this] val cached128 = new AtomicReference[MurmurHash128]()
+  private val cached128 = new AtomicReference[MurmurHash128]()
 
   def hash128(seed0: Long, seed1: Long, bb: ByteBuffer): HashCode128 =
     val c = cached128.getAndSet(null)
@@ -1582,9 +1585,9 @@ object MurmurHash extends FullHash32 with FullHash128 {
 
 
 final class SumHash32() extends Hash32 {
-  private[this] var sum = 0
-  private[this] var partial = 0
-  private[this] var partialN = 0
+  private var sum = 0
+  private var partial = 0
+  private var partialN = 0
 
   private def mimicState(s: Int, p: Int, pN: Int): Unit =
     sum = s
@@ -1716,9 +1719,9 @@ final class SumHash32() extends Hash32 {
 
 
 final class SumHash64() extends Hash64 {
-  private[this] var sum = 0L
-  private[this] var partial = 0L
-  private[this] var partialN = 0
+  private var sum = 0L
+  private var partial = 0L
+  private var partialN = 0
 
   private def mimicState(s: Long, p: Long, pN: Int): Unit =
     sum = s
@@ -1858,7 +1861,7 @@ final class SumHash64() extends Hash64 {
 
 
 object SumHash extends FullHash32 with FullHash64 {
-  private[this] val cached32 = new AtomicReference[SumHash32]()
+  private val cached32 = new AtomicReference[SumHash32]()
 
   def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
@@ -1881,7 +1884,7 @@ object SumHash extends FullHash32 with FullHash64 {
     cached32.set(h)
     result
 
-  private[this] val cached64 = new AtomicReference[SumHash64]()
+  private val cached64 = new AtomicReference[SumHash64]()
 
   def hash64(seed: Long, bb: ByteBuffer): Long =
     val c = cached64.getAndSet(null)
@@ -1908,9 +1911,9 @@ object SumHash extends FullHash32 with FullHash64 {
 
 
 final class XorHash32() extends Hash32 {
-  private[this] var xor = 0
-  private[this] var partial = 0
-  private[this] var partialN = 0
+  private var xor = 0
+  private var partial = 0
+  private var partialN = 0
 
   private def mimicState(x: Int, p: Int, pN: Int): Unit =
     xor = x
@@ -2047,9 +2050,9 @@ final class XorHash32() extends Hash32 {
 
 
 final class XorHash64() extends Hash64 {
-  private[this] var xor = 0L
-  private[this] var partial = 0L
-  private[this] var partialN = 0
+  private var xor = 0L
+  private var partial = 0L
+  private var partialN = 0
 
   private def mimicState(x: Long, p: Long, pN: Int): Unit =
     xor = x
@@ -2186,7 +2189,7 @@ final class XorHash64() extends Hash64 {
 
 
 object XorHash extends FullHash32 with FullHash64 {
-  private[this] val cached32 = new AtomicReference[XorHash32]()
+  private val cached32 = new AtomicReference[XorHash32]()
 
   def hash32(seed: Int, bb: ByteBuffer): Int =
     val c = cached32.getAndSet(null)
@@ -2209,7 +2212,7 @@ object XorHash extends FullHash32 with FullHash64 {
     cached32.set(h)
     result
 
-  private[this] val cached64 = new AtomicReference[XorHash64]()
+  private val cached64 = new AtomicReference[XorHash64]()
 
   def hash64(seed: Long, bb: ByteBuffer): Long =
     val c = cached64.getAndSet(null)

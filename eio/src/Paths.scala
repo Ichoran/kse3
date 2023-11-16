@@ -3,6 +3,7 @@
 
 package kse.eio
 
+
 import java.io._
 import java.nio.channels.SeekableByteChannel
 import java.nio.file._
@@ -10,11 +11,13 @@ import java.nio.file.attribute.{ FileTime, BasicFileAttributes }
 import java.time._
 import java.util.zip._
 
+import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.tailrec
-import scala.util.boundary;
+import scala.util.boundary
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
+
 
 extension (pathname: String) {
   inline def file = new File(pathname)

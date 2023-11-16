@@ -3,6 +3,7 @@
 
 package kse.flow
 
+import scala.language.experimental.relaxedExtensionImports
 import scala.util.control.ControlThrowable
 import scala.util.boundary.Break
 
@@ -10,7 +11,7 @@ import scala.util.boundary.Break
 extension (t: Throwable) {
   /** Indicates that a throwable is meant to be caught as a normal part of control flow. */
   inline def catchable: Boolean = t match
-    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable | _: Break[_] => false
+    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable | _: Break[?] => false
     case _ => true
 
   /** Indicates that a throwable should be caught rather than letting it kill the current thread. */

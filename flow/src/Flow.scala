@@ -4,6 +4,8 @@
 
 package kse.flow
 
+import scala.language.experimental.relaxedExtensionImports
+
 import scala.annotation.targetName
 
 import scala.util.control.ControlThrowable
@@ -345,32 +347,32 @@ extension [X](is: Is[X]) {
 extension [X, Y](or: X Or Y) {
   /** Turns this `Or` into an `Either` maintaining favored and disfavored branches (i.e `Is[X]` becomes `Right[X]`) */
   inline def toEither: Either[Y, X] = or match
-    case a: Alt[_] => Left(a.alt.asInstanceOf[Y])
+    case a: Alt[?] => Left(a.alt.asInstanceOf[Y])
     case _ => Right(Is unwrap or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Either` swapping favored and disfavored branches (i.e `Is[X]` becomes `Left[X]`) */
   inline def swapToEither: Either[X, Y] = or match
-    case a: Alt[_] => Right(a.alt.asInstanceOf[Y])
+    case a: Alt[?] => Right(a.alt.asInstanceOf[Y])
     case _ => Left(Is unwrap or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Option` by discarding the disfavored branch if present. */
   inline def toOption: Option[X] = or match
-    case _: Alt[_] => None
+    case _: Alt[?] => None
     case _ => Some(Is unwrap or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Option` by discarding the favored branch if present. */
   inline def swapToOption: Option[Y] = or match
-    case _: Alt[_] => Some(or.asInstanceOf[Alt[Y]].alt)
+    case _: Alt[?] => Some(or.asInstanceOf[Alt[Y]].alt)
     case _ => None
 
   /** Turns this `Or` into a `Try` by packing the disfavored branch into a `WrongBranchException` created for that purpose. */
   inline def toTry: Try[X] = or match
-    case a: Alt[_] => Failure(new WrongBranchException(a.alt.asInstanceOf[Y]))
+    case a: Alt[?] => Failure(new WrongBranchException(a.alt.asInstanceOf[Y]))
     case _ => Success(Is unwrap or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into a `Try` by packing the favored branch into a `WrongBranchException` created for that purpose. */
   inline def swapToTry: Try[Y] = or match
-    case a: Alt[_] => Success(a.alt.asInstanceOf[Y])
+    case a: Alt[?] => Success(a.alt.asInstanceOf[Y])
     case _ => Failure(new WrongBranchException(Is unwrap or.asInstanceOf[Is[X]]))
 
   /** Tries to get this value, throwing the disfavored branch directly, if possible. */

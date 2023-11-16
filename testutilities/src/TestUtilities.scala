@@ -68,7 +68,7 @@ object TestUtilities {
     given defaultDoubleApprox: Approximation[Double] = new OfDouble(1e-9, 1.0, 1e-9)
   }
 
-  case class Thrown(tag: ClassTag[_])(val classname: String) extends ControlThrowable(classname) {}
+  case class Thrown(tag: ClassTag[?])(val classname: String) extends ControlThrowable(classname) {}
   def thrown[A](using tag: ClassTag[A]): Thrown = Thrown(tag)(tag.runtimeClass.getName)
 
   class TypeGen[B, C](val typed: Typed[B], val gen: () => C) {}

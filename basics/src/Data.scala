@@ -3957,7 +3957,7 @@ sealed abstract class Mu[A] {
   override def toString = s"~$value"
   override def hashCode = value.##
   override def equals(a: Any) = a match
-    case m: Mu[_] => m.value.asInstanceOf[Any] == value
+    case m: Mu[?] => m.value.asInstanceOf[Any] == value
     case _ => false
 }
 object Mu {
@@ -4019,7 +4019,7 @@ final class Anon[A](val value: A) {
   override def toString = "..."
   override def hashCode = 1239182
   override def equals(a: Any) = a match {
-    case _: Anon[_] => true
+    case _: Anon[?] => true
     case _ => false
   }
 }
@@ -4038,7 +4038,7 @@ final class Identity[A](val value: A) {
   override def toString = value.toString
   override def hashCode = java.lang.System.identityHashCode(value)
   override def equals(a: Any) = a match
-    case i: Identity[_] => i.value.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef] 
+    case i: Identity[?] => i.value.asInstanceOf[AnyRef] eq value.asInstanceOf[AnyRef] 
     case _ => false
 }
 object Identity {

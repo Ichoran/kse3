@@ -11,6 +11,8 @@ import org.junit.Assert._
 
 import java.time._
 
+import scala.language.experimental.relaxedExtensionImports
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -2828,7 +2830,7 @@ class MathTest {
     val xs = Array(1, 1.5, 2.1, 2.4, 3.1)
     val ys = Array(3.5, 2.4, 1.6, 0.7, 0.1)
     val vs = (xs zip ys).map{ case (x, y) => Vc.D(x, y) }
-    aFor(xs)((x, i) => fit += (x, ys(i)))
+    xs.visit()((x, i) => fit += (x, ys(i)))
     T ~ fit.samples             ==== 5
     T ~ fit.x2y.slope           =~~= -1.6423
     T ~ fit.x2y.intercept       =~~= 4.9775
@@ -2846,7 +2848,7 @@ class MathTest {
     T ~ fit.estY.pmSD           =~~= ys.est.pmSD
     val fyt = Fit2D.Impl()
     val fet = fit.mutableCopy
-    aFor(xs){ (x, i) => val v = Vc.D(x, ys(i)); fyt += v }
+    xs.visit(){ (x, i) => val v = Vc.D(x, ys(i)); fyt += v }
     T ~ fyt.samples       ==== fit.samples
     T ~ fet.samples       ==== fet.samples
     T ~ fyt.estX.pmSD     =~~= fit.estX.pmSD
@@ -2863,7 +2865,7 @@ class MathTest {
     T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
     fet.reset()
     T ~ fet.samples       ==== 0
-    aFor(xs)((x, i) => if i > 0 then fet += (x, ys(i)))
+    xs.visit()((x, i) => if i > 0 then fet += (x, ys(i)))
     T ~ fyt.estX.pmSD     =~~= fet.estX.pmSD
     T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
     T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
@@ -2875,7 +2877,7 @@ class MathTest {
     T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
     T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
     fet.reset()
-    aFor(xs)((x, i) => fet += (x, ys(i)))
+    xs.visit()((x, i) => fet += (x, ys(i)))
     fit.reset()
     fit ++= (xs, ys)
     T ~ fit.samples       ==== fet.samples

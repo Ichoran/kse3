@@ -3,6 +3,7 @@
 
 package kse.eio
 
+
 import java.io._
 import java.nio._
 import java.nio.file._
@@ -10,10 +11,13 @@ import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByte
 import java.nio.charset.StandardCharsets._
 import java.util.Base64
 
+import scala.language.experimental.relaxedExtensionImports
+
 import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
+
 
 object EioBase64 {
   private val encode64urlTable: Array[Byte] = Array(
@@ -198,13 +202,13 @@ object EioBase85 {
     else
       var bmin = '\t'.toByte
       var bmax = ' '.toByte
-      aFor(encoder){ (b, _) =>
+      encoder.peek(){ b =>
         if b < bmin then bmin = b
         if b > bmax then bmax = b
       }
       if bmin < '\t' then throw new Exception(s"Tried to decode a table with indices smaller than tab: $bmin")
       val decoder: Array[Byte] = Array.fill[Byte](1 + bmax - 9)(-1)
-      aFor(encoder){ (b, i) =>
+      encoder.visit(){ (b, i) =>
         if decoder(b - 9) != -1 then throw new Exception(s"Encoder irreversible because of double mapping to $b")
         decoder(b - 9) = i.toByte
       }
@@ -617,19 +621,18 @@ final class FixedArrayOutputStream(val buffer: Array[Byte], val i0: Int, val iN:
 
 final class MultiArrayChannel private (val growthLimit: Long, val maxChunkSize: Int, existing: Array[Array[Byte]])
 extends SeekableByteChannel {
-  private val initialLimit = {
+  private val initialLimit =
     var n = 0L
-    aFor(existing){ (ai, _) => n += ai.length }
+    existing.peek(){ ai => n += ai.length }
     n
-  }
   private var limit = initialLimit
   private var storage: Array[Array[Byte]] =
     if initialLimit > 0 then
       var emptyCount = 0
-      aFor(existing){ (ai, _) => if ai.length == 0 then emptyCount += 1 }
+      existing.peek(){ ai => if ai.length == 0 then emptyCount += 1 }
       val a = new Array[Array[Byte]](existing.length - emptyCount)
       var j = 0
-      aFor(existing){ (ai, _) => 
+      existing.peek(){ ai => 
         if ai.length > 0 then
           a(j) = ai
           j += 1
@@ -659,29 +662,29 @@ extends SeekableByteChannel {
         else a.fill(0)
   private def ensureExtraCapacity(m: Int): Unit =
     var needed = (m + index) - allocated
-    if storage.py(-1).length < maxChunkSize then
-      val h = storage.py(-1).length
+    if storage(End).length < maxChunkSize then
+      val h = storage(End).length
       val most = initialLimit + growthLimit - allocated
       val expand: Long = if h < 128 then 256 else if storage.length > 3 then maxChunkSize else 2L*h
       val l = ((most min expand) min maxChunkSize).toInt
       val extra = l - h
       if extra > 0 then
         needed -= extra
-        storage.py(-1) = storage.py(-1).copyToSize(l)
+        storage(End) = storage(End).copyToSize(l)
         allocated += extra
         if iactive >= storage.length then
           if index >= allocated then zero = allocated
           else
-            active = storage.py(-1)
+            active = storage(End)
             zero = allocated - active.length
         else if iactive == storage.length - 1 then
-          active = storage.py(-1)
+          active = storage(End)
     while needed > 0 && allocated < initialLimit + growthLimit do
       val most = initialLimit + growthLimit - allocated
       val expand: Long = if storage.length > 3 then maxChunkSize else if needed < 128 then 256 else 2L*needed
       val l = ((most min expand) min maxChunkSize).toInt
       storage = storage.copyToSize(storage.length + 1)
-      storage.py(-1) = new Array[Byte](l)
+      storage(End) = new Array[Byte](l)
       allocated += l
       needed -= l
       if iactive >= storage.length - 1 then
@@ -751,7 +754,7 @@ extends SeekableByteChannel {
           m -= h
           if h == 0 then m = 0
         n
-  private[this] def readAsMuchAsPossible[T](target: T)(using transfer: CountedTransfer[Array[Byte], T]): Long =
+  private def readAsMuchAsPossible[T](target: T)(using transfer: CountedTransfer[Array[Byte], T]): Long =
     var n: Long = 0
     var m = 0
     var cycles = 0L

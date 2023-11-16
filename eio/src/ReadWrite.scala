@@ -3,16 +3,19 @@
 
 package kse.eio
 
+
 import java.io._
 import java.nio._
 import java.nio.channels._
 import java.nio.file._
 
 import scala.annotation.targetName
+import scala.language.experimental.relaxedExtensionImports
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
+
 
 trait Send[A, -B] {
   inline final def apply(in: A, out: B): Long Or Err = limited(Long.MaxValue)(in, out)

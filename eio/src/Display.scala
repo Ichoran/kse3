@@ -3,7 +3,10 @@
 
 package kse.eio
 
+
 import java.lang.{StringBuilder => StB}
+
+import scala.language.experimental.relaxedExtensionImports
 
 import scala.util.{Try, Success, Failure, boundary}
 
@@ -450,7 +453,7 @@ object Display {
         else target append "[\u2026]"
       else
         attempt:
-          aFor(a){ (b, _) =>
+          a.peek(){ b =>
             target append ' '
             ensure(target.length < m-1)
             spaci = target.length
@@ -565,8 +568,8 @@ object Display {
     def appendImpl(target: StB, a: Mu[A], space: Int, flags: Flags): Display.Info =
       disp.appendImpl(target, a.value, space, flags)
 
-  given defaultAnonDisplay: Display[Anon[_]] with
-    def appendImpl(target: StB, a: Anon[_], space: Int, flags: Flags): Display.Info =
+  given defaultAnonDisplay: Display[Anon[?]] with
+    def appendImpl(target: StB, a: Anon[?], space: Int, flags: Flags): Display.Info =
       if space < 3 then target append '\u2026'
       else target append "..."
       Info.align(Alignment.left)
@@ -576,8 +579,8 @@ object Display {
     def appendImpl(target: StB, a: Identity[A], space: Int, flags: Flags): Display.Info =
       disp.appendImpl(target, a.value, space, flags)
 
-  given defaultLazyDisplay: Display[Lazy[_]] with
-    def appendImpl(target: StB, a: Lazy[_], space: Int, flags: Flags): Display.Info =
+  given defaultLazyDisplay: Display[Lazy[?]] with
+    def appendImpl(target: StB, a: Lazy[?], space: Int, flags: Flags): Display.Info =
       if space < 5 then target append '\u2026'
       else target append "(lazy)"
       Info.align(Alignment.none)
@@ -594,9 +597,9 @@ object Display {
           Info.align(Alignment.none)
       }
 
-  given defaultSoftDisplay[A](using disp: Display[A]): Display[Soft[_, A]] with
+  given defaultSoftDisplay[A](using disp: Display[A]): Display[Soft[?, A]] with
     override protected def nesting = disp.nesting
-    def appendImpl(target: StB, a: Soft[_, A], space: Int, flags: Flags): Display.Info =
+    def appendImpl(target: StB, a: Soft[?, A], space: Int, flags: Flags): Display.Info =
       a.valueOrUnit.fold{
         x => disp.appendImpl(target, x, space, flags)
       }{

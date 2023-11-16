@@ -7,6 +7,7 @@ package kse.maths
 import java.lang.{Math => jm}
 
 import scala.annotation.targetName
+import scala.language.experimental.relaxedExtensionImports
 
 
 object NumericConstants {

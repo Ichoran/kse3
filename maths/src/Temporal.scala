@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
+import scala.language.experimental.relaxedExtensionImports
 
 import kse.maths._
 
@@ -760,7 +761,7 @@ object DurationCompanion {
   val MinLongMillis: Duration = Duration.ofSeconds(-9223372036854775L,-808000000)
 
   /*
-  private[this] def robustFileTimeFrom(a: Long, scale: Long, bs: Long, bn: Int, sub: Boolean, sig: Int): FileTime =
+  private def robustFileTimeFrom(a: Long, scale: Long, bs: Long, bn: Int, sub: Boolean, sig: Int): FileTime =
     // Note: as and bs are seconds (any value)
     // an and bn are nanoseconds; the former ranges from -999999999 to 999999999, while the latter is 0 to 999999999
     // The times are interpreted, in nanoseconds, as (xs*1000000000 + xn)
@@ -1894,7 +1895,7 @@ object TemporalCompanion {
     case i: Instant => FileTime.from(i)
     case TimeAndUnit(u, x)   => FileTime.from(x, u)
 
-  private[this] def addInstantGetFileTime(i: Instant, duration: Duration, subtract: Boolean): FileTime =
+  private def addInstantGetFileTime(i: Instant, duration: Duration, subtract: Boolean): FileTime =
     val si = i.getEpochSecond
     var ni = i.getNano.toLong
     val sd = duration.getSeconds
@@ -1923,7 +1924,7 @@ object TemporalCompanion {
       if major < 0 && minor > 0 then major += 1
       FileTime.from(major/30, TimeUnit.MINUTES)
 
-  private[this] def addStuffGetFileTime(x: Long, dx: Long, subtract: Boolean, tu: TimeUnit): FileTime =
+  private def addStuffGetFileTime(x: Long, dx: Long, subtract: Boolean, tu: TimeUnit): FileTime =
     val tv = TimeUnit.values.apply(tu.ordinal + 1)
     val direct = if subtract then x - dx else x + dx
     val clamped = if subtract then x -# dx else x +# dx
@@ -1940,16 +1941,16 @@ object TemporalCompanion {
       if bigs == y then FileTime.from(clamped, tu)
       else              FileTime.from(bigs, tv)
 
-  private[this] def addSecondsGetFileTime(s: Long, dt: Long, subtract: Boolean): FileTime =
+  private def addSecondsGetFileTime(s: Long, dt: Long, subtract: Boolean): FileTime =
     addStuffGetFileTime(s, dt, subtract, TimeUnit.SECONDS)
 
-  private[this] def addMinutesGetFileTime(m: Long, dt: Long, subtract: Boolean): FileTime =
+  private def addMinutesGetFileTime(m: Long, dt: Long, subtract: Boolean): FileTime =
     addStuffGetFileTime(m, dt, subtract, TimeUnit.MINUTES)
 
-  private[this] def addHoursGetFileTime(h: Long, dt: Long, subtract: Boolean): FileTime =
+  private def addHoursGetFileTime(h: Long, dt: Long, subtract: Boolean): FileTime =
     addStuffGetFileTime(h, dt, subtract, TimeUnit.HOURS)
 
-  private[this] def addDaysGetFileTime(d: Long, dt: Long, subtract: Boolean, checked: Boolean) =
+  private def addDaysGetFileTime(d: Long, dt: Long, subtract: Boolean, checked: Boolean) =
     val direct = if subtract then d - dt else d + dt
     val clamped = if subtract then d -# dt else d +# dt
     if clamped == direct || !checked then FileTime.from(clamped, TimeUnit.DAYS)
