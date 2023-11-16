@@ -79,7 +79,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.1.9"
+ivy"com.github.ichoran::kse3-basics:0.2.0"
 ```
 
 and in your code,
@@ -144,7 +144,7 @@ See the test suite for examples of everything you could do.
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.1.9"
+ivy"com.github.ichoran::kse3-flow:0.2.0"
 ```
 
 and in your code,
