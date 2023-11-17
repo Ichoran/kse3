@@ -33,6 +33,7 @@ import sourcecode.{Line, given}
 class EioTest {
   import kse.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
+  import kse.basics.intervals._
   import kse.flow.{given, _}
   import kse.maths.{given, _}
   import kse.maths.packed.{given, _}
@@ -208,19 +209,70 @@ class EioTest {
     T ~ { EioBase64.decodeRangeInto(b.encode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ { EioBase64.decodeInto(b.encode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
-    target.fill(0)
+    target() = 0
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24, 48)(target, 16) ==== 18 --: typed[Int Or Err]
     T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ { EioBase64.decodeInto(b.stringEncode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
 
-    target.fill(0)
+    T ~ EioBase64.encodeUrlRange(b, Iv(15, 22)) =**= clq(b.slice(15, 22).encode64url)
+    T ~ EioBase64.decodeRangeInto(b.encode64url, Iv(24, 48))(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, Iv(64, 88))(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.encode64url, Iv(12, 24)).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+    T ~ EioBase64.decodeRangeInto(b.stringEncode64url, Iv(24, 48))(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, Iv(64, 88))(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.stringEncode64url, Iv(12, 24)).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+
+    T ~ EioBase64.encodeUrlRange(b, 15 to 21) =**= clq(b.slice(15, 22).encode64url)
+    T ~ EioBase64.decodeRangeInto(b.encode64url, 24 to 47)(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to 87)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.encode64url, 12 to 23).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+    T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24 to 47)(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to 87)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.stringEncode64url, 12 to 23).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+
+    T ~ EioBase64.encodeUrlRange(b, 15 to End-234) =**= clq(b.slice(15, 22).encode64url)
+    T ~ EioBase64.decodeRangeInto(b.encode64url, 24 to End-296)(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to End-256)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.encode64url, 12 to End-320).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+    T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24 to End-296)(target, 16) ==== 18 --: typed[Int Or Err]
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to End-256)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ EioBase64.decodeRange(b.stringEncode64url, 12 to End-320).get =**= b.encode64url.slice(12, 24).decode64.get
+    target() = 0
+
     T ~ EioBase85.encodeZmqRange(b, 83, 99) =**= b.slice(83, 99).encode85zmq
     T ~ EioBase85.encodeAsciiRange(b, 83, 99) =**= b.slice(83, 99).encode85ascii
     T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!", 6, 16).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
     T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!".bytes, 6, 16).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
     T ~ EioBase85.decodeAsciiRange(b.encode85ascii, 90, 105).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
     T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, 90, 105).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+
+    T ~ EioBase85.encodeZmqRange(b, Iv(83, 99)) =**= b.slice(83, 99).encode85zmq
+    T ~ EioBase85.encodeAsciiRange(b, Iv(83, 99)) =**= b.slice(83, 99).encode85ascii
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!", Iv(6, 16)).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!".bytes, Iv(6, 16)).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeAsciiRange(b.encode85ascii, Iv(90, 105)).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+    T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, Iv(90, 105)).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+
+    T ~ EioBase85.encodeZmqRange(b, 83 to 98) =**= b.slice(83, 99).encode85zmq
+    T ~ EioBase85.encodeAsciiRange(b, 83 to 98) =**= b.slice(83, 99).encode85ascii
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!", 6 until 16).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!".bytes, 6 until 16).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeAsciiRange(b.encode85ascii, 90 to 104).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+    T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, 90 to 104).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+
+    T ~ EioBase85.encodeZmqRange(b, 83 to End-157) =**= b.slice(83, 99).encode85zmq
+    T ~ EioBase85.encodeAsciiRange(b, 83 to End-157) =**= b.slice(83, 99).encode85ascii
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!", 6 to End-8).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeZmqRange("Well, HelloWorld to you!".bytes, 6 to End-8).get =**= Array(0x86, 0x4F, 0xD2, 0x6F, 0xB5, 0x59, 0xF7, 0x5B).map(_.toByte)
+    T ~ EioBase85.decodeAsciiRange(b.encode85ascii, 90 to End-215).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
+    T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, 90 to End-215).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
 
     val zok = new ZipEntry("all/fine/here.txt")
     val zwin = new ZipEntry("bad\\win\\name.txt")

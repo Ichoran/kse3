@@ -16,8 +16,10 @@ import scala.collection.mutable.Builder
 import scala.util.boundary
 import scala.annotation.targetName
 import scala.collection.{ IterableOnce => IOnce }
+import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}
+import kse.basics.intervals._
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
@@ -70,7 +72,7 @@ class Xsv private (
   // If the transition is to Tn or Tr, visitor will receive a newline call.
   // Assumes 0 <= i0 <= iN <= data.length, and Sp state on entry.
   private transparent inline def skipSpaceImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
-    data: T, inline lookup: (T, Int) => C, i0: Int, iN: Int, visitor: Xsv.Visitor[T, _]
+    data: T, inline lookup: (T, Int) => C, i0: Int, iN: Int, visitor: Xsv.Visitor[T, ?]
   ): Unit Or Err =
     Or.Ret:
       var i = i0
@@ -98,10 +100,10 @@ class Xsv private (
       index = i
       Is.unit
 
-  private def skipSpace[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], _]): Unit Or Err =
+  private def skipSpace[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], ?]): Unit Or Err =
     skipSpaceImpl[Array[Byte], U, Byte](data, (a, i) => a(i), i0, iN, visitor)
 
-  private def skipSpace[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, _]): Unit Or Err =
+  private def skipSpace[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, ?]): Unit Or Err =
     skipSpaceImpl[String, U, Char](data, (s, i) => s.charAt(i), i0, iN, visitor)
 
   // Loads quoted input into a visitor.
@@ -347,6 +349,13 @@ class Xsv private (
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
+  inline def visit[U](content: Array[Byte], inline rg: Rg, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+    val iv = Iv of rg
+    visit(content, iv.i0, iv.iN, visitor)
+  inline def visit[U](content: Array[Byte], inline v: Iv | PIv, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+    val iv = Iv.of(v, content)
+    visit(content, iv.i0, iv.iN, visitor)
+
   @targetName("visitByteArrays")
   def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
     Or.FlatRet:
@@ -404,6 +413,13 @@ class Xsv private (
     val jN = (iN min content.length) max j0
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
+
+  inline def visit[U](content: String, inline rg: Rg, visitor: Xsv.Visitor[String, U]): U Or Err =
+    val iv = Iv of rg
+    visit(content, iv.i0, iv.iN, visitor)
+  inline def visit[U](content: String, inline v: Iv | PIv, visitor: Xsv.Visitor[String, U]): U Or Err =
+    val iv = Iv.of(v, content)
+    visit(content, iv.i0, iv.iN, visitor)
 
   @targetName("visitStrings")
   def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): U Or Err =

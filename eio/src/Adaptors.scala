@@ -13,7 +13,10 @@ import java.util.Base64
 
 import scala.language.experimental.relaxedExtensionImports
 
+import scala.collection.immutable.{Range => Rg}
+
 import kse.basics.{given, _}
+import kse.basics.intervals.{Iv, PIv}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
@@ -85,6 +88,18 @@ object EioBase64 {
         a(j+1) = encode64urlTable((chunk >>> 12) & 0x3F)
         a(j+2) = encode64urlTable((chunk >>>  6) & 0x3F)
     a
+  inline def encodeUrlRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
+    val iv = Iv of rg
+    encodeUrlRange(raw, iv.i0, iv.iN)
+  inline def encodeUrlRange(raw: Array[Byte], inline rg: Rg, lineLength: Int): Array[Byte] =
+    val iv = Iv of rg
+    encodeUrlRange(raw, iv.i0, iv.iN, lineLength)
+  inline def encodeUrlRange(raw: Array[Byte], inline v: Iv | PIv): Array[Byte] =
+    val iv = Iv.of(v, raw)
+    encodeUrlRange(raw, iv.i0, iv.iN)
+  inline def encodeUrlRange(raw: Array[Byte], inline v: Iv | PIv, lineLength: Int): Array[Byte] =
+    val iv = Iv.of(v, raw)
+    encodeUrlRange(raw, iv.i0, iv.iN, lineLength)
 
   def encodeUrl(raw: Array[Byte], lineLength: Int = Int.MaxValue): Array[Byte] =
     encodeUrlRange(raw, 0, raw.length, lineLength)
@@ -129,15 +144,37 @@ object EioBase64 {
         j += 1
     if bits != 0 then Err.break(s"Trailing bits: ${if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString}; Base64 data must be incomplete")
     j - index
+  inline def decodeRangeInto(encoded: Array[Byte], i0: Int, iN: Int)(target: Array[Byte]): Int Or Err =
+    decodeRangeInto(encoded, i0, iN)(target, 0)
+  inline def decodeRangeInto(encoded: Array[Byte], inline rg: Rg)(target: Array[Byte], index: Int): Int Or Err =
+    val iv = Iv of rg
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
+  inline def decodeRangeInto(encoded: Array[Byte], inline v: Iv | PIv)(target: Array[Byte], index: Int): Int Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
+  inline def decodeRangeInto(encoded: Array[Byte], inline rg: Rg)(target: Array[Byte]): Int Or Err =
+    val iv = Iv of rg
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
+  inline def decodeRangeInto(encoded: Array[Byte], inline v: Iv | PIv)(target: Array[Byte]): Int Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
 
   def decodeInto(encoded: Array[Byte])(target: Array[Byte], index: Int): Int Or Err =
     decodeRangeInto(encoded, 0, encoded.length)(target, index)
+  inline def decodeInto(encoded: Array[Byte])(target: Array[Byte]): Int Or Err =
+    decodeInto(encoded)(target, 0)
 
   def decodeRange(encoded: Array[Byte], i0: Int, iN: Int): Array[Byte] Or Err =
     if i0 < 0 || iN > encoded.length then Err.or(s"Base64 decode range $i0 until $iN not within array of length ${encoded.length}")
     else
       val a = new Array[Byte]((((iN - i0).toLong*3 + 2) / 4).toInt)
       decodeRangeInto(encoded, i0, iN)(a, 0).map(i => a.shrinkCopy(i))
+  inline def decodeRange(encoded: Array[Byte], inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange(encoded: Array[Byte], inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRange(encoded, iv.i0, iv.iN)
 
   def decode(encoded: Array[Byte]): Array[Byte] Or Err =
     val a = new Array[Byte](((encoded.length.toLong*3 + 2)/4).toInt)
@@ -180,15 +217,37 @@ object EioBase64 {
         j += 1
     if bits != 0 then Err.break(s"Trailing bits: ${if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString}; Base64 data must be incomplete")
     j - index
+  inline def decodeRangeInto(encoded: String, i0: Int, iN: Int)(target: Array[Byte]): Int Or Err =
+    decodeRangeInto(encoded, i0, iN)(target, 0)
+  inline def decodeRangeInto(encoded: String, inline rg: Rg)(target: Array[Byte], index: Int): Int Or Err =
+    val iv = Iv of rg
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
+  inline def decodeRangeInto(encoded: String, inline v: Iv | PIv)(target: Array[Byte], index: Int): Int Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
+  inline def decodeRangeInto(encoded: String, inline rg: Rg)(target: Array[Byte]): Int Or Err =
+    val iv = Iv of rg
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
+  inline def decodeRangeInto(encoded: String, inline v: Iv | PIv)(target: Array[Byte]): Int Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
 
   def decodeInto(encoded: String)(target: Array[Byte], index: Int): Int Or Err =
     decodeRangeInto(encoded, 0, encoded.length)(target, index)
+  inline def decodeInto(encoded: String)(target: Array[Byte]): Int Or Err =
+    decodeInto(encoded)(target, 0)
 
   def decodeRange(encoded: String, i0: Int, iN: Int): Array[Byte] Or Err =
     if i0 < 0 || iN > encoded.length then Err.or(s"Base64 decode range $i0 until $iN not within string of length ${encoded.length}")
     else
       val a = new Array[Byte]((((iN - i0).toLong*3) / 4).toInt)
       decodeRangeInto(encoded, i0, iN)(a, 0).map(i => a.shrinkCopy(i))
+  inline def decodeRange(encoded: String, inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange(encoded: String, inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeRange(encoded, iv.i0, iv.iN)
 
   def decode(encoded: String): Array[Byte] Or Err =
     val a = new Array[Byte](((encoded.length.toLong*3)/4).toInt)
@@ -283,6 +342,12 @@ object EioBase85 {
     result
 
   def encodeZmqRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeZmqTable)
+  inline def encodeZmqRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
+    val iv = Iv of rg
+    encodeZmqRange(raw, iv.i0, iv.iN)
+  inline def encodeZmqRange(raw: Array[Byte], inline v: Iv | PIv): Array[Byte] =
+    val iv = Iv.of(v, raw)
+    encodeZmqRange(raw, iv.i0, iv.iN)
 
   def encodeZmq(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeZmqTable)
 
@@ -291,6 +356,12 @@ object EioBase85 {
   def stringEncodeZmq(raw: Array[Byte]): String = new String(encodeZmq(raw), ISO_8859_1)
 
   def encodeAsciiRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeAsciiTable)
+  inline def encodeAsciiRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
+    val iv = Iv of rg
+    encodeAsciiRange(raw, iv.i0, iv.iN)
+  inline def encodeAsciiRange(raw: Array[Byte], inline v: Iv | PIv): Array[Byte] =
+    val iv = Iv.of(v, raw)
+    encodeAsciiRange(raw, iv.i0, iv.iN)
 
   def encodeAscii(raw: Array[Byte]): Array[Byte] =
     inline def table(i: Int) = (i + 33).toByte
@@ -393,8 +464,20 @@ object EioBase85 {
     a.shrinkCopy(j)
 
   def decodeZmqRange(encoded: Array[Byte], i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
+  inline def decodeZmqRange(encoded: Array[Byte], inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeZmqRange(encoded, iv.i0, iv.iN)
+  inline def decodeZmqRange(encoded: Array[Byte], inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeZmqRange(encoded, iv.i0, iv.iN)
 
   def decodeAsciiRange(encoded: Array[Byte], i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
+  inline def decodeAsciiRange(encoded: Array[Byte], inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeAsciiRange(encoded, iv.i0, iv.iN)
+  inline def decodeAsciiRange(encoded: Array[Byte], inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeAsciiRange(encoded, iv.i0, iv.iN)
 
   def decodeZmq(encoded: Array[Byte]): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
@@ -452,8 +535,20 @@ object EioBase85 {
     a.shrinkCopy(j)
 
   def decodeZmqRange(encoded: String, i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
+  inline def decodeZmqRange(encoded: String, inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeZmqRange(encoded, iv.i0, iv.iN)
+  inline def decodeZmqRange(encoded: String, inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeZmqRange(encoded, iv.i0, iv.iN)
 
   def decodeAsciiRange(encoded: String, i0: Int, iN: Int): Array[Byte] Or Err = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
+  inline def decodeAsciiRange(encoded: String, inline rg: Rg): Array[Byte] Or Err =
+    val iv = Iv of rg
+    decodeAsciiRange(encoded, iv.i0, iv.iN)
+  inline def decodeAsciiRange(encoded: String, inline v: Iv | PIv): Array[Byte] Or Err =
+    val iv = Iv.of(v, encoded)
+    decodeAsciiRange(encoded, iv.i0, iv.iN)
 
   def decodeZmq(encoded: String): Array[Byte] Or Err = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
