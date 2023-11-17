@@ -1068,6 +1068,12 @@ class EioTest {
     T ~ each(text      ) ==== same( wanted                       )
     T ~ Xsv.comma.visit(text, 4, 22, Xsv.Visitor.onString()).fn(lls) ==== List(List("t's", "me"), List("everyone "))
     T ~ Xsv.comma.visit(bint, 4, 22, Xsv.Visitor.onBytes() ).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(text, Iv(4, 22), Xsv.Visitor.onString()).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(bint, Iv(4, 22), Xsv.Visitor.onBytes() ).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(text, 4 to 21, Xsv.Visitor.onString()).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(bint, 4 to 21, Xsv.Visitor.onBytes() ).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(text, 4 to End-(text.length-22), Xsv.Visitor.onString()).fn(lls) ==== List(List("t's", "me"), List("everyone "))
+    T ~ Xsv.comma.visit(bint, 4 to End-(bint.length-22), Xsv.Visitor.onBytes() ).fn(lls) ==== List(List("t's", "me"), List("everyone "))
     T ~ Xsv.comma    .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(" \t", ";"), List(";", "\t "))
     T ~ Xsv.tab      .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(" ", ",;"), List(";,", " "))
     T ~ Xsv.space    .decode(" \t,;\n;,\t ").fn(lls) ==== List(List("", "\t,;"), List(";,\t", ""))
@@ -1080,7 +1086,6 @@ class EioTest {
     T ~ Xsv.create('e').get.decode(texe).fn(lls) ==== List(List("hi,it's,m", ""), List("everyone \"agrees\""), List("it's me"), List("don't you s", "", ""))
     T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
     T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
-}
 object EioTest {
   import kse.basics.{given, _}
   import kse.flow.{given, _}
