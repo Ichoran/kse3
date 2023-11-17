@@ -497,6 +497,14 @@ class BasicsTest {
     T ~ (End+1).asEndpointOf("salmon") ==== 7
     T ~ (End+1).asEndpointOf(ix)       ==== 6
 
+    T ~ 3.arrayed[Int]()                                          =**= Array(0, 0, 0)
+    T ~ 3.arrayed[Int]()                                          ==== typed[Array[Int]]
+    T ~ 3.arrayed(i => i+1)                                       =**= Array(1, 2, 3)
+    T ~ 3.arrayed(i => i+1)                                       ==== typed[Array[Int]]
+    T ~ 3.arrayedBreakably{ i => shortcut.skipIf(i%2 != 0); i+1 } =**= Array(1, 0, 3)
+    T ~ 3.arrayedBreakably{ i => shortcut.quitIf(i%2 != 0); i+1 } =**= Array(1, 0, 0)
+    T ~ 3.arrayedBreakably(i => i+1)                              ==== typed[Array[Int]]
+
     T ~ z{ car.peek()(cuml += _.n) }.cs       ==== str
     T ~ cuml                                  ==== str.map(_.toInt).sum
     T ~ z{ oar.peek()(cuml += _.n) }.os       ==== str

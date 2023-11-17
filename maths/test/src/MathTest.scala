@@ -28,6 +28,7 @@ class MathTest {
 
   import kse.testutilities.TestUtilities.{_, given}
   import kse.basics.{given, _}
+  import kse.basics.intervals.{Iv, PIv}
   import kse.flow.{_, given}
   import kse.maths.{_, given}
   import kse.maths.packed.{_, given}
@@ -110,7 +111,7 @@ class MathTest {
       val i = rng % zs1.length
       val j = i + (rng % (zs1.length - i))
       r2 = rng.copy
-      rng.fillRangeZ(zs1, i, j)
+      rng.fillRangeZ(zs1)(i, j)
       for k <- i until j do
         zs2(k) = r2.Z
       T(title) ~ zs1 =**= zs2
@@ -123,7 +124,7 @@ class MathTest {
       val i = rng % bs1.length
       val j = i + (rng % (bs1.length - i))
       r2 = rng.copy
-      rng.fillRangeB(bs1, i, j)
+      rng.fillRangeB(bs1)(i, j)
       for k <- i until j do
         bs2(k) = r2.B
       T(title) ~ bs1 =**= bs2
@@ -136,7 +137,7 @@ class MathTest {
       val i = rng % ss1.length
       val j = i + (rng % (ss1.length - i))
       r2 = rng.copy
-      rng.fillRangeS(ss1, i, j)
+      rng.fillRangeS(ss1)(i, j)
       for k <- i until j do
         ss2(k) = r2.S
       T(title) ~ ss1 =**= ss2
@@ -149,7 +150,7 @@ class MathTest {
       val i = rng % cs1.length
       val j = i + (rng % (cs1.length - i))
       r2 = rng.copy
-      rng.fillRangeC(cs1, i, j)
+      rng.fillRangeC(cs1)(i, j)
       for k <- i until j do
         cs2(k) = r2.C
       T(title) ~ cs1 =**= cs2
@@ -162,7 +163,7 @@ class MathTest {
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
       r2 = rng.copy
-      rng.fillRangeI(is1, i, j)
+      rng.fillRangeI(is1)(i, j)
       for k <- i until j do
         is2(k) = r2.I
       T(title) ~ is1 =**= is2
@@ -175,7 +176,7 @@ class MathTest {
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
       r2 = rng.copy
-      rng.fillRangeL(ls1, i, j)
+      rng.fillRangeL(ls1)(i, j)
       for k <- i until j do
         ls2(k) = r2.L
       T(title) ~ ls1 =**= ls2
@@ -188,7 +189,7 @@ class MathTest {
       val i = rng % fs1.length
       val j = i + (rng % (fs1.length - i))
       r2 = rng.copy
-      rng.fillRangeF(fs1, i, j)
+      rng.fillRangeF(fs1)(i, j)
       for k <- i until j do
         fs2(k) = r2.F
       T(title) ~ fs1 =**= fs2
@@ -201,7 +202,7 @@ class MathTest {
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
       r2 = rng.copy
-      rng.fillRangeD(ds1, i, j)
+      rng.fillRangeD(ds1)(i, j)
       for k <- i until j do
         ds2(k) = r2.D
       T(title) ~ ds1 =**= ds2
@@ -212,7 +213,7 @@ class MathTest {
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
       r2 = rng.copy
-      rng.fillRangeModI(43)(is1, i, j)
+      rng.fillRangeModI(43)(is1)(i, j)
       for k <- i until j do
         is2(k) = r2 % 43
       T(title) ~ is1 =**= is2
@@ -223,7 +224,7 @@ class MathTest {
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
       r2 = rng.copy
-      rng.fillRangeModL(43L)(ls1, i, j)
+      rng.fillRangeModL(43L)(ls1)(i, j)
       for k <- i until j do
         ls2(k) = r2 % 43L
       T(title) ~ ls1 =**= ls2
@@ -234,7 +235,7 @@ class MathTest {
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
       r2 = rng.copy
-      rng.fillRangeGaussian(ds1, i, j)
+      rng.fillRangeGaussian(ds1)(i, j)
       for k <- i until j do
         ds2(k) = r2.gaussian
       T(title) ~ ds1 =**= ds2
@@ -257,8 +258,8 @@ class MathTest {
       val i = rng % zs1.length
       val j = i + (rng % (zs1.length - i))
       r2 = rng.copy
-      System.arraycopy(zs1, 0, zs2, 0, zs1.length)
-      rng.shuffleRange(zs1, i, j)
+      zs2() = zs1
+      rng.shuffleRange(zs1)(i, j)
       T(title) ~ zs1.slice(i, j).sorted =**= zs2.slice(i, j).sorted
     }
 
@@ -267,8 +268,8 @@ class MathTest {
       val i = rng % bs1.length
       val j = i + (rng % (bs1.length - i))
       r2 = rng.copy
-      System.arraycopy(bs1, 0, bs2, 0, bs1.length)
-      rng.shuffleRange(bs1, i, j)
+      bs2() = bs1
+      rng.shuffleRange(bs1)(i, j)
       T(title) ~ bs1.slice(i, j).sorted =**= bs2.slice(i, j).sorted
     }
 
@@ -277,8 +278,8 @@ class MathTest {
       val i = rng % ss1.length
       val j = i + (rng % (ss1.length - i))
       r2 = rng.copy
-      System.arraycopy(ss1, 0, ss2, 0, ss1.length)
-      rng.shuffleRange(ss1, i, j)
+      ss2() = ss1
+      rng.shuffleRange(ss1)(i, j)
       T(title) ~ ss1.slice(i, j).sorted =**= ss2.slice(i, j).sorted
     }
 
@@ -287,8 +288,8 @@ class MathTest {
       val i = rng % cs1.length
       val j = i + (rng % (cs1.length - i))
       r2 = rng.copy
-      System.arraycopy(cs1, 0, cs2, 0, cs1.length)
-      rng.shuffleRange(cs1, i, j)
+      cs2() = cs1
+      rng.shuffleRange(cs1)(i, j)
       T(title) ~ cs1.slice(i, j).sorted =**= cs2.slice(i, j).sorted
     }
 
@@ -297,8 +298,8 @@ class MathTest {
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
       r2 = rng.copy
-      System.arraycopy(is1, 0, is2, 0, is1.length)
-      rng.shuffleRange(is1, i, j)
+      is2() = is1
+      rng.shuffleRange(is1)(i, j)
       T(title) ~ is1.slice(i, j).sorted =**= is2.slice(i, j).sorted
     }
 
@@ -307,8 +308,8 @@ class MathTest {
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
       r2 = rng.copy
-      System.arraycopy(ls1, 0, ls2, 0, ls1.length)
-      rng.shuffleRange(ls1, i, j)
+      ls2() = ls1
+      rng.shuffleRange(ls1)(i, j)
       T(title) ~ ls1.slice(i, j).sorted =**= ls2.slice(i, j).sorted
     }
 
@@ -317,8 +318,8 @@ class MathTest {
       val i = rng % fs1.length
       val j = i + (rng % (fs1.length - i))
       r2 = rng.copy
-      System.arraycopy(fs1, 0, fs2, 0, fs1.length)
-      rng.shuffleRange(fs1, i, j)
+      fs2() = fs1
+      rng.shuffleRange(fs1)(i, j)
       T(title) ~ fs1.slice(i, j).sorted =**= fs2.slice(i, j).sorted
     }
 
@@ -327,8 +328,8 @@ class MathTest {
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
       r2 = rng.copy
-      System.arraycopy(ds1, 0, ds2, 0, ds1.length)
-      rng.shuffleRange(ds1, i, j)
+      ds2() = ds1
+      rng.shuffleRange(ds1)(i, j)
       T(title) ~ ds1.slice(i, j).sorted =**= ds2.slice(i, j).sorted
     }
 
@@ -339,9 +340,21 @@ class MathTest {
       val i = rng % as1.length
       val j = i + (rng % (as1.length - i))
       r2 = rng.copy
-      System.arraycopy(as1, 0, as2, 0, as1.length)
-      rng.shuffleRange(as1, i, j)
+      as2() = as1
+      rng.shuffleRange(as1)(i, j)
       T(title) ~ as1.slice(i, j).sorted =**= as2.slice(i, j).sorted
+    }
+
+    val us1 = ds1.map(d => if d >= 0 then (d+1).toUInt else 0.u)
+    val us2 = us1.dup()
+    nFor(20){ n =>
+      val title = s"$name iter $n"
+      val i = rng % as1.length
+      val j = i + (rng % (as1.length - i))
+      r2 = rng.copy
+      us2() = us1
+      rng.shuffleRange(us1)(i, j)
+      T(title) ~ us1.slice(i, j).sortWith((a, b) => a < b) =**= us2.slice(i, j).sortWith((a, b) => a < b)
     }
 
     T(name) ~ { rng.shuffle(zs1); zs1.sorted } =**= zs2.sorted
@@ -353,6 +366,7 @@ class MathTest {
     T(name) ~ { rng.shuffle(fs1); fs1.sorted } =**= fs2.sorted
     T(name) ~ { rng.shuffle(ds1); ds1.sorted } =**= ds2.sorted
     T(name) ~ { rng.shuffle(as1); as1.sorted } =**= as2.sorted
+    T(name) ~ { rng.shuffle(us1); us1.sorted } =**= us2.sorted
 
     for i <- 0 until rng.stateLength do
       r2.setState(i)(rng.getState(i))
@@ -375,141 +389,149 @@ class MathTest {
       val j = i + (rng % (as1.length - i))
       r2 = rng.copy
 
-      System.arraycopy(zs1, 0, zs2, 0, zs1.length)
-      rng.shuffleRange(zs1, i, j)
+      zs2() = zs1
+      rng.shuffleRange(zs1)(i, j)
       zs2.shuffle(i, j)(r2)
       T(title) ~ zs1 =**= zs2
       rng.shuffle(zs1)
-      zs2.shuffle(r2)
+      zs2.shuffle()(r2)
       T(title) ~ zs1 =**= zs2
-      rng.fillRangeZ(zs1, i, j)
+      rng.fillRangeZ(zs1)(i, j)
       zs2.randomFill(i, j)(r2)
       T(title) ~ zs1 =**= zs2
       rng.fillZ(zs1)
       zs2.randomFill(r2)
       T(title) ~ zs1 =**= zs2
 
-      System.arraycopy(bs1, 0, bs2, 0, bs1.length)
-      rng.shuffleRange(bs1, i, j)
+      bs2() = bs1
+      rng.shuffleRange(bs1)(i, j)
       bs2.shuffle(i, j)(r2)
       T(title) ~ bs1 =**= bs2
       rng.shuffle(bs1)
-      bs2.shuffle(r2)
+      bs2.shuffle()(r2)
       T(title) ~ bs1 =**= bs2
-      rng.fillRangeB(bs1, i, j)
+      rng.fillRangeB(bs1)(i, j)
       bs2.randomFill(i, j)(r2)
       T(title) ~ bs1 =**= bs2
       rng.fillB(bs1)
       bs2.randomFill(r2)
       T(title) ~ bs1 =**= bs2
 
-      System.arraycopy(ss1, 0, ss2, 0, ss1.length)
-      rng.shuffleRange(ss1, i, j)
+      ss2() = ss1
+      rng.shuffleRange(ss1)(i, j)
       ss2.shuffle(i, j)(r2)
       T(title) ~ ss1 =**= ss2
       rng.shuffle(ss1)
-      ss2.shuffle(r2)
+      ss2.shuffle()(r2)
       T(title) ~ ss1 =**= ss2
-      rng.fillRangeS(ss1, i, j)
+      rng.fillRangeS(ss1)(i, j)
       ss2.randomFill(i, j)(r2)
       T(title) ~ ss1 =**= ss2
       rng.fillS(ss1)
       ss2.randomFill(r2)
       T(title) ~ ss1 =**= ss2
 
-      System.arraycopy(cs1, 0, cs2, 0, cs1.length)
-      rng.shuffleRange(cs1, i, j)
+      cs2() = cs1
+      rng.shuffleRange(cs1)(i, j)
       cs2.shuffle(i, j)(r2)
       T(title) ~ cs1 =**= cs2
       rng.shuffle(cs1)
-      cs2.shuffle(r2)
+      cs2.shuffle()(r2)
       T(title) ~ cs1 =**= cs2
-      rng.fillRangeC(cs1, i, j)
+      rng.fillRangeC(cs1)(i, j)
       cs2.randomFill(i, j)(r2)
       T(title) ~ cs1 =**= cs2
       rng.fillC(cs1)
       cs2.randomFill(r2)
       T(title) ~ cs1 =**= cs2
 
-      System.arraycopy(is1, 0, is2, 0, is1.length)
-      rng.shuffleRange(is1, i, j)
+      is2() = is1
+      rng.shuffleRange(is1)(i, j)
       is2.shuffle(i, j)(r2)
       T(title) ~ is1 =**= is2
       rng.shuffle(is1)
-      is2.shuffle(r2)
+      is2.shuffle()(r2)
       T(title) ~ is1 =**= is2
-      rng.fillRangeI(is1, i, j)
+      rng.fillRangeI(is1)(i, j)
       is2.randomFill(i, j)(r2)
       T(title) ~ is1 =**= is2
       rng.fillI(is1)
       is2.randomFill(r2)
       T(title) ~ is1 =**= is2
 
-      System.arraycopy(ls1, 0, ls2, 0, ls1.length)
-      rng.shuffleRange(ls1, i, j)
+      ls2() = ls1
+      rng.shuffleRange(ls1)(i, j)
       ls2.shuffle(i, j)(r2)
       T(title) ~ ls1 =**= ls2
       rng.shuffle(ls1)
-      ls2.shuffle(r2)
+      ls2.shuffle()(r2)
       T(title) ~ ls1 =**= ls2
-      rng.fillRangeL(ls1, i, j)
+      rng.fillRangeL(ls1)(i, j)
       ls2.randomFill(i, j)(r2)
       T(title) ~ ls1 =**= ls2
       rng.fillL(ls1)
       ls2.randomFill(r2)
       T(title) ~ ls1 =**= ls2
 
-      System.arraycopy(fs1, 0, fs2, 0, fs1.length)
-      rng.shuffleRange(fs1, i, j)
+      fs2() = fs1
+      rng.shuffleRange(fs1)(i, j)
       fs2.shuffle(i, j)(r2)
       T(title) ~ fs1 =**= fs2
       rng.shuffle(fs1)
-      fs2.shuffle(r2)
+      fs2.shuffle()(r2)
       T(title) ~ fs1 =**= fs2
-      rng.fillRangeF(fs1, i, j)
+      rng.fillRangeF(fs1)(i, j)
       fs2.randomFill(i, j)(r2)
       T(title) ~ fs1 =**= fs2
       rng.fillF(fs1)
       fs2.randomFill(r2)
       T(title) ~ fs1 =**= fs2
 
-      System.arraycopy(ds1, 0, ds2, 0, ds1.length)
-      rng.shuffleRange(ds1, i, j)
+      ds2() = ds1
+      rng.shuffleRange(ds1)(i, j)
       ds2.shuffle(i, j)(r2)
       T(title) ~ ds1 =**= ds2
       rng.shuffle(ds1)
-      ds2.shuffle(r2)
+      ds2.shuffle()(r2)
       T(title) ~ ds1 =**= ds2
-      rng.fillRangeD(ds1, i, j)
+      rng.fillRangeD(ds1)(i, j)
       ds2.randomFill(i, j)(r2)
       T(title) ~ ds1 =**= ds2
       rng.fillD(ds1)
       ds2.randomFill(r2)
       T(title) ~ ds1 =**= ds2
 
-      System.arraycopy(as1, 0, as2, 0, as1.length)
-      rng.shuffleRange(as1, i, j)
+      as2() = as1
+      rng.shuffleRange(as1)(i, j)
       as2.shuffle(i, j)(r2)
       T(title) ~ as1 =**= as2
       rng.shuffle(as1)
-      as2.shuffle(r2)
+      as2.shuffle()(r2)
       T(title) ~ as1 =**= as2
 
-      rng.fillRangeModI(43)(is1, i, j)
+      us2() = us1
+      rng.shuffleRange(us1)(i, j)
+      us2.shuffle(i, j)(r2)
+      T(title) ~ us1 =**= us2
+      rng.shuffle(us1)
+      us2.shuffle()(r2)
+      T(title) ~ us1 =**= us2
+
+      rng.fillRangeModI(43)(is1)(i, j)
       is2.randomMod(43)(i, j)(r2)
       T(title) ~ is1 =**= is2
       rng.fillModI(43)(is1)
       is2.randomMod(43)(r2)
       T(title) ~ is1 =**= is2
 
-      rng.fillRangeModL(43)(ls1, i, j)
+      rng.fillRangeModL(43)(ls1)(i, j)
       ls2.randomMod(43)(i, j)(r2)
       T(title) ~ ls1 =**= ls2
       rng.fillModL(43)(ls1)
       ls2.randomMod(43)(r2)
       T(title) ~ ls1 =**= ls2
 
-      rng.fillRangeGaussian(ds1, i, j)
+      rng.fillRangeGaussian(ds1)(i, j)
       ds2.randomGaussian(i, j)(r2)
       T(title) ~ ds1 =**= ds2
       rng.fillGaussian(ds1)
@@ -518,59 +540,133 @@ class MathTest {
     }
 
     {
+      import kse.basics.intervals.Iv
       given AutoPrng = rng.givable
       T(name) ~ 1500 .roll ==== 1 + r2 % 1500
       T(name) ~ 1500L.roll ==== 1 + r2 % 1500L
       T(name) ~ (40 d 100) ==== r2.arrayModI(100)(40).foldLeft(0)(_ + _ + 1)
 
-      T(name) ~ zs1.shuffle          =**= zs2.shuffle(r2)
-      T(name) ~ zs1.shuffle(1, 9)    =**= zs2.shuffle(1, 9)(r2)
-      T(name) ~ zs1.randomFill       =**= zs2.randomFill(r2)
-      T(name) ~ zs1.randomFill(1, 9) =**= zs2.randomFill(1, 9)(r2)
+      val k = End - (zs2.length - 9)
 
-      T(name) ~ bs1.shuffle          =**= bs2.shuffle(r2)
-      T(name) ~ bs1.shuffle(1, 9)    =**= bs2.shuffle(1, 9)(r2)
-      T(name) ~ bs1.randomFill       =**= bs2.randomFill(r2)
-      T(name) ~ bs1.randomFill(1, 9) =**= bs2.randomFill(1, 9)(r2)
+      T(name) ~ zs1.shuffle()            =**= zs2.shuffle()(r2)
+      T(name) ~ zs1.shuffle(1, 9)        =**= zs2.shuffle(1, 9)(r2)
+      T(name) ~ zs1.randomFill           =**= zs2.randomFill(r2)
+      T(name) ~ zs1.randomFill(1, 9)     =**= zs2.randomFill(1, 9)(r2)
+      T(name) ~ zs1.shuffle(1 to 8)      =**= zs2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ zs1.shuffle(Iv(1, 9))    =**= zs2.shuffle(1 to k)(r2)
+      T(name) ~ zs1.shuffle(1 to k)      =**= zs2.shuffle(1 to 8)(r2)
+      T(name) ~ zs1.randomFill(1 to 8)   =**= zs2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ zs1.randomFill(Iv(1, 9)) =**= zs2.randomFill(1 to k)(r2)
+      T(name) ~ zs1.randomFill(1 to k)   =**= zs2.randomFill(1 to 8)(r2)
 
-      T(name) ~ ss1.shuffle          =**= ss2.shuffle(r2)
-      T(name) ~ ss1.shuffle(1, 9)    =**= ss2.shuffle(1, 9)(r2)
-      T(name) ~ ss1.randomFill       =**= ss2.randomFill(r2)
-      T(name) ~ ss1.randomFill(1, 9) =**= ss2.randomFill(1, 9)(r2)
+      T(name) ~ bs1.shuffle()            =**= bs2.shuffle()(r2)
+      T(name) ~ bs1.shuffle(1, 9)        =**= bs2.shuffle(1, 9)(r2)
+      T(name) ~ bs1.randomFill           =**= bs2.randomFill(r2)
+      T(name) ~ bs1.randomFill(1, 9)     =**= bs2.randomFill(1, 9)(r2)
+      T(name) ~ bs1.shuffle(1 to 8)      =**= bs2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ bs1.shuffle(Iv(1, 9))    =**= bs2.shuffle(1 to k)(r2)
+      T(name) ~ bs1.shuffle(1 to k)      =**= bs2.shuffle(1 to 8)(r2)
+      T(name) ~ bs1.randomFill(1 to 8)   =**= bs2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ bs1.randomFill(Iv(1, 9)) =**= bs2.randomFill(1 to k)(r2)
+      T(name) ~ bs1.randomFill(1 to k)   =**= bs2.randomFill(1 to 8)(r2)
 
-      T(name) ~ cs1.shuffle          =**= cs2.shuffle(r2)
-      T(name) ~ cs1.shuffle(1, 9)    =**= cs2.shuffle(1, 9)(r2)
-      T(name) ~ cs1.randomFill       =**= cs2.randomFill(r2)
-      T(name) ~ cs1.randomFill(1, 9) =**= cs2.randomFill(1, 9)(r2)
+      T(name) ~ ss1.shuffle()            =**= ss2.shuffle()(r2)
+      T(name) ~ ss1.shuffle(1, 9)        =**= ss2.shuffle(1, 9)(r2)
+      T(name) ~ ss1.randomFill           =**= ss2.randomFill(r2)
+      T(name) ~ ss1.randomFill(1, 9)     =**= ss2.randomFill(1, 9)(r2)
+      T(name) ~ ss1.shuffle(1 to 8)      =**= ss2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ ss1.shuffle(Iv(1, 9))    =**= ss2.shuffle(1 to k)(r2)
+      T(name) ~ ss1.shuffle(1 to k)      =**= ss2.shuffle(1 to 8)(r2)
+      T(name) ~ ss1.randomFill(1 to 8)   =**= ss2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ ss1.randomFill(Iv(1, 9)) =**= ss2.randomFill(1 to k)(r2)
+      T(name) ~ ss1.randomFill(1 to k)   =**= ss2.randomFill(1 to 8)(r2)
 
-      T(name) ~ is1.shuffle             =**= is2.shuffle(r2)
-      T(name) ~ is1.shuffle(1, 9)       =**= is2.shuffle(1, 9)(r2)
-      T(name) ~ is1.randomFill          =**= is2.randomFill(r2)
-      T(name) ~ is1.randomFill(1, 9)    =**= is2.randomFill(1, 9)(r2)
-      T(name) ~ is1.randomMod(99)       =**= is2.randomMod(99)(r2)
-      T(name) ~ is1.randomMod(99)(2, 8) =**= is2.randomMod(99)(2, 8)(r2)
+      T(name) ~ cs1.shuffle()            =**= cs2.shuffle()(r2)
+      T(name) ~ cs1.shuffle(1, 9)        =**= cs2.shuffle(1, 9)(r2)
+      T(name) ~ cs1.randomFill           =**= cs2.randomFill(r2)
+      T(name) ~ cs1.randomFill(1, 9)     =**= cs2.randomFill(1, 9)(r2)
+      T(name) ~ cs1.shuffle(1 to 8)      =**= cs2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ cs1.shuffle(Iv(1, 9))    =**= cs2.shuffle(1 to k)(r2)
+      T(name) ~ cs1.shuffle(1 to k)      =**= cs2.shuffle(1 to 8)(r2)
+      T(name) ~ cs1.randomFill(1 to 8)   =**= cs2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ cs1.randomFill(Iv(1, 9)) =**= cs2.randomFill(1 to k)(r2)
+      T(name) ~ cs1.randomFill(1 to k)   =**= cs2.randomFill(1 to 8)(r2)
 
-      T(name) ~ ls1.shuffle             =**= ls2.shuffle(r2)
-      T(name) ~ ls1.shuffle(1, 9)       =**= ls2.shuffle(1, 9)(r2)
-      T(name) ~ ls1.randomFill          =**= ls2.randomFill(r2)
-      T(name) ~ ls1.randomFill(1, 9)    =**= ls2.randomFill(1, 9)(r2)
-      T(name) ~ ls1.randomMod(99)       =**= ls2.randomMod(99)(r2)
-      T(name) ~ ls1.randomMod(99)(2, 8) =**= ls2.randomMod(99)(2, 8)(r2)
+      T(name) ~ is1.shuffle()              =**= is2.shuffle()(r2)
+      T(name) ~ is1.shuffle(1, 9)          =**= is2.shuffle(1, 9)(r2)
+      T(name) ~ is1.randomFill             =**= is2.randomFill(r2)
+      T(name) ~ is1.randomFill(1, 9)       =**= is2.randomFill(1, 9)(r2)
+      T(name) ~ is1.randomMod(99)          =**= is2.randomMod(99)(r2)
+      T(name) ~ is1.randomMod(99)(2, 8)    =**= is2.randomMod(99)(2, 8)(r2)
+      T(name) ~ is1.shuffle(1 to 8)        =**= is2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ is1.shuffle(Iv(1, 9))      =**= is2.shuffle(1 to k)(r2)
+      T(name) ~ is1.shuffle(1 to k)        =**= is2.shuffle(1 to 8)(r2)
+      T(name) ~ is1.randomFill(1 to 8)     =**= is2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ is1.randomFill(Iv(1, 9))   =**= is2.randomFill(1 to k)(r2)
+      T(name) ~ is1.randomFill(1 to k)     =**= is2.randomFill(1 to 8)(r2)
+      T(name) ~ is1.randomMod(9)(1 to 8)   =**= is2.randomMod(9)(Iv(1, 9))(r2)
+      T(name) ~ is1.randomMod(9)(Iv(1, 9)) =**= is2.randomMod(9)(1 to k)(r2)
+      T(name) ~ is1.randomMod(9)(1 to k)   =**= is2.randomMod(9)(1 to 8)(r2)
 
-      T(name) ~ fs1.shuffle          =**= fs2.shuffle(r2)
-      T(name) ~ fs1.shuffle(1, 9)    =**= fs2.shuffle(1, 9)(r2)
-      T(name) ~ fs1.randomFill       =**= fs2.randomFill(r2)
-      T(name) ~ fs1.randomFill(1, 9) =**= fs2.randomFill(1, 9)(r2)
+      T(name) ~ ls1.shuffle()              =**= ls2.shuffle()(r2)
+      T(name) ~ ls1.shuffle(1, 9)          =**= ls2.shuffle(1, 9)(r2)
+      T(name) ~ ls1.randomFill             =**= ls2.randomFill(r2)
+      T(name) ~ ls1.randomFill(1, 9)       =**= ls2.randomFill(1, 9)(r2)
+      T(name) ~ ls1.randomMod(99)          =**= ls2.randomMod(99)(r2)
+      T(name) ~ ls1.randomMod(99)(2, 8)    =**= ls2.randomMod(99)(2, 8)(r2)
+      T(name) ~ ls1.shuffle(1 to 8)        =**= ls2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ ls1.shuffle(Iv(1, 9))      =**= ls2.shuffle(1 to k)(r2)
+      T(name) ~ ls1.shuffle(1 to k)        =**= ls2.shuffle(1 to 8)(r2)
+      T(name) ~ ls1.randomFill(1 to 8)     =**= ls2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ ls1.randomFill(Iv(1, 9))   =**= ls2.randomFill(1 to k)(r2)
+      T(name) ~ ls1.randomFill(1 to k)     =**= ls2.randomFill(1 to 8)(r2)
+      T(name) ~ ls1.randomMod(9)(1 to 8)   =**= ls2.randomMod(9)(Iv(1, 9))(r2)
+      T(name) ~ ls1.randomMod(9)(Iv(1, 9)) =**= ls2.randomMod(9)(1 to k)(r2)
+      T(name) ~ ls1.randomMod(9)(1 to k)   =**= ls2.randomMod(9)(1 to 8)(r2)
 
-      T(name) ~ ds1.shuffle              =**= ds2.shuffle(r2)
-      T(name) ~ ds1.shuffle(1, 9)        =**= ds2.shuffle(1, 9)(r2)
-      T(name) ~ ds1.randomFill           =**= ds2.randomFill(r2)
-      T(name) ~ ds1.randomFill(1, 9)     =**= ds2.randomFill(1, 9)(r2)
-      T(name) ~ ds1.randomGaussian       =**= ds2.randomGaussian(r2)
-      T(name) ~ ds1.randomGaussian(2, 8) =**= ds2.randomGaussian(2, 8)(r2)
+      T(name) ~ fs1.shuffle()            =**= fs2.shuffle()(r2)
+      T(name) ~ fs1.shuffle(1, 9)        =**= fs2.shuffle(1, 9)(r2)
+      T(name) ~ fs1.randomFill           =**= fs2.randomFill(r2)
+      T(name) ~ fs1.randomFill(1, 9)     =**= fs2.randomFill(1, 9)(r2)
+      T(name) ~ fs1.shuffle(1 to 8)      =**= fs2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ fs1.shuffle(Iv(1, 9))    =**= fs2.shuffle(1 to k)(r2)
+      T(name) ~ fs1.shuffle(1 to k)      =**= fs2.shuffle(1 to 8)(r2)
+      T(name) ~ fs1.randomFill(1 to 8)   =**= fs2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ fs1.randomFill(Iv(1, 9)) =**= fs2.randomFill(1 to k)(r2)
+      T(name) ~ fs1.randomFill(1 to k)   =**= fs2.randomFill(1 to 8)(r2)
 
-      T(name) ~ as1.shuffle          =**= as2.shuffle(r2)
-      T(name) ~ as1.shuffle(1, 9)    =**= as2.shuffle(1, 9)(r2)
+      T(name) ~ ds1.shuffle()                =**= ds2.shuffle()(r2)
+      T(name) ~ ds1.shuffle(1, 9)            =**= ds2.shuffle(1, 9)(r2)
+      T(name) ~ ds1.randomFill               =**= ds2.randomFill(r2)
+      T(name) ~ ds1.randomFill(1, 9)         =**= ds2.randomFill(1, 9)(r2)
+      T(name) ~ ds1.randomGaussian           =**= ds2.randomGaussian(r2)
+      T(name) ~ ds1.randomGaussian(2, 8)     =**= ds2.randomGaussian(2, 8)(r2)
+      T(name) ~ ds1.shuffle(1 to 8)          =**= ds2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ ds1.shuffle(Iv(1, 9))        =**= ds2.shuffle(1 to k)(r2)
+      T(name) ~ ds1.shuffle(1 to k)          =**= ds2.shuffle(1 to 8)(r2)
+      T(name) ~ ds1.randomFill(1 to 8)       =**= ds2.randomFill(Iv(1, 9))(r2)
+      T(name) ~ ds1.randomFill(Iv(1, 9))     =**= ds2.randomFill(1 to k)(r2)
+      T(name) ~ ds1.randomFill(1 to k)       =**= ds2.randomFill(1 to 8)(r2)
+      T(name) ~ ds1.randomGaussian(1 to 8)   =**= ds2.randomGaussian(Iv(1, 9))(r2)
+      T(name) ~ ds1.randomGaussian(Iv(1, 9)) =**= ds2.randomGaussian(1 to k)(r2)
+      T(name) ~ ds1.randomGaussian(1 to k)   =**= ds2.randomGaussian(1 to 8)(r2)
+
+      T(name) ~ as1.shuffle()         =**= as2.shuffle()(r2)
+      T(name) ~ as1.shuffle(1, 9)     =**= as2.shuffle(1, 9)(r2)
+      T(name) ~ as1.shuffle(1 to 8)   =**= as2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ as1.shuffle(Iv(1, 9)) =**= as2.shuffle(1 to k)(r2)
+      T(name) ~ as1.shuffle(1 to k)   =**= as2.shuffle(1 to 8)(r2)
+
+      T(name) ~ us1.shuffle()         =**= us2.shuffle()(r2)
+      T(name) ~ us1.shuffle(1, 9)     =**= us2.shuffle(1, 9)(r2)
+      T(name) ~ us1.shuffle(1 to 8)   =**= us2.shuffle(Iv(1, 9))(r2)
+      T(name) ~ us1.shuffle(Iv(1, 9)) =**= us2.shuffle(1 to k)(r2)
+      T(name) ~ us1.shuffle(1 to k)   =**= us2.shuffle(1 to 8)(r2)
+      T(name) ~ us1.randomFillOp()(p => (p%9).u)         =**= us2.randomFillOp()(r2)(p => (p%9).u)
+      T(name) ~ us1.randomFillOp(1, 9)(p => (p%9).u)     =**= us2.randomFillOp(1, 9)(r2)(p => (p%9).u)
+      T(name) ~ us1.randomFillOp(1 to 8)(p => (p%9).u)   =**= us2.randomFillOp(Iv(1, 9))(r2)(p => (p%9).u)
+      T(name) ~ us1.randomFillOp(Iv(1, 9))(p => (p%9).u) =**= us2.randomFillOp(1 to k)(r2)(p => (p%9).u)
+      T(name) ~ us1.randomFillOp(1 to k)(p => (p%9).u)   =**= us2.randomFillOp(1 to 8)(r2)(p => (p%9).u)
     }
 
     val tfs = rng.stringFrom("FT", 100)
@@ -703,8 +799,8 @@ class MathTest {
   case class HF(f: Float) extends Hp(HI(java.lang.Float.floatToRawIntBits(f))) {}
   case class HD(d: Double) extends Hp(HL(java.lang.Double.doubleToRawLongBits(d))) {}
   case class Harr(ab: Array[Byte], i0: Int, iN: Int) extends H {
-    private[this] val j0 = math.max(i0, 0)
-    private[this] val jN = math.min(iN, ab.length)
+    private val j0 = math.max(i0, 0)
+    private val jN = math.min(iN, ab.length)
     val bytes = math.max(0, jN - j0)
     def addToBuffer(bb: ByteBuffer): Unit = bb.put(ab, j0, bytes)
     def addToArray(ab: Array[Byte], index: Int): Int =
@@ -2691,42 +2787,57 @@ class MathTest {
     m -= 1
     m -= 7
     m -= 2
-    T ~ ai.est.n               ==== m2.n
-    T ~ ai.est.mean            =~~= m2.mean
-    T ~ ai.est.sse             =~~= m2.sse
-    T ~ ai.estRange(1, 5).n    ==== 4
-    T ~ ai.estRange(1, 5).mean =~~= m.mean
-    T ~ ai.estRange(1, 5).sse  =~~= m.sse
-    T ~ al.est.n               ==== m2.n
-    T ~ al.est.mean            =~~= m2.mean
-    T ~ al.est.sse             =~~= m2.sse
-    T ~ al.estRange(1, 5).n    ==== 4
-    T ~ al.estRange(1, 5).mean =~~= m.mean
-    T ~ al.estRange(1, 5).sse  =~~= m.sse
-    T ~ af.est.n               ==== m2.n
-    T ~ af.est.mean            =~~= m2.mean
-    T ~ af.est.sse             =~~= m2.sse
-    T ~ af.estRange(1, 5).n    ==== 4
-    T ~ af.estRange(1, 5).mean =~~= m.mean
-    T ~ af.estRange(1, 5).sse  =~~= m.sse
-    T ~ ad.est.n               ==== m2.n
-    T ~ ad.est.mean            =~~= m2.mean
-    T ~ ad.est.sse             =~~= m2.sse
-    T ~ ad.estRange(1, 5).n    ==== 4
-    T ~ ad.estRange(1, 5).mean =~~= m.mean
-    T ~ ad.estRange(1, 5).sse  =~~= m.sse
-    T ~ ai.toVector.est        ==== m2
-    T ~ as.estBy(_.length)     ==== m2
-    T ~ ls.estBy(_.length)     ==== m2
-    T ~ Est.M.empty            ==== Est.mut
-    T ~ Est.M.from(ai)         ==== Est.from(ai)
-    T ~ Est.M.from(al)         ==== Est.from(al)
-    T ~ Est.M.from(af)         ==== Est.from(af)
-    T ~ Est.M.from(ad)         ==== Est.from(ad)
+    T ~ ai.est.n                    ==== m2.n
+    T ~ ai.est.mean                 =~~= m2.mean
+    T ~ ai.est.sse                  =~~= m2.sse
+    T ~ ai.estRange(1, 5).n         ==== 4
+    T ~ ai.estRange(1, 5).mean      =~~= m.mean
+    T ~ ai.estRange(1, 5).sse       =~~= m.sse
+    T ~ ai.estRange(1 to 4).sse     =~~= m.sse
+    T ~ ai.estRange(Iv(1,5)).sse    =~~= m.sse
+    T ~ ai.estRange(1 to End-2).sse =~~= m.sse
+    T ~ al.est.n                    ==== m2.n
+    T ~ al.est.mean                 =~~= m2.mean
+    T ~ al.est.sse                  =~~= m2.sse
+    T ~ al.estRange(1, 5).n         ==== 4
+    T ~ al.estRange(1, 5).mean      =~~= m.mean
+    T ~ al.estRange(1, 5).sse       =~~= m.sse
+    T ~ al.estRange(1 to 4).sse     =~~= m.sse
+    T ~ al.estRange(Iv(1,5)).sse    =~~= m.sse
+    T ~ al.estRange(1 to End-2).sse =~~= m.sse
+    T ~ af.est.n                    ==== m2.n
+    T ~ af.est.mean                 =~~= m2.mean
+    T ~ af.est.sse                  =~~= m2.sse
+    T ~ af.estRange(1, 5).n         ==== 4
+    T ~ af.estRange(1, 5).mean      =~~= m.mean
+    T ~ af.estRange(1, 5).sse       =~~= m.sse
+    T ~ af.estRange(1 to 4).sse     =~~= m.sse
+    T ~ af.estRange(Iv(1,5)).sse    =~~= m.sse
+    T ~ af.estRange(1 to End-2).sse =~~= m.sse
+    T ~ ad.est.n                    ==== m2.n
+    T ~ ad.est.mean                 =~~= m2.mean
+    T ~ ad.est.sse                  =~~= m2.sse
+    T ~ ad.estRange(1, 5).n         ==== 4
+    T ~ ad.estRange(1, 5).mean      =~~= m.mean
+    T ~ ad.estRange(1, 5).sse       =~~= m.sse
+    T ~ ad.estRange(1 to 4).sse     =~~= m.sse
+    T ~ ad.estRange(Iv(1,5)).sse    =~~= m.sse
+    T ~ ad.estRange(1 to End-2).sse =~~= m.sse
+    T ~ ai.toVector.est             ==== m2
+    T ~ as.estWith(_.length)        ==== m2
+    T ~ ls.estWith(_.length)        ==== m2
+    T ~ Est.M.empty                 ==== Est.mut
+    T ~ Est.M.from(ai)              ==== Est.from(ai)
+    T ~ Est.M.from(al)              ==== Est.from(al)
+    T ~ Est.M.from(af)              ==== Est.from(af)
+    T ~ Est.M.from(ad)              ==== Est.from(ad)
 
-    T ~ as.estRangeBy(1, 5)(_.length).n    ==== m.n
-    T ~ as.estRangeBy(1, 5)(_.length).mean =~~= m.mean
-    T ~ as.estRangeBy(1, 5)(_.length).sse  =~~= m.sse
+    T ~ as.estRangeWith(1, 5)(_.length).n          ==== m.n
+    T ~ as.estRangeWith(1, 5)(_.length).mean       =~~= m.mean
+    T ~ as.estRangeWith(1, 5)(_.length).sse        =~~= m.sse
+    T ~ as.estRangeWith(1 to 4)(_.length).sse      =~~= m.sse
+    T ~ as.estRangeWith(Iv(1, 5))(_.length).sse    =~~= m.sse
+    T ~ as.estRangeWith(1 to End-2)(_.length).sse  =~~= m.sse
 
     T ~ Est.M.fromSD(m2.n)(m2.pmSD).n              ==== m2.n
     T ~ Est.M.fromSD(m2.n)(m2.pmSD).mean.toFloat   =~~= m2.mean.toFloat
@@ -2777,45 +2888,61 @@ class MathTest {
     T ~ Est.mut.tap(_ ++= ad.iterator).mean          =~~= m2.mean
     T ~ Est.mut.tap(_ ++= ad.iterator).sse           =~~= m2.sse
 
-    T ~ Est.mut.tap(_.addBy(as)(_.length)).n             ==== m2.n
-    T ~ Est.mut.tap(_.addBy(as)(_.length)).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_.addBy(as)(_.length)).sse           =~~= m2.sse
-    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).n    ==== m2.n
-    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).mean =~~= m2.mean
-    T ~ Est.mut.tap(_.addBy(ls.iterator)(_.length)).sse  =~~= m2.sse
-    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est.n
-    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est.mean
-    T ~ Est.mut.tap(_.addSomeBy(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est.sse
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ai)).sse                 =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(1, 5)(ai)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(-5, 99)(al)).sse                 =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(1, 5)(al)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(1, 5)(al)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(1, 5)(al)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(-5, 99)(af)).sse                 =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(1, 5)(af)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(1, 5)(af)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(1, 5)(af)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(-5, 99)(ad)).sse                 =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(1, 5)(ad)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).n       ==== m2.n
-    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).mean    =~~= m2.mean
-    T ~ Est.mut.tap(_.addRangeBy(-5, 99)(as)(_.length)).sse     =~~= m2.sse
-    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).n         ==== m3.n
-    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).mean      =~~= m3.mean
-    T ~ Est.mut.tap(_.addRangeBy(1, 5)(as)(_.length)).sse       =~~= m3.sse
+    T ~ Est.mut.tap(_.addWith(as)(_.length)).n             ==== m2.n
+    T ~ Est.mut.tap(_.addWith(as)(_.length)).mean          =~~= m2.mean
+    T ~ Est.mut.tap(_.addWith(as)(_.length)).sse           =~~= m2.sse
+    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).n    ==== m2.n
+    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).mean =~~= m2.mean
+    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).sse  =~~= m2.sse
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est.n
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est.mean
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est.sse
+    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(al)(1, 5)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(al)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(al)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(af)(1, 5)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(af)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(af)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).n                   ==== m2.n
+    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).mean                =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).n                     ==== m3.n
+    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).n     ==== m2.n
+    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).mean  =~~= m2.mean
+    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).sse   =~~= m2.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).n       ==== m3.n
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).mean    =~~= m3.mean
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).sse     =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(1 to End-2)(_.length)).sse =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(1 to 4)(_.length)).sse     =~~= m3.sse
+
 
 
   def fittingErrorsTest(): Unit =
@@ -2877,6 +3004,42 @@ class MathTest {
     T ~ fyt.estY.pmSD     =~~= fet.estY.pmSD
     T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
     fet.reset()
+    fet.addRange(xs, 1, 4)(ys, 1 to 3)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1, 4)(ys, 1 to End-1)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1, 4)(ys, Iv(1, 4))
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to 3)(ys, 1 to 3)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to 3)(ys, 1 to End-1)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to 3)(ys, Iv(1, 4))
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to End-1)(ys, 1 to 3)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to End-1)(ys, 1 to End-1)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, 1 to End-1)(ys, Iv(1, 4))
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, Iv(1, 4))(ys, 1 to 3)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, Iv(1, 4))(ys, 1 to End-1)
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
+    fet.addRange(xs, Iv(1, 4))(ys, Iv(1, 4))
+    T ~ fyt.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    fet.reset()
     xs.visit()((x, i) => fet += (x, ys(i)))
     fit.reset()
     fit ++= (xs, ys)
@@ -2932,6 +3095,66 @@ class MathTest {
     T ~ fit.estX.pmSD     =~~= fyt.estX.pmSD
     T ~ fit.estY.pmSD     =~~= fyt.estY.pmSD
     T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(vs, 1 to 3)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(vs, 1 to End-1)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(vs, Iv(1, 4))
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    val zs = xs.copyToSize(xs.length + ys.length)
+    ys.inject(zs, xs.length - 1)
+    fit.reset()
+    fit.addRange(xs, 1, 4)(zs, 5, 8)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1, 4)(zs, 5 to 7)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1, 4)(zs, 5 to End-2)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1, 4)(zs, Iv(5, 8))
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to 3)(zs, 5, 8)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to 3)(zs, 5 to 7)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to 3)(zs, 5 to End-2)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to 3)(zs, Iv(5, 8))
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to End-1)(zs, 5, 8)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to End-1)(zs, 5 to 7)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to End-1)(zs, 5 to End-2)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, 1 to End-1)(zs, Iv(5, 8))
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, Iv(1, 4))(zs, 5, 8)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, Iv(1, 4))(zs, 5 to 7)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, Iv(1, 4))(zs, 5 to End-2)
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+    fit.reset()
+    fit.addRange(xs, Iv(1, 4))(zs, Iv(5, 8))
+    T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
+
 
   @Test
   def fittingTest(): Unit =

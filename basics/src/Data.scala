@@ -281,6 +281,25 @@ extension (i: Int){
     if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
     if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
     PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+
+  inline def arrayed[A]()(using ClassTag[A]): Array[A] =
+    new Array[A](if i > 0 then i else 0)
+  inline def arrayed[A](f: Int => A)(using ClassTag[A]): Array[A] =
+    val a = new Array[A](if i > 0 then i else 0)
+    var k = 0
+    while k < a.length do
+      a(k) = f(k)
+      k += 1
+    a
+  inline def arrayedBreakably[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
+    val a = new Array[A](if i > 0 then i else 0)
+    shortcut.outer:
+      var k = 0
+      while k < a.length do
+        shortcut.inner:
+          a(k) = f(k)
+        k += 1
+    a
 }
 
 
@@ -313,10 +332,8 @@ extension [A](a: Array[A]) {
       f(a(i))
       i += 1
     a
-  inline def peek(v: Iv | PIv)(inline f: A => Unit): a.type =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+  inline def peek(inline v: Iv | PIv)(inline f: A => Unit): a.type =
+    val iv = Iv.of(v, a)
     peek(iv.i0, iv.iN)(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): a.type =
     val iv = Iv of rg
@@ -342,10 +359,8 @@ extension [A](a: Array[A]) {
     while i < iN do
       f(a(i), i)
       i += 1
-  inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+  inline def visit(inline v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
+    val iv = Iv.of(v, a)
     visit(iv.i0, iv.iN)(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
     val iv = Iv of rg
@@ -386,9 +401,7 @@ extension [A](a: Array[A]) {
       i += 1
     z
   inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv 
+    val iv = Iv.of(v, a)
     gather(zero)(iv.i0, iv.iN)(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
     val iv = Iv of rg
@@ -693,14 +706,10 @@ extension [A](a: Array[A]) {
     java.lang.System.arraycopy(a, i0, that, where, iN-i0)
     iN - i0
   inline def inject(that: Array[A])(inline v: Iv | PIv): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     inject(that, 0)(iv.i0, iv.iN)
   inline def inject(that: Array[A], where: Int)(inline v: Iv | PIv): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     inject(that, where)(iv.i0, iv.iN)
   inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
     val iv = Iv of rg
@@ -754,14 +763,10 @@ extension [A](a: Array[A]) {
       i += 1
     iN - i0
   inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     injectOp[B](that, where)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
     val iv = Iv of rg
@@ -807,9 +812,7 @@ extension [A](a: Array[A]) {
     java.lang.System.arraycopy(a, i0, b, 0, b.length)
     b
   inline def select(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
-    val iv = inline v match
-      case siv: Iv  => siv
-      case piv: PIv => piv.of(a)
+    val iv = Iv.of(v, a)
     select(Iv.i0(iv), Iv.iN(iv))
   inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
     select(Iv of rg)
@@ -856,9 +859,7 @@ extension [A](a: Array[A]) {
       i += 1
     b
   transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     selectOp(Iv.i0(iv), Iv.iN(iv))(op)
   transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv of rg
@@ -924,10 +925,8 @@ object ClippedArray {
         f(a(i))
         i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: A => Unit): Array[A] =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+    inline def peek(inline v: Iv | PIv)(inline f: A => Unit): Array[A] =
+      val iv = Iv.of(v, ca.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): Array[A] =
       val iv = Iv of rg
@@ -955,10 +954,8 @@ object ClippedArray {
       while i < iM do
         f(a(i), i)
         i += 1
-    inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+    inline def visit(inline v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
+      val iv = Iv.of(v, ca.unwrap)
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
       val iv = Iv of rg
@@ -987,9 +984,7 @@ object ClippedArray {
         i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, ca.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -1217,14 +1212,10 @@ object ClippedArray {
         n
       else 0
     inline def inject(that: Array[A])(inline v: Iv | PIv): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       inject(that, 0)(iv.i0, iv.iN)
     inline def inject(that: Array[A], where: Int)(inline v: Iv | PIv): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
       val iv = Iv of rg
@@ -1299,14 +1290,10 @@ object ClippedArray {
         n0
       else 0
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
       val iv = Iv of rg
@@ -1365,9 +1352,7 @@ object ClippedArray {
       if b.length > 0 then java.lang.System.arraycopy(a, i, b, 0, b.length)
       b
     inline def select(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
       select(Iv of rg)
@@ -1409,10 +1394,8 @@ object ClippedArray {
         i += 1
       b
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
-      selectOp(Iv.i0(iv), Iv.iN(iv))(op)
+      val iv = Iv.of(v, ca.unwrap)
+      selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
@@ -1443,42 +1426,6 @@ object ClippedArray {
 }
 
 
-object shortcut {
-  sealed trait Type {}
-  object Skips extends Type {}
-  object Quits extends Type {}
-
-  inline def quittable(inline f: boundary.Label[Quits.type] ?=> Unit): Unit =
-    boundary[Quits.type]:
-      f
-      Quits
-
-  inline def skippable(inline f: boundary.Label[Skips.type] ?=> Unit): Unit =
-    boundary[Skips.type]:
-      f
-      Skips
-
-  inline def outer(inline f: boundary.Label[Type] ?=> Unit): Unit =
-    boundary[Type]:
-      f
-      Quits
-
-  inline def inner(inline f: boundary.Label[Type] ?=> Unit)(using boundary.Label[Type]): Unit =
-    val what = boundary[Type]:
-      f
-      Skips
-    if what eq Quits then boundary.break(Quits)
-
-  inline def skip[S >: Skips.type <: Type](using boundary.Label[S]) = boundary.break(Skips: S)
-
-  inline def skipIf[S >: Skips.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
-
-  inline def quit[Q >: Quits.type <: Type](using boundary.Label[Q]) = boundary.break(Quits: Q)
-
-  inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
-}
-
-
 opaque type ShortcutArray[A] = Array[A]
 object ShortcutArray {
   inline def wrap[A](a: Array[A]): ShortcutArray[A] = a
@@ -1505,10 +1452,8 @@ object ShortcutArray {
           f(a(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+    inline def peek(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = Iv.of(v, sa.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv of rg
@@ -1547,9 +1492,7 @@ object ShortcutArray {
           i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, sa.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -1630,14 +1573,10 @@ object ShortcutArray {
           i += 1
       j - where
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv of rg
@@ -1712,9 +1651,7 @@ object ShortcutArray {
           i += 1
       b.shrinkTo(j)
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
@@ -1778,10 +1715,8 @@ object ShortClipArray {
           f(a(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+    inline def peek(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = Iv.of(v, sc.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv of rg
@@ -1815,9 +1750,7 @@ object ShortClipArray {
           i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, sc.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -1879,14 +1812,10 @@ object ShortClipArray {
           i += 1
       if where < 0 then j else j - where
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv of rg
@@ -1942,9 +1871,7 @@ object ShortClipArray {
           i += 1
       b.shrinkTo(k)
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
@@ -1995,9 +1922,7 @@ extension (az: Array[Boolean]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] =
     java.util.Arrays.copyOfRange(az, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Boolean] =
-    val iv = inline v match
-      case piv: PIv => piv of az
-      case siv: Iv  => siv
+    val iv = Iv.of(v, az)
     java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Boolean] =
     val iv = Iv of rg
@@ -2010,9 +1935,7 @@ extension (az: Array[Boolean]) {
     java.util.Arrays.fill(az, i0, iN, x)
     az
   inline def fillRange(inline v: Iv | PIv)(x: Boolean): az.type = 
-    val iv = inline v match
-      case piv: PIv => piv of az
-      case siv: Iv  => siv
+    val iv = Iv.of(v, az)
     java.util.Arrays.fill(az, iv.i0, iv.iN, x)
     az
   inline def fillRange(inline rg: collection.immutable.Range)(x: Boolean): az.type =
@@ -2039,9 +1962,7 @@ extension (ab: Array[Byte]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Byte] =
     java.util.Arrays.copyOfRange(ab, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Byte] =
-    val iv = inline v match
-      case piv: PIv => piv of ab
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ab)
     java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Byte] =
     val iv = Iv of rg
@@ -2052,9 +1973,7 @@ extension (ab: Array[Byte]) {
   inline def searchRange(i0: Int, iN: Int)(x: Byte): Int =
     java.util.Arrays.binarySearch(ab, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Byte): Int =
-    val iv = inline v match
-      case piv: PIv => piv of ab
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ab)
     java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Byte): Int =
     val iv = Iv of rg
@@ -2068,9 +1987,7 @@ extension (ab: Array[Byte]) {
     java.util.Arrays.fill(ab, i0, iN, x)
     ab
   inline def fillRange(inline v: Iv | PIv)(x: Byte): ab.type =
-    val iv = inline v match
-      case piv: PIv => piv of ab
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ab)
     java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
     ab
   inline def fillRange(inline rg: collection.immutable.Range)(x: Byte): ab.type =
@@ -2085,9 +2002,7 @@ extension (ab: Array[Byte]) {
     java.util.Arrays.sort(ab, i0, iN)
     ab
   inline def sortRange(inline v: Iv | PIv): ab.type =
-    val iv = inline v match
-      case piv: PIv => piv of ab
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ab)
     java.util.Arrays.sort(ab, iv.i0, iv.iN)
     ab
   inline def sortRange(inline rg: collection.immutable.Range): ab.type =
@@ -2104,9 +2019,7 @@ extension (ab: Array[Byte]) {
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of ab
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ab)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2126,9 +2039,7 @@ extension (as: Array[Short]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Short] =
     java.util.Arrays.copyOfRange(as, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Short] =
-    val iv = inline v match
-      case piv: PIv => piv of as
-      case siv: Iv  => siv
+    val iv = Iv.of(v, as)
     java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Short] =
     val iv = Iv of rg
@@ -2139,9 +2050,7 @@ extension (as: Array[Short]) {
   inline def searchRange(i0: Int, iN: Int)(x: Short): Int =
     java.util.Arrays.binarySearch(as, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Short): Int =
-    val iv = inline v match
-      case piv: PIv => piv of as
-      case siv: Iv  => siv
+    val iv = Iv.of(v, as)
     java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Short): Int =
     val iv = Iv of rg
@@ -2155,9 +2064,7 @@ extension (as: Array[Short]) {
     java.util.Arrays.fill(as, i0, iN, x)
     as
   inline def fillRange(inline v: Iv | PIv)(x: Short): as.type =
-    val iv = inline v match
-      case piv: PIv => piv of as
-      case siv: Iv  => siv
+    val iv = Iv.of(v, as)
     java.util.Arrays.fill(as, iv.i0, iv.iN, x)
     as
   inline def fillRange(inline rg: collection.immutable.Range)(x: Short): as.type =
@@ -2172,9 +2079,7 @@ extension (as: Array[Short]) {
     java.util.Arrays.sort(as, i0, iN)
     as
   inline def sortRange(inline v: Iv | PIv): as.type =
-    val iv = inline v match
-      case piv: PIv => piv of as
-      case siv: Iv  => siv
+    val iv = Iv.of(v, as)
     java.util.Arrays.sort(as, iv.i0, iv.iN)
     as
   inline def sortRange(inline rg: collection.immutable.Range): as.type =
@@ -2191,9 +2096,7 @@ extension (as: Array[Short]) {
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of as
-      case siv: Iv  => siv
+    val iv = Iv.of(v, as)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2215,9 +2118,7 @@ extension (ac: Array[Char]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Char] =
     java.util.Arrays.copyOfRange(ac, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Char] =
-    val iv = inline v match
-      case piv: PIv => piv of ac
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ac)
     java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Char] =
     val iv = Iv of rg
@@ -2228,9 +2129,7 @@ extension (ac: Array[Char]) {
   inline def searchRange(i0: Int, iN: Int)(x: Char): Int =
     java.util.Arrays.binarySearch(ac, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Char): Int =
-    val iv = inline v match
-      case piv: PIv => piv of ac
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ac)
     java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Char): Int =
     val iv = Iv of rg
@@ -2244,9 +2143,7 @@ extension (ac: Array[Char]) {
     java.util.Arrays.fill(ac, i0, iN, x)
     ac
   inline def fillRange(inline v: Iv | PIv)(x: Char): ac.type =
-    val iv = inline v match
-      case piv: PIv => piv of ac
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ac)
     java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
     ac
   inline def fillRange(inline rg: collection.immutable.Range)(x: Char): ac.type =
@@ -2261,9 +2158,7 @@ extension (ac: Array[Char]) {
     java.util.Arrays.sort(ac, i0, iN)
     ac
   inline def sortRange(inline v: Iv | PIv): ac.type =
-    val iv = inline v match
-      case piv: PIv => piv of ac
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ac)
     java.util.Arrays.sort(ac, iv.i0, iv.iN)
     ac
   inline def sortRange(inline rg: collection.immutable.Range): ac.type =
@@ -2280,9 +2175,7 @@ extension (ac: Array[Char]) {
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of ac
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ac)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2304,9 +2197,7 @@ extension (ai: Array[Int]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Int] =
     java.util.Arrays.copyOfRange(ai, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Int] =
-    val iv = inline v match
-      case piv: PIv => piv of ai
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ai)
     java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Int] =
     val iv = Iv of rg
@@ -2317,9 +2208,7 @@ extension (ai: Array[Int]) {
   inline def searchRange(i0: Int, iN: Int)(x: Int): Int =
     java.util.Arrays.binarySearch(ai, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Int): Int =
-    val iv = inline v match
-      case piv: PIv => piv of ai
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ai)
     java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Int): Int =
     val iv = Iv of rg
@@ -2333,9 +2222,7 @@ extension (ai: Array[Int]) {
     java.util.Arrays.fill(ai, i0, iN, x)
     ai
   inline def fillRange(inline v: Iv | PIv)(x: Int): ai.type =
-    val iv = inline v match
-      case piv: PIv => piv of ai
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ai)
     java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
     ai
   inline def fillRange(inline rg: collection.immutable.Range)(x: Int): ai.type =
@@ -2350,9 +2237,7 @@ extension (ai: Array[Int]) {
     java.util.Arrays.sort(ai, i0, iN)
     ai
   inline def sortRange(inline v: Iv | PIv): ai.type =
-    val iv = inline v match
-      case piv: PIv => piv of ai
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ai)
     java.util.Arrays.sort(ai, iv.i0, iv.iN)
     ai
   inline def sortRange(inline rg: collection.immutable.Range): ai.type =
@@ -2369,9 +2254,7 @@ extension (ai: Array[Int]) {
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of ai
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ai)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2393,9 +2276,7 @@ extension (al: Array[Long]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Long] =
     java.util.Arrays.copyOfRange(al, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Long] =
-    val iv = inline v match
-      case piv: PIv => piv of al
-      case siv: Iv  => siv
+    val iv = Iv.of(v, al)
     java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Long] =
     val iv = Iv of rg
@@ -2406,9 +2287,7 @@ extension (al: Array[Long]) {
   inline def searchRange(i0: Int, iN: Int)(x: Long): Int =
     java.util.Arrays.binarySearch(al, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Long): Int =
-    val iv = inline v match
-      case piv: PIv => piv of al
-      case siv: Iv  => siv
+    val iv = Iv.of(v, al)
     java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Long): Int =
     val iv = Iv of rg
@@ -2422,9 +2301,7 @@ extension (al: Array[Long]) {
     java.util.Arrays.fill(al, i0, iN, x)
     al
   inline def fillRange(inline v: Iv | PIv)(x: Long): al.type =
-    val iv = inline v match
-      case piv: PIv => piv of al
-      case siv: Iv  => siv
+    val iv = Iv.of(v, al)
     java.util.Arrays.fill(al, iv.i0, iv.iN, x)
     al
   inline def fillRange(inline rg: collection.immutable.Range)(x: Long): al.type =
@@ -2439,9 +2316,7 @@ extension (al: Array[Long]) {
     java.util.Arrays.sort(al, i0, iN)
     al
   inline def sortRange(inline v: Iv | PIv): al.type =
-    val iv = inline v match
-      case piv: PIv => piv of al
-      case siv: Iv  => siv
+    val iv = Iv.of(v, al)
     java.util.Arrays.sort(al, iv.i0, iv.iN)
     al
   inline def sortRange(inline rg: collection.immutable.Range): al.type =
@@ -2458,9 +2333,7 @@ extension (al: Array[Long]) {
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of al
-      case siv: Iv  => siv
+    val iv = Iv.of(v, al)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2482,9 +2355,7 @@ extension (af: Array[Float]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Float] =
     java.util.Arrays.copyOfRange(af, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Float] =
-    val iv = inline v match
-      case piv: PIv => piv of af
-      case siv: Iv  => siv
+    val iv = Iv.of(v, af)
     java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Float] =
     val iv = Iv of rg
@@ -2495,9 +2366,7 @@ extension (af: Array[Float]) {
   inline def searchRange(i0: Int, iN: Int)(x: Float): Int =
     java.util.Arrays.binarySearch(af, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Float): Int =
-    val iv = inline v match
-      case piv: PIv => piv of af
-      case siv: Iv  => siv
+    val iv = Iv.of(v, af)
     java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Float): Int =
     val iv = Iv of rg
@@ -2511,9 +2380,7 @@ extension (af: Array[Float]) {
     java.util.Arrays.fill(af, i0, iN, x)
     af
   inline def fillRange(inline v: Iv | PIv)(x: Float): af.type =
-    val iv = inline v match
-      case piv: PIv => piv of af
-      case siv: Iv  => siv
+    val iv = Iv.of(v, af)
     java.util.Arrays.fill(af, iv.i0, iv.iN, x)
     af
   inline def fillRange(inline rg: collection.immutable.Range)(x: Float): af.type =
@@ -2528,9 +2395,7 @@ extension (af: Array[Float]) {
     java.util.Arrays.sort(af, i0, iN)
     af
   inline def sortRange(inline v: Iv | PIv): af.type =
-    val iv = inline v match
-      case piv: PIv => piv of af
-      case siv: Iv  => siv
+    val iv = Iv.of(v, af)
     java.util.Arrays.sort(af, iv.i0, iv.iN)
     af
   inline def sortRange(inline rg: collection.immutable.Range): af.type =
@@ -2547,9 +2412,7 @@ extension (af: Array[Float]) {
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of af
-      case siv: Iv  => siv
+    val iv = Iv.of(v, af)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2571,9 +2434,7 @@ extension (ad: Array[Double]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[Double] =
     java.util.Arrays.copyOfRange(ad, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[Double] =
-    val iv = inline v match
-      case piv: PIv => piv of ad
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ad)
     java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Double] =
     val iv = Iv of rg
@@ -2584,9 +2445,7 @@ extension (ad: Array[Double]) {
   inline def searchRange(i0: Int, iN: Int)(x: Double): Int =
     java.util.Arrays.binarySearch(ad, i0, iN, x)
   inline def searchRange(inline v: Iv | PIv)(x: Double): Int =
-    val iv = inline v match
-      case piv: PIv => piv of ad
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ad)
     java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Double): Int =
     val iv = Iv of rg
@@ -2600,9 +2459,7 @@ extension (ad: Array[Double]) {
     java.util.Arrays.fill(ad, i0, iN, x)
     ad
   inline def fillRange(inline v: Iv | PIv)(x: Double): ad.type =
-    val iv = inline v match
-      case piv: PIv => piv of ad
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ad)
     java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
     ad
   inline def fillRange(inline rg: collection.immutable.Range)(x: Double): ad.type =
@@ -2617,9 +2474,7 @@ extension (ad: Array[Double]) {
     java.util.Arrays.sort(ad, i0, iN)
     ad
   inline def sortRange(inline v: Iv | PIv): ad.type =
-    val iv = inline v match
-      case piv: PIv => piv of ad
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ad)
     java.util.Arrays.sort(ad, iv.i0, iv.iN)
     ad
   inline def sortRange(inline rg: collection.immutable.Range): ad.type =
@@ -2636,9 +2491,7 @@ extension (ad: Array[Double]) {
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of ad
-      case siv: Iv  => siv
+    val iv = Iv.of(v, ad)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
@@ -2658,9 +2511,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def copyOfRange(i0: Int, iN: Int): Array[A] =
     java.util.Arrays.copyOfRange(aa, i0, iN)
   inline def copyOfRange(inline v: Iv | PIv): Array[A] =
-    val iv = inline v match
-      case piv: PIv => piv of aa
-      case siv: Iv  => siv
+    val iv = Iv.of(v, aa)
     java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[A] =
     val iv = Iv of rg
@@ -2671,9 +2522,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def searchRange(i0: Int, iN: Int)(x: A)(using o: scala.math.Ordering[A]): Int =
     java.util.Arrays.binarySearch(aa, i0, iN, x, o)
   inline def searchRange(inline v: Iv | PIv)(x: A)(using o: scala.math.Ordering[A]): Int =
-    val iv = inline v match
-      case piv: PIv => piv of aa
-      case siv: Iv  => siv
+    val iv = Iv.of(v, aa)
     java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
   inline def searchRange(inline rg: collection.immutable.Range)(x: A)(using o: scala.math.Ordering[A]): Int =
     val iv = Iv of rg
@@ -2687,9 +2536,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, x.asInstanceOf[AnyRef])
     aa
   inline def fillRange(inline v: Iv | PIv)(x: A): aa.type =
-    val iv = inline v match
-      case piv: PIv => piv of aa
-      case siv: Iv  => siv
+    val iv = Iv.of(v, aa)
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
     aa
   inline def fillRange(inline rg: collection.immutable.Range)(x: A): aa.type =
@@ -2704,9 +2551,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
     scala.util.Sorting.stableSort(aa, i0, iN)
     aa
   inline def sortRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): aa.type =
-    val iv = inline v match
-      case piv: PIv => piv of aa
-      case siv: Iv  => siv
+    val iv = Iv.of(v, aa)
     scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
     aa
   inline def sortRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): aa.type =
@@ -2723,9 +2568,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
   inline def isSortedRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): Boolean =
-    val iv = inline v match
-      case piv: PIv => piv of aa
-      case siv: Iv  => siv
+    val iv = Iv.of(v, aa)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): Boolean =
     val iv = Iv of rg
@@ -2769,10 +2612,8 @@ extension (a: String) {
       f(a.charAt(i))
       i += 1
     a
-  inline def peek(v: Iv | PIv)(inline f: Char => Unit): a.type =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+  inline def peek(inline v: Iv | PIv)(inline f: Char => Unit): a.type =
+    val iv = Iv.of(v, a)
     peek(iv.i0, iv.iN)(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): a.type =
     val iv = Iv of rg
@@ -2798,10 +2639,8 @@ extension (a: String) {
     while i < iN do
       f(a.charAt(i), i)
       i += 1
-  inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+  inline def visit(inline v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
+    val iv = Iv.of(v, a)
     visit(iv.i0, iv.iN)(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
     val iv = Iv of rg
@@ -2842,9 +2681,7 @@ extension (a: String) {
       i += 1
     z
   inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv 
+    val iv = Iv.of(v, a)
     gather(zero)(iv.i0, iv.iN)(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
     val iv = Iv of rg
@@ -2899,14 +2736,10 @@ extension (a: String) {
       j += 1
     iN - i0
   inline def inject(that: Array[Char])(inline v: Iv | PIv): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     inject(that, 0)(iv.i0, iv.iN)
   inline def inject(that: Array[Char], where: Int)(inline v: Iv | PIv): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     inject(that, where)(iv.i0, iv.iN)
   inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
     val iv = Iv of rg
@@ -2960,14 +2793,10 @@ extension (a: String) {
       i += 1
     iN - i0
   inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-    val iv = inline v match
-      case piv: PIv => piv of a
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     injectOp[B](that, where)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
     val iv = Iv of rg
@@ -3011,9 +2840,7 @@ extension (a: String) {
   inline def select(i0: Int, iN: Int): String =
     a.substring(i0, iN)
   inline def select(inline v: Iv | PIv): String =
-    val iv = inline v match
-      case siv: Iv  => siv
-      case piv: PIv => piv.of(a)
+    val iv = Iv.of(v, a)
     select(Iv.i0(iv), Iv.iN(iv))
   inline def select(inline rg: collection.immutable.Range): String =
     select(Iv of rg)
@@ -3056,9 +2883,7 @@ extension (a: String) {
       i += 1
     b
   transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
-    val iv = inline v match
-      case piv: PIv => piv.of(a)
-      case siv: Iv  => siv
+    val iv = Iv.of(v, a)
     selectOp(Iv.i0(iv), Iv.iN(iv))(op)
   transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv of rg
@@ -3114,10 +2939,8 @@ object ClippedString {
         f(a.charAt(i))
         i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: Char => Unit): String =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+    inline def peek(inline v: Iv | PIv)(inline f: Char => Unit): String =
+      val iv = Iv.of(v, ca.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): String =
       val iv = Iv of rg
@@ -3145,10 +2968,8 @@ object ClippedString {
       while i < iM do
         f(a.charAt(i), i)
         i += 1
-    inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+    inline def visit(inline v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
+      val iv = Iv.of(v, ca.unwrap)
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
       val iv = Iv of rg
@@ -3177,9 +2998,7 @@ object ClippedString {
         i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, ca.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -3227,14 +3046,10 @@ object ClippedString {
         n0
       else 0
     inline def inject(that: Array[Char])(inline v: Iv | PIv): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       inject(that, 0)(iv.i0, iv.iN)
     inline def inject(that: Array[Char], where: Int)(inline v: Iv | PIv): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
       val iv = Iv of rg
@@ -3309,14 +3124,10 @@ object ClippedString {
         n0
       else 0
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -3373,9 +3184,7 @@ object ClippedString {
       if j >= a.length then j = a.length
       if i < j then a.substring(i, j) else ""
     inline def select(inline v: Iv | PIv): String =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range): String =
       select(Iv of rg)
@@ -3412,9 +3221,7 @@ object ClippedString {
         i += 1
       b
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of ca.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, ca.unwrap)
       selectOp(Iv.i0(iv), Iv.iN(iv))(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
@@ -3473,9 +3280,7 @@ object ShortcutString {
           i += 1
       a
     inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val iv = Iv of rg
@@ -3514,9 +3319,7 @@ object ShortcutString {
           i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, sa.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -3597,14 +3400,10 @@ object ShortcutString {
           i += 1
       j - where
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -3676,9 +3475,7 @@ object ShortcutString {
           i += 1
       b.shrinkTo(j)
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of sa.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sa.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
@@ -3743,9 +3540,7 @@ object ShortClipString {
           i += 1
       a
     inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val iv = Iv of rg
@@ -3779,9 +3574,7 @@ object ShortClipString {
           i += 1
       z
     inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv 
+      val iv = Iv.of(v, sc.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -3843,14 +3636,10 @@ object ShortClipString {
           i += 1
       if where < 0 then j else j - where
     inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -3906,9 +3695,7 @@ object ShortClipString {
           i += 1
       b.shrinkTo(k)
     transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = inline v match
-        case piv: PIv => piv of sc.unwrap
-        case siv: Iv  => siv
+      val iv = Iv.of(v, sc.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg

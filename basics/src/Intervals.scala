@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2011-15, 2021-23 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
 
 package kse.basics.intervals
 
@@ -16,6 +16,16 @@ object Iv extends Translucent.Companion[Iv, Long] {
   inline def wrap(l: Long): Iv = l
 
   inline def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
+
+  inline def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, a: Array[A]): Iv =
+    inline v match
+      case piv: kse.basics.intervals.PIv => piv of a
+      case siv: kse.basics.intervals.Iv  => siv  
+
+  inline def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, s: String): Iv =
+    inline v match
+      case piv: kse.basics.intervals.PIv => piv of s
+      case siv: kse.basics.intervals.Iv  => siv  
 
   extension (iv: Iv)
     inline def unwrap: Long = iv

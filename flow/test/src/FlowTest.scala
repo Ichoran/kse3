@@ -1151,76 +1151,67 @@ class FlowTest {
     T ~ om.swapToOption ==== Some(null)
 
     T ~ i.toTry.get  ==== 5
-    T ~ a.toTry.get  ==== thrown[WrongBranchException[_]]
+    T ~ a.toTry.get  ==== thrown[WrongBranchException[?]]
     T ~ oi.toTry.get ==== 5
-    T ~ oa.toTry.get ==== thrown[WrongBranchException[_]]
+    T ~ oa.toTry.get ==== thrown[WrongBranchException[?]]
     T ~ on.toTry.get ==== null
-    T ~ om.toTry.get ==== thrown[WrongBranchException[_]]
+    T ~ om.toTry.get ==== thrown[WrongBranchException[?]]
 
-    T ~ i.swapToTry.get  ==== thrown[WrongBranchException[_]]
+    T ~ i.swapToTry.get  ==== thrown[WrongBranchException[?]]
     T ~ a.swapToTry.get  ==== "cod"
-    T ~ oi.swapToTry.get ==== thrown[WrongBranchException[_]]
+    T ~ oi.swapToTry.get ==== thrown[WrongBranchException[?]]
     T ~ oa.swapToTry.get ==== "cod"
-    T ~ on.swapToTry.get ==== thrown[WrongBranchException[_]]
+    T ~ on.swapToTry.get ==== thrown[WrongBranchException[?]]
     T ~ om.swapToTry.get ==== null
 
 
 
   @Test
   def flowTest(): Unit =
-    def orQ1(s: String): Int Or String = Or.Ret{
+    def orQ1(s: String): Int Or String = Or.Ret:
       s.isIf(_.forall(_.isDigit)).?.toInt
-    }
     T ~ orQ1("salmon") ==== Alt("salmon") --: typed[Int Or String]
     T ~ orQ1("5")      ==== 5             --: typed[Int Or String]
 
-    def orQ2(s: String): Int Or String = Or.FlatRet{
+    def orQ2(s: String): Int Or String = Or.FlatRet:
       s.isIf(_.forall(_.isDigit)).?.isIf(s => s.length >= 1 && s.length <= 9).map(_.toInt)
-    }
     T ~ orQ2("1234567890") ==== Alt("1234567890") --: typed[Int Or String]
     T ~ orQ2("4")          ==== 4                 --: typed[Int Or String]
     T ~ orQ2("cod")        ==== Alt("cod")        --: typed[Int Or String]
 
-    def orQ3(s: String): Int Or String = Or.Ret{
+    def orQ3(s: String): Int Or String = Or.Ret:
       s.altCase{ case x if x.exists(! _.isDigit) => x.exists(_.isDigit) }.?+(b => s"Has digits: $b").toInt
-    }
     T ~ orQ3("herring") ==== Alt("Has digits: false") --: typed[Int Or String]
     T ~ orQ3("5 eels")  ==== Alt("Has digits: true")  --: typed[Int Or String]
     T ~ orQ3("14")      ==== 14                       --: typed[Int Or String]
 
-    def orQ4(s: String): Int Or String = Or.Ret{
+    def orQ4(s: String): Int Or String = Or.Ret:
       given AutoMap[String Or String, String] = _.fold{ x => s"Too long: $x" }{ y => s"Non-numeric: $y" }
-
       s.isIf(_.forall(_.isDigit)).alsoDiscard{ case s if s.length < 1 || s.length > 9 => s}.?*.toInt
-    }
     T ~ orQ4("perch")      ==== Alt("Non-numeric: perch")   --: typed[Int Or String]
     T ~ orQ4("1234567890") ==== Alt("Too long: 1234567890") --: typed[Int Or String]
     T ~ orQ4("225")        ==== 225                         --: typed[Int Or String]
 
-    def orQ5(s: String): Int Or String = Or.Safe(_.getMessage){
+    def orQ5(s: String): Int Or String = Or.Safe(_.getMessage):
       s.isIf(_.nonEmpty).?.toInt
-    }
     T ~ orQ5("perch").existsAlt(_ contains "perch") ==== true
     T ~ orQ5("")                                    ==== Alt("")
     T ~ orQ5("15")                                  ==== 15      --: typed[Int Or String]
 
-    def orQ6(s: String): Int Or Err = Or.Nice {
+    def orQ6(s: String): Int Or Err = Or.Nice:
       s.isIf(_.nonEmpty).?+(Err apply _).toInt
-    }  
     T ~ orQ6("perch").existsAlt(_.toString contains "NumberF") ==== true
     T ~ orQ6("")                                               ==== Alt("")
     T ~ orQ6("1815")                                           ==== 1815    --: typed[Int Or Err]
 
-    def orQ7(s: String): Int Or Err = Err.Or {
+    def orQ7(s: String): Int Or Err = Err.Or:
       s.isIf(_.nonEmpty).?.toInt
-    }
     T ~ orQ7("perch").existsAlt(_.toString contains "NumberF") ==== true
     T ~ orQ7("")                                               ==== Alt(Err(""))
     T ~ orQ7("1858")                                           ==== 1858 --: typed[Int Or Err]
 
-    def orQ8(s: String): Int Or Err = Err.FlatOr {
+    def orQ8(s: String): Int Or Err = Err.FlatOr:
       s.isIf(_.nonEmpty).?.toInt.altCase{ case i if i < 0 => Err(s"Negative: $i") }
-    }
     T ~ orQ8("perch").existsAlt(_.toString contains "NumberF") ==== true
     T ~ orQ8("")                                               ==== Alt(Err(""))
     T ~ orQ8("1858")                                           ==== 1858 --: typed[Int Or Err]
@@ -1244,38 +1235,34 @@ class FlowTest {
     T ~ doubleQ(0.5f)       =~~= Double.NaN
     T ~ doubleQ(5f)         =~~= 3.0
 
-    def eitherQ1(s: String): Either[String, Int] = Either.Ret{
+    def eitherQ1(s: String): Either[String, Int] = Either.Ret:
       val e: Either[String, Int] =
         if s.forall(_.isDigit) then Right(s.toInt)
         else Left(s)
       e.? + 1
-    }
     T ~ eitherQ1("minnow") ==== Left("minnow") --: typed[Either[String, Int]]
     T ~ eitherQ1("55")     ==== Right(56)      --: typed[Either[String, Int]]
 
-    def eitherQ2(s: String): Either[String, Int] = Either.FlatRet{
+    def eitherQ2(s: String): Either[String, Int] = Either.FlatRet:
       val e: Either[String, Int] =
         if s.forall(_.isDigit) then Right(s.toInt)
         else Left(s)
       e.? match
         case x if x < 10 => Left(s"Bad $x")
         case x           => Right(x + 2)
-    }
     T ~ eitherQ2("minnow") ==== Left("minnow") --: typed[Either[String, Int]]
     T ~ eitherQ2("55")     ==== Right(57)      --: typed[Either[String, Int]]
     T ~ eitherQ2("4")      ==== Left("Bad 4")  --: typed[Either[String, Int]]
 
-    def optionQ1(s: String): Option[Int] = Option.Ret[Int]{
+    def optionQ1(s: String): Option[Int] = Option.Ret[Int]:
       Option(s).filter(_.forall(_.isDigit)).?.toInt
-    }
     T ~ optionQ1("herring") ==== None     --: typed[Option[Int]]
     T ~ optionQ1("8")       ==== Some(8)
 
-    def optionQ2(s: String): Option[Int] = Option.FlatRet{
+    def optionQ2(s: String): Option[Int] = Option.FlatRet:
       Option(s).filter(_.forall(_.isDigit)).?.toInt match
         case x if x < 10 => None
         case x           => Some(x)
-    }
     T ~ optionQ2("herring") ==== None     --: typed[Option[Int]]
     T ~ optionQ2("8")       ==== None     --: typed[Option[Int]]
     T ~ optionQ2("88")      ==== Some(88)
@@ -1313,7 +1300,7 @@ class FlowTest {
     T ~ threadsafe{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
     T ~ threadnice{ toss(); 0 }.grab                             ==== thrown[ErrType.CatchableException]
     T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
-    T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[_]]
+    T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[?]]
 
     T ~ attempt( optionQ1("eel").! ).default(0)                               ==== 0
     T ~ attempt( optionQ1("888").! ).default(0)                               ==== 888
@@ -1349,6 +1336,30 @@ class FlowTest {
     T ~ attempt.threadsafe{ "888".toInt }.default(0)                          ==== 888
     T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
 
+    def jasi(s: String): java.util.Iterator[String] =
+      java.util.Arrays.stream(s.selectOp()( (c, _) => c.toString)).iterator
+    def jemn(n: Int): java.util.Enumeration[Int] = new java.util.Enumeration[Int]() { 
+      private var i = 5 - n
+      def hasMoreElements = i > 0
+      def nextElement = { val ans = i; i -= 1; ans } 
+    }
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  optionQ1(s).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  optionQ1(s).orQuit } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, i) =>  eitherQ1(s).orSkip } =**= Array(9, 10)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  eitherQ1(s).orQuit } =**= Array(9)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>      orQ1(s).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>      orQ1(s).orQuit } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) => Try(s.toInt).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) => Try(s.toInt).orQuit } =**= Array(8)
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).iterator.orSkip        }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).iterator.orQuit        }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).stepper .orSkip.toChar }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).stepper .orQuit.toChar }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).fn(jasi).orSkip.head   }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).fn(jasi).orQuit.head   }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => jemn(n).orSkip }                              =**= Array(3, 2)
+    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => jemn(n).orQuit }                              =**= Array(3)
+
     val l = Left("herring")
     val r = Right(15)
     val eL: Either[String, Int] = l
@@ -1380,7 +1391,7 @@ class FlowTest {
     T ~ os.toTry         ==== Success("snapper") --: typed[Try[String]]
     T ~ on.toTry         ==== typed[Try[String]]
     on.toTry match
-      case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[_]] ==== true
+      case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[?]] ==== true
       case _          => T("Success when failure expected") ~ false  ==== true
     var ou: Int = 2
     T ~ os.use(ou += _.length) ==== os
@@ -1429,7 +1440,7 @@ class FlowTest {
     T ~ trf.unlift.isDefinedAt(3)    ==== true
     T ~ trf.unlift.isDefinedAt(7)    ==== false
     T ~ trf.unlift(3)                ==== "!!!"
-    T ~ trf.unlift(7)                ==== thrown[WrongBranchException[_]]
+    T ~ trf.unlift(7)                ==== thrown[WrongBranchException[?]]
     T ~ trf.unlift.applyOrElse(3, d) ==== "!!!"
     T ~ trf.unlift.applyOrElse(7, d) ==== "..."
 
@@ -1710,7 +1721,7 @@ class FlowTest {
     T ~ xs.validOrIndexedResults                ==== Alt((Vector(5, 6), Vector((1, xs(1).alt), (3, xs(3).alt))))
 
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== typed[List[Int] Or Err]
-    T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[_]]
+    T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[?]]
     T ~ List("2", "3").validMap(s => nice{ s.toInt }) ==== List(2, 3)
 
 
@@ -2101,7 +2112,7 @@ class FlowTest {
     T ~ m.value                                                      ==== -9
     T ~ Resource.nice{ oops(); m.orErr }(_.zap(- _)) {
           x => x.zap(_ * 3); x.value
-        }                                                            ==== runtype[Alt[_]]
+        }                                                            ==== runtype[Alt[?]]
     T ~ m.value                                                      ==== -9
     T ~ Resource.nice{
           m.errCase{ case x if x.value < 0 => Err("bad") }
@@ -2116,7 +2127,7 @@ class FlowTest {
     T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           oops()
           x.set(7); x.value
-        }                                                            ==== runtype[Alt[_]]
+        }                                                            ==== runtype[Alt[?]]
     T ~ m.value                                                      ==== 15
     T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           x.zap(_ - 8)

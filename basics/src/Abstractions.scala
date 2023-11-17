@@ -3,6 +3,9 @@
 
 package kse.basics
 
+import scala.util.boundary
+
+
 
 /** Typeclass that witnesses that O is actually opaquely implemented by I */
 trait Translucent[O, I] {
@@ -20,6 +23,7 @@ object Translucent {
 
   given [O, I](using Translucent[O, I]): Translucent[Array[O], Array[I]] with {}
 }
+
 
 
 /** Way to create new unboxed types.  Use
@@ -52,7 +56,6 @@ trait NewType[A] {
   /** Enable array copying via translucency */
   given translucency: Translucent[Type, A] with {}
 }
-
 
 
 
@@ -96,3 +99,40 @@ object Copies {
 /** Use copier typeclasses, if available, to copy a (presumably mutable) object. */
 extension [A](a: A)
   inline def copy(using copier: Copies[A]): A = copier copy a
+
+
+
+object shortcut {
+  sealed trait Type {}
+  object Skips extends Type {}
+  object Quits extends Type {}
+
+  inline def quittable(inline f: boundary.Label[Quits.type] ?=> Unit): Unit =
+    boundary[Quits.type]:
+      f
+      Quits
+
+  inline def skippable(inline f: boundary.Label[Skips.type] ?=> Unit): Unit =
+    boundary[Skips.type]:
+      f
+      Skips
+
+  inline def outer(inline f: boundary.Label[Type] ?=> Unit): Unit =
+    boundary[Type]:
+      f
+      Quits
+
+  inline def inner(inline f: boundary.Label[Type] ?=> Unit)(using boundary.Label[Type]): Unit =
+    val what = boundary[Type]:
+      f
+      Skips
+    if what eq Quits then boundary.break(Quits)
+
+  inline def skip[S >: Skips.type <: Type](using boundary.Label[S]) = boundary.break(Skips: S)
+
+  inline def skipIf[S >: Skips.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
+
+  inline def quit[Q >: Quits.type <: Type](using boundary.Label[Q]) = boundary.break(Quits: Q)
+
+  inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
+}

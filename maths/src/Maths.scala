@@ -2090,7 +2090,7 @@ object Frac {
         val d = if denom < 0 then -(denom >> sh) else denom >> sh
         gcdReduce(n, d)
 
-  private[this] def gcdReduce(num: Int, den: Int): Long =
+  private def gcdReduce(num: Int, den: Int): Long =
     val n = if num < 0 then -num else num
     var a = if n < den then den else n
     var b = if n < den then n else den
@@ -2104,7 +2104,7 @@ object Frac {
     else
       (num.toLong << 32) | den
 
-  private[this] def gcdReduceBig(num: Long, den: Long): Long =
+  private def gcdReduceBig(num: Long, den: Long): Long =
     val n = if num < 0 then -num else num
     var a = if n < den then den else n
     var b = if n < den then n else den
@@ -2121,7 +2121,7 @@ object Frac {
       else overflowApprox(a, b)
     else overflowApprox(num, den)
 
-  private[this] def gcdReduceAny(num: Long, den: Long): Long =
+  private def gcdReduceAny(num: Long, den: Long): Long =
     if num == 0 then return 0x1L
     var n = num
     var d = den
@@ -2134,7 +2134,7 @@ object Frac {
     else
       gcdReduceBig(n, d)
 
-  private[this] def overflowApprox(num: Long, den: Long): Long =
+  private def overflowApprox(num: Long, den: Long): Long =
     val n = if num < 0 then -num else num
     var a = if n < den then den else n
     var b = if n < den then n else den
@@ -2315,7 +2315,7 @@ object Frac {
         else          gcdReduceAny(  value.toLong  * f.denomL,  n)
       ans | f.overflowBit
 
-  private[this] def uncheckedApply(a: Int, b: Int, negative: Boolean, flip: Boolean): kse.maths.Frac =
+  private def uncheckedApply(a: Int, b: Int, negative: Boolean, flip: Boolean): kse.maths.Frac =
     if flip then
       if negative then Frac.wrap(((-b).toLong << 32) | a.toLong)
       else             Frac.wrap((  b .toLong << 32) | a.toLong)

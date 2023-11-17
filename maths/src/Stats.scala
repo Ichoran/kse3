@@ -8,7 +8,10 @@ import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.targetName
 import scala.compiletime.erasedValue
 
-import kse.maths._
+import scala.collection.immutable.{Range => Rg}
+
+import kse.basics.{given, _}
+import kse.basics.intervals.{Iv, PIv}
 
 
 
@@ -138,44 +141,34 @@ object Est {
     def -=(est: Est): Unit = incorporate(-est.n, est.mean, est.sse)
 
     def ++=(values: Array[Int]): Unit =
-      var i = 0
-      while i < values.length do
-        val x = values(i)
+      values.peek(): i =>
+        val x = i.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-        i += 1
     def ++=(values: Array[Long]): Unit =
-      var i = 0
-      while i < values.length do
-        val x = values(i)
+      values.peek(): l =>
+        val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-        i += 1
     def ++=(values: Array[Float]): Unit =
-      var i = 0
-      while i < values.length do
-        val v = values(i)
+      values.peek(): v =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
           mean = (n*mean + u)/(n+1)
           sse += (u - mean)*(u - mold)
           n += 1
-        i += 1
     def ++=(values: Array[Double]): Unit =
-      var i = 0
-      while i < values.length do
-        val v = values(i)
+      values.peek(): v =>
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
           sse += (v - mean)*(v - mold)
           n += 1
-        i += 1
     inline def ++=[P <: Int | Long | Float | Double](values: Iterator[P]): Unit = inline erasedValue[P] match
       case _: Int =>
         val i = values.asInstanceOf[Iterator[Int]]
@@ -194,68 +187,78 @@ object Est {
         while i.hasNext do
           this += i.next
 
-    inline def addBy[A](values: Array[A])(inline f: A => Double): Unit = addRangeBy(0, values.length)(values)(f)
+    inline def addWith[A](values: Array[A])(inline f: A => Double): Unit = addRangeWith(values)(0, values.length)(f)
 
-    def addBy[A](values: Iterator[A])(f: A => Double): Unit =
+    def addWith[A](values: Iterator[A])(f: A => Double): Unit =
       while values.hasNext do
         this += f(values.next)
 
-    def addSomeBy[A](values: Iterator[A], n: Int)(f: A => Double): Unit =
+    def addSomeWith[A](values: Iterator[A], n: Int)(f: A => Double): Unit =
       var k = n
       while k > 0 && values.hasNext do
         this += f(values.next)
         k -= 1
 
-    def addRange(i0: Int, iN: Int)(values: Array[Int]): Unit =
-      var i = i0
-      if i < 0 then i = 0
+    def addRange(values: Array[Int])(i0: Int, iN: Int): Unit =
+      val i = if i0 < 0 then 0 else i0
       val iM = if iN < values.length then iN else values.length
-      while i < iM do
-        val x = values(i).toDouble
+      values.peek(i, iM): j =>
+        val x = j.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-        i += 1
-    def addRange(i0: Int, iN: Int)(values: Array[Long]): Unit =
-      var i = i0
-      if i < 0 then i = 0
+    def addRange(values: Array[Long])(i0: Int, iN: Int): Unit =
+      val i = if i0 < 0 then 0 else i0
       val iM = if iN < values.length then iN else values.length
-      while i < iM do
-        val x = values(i).toDouble
+      values.peek(i, iM): l =>
+        val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-        i += 1
-    def addRange(i0: Int, iN: Int)(values: Array[Float]): Unit =
-      var i = i0
-      if i < 0 then i = 0
+    def addRange(values: Array[Float])(i0: Int, iN: Int): Unit =
+      val i = if i0 < 0 then 0 else i0
       val iM = if iN < values.length then iN else values.length
-      while i < iM do
-        val v = values(i)
+      values.peek(i, iM): v =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
           mean = (n*mean + u)/(n+1)
           sse += (u - mean)*(u - mold)
           n += 1
-        i += 1
-    def addRange(i0: Int, iN: Int)(values: Array[Double]): Unit =
-      var i = i0
-      if i < 0 then i = 0
+    def addRange(values: Array[Double])(i0: Int, iN: Int): Unit =
+      val i = if i0 < 0 then 0 else i0
       val iM = if iN < values.length then iN else values.length
-      while i < iM do
-        this += values(i)
-        i += 1
+      values.peek(i, iM): v =>
+        if !v.nan then
+          val mold = mean
+          mean = (n*mean + v)/(n+1)
+          sse += (v - mean)*(v - mold)
+          n += 1
 
-    inline def addRangeBy[A](i0: Int, iN: Int)(values: Array[A])(inline f: A => Double): Unit =
-      var i = i0
-      if i < 0 then i = 0
+    inline def addRange(values: Array[Int   ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Long  ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+
+    inline def addRange(values: Array[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    inline def addRange(values: Array[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+
+    inline def addRangeWith[A](values: Array[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
+      val i = if i0 < 0 then 0 else i0
       val iM = if iN < values.length then iN else values.length
-      while i < iM do
-        this += f(values(i))
-        i += 1
+      values.peek(i, iM): x =>
+        val v = f(x)
+        if !v.nan then
+          val mold = mean
+          mean = (n*mean + v)/(n+1)
+          sse += (v - mean)*(v - mold)
+          n += 1
+    inline def addRangeWith[A](values: Array[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
+    inline def addRangeWith[A](values: Array[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values); addRangeWith(values)(iv.i0, iv.iN)(f) }
   }
   object M {
     inline val smallestNonzeroWeight = 1e-9
@@ -331,42 +334,69 @@ extension (values: Array[Int])
   inline def est: Est = Est from values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
-    e.addRange(i0, iN)(values)
+    e.addRange(values)(i0, iN)
     e
+  inline def estRange(inline v: Iv | PIv): Est =
+    val iv = Iv.of(v, values)
+    estRange(iv.i0, iv.iN)
+  inline def estRange(inline rg: Rg): Est =
+    val iv = Iv of rg
+    estRange(iv.i0, iv.iN)
 
 extension (values: Array[Long])
   inline def est: Est = Est from values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
-    e.addRange(i0, iN)(values)
+    e.addRange(values)(i0, iN)
     e
+  inline def estRange(inline v: Iv | PIv): Est =
+    val iv = Iv.of(v, values)
+    estRange(iv.i0, iv.iN)
+  inline def estRange(inline rg: Rg): Est =
+    val iv = Iv of rg
+    estRange(iv.i0, iv.iN)
 
 extension (values: Array[Float])
   inline def est: Est = Est from values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
-    e.addRange(i0, iN)(values)
+    e.addRange(values)(i0, iN)
     e
+  inline def estRange(inline v: Iv | PIv): Est =
+    val iv = Iv.of(v, values)
+    estRange(iv.i0, iv.iN)
+  inline def estRange(inline rg: Rg): Est =
+    val iv = Iv of rg
+    estRange(iv.i0, iv.iN)
 
 extension (values: Array[Double])
   inline def est: Est = Est from values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
-    e.addRange(i0, iN)(values)
+    e.addRange(values)(i0, iN)
     e
+  inline def estRange(inline v: Iv | PIv): Est =
+    val iv = Iv.of(v, values)
+    estRange(iv.i0, iv.iN)
+  inline def estRange(inline rg: Rg): Est =
+    val iv = Iv of rg
+    estRange(iv.i0, iv.iN)
 
 extension [A](values: Array[A])
-  inline def estBy(inline f: A => Double): Est =
+  inline def estWith(inline f: A => Double): Est =
     val m = Est.M.empty
-    var i = 0
-    while i < values.length do
-      m += f(values(i))
-      i += 1
+    m.addRangeWith(values)(0, values.length)(f)
     m
-  inline def estRangeBy(i0: Int, iN: Int)(inline f: A => Double): Est =
+  inline def estRangeWith(i0: Int, iN: Int)(inline f: A => Double): Est =
     val m = Est.M.empty
-    m.addRangeBy(i0, iN)(values)(f)
+    m.addRangeWith(values)(i0, iN)(f)
     m
+  inline def estRangeWith(inline v: Iv | PIv)(inline f: A => Double): Est =
+    val iv = Iv.of(v, values)
+    estRangeWith(iv.i0, iv.iN)(f)
+  inline def estRangeWith(inline rg: Rg)(inline f: A => Double): Est =
+    val iv = Iv of rg
+    estRangeWith(iv.i0, iv.iN)(f)
 
 extension [A <: Int | Long | Float | Double](values: IterableOnce[A])
   inline def est: Est =
@@ -375,7 +405,7 @@ extension [A <: Int | Long | Float | Double](values: IterableOnce[A])
     m
 
 extension [A](values: IterableOnce[A])
-  inline def estBy(f: A => Double): Est =
+  inline def estWith(f: A => Double): Est =
     val m = Est.M.empty
-    m.addBy(values.iterator)(f)
+    m.addWith(values.iterator)(f)
     m

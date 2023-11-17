@@ -6,6 +6,11 @@ package kse.maths.fitting
 
 import scala.language.experimental.relaxedExtensionImports
 
+import scala.collection.immutable.{Range => Rg}
+
+import kse.basics.{given, _}
+import kse.basics.intervals._
+
 import kse.maths.{given, _}
 
 
@@ -266,8 +271,47 @@ sealed abstract class Fit2D() {
   def ++=(xs: IterableOnce[Double], ys: IterableOnce[Double]): Unit
   def ++=(vs: Array[Vc]): Unit
   def ++=(vs: IterableOnce[Vc]): Unit
+
   def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], j0: Int, jN: Int): Unit
+
+  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yrg: Rg): Unit =
+    val jv = Iv of yrg
+    addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
+  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yv: Iv | PIv): Unit =
+    val jv = Iv.of(yv, ys)
+    addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
+  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], j0: Int, jN: Int): Unit =
+    val iv = Iv of xrg
+    addRange(xs, iv.i0, iv.iN)(ys, j0, jN)
+  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yrg: Rg): Unit =
+    val iv = Iv of xrg
+    val jv = Iv of yrg
+    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
+  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yv: Iv | PIv): Unit =
+    val iv = Iv of xrg
+    val jv = Iv.of(yv, ys)
+    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
+  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], j0: Int, jN: Int): Unit =
+    val iv = Iv.of(xv, xs)
+    addRange(xs, iv.i0, iv.iN)(ys, j0, jN)
+  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], inline yrg: Rg): Unit =
+    val iv = Iv.of(xv, xs)
+    val jv = Iv of yrg
+    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
+  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], inline yv: Iv | PIv): Unit =
+    val iv = Iv.of(xv, xs)
+    val jv = Iv.of(yv, ys)
+    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
+
   def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit
+  
+  inline def addRange(vs: Array[Vc], inline rg: Rg): Unit =
+    val iv = Iv of rg
+    addRange(vs, iv.i0, iv.iN)
+  inline def addRange(vs: Array[Vc], inline v: Iv | PIv): Unit =
+    val iv = Iv.of(v, vs)
+    addRange(vs, iv.i0, iv.iN)
+
   def reset(): Unit
 }
 object Fit2D {
@@ -503,10 +547,7 @@ object Fit2D {
       if n > n0 then cached = 0
 
     def ++=(vs: Array[Vc]): Unit =
-      var i = 0
-      while i < vs.length do
-        this += vs(i)
-        i += 1
+      vs.peek(){ this += _ }
 
     def ++=(vs: IterableOnce[Vc]): Unit =
       val vi = vs.iterator
@@ -523,11 +564,7 @@ object Fit2D {
           addRangeImpl(xs, k0)(ys, l0)(m)
 
     def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit =
-      val j = math.min(iN, vs.length)
-      var i = math.max(0, i0)
-      while i < j do
-        this += vs(i)
-        i += 1
+      vs.clip.peek(i0, iN){ this += _ }
 
     private def addRangeImpl(xs: Array[Double], i0: Int)(ys: Array[Double], j0: Int)(m: Int): Unit =
       var i = i0

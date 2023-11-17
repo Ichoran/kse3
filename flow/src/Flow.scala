@@ -16,6 +16,7 @@ import scala.util.boundary.break
 import scala.util.{Try, Success, Failure}
 
 
+import kse.basics.{given, _}
 
 //////////////////////////////////////
 /// Early returns with ? a la Rust ///
@@ -613,42 +614,88 @@ object attempt {
 extension [X, Y](or: X Or Y)
   inline def ![A](using Label[Attempt[A]]): X =
     or.getOrElse(_ => break(Attempt.failed))
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): X =
+    or.getOrElse(_ => break(shortcut.Quits: T))
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): X =
+    or.getOrElse(_ => break(shortcut.Skips: T))
 
 extension [L, R](either: Either[L, R])
   inline def ![A](using Label[Attempt[A]]): R = either match
     case Right(r) => r
     case _        => break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): R = either match
+    case Right(r) => r
+    case _        => break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): R = either match
+    case Right(r) => r
+    case _        => break(shortcut.Skips: T)
 
 extension [O](option: Option[O])
   inline def ![A](using Label[Attempt[A]]): O = option match
     case Some(o) => o
     case _       => break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): O = option match
+    case Some(o) => o
+    case _       => break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): O = option match
+    case Some(o) => o
+    case _       => break(shortcut.Skips: T)
 
 extension [T](`try`: Try[T])
   inline def ![A](using Label[Attempt[A]]): T = `try` match
     case Success(t) => t
     case _          => break(Attempt.failed)
+  inline def orQuit[S >: shortcut.Quits.type](using Label[S]): T = `try` match
+    case Success(t) => t
+    case _          => break(shortcut.Quits: S)
+  inline def orSkip[S >: shortcut.Skips.type](using Label[S]): T = `try` match
+    case Success(t) => t
+    case _          => break(shortcut.Skips: S)
 
 extension [I](iterator: Iterator[I])
   inline def ![A](using Label[Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
+    if iterator.hasNext then iterator.next
+    else break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
+    if iterator.hasNext then iterator.next
+    else break(shortcut.Skips: T)
 
 extension [I](stepper: scala.collection.Stepper[I])
   inline def ![A](using Label[Attempt[A]]): I =
     if stepper.hasStep then stepper.nextStep
     else break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
+    if stepper.hasStep then stepper.nextStep
+    else break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
+    if stepper.hasStep then stepper.nextStep
+    else break(shortcut.Skips: T)
 
 extension [I](iterator: java.util.Iterator[I])
   inline def ![A](using Label[Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
+    if iterator.hasNext then iterator.next
+    else break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
+    if iterator.hasNext then iterator.next
+    else break(shortcut.Skips: T)
 
 extension [I](enumerator: java.util.Enumeration[I])
   inline def ![A](using Label[Attempt[A]]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
     else break(Attempt.failed)
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
+    if enumerator.hasMoreElements then enumerator.nextElement
+    else break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
+    if enumerator.hasMoreElements then enumerator.nextElement
+    else break(shortcut.Skips: T)
 
-inline def ensure[A](inline z: Boolean)(using Label[Attempt[A]]): kse.flow.Attempt.Passed =
+inline def ensure[A](z: Boolean)(using Label[Attempt[A]]): kse.flow.Attempt.Passed =
   if z then Attempt.Passed.value
   else break(Attempt.failed)
