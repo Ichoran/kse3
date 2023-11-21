@@ -331,36 +331,6 @@ object Send {
   given iterstring2channel: Send[Iterator[String], WritableByteChannel] = IterStringToChannel()
   given iterstring2multi: Send[Iterator[String], MultiArrayChannel] = IterStringToMulti()
 
-  /*
-  def pv(i: Int): String = i match
-    case '\r' => """\r"""
-    case '\n' => """\n"""
-    case '\t' => """\t"""
-    case b if b < ' ' => "#" + b.hexString
-    case c => c.toChar.toString
-
-  def pbc(a: Any, i0: Int = 0, iN: Int = Int.MaxValue, leftMarker: String = "|_", rightMarker: String = "_|"): String = a match
-    case ab: Array[Byte] =>
-      val sb = new java.lang.StringBuilder
-      sb append leftMarker
-      var i = i0 max 0
-      while i < (iN min ab.length) do
-        sb append pv(ab(i))
-        i += 1
-      sb append rightMarker
-      sb.toString
-    case s: String =>
-      val sb = new java.lang.StringBuilder
-      sb append leftMarker
-      var i = i0 max 0
-      while i < (iN min s.length) do
-        sb append pv(s.charAt(i))
-        i += 1
-      sb append rightMarker
-      sb.toString
-    case _ => s"???$a???"
-  */
-
   final class IterateInputStream(input: InputStream, initialSize: Int = 256, maxSize: Int = 4194304) extends Iterator[Array[Byte]] {
     private var buffer: Array[Byte] = new Array[Byte](initialSize max 4)
     private var n = 0

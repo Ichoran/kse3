@@ -142,6 +142,19 @@ object TestUtilities {
 
     override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
 
+    private def pickMoreElements[A](count: Int, index: Int, it: Iterator[A], acc: List[String] = Nil): List[String] =
+      if count <= 0 || ! it.hasNext then
+        var result = acc
+        while result.forall(_ startsWith "   ") do
+          result = result.map(_.drop(1))
+        if it.hasNext then ("  ..." :: result).reverse else result.reverse
+      else if !it.hasNext then acc.reverse
+      else
+        val longest = (count + index).toString
+        var istr = "  #" + index.toString
+        if istr.length < 3+longest.length then istr = " "*(3+longest.length - istr.length) + istr
+        pickMoreElements(count-1, index+1, it, s"$istr = ${it.next}" :: acc)
+
     def =**=[D, J <: IsIterable[D]](d: => D)(using jj: J): Unit =
       var i = 0
       val ia = ii(value()).iterator
@@ -153,9 +166,15 @@ object TestUtilities {
           assertEquals(message + s"\nerror at index $i", va, vb)
         i += 1
       if ia.hasNext then
-        assertTrue(s"${message}extra element at index $i\n${ia.next}", false)
+        val elts = pickMoreElements(4, i, ia)
+        val plural = if elts.length > 1 then "Too many elements.  Extra:" else "One extra element:"
+        val lines = elts.mkString("", "\n", "\n")
+        assertTrue(s"${message}$plural\n$lines", false)
       if ib.hasNext then
-        assertTrue(s"${message}extra element at index $i\n${ib.next}", false)
+        val elts = pickMoreElements(4, i, ib)
+        val plural = if elts.length > 1 then "Not enough elements.  Missed:" else "Missed one element:"
+        val lines = elts.mkString("", "\n", "\n")
+        assertTrue(s"${message}$plural\n$lines", false)
 
     def contains[B](b: => B): Unit =
       val ia = ii(value()).iterator

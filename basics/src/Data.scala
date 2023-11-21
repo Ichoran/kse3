@@ -332,7 +332,7 @@ extension [A](a: Array[A]) {
       f(a(i))
       i += 1
     a
-  inline def peek(inline v: Iv | PIv)(inline f: A => Unit): a.type =
+  inline def peek(v: Iv | PIv)(inline f: A => Unit): a.type =
     val iv = Iv.of(v, a)
     peek(iv.i0, iv.iN)(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): a.type =
@@ -359,7 +359,7 @@ extension [A](a: Array[A]) {
     while i < iN do
       f(a(i), i)
       i += 1
-  inline def visit(inline v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
+  inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
     val iv = Iv.of(v, a)
     visit(iv.i0, iv.iN)(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
@@ -400,7 +400,7 @@ extension [A](a: Array[A]) {
       z = f(z, a(i), i)
       i += 1
     z
-  inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
+  inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
     val iv = Iv.of(v, a)
     gather(zero)(iv.i0, iv.iN)(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
@@ -625,11 +625,19 @@ extension [A](a: Array[A]) {
     java.lang.System.arraycopy(a, 0, aa, 0, a.length)
     f(aa)
     aa
-  inline def dupWith[B](inline f: A => B)(using ClassTag[B]): Array[B] =
+
+  inline def copyWith[B](inline f: A => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](a.length)
     var i = 0
     while i < a.length do
       b(i) = f(a(i))
+      i += 1
+    b
+  inline def copyOp[B](inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](a.length)
+    var i = 0
+    while i < a.length do
+      b(i) = op(a(i), i)
       i += 1
     b
 
@@ -693,6 +701,37 @@ extension [A](a: Array[A]) {
       i += 1
     ix.shrinkTo(j)
 
+  inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
+    var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+    var i = i0
+    var j = 0
+    while i < iN do
+      if pick(a(i)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = i
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+  inline def whereIn(v: Iv | PIv)(inline pick: A => Boolean): Array[Int] =
+    val iv = Iv.of(v, a)
+    whereIn(iv.i0, iv.iN)(pick)
+  inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
+    val iv = Iv of rg
+    whereIn(iv.i0, iv.iN)(pick)
+
+  inline def whereFrom(indices: Array[Int])(inline pick: A => Boolean): Array[Int] =
+    var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+    var i = 0
+    var j = 0
+    while i < indices.length do
+      val k = indices(i)
+      if pick(a(k)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = k
+        j += 1
+      i += 1  
+    ix.shrinkTo(j)  
+
   inline def inject(that: Array[A]): Int =
     java.lang.System.arraycopy(a, 0, that, 0, a.length)
     a.length
@@ -705,10 +744,10 @@ extension [A](a: Array[A]) {
   inline def inject(that: Array[A], where: Int)(i0: Int, iN: Int): Int =
     java.lang.System.arraycopy(a, i0, that, where, iN-i0)
     iN - i0
-  inline def inject(that: Array[A])(inline v: Iv | PIv): Int =
+  inline def inject(that: Array[A])(v: Iv | PIv): Int =
     val iv = Iv.of(v, a)
     inject(that, 0)(iv.i0, iv.iN)
-  inline def inject(that: Array[A], where: Int)(inline v: Iv | PIv): Int =
+  inline def inject(that: Array[A], where: Int)(v: Iv | PIv): Int =
     val iv = Iv.of(v, a)
     inject(that, where)(iv.i0, iv.iN)
   inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
@@ -762,10 +801,10 @@ extension [A](a: Array[A]) {
       j += 1
       i += 1
     iN - i0
-  inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+  inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (A, Int) => B): Int =
     val iv = Iv.of(v, a)
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-  inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+  inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (A, Int) => B): Int =
     val iv = Iv.of(v, a)
     injectOp[B](that, where)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
@@ -811,7 +850,7 @@ extension [A](a: Array[A]) {
     val b = new Array[A](iN - i0)
     java.lang.System.arraycopy(a, i0, b, 0, b.length)
     b
-  inline def select(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
+  inline def select(v: Iv | PIv)(using ClassTag[A]): Array[A] =
     val iv = Iv.of(v, a)
     select(Iv.i0(iv), Iv.iN(iv))
   inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
@@ -844,13 +883,6 @@ extension [A](a: Array[A]) {
       i += 1
     b.shrinkTo(j)
 
-  transparent inline def selectOp[B]()(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
-    val b = new Array[B](a.length)
-    var i = 0
-    while i < a.length do
-      b(i) = op(a(i), i)
-      i += 1
-    b
   transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](iN - i0)
     var i = i0
@@ -858,7 +890,7 @@ extension [A](a: Array[A]) {
       b(i - i0) = op(a(i), i)
       i += 1
     b
-  transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  transparent inline def selectOp[B](v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv.of(v, a)
     selectOp(Iv.i0(iv), Iv.iN(iv))(op)
   transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
@@ -885,7 +917,7 @@ extension [A](a: Array[A]) {
     val indices = where(pick)
     selectOp(indices)(op)
 
-  transparent inline def fusion[B](inline add: (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+  transparent inline def fuse[B](inline add: (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
     var bs = new Array[B](if a.length < 8 then a.length else 8)
     var i = 0
     var j = 0
@@ -893,6 +925,82 @@ extension [A](a: Array[A]) {
       add(a(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
       i += 1
     bs.shrinkTo(j)
+
+  transparent inline def diced(indices: Array[Int], mode: "" | "()" | "[)" | "(]" | "[]", endpoints: "endpoints" | "no endpoints")(using ClassTag[A]): Array[Array[A]] =
+    val empty = inline endpoints match
+      case "no endpoints" => indices.length < 2
+      case _ => indices.length == 0 && a.length == 0
+    if empty then
+      inline if endpoints == "endpoints" && mode != "" then
+        val bss = new Array[Array[A]](1)
+        bss(0) = new Array[A](0)
+        bss
+      else new Array[Array[A]](0)
+    else
+      var bss: Array[Array[A]] = new Array[Array[A]](inline if endpoints == "no endpoints" then indices.length-1 else indices.length+1)
+      var bzero: Array[A] = null
+      var i0 = inline if endpoints == "no endpoints" then indices(0) else inline mode match
+        case "[)" | "[]" => 0
+        case _           => -1
+      var j = 0
+      var k = 0
+      while j < bss.length do
+        val iN =
+          inline if endpoints == "no endpoints" then
+            indices(j+1)
+          else
+            if j < indices.length then indices(j)
+            else inline mode match
+              case "(]" | "[]" => a.length - 1
+              case _           => a.length
+        j += 1
+        if i0 == iN then
+          inline mode match
+            case ""   =>
+            case "[]" =>
+              bss(k) = new Array[A](1)
+              bss(k)(0) = a(i0)
+              k += 1
+            case _    =>
+              bss(k) = new Array[A](0)
+              k += 1
+        else
+          val bump = if iN < i0 then -1 else 1
+          var h0 = inline if mode != "[)" && mode != "[]" then i0 + bump else i0
+          var hN = inline if mode == "(]" || mode == "[]" then iN + bump else iN
+          val n = if hN < h0 then h0 - hN else hN - h0
+          if n == 0 then
+            inline mode match
+              case "" =>
+              case _  =>
+                if bzero eq null then bzero = new Array[A](0)
+                bss(k) = bzero
+                k += 1
+          else
+            val b = new Array[A](n)
+            if h0 > hN then
+              var h = h0
+              var g = 0
+              while h != hN do
+                b(g) = a(h)
+                h -= 1
+                g += 1
+            else if n > 0 then java.lang.System.arraycopy(a, h0, b, 0, n)
+            bss(k) = b
+            k += 1
+          i0 = iN
+      inline if mode == "" then
+        if k < bss.length then
+          java.util.Arrays.copyOf(bss, k)
+        else
+          bss
+      else
+        bss
+  transparent inline def diced(indices: Array[Int], style: "()" | "[)" | "(]" | "[]" | "no endpoints")(using ClassTag[A]): Array[Array[A]] =
+    inline style match
+      case "no endpoints"                 => diced(indices, "", "no endpoints")
+      case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
+  transparent inline def diced(indices: Array[Int])(using ClassTag[A]): Array[Array[A]] = diced(indices, "", "endpoints")
 }
 
 
@@ -925,7 +1033,7 @@ object ClippedArray {
         f(a(i))
         i += 1
       a
-    inline def peek(inline v: Iv | PIv)(inline f: A => Unit): Array[A] =
+    inline def peek(v: Iv | PIv)(inline f: A => Unit): Array[A] =
       val iv = Iv.of(v, ca.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): Array[A] =
@@ -954,7 +1062,7 @@ object ClippedArray {
       while i < iM do
         f(a(i), i)
         i += 1
-    inline def visit(inline v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
+    inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
       val iv = Iv.of(v, ca.unwrap)
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
@@ -983,7 +1091,7 @@ object ClippedArray {
         z = f(z, a(i), i)
         i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
       val iv = Iv.of(v, ca.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
@@ -1191,6 +1299,41 @@ object ClippedArray {
         val j = indices.nextStep
         if j >= 0 && j < a.length then a(j) = function(a(j), j)
 
+    inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      while i < iM do
+        if pick(a(i)) then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = i
+          j += 1
+        i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: A => Boolean): Array[Int] =
+      val iv = Iv.of(v, ca.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: A => Boolean): Array[Int] =
+      val a = ca.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      while i < indices.length do
+        val k = indices(i)
+        if k >= 0 && k < a.length && pick(a(k)) then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = k
+          j += 1
+        i += 1  
+      ix.shrinkTo(j)
+
     inline def inject(that: Array[A]): Int =
       inject(that, 0)(0, ca.unwrap.length)
     inline def inject(that: Array[A], where: Int): Int =
@@ -1211,10 +1354,10 @@ object ClippedArray {
         java.lang.System.arraycopy(a, i, that, w, n)
         n
       else 0
-    inline def inject(that: Array[A])(inline v: Iv | PIv): Int =
+    inline def inject(that: Array[A])(v: Iv | PIv): Int =
       val iv = Iv.of(v, ca.unwrap)
       inject(that, 0)(iv.i0, iv.iN)
-    inline def inject(that: Array[A], where: Int)(inline v: Iv | PIv): Int =
+    inline def inject(that: Array[A], where: Int)(v: Iv | PIv): Int =
       val iv = Iv.of(v, ca.unwrap)
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
@@ -1289,10 +1432,10 @@ object ClippedArray {
           n -= 1
         n0
       else 0
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (A, Int) => B): Int =
       val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (A, Int) => B): Int =
       val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
@@ -1351,7 +1494,7 @@ object ClippedArray {
       val b = new Array[A](if i < j then j - i else 0)
       if b.length > 0 then java.lang.System.arraycopy(a, i, b, 0, b.length)
       b
-    inline def select(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
+    inline def select(v: Iv | PIv)(using ClassTag[A]): Array[A] =
       val iv = Iv.of(v, ca.unwrap)
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
@@ -1393,7 +1536,7 @@ object ClippedArray {
         b(i - offset) = op(a(i), i)
         i += 1
       b
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, ca.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
@@ -1422,6 +1565,108 @@ object ClippedArray {
           b(j) = op(a(i), i)
           j += 1
       b.shrinkTo(j)
+
+    transparent inline def diced(indices: Array[Int], mode: "" | "()" | "[)" | "(]" | "[]", endpoints: "endpoints" | "no endpoints")(using ClassTag[A]): Array[Array[A]] =
+      val a = ca.unwrap
+      val empty = inline endpoints match
+        case "no endpoints" => indices.length < 2
+        case _ => indices.length == 0 && a.length == 0
+      if empty then
+        inline if endpoints == "endpoints" && mode != "" then
+          val bss = new Array[Array[A]](1)
+          bss(0) = new Array[A](0)
+          bss
+        else new Array[Array[A]](0)
+      else
+        var bss: Array[Array[A]] = new Array[Array[A]](inline if endpoints == "no endpoints" then indices.length-1 else indices.length+1)
+        var bzero: Array[A] = null
+        var i0 = 
+          inline if endpoints == "no endpoints" then indices(0)
+          else -1
+        var j = 0
+        var k = 0
+        while j < bss.length do
+          val iN =
+            inline if endpoints == "no endpoints" then indices(j+1)
+            else
+              if j < indices.length then indices(j)
+              else a.length+1
+          j += 1
+          if !((i0 < 0 && iN < 0) || (i0 >= a.length && iN >= a.length)) then
+            if i0 == iN then
+              inline mode match
+                case ""   =>
+                case "[]" =>
+                  if i0 >= 0 && i0 < a.length then
+                    bss(k) = new Array[A](1)
+                    bss(k)(0) = a(i0)
+                    k += 1
+                case _    =>
+                  if i0 >= 0 && i0 < a.length then
+                    bss(k) = new Array[A](0)
+                    k += 1
+            else
+              var h0 = i0
+              var hN = iN
+              inline mode match
+                case "[]" =>
+                  if hN < h0 then
+                    if h0 >= a.length then h0 = a.length - 1
+                    hN = if hN >= 0 then hN - 1 else - 1
+                  else
+                    if h0 < 0 then h0 = 0
+                    hN = if hN < a.length then hN + 1 else a.length
+                case "[)" =>
+                  if hN < h0 then
+                    if h0 >= a.length then h0 = a.length - 1
+                    if hN < -1 then hN = -1
+                  else
+                    if h0 < 0 then h0 = 0
+                    if hN > a.length then hN = a.length
+                case "(]" =>
+                  if hN < h0 then
+                    h0 = if h0 > a.length then a.length-1 else h0-1
+                    hN = if hN > 0 then hN - 1 else -1
+                  else
+                    h0 = if h0 < 0 then 0 else h0 + 1
+                    hN = if hN < a.length then hN + 1 else a.length
+                case _ =>
+                  if hN < h0 then
+                    h0 = if h0 > a.length - 1 then a.length - 1 else h0 - 1
+                    if hN < -1 then hN = -1
+                  else if hN > h0 then
+                    h0 = if h0 < 0 then 0 else h0 + 1
+                    if hN > a.length then hN = a.length
+              val n = if hN < h0 then h0 - hN else hN - h0
+              if n == 0 then
+                inline mode match
+                  case "" =>
+                  case _  =>
+                    if bzero eq null then bzero = new Array[A](0)
+                    bss(k) = bzero
+                    k += 1
+              else
+                val b = new Array[A](n)
+                if h0 > hN then
+                  var h = h0
+                  var g = 0
+                  while h != hN do
+                    b(g) = a(h)
+                    h -= 1
+                    g += 1
+                else if n > 0 then java.lang.System.arraycopy(a, h0, b, 0, n)
+                bss(k) = b
+                k += 1
+          i0 = iN
+        if k < bss.length then
+          java.util.Arrays.copyOf(bss, k)
+        else
+          bss
+    transparent inline def diced(indices: Array[Int], style: "()" | "[)" | "(]" | "[]" | "no endpoints")(using ClassTag[A]): Array[Array[A]] =
+      inline style match
+        case "no endpoints"                 => diced(indices, "", "no endpoints")
+        case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
+    transparent inline def diced(indices: Array[Int])(using ClassTag[A]): Array[Array[A]] = diced(indices, "", "endpoints")
   }
 }
 
@@ -1452,7 +1697,7 @@ object ShortcutArray {
           f(a(i))
           i += 1
       a
-    inline def peek(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv.of(v, sa.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
@@ -1491,7 +1736,7 @@ object ShortcutArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv.of(v, sa.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
@@ -1516,15 +1761,30 @@ object ShortcutArray {
           z = f(z, a(j), j)
       z
 
-    inline def dupWith[B](inline f: boundary.Label[shortcut.Quits.type] ?=> A => B)(using ClassTag[B]): Array[B] =
+    transparent inline def copyWith[B](inline f: boundary.Label[shortcut.Type] ?=> A => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](a.length)
       var i = 0
-      shortcut.quittable:
+      var j = 0
+      shortcut.outer:
         while i < a.length do
-          b(i) = f(a(i))
+          shortcut.inner:
+            b(j) = f(a(i))
+            j += 1
           i += 1
-      shrinkTo(b)(i)
+      b.shrinkTo(j)
+    transparent inline def copyOp[B](inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      val b = new Array[B](a.length)
+      var i = 0
+      var j = 0
+      shortcut.outer:
+        while i < a.length do
+          shortcut.inner:
+            b(j) = op(a(i), i)
+            j += 1
+          i += 1
+      b.shrinkTo(j)
 
     inline def where(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -1538,6 +1798,41 @@ object ShortcutArray {
             ix(j) = i
             j += 1
           i += 1
+      ix.shrinkTo(j)
+
+    inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+      var i = i0
+      var j = 0
+      shortcut.quittable:
+        while i < iN do
+          if pick(a(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = Iv.of(v, sa.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if pick(a(k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1  
       ix.shrinkTo(j)
 
     inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
@@ -1572,10 +1867,10 @@ object ShortcutArray {
             j += 1
           i += 1
       j - where
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
@@ -1626,18 +1921,6 @@ object ShortcutArray {
           i += 1
       b.shrinkTo(j)
 
-    transparent inline def selectOp[B]()(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val a = sa.unwrap
-      val b = new Array[B](a.length)
-      var i = 0
-      var j = 0
-      shortcut.outer:
-        while i < a.length do
-          shortcut.inner:
-            b(j) = op(a(i), i)
-            j += 1
-          i += 1
-      b.shrinkTo(j)
     transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](iN - i0)
@@ -1650,7 +1933,7 @@ object ShortcutArray {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, sa.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
@@ -1683,7 +1966,7 @@ object ShortcutArray {
             j += 1
       b.shrinkTo(j)
 
-    transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+    transparent inline def fuse[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (A, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var bs = new Array[B](if a.length < 8 then a.length else 8)
       var i = 0
@@ -1715,7 +1998,7 @@ object ShortClipArray {
           f(a(i))
           i += 1
       a
-    inline def peek(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv.of(v, sc.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
@@ -1749,7 +2032,7 @@ object ShortClipArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv.of(v, sc.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
@@ -1773,6 +2056,43 @@ object ShortClipArray {
           val j = indices.nextStep
           if j >= 0 && j < a.length then z = f(z, a(j), j)
       z
+
+    inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      shortcut.quittable:
+        while i < iM do
+          if pick(a(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = Iv.of(v, sc.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val a = sc.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if k >= 0 && k < a.length && pick(a(k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1  
+      ix.shrinkTo(j)
 
     inline def inject(that: Array[A])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Int =
       inject(that, 0)(pick)
@@ -1811,10 +2131,10 @@ object ShortClipArray {
             j += 1
           i += 1
       if where < 0 then j else j - where
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
@@ -1870,7 +2190,7 @@ object ShortClipArray {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, sc.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
@@ -1921,7 +2241,7 @@ extension (az: Array[Boolean]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] =
     java.util.Arrays.copyOfRange(az, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Boolean] =
+  inline def copyOfRange(v: Iv | PIv): Array[Boolean] =
     val iv = Iv.of(v, az)
     java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Boolean] =
@@ -1934,7 +2254,7 @@ extension (az: Array[Boolean]) {
   inline def fillRange(i0: Int, iN: Int)(x: Boolean): az.type = 
     java.util.Arrays.fill(az, i0, iN, x)
     az
-  inline def fillRange(inline v: Iv | PIv)(x: Boolean): az.type = 
+  inline def fillRange(v: Iv | PIv)(x: Boolean): az.type = 
     val iv = Iv.of(v, az)
     java.util.Arrays.fill(az, iv.i0, iv.iN, x)
     az
@@ -1961,7 +2281,7 @@ extension (ab: Array[Byte]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Byte] =
     java.util.Arrays.copyOfRange(ab, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Byte] =
+  inline def copyOfRange(v: Iv | PIv): Array[Byte] =
     val iv = Iv.of(v, ab)
     java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Byte] =
@@ -1972,7 +2292,7 @@ extension (ab: Array[Byte]) {
     java.util.Arrays.binarySearch(ab, x)
   inline def searchRange(i0: Int, iN: Int)(x: Byte): Int =
     java.util.Arrays.binarySearch(ab, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Byte): Int =
+  inline def searchRange(v: Iv | PIv)(x: Byte): Int =
     val iv = Iv.of(v, ab)
     java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Byte): Int =
@@ -1986,7 +2306,7 @@ extension (ab: Array[Byte]) {
   inline def fillRange(i0: Int, iN: Int)(x: Byte): ab.type = 
     java.util.Arrays.fill(ab, i0, iN, x)
     ab
-  inline def fillRange(inline v: Iv | PIv)(x: Byte): ab.type =
+  inline def fillRange(v: Iv | PIv)(x: Byte): ab.type =
     val iv = Iv.of(v, ab)
     java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
     ab
@@ -2001,7 +2321,7 @@ extension (ab: Array[Byte]) {
   inline def sortRange(i0: Int, iN: Int): ab.type =
     java.util.Arrays.sort(ab, i0, iN)
     ab
-  inline def sortRange(inline v: Iv | PIv): ab.type =
+  inline def sortRange(v: Iv | PIv): ab.type =
     val iv = Iv.of(v, ab)
     java.util.Arrays.sort(ab, iv.i0, iv.iN)
     ab
@@ -2018,7 +2338,7 @@ extension (ab: Array[Byte]) {
       var i = i0 + 1
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, ab)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2038,7 +2358,7 @@ extension (as: Array[Short]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Short] =
     java.util.Arrays.copyOfRange(as, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Short] =
+  inline def copyOfRange(v: Iv | PIv): Array[Short] =
     val iv = Iv.of(v, as)
     java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Short] =
@@ -2049,7 +2369,7 @@ extension (as: Array[Short]) {
     java.util.Arrays.binarySearch(as, x)
   inline def searchRange(i0: Int, iN: Int)(x: Short): Int =
     java.util.Arrays.binarySearch(as, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Short): Int =
+  inline def searchRange(v: Iv | PIv)(x: Short): Int =
     val iv = Iv.of(v, as)
     java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Short): Int =
@@ -2063,7 +2383,7 @@ extension (as: Array[Short]) {
   inline def fillRange(i0: Int, iN: Int)(x: Short): as.type = 
     java.util.Arrays.fill(as, i0, iN, x)
     as
-  inline def fillRange(inline v: Iv | PIv)(x: Short): as.type =
+  inline def fillRange(v: Iv | PIv)(x: Short): as.type =
     val iv = Iv.of(v, as)
     java.util.Arrays.fill(as, iv.i0, iv.iN, x)
     as
@@ -2078,7 +2398,7 @@ extension (as: Array[Short]) {
   inline def sortRange(i0: Int, iN: Int): as.type =
     java.util.Arrays.sort(as, i0, iN)
     as
-  inline def sortRange(inline v: Iv | PIv): as.type =
+  inline def sortRange(v: Iv | PIv): as.type =
     val iv = Iv.of(v, as)
     java.util.Arrays.sort(as, iv.i0, iv.iN)
     as
@@ -2095,7 +2415,7 @@ extension (as: Array[Short]) {
       var i = i0 + 1
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, as)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2117,7 +2437,7 @@ extension (ac: Array[Char]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Char] =
     java.util.Arrays.copyOfRange(ac, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Char] =
+  inline def copyOfRange(v: Iv | PIv): Array[Char] =
     val iv = Iv.of(v, ac)
     java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Char] =
@@ -2128,7 +2448,7 @@ extension (ac: Array[Char]) {
     java.util.Arrays.binarySearch(ac, x)
   inline def searchRange(i0: Int, iN: Int)(x: Char): Int =
     java.util.Arrays.binarySearch(ac, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Char): Int =
+  inline def searchRange(v: Iv | PIv)(x: Char): Int =
     val iv = Iv.of(v, ac)
     java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Char): Int =
@@ -2142,7 +2462,7 @@ extension (ac: Array[Char]) {
   inline def fillRange(i0: Int, iN: Int)(x: Char): ac.type = 
     java.util.Arrays.fill(ac, i0, iN, x)
     ac
-  inline def fillRange(inline v: Iv | PIv)(x: Char): ac.type =
+  inline def fillRange(v: Iv | PIv)(x: Char): ac.type =
     val iv = Iv.of(v, ac)
     java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
     ac
@@ -2157,7 +2477,7 @@ extension (ac: Array[Char]) {
   inline def sortRange(i0: Int, iN: Int): ac.type =
     java.util.Arrays.sort(ac, i0, iN)
     ac
-  inline def sortRange(inline v: Iv | PIv): ac.type =
+  inline def sortRange(v: Iv | PIv): ac.type =
     val iv = Iv.of(v, ac)
     java.util.Arrays.sort(ac, iv.i0, iv.iN)
     ac
@@ -2174,7 +2494,7 @@ extension (ac: Array[Char]) {
       var i = i0 + 1
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, ac)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2196,7 +2516,7 @@ extension (ai: Array[Int]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Int] =
     java.util.Arrays.copyOfRange(ai, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Int] =
+  inline def copyOfRange(v: Iv | PIv): Array[Int] =
     val iv = Iv.of(v, ai)
     java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Int] =
@@ -2207,7 +2527,7 @@ extension (ai: Array[Int]) {
     java.util.Arrays.binarySearch(ai, x)
   inline def searchRange(i0: Int, iN: Int)(x: Int): Int =
     java.util.Arrays.binarySearch(ai, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Int): Int =
+  inline def searchRange(v: Iv | PIv)(x: Int): Int =
     val iv = Iv.of(v, ai)
     java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Int): Int =
@@ -2221,7 +2541,7 @@ extension (ai: Array[Int]) {
   inline def fillRange(i0: Int, iN: Int)(x: Int): ai.type = 
     java.util.Arrays.fill(ai, i0, iN, x)
     ai
-  inline def fillRange(inline v: Iv | PIv)(x: Int): ai.type =
+  inline def fillRange(v: Iv | PIv)(x: Int): ai.type =
     val iv = Iv.of(v, ai)
     java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
     ai
@@ -2236,7 +2556,7 @@ extension (ai: Array[Int]) {
   inline def sortRange(i0: Int, iN: Int): ai.type =
     java.util.Arrays.sort(ai, i0, iN)
     ai
-  inline def sortRange(inline v: Iv | PIv): ai.type =
+  inline def sortRange(v: Iv | PIv): ai.type =
     val iv = Iv.of(v, ai)
     java.util.Arrays.sort(ai, iv.i0, iv.iN)
     ai
@@ -2253,7 +2573,7 @@ extension (ai: Array[Int]) {
       var i = i0 + 1
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, ai)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2275,7 +2595,7 @@ extension (al: Array[Long]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Long] =
     java.util.Arrays.copyOfRange(al, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Long] =
+  inline def copyOfRange(v: Iv | PIv): Array[Long] =
     val iv = Iv.of(v, al)
     java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Long] =
@@ -2286,7 +2606,7 @@ extension (al: Array[Long]) {
     java.util.Arrays.binarySearch(al, x)
   inline def searchRange(i0: Int, iN: Int)(x: Long): Int =
     java.util.Arrays.binarySearch(al, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Long): Int =
+  inline def searchRange(v: Iv | PIv)(x: Long): Int =
     val iv = Iv.of(v, al)
     java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Long): Int =
@@ -2300,7 +2620,7 @@ extension (al: Array[Long]) {
   inline def fillRange(i0: Int, iN: Int)(x: Long): al.type = 
     java.util.Arrays.fill(al, i0, iN, x)
     al
-  inline def fillRange(inline v: Iv | PIv)(x: Long): al.type =
+  inline def fillRange(v: Iv | PIv)(x: Long): al.type =
     val iv = Iv.of(v, al)
     java.util.Arrays.fill(al, iv.i0, iv.iN, x)
     al
@@ -2315,7 +2635,7 @@ extension (al: Array[Long]) {
   inline def sortRange(i0: Int, iN: Int): al.type =
     java.util.Arrays.sort(al, i0, iN)
     al
-  inline def sortRange(inline v: Iv | PIv): al.type =
+  inline def sortRange(v: Iv | PIv): al.type =
     val iv = Iv.of(v, al)
     java.util.Arrays.sort(al, iv.i0, iv.iN)
     al
@@ -2332,7 +2652,7 @@ extension (al: Array[Long]) {
       var i = i0 + 1
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, al)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2354,7 +2674,7 @@ extension (af: Array[Float]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Float] =
     java.util.Arrays.copyOfRange(af, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Float] =
+  inline def copyOfRange(v: Iv | PIv): Array[Float] =
     val iv = Iv.of(v, af)
     java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Float] =
@@ -2365,7 +2685,7 @@ extension (af: Array[Float]) {
     java.util.Arrays.binarySearch(af, x)
   inline def searchRange(i0: Int, iN: Int)(x: Float): Int =
     java.util.Arrays.binarySearch(af, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Float): Int =
+  inline def searchRange(v: Iv | PIv)(x: Float): Int =
     val iv = Iv.of(v, af)
     java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Float): Int =
@@ -2379,7 +2699,7 @@ extension (af: Array[Float]) {
   inline def fillRange(i0: Int, iN: Int)(x: Float): af.type = 
     java.util.Arrays.fill(af, i0, iN, x)
     af
-  inline def fillRange(inline v: Iv | PIv)(x: Float): af.type =
+  inline def fillRange(v: Iv | PIv)(x: Float): af.type =
     val iv = Iv.of(v, af)
     java.util.Arrays.fill(af, iv.i0, iv.iN, x)
     af
@@ -2394,7 +2714,7 @@ extension (af: Array[Float]) {
   inline def sortRange(i0: Int, iN: Int): af.type =
     java.util.Arrays.sort(af, i0, iN)
     af
-  inline def sortRange(inline v: Iv | PIv): af.type =
+  inline def sortRange(v: Iv | PIv): af.type =
     val iv = Iv.of(v, af)
     java.util.Arrays.sort(af, iv.i0, iv.iN)
     af
@@ -2411,7 +2731,7 @@ extension (af: Array[Float]) {
       var i = i0 + 1
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, af)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2433,7 +2753,7 @@ extension (ad: Array[Double]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Double] =
     java.util.Arrays.copyOfRange(ad, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[Double] =
+  inline def copyOfRange(v: Iv | PIv): Array[Double] =
     val iv = Iv.of(v, ad)
     java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Double] =
@@ -2444,7 +2764,7 @@ extension (ad: Array[Double]) {
     java.util.Arrays.binarySearch(ad, x)
   inline def searchRange(i0: Int, iN: Int)(x: Double): Int =
     java.util.Arrays.binarySearch(ad, i0, iN, x)
-  inline def searchRange(inline v: Iv | PIv)(x: Double): Int =
+  inline def searchRange(v: Iv | PIv)(x: Double): Int =
     val iv = Iv.of(v, ad)
     java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Double): Int =
@@ -2458,7 +2778,7 @@ extension (ad: Array[Double]) {
   inline def fillRange(i0: Int, iN: Int)(x: Double): ad.type = 
     java.util.Arrays.fill(ad, i0, iN, x)
     ad
-  inline def fillRange(inline v: Iv | PIv)(x: Double): ad.type =
+  inline def fillRange(v: Iv | PIv)(x: Double): ad.type =
     val iv = Iv.of(v, ad)
     java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
     ad
@@ -2473,7 +2793,7 @@ extension (ad: Array[Double]) {
   inline def sortRange(i0: Int, iN: Int): ad.type =
     java.util.Arrays.sort(ad, i0, iN)
     ad
-  inline def sortRange(inline v: Iv | PIv): ad.type =
+  inline def sortRange(v: Iv | PIv): ad.type =
     val iv = Iv.of(v, ad)
     java.util.Arrays.sort(ad, iv.i0, iv.iN)
     ad
@@ -2490,7 +2810,7 @@ extension (ad: Array[Double]) {
       var i = i0 + 1
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv): Boolean =
+  inline def isSortedRange(v: Iv | PIv): Boolean =
     val iv = Iv.of(v, ad)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
@@ -2510,7 +2830,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
 
   inline def copyOfRange(i0: Int, iN: Int): Array[A] =
     java.util.Arrays.copyOfRange(aa, i0, iN)
-  inline def copyOfRange(inline v: Iv | PIv): Array[A] =
+  inline def copyOfRange(v: Iv | PIv): Array[A] =
     val iv = Iv.of(v, aa)
     java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[A] =
@@ -2521,7 +2841,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
     java.util.Arrays.binarySearch(aa, x, o)
   inline def searchRange(i0: Int, iN: Int)(x: A)(using o: scala.math.Ordering[A]): Int =
     java.util.Arrays.binarySearch(aa, i0, iN, x, o)
-  inline def searchRange(inline v: Iv | PIv)(x: A)(using o: scala.math.Ordering[A]): Int =
+  inline def searchRange(v: Iv | PIv)(x: A)(using o: scala.math.Ordering[A]): Int =
     val iv = Iv.of(v, aa)
     java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
   inline def searchRange(inline rg: collection.immutable.Range)(x: A)(using o: scala.math.Ordering[A]): Int =
@@ -2535,7 +2855,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def fillRange(i0: Int, iN: Int)(x: A): aa.type = 
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, x.asInstanceOf[AnyRef])
     aa
-  inline def fillRange(inline v: Iv | PIv)(x: A): aa.type =
+  inline def fillRange(v: Iv | PIv)(x: A): aa.type =
     val iv = Iv.of(v, aa)
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
     aa
@@ -2550,7 +2870,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def sortRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): aa.type =
     scala.util.Sorting.stableSort(aa, i0, iN)
     aa
-  inline def sortRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): aa.type =
+  inline def sortRange(v: Iv | PIv)(using o: scala.math.Ordering[A]): aa.type =
     val iv = Iv.of(v, aa)
     scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
     aa
@@ -2567,7 +2887,7 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
-  inline def isSortedRange(inline v: Iv | PIv)(using o: scala.math.Ordering[A]): Boolean =
+  inline def isSortedRange(v: Iv | PIv)(using o: scala.math.Ordering[A]): Boolean =
     val iv = Iv.of(v, aa)
     isSortedRange(iv.i0, iv.iN)
   inline def isSortedRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): Boolean =
@@ -2612,7 +2932,7 @@ extension (a: String) {
       f(a.charAt(i))
       i += 1
     a
-  inline def peek(inline v: Iv | PIv)(inline f: Char => Unit): a.type =
+  inline def peek(v: Iv | PIv)(inline f: Char => Unit): a.type =
     val iv = Iv.of(v, a)
     peek(iv.i0, iv.iN)(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): a.type =
@@ -2639,7 +2959,7 @@ extension (a: String) {
     while i < iN do
       f(a.charAt(i), i)
       i += 1
-  inline def visit(inline v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
+  inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
     val iv = Iv.of(v, a)
     visit(iv.i0, iv.iN)(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
@@ -2680,7 +3000,7 @@ extension (a: String) {
       z = f(z, a.charAt(i), i)
       i += 1
     z
-  inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
+  inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
     val iv = Iv.of(v, a)
     gather(zero)(iv.i0, iv.iN)(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
@@ -2701,13 +3021,20 @@ extension (a: String) {
       z = f(z, a.charAt(j), j)
     z
 
-  inline def dupWith(inline f: Char => Char): String =
+  inline def copyWith(inline f: Char => Char): String =
     val b = new java.lang.StringBuilder
     var i = 0
     while i < a.length do
       b append f(a.charAt(i))
       i += 1
     b.toString
+  transparent inline def copyOp[B](inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    val b = new Array[B](a.length)
+    var i = 0
+    while i < a.length do
+      b(i) = op(a.charAt(i), i)
+      i += 1
+    b
 
   inline def where(inline pick: Char => Boolean): Array[Int] =
     var ix = new Array[Int](if a.length <= 8 then a.length else 8)
@@ -2720,6 +3047,37 @@ extension (a: String) {
         j += 1
       i += 1
     ix.shrinkTo(j)
+
+  inline def whereIn(i0: Int, iN: Int)(inline pick: Char => Boolean): Array[Int] =
+    var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+    var i = i0
+    var j = 0
+    while i < iN do
+      if pick(a.charAt(i)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = i
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+  inline def whereIn(v: Iv | PIv)(inline pick: Char => Boolean): Array[Int] =
+    val iv = Iv.of(v, a)
+    whereIn(iv.i0, iv.iN)(pick)
+  inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
+    val iv = Iv of rg
+    whereIn(iv.i0, iv.iN)(pick)
+
+  inline def whereFrom(indices: Array[Int])(inline pick: Char => Boolean): Array[Int] =
+    var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+    var i = 0
+    var j = 0
+    while i < indices.length do
+      val k = indices(i)
+      if pick(a.charAt(k)) then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = k
+        j += 1
+      i += 1  
+    ix.shrinkTo(j)  
 
   inline def inject(that: Array[Char]): Int =
     inject(that, 0)(0, a.length)
@@ -2735,10 +3093,10 @@ extension (a: String) {
       i += 1
       j += 1
     iN - i0
-  inline def inject(that: Array[Char])(inline v: Iv | PIv): Int =
+  inline def inject(that: Array[Char])(v: Iv | PIv): Int =
     val iv = Iv.of(v, a)
     inject(that, 0)(iv.i0, iv.iN)
-  inline def inject(that: Array[Char], where: Int)(inline v: Iv | PIv): Int =
+  inline def inject(that: Array[Char], where: Int)(v: Iv | PIv): Int =
     val iv = Iv.of(v, a)
     inject(that, where)(iv.i0, iv.iN)
   inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
@@ -2792,10 +3150,10 @@ extension (a: String) {
       j += 1
       i += 1
     iN - i0
-  inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
+  inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
     val iv = Iv.of(v, a)
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-  inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
+  inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
     val iv = Iv.of(v, a)
     injectOp[B](that, where)(iv.i0, iv.iN)(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
@@ -2839,7 +3197,7 @@ extension (a: String) {
 
   inline def select(i0: Int, iN: Int): String =
     a.substring(i0, iN)
-  inline def select(inline v: Iv | PIv): String =
+  inline def select(v: Iv | PIv): String =
     val iv = Iv.of(v, a)
     select(Iv.i0(iv), Iv.iN(iv))
   inline def select(inline rg: collection.immutable.Range): String =
@@ -2868,13 +3226,6 @@ extension (a: String) {
       i += 1
     b.toString
 
-  transparent inline def selectOp[B]()(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
-    val b = new Array[B](a.length)
-    var i = 0
-    while i < a.length do
-      b(i) = op(a.charAt(i), i)
-      i += 1
-    b
   transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](iN - i0)
     var i = i0
@@ -2882,7 +3233,7 @@ extension (a: String) {
       b(i - i0) = op(a.charAt(i), i)
       i += 1
     b
-  transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  transparent inline def selectOp[B](v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv.of(v, a)
     selectOp(Iv.i0(iv), Iv.iN(iv))(op)
   transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -2909,7 +3260,7 @@ extension (a: String) {
     val indices = where(pick)
     selectOp(indices)(op)
 
-  transparent inline def fusion[B](inline add: (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+  transparent inline def fuse[B](inline add: (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
     var bs = new Array[B](if a.length < 8 then a.length else 8)
     var i = 0
     var j = 0
@@ -2917,6 +3268,78 @@ extension (a: String) {
       add(a.charAt(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
       i += 1
     bs.shrinkTo(j)
+
+  inline def diced(indices: Array[Int], mode: "" | "()" | "[)" | "(]" | "[]", endpoints: "endpoints" | "no endpoints"): Array[String] =
+    val empty = inline endpoints match
+      case "no endpoints" => indices.length < 2
+      case _ => indices.length == 0 && a.length == 0
+    if empty then
+      inline if endpoints == "endpoints" && mode != "" then
+        Array("")
+      else new Array[String](0)
+    else
+      var bss = new Array[String](inline if endpoints == "no endpoints" then indices.length-1 else indices.length+1)
+      var i0 = inline if endpoints == "no endpoints" then indices(0) else inline mode match
+        case "[)" | "[]" => 0
+        case _           => -1
+      var j = 0
+      var k = 0
+      while j < bss.length do
+        val iN =
+          inline if endpoints == "no endpoints" then
+            indices(j+1)
+          else
+            if j < indices.length then indices(j)
+            else inline mode match
+              case "(]" | "[]" => a.length - 1
+              case _           => a.length
+        j += 1
+        if i0 == iN then
+          inline mode match
+            case ""   =>
+            case "[]" =>
+              bss(k) = a.charAt(i0).toString
+              k += 1
+            case _    =>
+              bss(k) = ""
+              k += 1
+        else
+          val bump = if iN < i0 then -1 else 1
+          var h0 = inline if mode != "[)" && mode != "[]" then i0 + bump else i0
+          var hN = inline if mode == "(]" || mode == "[]" then iN + bump else iN
+          val n = if hN < h0 then h0 - hN else hN - h0
+          if n == 0 then
+            inline mode match
+              case "" =>
+              case _  =>
+                bss(k) = ""
+                k += 1
+          else
+            val b = new Array[Char](n)
+            if h0 > hN then
+              var h = h0
+              var g = 0
+              while h != hN do
+                b(g) = a.charAt(h)
+                h -= 1
+                g += 1
+              bss(k) = new String(b)
+            else if n > 0 then bss(k) = a.substring(h0, hN)
+            else bss(k) = ""
+            k += 1
+          i0 = iN
+      inline if mode == "" then
+        if k < bss.length then
+          java.util.Arrays.copyOf(bss, k)
+        else
+          bss
+      else
+        bss
+  inline def diced(indices: Array[Int], style: "()" | "[)" | "(]" | "[]" | "no endpoints"): Array[String] =
+    inline style match
+      case "no endpoints"                 => diced(indices, "", "no endpoints")
+      case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
+  inline def diced(indices: Array[Int]): Array[String] = diced(indices, "", "endpoints")
 }
 
 
@@ -2939,7 +3362,7 @@ object ClippedString {
         f(a.charAt(i))
         i += 1
       a
-    inline def peek(inline v: Iv | PIv)(inline f: Char => Unit): String =
+    inline def peek(v: Iv | PIv)(inline f: Char => Unit): String =
       val iv = Iv.of(v, ca.unwrap)
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): String =
@@ -2968,7 +3391,7 @@ object ClippedString {
       while i < iM do
         f(a.charAt(i), i)
         i += 1
-    inline def visit(inline v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
+    inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
       val iv = Iv.of(v, ca.unwrap)
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
@@ -2997,7 +3420,7 @@ object ClippedString {
         z = f(z, a.charAt(i), i)
         i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
       val iv = Iv.of(v, ca.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
@@ -3019,6 +3442,41 @@ object ClippedString {
         val j = indices.nextStep
         if j >= 0 && j < a.length then z = f(z, a.charAt(j), j)
       z
+
+    inline def whereIn(i0: Int, iN: Int)(inline pick: Char => Boolean): Array[Int] =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      while i < iM do
+        if pick(a.charAt(i)) then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = i
+          j += 1
+        i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: Char => Boolean): Array[Int] =
+      val iv = Iv.of(v, ca.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: Char => Boolean): Array[Int] =
+      val a = ca.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      while i < indices.length do
+        val k = indices(i)
+        if k >= 0 && k < a.length && pick(a.charAt(k)) then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = k
+          j += 1
+        i += 1  
+      ix.shrinkTo(j)
 
     inline def inject(that: Array[Char]): Int =
       inject(that, 0)(0, ca.unwrap.length)
@@ -3045,10 +3503,10 @@ object ClippedString {
           n -= 1
         n0
       else 0
-    inline def inject(that: Array[Char])(inline v: Iv | PIv): Int =
+    inline def inject(that: Array[Char])(v: Iv | PIv): Int =
       val iv = Iv.of(v, ca.unwrap)
       inject(that, 0)(iv.i0, iv.iN)
-    inline def inject(that: Array[Char], where: Int)(inline v: Iv | PIv): Int =
+    inline def inject(that: Array[Char], where: Int)(v: Iv | PIv): Int =
       val iv = Iv.of(v, ca.unwrap)
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
@@ -3123,10 +3581,10 @@ object ClippedString {
           n -= 1
         n0
       else 0
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
       val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
       val iv = Iv.of(v, ca.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
@@ -3183,7 +3641,7 @@ object ClippedString {
       var j = iN
       if j >= a.length then j = a.length
       if i < j then a.substring(i, j) else ""
-    inline def select(inline v: Iv | PIv): String =
+    inline def select(v: Iv | PIv): String =
       val iv = Iv.of(v, ca.unwrap)
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range): String =
@@ -3220,7 +3678,7 @@ object ClippedString {
         b(i - offset) = op(a.charAt(i), i)
         i += 1
       b
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, ca.unwrap)
       selectOp(Iv.i0(iv), Iv.iN(iv))(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -3249,6 +3707,104 @@ object ClippedString {
           b(j) = op(a.charAt(i), i)
           j += 1
       b.shrinkTo(j)
+
+    inline def diced(indices: Array[Int], mode: "" | "()" | "[)" | "(]" | "[]", endpoints: "endpoints" | "no endpoints"): Array[String] =
+      val a = ca.unwrap
+      val empty = inline endpoints match
+        case "no endpoints" => indices.length < 2
+        case _ => indices.length == 0 && a.length == 0
+      if empty then
+        inline if endpoints == "endpoints" && mode != "" then
+          Array("")
+        else new Array[String](0)
+      else
+        var bss = new Array[String](inline if endpoints == "no endpoints" then indices.length-1 else indices.length+1)
+        var i0 = 
+          inline if endpoints == "no endpoints" then indices(0)
+          else -1
+        var j = 0
+        var k = 0
+        while j < bss.length do
+          val iN =
+            inline if endpoints == "no endpoints" then indices(j+1)
+            else
+              if j < indices.length then indices(j)
+              else a.length+1
+          j += 1
+          if !((i0 < 0 && iN < 0) || (i0 >= a.length && iN >= a.length)) then
+            if i0 == iN then
+              inline mode match
+                case ""   =>
+                case "[]" =>
+                  if i0 >= 0 && i0 < a.length then
+                    bss(k) = a.charAt(i0).toString
+                    k += 1
+                case _    =>
+                  if i0 >= 0 && i0 < a.length then
+                    bss(k) = ""
+                    k += 1
+            else
+              var h0 = i0
+              var hN = iN
+              inline mode match
+                case "[]" =>
+                  if hN < h0 then
+                    if h0 >= a.length then h0 = a.length - 1
+                    hN = if hN >= 0 then hN - 1 else - 1
+                  else
+                    if h0 < 0 then h0 = 0
+                    hN = if hN < a.length then hN + 1 else a.length
+                case "[)" =>
+                  if hN < h0 then
+                    if h0 >= a.length then h0 = a.length - 1
+                    if hN < -1 then hN = -1
+                  else
+                    if h0 < 0 then h0 = 0
+                    if hN > a.length then hN = a.length
+                case "(]" =>
+                  if hN < h0 then
+                    h0 = if h0 > a.length then a.length-1 else h0-1
+                    hN = if hN > 0 then hN - 1 else -1
+                  else
+                    h0 = if h0 < 0 then 0 else h0 + 1
+                    hN = if hN < a.length then hN + 1 else a.length
+                case _ =>
+                  if hN < h0 then
+                    h0 = if h0 > a.length - 1 then a.length - 1 else h0 - 1
+                    if hN < -1 then hN = -1
+                  else if hN > h0 then
+                    h0 = if h0 < 0 then 0 else h0 + 1
+                    if hN > a.length then hN = a.length
+              val n = if hN < h0 then h0 - hN else hN - h0
+              if n == 0 then
+                inline mode match
+                  case "" =>
+                  case _  =>
+                    bss(k) = ""
+                    k += 1
+              else
+                val b = new Array[Char](n)
+                if h0 > hN then
+                  var h = h0
+                  var g = 0
+                  while h != hN do
+                    b(g) = a.charAt(h)
+                    h -= 1
+                    g += 1
+                  bss(k) = new String(b)
+                else if n > 0 then bss(k) = a.substring(h0, hN)
+                else bss(k) = ""
+                k += 1
+          i0 = iN
+        if k < bss.length then
+          java.util.Arrays.copyOf(bss, k)
+        else
+          bss
+    inline def diced(indices: Array[Int], style: "()" | "[)" | "(]" | "[]" | "no endpoints"): Array[String] =
+      inline style match
+        case "no endpoints"                 => diced(indices, "", "no endpoints")
+        case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
+    inline def diced(indices: Array[Int]): Array[String] = diced(indices, "", "endpoints")
   }
 }
 
@@ -3318,7 +3874,7 @@ object ShortcutString {
           z = f(z, a.charAt(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv.of(v, sa.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
@@ -3343,15 +3899,28 @@ object ShortcutString {
           z = f(z, a.charAt(j), j)
       z
 
-    inline def dupWith[B](inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Char): String =
+    inline def copyWith[B](inline f: boundary.Label[shortcut.Type] ?=> Char => Char): String =
       val a = sa.unwrap
       val b = new java.lang.StringBuilder(a.length)
       var i = 0
-      shortcut.quittable:
+      shortcut.outer:
         while i < a.length do
-          b append f(a.charAt(i))
+          shortcut.inner:
+            b append f(a.charAt(i))
           i += 1
       b.toString
+    transparent inline def copyOp[B](inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val a = sa.unwrap
+      val b = new Array[B](a.length)
+      var i = 0
+      var j = 0
+      shortcut.outer:
+        while i < a.length do
+          shortcut.inner:
+            b(j) = op(a.charAt(i), i)
+            j += 1
+          i += 1
+      b.shrinkTo(j)
 
     inline def where(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -3365,6 +3934,41 @@ object ShortcutString {
             ix(j) = i
             j += 1
           i += 1
+      ix.shrinkTo(j)
+
+    inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+      var i = i0
+      var j = 0
+      shortcut.quittable:
+        while i < iN do
+          if pick(a.charAt(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv = Iv.of(v, sa.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if pick(a.charAt(k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1  
       ix.shrinkTo(j)
 
     inline def inject(that: Array[Char])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Int =
@@ -3399,10 +4003,10 @@ object ShortcutString {
             j += 1
           i += 1
       j - where
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv.of(v, sa.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
@@ -3450,18 +4054,6 @@ object ShortcutString {
           i += 1
       b.toString
 
-    transparent inline def selectOp[B]()(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val a = sa.unwrap
-      val b = new Array[B](a.length)
-      var i = 0
-      var j = 0
-      shortcut.outer:
-        while i < a.length do
-          shortcut.inner:
-            b(j) = op(a.charAt(i), i)
-            j += 1
-          i += 1
-      b.shrinkTo(j)
     transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](iN - i0)
@@ -3474,7 +4066,7 @@ object ShortcutString {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, sa.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -3507,7 +4099,7 @@ object ShortcutString {
             j += 1
       b.shrinkTo(j)
 
-    transparent inline def fusion[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
+    transparent inline def fuse[B](inline add: boundary.Label[shortcut.Quits.type] ?=> (Char, Int, B => Unit) => Unit)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var bs = new Array[B](if a.length < 8 then a.length else 8)
       var i = 0
@@ -3573,7 +4165,7 @@ object ShortClipString {
           z = f(z, a.charAt(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv.of(v, sc.unwrap)
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
@@ -3597,6 +4189,43 @@ object ShortClipString {
           val j = indices.nextStep
           if j >= 0 && j < a.length then z = f(z, a.charAt(j), j)
       z
+
+    inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      shortcut.quittable:
+        while i < iM do
+          if pick(a.charAt(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv = Iv.of(v, sc.unwrap)
+      whereIn(iv.i0, iv.iN)(pick)
+    inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv = Iv of rg
+      whereIn(iv.i0, iv.iN)(pick)
+
+    inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val a = sc.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if k >= 0 && k < a.length && pick(a.charAt(k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1  
+      ix.shrinkTo(j)
 
     inline def inject(that: Array[Char])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Int =
       inject(that, 0)(pick)
@@ -3635,10 +4264,10 @@ object ShortClipString {
             j += 1
           i += 1
       if where < 0 then j else j - where
-    inline def injectOp[B](that: Array[B])(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(inline v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv.of(v, sc.unwrap)
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
@@ -3694,7 +4323,7 @@ object ShortClipString {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](inline v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv.of(v, sc.unwrap)
       selectOp(iv.i0, iv.iN)(op)
     transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -3983,13 +4612,13 @@ extension [A, B, C](q: (A, B, C)) {
   inline def tupWith[Z](inline zfn: (A, B, C) => Z): (A, B, C, Z) = (q._1, q._2, q._3, zfn(q._1, q._2, q._3))
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C) = (q._2, q._3)
 
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C) = (q._1, q._3)
 
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B) = (q._1, q._2)
 
   /** Concatenate this tuple with a 2-tuple */
@@ -4073,16 +4702,16 @@ extension [A, B, C, D](q: (A, B, C, D)) {
   inline def tupWith[Z](inline zfn: (A, B, C, D) => Z): (A, B, C, D, Z) = (q._1, q._2, q._3, q._4, zfn(q._1, q._2, q._3, q._4))
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D) = (q._2, q._3, q._4)
 
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D) = (q._1, q._3, q._4)
 
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D) = (q._1, q._2, q._4)
 
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C) = (q._1, q._2, q._3)
 
   /** Concatenate this tuple with a 2-tuple */
@@ -4174,19 +4803,19 @@ extension [A, B, C, D, E](q: (A, B, C, D, E)) {
   inline def tupWith[Z](inline zfn: (A, B, C, D, E) => Z): (A, B, C, D, E, Z) = (q._1, q._2, q._3, q._4, q._5, zfn(q._1, q._2, q._3, q._4, q._5))
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D, E) = (q._2, q._3, q._4, q._5)
 
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D, E) = (q._1, q._3, q._4, q._5)
 
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D, E) = (q._1, q._2, q._4, q._5)
 
-  /** Cut out the fourth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fourth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_4: (A, B, C, E) = (q._1, q._2, q._3, q._5)
 
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C, D) = (q._1, q._2, q._3, q._4)
 
   /** Concatenate this tuple with a 2-tuple */
@@ -4288,22 +4917,22 @@ extension [A, B, C, D, E, F](q: (A, B, C, D, E, F)) {
   inline def tupWith[Z](inline zfn: (A, B, C, D, E, F) => Z): (A, B, C, D, E, F, Z) = (q._1, q._2, q._3, q._4, q._5, q._6, zfn(q._1, q._2, q._3, q._4, q._5, q._6))
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D, E, F) = (q._2, q._3, q._4, q._5, q._6)
 
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D, E, F) = (q._1, q._3, q._4, q._5, q._6)
 
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D, E, F) = (q._1, q._2, q._4, q._5, q._6)
 
-  /** Cut out the fourth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fourth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_4: (A, B, C, E, F) = (q._1, q._2, q._3, q._5, q._6)
 
-  /** Cut out the fifth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fifth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_5: (A, B, C, D, F) = (q._1, q._2, q._3, q._4, q._6)
 
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C, D, E) = (q._1, q._2, q._3, q._4, q._5)
 
   /** Concatenate this tuple with a 2-tuple */
@@ -4414,25 +5043,25 @@ extension [A, B, C, D, E, F, G](q: (A, B, C, D, E, F, G)) {
   inline def tupWith[Z](inline zfn: (A, B, C, D, E, F, G) => Z): (A, B, C, D, E, F, G, Z) = (q._1, q._2, q._3, q._4, q._5, q._6, q._7, zfn(q._1, q._2, q._3, q._4, q._5, q._6, q._7))
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D, E, F, G) = (q._2, q._3, q._4, q._5, q._6, q._7)
   
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D, E, F, G) = (q._1, q._3, q._4, q._5, q._6, q._7)
   
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D, E, F, G) = (q._1, q._2, q._4, q._5, q._6, q._7)
   
-  /** Cut out the fourth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fourth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_4: (A, B, C, E, F, G) = (q._1, q._2, q._3, q._5, q._6, q._7)
   
-  /** Cut out the fifth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fifth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_5: (A, B, C, D, F, G) = (q._1, q._2, q._3, q._4, q._6, q._7)
   
-  /** Cut out the sixth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the sixth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_6: (A, B, C, D, E, G) = (q._1, q._2, q._3, q._4, q._5, q._7)
   
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C, D, E, F) = (q._1, q._2, q._3, q._4, q._5, q._6)
 
   /** Concatenate this tuple with a 2-tuple */
@@ -4551,28 +5180,28 @@ extension [A, B, C, D, E, F, G, H](q: (A, B, C, D, E, F, G, H)) {
   /** Create a new tuple that is this one plus a value computed with a function of the elements of this tuple. */
   inline def tupWith[Z](inline zfn: (A, B, C, D, E, F, G, H) => Z): (A, B, C, D, E, F, G, H, Z) = (q._1, q._2, q._3, q._4, q._5, q._6, q._7, q._8, zfn(q._1, q._2, q._3, q._4, q._5, q._6, q._7, q._8))
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D, E, F, G, H) = (q._2, q._3, q._4, q._5, q._6, q._7, q._8)
   
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D, E, F, G, H) = (q._1, q._3, q._4, q._5, q._6, q._7, q._8)
   
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D, E, F, G, H) = (q._1, q._2, q._4, q._5, q._6, q._7, q._8)
   
-  /** Cut out the fourth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fourth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_4: (A, B, C, E, F, G, H) = (q._1, q._2, q._3, q._5, q._6, q._7, q._8)
   
-  /** Cut out the fifth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fifth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_5: (A, B, C, D, F, G, H) = (q._1, q._2, q._3, q._4, q._6, q._7, q._8)
   
-  /** Cut out the sixth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the sixth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_6: (A, B, C, D, E, G, H) = (q._1, q._2, q._3, q._4, q._5, q._7, q._8)
   
-  /** Cut out the seventh value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the seventh value of this tuple, creating a new tuple from what"s left. */
   inline def snip_7: (A, B, C, D, E, F, H) = (q._1, q._2, q._3, q._4, q._5, q._6, q._8)
   
-  /** Cut out the last value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the last value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C, D, E, F, G) = (q._1, q._2, q._3, q._4, q._5, q._6, q._7)
 
   /** Split this tuple after element 1, creating a singleton and a 7-tuple. */
@@ -4667,31 +5296,31 @@ extension [A, B, C, D, E, F, G, H, I](q: (A, B, C, D, E, F, G, H, I)) {
   inline def reduce[Z >: A | B | C | D | E | F | G | H | I](zop: (Z, Z) => Z) = zop(zop(zop(zop(zop(zop(zop(zop(q._1, q._2), q._3), q._4), q._5), q._6), q._7), q._8), q._9)
 
 
-  /** Cut out the first value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the first value of this tuple, creating a new tuple from what"s left. */
   inline def snip_1: (B, C, D, E, F, G, H, I) = (q._2, q._3, q._4, q._5, q._6, q._7, q._8, q._9)
   
-  /** Cut out the second value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the second value of this tuple, creating a new tuple from what"s left. */
   inline def snip_2: (A, C, D, E, F, G, H, I) = (q._1, q._3, q._4, q._5, q._6, q._7, q._8, q._9)
   
-  /** Cut out the third value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the third value of this tuple, creating a new tuple from what"s left. */
   inline def snip_3: (A, B, D, E, F, G, H, I) = (q._1, q._2, q._4, q._5, q._6, q._7, q._8, q._9)
   
-  /** Cut out the fourth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fourth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_4: (A, B, C, E, F, G, H, I) = (q._1, q._2, q._3, q._5, q._6, q._7, q._8, q._9)
   
-  /** Cut out the fifth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the fifth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_5: (A, B, C, D, F, G, H, I) = (q._1, q._2, q._3, q._4, q._6, q._7, q._8, q._9)
   
-  /** Cut out the sixth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the sixth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_6: (A, B, C, D, E, G, H, I) = (q._1, q._2, q._3, q._4, q._5, q._7, q._8, q._9)
   
-  /** Cut out the seventh value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the seventh value of this tuple, creating a new tuple from what"s left. */
   inline def snip_7: (A, B, C, D, E, F, H, I) = (q._1, q._2, q._3, q._4, q._5, q._6, q._8, q._9)
   
-  /** Cut out the eigth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the eigth value of this tuple, creating a new tuple from what"s left. */
   inline def snip_8: (A, B, C, D, E, F, G, I) = (q._1, q._2, q._3, q._4, q._5, q._6, q._7, q._9)
   
-  /** Cut out the ninth value of this tuple, creating a new tuple from what's left. */
+  /** Cut out the ninth value of this tuple, creating a new tuple from what"s left. */
   inline def snip:   (A, B, C, D, E, F, G, H) = (q._1, q._2, q._3, q._4, q._5, q._6, q._7, q._8)
 
   /** Split this tuple after element 1, creating a singleton and a 7-tuple. */

@@ -458,7 +458,7 @@ class BasicsTest {
       sb.toString
 
   extension (s: String)
-    def c: Array[C.Type] = s.toCharArray.dupWith(c => C(c))
+    def c: Array[C.Type] = s.toCharArray.copyWith(c => C(c))
 
   @Test
   def arrayInlinedDataTest(): Unit =
@@ -579,8 +579,11 @@ class BasicsTest {
     T ~ (oar.dup() eq oar)         ==== false
     T ~ car.dup(_(0) = C('s')).cs  ==== "sh.ix.#n."
     T ~ oar.dup(_(0) = O(None)).os ==== "#ix.#n."
-    T ~ car.dupWith(_.n)           =**= car.map(_.n)
-    T ~ oar.dupWith(_.n)           =**= oar.map(_.n)
+
+    T ~ car.copyWith(_.n)   =**= car.map(_.n)
+    T ~ oar.copyWith(_.n)   =**= oar.map(_.n)
+    T ~ car.copyOp(_.n + _) =**= car.zipWithIndex.map{ case (x, i) => x.n + i }
+    T ~ oar.copyOp(_.n + _) =**= oar.zipWithIndex.map{ case (x, i) => x.n + i }
 
     T ~ car.addLeft(2).cs          ==== "\u0000\u0000ch.ix.#n."
     T ~ oar.addLeft(2).os          ==== "@@ch.ix.#n."
@@ -591,8 +594,18 @@ class BasicsTest {
     T ~ car.addRight(2, C('+')).cs  ==== "ch.ix.#n.++"
     T ~ oar.addRight(2, O(None)).os ==== "ch.ix.#n.##"
 
-    T ~ car.where(_.l) =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
-    T ~ oar.where(_.l) =**= oar.zipWithIndex.collect{ case (o, i) if o.l => i }
+    T ~ car.where(_.l)                      =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
+    T ~ oar.where(_.l)                      =**= oar.zipWithIndex.collect{ case (o, i) if o.l => i }
+    T ~ car.whereIn(3, 5  )(_.value == 'x') =**= Array(4)
+    T ~ oar.whereIn(1, 3  )(_.l)            =**= Array(1)
+    T ~ car.whereIn(3 to 4)(_.value == 'x') =**= Array(4)
+    T ~ oar.whereIn(1 to 2)(_.l)            =**= Array(1)
+    T ~ car.whereIn(civ   )(_.value == 'x') =**= Array(4)
+    T ~ oar.whereIn(oiv   )(_.l)            =**= Array(1)
+    T ~ car.whereIn(cpv   )(_.value == 'x') =**= Array(4)
+    T ~ oar.whereIn(opv   )(_.l)            =**= Array(1)
+    T ~ car.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
+    T ~ oar.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
 
     T ~ car.dup(_() = C('x')).cs          ==== "xxxxxxxxx"
     T ~ oar.dup(_() = O(None)).os         ==== "####"
@@ -813,8 +826,6 @@ class BasicsTest {
     T ~ car.select(_.l).cs    ==== "chixn"
     T ~ oar.select(_.l).os    ==== "ch.ix.n."
 
-    T ~ car.selectOp()(      (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#h.#i.#..#n.#"
-    T ~ oar.selectOp()(      (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-x-n"
     T ~ car.selectOp(3, 5)(  (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
     T ~ oar.selectOp(1, 3)(  (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "x-"
     T ~ car.selectOp(3 to 4)((c, i) => if i%2 == 0 then O(None) else c.o).os ==== "i.#"
@@ -830,8 +841,37 @@ class BasicsTest {
     T ~ car.selectOp(_.l)(   (c, i) => if i%2 == 0 then O(None) else c.o).os ==== "#h.i.#n."
     T ~ oar.selectOp(_.l)(   (o, i) => if i%2 == 0 then C('-')  else o.c).cs ==== "-xn"
 
-    T ~ car.fusion[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+    T ~ car.fuse[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
 
+    val test = "cheesefactories".arr
+    val tidx = test.where(_ == 'e')
+    val qidx = Array(9, 4, 3, 3, 4)
+    T ~ test.diced(tidx).map(_.str)                       =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(tidx, "", "endpoints").map(_.str)      =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(tidx, "no endpoints").map(_.str)       =**= Array("s", "factori")
+    T ~ test.diced(tidx, "", "no endpoints").map(_.str)   =**= Array("s", "factori")
+    T ~ test.diced(tidx, "()").map(_.str)                 =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(tidx, "()", "endpoints").map(_.str)    =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(tidx, "()", "no endpoints").map(_.str) =**= Array("", "s", "factori")
+    T ~ test.diced(tidx, "(]").map(_.str)                 =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(tidx, "(]", "endpoints").map(_.str)    =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(tidx, "(]", "no endpoints").map(_.str) =**= Array("e", "se", "factorie")
+    T ~ test.diced(tidx, "[)").map(_.str)                 =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(tidx, "[)", "endpoints").map(_.str)    =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(tidx, "[)", "no endpoints").map(_.str) =**= Array("e", "es", "efactori")
+    T ~ test.diced(tidx, "[]").map(_.str)                 =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.diced(tidx, "[]", "endpoints").map(_.str)    =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.diced(tidx, "[]", "no endpoints").map(_.str) =**= Array("ee", "ese", "efactorie")
+    T ~ test.diced(qidx).map(_.str)                       =**= Array("cheesefac", "cafe", "efactories")
+    T ~ test.diced(qidx, "()").map(_.str)                 =**= Array("cheesefac", "cafe", "", "", "", "efactories")
+    T ~ test.diced(qidx, "(]").map(_.str)                 =**= Array("cheesefact", "cafes", "e", "", "s", "efactories")
+    T ~ test.diced(qidx, "[)").map(_.str)                 =**= Array("cheesefac", "tcafe", "s", "", "e", "sefactories")
+    T ~ test.diced(qidx, "[]").map(_.str)                 =**= Array("cheesefact", "tcafes", "se", "e", "es", "sefactories")
+    T ~ "".arr.diced(Array.empty[Int]).length             ==== 0
+    T ~ "".arr.diced(Array.empty[Int], "()").map(_.str)   =**= Array("")
+    T ~ "".arr.diced(Array.empty[Int], "(]").map(_.str)   =**= Array("")
+    T ~ "".arr.diced(Array.empty[Int], "[)").map(_.str)   =**= Array("")
+    T ~ "".arr.diced(Array.empty[Int], "[]").map(_.str)   =**= Array("")
 
   @Test
   def arrayClippedInlinedDataTest: Unit =
@@ -1009,6 +1049,26 @@ class BasicsTest {
     T ~ car.clip.gather(0)(et)(_ + _.n + _)      ==== ".c#.".map(_.toInt).sum + 11
     T ~ car.     gather(0)(ex)(_ + _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ car.     gather(0)(et)(_ + _.n + _)      ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.clip.whereIn(3, 5)(_.l)          =**= Array(4)
+    T ~ car.clip.whereIn(3 to 4)(_.l)        =**= Array(4)
+    T ~ car.clip.whereIn(civ)(_.l)           =**= Array(4)
+    T ~ car.clip.whereIn(cpv)(_.l)           =**= Array(4)
+    T ~ car.clip.whereIn(3, 9)(_.l)          =**= Array(4, 5)
+    T ~ car.clip.whereIn(3 to 8)(_.l)        =**= Array(4, 5)
+    T ~ car.clip.whereIn(eiv)(_.l)           =**= Array(4, 5)
+    T ~ car.clip.whereIn(-2, 5)(_.l)         =**= Array(0, 1, 4)
+    T ~ car.clip.whereIn(-2 to 4)(_.l)       =**= Array(0, 1, 4)
+    T ~ car.clip.whereIn(fiv)(_.l)           =**= Array(0, 1, 4)
+    T ~ car.clip.whereIn(fpv)(_.l)           =**= Array(0, 1, 4)
+    T ~ car.clip.whereIn(-2, 9)(_.l)         =**= Array(0, 1, 4, 5)
+    T ~ car.clip.whereIn(-2 to 8)(_.l)       =**= Array(0, 1, 4, 5)
+    T ~ car.clip.whereIn(biv)(_.l)           =**= Array(0, 1, 4, 5)
+    T ~ car.clip.whereIn(8, 9)(_.l).length   ==== 0
+    T ~ car.clip.whereIn(8 to 9)(_.l).length ==== 0
+    T ~ car.clip.whereIn(niv)(_.l).length    ==== 0
+    T ~ car.clip.whereIn(npv)(_.l).length    ==== 0
+    T ~ car.clip.whereFrom(ex)(! _.l)        =**= Array(2, 3, 6)
 
     val ca9 = "ABCDEFGHI".c
     val ca7 = "1234567".c
@@ -1331,7 +1391,7 @@ class BasicsTest {
     val aa1 = "%".arr
     T ~ aa9.dup(a => ninja += car.clip.injectOp(a)()((c, i) => c ^ i)).str          ==== "ci0&mp4HI"
     T ~ aa9.dup(a => ninja += car.clip.injectOp(a, 2)()((c, i) => c ^ i)).str       ==== "ABci0&mp4"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*car.length
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 2*car.length
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "&m34567"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "12&m567"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(3 to 4)((c, i) => c ^ i)).str    ==== "&m34567"
@@ -1340,17 +1400,17 @@ class BasicsTest {
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(civ)((c, i) => c ^ i)).str    ==== "12&m567"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(cpv)((c, i) => c ^ i)).str       ==== "&m34567"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(cpv)((c, i) => c ^ i)).str    ==== "12&m567"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 8*2
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 8*2
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(ix)((c, i) => c ^ i)).str        ==== "0&ii&67"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(ix)((c, i) => c ^ i)).str     ==== "120&ii&"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(st)((c, i) => c ^ i)).str        ==== "0&ii&67"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(st)((c, i) => c ^ i)).str     ==== "120&ii&"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*5
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 4*5
 
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)()((c, i) => c ^ i)).str          ==== "ci0"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)()((c, i) => c ^ i)).str       ==== "12ci0&m"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)()((c, i) => c ^ i)).str       ==== "890"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3+5+0
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 3+5+0
 
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(3, 5)((c, i) => c ^ i)).str      ==== "&"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(3, 5)((c, i) => c ^ i)).str   ==== "89&"
@@ -1364,7 +1424,7 @@ class BasicsTest {
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(cpv)((c, i) => c ^ i)).str       ==== "&"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(cpv)((c, i) => c ^ i)).str    ==== "89&"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(cpv)((c, i) => c ^ i)).str    ==== "890"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 4*(1+1+0)
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 4*(1+1+0)
 
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(3, 9)((c, i) => c ^ i)).str      ==== "&mp"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 5)(3, 9)((c, i) => c ^ i)).str   ==== "12345&m"
@@ -1375,7 +1435,7 @@ class BasicsTest {
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(eiv)((c, i) => c ^ i)).str       ==== "&mp"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 5)(eiv)((c, i) => c ^ i)).str    ==== "12345&m"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(eiv)((c, i) => c ^ i)).str    ==== "890"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 3*(3+2+0)
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 3*(3+2+0)
 
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2, 5)((c, i) => c ^ i)).str      ==== "ci0"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(-2, 5)((c, i) => c ^ i)).str   ==== "123ci0&"
@@ -1389,7 +1449,7 @@ class BasicsTest {
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(fpv)((c, i) => c ^ i)).str        ==== "ci0"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 3)(fpv)((c, i) => c ^ i)).str     ==== "123ci0&"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(fpv)((c, i) => c ^ i)).str     ==== "890"
-    T ~ { val x = ninja; ninja = 0; x }                                              ==== 4*(3+4+0)
+    T ~ { val x = ninja; ninja = 0; x }                                                ==== 4*(3+4+0)
 
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(-2, 9)((c, i) => c ^ i)).str      ==== "ci0"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(-2, 9)((c, i) => c ^ i)).str   ==== "12ci0&m"
@@ -1400,7 +1460,7 @@ class BasicsTest {
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(biv)((c, i) => c ^ i)).str        ==== "ci0"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(biv)((c, i) => c ^ i)).str     ==== "12ci0&m"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(biv)((c, i) => c ^ i)).str     ==== "890"
-    T ~ { val x = ninja; ninja = 0; x }                                              ==== 3*(3+5+0)
+    T ~ { val x = ninja; ninja = 0; x }                                                ==== 3*(3+5+0)
 
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(8, 10)((c, i) => c ^ i)).str     ==== "%"
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(8, 10)((c, i) => c ^ i)).str  ==== "%"
@@ -1410,7 +1470,7 @@ class BasicsTest {
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(niv)((c, i) => c ^ i)).str    ==== "%"
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a)(npv)((c, i) => c ^ i)).str       ==== "%"
     T ~ aa1.dup(a => ninja += car.clip.injectOp(a, 2)(npv)((c, i) => c ^ i)).str    ==== "%"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 0
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 0
 
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(ix)((c, i) => c ^ i)).str        ==== "0&i"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 1)(ix)((c, i) => c ^ i)).str     ==== "80&"
@@ -1420,7 +1480,7 @@ class BasicsTest {
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 1)(st)((c, i) => c ^ i)).str     ==== "80&"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 4)(st)((c, i) => c ^ i)).str     ==== "890"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, -1)(st)((c, i) => c ^ i)).str    ==== "0&ii&67"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(3+2+0+5)    
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 2*(3+2+0+5)    
     val ab7 = "abcdefg".arr
     T ~ ab7.dup(a => ninja += car.clip.injectOp(a)(ex)((c, i) => c ^ i)).str        ==== "0c&4efg"
     T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 4)(ex)((c, i) => c ^ i)).str     ==== "abcd0c&"
@@ -1430,13 +1490,13 @@ class BasicsTest {
     T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 4)(et)((c, i) => c ^ i)).str     ==== "abcd0c&"
     T ~ ab7.dup(a => ninja += car.clip.injectOp(a, 9)(et)((c, i) => c ^ i)).str     ==== "abcdefg"
     T ~ ab7.dup(a => ninja += car.clip.injectOp(a, -1)(et)((c, i) => c ^ i)).str    ==== "0c&4efg"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*(4+3+0+4)
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 2*(4+3+0+4)
 
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a)(_.l)((c, i) => c ^ i)).str       ==== "cimp567"
     T ~ aa7.dup(a => ninja += car.clip.injectOp(a, 2)(_.l)((c, i) => c ^ i)).str    ==== "12cimp7"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a)(_.l)((c, i) => c ^ i)).str       ==== "cim"
     T ~ aa3.dup(a => ninja += car.clip.injectOp(a, 2)(_.l)((c, i) => c ^ i)).str    ==== "89c"
-    T ~ { val x = ninja; ninja = 0; x }                                             ==== 2*4 + 3 + 1
+    T ~ { val x = ninja; ninja = 0; x }                                               ==== 2*4 + 3 + 1
 
     T ~ car.clip.select(3, 5).cs   ==== "#i"
     T ~ car.clip.select(3 to 4).cs ==== "#i"
@@ -1500,6 +1560,42 @@ class BasicsTest {
     T ~ car.clip.selectOp(ex)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
     T ~ car.clip.selectOp(et)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
 
+    val test = "cheesefactories".arr
+    val tidx = test.where(_ == 'e')
+    val qidx = Array(
+      9, 4, 3, 3, 4,
+      20, 20, 21, Int.MaxValue-1, Int.MaxValue, Int.MaxValue, Int.MaxValue-1, Int.MaxValue,
+      Int.MinValue, Int.MinValue+1, Int.MinValue, Int.MinValue, 
+      0, -1, 0, -1, 1, -1000,
+      Int.MaxValue, test.length-1, test.length, test.length-1, test.length, test.length-2
+    )
+    T ~ test.clip.diced(tidx).map(_.str)                       =**= Array("ch", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "", "endpoints").map(_.str)      =**= Array("ch", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "no endpoints").map(_.str)       =**= Array("s", "factori")
+    T ~ test.clip.diced(tidx, "", "no endpoints").map(_.str)   =**= Array("s", "factori")
+    T ~ test.clip.diced(tidx, "()").map(_.str)                 =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "()", "endpoints").map(_.str)    =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "()", "no endpoints").map(_.str) =**= Array("", "s", "factori")
+    T ~ test.clip.diced(tidx, "(]").map(_.str)                 =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.clip.diced(tidx, "(]", "endpoints").map(_.str)    =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.clip.diced(tidx, "(]", "no endpoints").map(_.str) =**= Array("e", "se", "factorie")
+    T ~ test.clip.diced(tidx, "[)").map(_.str)                 =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.clip.diced(tidx, "[)", "endpoints").map(_.str)    =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.clip.diced(tidx, "[)", "no endpoints").map(_.str) =**= Array("e", "es", "efactori")
+    T ~ test.clip.diced(tidx, "[]").map(_.str)                 =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.clip.diced(tidx, "[]", "endpoints").map(_.str)    =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.clip.diced(tidx, "[]", "no endpoints").map(_.str) =**= Array("ee", "ese", "efactorie")
+    T ~ test.clip.diced(qidx).map(_.str)                       =**= Array("cheesefac", "cafe", "efactories", "seirotcafeseehc", "c", "c", "cheesefactories", "s", "s")
+    T ~ test.clip.diced(qidx, "()").map(_.str)                 =**= Array("cheesefac", "cafe", "", "", "", "efactories", "seirotcafeseehc", "", "", "", "", "c", "c", "cheesefactories", "", "", "", "", "s", "s")
+    T ~ test.clip.diced(qidx, "(]").map(_.str)                 =**= Array("cheesefact", "cafes", "e", "", "s", "efactories", "seirotcafeseehc", "c", "", "c", "", "ch", "c", "cheesefactories", "s", "", "s", "", "se", "s")
+    T ~ test.clip.diced(qidx, "[)").map(_.str)                 =**= Array("cheesefac", "tcafe", "s", "", "e", "sefactories", "seirotcafeseehc", "", "c", "", "c", "c", "hc", "cheesefactories", "", "s", "", "s", "s", "es")
+    T ~ test.clip.diced(qidx, "[]").map(_.str)                 =**= Array("cheesefact", "tcafes", "se", "e", "es", "sefactories", "seirotcafeseehc", "c", "c", "c", "c", "ch", "hc", "cheesefactories", "s", "s", "s", "s", "se", "es")
+    T ~ "".arr.clip.diced(Array.empty[Int]).length             ==== 0
+    T ~ "".arr.clip.diced(Array.empty[Int], "()").map(_.str)   =**= Array("")
+    T ~ "".arr.clip.diced(Array.empty[Int], "(]").map(_.str)   =**= Array("")
+    T ~ "".arr.clip.diced(Array.empty[Int], "[)").map(_.str)   =**= Array("")
+    T ~ "".arr.clip.diced(Array.empty[Int], "[]").map(_.str)   =**= Array("")
+
 
   @Test
   def arrayBreakInlinedDataTest: Unit =
@@ -1513,6 +1609,9 @@ class BasicsTest {
     def st = ix.stepper
     val civ = Iv(3, 5)
     val cpv = 3 to End-2
+
+    val div = Iv(1, 5)
+    val dpv = 1 to End-2
 
     inline def z[A](inline f: => A): A =
       cuml = 0
@@ -1577,11 +1676,27 @@ class BasicsTest {
     T ~ car.breakable.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
     T ~ car.breakable.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ car.breakable.dupWith(_.n)                   =**= car.map(_.n)
-    T ~ car.breakable.dupWith{ c => qIf(!c.l); c.n } =**= car.take(2).map(_.n)
+    T ~ car.breakable.copyWith{ c => sIf(!c.l); c.n }                              =**= car.filter(_.l).map(_.n)
+    T ~ car.breakable.copyWith{ c => qIf(!c.l); c.n }                              =**= car.take(2).map(_.n)
+    T ~ car.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-h-#-k-"
+    T ~ car.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c.value)          ==== typed[Array[Char]]
+    T ~ car.breakable.copyOp{(c, i) => sIf(i%2 == 0); c.value }.mkString           ==== "h#k"
+    T ~ car.breakable.copyOp{(c, i) => qIf(i == 1 || i == 4); c.value }.mkString   ==== "c"
 
     T ~ car.breakable.where(_.l)                          =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
     T ~ car.breakable.where{ c => qIf(c.value>'i'); c.l } =**= car.zipWithIndex.takeWhile(_._1.value <= 'i').collect{ case (c, i) if c.l => i }
+
+    T ~ car.breakable.whereIn(1, 5  ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.breakable.whereIn(1 to 4){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.breakable.whereIn(div   ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.breakable.whereIn(dpv   ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.breakable.whereIn(1, 5  ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.breakable.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.breakable.whereIn(div   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.breakable.whereIn(dpv   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+
+    T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>                    !c.l } =**= Array(2, 3, 6)
+    T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
 
     T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "1h.#ik."
     T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "0h.#ik."
@@ -1619,8 +1734,6 @@ class BasicsTest {
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
 
     val ax = "_________".arr
-    val div = Iv(1, 5)
-    val dpv = 1 to End-2
     T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cim______"
     T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "___cim___"
     T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
@@ -1648,14 +1761,12 @@ class BasicsTest {
     T ~ car.breakable.select(_.l).cs                              ==== "chik"
     T ~ car.breakable.select{ c => qIf(c.value=='#'); c.l }.cs    ==== "ch"
 
-    T ~ car.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-h-#-k-"
     T ~ car.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
     T ~ car.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
     T ~ car.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
     T ~ car.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
     T ~ car.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
     T ~ car.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
-    T ~ car.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
     T ~ car.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
     T ~ car.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
     T ~ car.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
@@ -1663,7 +1774,6 @@ class BasicsTest {
     T ~ car.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
     T ~ car.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
 
-    T ~ car.breakable.selectOp(){      (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "h#k"
     T ~ car.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
     T ~ car.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
     T ~ car.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
@@ -1671,7 +1781,6 @@ class BasicsTest {
     T ~ car.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
     T ~ car.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
 
-    T ~ car.breakable.selectOp(){      (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "c"
     T ~ car.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
     T ~ car.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
     T ~ car.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
@@ -1680,8 +1789,8 @@ class BasicsTest {
     T ~ car.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
 
     val lar = "ch.ix.#n.".c
-    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
-    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
 
 
@@ -1843,6 +1952,21 @@ class BasicsTest {
 
     T ~ car.clip.breakable.gather(0)(ex){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
     T ~ car.clip.breakable.gather(0)(et){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
+
+    T ~ car.clip.breakable.whereIn(3, 9   ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.breakable.whereIn(3 to 8 ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.breakable.whereIn(eiv    ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.breakable.whereIn(-2, 5  ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.breakable.whereIn(-2 to 4){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.breakable.whereIn(fiv    ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.breakable.whereIn(fpv    ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.breakable.whereIn(3, 9   ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.breakable.whereIn(3 to 8 ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.breakable.whereIn(eiv    ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.breakable.whereIn(-2, 5  ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.breakable.whereIn(-2 to 4){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.breakable.whereIn(fiv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.breakable.whereIn(fpv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
 
     val ca7 = "1234567".c
     val ca3 = "890".c
@@ -2472,9 +2596,15 @@ class BasicsTest {
     T ~ str.gather(0)(ix)(_ + _ + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ str.gather(0)(st)(_ + _ + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
 
-    T ~ str.dupWith(_.toUpper) ==== str.toUpperCase
+    T ~ str.copyWith(_.toUpper)                           ==== str.toUpperCase
+    T ~ str.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-i-.-n-".arr
 
-    T ~ str.where(_.isLetter) =**= str.zipWithIndex.collect{ case (c, i) if c.isLetter => i }
+    T ~ str.where(_.isLetter)         =**= str.zipWithIndex.collect{ case (c, i) if c.isLetter => i }
+    T ~ str.whereIn(3, 5  )(_ == 'x') =**= Array(4)
+    T ~ str.whereIn(3 to 4)(_ == 'x') =**= Array(4)
+    T ~ str.whereIn(civ   )(_ == 'x') =**= Array(4)
+    T ~ str.whereIn(cpv   )(_ == 'x') =**= Array(4)
+    T ~ str.whereFrom(ix)(_ != 'i')   =**= Array(2, 1, 1)
 
     val cx = "___________".toCharArray
     var ninja = 0
@@ -2544,7 +2674,6 @@ class BasicsTest {
     T ~ str.select(st)         ==== ".ihhi"
     T ~ str.select(_.isLetter) ==== "chixn"
 
-    T ~ str.selectOp()(       (c, i) => if i%2 == 0 then '-' else c) =**= "-h-i-.-n-".arr
     T ~ str.selectOp(3, 5)(   (c, i) => if i%2 == 0 then '-' else c) =**= "i-".arr
     T ~ str.selectOp(3 to 4)( (c, i) => if i%2 == 0 then '-' else c) =**= "i-".arr
     T ~ str.selectOp(civ)(    (c, i) => if i%2 == 0 then '-' else c) =**= "i-".arr
@@ -2553,7 +2682,37 @@ class BasicsTest {
     T ~ str.selectOp(st)(     (c, i) => if i%2 == 0 then '-' else c) =**= "-ihhi".arr
     T ~ str.selectOp(_.isLetter)((c,i)=>if i%2 == 0 then '-' else c) =**= "-hi-n".arr
 
-    T ~ str.fusion[Int]((c, i, add) => if !c.isLetter then add(i) else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+    T ~ str.fuse[Int]((c, i, add) => if !c.isLetter then add(i) else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+
+    val test = "cheesefactories"
+    val tidx = test.where(_ == 'e')
+    val qidx = Array(9, 4, 3, 3, 4)
+    T ~ test.diced(tidx)                       =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(tidx, "", "endpoints")      =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(tidx, "no endpoints")       =**= Array("s", "factori")
+    T ~ test.diced(tidx, "", "no endpoints")   =**= Array("s", "factori")
+    T ~ test.diced(tidx, "()")                 =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(tidx, "()", "endpoints")    =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(tidx, "()", "no endpoints") =**= Array("", "s", "factori")
+    T ~ test.diced(tidx, "(]")                 =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(tidx, "(]", "endpoints")    =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(tidx, "(]", "no endpoints") =**= Array("e", "se", "factorie")
+    T ~ test.diced(tidx, "[)")                 =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(tidx, "[)", "endpoints")    =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(tidx, "[)", "no endpoints") =**= Array("e", "es", "efactori")
+    T ~ test.diced(tidx, "[]")                 =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.diced(tidx, "[]", "endpoints")    =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.diced(tidx, "[]", "no endpoints") =**= Array("ee", "ese", "efactorie")
+    T ~ test.diced(qidx)                       =**= Array("cheesefac", "cafe", "efactories")
+    T ~ test.diced(qidx, "()")                 =**= Array("cheesefac", "cafe", "", "", "", "efactories")
+    T ~ test.diced(qidx, "(]")                 =**= Array("cheesefact", "cafes", "e", "", "s", "efactories")
+    T ~ test.diced(qidx, "[)")                 =**= Array("cheesefac", "tcafe", "s", "", "e", "sefactories")
+    T ~ test.diced(qidx, "[]")                 =**= Array("cheesefact", "tcafes", "se", "e", "es", "sefactories")
+    T ~ "".diced(Array.empty[Int]).length  ==== 0
+    T ~ "".diced(Array.empty[Int], "()")   =**= Array("")
+    T ~ "".diced(Array.empty[Int], "(]")   =**= Array("")
+    T ~ "".diced(Array.empty[Int], "[)")   =**= Array("")
+    T ~ "".diced(Array.empty[Int], "[]")   =**= Array("")
 
 
   @Test
@@ -2675,6 +2834,22 @@ class BasicsTest {
 
     T ~ str.clip.gather(0)(ex)(_ + _ + _)      ==== ".c#.".map(_.toInt).sum + 11
     T ~ str.clip.gather(0)(et)(_ + _ + _)      ==== ".c#.".map(_.toInt).sum + 11
+
+    T ~ str.clip.whereIn(3, 9)(_.isLetter)          =**= Array(4, 5)
+    T ~ str.clip.whereIn(3 to 8)(_.isLetter)        =**= Array(4, 5)
+    T ~ str.clip.whereIn(eiv)(_.isLetter)           =**= Array(4, 5)
+    T ~ str.clip.whereIn(-2, 5)(_.isLetter)         =**= Array(0, 1, 4)
+    T ~ str.clip.whereIn(-2 to 4)(_.isLetter)       =**= Array(0, 1, 4)
+    T ~ str.clip.whereIn(fiv)(_.isLetter)           =**= Array(0, 1, 4)
+    T ~ str.clip.whereIn(fpv)(_.isLetter)           =**= Array(0, 1, 4)
+    T ~ str.clip.whereIn(-2, 9)(_.isLetter)         =**= Array(0, 1, 4, 5)
+    T ~ str.clip.whereIn(-2 to 8)(_.isLetter)       =**= Array(0, 1, 4, 5)
+    T ~ str.clip.whereIn(biv)(_.isLetter)           =**= Array(0, 1, 4, 5)
+    T ~ str.clip.whereIn(8, 9)(_.isLetter).length   ==== 0
+    T ~ str.clip.whereIn(8 to 9)(_.isLetter).length ==== 0
+    T ~ str.clip.whereIn(niv)(_.isLetter).length    ==== 0
+    T ~ str.clip.whereIn(npv)(_.isLetter).length    ==== 0
+    T ~ str.clip.whereFrom(ex)(! _.isLetter)        =**= Array(2, 3, 6)
 
     val ca9 = "ABCDEFGHI".arr
     val ca7 = "1234567".arr
@@ -2965,6 +3140,42 @@ class BasicsTest {
     T ~ str.clip.selectOp(ex)((c, i) => c + i) =**= "0c&4".map(_.toInt)
     T ~ str.clip.selectOp(et)((c, i) => c + i) =**= "0c&4".map(_.toInt)
 
+    val test = "cheesefactories"
+    val tidx = test.where(_ == 'e')
+    val qidx = Array(
+      9, 4, 3, 3, 4,
+      20, 20, 21, Int.MaxValue-1, Int.MaxValue, Int.MaxValue, Int.MaxValue-1, Int.MaxValue,
+      Int.MinValue, Int.MinValue+1, Int.MinValue, Int.MinValue, 
+      0, -1, 0, -1, 1, -1000,
+      Int.MaxValue, test.length-1, test.length, test.length-1, test.length, test.length-2
+    )
+    T ~ test.clip.diced(tidx)                       =**= Array("ch", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "", "endpoints")      =**= Array("ch", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "no endpoints")       =**= Array("s", "factori")
+    T ~ test.clip.diced(tidx, "", "no endpoints")   =**= Array("s", "factori")
+    T ~ test.clip.diced(tidx, "()")                 =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "()", "endpoints")    =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.clip.diced(tidx, "()", "no endpoints") =**= Array("", "s", "factori")
+    T ~ test.clip.diced(tidx, "(]")                 =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.clip.diced(tidx, "(]", "endpoints")    =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.clip.diced(tidx, "(]", "no endpoints") =**= Array("e", "se", "factorie")
+    T ~ test.clip.diced(tidx, "[)")                 =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.clip.diced(tidx, "[)", "endpoints")    =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.clip.diced(tidx, "[)", "no endpoints") =**= Array("e", "es", "efactori")
+    T ~ test.clip.diced(tidx, "[]")                 =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.clip.diced(tidx, "[]", "endpoints")    =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.clip.diced(tidx, "[]", "no endpoints") =**= Array("ee", "ese", "efactorie")
+    T ~ test.clip.diced(qidx)                       =**= Array("cheesefac", "cafe", "efactories", "seirotcafeseehc", "c", "c", "cheesefactories", "s", "s")
+    T ~ test.clip.diced(qidx, "()")                 =**= Array("cheesefac", "cafe", "", "", "", "efactories", "seirotcafeseehc", "", "", "", "", "c", "c", "cheesefactories", "", "", "", "", "s", "s")
+    T ~ test.clip.diced(qidx, "(]")                 =**= Array("cheesefact", "cafes", "e", "", "s", "efactories", "seirotcafeseehc", "c", "", "c", "", "ch", "c", "cheesefactories", "s", "", "s", "", "se", "s")
+    T ~ test.clip.diced(qidx, "[)")                 =**= Array("cheesefac", "tcafe", "s", "", "e", "sefactories", "seirotcafeseehc", "", "c", "", "c", "c", "hc", "cheesefactories", "", "s", "", "s", "s", "es")
+    T ~ test.clip.diced(qidx, "[]")                 =**= Array("cheesefact", "tcafes", "se", "e", "es", "sefactories", "seirotcafeseehc", "c", "c", "c", "c", "ch", "hc", "cheesefactories", "s", "s", "s", "s", "se", "es")
+    T ~ "".clip.diced(Array.empty[Int]).length      ==== 0
+    T ~ "".clip.diced(Array.empty[Int], "()")       =**= Array("")
+    T ~ "".clip.diced(Array.empty[Int], "(]")       =**= Array("")
+    T ~ "".clip.diced(Array.empty[Int], "[)")       =**= Array("")
+    T ~ "".clip.diced(Array.empty[Int], "[]")       =**= Array("")
+
 
   @Test
   def stringBreakInlinedDataTest: Unit =
@@ -2977,6 +3188,8 @@ class BasicsTest {
     def st = ix.stepper
     val civ = Iv(3, 5)
     val cpv = 3 to End-2
+    val div = Iv(1, 5)
+    val dpv = 1 to End-2
 
     inline def z[A](inline f: => A): A =
       cuml = 0
@@ -3010,9 +3223,25 @@ class BasicsTest {
     T ~ str.breakable.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
     T ~ str.breakable.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ str.breakable.dupWith{ c => qIf(!c.isLetter); c } ==== str.take(2)
+    T ~ str.breakable.copyWith{ c => qIf(!c.isLetter); c }          ==== str.take(2)
+    T ~ str.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
+    T ~ str.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.breakable.copyOp{ (c, i) => sIf(i%2 == 0); c }          =**= "h#k".arr
+    T ~ str.breakable.copyOp{ (c, i) => qIf(i == 1 || i == 4); c }  =**= "c".arr
 
     T ~ str.breakable.where{ c => qIf(c > 'i'); c.isLetter } =**= str.zipWithIndex.takeWhile(_._1 <= 'i').collect{ case (c, i) if c.isLetter => i }
+
+    T ~ str.breakable.whereIn(1, 5  ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.breakable.whereIn(1 to 4){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.breakable.whereIn(div   ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.breakable.whereIn(dpv   ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.breakable.whereIn(1, 5  ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.breakable.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.breakable.whereIn(div   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.breakable.whereIn(dpv   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+
+    T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>              !c.isLetter } =**= Array(2, 3, 6)
+    T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
 
     val cx = "_________".arr
     var ninja = 0
@@ -3026,8 +3255,6 @@ class BasicsTest {
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
 
     val ax = "_________".arr.map(_.toInt)
-    val div = Iv(1, 5)
-    val dpv = 1 to End-2
     T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cim______".map(_.toInt)
     T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "___cim___".map(_.toInt)
     T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
@@ -3055,14 +3282,12 @@ class BasicsTest {
     T ~ str.breakable.select(_.isLetter)                       ==== "chik"
     T ~ str.breakable.select{ c => qIf(c == '#'); c.isLetter } ==== "ch"
 
-    T ~ str.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
     T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
     T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
     T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
     T ~ str.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
     T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
     T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
-    T ~ str.breakable.selectOp()(      (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
     T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
     T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
     T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
@@ -3070,7 +3295,6 @@ class BasicsTest {
     T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
     T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
 
-    T ~ str.breakable.selectOp(){      (c, i) => sIf(i%2 == 0); c } =**= "h#k".arr
     T ~ str.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c } =**= "#".arr
     T ~ str.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c } =**= "#".arr
     T ~ str.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
@@ -3078,7 +3302,6 @@ class BasicsTest {
     T ~ str.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
     T ~ str.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
 
-    T ~ str.breakable.selectOp(){      (c, i) => qIf(i == 1 || i == 4); c } =**= "c".arr
     T ~ str.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
     T ~ str.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
     T ~ str.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
@@ -3087,7 +3310,7 @@ class BasicsTest {
     T ~ str.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
 
     val lar = "ch.ix.#n."
-    T ~ lar.breakable.fusion[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
 
   @Test
@@ -3185,6 +3408,14 @@ class BasicsTest {
 
     T ~ str.clip.breakable.gather(0)(ex){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
     T ~ str.clip.breakable.gather(0)(et){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
+
+    T ~ str.clip.breakable.whereIn(3, 9   ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.breakable.whereIn(3 to 8 ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.breakable.whereIn(eiv    ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.breakable.whereIn(-2, 5  ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.breakable.whereIn(-2 to 4){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.breakable.whereIn(fiv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.breakable.whereIn(fpv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
 
     val ca7 = "1234567".arr
     val ca3 = "890".arr
