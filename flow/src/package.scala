@@ -281,6 +281,38 @@ package kse
   * }}}
   * 
   * 
+  * **works with `.breakable`**
+  * 
+  * If you're using `kse.basics`, you can use `.orSkip` or `.orQuit` anywhere you could bail out of
+  * an attempt using `.!`.
+  * 
+  * **escape and calculate**
+  * 
+  * If you just want to bail out of some side-effecting code if a condition fails, use `escape:` and decorate
+  * the condition with `.?`
+  * 
+  * {{{
+  * escape:
+  *   for i <- 0 to 10 do
+  *     (i < a.length).?
+  *     a(i) = i
+  * }}}
+  * 
+  * If it's a calculation and you want to bail out with `NaN` if you hit a `NaN`, use `calculate:` and `.?` on the values.
+  * 
+  * {{{
+  * val answer = calculate:
+  *   var sum = 0.0
+  *   var i = 0
+  *   while i < a.length do
+  *     sum += a(i).?
+  *     i += 1
+  *   sum
+  * }}}
+  * 
+  * (If `NaN`s are common, this could save a lot of computation.)
+  * 
+  * 
   * == Copying mutables ==
   * 
   * kse.flow defines a typeclass `Copies` that enables an extension method `.copy` on any class `A`

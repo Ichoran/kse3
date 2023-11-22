@@ -32,10 +32,10 @@ def scalaVersion = "3.4.0-RC1-bin-20231114-18ada51-NIGHTLY"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.2.1"
-ivy"com.github.ichoran::kse3-flow:0.2.1"
-ivy"com.github.ichoran::kse3-maths:0.2.1"
-ivy"com.github.ichoran::kse3-eio:0.2.1"
+ivy"com.github.ichoran::kse3-basics:0.2.2"
+ivy"com.github.ichoran::kse3-flow:0.2.2"
+ivy"com.github.ichoran::kse3-maths:0.2.2"
+ivy"com.github.ichoran::kse3-eio:0.2.2"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -132,11 +132,11 @@ b(1 to End) = a  // b is now Array(1, 1, 2)
 b(End - 1) = 4   // b is now Arary(1, 4, 2)
 b.inject(a, 2)() // a is now Array(1, 2, 1, 4, 2)
 var n = 0
-a.peek(n += _)
+a.peek()(n += _)
 println(n)      // Prints 10
 ```
 
-See the test suite for examples of everything you could do.
+See the test suite, or package Scaladoc, for more examples of what you could do.
 
 
 ### kse.flow
@@ -234,6 +234,16 @@ This exists but presently is undocumented.  Feel free to look through the unit t
 
 This also partly exists but is also undocumented.  There are some tests, though!
 
+### kse.testing
+
+This enables a very succinct but delightfully powerful testing framework, where your tests look like
+
+```scala
+T ~ myTestFunction ==== myExpectedValue --: typed[MyExpectedType]
+```
+
+For one-liner tests, it's incredibly effective.  All the tests for `kse` use `kse.testutilities` (the package name is
+longer because it's nice to reserve `testing` for other use).
 
 ## Naming Conventions
 

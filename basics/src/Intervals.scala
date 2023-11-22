@@ -67,14 +67,6 @@ object Iv extends Translucent.Companion[Iv, Long] {
         i += 1
 
   val empty: Iv = 0L
-
-  val emptyByteArray = new Array[Byte](0)
-  val emptyShortArray = new Array[Short](0)
-  val emptyCharArray = new Array[Char](0)
-  val emptyIntArray = new Array[Int](0)
-  val emptyLongArray = new Array[Long](0)
-  val emptyFloatArray = new Array[Float](0)
-  val emptyDoubleArray = new Array[Double](0)
 }
 
 

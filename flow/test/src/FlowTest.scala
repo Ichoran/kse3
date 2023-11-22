@@ -1337,28 +1337,28 @@ class FlowTest {
     T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
 
     def jasi(s: String): java.util.Iterator[String] =
-      java.util.Arrays.stream(s.selectOp()( (c, _) => c.toString)).iterator
+      java.util.Arrays.stream(s.copyOp( (c, _) => c.toString)).iterator
     def jemn(n: Int): java.util.Enumeration[Int] = new java.util.Enumeration[Int]() { 
       private var i = 5 - n
       def hasMoreElements = i > 0
       def nextElement = { val ans = i; i -= 1; ans } 
     }
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  optionQ1(s).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  optionQ1(s).orQuit } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, i) =>  eitherQ1(s).orSkip } =**= Array(9, 10)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>  eitherQ1(s).orQuit } =**= Array(9)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>      orQ1(s).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) =>      orQ1(s).orQuit } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) => Try(s.toInt).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.selectOp(){ (s, _) => Try(s.toInt).orQuit } =**= Array(8)
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).iterator.orSkip        }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).iterator.orQuit        }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).stepper .orSkip.toChar }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).stepper .orQuit.toChar }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).fn(jasi).orSkip.head   }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => "salmon".drop(n).fn(jasi).orQuit.head   }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => jemn(n).orSkip }                              =**= Array(3, 2)
-    T ~ Array(2, 8, 3).breakable.selectOp(){ (n, _) => jemn(n).orQuit }                              =**= Array(3)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).orQuit } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, i) =>  eitherQ1(s).orSkip } =**= Array(9, 10)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  eitherQ1(s).orQuit } =**= Array(9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).orQuit } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).orSkip } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).orQuit } =**= Array(8)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.orSkip        }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.orQuit        }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .orSkip.toChar }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .orQuit.toChar }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).orSkip.head   }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).orQuit.head   }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orSkip }                              =**= Array(3, 2)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orQuit }                              =**= Array(3)
 
     val l = Left("herring")
     val r = Right(15)

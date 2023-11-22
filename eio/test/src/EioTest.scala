@@ -1084,8 +1084,17 @@ class EioTest {
     T ~ Xsv.trimSemi .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(",", ""), List("", ","))
     val texe = text.take(32) + "\n" + text.slice(33, 42) + "\n" + text.drop(43)
     T ~ Xsv.create('e').get.decode(texe).fn(lls) ==== List(List("hi,it's,m", ""), List("everyone \"agrees\""), List("it's me"), List("don't you s", "", ""))
+    /*
     T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
     T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
+    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), Iv(4, 16)).fn(lls)         ==== wanted
+    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), Iv(4, 16)).fn(lls) ==== wanted
+    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4 until 16).fn(lls)         ==== wanted
+    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4 until 16).fn(lls) ==== wanted
+    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
+    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
+    */
+}
 object EioTest {
   import kse.basics.{given, _}
   import kse.flow.{given, _}

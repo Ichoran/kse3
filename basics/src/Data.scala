@@ -522,9 +522,6 @@ extension [A](a: Array[A]) {
   @targetName("set_All_index")
   inline def set()(inline indexer: Int => A): Unit =
     set(0, a.length)(indexer)
-  @targetName("set_All_function")
-  inline def set()(inline function: (A, Int) => A): Unit =
-    set(0, a.length)(function)
 
   @targetName("set_i0iN_generate")
   inline def set(i0: Int, iN: Int)(inline generator: () => A): Unit =
@@ -538,12 +535,6 @@ extension [A](a: Array[A]) {
     while i < iN do
       a(i) = indexer(i)
       i += 1
-  @targetName("set_i0iN_function")
-  inline def set(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
-    var i = i0
-    while i < iN do
-      a(i) = function(a(i), i)
-      i += 1
 
   @targetName("set_Iv_generate")
   inline def set(iv: Iv)(inline generator: () => A): Unit =
@@ -551,9 +542,6 @@ extension [A](a: Array[A]) {
   @targetName("set_Iv_index")
   inline def set(iv: Iv)(inline indexer: Int => A): Unit =
     set(iv.i0, iv.iN)(indexer)
-  @targetName("set_Iv_function")
-  inline def set(iv: Iv)(inline function: (A, Int) => A): Unit =
-    set(iv.i0, iv.iN)(function)
 
   @targetName("set_Range_generate")
   inline def set(inline rg: collection.immutable.Range)(inline generator: () => A): Unit =
@@ -563,10 +551,6 @@ extension [A](a: Array[A]) {
   inline def set(inline rg: collection.immutable.Range)(inline indexer: Int => A): Unit =
     val iv = Iv of rg
     set(iv.i0, iv.iN)(indexer)
-  @targetName("set_Range_function")
-  inline def set(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
-    val iv = Iv of rg
-    set(iv.i0, iv.iN)(function)
 
   @targetName("set_Py_generate")
   inline def set(piv: PIv)(inline generator: () => A): Unit =
@@ -576,10 +560,6 @@ extension [A](a: Array[A]) {
   inline def set(piv: PIv)(inline indexer: Int => A): Unit =
     val iv = piv of a
     set(iv.i0, iv.iN)(indexer)
-  @targetName("set_Py_function")
-  inline def set(piv: PIv)(inline function: (A, Int) => A): Unit =
-    val iv = piv of a
-    set(iv.i0, iv.iN)(function)
 
   @targetName("set_Places_generate")
   inline def set(indices: Array[Int])(inline generator: () => A): Unit =
@@ -594,13 +574,6 @@ extension [A](a: Array[A]) {
       val j = indices(i)
       a(j) = indexer(j)
       i += 1
-  @targetName("set_Places_function")
-  inline def set(indices: Array[Int])(inline function: (A, Int) => A): Unit =
-    var i = 0
-    while i < indices.length do
-      val j = indices(i)
-      a(j) = function(a(j), j)
-      i += 1
 
   @targetName("set_Stepper_generate")
   inline def set(indices: scala.collection.IntStepper)(inline generator: () => A): Unit =
@@ -611,11 +584,6 @@ extension [A](a: Array[A]) {
     while indices.hasStep do
       val j = indices.nextStep
       a(j) = indexer(j)
-  @targetName("set_Stepper_function")
-  inline def set(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
-    while indices.hasStep do
-      val j = indices.nextStep
-      a(j) = function(a(j), j)
 
   @targetName("set_Selector_generate")
   inline def set(inline pick: A => Boolean)(inline generator: () => A): Unit =
@@ -624,7 +592,6 @@ extension [A](a: Array[A]) {
       if pick(a(i)) then
         a(i) = generator()
       i += 1
-
   @targetName("set_Selector_generate")
   inline def set(inline pick: A => Boolean)(inline indexer: Int => A): Unit =
     var i = 0
@@ -632,6 +599,39 @@ extension [A](a: Array[A]) {
       if pick(a(i)) then
         a(i) = indexer(i)
       i += 1
+
+  @targetName("edit_All_function")
+  inline def edit()(inline function: (A, Int) => A): Unit =
+    edit(0, a.length)(function)
+  @targetName("edit_i0iN_function")
+  inline def edit(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
+    var i = i0
+    while i < iN do
+      a(i) = function(a(i), i)
+      i += 1
+  @targetName("edit_Iv_function")
+  inline def edit(iv: Iv)(inline function: (A, Int) => A): Unit =
+    edit(iv.i0, iv.iN)(function)
+  @targetName("edit_Py_function")
+  inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
+    val iv = piv of a
+    edit(iv.i0, iv.iN)(function)
+  @targetName("edit_Range_function")
+  inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
+    val iv = Iv of rg
+    edit(iv.i0, iv.iN)(function)
+  @targetName("edit_Places_function")
+  inline def edit(indices: Array[Int])(inline function: (A, Int) => A): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      a(j) = function(a(j), j)
+      i += 1
+  @targetName("edit_Stepper_function")
+  inline def edit(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      a(j) = function(a(j), j)
 
   inline def enlargeTo(n: Int)(using ClassTag[A]): Array[A] =
     if n > a.length then
@@ -1316,16 +1316,6 @@ object ClippedArray {
       while i < j do
         a(i) = indexer(i)
         i += 1
-    @targetName("set_i0iN_function")
-    inline def set(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = i0
-      if i < 0 then i = 0
-      var j = iN
-      if j > a.length then j = a.length
-      while i < j do
-        a(i) = function(a(i), i)
-        i += 1
 
     @targetName("set_Iv_generate")
     inline def set(iv: Iv)(inline generator: () => A): Unit =
@@ -1333,9 +1323,6 @@ object ClippedArray {
     @targetName("set_Iv_index")
     inline def set(iv: Iv)(inline indexer: Int => A): Unit =
       set(iv.i0, iv.iN)(indexer)
-    @targetName("set_Iv_function")
-    inline def set(iv: Iv)(inline function: (A, Int) => A): Unit =
-      set(iv.i0, iv.iN)(function)
 
     @targetName("set_Range_generate")
     inline def set(inline rg: collection.immutable.Range)(inline generator: () => A): Unit =
@@ -1345,10 +1332,6 @@ object ClippedArray {
     inline def set(inline rg: collection.immutable.Range)(inline indexer: Int => A): Unit =
       val iv = Iv of rg
       set(iv.i0, iv.iN)(indexer)
-    @targetName("set_Range_function")
-    inline def set(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
-      val iv = Iv of rg
-      set(iv.i0, iv.iN)(function)
 
     @targetName("set_Py_generate")
     inline def set(piv: PIv)(inline generator: () => A): Unit =
@@ -1358,10 +1341,6 @@ object ClippedArray {
     inline def set(piv: PIv)(inline indexer: Int => A): Unit =
       val iv = piv of ca.unwrap
       set(iv.i0, iv.iN)(indexer)
-    @targetName("set_Py_function")
-    inline def set(piv: PIv)(inline function: (A, Int) => A): Unit =
-      val iv = piv of ca.unwrap
-      set(iv.i0, iv.iN)(function)
 
     @targetName("set_Places_generate")
     inline def set(indices: Array[Int])(inline generator: () => A): Unit =
@@ -1379,14 +1358,6 @@ object ClippedArray {
         val j = indices(i)
         if j >= 0 && j < a.length then a(j) = indexer(j)
         i += 1
-    @targetName("set_Places_function")
-    inline def set(indices: Array[Int])(inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = 0
-      while i < indices.length do
-        val j = indices(i)
-        if j >= 0 && j < a.length then a(j) = function(a(j), j)
-        i += 1
 
     @targetName("set_Stepper_generate")
     inline def set(indices: scala.collection.IntStepper)(inline generator: () => A): Unit =
@@ -1400,8 +1371,38 @@ object ClippedArray {
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then a(j) = indexer(j)
-    @targetName("set_Stepper_function")
-    inline def set(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
+
+    @targetName("edit_i0iN_function")
+    inline def edit(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j > a.length then j = a.length
+      while i < j do
+        a(i) = function(a(i), i)
+        i += 1
+    @targetName("edit_Iv_function")
+    inline def edit(iv: Iv)(inline function: (A, Int) => A): Unit =
+      edit(iv.i0, iv.iN)(function)
+    @targetName("edit_Py_function")
+    inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
+      val iv = piv of ca.unwrap
+      edit(iv.i0, iv.iN)(function)
+    @targetName("edit_Range_function")
+    inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
+      val iv = Iv of rg
+      edit(iv.i0, iv.iN)(function)
+    @targetName("edit_Places_function")
+    inline def edit(indices: Array[Int])(inline function: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = function(a(j), j)
+        i += 1
+    @targetName("edit_Stepper_function")
+    inline def edit(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
         val j = indices.nextStep

@@ -652,58 +652,59 @@ class BasicsTest {
     inline def io(run: (Int => O.Type) => Array[O.Type]): String =
       val f = (i: Int) => O(Some("!"*i))
       run(f).os
+    T ~ gc{ f => car.dup(_.set()(f)) }       ==== "123456789"
+    T ~ go{ f => oar.dup(_.set()(f)) }       ==== "!.!!.!!!.!!!!."
+    T ~ ic{ f => car.dup(_.set()(f)) }       ==== "012345678"
+    T ~ io{ f => oar.dup(_.set()(f)) }       ==== ".!.!!.!!!."
+    T ~ gc{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
+    T ~ gc{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
+    T ~ gc{ f => car.dup(_.set(civ)(f)) }    ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(civ)(f)) }    ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
+    T ~ gc{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.12.#n."
+    T ~ go{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
+    T ~ ic{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.34.#n."
+    T ~ io{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
+    T ~ gc{ f => car.dup(_.set(ix)(f)) }     ==== "c415x.#n."
+    T ~ go{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!!!!.!.!!!!!."
+    T ~ ic{ f => car.dup(_.set(ix)(f)) }     ==== "c123x.#n."
+    T ~ io{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!.!!.!!!."
+    T ~ gc{ f => car.dup(_.set(st)(f)) }     ==== "c415x.#n."
+    T ~ go{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!!!!.!.!!!!!."
+    T ~ ic{ f => car.dup(_.set(st)(f)) }     ==== "c123x.#n."
+    T ~ io{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!.!!.!!!."
+    T ~ gc{ f => car.dup(_.set(_.l)(f)) }    ==== "12.34.#5."
+    T ~ go{ f => oar.dup(_.set(_.l)(f)) }    ==== "!.!!.#!!!."
+    T ~ ic{ f => car.dup(_.set(_.l)(f)) }    ==== "01.34.#7."
+    T ~ io{ f => oar.dup(_.set(_.l)(f)) }    ==== ".!.#!!!."
+
     inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
       val f = (c: C.Type, i: Int) => C(c ^ i)
       run(f).cs
     inline def fo(run: ((O.Type, Int) => O.Type) => Array[O.Type]): String =
       val f = (o: O.Type, i: Int) => O(o.value.map(_ + "!"*i) orElse Some(i.toString))
       run(f).os
-    T ~ gc{ f => car.dup(_.set()(f)) }       ==== "123456789"
-    T ~ go{ f => oar.dup(_.set()(f)) }       ==== "!.!!.!!!.!!!!."
-    T ~ ic{ f => car.dup(_.set()(f)) }       ==== "012345678"
-    T ~ io{ f => oar.dup(_.set()(f)) }       ==== ".!.!!.!!!."
-    T ~ fc{ f => car.dup(_.set()(f)) }       ==== "ci0l|3)u6"
-    T ~ fo{ f => oar.dup(_.set()(f)) }       ==== "ch.ix!.2.n!!!."
-    T ~ gc{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.12.#n."
-    T ~ go{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
-    T ~ ic{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.34.#n."
-    T ~ io{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.!.!!.n."
-    T ~ fc{ f => car.dup(_.set(3, 5)(f)) }   ==== "ch.l|.#n."
-    T ~ fo{ f => oar.dup(_.set(1, 3)(f)) }   ==== "ch.ix!.2.n."
-    T ~ gc{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.12.#n."
-    T ~ go{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
-    T ~ ic{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.34.#n."
-    T ~ io{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.!.!!.n."
-    T ~ fc{ f => car.dup(_.set(3 to 4)(f)) } ==== "ch.l|.#n."
-    T ~ fo{ f => oar.dup(_.set(1 to 2)(f)) } ==== "ch.ix!.2.n."
-    T ~ gc{ f => car.dup(_.set(civ)(f)) }    ==== "ch.12.#n."
-    T ~ go{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
-    T ~ ic{ f => car.dup(_.set(civ)(f)) }    ==== "ch.34.#n."
-    T ~ io{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.!.!!.n."
-    T ~ fc{ f => car.dup(_.set(civ)(f)) }    ==== "ch.l|.#n."
-    T ~ fo{ f => oar.dup(_.set(oiv)(f)) }    ==== "ch.ix!.2.n."
-    T ~ gc{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.12.#n."
-    T ~ go{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
-    T ~ ic{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.34.#n."
-    T ~ io{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.!.!!.n."
-    T ~ fc{ f => car.dup(_.set(cpv)(f)) }    ==== "ch.l|.#n."
-    T ~ fo{ f => oar.dup(_.set(opv)(f)) }    ==== "ch.ix!.2.n."
-    T ~ gc{ f => car.dup(_.set(ix)(f)) }     ==== "c415x.#n."
-    T ~ go{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!!!!.!.!!!!!."
-    T ~ ic{ f => car.dup(_.set(ix)(f)) }     ==== "c123x.#n."
-    T ~ io{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.!.!!.!!!."
-    T ~ fc{ f => car.dup(_.set(ix)(f)) }     ==== "cj0ox.#n."
-    T ~ fo{ f => oar.dup(_.set(ix)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
-    T ~ gc{ f => car.dup(_.set(st)(f)) }     ==== "c415x.#n."
-    T ~ go{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!!!!.!.!!!!!."
-    T ~ ic{ f => car.dup(_.set(st)(f)) }     ==== "c123x.#n."
-    T ~ io{ f => oar.dup(_.set(st)(f)) }     ==== "ch.!.!!.!!!."
-    T ~ fc{ f => car.dup(_.set(st)(f)) }     ==== "cj0ox.#n."
-    T ~ fo{ f => oar.dup(_.set(st)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
-    T ~ gc{ f => car.dup(_.set(_.l)(f)) }    ==== "12.34.#5."
-    T ~ go{ f => oar.dup(_.set(_.l)(f)) }    ==== "!.!!.#!!!."
-    T ~ ic{ f => car.dup(_.set(_.l)(f)) }    ==== "01.34.#7."
-    T ~ io{ f => oar.dup(_.set(_.l)(f)) }    ==== ".!.#!!!."
+    T ~ fc{ f => car.dup(_.edit()(f)) }       ==== "ci0l|3)u6"
+    T ~ fo{ f => oar.dup(_.edit()(f)) }       ==== "ch.ix!.2.n!!!."
+    T ~ fc{ f => car.dup(_.edit(3, 5)(f)) }   ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.edit(1, 3)(f)) }   ==== "ch.ix!.2.n."
+    T ~ fc{ f => car.dup(_.edit(3 to 4)(f)) } ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.edit(1 to 2)(f)) } ==== "ch.ix!.2.n."
+    T ~ fc{ f => car.dup(_.edit(civ)(f)) }    ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.edit(oiv)(f)) }    ==== "ch.ix!.2.n."
+    T ~ fc{ f => car.dup(_.edit(cpv)(f)) }    ==== "ch.l|.#n."
+    T ~ fo{ f => oar.dup(_.edit(opv)(f)) }    ==== "ch.ix!.2.n."
+    T ~ fc{ f => car.dup(_.edit(ix)(f)) }     ==== "cj0ox.#n."
+    T ~ fo{ f => oar.dup(_.edit(ix)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
+    T ~ fc{ f => car.dup(_.edit(st)(f)) }     ==== "cj0ox.#n."
+    T ~ fo{ f => oar.dup(_.edit(st)(f)) }     ==== "ch.ix!!.2.n!!!!!!."
 
     val cx = "___________".c
     val ox = Array.fill(6)(O(Some("_")))
@@ -1196,119 +1197,120 @@ class BasicsTest {
     inline def ic(run: (Int => C.Type) => Array[C.Type]): String =
       val f = (i: Int) => C(('0' + i).toChar)
       run(f).cs
-    inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
-      val f = (c: C.Type, i: Int) => C(c ^ i)
-      run(f).cs
     T ~ gc{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.12k."
     T ~ ic{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.34k."
-    T ~ fc{ f => car.dup(_.clip.set(3, 5  )(f)) } ==== "ch.&mk."
     T ~ gc{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.12k."
     T ~ ic{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.34k."
-    T ~ fc{ f => car.dup(_.clip.set(civ   )(f)) } ==== "ch.&mk."
     T ~ gc{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.12k."
     T ~ ic{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.34k."
-    T ~ fc{ f => car.dup(_.clip.set(3 to 4)(f)) } ==== "ch.&mk."
     T ~ gc{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.12k."
     T ~ ic{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.34k."
-    T ~ fc{ f => car.dup(_.clip.set(cpv   )(f)) } ==== "ch.&mk."
     T ~ gc{ f => car.dup(_.clip.set(ix    )(f)) } ==== "c415ik."
     T ~ ic{ f => car.dup(_.clip.set(ix    )(f)) } ==== "c123ik."    
-    T ~ fc{ f => car.dup(_.clip.set(ix    )(f)) } ==== "cj0)ik."    
     T ~ gc{ f => car.dup(_.clip.set(st    )(f)) } ==== "c415ik."
     T ~ ic{ f => car.dup(_.clip.set(st    )(f)) } ==== "c123ik."
-    T ~ fc{ f => car.dup(_.clip.set(st    )(f)) } ==== "cj0)ik."
 
     T ~ gc{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.1234"
     T ~ ic{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.3456"
-    T ~ fc{ f => car.dup(_.clip.set(3, 9  )(f)) } ==== "ch.&mp4"
     T ~ gc{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.1234"
     T ~ ic{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.3456"
-    T ~ fc{ f => car.dup(_.clip.set(eiv   )(f)) } ==== "ch.&mp4"
     T ~ gc{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.1234"
     T ~ ic{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.3456"
-    T ~ fc{ f => car.dup(_.clip.set(3 to 8)(f)) } ==== "ch.&mp4"
     T ~ gc{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
 
     T ~ gc{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "12345k."
     T ~ ic{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "01234k."
-    T ~ fc{ f => car.dup(_.clip.set(-2, 5  )(f)) } ==== "ci0&mk."
     T ~ gc{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "12345k."
     T ~ ic{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "01234k."
-    T ~ fc{ f => car.dup(_.clip.set(-2 to 4)(f)) } ==== "ci0&mk."
     T ~ gc{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "12345k."
     T ~ ic{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "01234k."
-    T ~ fc{ f => car.dup(_.clip.set(fiv    )(f)) } ==== "ci0&mk."
     T ~ gc{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "12345k."
     T ~ ic{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "01234k."
-    T ~ fc{ f => car.dup(_.clip.set(fpv    )(f)) } ==== "ci0&mk."
     T ~ gc{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
 
     T ~ gc{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "1234567"
     T ~ ic{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "0123456"
-    T ~ fc{ f => car.dup(_.clip.set(-2, 9  )(f)) } ==== "ci0&mp4"
     T ~ gc{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "1234567"
     T ~ ic{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "0123456"
-    T ~ fc{ f => car.dup(_.clip.set(-2 to 8)(f)) } ==== "ci0&mp4"
     T ~ gc{ f => car.dup(_.clip.set(biv    )(f)) } ==== "1234567"
     T ~ ic{ f => car.dup(_.clip.set(biv    )(f)) } ==== "0123456"
-    T ~ fc{ f => car.dup(_.clip.set(biv    )(f)) } ==== "ci0&mp4"
 
     T ~ gc{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
     T ~ ic{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
-    T ~ fc{ f => car.dup(_.clip.set(8, 10 )(f)) } ==== "ch.#ik."
     T ~ gc{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
     T ~ ic{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
-    T ~ fc{ f => car.dup(_.clip.set(8 to 9)(f)) } ==== "ch.#ik."
     T ~ gc{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
     T ~ ic{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
-    T ~ fc{ f => car.dup(_.clip.set(niv   )(f)) } ==== "ch.#ik."
     T ~ gc{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
     T ~ ic{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
-    T ~ fc{ f => car.dup(_.clip.set(npv   )(f)) } ==== "ch.#ik."
     T ~ gc{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
 
     T ~ gc{ f => car.dup(_.clip.set(ex)(f)) } ==== "2h13ik4"
     T ~ ic{ f => car.dup(_.clip.set(ex)(f)) } ==== "0h23ik6"
-    T ~ fc{ f => car.dup(_.clip.set(ex)(f)) } ==== "ch0&ik4"
     T ~ gc{ f => car.dup(_.clip.set(et)(f)) } ==== "2h13ik4"
     T ~ ic{ f => car.dup(_.clip.set(et)(f)) } ==== "0h23ik6"
-    T ~ fc{ f => car.dup(_.clip.set(et)(f)) } ==== "ch0&ik4"
     T ~ gc{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ gc{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
     T ~ ic{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ fc{ f => car.dup(_.     set(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+
+    inline def fc(run: ((C.Type, Int) => C.Type) => Array[C.Type]): String =
+      val f = (c: C.Type, i: Int) => C(c ^ i)
+      run(f).cs
+    T ~ fc{ f => car.dup(_.clip.edit(3, 5  )(f)) } ==== "ch.&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(civ   )(f)) } ==== "ch.&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(3 to 4)(f)) } ==== "ch.&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(cpv   )(f)) } ==== "ch.&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(ix    )(f)) } ==== "cj0)ik."    
+    T ~ fc{ f => car.dup(_.clip.edit(st    )(f)) } ==== "cj0)ik."
+    T ~ fc{ f => car.dup(_.     edit(3, 9  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(eiv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(3 to 8)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.clip.edit(3, 9  )(f)) } ==== "ch.&mp4"
+    T ~ fc{ f => car.dup(_.clip.edit(eiv   )(f)) } ==== "ch.&mp4"
+    T ~ fc{ f => car.dup(_.clip.edit(3 to 8)(f)) } ==== "ch.&mp4"
+    T ~ fc{ f => car.dup(_.     edit(-2, 5  )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(-2 to 4)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(fiv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(fpv    )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.clip.edit(-2, 5  )(f)) } ==== "ci0&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(-2 to 4)(f)) } ==== "ci0&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(fiv    )(f)) } ==== "ci0&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(fpv    )(f)) } ==== "ci0&mk."
+    T ~ fc{ f => car.dup(_.clip.edit(-2, 9  )(f)) } ==== "ci0&mp4"
+    T ~ fc{ f => car.dup(_.clip.edit(-2 to 8)(f)) } ==== "ci0&mp4"
+    T ~ fc{ f => car.dup(_.clip.edit(biv    )(f)) } ==== "ci0&mp4"
+    T ~ fc{ f => car.dup(_.     edit(8, 10 )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(8 to 9)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(niv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(npv   )(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.clip.edit(8, 10 )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.edit(8 to 9)(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.edit(niv   )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.clip.edit(npv   )(f)) } ==== "ch.#ik."
+    T ~ fc{ f => car.dup(_.     edit(ex)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.     edit(et)(f)) } ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fc{ f => car.dup(_.clip.edit(ex)(f)) } ==== "ch0&ik4"
+    T ~ fc{ f => car.dup(_.clip.edit(et)(f)) } ==== "ch0&ik4"
 
     var ninja = 0
     T ~ ca9.dup(a => ninja += car.clip.inject(a)).cs            ==== "ch.#ik.HI"
@@ -1742,27 +1744,28 @@ class BasicsTest {
 
     T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "1h.#ik."
     T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "0h.#ik."
-    T ~ car.dup{ a => qt{ a.set(){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                  ==== "ci0&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(3, 5){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs   ==== "ch.1ik."
     T ~ car.dup{ a => qt{ a.set(3, 5){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs             ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(3, 5){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs              ==== "ch.&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(3 to 4){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs ==== "ch.1ik."
     T ~ car.dup{ a => qt{ a.set(3 to 4){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs           ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(3 to 4){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs            ==== "ch.&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(civ){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "ch.1ik."
     T ~ car.dup{ a => qt{ a.set(civ){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(civ){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "ch.&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(cpv){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "ch.1ik."
     T ~ car.dup{ a => qt{ a.set(cpv){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "ch.3ik."
-    T ~ car.dup{ a => qt{ a.set(cpv){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "ch.&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(ix){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch1#ik."
     T ~ car.dup{ a => qt{ a.set(ix){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch23ik."
-    T ~ car.dup{ a => qt{ a.set(ix){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                ==== "cj0&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(st){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs     ==== "ch1#ik."
     T ~ car.dup{ a => qt{ a.set(st){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs               ==== "ch23ik."
-    T ~ car.dup{ a => qt{ a.set(st){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                ==== "cj0&ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(_.l){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs    ==== "1h.#ik."
     T ~ car.dup{ a => qt{ a.set(_.l){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs              ==== "0h.#ik."
+
+    T ~ car.dup{ a => qt{ a.edit(){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs                 ==== "ci0&ik."
+    T ~ car.dup{ a => qt{ a.edit(3, 5){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs             ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ a.edit(3 to 4){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs           ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ a.edit(civ){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs              ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ a.edit(cpv){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs              ==== "ch.&ik."
+    T ~ car.dup{ a => qt{ a.edit(ix){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "cj0&ik."
+    T ~ car.dup{ a => qt{ a.edit(st){ (c, i) => qIf(i>3 || c.value=='&'); C(c ^ i) } } }.cs               ==== "cj0&ik."
 
     val cx = "_________".c
     var ninja = 0
