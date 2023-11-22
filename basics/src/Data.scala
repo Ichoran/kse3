@@ -318,7 +318,7 @@ extension [A](a: Array[A]) {
 
   inline def clip: kse.basics.ClippedArray[A] = ClippedArray wrap a
 
-  inline def breakable: kse.basics.ShortcutArray[A] = ShortcutArray wrap a
+  inline def breakable: kse.basics.BreakableArray[A] = BreakableArray wrap a
 
   inline def peek()(inline f: A => Unit): a.type =
     var i = 0
@@ -347,6 +347,37 @@ extension [A](a: Array[A]) {
   inline def peek(indices: scala.collection.IntStepper)(inline f: A => Unit): a.type =
     while indices.hasStep do
       f(a(indices.nextStep))
+    a
+
+  inline def poke()(inline f: A => A): a.type =
+    var i = 0
+    while i < a.length do
+      a(i) = f(a(i))
+      i += 1
+    a
+  inline def poke(i0: Int, iN: Int)(inline f: A => A): a.type =
+    var i = i0
+    while i < iN do
+      a(i) = f(a(i))
+      i += 1
+    a
+  inline def poke(v: Iv | PIv)(inline f: A => A): a.type =
+    val iv = Iv.of(v, a)
+    poke(iv.i0, iv.iN)(f)
+  inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): a.type =
+    val iv = Iv of rg
+    poke(iv.i0, iv.iN)(f)
+  inline def poke(indices: Array[Int])(inline f: A => A): a.type =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      a(j) = f(a(j))
+      i += 1
+    a
+  inline def poke(indices: scala.collection.IntStepper)(inline f: A => A): a.type =
+    while indices.hasStep do
+      val j = indices.nextStep
+      a(j) = f(a(j))
     a
 
   inline def visit()(inline f: (A, Int) => Unit): Unit =
@@ -1101,6 +1132,36 @@ object ClippedArray {
         if j >= 0 && j < a.length then f(a(j))
       a
 
+    inline def poke(i0: Int, iN: Int)(inline f: A => A): Array[A] =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      while i < iM do
+        a(i) = f(a(i))
+        i += 1
+      a
+    inline def poke(v: Iv | PIv)(inline f: A => A): Array[A] =
+      val iv = Iv.of(v, ca.unwrap)
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): Array[A] =
+      val iv = Iv of rg
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(indices: Array[Int])(inline f: A => A): Array[A] =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = f(a(j))
+        i += 1
+      a
+    inline def poke(indices: scala.collection.IntStepper)(inline f: A => A): Array[A] =
+      val a = ca.unwrap
+      while indices.hasStep do
+        val j = indices.nextStep
+        if j >= 0 && j < a.length then a(j) = f(a(j))
+      a
+
     inline def visit(i0: Int, iN: Int)(inline f: (A, Int) => Unit): Unit =
       val a = ca.unwrap
       var i = i0
@@ -1718,14 +1779,14 @@ object ClippedArray {
 }
 
 
-opaque type ShortcutArray[A] = Array[A]
-object ShortcutArray {
-  inline def wrap[A](a: Array[A]): ShortcutArray[A] = a
+opaque type BreakableArray[A] = Array[A]
+object BreakableArray {
+  inline def wrap[A](a: Array[A]): BreakableArray[A] = a
 
-  extension [A](sa: ShortcutArray[A])
+  extension [A](sa: BreakableArray[A])
     inline def unwrap: Array[A] = sa
 
-  extension [A](sa: kse.basics.ShortcutArray[A]) {
+  extension [A](sa: kse.basics.BreakableArray[A]) {
     inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
@@ -1763,6 +1824,45 @@ object ShortcutArray {
       shortcut.quittable:
         while indices.hasStep do
           f(a(indices.nextStep))
+      a
+
+    inline def poke()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          a(i) = f(a(i))
+          i += 1
+      a
+    inline def poke(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          a(i) = f(a(i))
+          i += 1
+      a
+    inline def poke(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = Iv.of(v, sa.unwrap)
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = Iv of rg
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          a(j) = f(a(j))
+          i += 1
+      a
+    inline def poke(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          a(j) = f(a(j))
       a
 
     inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
@@ -2121,6 +2221,39 @@ object ShortClipArray {
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then f(a(j))
+      a
+
+    inline def poke(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      shortcut.quittable:
+        while i < iM do
+          a(i) = f(a(i))
+          i += 1
+      a
+    inline def poke(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = Iv.of(v, sc.unwrap)
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = Iv of rg
+      poke(iv.i0, iv.iN)(f)
+    inline def poke(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sc.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          if j >= 0 && j < a.length then a(j) = f(a(j))
+          i += 1
+      a
+    inline def poke(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val a = sc.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          if j >= 0 && j < a.length then a(j) = f(a(j))
       a
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
@@ -3020,7 +3153,7 @@ extension (a: String) {
 
   inline def clip: kse.basics.ClippedString = ClippedString wrap a
 
-  inline def breakable: kse.basics.ShortcutString = ShortcutString wrap a
+  inline def breakable: kse.basics.BreakableString = BreakableString wrap a
 
   inline def peek()(inline f: Char => Unit): a.type =
     var i = 0
@@ -3950,14 +4083,14 @@ object ClippedString {
 }
 
 
-opaque type ShortcutString = String
-object ShortcutString {
-  inline def wrap(a: String): ShortcutString = a
+opaque type BreakableString = String
+object BreakableString {
+  inline def wrap(a: String): BreakableString = a
 
-  extension (sa: ShortcutString)
+  extension (sa: BreakableString)
     inline def unwrap: String = sa
 
-  extension (sa: kse.basics.ShortcutString) {
+  extension (sa: kse.basics.BreakableString) {
     inline def clip: kse.basics.ShortClipString = ShortClipString wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =

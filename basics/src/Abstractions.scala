@@ -128,11 +128,11 @@ object shortcut {
       Skips
     if what eq Quits then boundary.break(Quits)
 
-  inline def skip[S >: Skips.type <: Type](using boundary.Label[S]) = boundary.break(Skips: S)
+  inline def skip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
 
   inline def skipIf[S >: Skips.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
 
-  inline def quit[Q >: Quits.type <: Type](using boundary.Label[Q]) = boundary.break(Quits: Q)
+  inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
 }

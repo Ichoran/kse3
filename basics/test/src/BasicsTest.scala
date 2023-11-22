@@ -534,6 +534,14 @@ class BasicsTest {
     T ~ z{ oar.peek(st)(cuml += _.n) }.os     ==== str
     T ~ cuml                                  ==== ix.map(i => oar(i).n).sum
 
+    T ~ car.dup().poke()(      c => if c.l then C(c.value.toUpper) else c).cs ==== str.toUpperCase
+    T ~ car.dup().poke(3, 5)(  c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
+    T ~ car.dup().poke(3 to 4)(c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
+    T ~ car.dup().poke(civ)(   c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
+    T ~ car.dup().poke(cpv)(   c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
+    T ~ car.dup().poke(ix)(    c => if c.l then C(c.value.toUpper) else c).cs ==== "cH.Ix.#n."
+    T ~ car.dup().poke(st)(    c => if c.l then C(c.value.toUpper) else c).cs ==== "cH.Ix.#n."
+
     T ~ n{ car.visit()(cuml += _.n + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
     T ~ n{ oar.visit()(cuml += _.n + _) }       ==== oar.map(_.n).sum + oar.length*(oar.length-1)/2
     T ~ n{ car.visit(3, 5)(cuml += _.n + _) }   ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -972,6 +980,20 @@ class BasicsTest {
     T ~ n{ car.clip.peek(et)(cuml += _.n) }      ==== ".c#.".map(_.toInt).sum
     T ~    car.     peek(ex)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
     T ~    car.     peek(et)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
+
+    T ~ car.dup().clip.poke(3, 9   ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
+    T ~ car.dup().clip.poke(3 to 8 ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
+    T ~ car.dup().clip.poke(eiv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
+    T ~ car.dup().clip.poke(-2, 5  ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
+    T ~ car.dup().clip.poke(-2 to 4){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
+    T ~ car.dup().clip.poke(fiv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
+    T ~ car.dup().clip.poke(fpv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
+    T ~ car.dup().clip.poke(8, 10  ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
+    T ~ car.dup().clip.poke(8 to 9 ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
+    T ~ car.dup().clip.poke(niv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
+    T ~ car.dup().clip.poke(npv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
+    T ~ car.dup().clip.poke(ex     ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "Ch.#ik."
+    T ~ car.dup().clip.poke(et     ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "Ch.#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ n{ car.clip.visit(3, 5)(cuml += _.n + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -1664,6 +1686,14 @@ class BasicsTest {
     T ~ z{ car.breakable.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
     T ~ cuml                                                             ==== ".#".map(_.toInt).sum
 
+    T ~ car.dup().breakable.poke(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs       ==== "CH-#ik."
+    T ~ car.dup().breakable.poke(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs   ==== "ch.-ik."
+    T ~ car.dup().breakable.poke(3 to 4){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs ==== "ch.-ik."
+    T ~ car.dup().breakable.poke(civ){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
+    T ~ car.dup().breakable.poke(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
+    T ~ car.dup().breakable.poke(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
+    T ~ car.dup().breakable.poke(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
+
     T ~ n{ qt{ car.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } } }      ==== str.take(2).map(_.toInt).sum + 1
     T ~ n{ qt{ car.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
     T ~ n{ qt{ car.visit(civ){    (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
@@ -1924,6 +1954,20 @@ class BasicsTest {
 
     T ~ n{ car.breakable.clip.peek(ex){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
     T ~ n{ car.breakable.clip.peek(et){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
+
+    T ~ car.dup().clip.breakable.poke(3, 9   ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.breakable.poke(3 to 8 ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.breakable.poke(eiv    ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.breakable.poke(-2, 5  ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.breakable.poke(-2 to 4){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.breakable.poke(fiv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.breakable.poke(fpv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.breakable.poke(8, 10  ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.breakable.poke(8 to 9 ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.breakable.poke(niv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.breakable.poke(npv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.breakable.poke(ex     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.breakable.poke(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ car.clip.breakable.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
