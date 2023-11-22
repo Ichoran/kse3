@@ -1001,6 +1001,53 @@ extension [A](a: Array[A]) {
       case "no endpoints"                 => diced(indices, "", "no endpoints")
       case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
   transparent inline def diced(indices: Array[Int])(using ClassTag[A]): Array[Array[A]] = diced(indices, "", "endpoints")
+
+  transparent inline def diced(cut: A => Boolean, mode: "" | "()" | "[)" | "(]" | "[]")(using ClassTag[A]): Array[Array[A]] =
+    var bss: Array[Array[A]] = null
+    var bzero: Array[A] = null
+    var k = 0
+    var i0: Int = inline mode match
+      case "[)" | "[]" => 0
+      case _           => -1
+    var j = 0
+    while j <= a.length do
+      if j == a.length || cut(a(j)) then
+        val iN = inline mode match
+          case "[]" | "(]" =>
+            if j < a.length then j+1
+            else j
+          case _ => j
+        val n = inline mode match
+          case "[]" | "[)" => iN - i0
+          case "" =>
+            i0 += 1
+            if i0 == iN then -1 else iN - i0
+          case _ =>
+            i0 += 1
+            iN - i0
+        if n >= 0 then
+          val b =
+            if n == 0 then
+              if bzero eq null then bzero = new Array[A](0)
+              bzero
+            else
+              val temp = new Array[A](n)
+              System.arraycopy(a, i0, temp, 0, n)
+              temp
+          if bss eq null then
+            bss = new Array[Array[A]](if j == a.length then 1 else 8)
+          else if k >= bss.length then
+            val temp = new Array[Array[A]](if j == a.length then k+1 else bss.length | (bss.length << 1))
+            System.arraycopy(bss, 0, temp, 0, bss.length)
+            bss = temp
+          bss(k) = b
+          k += 1
+        i0 = j
+      j += 1
+    if bss eq null then new Array[Array[A]](0)
+    else if k < bss.length then java.util.Arrays.copyOf(bss, k)
+    else bss
+  transparent inline def diced(cut: A => Boolean)(using ClassTag[A]): Array[Array[A]] = diced(cut, "")
 }
 
 
@@ -1976,6 +2023,61 @@ object ShortcutArray {
           add(a(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
           i += 1
       bs.shrinkTo(j)
+
+    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> A => Boolean, mode: "" | "()" | "[)" | "(]" | "[]")(using ClassTag[A]): Array[Array[A]] =
+      val a = sa.unwrap
+      var bss: Array[Array[A]] = null
+      var bzero: Array[A] = null
+      var k = 0
+      var i0: Int = inline mode match
+        case "[)" | "[]" => 0
+        case _           => -1
+      var j = 0
+      var unbroken = true
+      while j <= a.length && unbroken do
+        var cutme = j == a.length
+        if !cutme then
+          shortcut.quittable:
+            unbroken = false
+            cutme = cut(a(j))
+            unbroken = true
+        if cutme || !unbroken then
+          val iN = inline mode match
+            case "[]" | "(]" =>
+              if j < a.length && unbroken then j+1
+              else j
+            case _ => j
+          val n = inline mode match
+            case "[]" | "[)" => iN - i0
+            case "" =>
+              i0 += 1
+              if i0 == iN then -1 else iN - i0
+            case _ =>
+              i0 += 1
+              iN - i0
+          if n >= 0 then
+            val b =
+              if n == 0 then
+                if bzero eq null then bzero = new Array[A](0)
+                bzero
+              else
+                val temp = new Array[A](n)
+                System.arraycopy(a, i0, temp, 0, n)
+                temp
+            if bss eq null then
+              bss = new Array[Array[A]](if j == a.length || !unbroken then 1 else 8)
+            else if k >= bss.length then
+              val temp = new Array[Array[A]](if j == a.length || !unbroken then k+1 else bss.length | (bss.length << 1))
+              System.arraycopy(bss, 0, temp, 0, bss.length)
+              bss = temp
+            bss(k) = b
+            k += 1
+          i0 = j
+        j += 1
+      if bss eq null then new Array[Array[A]](0)
+      else if k < bss.length then java.util.Arrays.copyOf(bss, k)
+      else bss
+    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> A => Boolean)(using ClassTag[A]): Array[Array[A]] = diced(cut, "")
   }
 }
 
@@ -3340,6 +3442,45 @@ extension (a: String) {
       case "no endpoints"                 => diced(indices, "", "no endpoints")
       case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
   inline def diced(indices: Array[Int]): Array[String] = diced(indices, "", "endpoints")
+
+  transparent inline def diced(cut: Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
+    var bss: Array[String] = null
+    var k = 0
+    var i0: Int = inline mode match
+      case "[)" | "[]" => 0
+      case _           => -1
+    var j = 0
+    while j <= a.length do
+      if j == a.length || cut(a.charAt(j)) then
+        val iN = inline mode match
+          case "[]" | "(]" =>
+            if j < a.length then j+1
+            else j
+          case _ => j
+        val n = inline mode match
+          case "[]" | "[)" => iN - i0
+          case "" =>
+            i0 += 1
+            if i0 == iN then -1 else iN - i0
+          case _ =>
+            i0 += 1
+            iN - i0
+        if n >= 0 then
+          val b = if n == 0 then "" else a.substring(i0, iN)
+          if bss eq null then
+            bss = new Array[String](if j == a.length then 1 else 8)
+          else if k >= bss.length then
+            val temp = new Array[String](if j == a.length then k+1 else bss.length | (bss.length << 1))
+            System.arraycopy(bss, 0, temp, 0, bss.length)
+            bss = temp
+          bss(k) = b
+          k += 1
+        i0 = j
+      j += 1
+    if bss eq null then new Array[String](0)
+    else if k < bss.length then java.util.Arrays.copyOf(bss, k)
+    else bss
+  transparent inline def diced(cut: Char => Boolean): Array[String] = diced(cut, "")
 }
 
 
@@ -4109,6 +4250,54 @@ object ShortcutString {
           add(a.charAt(i), i, b => { if j >= bs.length then bs = bs.enlargeTo(bs.length | (bs.length << 1)); bs(j) = b; j += 1 })
           i += 1
       bs.shrinkTo(j)
+
+
+    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
+      val a = sa.unwrap
+      var bss: Array[String] = null
+      var k = 0
+      var i0: Int = inline mode match
+        case "[)" | "[]" => 0
+        case _           => -1
+      var j = 0
+      var unbroken = true
+      while j <= a.length && unbroken do
+        var cutme = j == a.length
+        if !cutme then
+          shortcut.quittable:
+            unbroken = false
+            cutme = cut(a.charAt(j))
+            unbroken = true
+        if cutme || !unbroken then
+          val iN = inline mode match
+            case "[]" | "(]" =>
+              if j < a.length && unbroken then j+1
+              else j
+            case _ => j
+          val n = inline mode match
+            case "[]" | "[)" => iN - i0
+            case "" =>
+              i0 += 1
+              if i0 == iN then -1 else iN - i0
+            case _ =>
+              i0 += 1
+              iN - i0
+          if n >= 0 then
+            val b = if n == 0 then "" else a.substring(i0, iN)
+            if bss eq null then
+              bss = new Array[String](if j == a.length || !unbroken then 1 else 8)
+            else if k >= bss.length then
+              val temp = new Array[String](if j == a.length || !unbroken then k+1 else bss.length | (bss.length << 1))
+              System.arraycopy(bss, 0, temp, 0, bss.length)
+              bss = temp
+            bss(k) = b
+            k += 1
+          i0 = j
+        j += 1
+      if bss eq null then new Array[String](0)
+      else if k < bss.length then java.util.Arrays.copyOf(bss, k)
+      else bss
+    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[String] = diced(cut, "")
   }
 }
 

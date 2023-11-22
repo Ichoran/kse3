@@ -872,6 +872,18 @@ class BasicsTest {
     T ~ "".arr.diced(Array.empty[Int], "(]").map(_.str)   =**= Array("")
     T ~ "".arr.diced(Array.empty[Int], "[)").map(_.str)   =**= Array("")
     T ~ "".arr.diced(Array.empty[Int], "[]").map(_.str)   =**= Array("")
+    T ~ test.diced(_ == 'e').map(_.str)                   =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "").map(_.str)               =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "()").map(_.str)             =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "(]").map(_.str)             =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(_ == 'e', "[)").map(_.str)             =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(_ == 'e', "[]").map(_.str)             =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ "".arr.diced(_ == 'e').length                     ==== 0
+    T ~ "".arr.diced(_ == 'e', "()").map(_.str)           =**= Array("")
+    T ~ "".arr.diced(_ == 'e', "(]").map(_.str)           =**= Array("")
+    T ~ "".arr.diced(_ == 'e', "[)").map(_.str)           =**= Array("")
+    T ~ "".arr.diced(_ == 'e', "[]").map(_.str)           =**= Array("")
+
 
   @Test
   def arrayClippedInlinedDataTest: Unit =
@@ -1792,6 +1804,23 @@ class BasicsTest {
     T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
     T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
+    val test = "cheesefactories".arr
+    T ~ test.breakable.diced(_ == 'e').map(_.str)                               =**= Array("ch", "s", "factori", "s")
+    T ~ test.breakable.diced(_ == 'e', "").map(_.str)                           =**= Array("ch", "s", "factori", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s")
+    T ~ test.breakable.diced(_ == 'e', "()").map(_.str)                         =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "")
+    T ~ test.breakable.diced(_ == 'e', "(]").map(_.str)                         =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "")
+    T ~ test.breakable.diced(_ == 'e', "[)").map(_.str)                         =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "efacto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "e")
+    T ~ test.breakable.diced(_ == 'e', "[]").map(_.str)                         =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "efacto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "e")
 
 
   @Test
@@ -2708,11 +2737,17 @@ class BasicsTest {
     T ~ test.diced(qidx, "(]")                 =**= Array("cheesefact", "cafes", "e", "", "s", "efactories")
     T ~ test.diced(qidx, "[)")                 =**= Array("cheesefac", "tcafe", "s", "", "e", "sefactories")
     T ~ test.diced(qidx, "[]")                 =**= Array("cheesefact", "tcafes", "se", "e", "es", "sefactories")
-    T ~ "".diced(Array.empty[Int]).length  ==== 0
-    T ~ "".diced(Array.empty[Int], "()")   =**= Array("")
-    T ~ "".diced(Array.empty[Int], "(]")   =**= Array("")
-    T ~ "".diced(Array.empty[Int], "[)")   =**= Array("")
-    T ~ "".diced(Array.empty[Int], "[]")   =**= Array("")
+    T ~ "".diced(Array.empty[Int]).length      ==== 0
+    T ~ "".diced(Array.empty[Int], "()")       =**= Array("")
+    T ~ "".diced(Array.empty[Int], "(]")       =**= Array("")
+    T ~ "".diced(Array.empty[Int], "[)")       =**= Array("")
+    T ~ "".diced(Array.empty[Int], "[]")       =**= Array("")
+    T ~ test.diced(_ == 'e')                   =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "")               =**= Array("ch", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "()")             =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.diced(_ == 'e', "(]")             =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.diced(_ == 'e', "[)")             =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.diced(_ == 'e', "[]")             =**= Array("che", "ee", "ese", "efactorie", "es")
 
 
   @Test
@@ -3311,6 +3346,24 @@ class BasicsTest {
 
     val lar = "ch.ix.#n."
     T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+
+    val test = "cheesefactories"
+    T ~ test.breakable.diced(_ == 'e')                               =**= Array("ch", "s", "factori", "s")
+    T ~ test.breakable.diced(_ == 'e', "")                           =**= Array("ch", "s", "factori", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "")   =**= Array("ch", "s", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "")   =**= Array("ch", "s")
+    T ~ test.breakable.diced(_ == 'e', "()")                         =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "()") =**= Array("ch", "", "s", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "()") =**= Array("ch", "", "s", "")
+    T ~ test.breakable.diced(_ == 'e', "(]")                         =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "(]") =**= Array("che", "e", "se", "facto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "(]") =**= Array("che", "e", "se", "")
+    T ~ test.breakable.diced(_ == 'e', "[)")                         =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "efacto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "e")
+    T ~ test.breakable.diced(_ == 'e', "[]")                         =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "efacto")
+    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "e")
 
 
   @Test
