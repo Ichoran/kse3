@@ -942,6 +942,11 @@ class EioTest {
     b9999.input.channel.sendTo(zwc)
     T ~ b9999 =**= z9999
 
+    T ~ Send.IterateInputStream("hi".bytes.input).map(_.utf8).toList.map(_.toString)                                  =**= List("hi")
+    T ~ Send.IterateByteChannel("hi".bytes.readChannel).map(_.utf8).toList.map(_.toString)                            =**= List("hi")
+    T ~ Send.IterateInputStream("hi".bytes.input, reloadUnderfilled = false).map(_.utf8).toList.map(_.toString)       =**= List("hi", "")
+    T ~ Send.IterateByteChannel("hi".bytes.readChannel, reloadUnderfilled = false).map(_.utf8).toList.map(_.toString) =**= List("hi", "")
+
 
   @Test
   def xsvTest(): Unit =
@@ -1084,6 +1089,8 @@ class EioTest {
     T ~ Xsv.trimSemi .decode(" \t,;\n;,\t ").fn(lls) ==== List(List(",", ""), List("", ","))
     val texe = text.take(32) + "\n" + text.slice(33, 42) + "\n" + text.drop(43)
     T ~ Xsv.create('e').get.decode(texe).fn(lls) ==== List(List("hi,it's,m", ""), List("everyone \"agrees\""), List("it's me"), List("don't you s", "", ""))
+
+    T ~ Csv.decode(Vector("hi,there\nwe,are\ndone,now".bytes, "".bytes)).get.map(_.toList) =**= Array(List("hi", "there"), List("we", "are"), List("done", "now"))
     /*
     T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
     T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted

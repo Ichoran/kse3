@@ -372,7 +372,7 @@ class Xsv private (
         if k > 0 then
           var n = (128 min a.length) min (buffer.length - k)
           a.inject(buffer, k)(0, n)
-          var moreExtra = n > 0
+          var moreExtra = n > 0 || !more
           while index < k && moreExtra do
             visitRange(buffer, index, k + n, visitor, if !more && n == a.length then EoF else EoI).?
             if index < k then

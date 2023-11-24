@@ -331,11 +331,13 @@ object Send {
   given iterstring2channel: Send[Iterator[String], WritableByteChannel] = IterStringToChannel()
   given iterstring2multi: Send[Iterator[String], MultiArrayChannel] = IterStringToMulti()
 
-  final class IterateInputStream(input: InputStream, initialSize: Int = 256, maxSize: Int = 4194304) extends Iterator[Array[Byte]] {
+  final class IterateInputStream(input: InputStream, initialSize: Int = 256, maxSize: Int = 4194304, reloadUnderfilled: Boolean = true)
+  extends Iterator[Array[Byte]] {
     private var buffer: Array[Byte] = new Array[Byte](initialSize max 4)
     private var n = 0
     private var k = 0
-    def hasNext: Boolean = n >= 0
+    private var mightBeMore = true
+    def hasNext: Boolean = mightBeMore
     def next: Array[Byte] =
       if n < 0 then throw new IOException("next on empty InputStream")
       else
@@ -343,16 +345,27 @@ object Send {
           val h = buffer.length max ((buffer.length * 4L) min (maxSize.toLong min (Int.MaxValue - 7))).toInt
           if h > buffer.length then buffer = new Array[Byte](h)
         n = input.read(buffer)
-        if n == buffer.length && k < Int.MaxValue - 7 then k += 1
+        if reloadUnderfilled then
+          if n < buffer.length then
+            if n < 0 then mightBeMore = false
+            else
+              val m = input.read(buffer, n, buffer.length - n)
+              if m < 0 then mightBeMore = false
+              else if m > 0 then n += m
+        else
+          if n < 0 then mightBeMore = false
+        if n == buffer.length && buffer.length < Int.MaxValue - 7 then k += 1
         buffer.copyToSize(n max 0)
   }
 
-  final class IterateByteChannel(input: ReadableByteChannel, initialSize: Int = 256, maxSize: Int = 4194304) extends Iterator[Array[Byte]] {
+  final class IterateByteChannel(input: ReadableByteChannel, initialSize: Int = 256, maxSize: Int = 4194304, reloadUnderfilled: Boolean = true)
+  extends Iterator[Array[Byte]] {
     private var buffer: Array[Byte] = new Array[Byte](initialSize max 4)
     private var bb: ByteBuffer = ByteBuffer.wrap(buffer)
     private var n = 0
     private var k = 0
-    def hasNext: Boolean = n >= 0
+    private var mightBeMore = true
+    def hasNext: Boolean = mightBeMore
     def next: Array[Byte] =
       if n < 0 then throw new IOException("next on empty InputStream")
       else
@@ -364,7 +377,16 @@ object Send {
           else bb.clear()
         else bb.clear()
         n = input.read(bb)
-        if n == buffer.length && k < Int.MaxValue - 7 then k += 1
+        if reloadUnderfilled then
+          if n < buffer.length then
+            if n < 0 then mightBeMore = false
+            else
+              val m = input.read(bb)
+              if m < 0 then mightBeMore = false
+              else if m > 0 then n += m
+        else
+          if n < 0 then mightBeMore = false
+        if n == buffer.length && buffer.length < Int.MaxValue - 7 then k += 1
         buffer.copyToSize(n max 0)
   }
 }
