@@ -464,6 +464,8 @@ class Xsv private (
   def decode[U](content: InputStream        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
   def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
   def decode[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(path,    gv.get(path.size))
+
+  def bomless: Xsv.Bomless = new Xsv.Bomless(this)
 }
 object Xsv {
   def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =
@@ -477,12 +479,40 @@ object Xsv {
   def space = Xsv.create(' ') .get
   def semi  = Xsv.create(';') .get
 
-  def trimComma = Xsv.create(',',  permissiveWhitespace = true) .get
-  def trimTab   = Xsv.create('\t', permissiveWhitespace = true) .get
-  def trimSpace = Xsv.create(' ',  permissiveWhitespace = true) .get
-  def trimSemi  = Xsv.create(';',  permissiveWhitespace = true) .get
+  def trimComma = Xsv.create(',',  permissiveWhitespace = true).get
+  def trimTab   = Xsv.create('\t', permissiveWhitespace = true).get
+  def trimSpace = Xsv.create(' ',  permissiveWhitespace = true).get
+  def trimSemi  = Xsv.create(';',  permissiveWhitespace = true).get
 
   val lfByte = Array[Byte]('\n'.toByte)
+
+  final class Bomless(xsv: Xsv) {
+    def decode[U](content: Array[Byte])(using gv: GetVisitor[Array[Byte], U]): U Or Err =
+      if content.hasBOM then xsv.visit(content, 3 to End, gv.get(content.length-3))
+      else xsv.decode(content)
+    def decode[U](content: IOnce[Array[Byte]])(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+      val it = content.iterator
+      if !it.hasNext then xsv.decode(it)
+      else
+        val first = it.next
+        if first.hasBOM then
+          if it.hasNext then xsv.decode(Iterator(first.select(3 to End)) ++ it)
+          else xsv.visit(first, 3 to End, gv.get(first.length - 3))
+        else
+          if it.hasNext then xsv.decode(Iterator(first) ++ it)
+          else xsv.decode(first)
+    def decode[U](content: InputStream)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+      decode(Send.IterateInputStream(content, 256, 4194304))
+    def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+      decode(Send.IterateByteChannel(content, 256, 4194304))
+    def decode[U](content: Path)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+        if !content.exists then Err.or(s"File not found: $content")
+        else Resource.Nice(content.openRead(0))(_.close): input =>
+          val sz = content.raw.size
+          var n = sz.clamp(256, 4194304).toInt
+          if sz > n && sz - n < 65536 then n = 2621440
+          decode(Send.IterateInputStream(input, n, n)).?
+  }
 
   trait GetVisitor[T <: Array[Byte] | String, U] {
     def get(size: Long): Visitor[T, U]
@@ -638,6 +668,13 @@ object Csv {
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
   def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
   def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.comma.decode(path)
+
+  object bomless {
+    def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
+    def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
+    def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
+    def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(path)
+  }
 }
 
 object Tsv {
@@ -649,4 +686,11 @@ object Tsv {
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
   def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
   def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.tab.decode(path)
+
+  object bomless {
+    def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
+    def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
+    def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
+    def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(path)
+  }
 }

@@ -32,10 +32,10 @@ def scalaVersion = "3.4.0-RC1-bin-20231114-18ada51-NIGHTLY"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.2.2"
-ivy"com.github.ichoran::kse3-flow:0.2.2"
-ivy"com.github.ichoran::kse3-maths:0.2.2"
-ivy"com.github.ichoran::kse3-eio:0.2.2"
+ivy"com.github.ichoran::kse3-basics:0.2.3"
+ivy"com.github.ichoran::kse3-flow:0.2.3"
+ivy"com.github.ichoran::kse3-maths:0.2.3"
+ivy"com.github.ichoran::kse3-eio:0.2.3"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.

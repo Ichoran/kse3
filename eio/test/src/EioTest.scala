@@ -199,6 +199,11 @@ class EioTest {
       T ~ b.encode85ascii.decode85ascii.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
 
+    T ~ " \uFEFF".bytes.hasBOM                   ==== false
+    T ~ "\uFEFF".bytes.hasBOM                    ==== true
+    T ~ "\uFEFFDon't do this.".bytes.bomlessUtf8 ==== "Don't do this."
+    T ~ "Always do it like this!".bytes.utf8     ==== "Always do it like this!"
+
     val b = Array.tabulate(256)(i => i.toByte)
     r.shuffle(b)
     val target = new Array[Byte](360)
@@ -1091,16 +1096,19 @@ class EioTest {
     T ~ Xsv.create('e').get.decode(texe).fn(lls) ==== List(List("hi,it's,m", ""), List("everyone \"agrees\""), List("it's me"), List("don't you s", "", ""))
 
     T ~ Csv.decode(Vector("hi,there\nwe,are\ndone,now".bytes, "".bytes)).get.map(_.toList) =**= Array(List("hi", "there"), List("we", "are"), List("done", "now"))
-    /*
-    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
-    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
-    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), Iv(4, 16)).fn(lls)         ==== wanted
-    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), Iv(4, 16)).fn(lls) ==== wanted
-    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4 until 16).fn(lls)         ==== wanted
-    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4 until 16).fn(lls) ==== wanted
-    T ~ Xsv.comma.visitInputStream(bint.input, Xsv.Visitor.onBytes(), 4, 16).fn(lls)         ==== wanted
-    T ~ Xsv.comma.visitByteChannel(bint.input.channel, Xsv.Visitor.onBytes(), 4, 16).fn(lls) ==== wanted
-    */
+
+    T ~ Csv.bomless.decode("\uFEFFHi,there\nevery,one".bytes).get.flatten                       =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode(Seq("\uFEFFHi,th", "ere\nev", "ery,one").map(_.bytes)).get.flatten   =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode("\uFEFFHi,there\nevery,one".bytes.input).get.flatten                 =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("\uFEFFHi\tthere\nevery\tone".bytes).get.flatten                     =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode(Seq("\uFEFFHi\tth", "ere\nev", "ery\tone").map(_.bytes)).get.flatten =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("\uFEFFHi\tthere\nevery\tone".bytes.input).get.flatten               =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode("Hi,there\nevery,one".bytes).get.flatten                             =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode(Seq("Hi,th", "ere\nev", "ery,one").map(_.bytes)).get.flatten         =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode("Hi,there\nevery,one".bytes.input).get.flatten                       =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes).get.flatten                           =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode(Seq("Hi\tth", "ere\nev", "ery\tone").map(_.bytes)).get.flatten       =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes.input).get.flatten                     =**= Array("Hi", "there", "every", "one")
 }
 object EioTest {
   import kse.basics.{given, _}

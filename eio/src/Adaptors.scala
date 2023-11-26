@@ -560,6 +560,11 @@ extension (underlying: Array[Byte]) {
   inline def ascii = new String(underlying, US_ASCII)
   inline def rawString = new String(underlying, ISO_8859_1)
   inline def iso8859_1 = new String(underlying, ISO_8859_1)
+  inline def hasBOM: Boolean =
+    underlying.length >= 3 && underlying(0) == -17 && underlying(1) == -69 && underlying(2) == -65
+  inline def bomlessUtf8: String =
+    if hasBOM then new String(underlying, 3, underlying.length - 3, UTF_8)
+    else new String(underlying, UTF_8)
 
   inline def stringEncode64 = Base64.getUrlEncoder.encodeToString(underlying)
   inline def stringEncode64basic = Base64.getEncoder.encodeToString(underlying)
