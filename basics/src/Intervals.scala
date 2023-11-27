@@ -41,7 +41,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def isEmpty: Boolean = (iv & 0xFFFFFFFFL).toInt >= (iv >>> 32).toInt
     inline def contains(i: Int): Boolean = (i >= Iv.i0(iv)) && (i < Iv.iN(iv))
     def pr: String = s"${Iv.i0(iv)}..${Iv.iN(iv)}"
-    def clipped[A](a: Array[A]): Iv =
+    def clippedTo[A](a: Array[A]): Iv =
       val i = i0
       val j = iN
       if i < 0 then
@@ -50,7 +50,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       else if j > a.length then
         (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
       else iv
-    def clipped(a: String): Iv =
+    def clippedTo(a: String): Iv =
       val i = i0
       val j = iN
       if i < 0 then
@@ -65,6 +65,18 @@ object Iv extends Translucent.Companion[Iv, Long] {
       while i < j do
         f(i)
         i += 1
+
+    def where(): Array[Int] =
+      val i = (iv & 0xFFFFFFFFL).toInt
+      val j = (iv >>> 32).toInt
+      val a = new Array[Int](if j > i then j - i else 0)
+      var k = i
+      var h = 0
+      while k < j do
+        a(h) = k
+        k += 1
+        h += 1
+      a
 
   val empty: Iv = 0L
 }
@@ -93,6 +105,35 @@ object PIv {
       if j < 0 then
         if j > Int.MinValue then j = a.length + j + 1
       else if j < Int.MaxValue then j += 1
+      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+
+    def clippedTo[A](a: Array[A]): Iv =
+      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
+      var j = ((piv: Long) >>> 32).toInt
+      if i < 0 then
+        i = a.length+i
+        if i < 0 then i = 0
+      if j < 0 then
+        if j > Int.MinValue then j = a.length + j + 1
+        if j < 0 then j = 0
+      else if j < Int.MaxValue then j += 1
+      if i > a.length then i = a.length
+      if j > a.length then j = a.length
+      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+
+
+    def clippedTo(a: String): Iv =
+      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
+      var j = ((piv: Long) >>> 32).toInt
+      if i < 0 then
+        i = a.length+i
+        if i < 0 then i = 0
+      if j < 0 then
+        if j > Int.MinValue then j = a.length + j + 1
+        if j < 0 then j = 0
+      else if j < Int.MaxValue then j += 1
+      if i > a.length then i = a.length
+      if j > a.length then j = a.length
       Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
   val all: PIv = 0xFFFFFFFF00000000L

@@ -75,22 +75,6 @@ package kse
   * your code use `shortcut.outer:` and `shortcut.inner:` for the points to quit and skip to, respectively.  If you only
   * need skips or quits, use `shortcut.Skips.type` or `shortcut.Quits.type` instead of `shortcut.Type`.
   * 
-  * == Simple Intervals ==
-  * 
-  * The `kse.basics.intervals` packages contains two simple intervals: `Iv` which is an absolute interval, and `PIv` which is
-  * a position-relative interval.  Create `Iv` itervals with `Iv(i0, iN)` where the interval is normally interpreted as exclusive
-  * at the endpoint (`i0` is the first element, `iN` is one after the last element).  You can traverse these values using `iv.visit`,
-  * get a string representation using `iv.pr`, and get the start and stop indices with `iv.i0` and `iv.iN`.  `PIv`-style intervals
-  * are only relative to the end of an `Array` or `String`, and are created with the syntax `1 to End` or `1 to End-3` and such.
-  * These can be converted into specific `Iv` intervals using `piv of a` where `a` is an `Array` or `String`.
-  * 
-  * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`.
-  * `Iv` can also convert type unions of `Iv | PIv` to definitively `Iv` using `Iv.of(v, a)` where `v: Iv | PIv` and `a` is an
-  * `Array` or `String`.
-  * 
-  * This enables easy length-relative creation of intervals.  For instance, `1 to End-1` is the interval that leaves off the first
-  * and last elements of an `Array` or `String`.
-  * 
   * == Standard Inline-Style Utility Methods ==
   * 
   * The Scala standard library defines `tap`, which allows operating on a value in-line, and `pipe`, which allows
@@ -111,10 +95,29 @@ package kse
   * You can also patch up a value with a test and a fix operation using `fixIf`, e.g. `x.fixIf(_ < 0)(- _)` 
   * computes the absolute value of `x`.
   * 
+  * If you need to do something `n` times, use `n.times`.  If you need the indices, use `n.visit`.
+  * 
   * == Tuple, Mutability, and Visibility Helpers ===
   * 
   * A variety of tuple helpers are specified in `Data.scala`.  Check them out!  You can join tuples with `.join`,
   * create simple mutable boxes with `Mu(x)`, hide identity with `Anon`, and more!
+  * 
+  * == Simple Intervals ==
+  * 
+  * The `kse.basics.intervals` packages contains two simple intervals: `Iv` which is an absolute interval, and `PIv` which is
+  * a position-relative interval.  Create `Iv` itervals with `Iv(i0, iN)` where the interval is normally interpreted as exclusive
+  * at the endpoint (`i0` is the first element, `iN` is one after the last element).  You can traverse these values using `iv.visit`,
+  * get a string representation using `iv.pr`, and get the start and stop indices with `iv.i0` and `iv.iN`.  `PIv`-style intervals
+  * are only relative to the end of an `Array` or `String`, and are created with the syntax `1 to End` or `1 to End-3` and such.
+  * These can be converted into specific `Iv` intervals using `piv of a` where `a` is an `Array` or `String`.
+  * 
+  * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`.
+  * `Iv` can also convert type unions of `Iv | PIv` to definitively `Iv` using `Iv.of(v, a)` where `v: Iv | PIv` and `a` is an
+  * `Array` or `String`.
+  * 
+  * This enables easy length-relative creation of intervals.  For instance, `1 to End-1` is the interval that leaves off the first
+  * and last elements of an `Array` or `String`.
+  * 
   * 
   * == Full-Powered Arrays ==
   * 
@@ -135,6 +138,9 @@ package kse
   * `where` finds all indices matching a predicate.  For instance, `xs.where(_ < 0)` would list all indices with
   * negative values.  `whereIn` finds only indices within a range (e.g. `xs.whereIn(5 to End)(_ % 2 == 0)`).  If
   * you already have indices but want to rule in a subset, use `xs.whereFrom(indices)(_ startsWith "A")`.
+  * 
+  * You can also use `where()` on an interval to get an array of indices (or get the first `n` indices with `n.where()`).
+  * If you have indices and want to throw out the ones that aren't in range, use `ix.clippedTo(myArray)`.
   * 
   * You can copy arrays with `dup()`, no matter the type.  Want to modify the array in-line before returning it?
   * use `dup(a => ...)`--it's just like `dup().tap(a => ...)` but shorter.  Want to duplicate the array but apply
@@ -182,6 +188,13 @@ package kse
   * All of this is as fast as hand-rolled code because it's all implemented `inline`.  This does bring up _one_ caveat: don't
   * spam high-powered array operations, nested, all over your code, for no reason.  You'll get code bloat.  So use it when you
   * need it, and keep your other methods small as is good practice ordinarily.
+  * 
+  * _A note on sorting by index:_ If you have a permutation of indices that, for example, defines a new sort order, and you
+  * just want a new array of those indices, you just use `a.select(ix)` where `a` is your array and `ix` is the (sorted) index
+  * order.  But if you want to sort "in place", the recommendation is to reassign the new sorted bit.  For instance, `a() = a.select(ix)`
+  * if you are sorting the whole thing, or `a(iv) = a.select(ix)` to just rearrange the interval `iv`.  Of course you have
+  * to have selected the indices correctly to begin with (e.g. all with `a.where()`, or `iv.where()`, or
+  * with something like `(3 to End).of(a).where()`).
   * 
   * If you use Scala, and you use `Array`s, `kse.basics` is what you want.
   * 

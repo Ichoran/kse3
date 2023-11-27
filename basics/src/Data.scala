@@ -282,6 +282,26 @@ extension (i: Int){
     if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
     PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
+  inline def times(f: => Unit): Unit =
+    var j = 0
+    while j < i do
+      f
+      j += 1
+
+  inline def visit(f: Int => Unit): Unit =
+    var j = 0
+    while j < i do
+      f(j)
+      j += 1
+
+  def where(): Array[Int] =
+    val a = new Array[Int](if i > 0 then i else 0)
+    var j = 0
+    while j < i do
+      a(j) = j
+      j += 1
+    a
+
   inline def arrayed[A]()(using ClassTag[A]): Array[A] =
     new Array[A](if i > 0 then i else 0)
   inline def arrayed[A](f: Int => A)(using ClassTag[A]): Array[A] =
@@ -301,7 +321,6 @@ extension (i: Int){
         k += 1
     a
 }
-
 
 
 /** Higher-level high-speed array access (inlined) */
@@ -720,6 +739,13 @@ extension [A](a: Array[A]) {
       i += 1
     aa
 
+  def where(): Array[Int] =
+    val ix = new Array[Int](a.length)
+    var i = 0
+    while i < ix.length do
+      ix(i) = i
+      i += 1
+    ix
   inline def where(inline pick: A => Boolean): Array[Int] =
     var ix = new Array[Int](if a.length <= 8 then a.length else 8)
     var i = 0
@@ -2740,6 +2766,32 @@ extension (ac: Array[Char]) {
 
 /** Int Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ai: Array[Int]) {
+  def clippedTo(i0: Int, iN: Int): Array[Int] =
+    var m = 0
+    var i = 0
+    while i < ai.length do
+      val x = ai(i)
+      if x >= i0 && x < iN then m += 1
+      i += 1
+    if m == ai.length then ai
+    else
+      val b = new Array[Int](m)
+      i = 0
+      var j = 0
+      boundary:
+        while i < ai.length do
+          val x = ai(i)
+          if x >= i0 && x < iN then
+            b(j) = x
+            j += 1
+            if j >= b.length then boundary.break()
+          i += 1
+      b
+  inline def clippedTo(iv: Iv): Array[Int] = clippedTo(iv.i0, iv.iN)
+  inline def clippedTo(inline rg: Range): Array[Int] = { val iv = Iv of rg; clippedTo(iv.i0, iv.iN) }
+  inline def clippedTo[A](that: Array[A]): Array[Int] = clippedTo(0, that.length)
+  inline def clippedTo(that: String): Array[Int] = clippedTo(0, that.length)
+
   inline def unpackBytes: Array[Byte] = ArrayReform.toBytes(ai)
 
   inline def shrinkCopy(size: Int): Array[Int] = if size < ai.length then java.util.Arrays.copyOf(ai, size) else ai
@@ -2769,7 +2821,6 @@ extension (ai: Array[Int]) {
   inline def searchRange(inline rg: collection.immutable.Range)(x: Int): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
-
 
   inline def fill(x: Int): ai.type =
     java.util.Arrays.fill(ai, x)
@@ -3272,6 +3323,13 @@ extension (a: String) {
       i += 1
     b
 
+  def where(): Array[Int] =
+    var ix = new Array[Int](a.length)
+    var i = 0
+    while i < ix.length do
+      ix(i) = i
+      i += 1
+    ix
   inline def where(inline pick: Char => Boolean): Array[Int] =
     var ix = new Array[Int](if a.length <= 8 then a.length else 8)
     var i = 0

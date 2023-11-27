@@ -431,6 +431,28 @@ class BasicsTest {
     T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cutAt8              ==== ((1, 'a', 2, 3, 4, 5, 6, 7), 8)
 
 
+  @Test
+  def intervalAndConstantTest(): Unit =
+    var cuml = 0
+
+    inline def n[A](inline f: => A): Int =
+      cuml = 0
+      f
+      cuml
+
+    T ~ 3.where()                                                 =**= Array(0, 1, 2)
+    T ~ -2.where()                                                =**= Array[Int]()
+    T ~ 3.arrayed[Int]()                                          =**= Array(0, 0, 0)
+    T ~ 3.arrayed[Int]()                                          ==== typed[Array[Int]]
+    T ~ 3.arrayed(i => i+1)                                       =**= Array(1, 2, 3)
+    T ~ 3.arrayed(i => i+1)                                       ==== typed[Array[Int]]
+    T ~ 3.arrayedBreakably{ i => shortcut.skipIf(i%2 != 0); i+1 } =**= Array(1, 0, 3)
+    T ~ 3.arrayedBreakably{ i => shortcut.quitIf(i%2 != 0); i+1 } =**= Array(1, 0, 0)
+    T ~ 3.arrayedBreakably(i => i+1)                              ==== typed[Array[Int]]
+    T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                         ==== 7
+    T ~ n{ 5.visit(cuml += _) }                                   ==== 10
+    T ~ n{ -2.visit(cuml += _) }                                  ==== 0
+
 
   object C extends NewType[Char] {
     extension (c: C.Type)
@@ -497,13 +519,7 @@ class BasicsTest {
     T ~ (End+1).asEndpointOf("salmon") ==== 7
     T ~ (End+1).asEndpointOf(ix)       ==== 6
 
-    T ~ 3.arrayed[Int]()                                          =**= Array(0, 0, 0)
-    T ~ 3.arrayed[Int]()                                          ==== typed[Array[Int]]
-    T ~ 3.arrayed(i => i+1)                                       =**= Array(1, 2, 3)
-    T ~ 3.arrayed(i => i+1)                                       ==== typed[Array[Int]]
-    T ~ 3.arrayedBreakably{ i => shortcut.skipIf(i%2 != 0); i+1 } =**= Array(1, 0, 3)
-    T ~ 3.arrayedBreakably{ i => shortcut.quitIf(i%2 != 0); i+1 } =**= Array(1, 0, 0)
-    T ~ 3.arrayedBreakably(i => i+1)                              ==== typed[Array[Int]]
+    T ~ civ.where()                                               =**= Array(3, 4)
 
     T ~ z{ car.peek()(cuml += _.n) }.cs       ==== str
     T ~ cuml                                  ==== str.map(_.toInt).sum
@@ -602,6 +618,7 @@ class BasicsTest {
     T ~ car.addRight(2, C('+')).cs  ==== "ch.ix.#n.++"
     T ~ oar.addRight(2, O(None)).os ==== "ch.ix.#n.##"
 
+    T ~ car.where()                         =**= car.indices.toArray
     T ~ car.where(_.l)                      =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
     T ~ oar.where(_.l)                      =**= oar.zipWithIndex.collect{ case (o, i) if o.l => i }
     T ~ car.whereIn(3, 5  )(_.value == 'x') =**= Array(4)
@@ -2675,6 +2692,7 @@ class BasicsTest {
     T ~ str.copyWith(_.toUpper)                           ==== str.toUpperCase
     T ~ str.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-i-.-n-".arr
 
+    T ~ str.where()                   =**= str.arr.indices
     T ~ str.where(_.isLetter)         =**= str.zipWithIndex.collect{ case (c, i) if c.isLetter => i }
     T ~ str.whereIn(3, 5  )(_ == 'x') =**= Array(4)
     T ~ str.whereIn(3 to 4)(_ == 'x') =**= Array(4)
