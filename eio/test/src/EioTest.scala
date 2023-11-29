@@ -1109,6 +1109,10 @@ class EioTest {
     T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes).get.flatten                           =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode(Seq("Hi\tth", "ere\nev", "ery\tone").map(_.bytes)).get.flatten       =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes.input).get.flatten                     =**= Array("Hi", "there", "every", "one")
+
+    val tab = Array(Array("apple", "pear\n", "pe\"ach"), Array("herring", "", ",", "salmon"))
+    T ~ Xsv.encodeTable(tab, 'l').toArray.map(_.utf8)                           =**= Array("\"apple\"l\"pear\n\"l\"pe\"\"ach\"\r\n", "herringll,l\"salmon\"\r\n")
+    T ~ Xsv.create('l').get.decode(Xsv.encodeTable(tab, 'l')).get.map(_.toList) =**= tab.map(_.toList)
 }
 object EioTest {
   import kse.basics.{given, _}

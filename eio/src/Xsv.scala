@@ -463,9 +463,14 @@ class Xsv private (
   def decode[U](content: IOnce[String]      )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(-1))
   def decode[U](content: InputStream        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
   def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
-  def decode[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(path,    gv.get(path.size))
+  def   read[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(path,    gv.get(path.size))
 
   def bomless: Xsv.Bomless = new Xsv.Bomless(this)
+
+  def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
+    Xsv.encodeTable(table, separator)
+  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+    Xsv.encodeTable(table, separator).writeAt(p)
 }
 object Xsv {
   def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =
@@ -505,7 +510,7 @@ object Xsv {
       decode(Send.IterateInputStream(content, 256, 4194304))
     def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
       decode(Send.IterateByteChannel(content, 256, 4194304))
-    def decode[U](content: Path)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+    def read[U](content: Path)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
         if !content.exists then Err.or(s"File not found: $content")
         else Resource.Nice(content.openRead(0))(_.close): input =>
           val sz = content.raw.size
@@ -657,6 +662,61 @@ object Xsv {
 
     def onBytes( strictRect: Boolean = false) = new TableFromBytes( strictRect)
   }
+
+  def encodeCell(cell: String, separator: Char)(sb: java.lang.StringBuilder): Unit =
+    var n = -1
+    escape:
+      cell.visit(){ (c, i) =>
+        (c != '\r' && c != '\n' && c != '"' && c != separator).?
+        n = i
+      }
+    if n == cell.length-1 then sb append cell
+    else
+      sb append '"'
+      var m = 0
+      escape:
+        cell.visit(n+1 to End){ (c, i) =>
+          (c != '"').?
+          n = i
+        }
+      while n != cell.length-1 do
+        sb.append(cell, m, n+1)
+        sb append "\"\""
+        m = n+2
+        if m < cell.length then
+          n = m
+          escape:
+            cell.visit(n to End){ (c, i) =>
+              (c != '"').?
+              n = i
+            }
+        else n = cell.length -1
+      if m <= n then sb.append(cell, m, n+1)
+      sb append '"'
+
+  def encodeRow(cells: Array[String], separator: Char)(sb: java.lang.StringBuilder): Unit =
+    cells.visit(){ (cell, i) =>
+      encodeCell(cell, separator)(sb)
+      if i+1 == cells.length then sb append "\r\n" else sb append separator
+    }
+
+  def encodeTable(table: Array[Array[String]], separator: Char): Iterator[Array[Byte]] =
+    EncodeIterator(table, separator)
+
+  class EncodeIterator(private var table: Array[Array[String]], val separator: Char) extends Iterator[Array[Byte]] {
+    private var row = if (table eq null) || table.length == 0 then -1 else 0
+    def hasNext = row >= 0
+    def next: Array[Byte] =
+      if row < 0 then Iterator.empty.next
+      val sb = "".builder()
+      encodeRow(table(row), separator)(sb)
+      val b = sb.toString.bytes
+      row += 1
+      if row >= table.length then
+        row = -1
+        table = null
+      b
+   }
 }
 
 object Csv {
@@ -667,14 +727,19 @@ object Csv {
   @targetName("decodeStrings")
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
   def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
-  def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.comma.decode(path)
+  def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.comma.read(path)
 
   object bomless {
     def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
     def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
     def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
-    def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(path)
+    def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.comma.bomless.read(path)
   }
+
+  def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
+    Xsv.comma.encode(table)
+  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+    Xsv.comma.write(table)(p)
 }
 
 object Tsv {
@@ -685,12 +750,18 @@ object Tsv {
   @targetName("decodeStrings")
   def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
   def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
-  def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.tab.decode(path)
+  def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.tab.read(path)
 
   object bomless {
     def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
     def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
     def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
-    def decode(path: Path                 ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(path)
+    def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.tab.bomless.read(path)
   }
+
+
+  def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
+    Xsv.tab.encode(table)
+  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+    Xsv.tab.write(table)(p)
 }
