@@ -58,6 +58,20 @@ trait NewType[A] {
 }
 
 
+/** A stable identifier to disambiguate types by label */
+type LabelVal = String & Singleton
+
+/** A labelled type; create with `val x: Int \ "eel" = \(5)`; access with `x $ "eel"` or `x.unlabel` */
+opaque infix type \[+A, L <: LabelVal] = A
+object \ {
+  inline def apply[A, L <: LabelVal](a: A): (A \ L) = a
+  extension [A, L <: LabelVal](la: A \ L)
+    inline def ~(l: L): A = la
+    inline def unlabel: A = la
+    inline def valueTo[B](b: B): (B \ L) = b
+    inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
+}
+
 
 /** Typeclass to enable generic copying of mutable things to a decent replica of themselves. */
 trait Copies[A] {

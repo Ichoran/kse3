@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences, LLC.
 
-package kse.flow.test
+package kse.basics.test
 
 
 import org.junit.runner.RunWith
@@ -19,11 +19,17 @@ import scala.util.boundary.break
 import sourcecode.{Line, given}
 
 class BytecodeCheck {
+  import kse.basics.{_, given}
+
   def ordinary(s: String): Char = s(2)
 
   def inlined(s: String): Char =
     import kse.basics.{given, _}
     s(2)
+
+  def labelled(): Int =
+    val x: (Int $ "eel", Int $ "cod") = (5.label, 3.label)
+    (x $ "eel") + (x $ "cod")
 }
 
 @RunWith(classOf[JUnit4])
@@ -131,6 +137,7 @@ class BasicsTest {
     T ~ { var x = 0; "cod".tap(s => x = s.head).length + x } ==== (3 + 'c')
     T ~ "herring".tup(5)                                     ==== ("herring", 5)
     T ~ "herring".tupWith(_.length)                          ==== ("herring", 7)
+    T ~ "herring".groupBy(__)                                ==== Map('h' -> "h", 'e' -> "e", 'r' -> "rr", 'i' -> "i", 'n' -> "n", 'g' -> "g")
 
     val f1 = (i: Int) => i+1
     val f2 = (c: Char) => c > 'e'
