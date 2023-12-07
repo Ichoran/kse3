@@ -137,7 +137,7 @@ println(n)      // Prints 10
 ```
 
 There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`,
-and if you have a tuple which is entirely tagged, you can refer to the values by name by using `~`
+and if you have a tuple which is entirely labelled, you can refer to the values by name by using `~`
 
 ```scala
 val person = ("John" \ "first", "Smith" \ "last")

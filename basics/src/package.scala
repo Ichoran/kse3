@@ -104,7 +104,7 @@ package kse
   * 
   * == Tag Anything ==
   * 
-  * Types not specific enough?  Tag any type with a string literal for an instant named type!
+  * Types not specific enough?  Label any type with a string literal for an instant named type!
   * {{{
   * import kse.basics.labels.*
   * 
@@ -119,12 +119,13 @@ package kse
   * val i = 3 \ "start"
   * val j = i + 1 // Can't do this
   * unambiguous(i, 5 \ "count")  // Works
-  * val j = i ~ "start" | 1  // Works, we accessed by name
+  * val j = i ~ "start" + 1  // Works, we accessed by name
   * }}}
   * 
   * == Tag Your Tuple Elements ==
   * 
-  * Want named tuples?  Put tagged types into tuples (up to length 9) and get them out again by name with `~`!
+  * Want labelled tuples, where you have names as well as types?  Put tagged types into tuples (up to length 9)
+  * and get them out again by name with `~`!
   * 
   * {{{
   * val args = (5 \ "start", 3 \ "count")
@@ -139,7 +140,7 @@ package kse
   * 
   * You can also use `relabel` to change labels, `revalue` to change values, or `redo` to change both, by name.
   * 
-  * If you try to create duplicate names, it will give you an error.  Everything in the tuple must be tagged; otherwise
+  * If you try to create duplicate labels, it will give you an error.  Everything in the tuple must be labelled; otherwise
   * you can't access by name.
   * 
   * == Simple Intervals ==
