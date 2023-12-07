@@ -15,7 +15,6 @@ package kse.flow
 
 
 import scala.language.experimental.relaxedExtensionImports
-import scala.annotation.targetName
 
 
 extension [X](is: Is[X])
@@ -38,7 +37,3 @@ extension [A](option: Option[A])
       case Some(a) => f(a)
       case _       =>
     option
-
-extension [A](aa: Array[A])
-  transparent inline def use(i: Int)(inline f: A => Unit): Array[A] = { f(aa(i)); aa }
-  transparent inline def zap(i: Int)(inline f: A => A   ): Array[A] = { aa(i) = f(aa(i)); aa }

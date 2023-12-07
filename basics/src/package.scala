@@ -102,6 +102,46 @@ package kse
   * A variety of tuple helpers are specified in `Data.scala`.  Check them out!  You can join tuples with `.join`,
   * create simple mutable boxes with `Mu(x)`, hide identity with `Anon`, and more!
   * 
+  * == Tag Anything ==
+  * 
+  * Types not specific enough?  Tag any type with a string literal for an instant named type!
+  * {{{
+  * import kse.basics.labels.*
+  * 
+  * def confusing(start: Int, count: Int) = ???
+  * confusing(3, 5)  // Is this 3 and 4, or 3 through 7???
+  * 
+  * def unambiguous(i: Int \ "start", n: Int \ "count") = ???
+  * unambiguous(3, 5)  // Doesn't compile
+  * unambiguous(3 \ "start", 5 \ "count")  // Now we're sure
+  * unambiguous(3.labelled, 5.labelled)    // Type inferred
+  * 
+  * val i = 3 \ "start"
+  * val j = i + 1 // Can't do this
+  * unambiguous(i, 5 \ "count")  // Works
+  * val j = i ~ "start" | 1  // Works, we accessed by name
+  * }}}
+  * 
+  * == Tag Your Tuple Elements ==
+  * 
+  * Want named tuples?  Put tagged types into tuples (up to length 9) and get them out again by name with `~`!
+  * 
+  * {{{
+  * val args = (5 \ "start", 3 \ "count")
+  * unambiguous(args._1, args._2)  // Works
+  * val start = args ~ "start"
+  * val count = args ~ "count"
+  * val cheat = args ~ "cheat"  // Compile error
+  * }}}
+  * 
+  * Use `.label` on a regular tuple to pick up labels from type inference, or `(4, 2) \\ ("start", "count")` to label
+  * explicitly.
+  * 
+  * You can also use `relabel` to change labels, `revalue` to change values, or `redo` to change both, by name.
+  * 
+  * If you try to create duplicate names, it will give you an error.  Everything in the tuple must be tagged; otherwise
+  * you can't access by name.
+  * 
   * == Simple Intervals ==
   * 
   * The `kse.basics.intervals` packages contains two simple intervals: `Iv` which is an absolute interval, and `PIv` which is

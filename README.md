@@ -23,7 +23,7 @@ Use `import scala.language.experimental.relaxedExtensionImports` everywhere!**
 ## How do I get it?
 
 Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
-In mill, make sure your module has the latest 3.4 nightly, e.g.
+In mill, make sure your module has a sufficiently recent 3.4 nightly, e.g.
 
 ```scala
 def scalaVersion = "3.4.0-RC1-bin-20231114-18ada51-NIGHTLY"
@@ -136,7 +136,29 @@ a.peek()(n += _)
 println(n)      // Prints 10
 ```
 
-See the test suite, or package Scaladoc, for more examples of what you could do.
+There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`,
+and if you have a tuple which is entirely tagged, you can refer to the values by name by using `~`
+
+```scala
+val person = ("John" \ "first", "Smith" \ "last")
+val nosrep = ("Smith" \ "last", "John" \ "first")
+println(person == nosrep)  // false
+println(person ~ "first" == nosrep ~ "first")  // true
+println(person ~ "first" == nosrep ~ "first")  // true
+println(person ~ "last" == nosrep ~ "last")    // true
+
+def welcome(who: (String \ "first", String \ "last")): Unit =
+  println(s"Hello, ${who ~ "first"}")
+
+welcome(person)          // Prints Hello, John
+welcome(nosrep)          // Compile-time error; order matters
+welcome(("Jane", "Doe")) // Compile-time error; labels are needed
+welcome(("Jane", "Doe").label)  // Works, .label means infer labels
+```
+
+Use it whenever identity is really important, but types aren't specific enough!
+
+See the test suite, or package Scaladoc, for more examples of what you could do with `kse.basics`!
 
 
 ### kse.flow
@@ -144,7 +166,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do.
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.2.1"
+ivy"com.github.ichoran::kse3-flow:0.2.6"
 ```
 
 and in your code,

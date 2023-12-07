@@ -313,13 +313,19 @@ extension (i: Int){
     a
   inline def arrayedBreakably[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
     val a = new Array[A](if i > 0 then i else 0)
+    var j = 0
     shortcut.outer:
       var k = 0
       while k < a.length do
         shortcut.inner:
-          a(k) = f(k)
+          a(j) = f(k)
+          j += 1
         k += 1
-    a
+    if a.length == j then a
+    else
+      val aa = new Array[A](j)
+      System.arraycopy(a, 0, aa, 0, j)
+      aa
 }
 
 
@@ -334,6 +340,13 @@ extension [A](a: Array[A]) {
   @targetName("update_End")
   inline def update(e: End.type, x: A): Unit =
     a(a.length - 1) = x
+
+  inline def use(i: Int)(inline f: A => Unit): a.type =
+    if i >= 0 && i < a.length then f(a(i))
+    a
+  inline def zap(i: Int)(inline f: A => A): a.type =
+    if i >= 0 && i < a.length then a(i) = f(a(i))
+    a
 
   inline def clip: kse.basics.ClippedArray[A] = ClippedArray wrap a
 
@@ -1117,15 +1130,6 @@ object ClippedArray {
     inline def unwrap: Array[A] = ca
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
-    inline def use(i: Int)(inline f: A => Unit): Array[A] =
-      val a = ca.unwrap
-      if i >= 0 && i < a.length then f(a(i))
-      a
-    inline def zap(i: Int)(inline f: A => A): Array[A] =
-      val a = ca.unwrap
-      if i >= 0 && i < a.length then a(i) = f(a(i))
-      a
-
     inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
 
     inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
@@ -3192,6 +3196,10 @@ extension (a: String) {
   inline def apply(i: kse.basics.FromLengthIdx): Char = a.charAt(i of a)
 
   inline def apply(e: End.type): Char = a.charAt(a.length - 1)
+
+  inline def use(i: Int)(inline f: Char => Unit): a.type =
+    if i >= 0 && i < a.length then f(a.charAt(i))
+    a
 
   inline def arr: Array[Char] = a.toCharArray
 
