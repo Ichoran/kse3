@@ -3,7 +3,7 @@
 This repository contains the Kerr Standard Extensions to Scala 3.
 
 These are intended to cover everything that the standard library forgot that
-and is commonly used for general-purpose programming and data analysis.
+is commonly used for general-purpose programming and general-purpose data analysis.
 
 Kse3 has no pretenses of being an idiomatic toolchain.  It is designed for
 high-productivity programming for people who like direct style, good error
