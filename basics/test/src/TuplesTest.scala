@@ -368,6 +368,7 @@ class TuplesTest() {
     T ~ (l2 ~ "a")            ==== 1      --: typed[Int]
     T ~ (l2 ~ "b")            ==== 2      --: typed[Int]
     T ~ l2.unlabel            ==== (1, 2) --: typed[(Int, Int)]
+    T ~ (l2 ~~ ("a", "b"))    ==== (1, 2) --: typed[(Int, Int)]
     T ~ l2.relabel("a")("_")  ==== (1, 2) --: typed[(Int \ "_", Int \ "b")]
     T ~ l2.relabel("b")("_")  ==== (1, 2) --: typed[(Int \ "a", Int \ "_")]
     T ~ l2.revalue("a")(0)    ==== (0, 2) --: typed[(Int \ "a", Int \ "b")]
@@ -378,6 +379,8 @@ class TuplesTest() {
     val x12 = (1 \ "a", 2 \ "a")
     T ~ cc("""t2.label["a", "a"]""")     ==== false
     T ~ cc("""t2 \\ ("a", "a")""")       ==== false
+    T ~ cc("""l2 ~~ ("a", "_")""")       ==== false
+    T ~ cc("""l2 ~~ ("_", "b")""")       ==== false
     T ~ cc("""l2 ~ "_"""")               ==== false
     T ~ cc("""l2.relabel("_")("=")""")   ==== false
     T ~ cc("""l2.revalue("_")(0)""")     ==== false
@@ -402,6 +405,7 @@ class TuplesTest() {
     T ~ (l3 ~ "b")              ==== 2          --: typed[Int]
     T ~ (l3 ~ "c")              ==== 3          --: typed[Int]
     T ~ l3.unlabel              ==== t3         --: typed[(Int, Int, Int)]
+    T ~ (l3 ~~ ("a", "b", "c")) ==== t3         --: typed[(Int, Int, Int)] 
     T ~ l3.relabel("a")("_")    ==== t3         --: typed[(Int \ "_", Int \ "b", Int \ "c")]
     T ~ l3.relabel("b")("_")    ==== t3         --: typed[(Int \ "a", Int \ "_", Int \ "c")]
     T ~ l3.relabel("c")("_")    ==== t3         --: typed[(Int \ "a", Int \ "b", Int \ "_")]
@@ -421,6 +425,9 @@ class TuplesTest() {
     T ~ cc("""t3 \\ ("a", "a", "c")""")   ==== false
     T ~ cc("""t3 \\ ("a", "b", "a")""")   ==== false
     T ~ cc("""t3 \\ ("a", "b", "b")""")   ==== false
+    T ~ cc("""l3 ~~ ("_", "b", "c")""")   ==== false
+    T ~ cc("""l3 ~~ ("a", "_", "c")""")   ==== false
+    T ~ cc("""l3 ~~ ("a", "b", "_")""")   ==== false
 
     T ~ cc("""l3 ~ "_"""")                ==== false
     T ~ cc("""l3.relabel("_")("=")""")    ==== false
@@ -477,6 +484,7 @@ class TuplesTest() {
     T ~ (l4 ~ "c")                   ==== 3          --: typed[Int]
     T ~ (l4 ~ "d")                   ==== 4          --: typed[Int]
     T ~ l4.unlabel                   ==== t4         --: typed[(Int, Int, Int, Int)]
+    T ~ (l4 ~~ ("a", "b", "c", "d")) ==== t4         --: typed[(Int, Int, Int, Int)]
     T ~ l4.relabel("a")("_")         ==== t4         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d")]
     T ~ l4.relabel("b")("_")         ==== t4         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d")]
     T ~ l4.relabel("c")("_")         ==== t4         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d")]
@@ -508,6 +516,10 @@ class TuplesTest() {
     T ~ cc("""t4 \\ ("a", "b", "b", "d")""")   ==== false
     T ~ cc("""t4 \\ ("a", "b", "c", "b")""")   ==== false
     T ~ cc("""t4 \\ ("a", "b", "c", "b")""")   ==== false
+    T ~ cc("""l4 ~~ ("_", "b", "c", "d")""")   ==== false
+    T ~ cc("""l4 ~~ ("a", "_", "c", "d")""")   ==== false
+    T ~ cc("""l4 ~~ ("a", "b", "_", "d")""")   ==== false
+    T ~ cc("""l4 ~~ ("a", "b", "c", "_")""")   ==== false
 
     T ~ cc("""l4 ~ "_"""")              ==== false
     T ~ cc("""l4.relabel("_")("=")""")  ==== false
@@ -624,6 +636,7 @@ class TuplesTest() {
     T ~ (l5 ~ "d")                        ==== 4          --: typed[Int]
     T ~ (l5 ~ "e")                        ==== 5          --: typed[Int]
     T ~ l5.unlabel                        ==== t5         --: typed[(Int, Int, Int, Int, Int)]
+    T ~ (l5 ~~ ("a", "b", "c", "d", "e")) ==== t5         --: typed[(Int, Int, Int, Int, Int)]
     T ~ l5.relabel("a")("_")              ==== t5         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e")]
     T ~ l5.relabel("b")("_")              ==== t5         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e")]
     T ~ l5.relabel("c")("_")              ==== t5         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e")]
@@ -670,6 +683,11 @@ class TuplesTest() {
     T ~ cc("""t5 \\ ("a", "b", "c", "c", "e")""")   ==== false
     T ~ cc("""t5 \\ ("a", "b", "c", "d", "c")""")   ==== false
     T ~ cc("""t5 \\ ("a", "b", "c", "d", "d")""")   ==== false
+    T ~ cc("""l5 ~~ ("_", "b", "c", "d", "e")""")   ==== false
+    T ~ cc("""l5 ~~ ("a", "_", "c", "d", "e")""")   ==== false
+    T ~ cc("""l5 ~~ ("a", "b", "_", "d", "e")""")   ==== false
+    T ~ cc("""l5 ~~ ("a", "b", "c", "_", "e")""")   ==== false
+    T ~ cc("""l5 ~~ ("a", "b", "c", "d", "_")""")   ==== false
 
     T ~ cc("""l5 ~ "_"""")              ==== false
     T ~ cc("""l5.relabel("_")("=")""")  ==== false
@@ -892,6 +910,7 @@ class TuplesTest() {
     T ~ (l6 ~ "e")                             ==== 5          --: typed[Int]
     T ~ (l6 ~ "f")                             ==== 6          --: typed[Int]
     T ~ l6.unlabel                             ==== t6         --: typed[(Int, Int, Int, Int, Int, Int)]
+    T ~ (l6 ~~ ("a", "b", "c", "d", "e", "f")) ==== t6         --: typed[(Int, Int, Int, Int, Int, Int)]
     T ~ l6.relabel("a")("_")                   ==== t6         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
     T ~ l6.relabel("b")("_")                   ==== t6         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
     T ~ l6.relabel("c")("_")                   ==== t6         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f")]
@@ -941,21 +960,27 @@ class TuplesTest() {
     T ~ cc("""t6.label["a", "b", "c", "d", "d", "f"]""") ==== false
     T ~ cc("""t6.label["a", "b", "c", "d", "e", "d"]""") ==== false
     T ~ cc("""t6.label["a", "b", "c", "d", "e", "e"]""") ==== false
-    T ~ cc("""t6 \\ ("a", "a", "c", "d", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "a", "d", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "a", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "a", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "a")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "b", "d", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "b", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "b", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "b")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "c", "e", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "c", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "c")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "d", "f")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "d")""") ==== false
-    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "e")""") ==== false
+    T ~ cc("""t6 \\ ("a", "a", "c", "d", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "a", "d", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "a", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "a", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "a")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "b", "d", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "b", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "b", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "b")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "c", "e", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "c", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "c")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "d", "f")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "d")""")   ==== false
+    T ~ cc("""t6 \\ ("a", "b", "c", "d", "e", "e")""")   ==== false
+    T ~ cc("""l6 ~~ ("_", "b", "c", "d", "e", "f")""")   ==== false
+    T ~ cc("""l6 ~~ ("a", "_", "c", "d", "e", "f")""")   ==== false
+    T ~ cc("""l6 ~~ ("a", "b", "_", "d", "e", "f")""")   ==== false
+    T ~ cc("""l6 ~~ ("a", "b", "c", "_", "e", "f")""")   ==== false
+    T ~ cc("""l6 ~~ ("a", "b", "c", "d", "_", "f")""")   ==== false
+    T ~ cc("""l6 ~~ ("a", "b", "c", "d", "e", "_")""")   ==== false
 
     T ~ cc("""l6 ~ "_"""")              ==== false
     T ~ cc("""l6.relabel("_")("=")""")  ==== false
@@ -1087,39 +1112,40 @@ class TuplesTest() {
 
   def labelledSeptuplet(): Unit =
     val t7 = (1, 2, 3, 4, 5, 6, 7)
-    val l8 = (1 \ "a", 2 \ "b", 3 \ "c", 4 \ "d", 5 \ "e", 6 \ "f", 7 \ "g")
-    T ~ l8                                          ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    val l7 = (1 \ "a", 2 \ "b", 3 \ "c", 4 \ "d", 5 \ "e", 6 \ "f", 7 \ "g")
+    T ~ l7                                          ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
     T ~ t7.label["a", "b", "c", "d", "e", "f", "g"] ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
     T ~ (t7 \\ ("a", "b", "c", "d", "e", "f", "g")) ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ (l8 ~ "a")                                  ==== 1          --: typed[Int]
-    T ~ (l8 ~ "b")                                  ==== 2          --: typed[Int]
-    T ~ (l8 ~ "c")                                  ==== 3          --: typed[Int]
-    T ~ (l8 ~ "d")                                  ==== 4          --: typed[Int]
-    T ~ (l8 ~ "e")                                  ==== 5          --: typed[Int]
-    T ~ (l8 ~ "f")                                  ==== 6          --: typed[Int]
-    T ~ (l8 ~ "g")                                  ==== 7          --: typed[Int]
-    T ~ l8.unlabel                                  ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
-    T ~ l8.relabel("a")("_")                        ==== t7         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.relabel("b")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.relabel("c")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.relabel("d")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "_", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.relabel("e")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "_", Int \ "f", Int \ "g")]
-    T ~ l8.relabel("f")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "_", Int \ "g")]
-    T ~ l8.relabel("g")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "_")]
-    T ~ l8.revalue("a")(0)                          ==== t7._1to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("b")(0)                          ==== t7._2to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("c")(0)                          ==== t7._3to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("d")(0)                          ==== t7._4to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("e")(0)                          ==== t7._5to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("f")(0)                          ==== t7._6to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.revalue("g")(0)                          ==== t7._7to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.redo("a")(0 \ "_")                       ==== t7._1to(0) --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.redo("b")(0 \ "_")                       ==== t7._2to(0) --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.redo("c")(0 \ "_")                       ==== t7._3to(0) --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.redo("d")(0 \ "_")                       ==== t7._4to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "_", Int \ "e", Int \ "f", Int \ "g")]
-    T ~ l8.redo("e")(0 \ "_")                       ==== t7._5to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "_", Int \ "f", Int \ "g")]
-    T ~ l8.redo("f")(0 \ "_")                       ==== t7._6to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "_", Int \ "g")]
-    T ~ l8.redo("g")(0 \ "_")                       ==== t7._7to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "_")]
+    T ~ (l7 ~ "a")                                  ==== 1          --: typed[Int]
+    T ~ (l7 ~ "b")                                  ==== 2          --: typed[Int]
+    T ~ (l7 ~ "c")                                  ==== 3          --: typed[Int]
+    T ~ (l7 ~ "d")                                  ==== 4          --: typed[Int]
+    T ~ (l7 ~ "e")                                  ==== 5          --: typed[Int]
+    T ~ (l7 ~ "f")                                  ==== 6          --: typed[Int]
+    T ~ (l7 ~ "g")                                  ==== 7          --: typed[Int]
+    T ~ l7.unlabel                                  ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
+    T ~ (l7 ~~ ("a", "b", "c", "d", "e", "f", "g")) ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
+    T ~ l7.relabel("a")("_")                        ==== t7         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.relabel("b")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.relabel("c")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.relabel("d")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "_", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.relabel("e")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "_", Int \ "f", Int \ "g")]
+    T ~ l7.relabel("f")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "_", Int \ "g")]
+    T ~ l7.relabel("g")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "_")]
+    T ~ l7.revalue("a")(0)                          ==== t7._1to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("b")(0)                          ==== t7._2to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("c")(0)                          ==== t7._3to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("d")(0)                          ==== t7._4to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("e")(0)                          ==== t7._5to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("f")(0)                          ==== t7._6to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.revalue("g")(0)                          ==== t7._7to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.redo("a")(0 \ "_")                       ==== t7._1to(0) --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.redo("b")(0 \ "_")                       ==== t7._2to(0) --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.redo("c")(0 \ "_")                       ==== t7._3to(0) --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.redo("d")(0 \ "_")                       ==== t7._4to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "_", Int \ "e", Int \ "f", Int \ "g")]
+    T ~ l7.redo("e")(0 \ "_")                       ==== t7._5to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "_", Int \ "f", Int \ "g")]
+    T ~ l7.redo("f")(0 \ "_")                       ==== t7._6to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "_", Int \ "g")]
+    T ~ l7.redo("g")(0 \ "_")                       ==== t7._7to(0) --: typed[(Int \ "a", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "_")]
 
     val x12 = (1 \ "a", 2 \ "a", 3 \ "c", 4 \ "d", 5 \ "e", 6 \ "f", 7 \ "g")
     val x13 = (1 \ "a", 2 \ "b", 3 \ "a", 4 \ "d", 5 \ "e", 6 \ "f", 7 \ "g")
@@ -1184,11 +1210,18 @@ class TuplesTest() {
     T ~ cc("""t7 \\ ("a", "b", "c", "d", "e", "e", "g")""")   ==== false
     T ~ cc("""t7 \\ ("a", "b", "c", "d", "e", "f", "e")""")   ==== false
     T ~ cc("""t7 \\ ("a", "b", "c", "d", "e", "f", "f")""")   ==== false
+    T ~ cc("""l7 ~~ ("_", "b", "c", "d", "e", "f", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "_", "c", "d", "e", "f", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "b", "_", "d", "e", "f", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "b", "c", "_", "e", "f", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "b", "c", "d", "_", "f", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "b", "c", "d", "e", "_", "g")""")   ==== false
+    T ~ cc("""l7 ~~ ("a", "b", "c", "d", "e", "f", "_")""")   ==== false
 
-    T ~ cc("""l8 ~ "_"""")              ==== false
-    T ~ cc("""l8.relabel("_")("=")""")  ==== false
-    T ~ cc("""l8.revalue("_")(0)""")    ==== false
-    T ~ cc("""l8.redo("_")(0 \ "=")""") ==== false
+    T ~ cc("""l7 ~ "_"""")              ==== false
+    T ~ cc("""l7.relabel("_")("=")""")  ==== false
+    T ~ cc("""l7.revalue("_")(0)""")    ==== false
+    T ~ cc("""l7.redo("_")(0 \ "=")""") ==== false
 
     T ~ cc("""x12 ~ "a"""")              ==== false
     T ~ cc("""x13 ~ "a"""")              ==== false
@@ -1275,90 +1308,90 @@ class TuplesTest() {
     T ~ cc("""x57.redo("e")(0 \ "=")""") ==== false
     T ~ cc("""x67.redo("f")(0 \ "=")""") ==== false
 
-    T ~ cc("""l8.relabel("a")("b")""")  ==== false
-    T ~ cc("""l8.relabel("a")("c")""")  ==== false
-    T ~ cc("""l8.relabel("a")("d")""")  ==== false
-    T ~ cc("""l8.relabel("a")("e")""")  ==== false
-    T ~ cc("""l8.relabel("a")("f")""")  ==== false
-    T ~ cc("""l8.relabel("a")("g")""")  ==== false
-    T ~ cc("""l8.relabel("b")("a")""")  ==== false
-    T ~ cc("""l8.relabel("b")("c")""")  ==== false
-    T ~ cc("""l8.relabel("b")("d")""")  ==== false
-    T ~ cc("""l8.relabel("b")("e")""")  ==== false
-    T ~ cc("""l8.relabel("b")("f")""")  ==== false
-    T ~ cc("""l8.relabel("b")("g")""")  ==== false
-    T ~ cc("""l8.relabel("c")("a")""")  ==== false
-    T ~ cc("""l8.relabel("c")("b")""")  ==== false
-    T ~ cc("""l8.relabel("c")("d")""")  ==== false
-    T ~ cc("""l8.relabel("c")("e")""")  ==== false
-    T ~ cc("""l8.relabel("c")("f")""")  ==== false
-    T ~ cc("""l8.relabel("c")("g")""")  ==== false
-    T ~ cc("""l8.relabel("d")("a")""")  ==== false
-    T ~ cc("""l8.relabel("d")("b")""")  ==== false
-    T ~ cc("""l8.relabel("d")("c")""")  ==== false
-    T ~ cc("""l8.relabel("d")("e")""")  ==== false
-    T ~ cc("""l8.relabel("d")("f")""")  ==== false
-    T ~ cc("""l8.relabel("d")("g")""")  ==== false
-    T ~ cc("""l8.relabel("e")("a")""")  ==== false
-    T ~ cc("""l8.relabel("e")("b")""")  ==== false
-    T ~ cc("""l8.relabel("e")("c")""")  ==== false
-    T ~ cc("""l8.relabel("e")("d")""")  ==== false
-    T ~ cc("""l8.relabel("e")("f")""")  ==== false
-    T ~ cc("""l8.relabel("e")("g")""")  ==== false
-    T ~ cc("""l8.relabel("f")("a")""")  ==== false
-    T ~ cc("""l8.relabel("f")("b")""")  ==== false
-    T ~ cc("""l8.relabel("f")("c")""")  ==== false
-    T ~ cc("""l8.relabel("f")("d")""")  ==== false
-    T ~ cc("""l8.relabel("f")("e")""")  ==== false
-    T ~ cc("""l8.relabel("f")("g")""")  ==== false
-    T ~ cc("""l8.relabel("g")("a")""")  ==== false
-    T ~ cc("""l8.relabel("g")("b")""")  ==== false
-    T ~ cc("""l8.relabel("g")("c")""")  ==== false
-    T ~ cc("""l8.relabel("g")("d")""")  ==== false
-    T ~ cc("""l8.relabel("g")("e")""")  ==== false
-    T ~ cc("""l8.relabel("g")("f")""")  ==== false
-    T ~ cc("""l8.redo("a")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("a")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("a")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("a")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("a")(0 \ "f")""") ==== false
-    T ~ cc("""l8.redo("a")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "f")""") ==== false
-    T ~ cc("""l8.redo("b")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "f")""") ==== false
-    T ~ cc("""l8.redo("c")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "f")""") ==== false
-    T ~ cc("""l8.redo("d")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "f")""") ==== false
-    T ~ cc("""l8.redo("e")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("f")(0 \ "g")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "a")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "b")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "c")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "d")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "e")""") ==== false
-    T ~ cc("""l8.redo("g")(0 \ "f")""") ==== false
+    T ~ cc("""l7.relabel("a")("b")""")  ==== false
+    T ~ cc("""l7.relabel("a")("c")""")  ==== false
+    T ~ cc("""l7.relabel("a")("d")""")  ==== false
+    T ~ cc("""l7.relabel("a")("e")""")  ==== false
+    T ~ cc("""l7.relabel("a")("f")""")  ==== false
+    T ~ cc("""l7.relabel("a")("g")""")  ==== false
+    T ~ cc("""l7.relabel("b")("a")""")  ==== false
+    T ~ cc("""l7.relabel("b")("c")""")  ==== false
+    T ~ cc("""l7.relabel("b")("d")""")  ==== false
+    T ~ cc("""l7.relabel("b")("e")""")  ==== false
+    T ~ cc("""l7.relabel("b")("f")""")  ==== false
+    T ~ cc("""l7.relabel("b")("g")""")  ==== false
+    T ~ cc("""l7.relabel("c")("a")""")  ==== false
+    T ~ cc("""l7.relabel("c")("b")""")  ==== false
+    T ~ cc("""l7.relabel("c")("d")""")  ==== false
+    T ~ cc("""l7.relabel("c")("e")""")  ==== false
+    T ~ cc("""l7.relabel("c")("f")""")  ==== false
+    T ~ cc("""l7.relabel("c")("g")""")  ==== false
+    T ~ cc("""l7.relabel("d")("a")""")  ==== false
+    T ~ cc("""l7.relabel("d")("b")""")  ==== false
+    T ~ cc("""l7.relabel("d")("c")""")  ==== false
+    T ~ cc("""l7.relabel("d")("e")""")  ==== false
+    T ~ cc("""l7.relabel("d")("f")""")  ==== false
+    T ~ cc("""l7.relabel("d")("g")""")  ==== false
+    T ~ cc("""l7.relabel("e")("a")""")  ==== false
+    T ~ cc("""l7.relabel("e")("b")""")  ==== false
+    T ~ cc("""l7.relabel("e")("c")""")  ==== false
+    T ~ cc("""l7.relabel("e")("d")""")  ==== false
+    T ~ cc("""l7.relabel("e")("f")""")  ==== false
+    T ~ cc("""l7.relabel("e")("g")""")  ==== false
+    T ~ cc("""l7.relabel("f")("a")""")  ==== false
+    T ~ cc("""l7.relabel("f")("b")""")  ==== false
+    T ~ cc("""l7.relabel("f")("c")""")  ==== false
+    T ~ cc("""l7.relabel("f")("d")""")  ==== false
+    T ~ cc("""l7.relabel("f")("e")""")  ==== false
+    T ~ cc("""l7.relabel("f")("g")""")  ==== false
+    T ~ cc("""l7.relabel("g")("a")""")  ==== false
+    T ~ cc("""l7.relabel("g")("b")""")  ==== false
+    T ~ cc("""l7.relabel("g")("c")""")  ==== false
+    T ~ cc("""l7.relabel("g")("d")""")  ==== false
+    T ~ cc("""l7.relabel("g")("e")""")  ==== false
+    T ~ cc("""l7.relabel("g")("f")""")  ==== false
+    T ~ cc("""l7.redo("a")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("a")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("a")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("a")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("a")(0 \ "f")""") ==== false
+    T ~ cc("""l7.redo("a")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "f")""") ==== false
+    T ~ cc("""l7.redo("b")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "f")""") ==== false
+    T ~ cc("""l7.redo("c")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "f")""") ==== false
+    T ~ cc("""l7.redo("d")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "f")""") ==== false
+    T ~ cc("""l7.redo("e")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("f")(0 \ "g")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "a")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "b")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "c")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "d")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "e")""") ==== false
+    T ~ cc("""l7.redo("g")(0 \ "f")""") ==== false
 
 
   def labelledOctuplet(): Unit =
@@ -1376,6 +1409,7 @@ class TuplesTest() {
     T ~ (l8 ~ "g")                                       ==== 7          --: typed[Int]
     T ~ (l8 ~ "h")                                       ==== 8          --: typed[Int]
     T ~ l8.unlabel                                       ==== t8         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int)]
+    T ~ (l8 ~~ ("a", "b", "c", "d", "e", "f", "g", "h")) ==== t8         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l8.relabel("a")("_")                             ==== t8         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
     T ~ l8.relabel("b")("_")                             ==== t8         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
     T ~ l8.relabel("c")("_")                             ==== t8         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
@@ -1485,6 +1519,14 @@ class TuplesTest() {
     T ~ cc("""t8 \\ ("a", "b", "c", "d", "e", "f", "f", "h")""")   ==== false
     T ~ cc("""t8 \\ ("a", "b", "c", "d", "e", "f", "g", "f")""")   ==== false
     T ~ cc("""t8 \\ ("a", "b", "c", "d", "e", "f", "g", "g")""")   ==== false
+    T ~ cc("""l8 ~~ ("_", "b", "c", "d", "e", "f", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "_", "c", "d", "e", "f", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "_", "d", "e", "f", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "c", "_", "e", "f", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "c", "d", "_", "f", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "c", "d", "e", "_", "g", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "c", "d", "e", "f", "_", "h")""")   ==== false
+    T ~ cc("""l8 ~~ ("a", "b", "c", "d", "e", "f", "g", "_")""")   ==== false
 
     T ~ cc("""l8 ~ "_"""")              ==== false
     T ~ cc("""l8.relabel("_")("=")""")  ==== false
@@ -1734,6 +1776,7 @@ class TuplesTest() {
     T ~ (l9 ~ "h")                                            ==== 8          --: typed[Int]
     T ~ (l9 ~ "i")                                            ==== 9          --: typed[Int]
     T ~ l9.unlabel                                            ==== t9         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+    T ~ (l9 ~~ ("a", "b", "c", "d", "e", "f", "g", "h", "i")) ==== t9         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l9.relabel("a")("_")                                  ==== t9         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
     T ~ l9.relabel("b")("_")                                  ==== t9         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
     T ~ l9.relabel("c")("_")                                  ==== t9         --: typed[(Int \ "a", Int \ "b", Int \ "_", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
@@ -1870,6 +1913,15 @@ class TuplesTest() {
     T ~ cc("""t9 \\ ("a", "b", "c", "d", "e", "f", "g", "g", "i")""")   ==== false
     T ~ cc("""t9 \\ ("a", "b", "c", "d", "e", "f", "g", "h", "g")""")   ==== false
     T ~ cc("""t9 \\ ("a", "b", "c", "d", "e", "f", "g", "h", "h")""")   ==== false
+    T ~ cc("""l9 ~~ ("_", "b", "c", "d", "e", "f", "e", "h", "i")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "_", "c", "d", "e", "f", "g", "e", "i")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "_", "d", "e", "f", "g", "h", "e")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "_", "e", "f", "f", "h", "i")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "d", "_", "f", "g", "f", "i")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "d", "e", "_", "g", "h", "f")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "d", "e", "f", "_", "g", "i")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "d", "e", "f", "g", "_", "g")""")   ==== false
+    T ~ cc("""l9 ~~ ("a", "b", "c", "d", "e", "f", "g", "h", "_")""")   ==== false
 
     T ~ cc("""l9 ~ "_"""")              ==== false
     T ~ cc("""l9.relabel("_")("=")""")  ==== false

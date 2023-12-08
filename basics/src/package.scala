@@ -143,6 +143,9 @@ package kse
   * If you try to create duplicate labels, it will give you an error.  Everything in the tuple must be labelled; otherwise
   * you can't access by name.
   * 
+  * To read a subset of fields out by name, use `pick`.  To create an updated version of a labelled tuple by using another
+  * (at least partially) labelled tuple, use `updatedBy`.
+  * 
   * == Simple Intervals ==
   * 
   * The `kse.basics.intervals` packages contains two simple intervals: `Iv` which is an absolute interval, and `PIv` which is
