@@ -79,7 +79,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.2.1"
+ivy"com.github.ichoran::kse3-basics:0.2.7"
 ```
 
 and in your code,
