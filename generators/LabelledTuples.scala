@@ -9,138 +9,178 @@ package kse.generators
 object LabelledTuples {
   val output = collection.mutable.ArrayBuffer.empty[String]
 
-  def genP(params: Int, seek: Array[Int], got: Array[Int], indents: Int, onlyTypes: Boolean = false): Unit =
-    val i = got.length
-    val indent = "  "*indents
-    val nt = "L" + ('z' - i).toChar
-    val nv = "l" + ('z' - i).toChar
-    if params <= i then
-        if seek.nonEmpty then
-          got.zipWithIndex.foreach{ (j, k) =>
-            val relevant = seek.filter(_ > j)
-            if relevant.length > 0 then
-              val msg = if onlyTypes then "" else s"\" with \" + codeOf(l${('z'-k).toChar})"
-              val tps = (("L"+('z'-k).toChar) +: relevant.map(x => "L" + ('a'+x).toChar)).mkString(", ")
-              val ixs = (j +: relevant).map(x => s"\"_${x+1}\"".toString).mkString(", ")
-              if relevant.length == 1 then
-                output += s"${indent}LabelConflicts.diff[$tps]($ixs)($msg)"
-              else
-                output += s"${indent}LabelConflicts.head${relevant.length+1}[$tps]($ixs)($msg)"
-          }
-        val result =
-          if seek.isEmpty && got.toList == List.range(0, got.length) then
-            got.map{ i =>
-              val tp = ('A' + i).toChar.toString
-              val lb = "L" + ('z' - i).toChar
-              s"$tp \\^ $lb"
-            }.mkString("q.asInstanceOf[(", ", ", ")]")
-          else if got.length > 1 then
-            val lbs = got.indices.map(k => "L" + ('z' - k).toChar).mkString(".label[", ", ", "]")
-            val tpl = got.map{ case j => s"q._${j+1}.unlabel" }.mkString("(", ", ", ")")
-            tpl + lbs
-          else s"q._${got(0)+1}.asInstanceOf[(${('A' + got(0)).toChar.toString} \\^ Lz)]"
-        output += s"$indent$result"
-    else
-      output += s"${indent}summonFrom:"
-      seek.zipWithIndex.foreach{ case (j, h) =>
-        val order = got :+ j
-        val ot = "L" + ('a'+j).toChar
-        output += s"$indent  case _: ($nt =:= $ot) =>"
-        genP(params, seek.patch(h, Nil, 1), order, indents + 2, onlyTypes)
-      }
-      val errmsg =
-        if onlyTypes then s"No matching label for result position _${i+1}\"}"
-        else s"\"No label found matching \" + codeOf($nv)"
-      output += s"$indent  case _ => compiletime.error($errmsg)"
-
-  def picks(rg: Range, arity: Int, tooBig: (Int, Int) => Boolean): Unit = for i <- rg do
-    val vts = Array.tabulate(arity)(k => ('A' + k).toChar.toString)
-    val lts = Array.tabulate(arity)(k => "L" + ('a' + k).toChar)
-    val nlts = Array.tabulate(i)(j => "L" + ('z' - j).toChar)
-    val nlvs = Array.tabulate(i)(j => "l" + ('z' - j).toChar)
-    val typearg = nlts.map(_ + " <: LabelVal").mkString(", ")
-    val args = (nlvs zip nlts).map{ case (lv, lt) => s"inline $lv: $lt" }.mkString(", ")
-    val orts = vts.mkString(" | ")
-    val rets = nlts.map{ nlt => s"($orts) \\^ $nlt" }.mkString(", ")
-    output += s"  transparent inline def pick[$typearg]($args): ($rets) ="
-    if !tooBig(arity, i) then
-      if i > 1 then
-        output += s"    LabelConflicts.unik$i(${nlvs.mkString(", ")})"
-      genP(i, Array.range(0, rg.last), Array.empty[Int], 2)
-    else
-      output += s"    compiletime.error(\"Implementation restrictions prevent ${i}-way picking by name\")"
-    output += ""
-
-
-  def genU(params: Int, pending: Array[Int], targets: Array[Int], indents: Int): Unit =
-    val indent = "  "*indents
-    if pending.isEmpty then
-      for i <- targets.indices do
-        if targets(i) == 0 then targets(i) = i+1
-    val i = targets.indexOf(0)
-    if i < 0 then
-      if targets.toList == List.range(1, targets.length+1) then
-        output += s"${indent}compiletime.error(\"No matching labels so no update possible\")"
+  def pickOne(params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    output += s"  transparent inline def pick[Lz <: LabelVal](inline lz: Lz): (${tps.mkString(" | ")}) \\^ Lz ="
+    output += s"    summonFrom:"
+    for ((t, l), i) <- (tps zip lbs).zipWithIndex do
+      val pre = s"      case _: (Lz =:= $l) => "
+      val ind = s"                             "
+      val ans = s"q._${i+1}.asInstanceOf[$t \\^ Lz]"
+      if i+1 == params then
+        output += pre + ans
       else
-        val replaced = targets.zipWithIndex.filter(_._1 < 0)
-        if replaced.length > 1 then
-          val tps = replaced.map{ case (_, j) => "L" + ('a' + j).toChar }.mkString(", ")
-          val ixs = replaced.map{ case (_, j) => s"\"_${j+1}\"" }.mkString(", ")
-          output += s"${indent}LabelConflicts.unyq${replaced.length}[$tps]($ixs)"
-        for (t, i) <- replaced do
-          val untested = targets.drop(i).filter(_ > 0)
-          if untested.nonEmpty then
-            val tps = ((i+1) +: untested).map(j => "L" + ('a' + j - 1).toChar).mkString(", ")
-            val ixs = ((i+1) +: untested).map(j => s"\"_$j\"").mkString(", ")
-            val method = if untested.length == 1 then "diff" else "head" + (1+untested.length).toString
-            output += s"${indent}LabelConflicts.$method[$tps]($ixs)(\"\")"
-        val tup = targets.map(i => if i > 0 then s"q._$i" else if params == 1 then "source" else s"source._${-i}").mkString("(", ", ", ")")
-        output += s"$indent$tup"
-    else
-      output += s"${indent}summonFrom:"
-      if pending.length > 1 || i+1 == targets.length then
-        val ot = "L" + ('a' + i).toChar
-        for (j, k) <- pending.zipWithIndex do
-          val pt = "T" + ('z' - j).toChar
-          output += s"$indent  case _: ((Nothing \\^ $ot) <:< $pt) =>"
-          genU(params, pending.patch(k, Nil, 1), targets.updated(i, -j-1), indents+2)
-        output += s"$indent  case _ =>"
-        genU(params, pending, targets.updated(i, i+1), indents+2)
+        output += pre + s"LabelConflicts.head${params-i}[Lz, ${lbs.drop(i+1).mkString(", ")}](codeOf(lz))"
+        output += ind + ans
+    output += s"      case _              => compiletime.error(\"No label found matching \" + codeOf(lz))"
+
+  def pickMany(n: Int, params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val lbz = (0 until n).map(j => "L" + ('z' - j).toChar)
+    val vrz = (0 until n).map(j => "l" + ('z' - j).toChar)
+    val typeargs = lbz.map(_ + " <: LabelVal").mkString(", ")
+    val args = (vrz zip lbz).map{ case (v, l) => s"inline $v: $l"}.mkString(", ")
+    val ortypes = tps.mkString(" | ")
+    val qtype = if n == params then "q.type | " else ""
+    val restype = lbz.map(l => s"($ortypes) \\^ $l").mkString("(", ", ", ")")
+    output += s"  transparent inline def pick[$typeargs]($args): $qtype$restype ="
+    output += s"    LabelConflicts.uniq${lbz.length}[${lbz.mkString(", ")}](${vrz.dropRight(1).map("codeOf(" + _ + ")").mkString(", ")})"
+    val in =
+      if n == params then
+        output += s"    summonFrom:"
+        output += s"      case _: ((${lbz.mkString(", ")}) =:= (${lbs.mkString(", ")})) => q"
+        output +=  "      case _ => ("
+                   "        "
       else
-        for ii <- (i until targets.length) do
-          val ot = "L" + ('a' + ii).toChar
-          val pt = "T" + ('z' - pending(0)).toChar
-          output += s"$indent  case _: ((Nothing \\^ $ot) <:< $pt) => "
-          genU(params, pending.take(0), targets.updated(ii, -pending(0)-1), indents+2)
-          targets(ii) = ii+1
-        output += s"$indent  case _ =>"
-        genU(params, pending, targets, indents+2)
+        output +=  "    ("
+                   "      "
+    for (m, v) <- (lbz zip vrz) do
+      output += s"${in}summonFrom:"
+      for ((t, l), i) <- (tps zip lbs).zipWithIndex do
+        val pre = s"$in  case _: ($m =:= $l) => "
+        val ind = s"$in                         "
+        val ans = s"q._${i+1}.asInstanceOf[$t \\^ $m]"
+        if i+1 == params then
+          output += pre + ans
+        else
+          output += pre + s"LabelConflicts.head${params-i}[$m, ${lbs.drop(i+1).mkString(", ")}](codeOf($v))"
+          output += ind + ans
+      output   += s"$in  case _              => compiletime.error(\"Label \" + codeOf($v) + \" not found\"),"
+    output += in.drop(2) + ")"
 
+  def updaOne(params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val restype = (tps zip lbs).map{ case (t, l) =>  s"$t \\^ $l" }.mkString("(", ", ", ")")
+    val misserr = "compiletime.error(\"No matching labels found\")"
+    output += s"  inline def updatedBy[Z, Lz <: LabelVal](source: Z \\^ Lz): $restype ="
+    output += s"    inline if !LabelConflicts.has${params}1[${(lbs :+ "Z \\^ Lz").mkString(", ")}] then $misserr"
+    output +=  "    ("
+    for ((t, l), i) <- (tps zip lbs).zipWithIndex do
+      output +=  "      summonFrom:"
+      val pre = s"        case _: (Lz =:= $l) => "
+      val ind = s"                               "
+      val ans = s"summonInline[Z <:< $t](source.unlabel).labelled[$l]"
+      if i+1 == params then
+        output += pre + ans
+      else
+        output += pre + s"LabelConflicts.head${params-i}[Lz, ${lbs.drop(i+1).mkString(", ")}](\"at _${i+1}\")"
+        output += ind + ans
+      output += s"        case _ => q._${i+1}${if i+1 == params then "" else ","}"
+    output +=  "    )"
 
-  def updas(rg: Range, arity: Int, tooBig: (Int, Int) => Boolean): Unit = for i <- rg do
-    val vts = Array.tabulate(arity)(k => ('A' + k).toChar.toString)
-    val lts = Array.tabulate(arity)(k => "L" + ('a' + k).toChar)
-    val nlts = Array.tabulate(i)(j => "T" + ('z' - j).toChar)
-    val typearg = nlts.mkString(", ")
-    val typeors = nlts.mkString(" | ")
-    val args = "source: " + (if i == 1 then typearg else s"($typearg)")
-    val rets = (vts zip lts).map{ case (vt, lt) => s"$vt \\^ $lt | $typeors" }.mkString(", ")
-    output += s"  transparent inline def updatedBy[$typearg]($args): ($rets) ="
-    if !tooBig(arity, i) then
-      genU(i, Array.range(0, i), Array.fill(arity)(0), 2)
-    else
-      output += s"  compiletime.error(\"Implementation restrictions prevent name-update of ${arity}-tuple by ${i}-tuple\")"
-    output += ""
+  def updaMany(n: Int, params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val nts = (0 until n).map(j => "N" + ('z' - j).toChar)
+    val typeargs = nts.mkString(", ")
+    val args = nts.mkString("source: (", ",", ")")
+    val restype = (tps zip lbs).map{ case (t, l) =>  s"$t \\^ $l" }.mkString("(", ", ", ")")
+    val misserr = "compiletime.error(\"No matching labels found\")"
+    output += s"  inline def updatedBy[$typeargs]($args): $restype ="
+    output += s"    inline if !LabelConflicts.has${params}${n}[${lbs.mkString(", ")}, ${nts.mkString(", ")}] then $misserr"
+    output +=  "    ("
+    for ((t, l), i) <- (tps zip lbs).zipWithIndex do
+      output +=  "      summonFrom:"
+      for (m, j) <- nts.zipWithIndex do
+        val p = s"        case _ : ((Nothing \\^ $l) <:< $m) => "
+        val s =  "                                             "
+        var ans = s"summonInline[($m <:< ($t \\^ $l))](source._${j+1})" :: Nil
+        if j+1 < n then
+          val errdup = s"compiletime.error(\"Multple labels found matching label on _${i+1}\")"
+          ans = s"LabelConflicts.miss${n-j-1}[$l, ${nts.drop(j+1).mkString(", ")}](\" in update corresponding to _${i+1}\")" :: ans
+        if i+1 < params then
+          ans = s"LabelConflicts.head${params-i}[${lbs.drop(i).mkString(", ")}](\"at _${i+1}\")" :: ans
+        for (x, k) <- ans.zipWithIndex do
+          output += (if k == 0 then p else s) + x
+      output += s"        case _ => q._${i+1}${if i+1 == params then "" else ","}"
+    output +=  "     )"
 
+  def revaOne(params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val tli = (tps zip lbs).zipWithIndex
+    output += s"  transparent inline def revalue[Z](inline name: ${lbs.mkString(" | ")})(to: Z):"
+    for j <- 0 until params do
+      output += tli.map{ case ((t, l), i) => if i == j then s"Z \\^ $l" else s"$t \\^ $l" }.mkString("    (", ", ", if j+1 == params then ")" else ") | ")
+    output +=  "    ="
+    output +=  "    inline name match"
+    for ((t, l), i) <- tli do
+      output += s"      case _: $l =>"
+      if i+1 < params then
+          output += s"        LabelConflicts.head${params-i}[${lbs.drop(i).mkString(", ")}](codeOf(name))"
+      output += s"        q.copy(_${i+1} = to.labelled[$l])"
 
-  def pickset(arity: Int, label: String, tooBig: (Int, Int) => Boolean = (a, i) => a*i > 21): Unit =
+  def relaOne(params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val tli = (tps zip lbs).zipWithIndex
+    output += s"  transparent inline def relabel[Lz <: LabelVal](inline name: ${lbs.mkString(" | ")})(inline lz: Lz):"
+    for j <- 0 until params do
+      output += tli.map{ case ((t, l), i) => if i == j then s"$t \\^ Lz" else s"$t \\^ $l" }.mkString("    (", ", ", if j+1 == params then ")" else ") | ")
+    output +=  "    ="
+    output +=  "    inline name match"
+    for ((t, l), i) <- tli do
+      output += s"      case _: $l =>"
+      if i+1 < params then
+          output += s"        LabelConflicts.head${params-i}[${lbs.drop(i).mkString(", ")}](codeOf(name))"
+      output += s"        LabelConflicts.head${params}[Lz, ${lbs.patch(i, Nil, 1).mkString(", ")}](codeOf(name) + \" to \" + codeOf(lz) + \" creates a labelling which\")"
+      output += tli.map{ case ((t, l), j) => if i == j then s"$t \\^ Lz" else s"$t \\^ $l" }.mkString("        q.asInstanceOf[(", ", ", ")]")
+
+  def redoOne(params: Int): Unit =
+    val tps = (0 until params).map(i => ('A' + i).toChar.toString)
+    val lbs = (0 until params).map(i => "L" + ('a' + i).toChar)
+    val tli = (tps zip lbs).zipWithIndex
+    output += s"  transparent inline def redo[Z, Lz <: LabelVal](inline name: ${lbs.mkString(" | ")})(inline to: Z \\^ Lz):"
+    for j <- 0 until params do
+      output += tli.map{ case ((t, l), i) => if i == j then s"Z \\^ Lz" else s"$t \\^ $l" }.mkString("    (", ", ", if j+1 == params then ")" else ") | ")
+    output +=  "    ="
+    output +=  "    inline name match"
+    for ((t, l), i) <- tli do
+      output += s"      case _: $l =>"
+      if i+1 < params then
+          output += s"        LabelConflicts.head${params-i}[${lbs.drop(i).mkString(", ")}](codeOf(name))"
+      output += s"        LabelConflicts.head${params}[Lz, ${lbs.patch(i, Nil, 1).mkString(", ")}](codeOf(name) + \" changed, creating a labelling which\")"
+      output += s"        q.copy(_${i+1} = to)"
+
+  def pickset(arity: Int, label: String): Unit =
     val n = output.length
-    picks(1 to arity, arity, tooBig)
+    pickOne(arity)
+    output += ""
+    for n <- 2 to arity do
+      pickMany(n, arity)
+      output += ""
     println(s"Created ${output.length - n} lines of source for arity $label of pick")
 
-  def updaset(arity: Int, label: String, tooBig: (Int, Int) => Boolean = (a, i) => a*i > 18): Unit =
+  def updaset(arity: Int, label: String): Unit =
     val n = output.length
-    updas(1 to 9, arity, tooBig)
+    updaOne(arity)
+    output += ""
+    for n <- 2 to 9 do
+      updaMany(n, arity)
+      output += ""
+    println(s"Created ${output.length - n} lines of source for arity $label of updatedBy")
+
+  def revlset(arity: Int, label: String): Unit =
+    val n = output.length
+    revaOne(arity)
+    output += ""
+    relaOne(arity)
+    output += ""
+    redoOne(arity)
+    output += ""
     println(s"Created ${output.length - n} lines of source for arity $label of updatedBy")
 
   def allset(arity: Int, label: String): Unit =
@@ -148,8 +188,9 @@ object LabelledTuples {
     output += ""
     output += s"===== $label ====="
     output += ""
-    if arity > 2 then pickset(arity, label)
+    if arity > 1 then pickset(arity, label)
     if arity > 1 then updaset(arity, label)
+    if arity > 1 then revlset(arity, label)
 
   def main(args: Array[String]): Unit =
     allset(2, "TWO")

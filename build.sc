@@ -25,7 +25,7 @@ trait PublishKse3 extends PublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.2.7"
+  def publishVersion = "0.2.8"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -43,7 +43,7 @@ trait PublishKse3 extends PublishModule {
 object testutilities extends Base with PublishKse3 {
   override def publicationName = "kse3-testing"
   def ivyDeps = Agg(
-    ivy"com.lihaoyi::sourcecode:0.2.7"
+    ivy"com.lihaoyi::sourcecode:0.3.1"
   )
 }
 
@@ -55,7 +55,7 @@ trait Common extends Base {
     override def ivyDeps = T{
       super.ivyDeps() ++
       Agg(
-        ivy"com.lihaoyi::sourcecode:0.2.7"
+        ivy"com.lihaoyi::sourcecode:0.3.1"
       ) ++
       extraTestIvy()
     }
