@@ -693,6 +693,188 @@ object LabelConflicts {
       case _ => false
 }
 
+object DynamicAccessors {
+  import scala.language.dynamics
+  import scala.compiletime.{constValue => cVal}
+
+  class Of2[A, La <: LabelVal, B, Lb <: LabelVal](private val q: (A \^ La, B \^ Lb)) extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B =
+      inline if s == cVal[La] then
+        LabelConflicts.head2[La, Lb](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then q._2.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of3[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C =
+      inline if s == cVal[La] then
+        LabelConflicts.head3[La, Lb, Lc](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head2[Lb, Lc](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then q._3.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of4[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D =
+      inline if s == cVal[La] then
+        LabelConflicts.head4[La, Lb, Lc, Ld](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head3[Lb, Lc, Ld](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head2[Lc, Ld](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then q._4.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of5[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal, E, Le <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld, E \^ Le)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D | E =
+      inline if s == cVal[La] then
+        LabelConflicts.head5[La, Lb, Lc, Ld, Le](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head4[Lb, Lc, Ld, Le](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head3[Lc, Ld, Le](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then
+        LabelConflicts.head2[Ld, Le](s)
+        q._4.unlabel
+      else inline if s == cVal[Le] then q._5.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of6[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal, E, Le <: LabelVal, F, Lf <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld, E \^ Le, F \^ Lf)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D | E | F =
+      inline if s == cVal[La] then
+        LabelConflicts.head6[La, Lb, Lc, Ld, Le, Lf](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head5[Lb, Lc, Ld, Le, Lf](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head4[Lc, Ld, Le, Lf](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then
+        LabelConflicts.head3[Ld, Le, Lf](s)
+        q._4.unlabel
+      else inline if s == cVal[Le] then
+        LabelConflicts.head2[Le, Lf](s)
+        q._5.unlabel
+      else inline if s == cVal[Lf] then q._6.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of7[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal, E, Le <: LabelVal, F, Lf <: LabelVal, G, Lg <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld, E \^ Le, F \^ Lf, G \^ Lg)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D | E | F | G =
+      inline if s == cVal[La] then
+        LabelConflicts.head7[La, Lb, Lc, Ld, Le, Lf, Lg](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head6[Lb, Lc, Ld, Le, Lf, Lg](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head5[Lc, Ld, Le, Lf, Lg](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then
+        LabelConflicts.head4[Ld, Le, Lf, Lg](s)
+        q._4.unlabel
+      else inline if s == cVal[Le] then
+        LabelConflicts.head3[Le, Lf, Lg](s)
+        q._5.unlabel
+      else inline if s == cVal[Lf] then
+        LabelConflicts.head2[Lf, Lg](s)
+        q._6.unlabel
+      else inline if s == cVal[Lg] then q._7.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of8[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal, E, Le <: LabelVal, F, Lf <: LabelVal, G, Lg <: LabelVal, H, Lh <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld, E \^ Le, F \^ Lf, G \^ Lg, H \^ Lh)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D | E | F | G | H =
+      inline if s == cVal[La] then
+        LabelConflicts.head8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head7[Lb, Lc, Ld, Le, Lf, Lg, Lh](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head6[Lc, Ld, Le, Lf, Lg, Lh](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then
+        LabelConflicts.head5[Ld, Le, Lf, Lg, Lh](s)
+        q._4.unlabel
+      else inline if s == cVal[Le] then
+        LabelConflicts.head4[Le, Lf, Lg, Lh](s)
+        q._5.unlabel
+      else inline if s == cVal[Lf] then
+        LabelConflicts.head3[Lf, Lg, Lh](s)
+        q._6.unlabel
+      else inline if s == cVal[Lg] then
+        LabelConflicts.head2[Lg, Lh](s)
+        q._7.unlabel
+      else inline if s == cVal[Lh] then q._8.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+
+  class Of9[A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: LabelVal, E, Le <: LabelVal, F, Lf <: LabelVal, G, Lg <: LabelVal, H, Lh <: LabelVal, I, Li <: LabelVal](
+    private val q: (A \^ La, B \^ Lb, C \^ Lc, D \^ Ld, E \^ Le, F \^ Lf, G \^ Lg, H \^ Lh, I \^ Li)
+  )
+  extends AnyVal with Dynamic {
+    transparent inline def selectDynamic(inline s: String): A | B | C | D | E | F | G | H | I =
+      inline if s == cVal[La] then
+        LabelConflicts.head9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li](s)
+        q._1.unlabel
+      else inline if s == cVal[Lb] then
+        LabelConflicts.head8[Lb, Lc, Ld, Le, Lf, Lg, Lh, Li](s)
+        q._2.unlabel
+      else inline if s == cVal[Lc] then
+        LabelConflicts.head7[Lc, Ld, Le, Lf, Lg, Lh, Li](s)
+        q._3.unlabel
+      else inline if s == cVal[Ld] then
+        LabelConflicts.head6[Ld, Le, Lf, Lg, Lh, Li](s)
+        q._4.unlabel
+      else inline if s == cVal[Le] then
+        LabelConflicts.head5[Le, Lf, Lg, Lh, Li](s)
+        q._5.unlabel
+      else inline if s == cVal[Lf] then
+        LabelConflicts.head4[Lf, Lg, Lh, Li](s)
+        q._6.unlabel
+      else inline if s == cVal[Lg] then
+        LabelConflicts.head3[Lg, Lh, Li](s)
+        q._7.unlabel
+      else inline if s == cVal[Lh] then
+        LabelConflicts.head2[Lh, Li](s)
+        q._8.unlabel
+      else inline if s == cVal[Li] then q._9.unlabel
+      else compiletime.error("Labelled tuple is not labelled by " + s)
+  }
+}
+
 
 extension [A](a: A) {
   /** Associate a compile-time name with this value */
@@ -700,9 +882,6 @@ extension [A](a: A) {
 
   /** Associate a compile-time name with this value by giving the other (Singular) value */
   inline def \[L <: LabelVal](l: L): A \^ L = \^(a)
-
-  /** Associate a compile-time name with this value by taking from another labeled value */
-  inline def labelLike[B, L <: LabelVal](bl: B \^ L): A \^ L = \^(a)
 }
 
 extension [A, La <: LabelVal](q: A \^ La) {
@@ -825,6 +1004,15 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal](q: (A \^ La, B \^ Lb)) {
         q._2.unlabel
 
   inline def unlabel: (A, B) = q.asInstanceOf[(A, B)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def labels: (La, Lb) = (compiletime.constValue[La], compiletime.constValue[Lb])
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of2[A, La, B, Lb] = DynamicAccessors.Of2(q)
 
   inline def ~~(inline la: La, inline lb: Lb): (A, B) =
     LabelConflicts.uniq2[La, Lb](codeOf(la))
@@ -1205,6 +1393,22 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal](q: (A \^ La,
         q._3.unlabel
 
   inline def unlabel: (A, B, C) = q.asInstanceOf[(A, B, C)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def labels: (La, Lb, Lc) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of3[A, La, B, Lb, C, Lc] =
+    DynamicAccessors.Of3(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc): (A, B, C) = unlabel
 
@@ -1776,6 +1980,25 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._4.unlabel
 
   inline def unlabel: (A, B, C, D) = q.asInstanceOf[(A, B, C, D)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def labels: (La, Lb, Lc, Ld) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of4[A, La, B, Lb, C, Lc, D, Ld] =
+    DynamicAccessors.Of4(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld): (A, B, C, D) = unlabel
 
@@ -2562,6 +2785,28 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._5.unlabel
 
   inline def unlabel: (A, B, C, D, E) = q.asInstanceOf[(A, B, C, D, E)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def label_5: Le = compiletime.constValue[Le]
+
+  transparent inline def labels: (La, Lb, Lc, Ld, Le) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld],
+    compiletime.constValue[Le]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of5[A, La, B, Lb, C, Lc, D, Ld, E, Le] =
+    DynamicAccessors.Of5(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld, inline le: Le): (A, B, C, D, E) = unlabel
 
@@ -3588,6 +3833,31 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._6.unlabel
 
   inline def unlabel: (A, B, C, D, E, F) = q.asInstanceOf[(A, B, C, D, E, F)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def label_5: Le = compiletime.constValue[Le]
+
+  transparent inline def label_6: Lf = compiletime.constValue[Lf]
+
+  transparent inline def labels: (La, Lb, Lc, Ld, Le, Lf) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld],
+    compiletime.constValue[Le],
+    compiletime.constValue[Lf]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of6[A, La, B, Lb, C, Lc, D, Ld, E, Le, F, Lf] =
+    DynamicAccessors.Of6(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld, inline le: Le, inline lf: Lf): (A, B, C, D, E, F) = unlabel
 
@@ -4888,6 +5158,34 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._7.unlabel
 
   inline def unlabel: (A, B, C, D, E, F, G) = q.asInstanceOf[(A, B, C, D, E, F, G)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def label_5: Le = compiletime.constValue[Le]
+
+  transparent inline def label_6: Lf = compiletime.constValue[Lf]
+
+  transparent inline def label_7: Lg = compiletime.constValue[Lg]
+
+  transparent inline def labels: (La, Lb, Lc, Ld, Le, Lf, Lg) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld],
+    compiletime.constValue[Le],
+    compiletime.constValue[Lf],
+    compiletime.constValue[Lg]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of7[A, La, B, Lb, C, Lc, D, Ld, E, Le, F, Lf, G, Lg] =
+    DynamicAccessors.Of7(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld, inline le: Le, inline lf: Lf, inline lg: Lg): (A, B, C, D, E, F, G) = unlabel
 
@@ -6501,6 +6799,37 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._8.unlabel
 
   inline def unlabel: (A, B, C, D, E, F, G, H) = q.asInstanceOf[(A, B, C, D, E, F, G, H)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def label_5: Le = compiletime.constValue[Le]
+
+  transparent inline def label_6: Lf = compiletime.constValue[Lf]
+
+  transparent inline def label_7: Lg = compiletime.constValue[Lg]
+
+  transparent inline def label_8: Lh = compiletime.constValue[Lh]
+
+  transparent inline def labels: (La, Lb, Lc, Ld, Le, Lf, Lg, Lh) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld],
+    compiletime.constValue[Le],
+    compiletime.constValue[Lf],
+    compiletime.constValue[Lg],
+    compiletime.constValue[Lh]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of8[A, La, B, Lb, C, Lc, D, Ld, E, Le, F, Lf, G, Lg, H, Lh] =
+    DynamicAccessors.Of8(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld, inline le: Le, inline lf: Lf, inline lg: Lg, inline lh: Lh): (A, B, C, D, E, F, G, H) = unlabel
 
@@ -8472,6 +8801,40 @@ extension [A, La <: LabelVal, B, Lb <: LabelVal, C, Lc <: LabelVal, D, Ld <: Lab
         q._9.unlabel
 
   inline def unlabel: (A, B, C, D, E, F, G, H, I) = q.asInstanceOf[(A, B, C, D, E, F, G, H, I)]
+
+  transparent inline def label_1: La = compiletime.constValue[La]
+
+  transparent inline def label_2: Lb = compiletime.constValue[Lb]
+
+  transparent inline def label_3: Lc = compiletime.constValue[Lc]
+
+  transparent inline def label_4: Ld = compiletime.constValue[Ld]
+
+  transparent inline def label_5: Le = compiletime.constValue[Le]
+
+  transparent inline def label_6: Lf = compiletime.constValue[Lf]
+
+  transparent inline def label_7: Lg = compiletime.constValue[Lg]
+
+  transparent inline def label_8: Lh = compiletime.constValue[Lh]
+
+  transparent inline def label_9: Li = compiletime.constValue[Li]
+
+  transparent inline def labels: (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li) = (
+    compiletime.constValue[La],
+    compiletime.constValue[Lb],
+    compiletime.constValue[Lc],
+    compiletime.constValue[Ld],
+    compiletime.constValue[Le],
+    compiletime.constValue[Lf],
+    compiletime.constValue[Lg],
+    compiletime.constValue[Lh],
+    compiletime.constValue[Li]
+  )
+
+  @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+  inline def apply(): DynamicAccessors.Of9[A, La, B, Lb, C, Lc, D, Ld, E, Le, F, Lf, G, Lg, H, Lh, I, Li] =
+    DynamicAccessors.Of9(q)
 
   inline def ~~(inline la: La, inline lb: Lb, inline lc: Lc, inline ld: Ld, inline le: Le, inline lf: Lf, inline lg: Lg, inline lh: Lh, inline li: Li): (A, B, C, D, E, F, G, H, I) = unlabel
 

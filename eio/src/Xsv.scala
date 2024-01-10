@@ -10,8 +10,6 @@ import java.nio.file._
 import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByteChannel}
 import java.nio.charset.StandardCharsets._
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.collection.mutable.Builder
 import scala.util.boundary
 import scala.annotation.targetName

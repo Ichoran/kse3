@@ -11,8 +11,6 @@ import org.junit.Assert._
 
 import java.time._
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}

@@ -4,7 +4,6 @@
 
 package kse.flow
 
-import scala.language.experimental.relaxedExtensionImports
 import scala.util.boundary
 import scala.util.boundary.Label
 

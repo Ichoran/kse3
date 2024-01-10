@@ -3,7 +3,6 @@
 
 package kse.flow
 
-import scala.language.experimental.relaxedExtensionImports
 import scala.util.control.ControlThrowable
 import scala.util.boundary.Break
 

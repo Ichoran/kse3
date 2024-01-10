@@ -11,8 +11,6 @@ import java.nio.channels.{ReadableByteChannel, WritableByteChannel, SeekableByte
 import java.nio.charset.StandardCharsets._
 import java.util.Base64
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}

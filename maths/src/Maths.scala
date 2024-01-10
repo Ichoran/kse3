@@ -7,7 +7,6 @@ package kse.maths
 import java.lang.{Math => jm}
 
 import scala.annotation.targetName
-import scala.language.experimental.relaxedExtensionImports
 
 
 object NumericConstants {
@@ -1109,13 +1108,13 @@ extension (af: Array[Float]) {
           else if x > y then
             x0 = y
             i0 = j
-          else if x == y then return j
+          else if x == y then return j.toFloat
           else return Float.NaN
         val f = (x - x0)/(x1 - x0)
         i0 + f
       else
         if x == x0 then 0
-        else if x == x1 then af.length - 1
+        else if x == x1 then (af.length - 1).toFloat
         else if x < x0 then Float.NegativeInfinity
         else if x > x1 then Float.PositiveInfinity
         else Float.NaN

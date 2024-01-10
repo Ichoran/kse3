@@ -4,8 +4,6 @@
 
 package kse.flow
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.annotation.targetName
 
 import scala.util.control.ControlThrowable

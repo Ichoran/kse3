@@ -64,12 +64,24 @@ type LabelVal = String & Singleton
 /** A labelled type; create with `val x: Int \ "eel" = \(5)`; access with `x $ "eel"` or `x.unlabel` */
 opaque infix type \[+A, L <: LabelVal] = A
 object \ {
+  import scala.language.dynamics
+
   inline def apply[A, L <: LabelVal](a: A): (A \ L) = a
   extension [A, L <: LabelVal](la: A \ L)
     inline def ~(l: L): A = la
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \ L) = b
     inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
+    transparent inline def label: L = compiletime.constValue[L]
+    @annotation.targetName("applyByName")
+    @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
+    inline def apply(): Accessor[A, L] = Accessor(la)
+
+  class Accessor[A, L <: LabelVal](private val la: A \ L) extends AnyVal with Dynamic {
+    inline def selectDynamic(inline s: String): A =
+      inline if s == compiletime.constValue[L] then unlabel(la)
+      else compiletime.error("Label is " + compiletime.constValue[L] + " not " + s)
+  }
 }
 
 

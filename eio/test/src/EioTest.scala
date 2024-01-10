@@ -17,8 +17,6 @@ import java.nio.channels._
 import java.time._
 import java.util.zip._
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}

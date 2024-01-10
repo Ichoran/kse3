@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit
 import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
-import scala.language.experimental.relaxedExtensionImports
 
 import kse.maths._
 

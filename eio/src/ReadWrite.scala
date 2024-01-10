@@ -10,7 +10,6 @@ import java.nio.channels._
 import java.nio.file._
 
 import scala.annotation.targetName
-import scala.language.experimental.relaxedExtensionImports
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}

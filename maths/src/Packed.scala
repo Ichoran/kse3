@@ -7,7 +7,6 @@ package kse.maths.packed
 import java.lang.{Math => jm}
 
 import scala.annotation.targetName
-import scala.language.experimental.relaxedExtensionImports
 
 
 type Bit = 0|1

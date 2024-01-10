@@ -5,8 +5,6 @@
 package kse.flow
 
 
-import scala.language.experimental.relaxedExtensionImports
-
 import java.lang.ref.SoftReference
 import java.time._
 import java.util.concurrent.atomic._

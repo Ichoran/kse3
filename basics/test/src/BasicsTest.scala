@@ -26,6 +26,9 @@ class BytecodeCheck {
   def inlined(s: String): Char =
     import kse.basics.{given, _}
     s(2)
+
+  def dynamiclabel(s: String \ "tag"): String =
+    s().tag
 }
 
 @RunWith(classOf[JUnit4])
@@ -37,7 +40,7 @@ class BasicsTest() {
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
     (m, test, x) => assertNotEquals(m, x, test),
-    assertTrue _
+    assertTrue
   )
 
 

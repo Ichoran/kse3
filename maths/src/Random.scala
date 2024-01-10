@@ -8,7 +8,6 @@ import java.lang.{Math => jm}
 
 import scala.annotation.targetName
 import scala.reflect.ClassTag
-import scala.language.experimental.relaxedExtensionImports
 
 import scala.collection.immutable.{Range => Rg}
 

@@ -4,8 +4,6 @@
 package kse.maths.fitting
 
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}
@@ -381,8 +379,8 @@ object Fit2D {
     def x2y: X2Y = X2Y.wrap(this)
     def y2x: Y2X = Y2X.wrap(this)
     def line: Line2D = this
-    def estX: Est = Est.M(n, cx, Sxx)
-    def estY: Est = Est.M(n, cy, Syy)
+    def estX: Est = Est.M(n.toDouble, cx, Sxx)
+    def estY: Est = Est.M(n.toDouble, cy, Syy)
 
     def c: Vc = Vc.D(cx, cy)
 

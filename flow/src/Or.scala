@@ -3,7 +3,6 @@
 
 package kse.flow
 
-import scala.language.experimental.relaxedExtensionImports
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}

@@ -29,7 +29,7 @@ class TuplesTest() {
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
     (m, test, x) => assertNotEquals(m, x, test),
-    assertTrue _
+    assertTrue
   )
 
   inline def subtyping[A, B](a: A, b: B) = compiletime.summonFrom {
@@ -346,12 +346,14 @@ class TuplesTest() {
 
     T ~ (kse.basics.\(3): Int \ "eel")  ==== 3 --: typed[Int \ "eel"]
     T ~ (3 \ "eel")                     ==== 3 --: typed[Int \ "eel"]
+    T ~ (3 \ "eel").label               ==== "eel"
     T ~ 3.labelled["eel"]               ==== 3 --: typed[Int \ "eel"]
-    T ~ 3.labelLike(4 \ "cod")          ==== 3 --: typed[Int \ "cod"]
+    T ~ (3 \ (4 \ "cod").label)         ==== 3 --: typed[Int \ "cod"]
     T ~ ((3 \ "eel") ~ "eel")           ==== 3 --: typed[Int]
     T ~ (3 \ "eel").unlabel             ==== 3 --: typed[Int]
     T ~ (3 \ "eel").valueTo(4)          ==== 4 --: typed[Int \ "eel"]
     T ~ (3 \ "eel").valueOp(_+2)        ==== 5 --: typed[Int \ "eel"]
+    T ~ (3 \ "eel")().eel               ==== 3 --: typed[Int]
     T ~ subtyping(3, 3 \ "eel")         ==== 'X'
     T ~ subtyping(3 \ "eel", 3 \ "cod") ==== 'X'
     T ~ (3 \ "eel" == 3 \ "cod")        ==== true
@@ -368,6 +370,11 @@ class TuplesTest() {
     T ~ (l2 ~ "a")            ==== 1      --: typed[Int]
     T ~ (l2 ~ "b")            ==== 2      --: typed[Int]
     T ~ l2.unlabel            ==== (1, 2) --: typed[(Int, Int)]
+    T ~ l2.label_1            ==== "a"
+    T ~ l2.label_2            ==== "b"
+    T ~ l2.labels             ==== ("a", "b")
+    T ~ l2().a                ==== 1      --: typed[Int]
+    T ~ l2().b                ==== 2      --: typed[Int]
     T ~ (l2 ~~ ("a", "b"))    ==== (1, 2) --: typed[(Int, Int)]
     T ~ l2.relabel("a")("_")  ==== (1, 2) --: typed[(Int \ "_", Int \ "b")]
     T ~ l2.relabel("b")("_")  ==== (1, 2) --: typed[(Int \ "a", Int \ "_")]
@@ -386,6 +393,7 @@ class TuplesTest() {
     T ~ cc("""l2.revalue("_")(0)""")     ==== false
     T ~ cc("""l2.redo("_")(0 \ "=")""")  ==== false
     T ~ cc("""x12 ~ "a"""")              ==== false
+    T ~ cc("""x12().a""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x12.revalue("a")(0)""")    ==== false
     T ~ cc("""x12.redo("a")(0 \ "=")""") ==== false
@@ -405,6 +413,13 @@ class TuplesTest() {
     T ~ (l3 ~ "b")              ==== 2          --: typed[Int]
     T ~ (l3 ~ "c")              ==== 3          --: typed[Int]
     T ~ l3.unlabel              ==== t3         --: typed[(Int, Int, Int)]
+    T ~ l3.label_1              ==== "a"
+    T ~ l3.label_2              ==== "b"
+    T ~ l3.label_3              ==== "c"
+    T ~ l3.labels               ==== ("a", "b", "c")
+    T ~ l3().a                  ==== 1          --: typed[Int]
+    T ~ l3().b                  ==== 2          --: typed[Int]
+    T ~ l3().c                  ==== 3          --: typed[Int]
     T ~ (l3 ~~ ("a", "b", "c")) ==== t3         --: typed[(Int, Int, Int)] 
     T ~ l3.relabel("a")("_")    ==== t3         --: typed[(Int \ "_", Int \ "b", Int \ "c")]
     T ~ l3.relabel("b")("_")    ==== t3         --: typed[(Int \ "a", Int \ "_", Int \ "c")]
@@ -440,6 +455,9 @@ class TuplesTest() {
     T ~ cc("""x13 ~ "b"""")               ==== true
     T ~ cc("""x23 ~ "b"""")               ==== false
     T ~ cc("""x23 ~ "a"""")               ==== true
+    T ~ cc("""x12().a""")                 ==== false
+    T ~ cc("""x13().a""")                 ==== false
+    T ~ cc("""x23().b""")                 ==== false
     T ~ cc("""x12.relabel("a")("=")""")   ==== false
     T ~ cc("""x12.relabel("c")("=")""")   ==== true
     T ~ cc("""x13.relabel("a")("=")""")   ==== false
@@ -484,6 +502,15 @@ class TuplesTest() {
     T ~ (l4 ~ "c")                   ==== 3          --: typed[Int]
     T ~ (l4 ~ "d")                   ==== 4          --: typed[Int]
     T ~ l4.unlabel                   ==== t4         --: typed[(Int, Int, Int, Int)]
+    T ~ l4.label_1                   ==== "a"
+    T ~ l4.label_2                   ==== "b"
+    T ~ l4.label_3                   ==== "c"
+    T ~ l4.label_4                   ==== "d"
+    T ~ l4.labels                    ==== ("a", "b", "c", "d")
+    T ~ l4().a                       ==== 1          --: typed[Int]
+    T ~ l4().b                       ==== 2          --: typed[Int]
+    T ~ l4().c                       ==== 3          --: typed[Int]
+    T ~ l4().d                       ==== 4          --: typed[Int]
     T ~ (l4 ~~ ("a", "b", "c", "d")) ==== t4         --: typed[(Int, Int, Int, Int)]
     T ~ l4.relabel("a")("_")         ==== t4         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d")]
     T ~ l4.relabel("b")("_")         ==== t4         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d")]
@@ -544,6 +571,12 @@ class TuplesTest() {
     T ~ cc("""x34 ~ "c"""")              ==== false
     T ~ cc("""x34 ~ "a"""")              ==== true
     T ~ cc("""x34 ~ "b"""")              ==== true
+    T ~ cc("""x12().a""")                ==== false
+    T ~ cc("""x13().a""")                ==== false
+    T ~ cc("""x14().a""")                ==== false
+    T ~ cc("""x23().b""")                ==== false
+    T ~ cc("""x24().b""")                ==== false
+    T ~ cc("""x34().c""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x12.relabel("c")("=")""")  ==== true
     T ~ cc("""x12.relabel("d")("=")""")  ==== true
@@ -636,6 +669,17 @@ class TuplesTest() {
     T ~ (l5 ~ "d")                        ==== 4          --: typed[Int]
     T ~ (l5 ~ "e")                        ==== 5          --: typed[Int]
     T ~ l5.unlabel                        ==== t5         --: typed[(Int, Int, Int, Int, Int)]
+    T ~ l5.label_1                        ==== "a"
+    T ~ l5.label_2                        ==== "b"
+    T ~ l5.label_3                        ==== "c"
+    T ~ l5.label_4                        ==== "d"
+    T ~ l5.label_5                        ==== "e"
+    T ~ l5.labels                         ==== ("a", "b", "c", "d", "e")
+    T ~ l5().a                            ==== 1          --: typed[Int]
+    T ~ l5().b                            ==== 2          --: typed[Int]
+    T ~ l5().c                            ==== 3          --: typed[Int]
+    T ~ l5().d                            ==== 4          --: typed[Int]
+    T ~ l5().e                            ==== 5          --: typed[Int]
     T ~ (l5 ~~ ("a", "b", "c", "d", "e")) ==== t5         --: typed[(Int, Int, Int, Int, Int)]
     T ~ l5.relabel("a")("_")              ==== t5         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e")]
     T ~ l5.relabel("b")("_")              ==== t5         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e")]
@@ -734,6 +778,17 @@ class TuplesTest() {
     T ~ cc("""x45 ~ "a"""")              ==== true
     T ~ cc("""x45 ~ "b"""")              ==== true
     T ~ cc("""x45 ~ "c"""")              ==== true
+
+    T ~ cc("""x12().a""")                ==== false
+    T ~ cc("""x13().a""")                ==== false
+    T ~ cc("""x14().a""")                ==== false
+    T ~ cc("""x15().a""")                ==== false
+    T ~ cc("""x23().b""")                ==== false
+    T ~ cc("""x24().b""")                ==== false
+    T ~ cc("""x25().b""")                ==== false
+    T ~ cc("""x34().c""")                ==== false
+    T ~ cc("""x35().c""")                ==== false
+    T ~ cc("""x45().d""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x12.relabel("c")("=")""")  ==== true
     T ~ cc("""x12.relabel("d")("=")""")  ==== true
@@ -910,6 +965,19 @@ class TuplesTest() {
     T ~ (l6 ~ "e")                             ==== 5          --: typed[Int]
     T ~ (l6 ~ "f")                             ==== 6          --: typed[Int]
     T ~ l6.unlabel                             ==== t6         --: typed[(Int, Int, Int, Int, Int, Int)]
+    T ~ l6.label_1                             ==== "a"
+    T ~ l6.label_2                             ==== "b"
+    T ~ l6.label_3                             ==== "c"
+    T ~ l6.label_4                             ==== "d"
+    T ~ l6.label_5                             ==== "e"
+    T ~ l6.label_6                             ==== "f"
+    T ~ l6.labels                              ==== ("a", "b", "c", "d", "e", "f")
+    T ~ l6().a                                 ==== 1          --: typed[Int]
+    T ~ l6().b                                 ==== 2          --: typed[Int]
+    T ~ l6().c                                 ==== 3          --: typed[Int]
+    T ~ l6().d                                 ==== 4          --: typed[Int]
+    T ~ l6().e                                 ==== 5          --: typed[Int]
+    T ~ l6().f                                 ==== 6          --: typed[Int]
     T ~ (l6 ~~ ("a", "b", "c", "d", "e", "f")) ==== t6         --: typed[(Int, Int, Int, Int, Int, Int)]
     T ~ l6.relabel("a")("_")                   ==== t6         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
     T ~ l6.relabel("b")("_")                   ==== t6         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
@@ -1002,6 +1070,21 @@ class TuplesTest() {
     T ~ cc("""x45 ~ "d"""")              ==== false
     T ~ cc("""x46 ~ "d"""")              ==== false
     T ~ cc("""x56 ~ "e"""")              ==== false
+    T ~ cc("""x12().a""")                 ==== false
+    T ~ cc("""x13().a""")                 ==== false
+    T ~ cc("""x14().a""")                 ==== false
+    T ~ cc("""x15().a""")                 ==== false
+    T ~ cc("""x16().a""")                 ==== false
+    T ~ cc("""x23().b""")                 ==== false
+    T ~ cc("""x24().b""")                 ==== false
+    T ~ cc("""x25().b""")                 ==== false
+    T ~ cc("""x26().b""")                 ==== false
+    T ~ cc("""x34().c""")                 ==== false
+    T ~ cc("""x35().c""")                 ==== false
+    T ~ cc("""x36().c""")                 ==== false
+    T ~ cc("""x45().d""")                 ==== false
+    T ~ cc("""x46().d""")                 ==== false
+    T ~ cc("""x56().e""")                 ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x13.relabel("a")("=")""")  ==== false
     T ~ cc("""x14.relabel("a")("=")""")  ==== false
@@ -1124,6 +1207,21 @@ class TuplesTest() {
     T ~ (l7 ~ "f")                                  ==== 6          --: typed[Int]
     T ~ (l7 ~ "g")                                  ==== 7          --: typed[Int]
     T ~ l7.unlabel                                  ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
+    T ~ l7.label_1                                  ==== "a"
+    T ~ l7.label_2                                  ==== "b"
+    T ~ l7.label_3                                  ==== "c"
+    T ~ l7.label_4                                  ==== "d"
+    T ~ l7.label_5                                  ==== "e"
+    T ~ l7.label_6                                  ==== "f"
+    T ~ l7.label_7                                  ==== "g"
+    T ~ l7.labels                                   ==== ("a", "b", "c", "d", "e", "f", "g")
+    T ~ l7().a                                      ==== 1          --: typed[Int]
+    T ~ l7().b                                      ==== 2          --: typed[Int]
+    T ~ l7().c                                      ==== 3          --: typed[Int]
+    T ~ l7().d                                      ==== 4          --: typed[Int]
+    T ~ l7().e                                      ==== 5          --: typed[Int]
+    T ~ l7().f                                      ==== 6          --: typed[Int]
+    T ~ l7().g                                      ==== 7          --: typed[Int]
     T ~ (l7 ~~ ("a", "b", "c", "d", "e", "f", "g")) ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
     T ~ l7.relabel("a")("_")                        ==== t7         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
     T ~ l7.relabel("b")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
@@ -1244,6 +1342,27 @@ class TuplesTest() {
     T ~ cc("""x56 ~ "e"""")              ==== false
     T ~ cc("""x57 ~ "e"""")              ==== false
     T ~ cc("""x67 ~ "f"""")              ==== false
+    T ~ cc("""x12().a""")                ==== false
+    T ~ cc("""x13().a""")                ==== false
+    T ~ cc("""x14().a""")                ==== false
+    T ~ cc("""x15().a""")                ==== false
+    T ~ cc("""x16().a""")                ==== false
+    T ~ cc("""x17().a""")                ==== false
+    T ~ cc("""x23().b""")                ==== false
+    T ~ cc("""x24().b""")                ==== false
+    T ~ cc("""x25().b""")                ==== false
+    T ~ cc("""x26().b""")                ==== false
+    T ~ cc("""x27().b""")                ==== false
+    T ~ cc("""x34().c""")                ==== false
+    T ~ cc("""x35().c""")                ==== false
+    T ~ cc("""x36().c""")                ==== false
+    T ~ cc("""x37().c""")                ==== false
+    T ~ cc("""x45().d""")                ==== false
+    T ~ cc("""x46().d""")                ==== false
+    T ~ cc("""x47().d""")                ==== false
+    T ~ cc("""x56().e""")                ==== false
+    T ~ cc("""x57().e""")                ==== false
+    T ~ cc("""x67().f""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x13.relabel("a")("=")""")  ==== false
     T ~ cc("""x14.relabel("a")("=")""")  ==== false
@@ -1409,6 +1528,23 @@ class TuplesTest() {
     T ~ (l8 ~ "g")                                       ==== 7          --: typed[Int]
     T ~ (l8 ~ "h")                                       ==== 8          --: typed[Int]
     T ~ l8.unlabel                                       ==== t8         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int)]
+    T ~ l8.label_1                                       ==== "a"
+    T ~ l8.label_2                                       ==== "b"
+    T ~ l8.label_3                                       ==== "c"
+    T ~ l8.label_4                                       ==== "d"
+    T ~ l8.label_5                                       ==== "e"
+    T ~ l8.label_6                                       ==== "f"
+    T ~ l8.label_7                                       ==== "g"
+    T ~ l8.label_8                                       ==== "h"
+    T ~ l8.labels                                        ==== ("a", "b", "c", "d", "e", "f", "g", "h")
+    T ~ l8().a                                           ==== 1          --: typed[Int]
+    T ~ l8().b                                           ==== 2          --: typed[Int]
+    T ~ l8().c                                           ==== 3          --: typed[Int]
+    T ~ l8().d                                           ==== 4          --: typed[Int]
+    T ~ l8().e                                           ==== 5          --: typed[Int]
+    T ~ l8().f                                           ==== 6          --: typed[Int]
+    T ~ l8().g                                           ==== 7          --: typed[Int]
+    T ~ l8().h                                           ==== 8          --: typed[Int]
     T ~ (l8 ~~ ("a", "b", "c", "d", "e", "f", "g", "h")) ==== t8         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l8.relabel("a")("_")                             ==== t8         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
     T ~ l8.relabel("b")("_")                             ==== t8         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
@@ -1561,6 +1697,34 @@ class TuplesTest() {
     T ~ cc("""x67 ~ "f"""")              ==== false
     T ~ cc("""x68 ~ "f"""")              ==== false
     T ~ cc("""x78 ~ "g"""")              ==== false
+    T ~ cc("""x12().a""")                ==== false
+    T ~ cc("""x13().a""")                ==== false
+    T ~ cc("""x14().a""")                ==== false
+    T ~ cc("""x15().a""")                ==== false
+    T ~ cc("""x16().a""")                ==== false
+    T ~ cc("""x17().a""")                ==== false
+    T ~ cc("""x18().a""")                ==== false
+    T ~ cc("""x23().b""")                ==== false
+    T ~ cc("""x24().b""")                ==== false
+    T ~ cc("""x25().b""")                ==== false
+    T ~ cc("""x26().b""")                ==== false
+    T ~ cc("""x27().b""")                ==== false
+    T ~ cc("""x28().b""")                ==== false
+    T ~ cc("""x34().c""")                ==== false
+    T ~ cc("""x35().c""")                ==== false
+    T ~ cc("""x36().c""")                ==== false
+    T ~ cc("""x37().c""")                ==== false
+    T ~ cc("""x38().c""")                ==== false
+    T ~ cc("""x45().d""")                ==== false
+    T ~ cc("""x46().d""")                ==== false
+    T ~ cc("""x47().d""")                ==== false
+    T ~ cc("""x48().d""")                ==== false
+    T ~ cc("""x56().e""")                ==== false
+    T ~ cc("""x57().e""")                ==== false
+    T ~ cc("""x58().e""")                ==== false
+    T ~ cc("""x67().f""")                ==== false
+    T ~ cc("""x68().f""")                ==== false
+    T ~ cc("""x78().g""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x13.relabel("a")("=")""")  ==== false
     T ~ cc("""x14.relabel("a")("=")""")  ==== false
@@ -1776,6 +1940,25 @@ class TuplesTest() {
     T ~ (l9 ~ "h")                                            ==== 8          --: typed[Int]
     T ~ (l9 ~ "i")                                            ==== 9          --: typed[Int]
     T ~ l9.unlabel                                            ==== t9         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+    T ~ l9.label_1                                            ==== "a"
+    T ~ l9.label_2                                            ==== "b"
+    T ~ l9.label_3                                            ==== "c"
+    T ~ l9.label_4                                            ==== "d"
+    T ~ l9.label_5                                            ==== "e"
+    T ~ l9.label_6                                            ==== "f"
+    T ~ l9.label_7                                            ==== "g"
+    T ~ l9.label_8                                            ==== "h"
+    T ~ l9.label_9                                            ==== "i"
+    T ~ l9.labels                                             ==== ("a", "b", "c", "d", "e", "f", "g", "h", "i")
+    T ~ l9().a                                                ==== 1          --: typed[Int]
+    T ~ l9().b                                                ==== 2          --: typed[Int]
+    T ~ l9().c                                                ==== 3          --: typed[Int]
+    T ~ l9().d                                                ==== 4          --: typed[Int]
+    T ~ l9().e                                                ==== 5          --: typed[Int]
+    T ~ l9().f                                                ==== 6          --: typed[Int]
+    T ~ l9().g                                                ==== 7          --: typed[Int]
+    T ~ l9().h                                                ==== 8          --: typed[Int]
+    T ~ l9().i                                                ==== 9          --: typed[Int]
     T ~ (l9 ~~ ("a", "b", "c", "d", "e", "f", "g", "h", "i")) ==== t9         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l9.relabel("a")("_")                                  ==== t9         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
     T ~ l9.relabel("b")("_")                                  ==== t9         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
@@ -1964,6 +2147,42 @@ class TuplesTest() {
     T ~ cc("""x78 ~ "g"""")              ==== false
     T ~ cc("""x79 ~ "g"""")              ==== false
     T ~ cc("""x89 ~ "h"""")              ==== false
+    T ~ cc("""x12().a""")                ==== false
+    T ~ cc("""x13().a""")                ==== false
+    T ~ cc("""x14().a""")                ==== false
+    T ~ cc("""x15().a""")                ==== false
+    T ~ cc("""x16().a""")                ==== false
+    T ~ cc("""x17().a""")                ==== false
+    T ~ cc("""x18().a""")                ==== false
+    T ~ cc("""x19().a""")                ==== false
+    T ~ cc("""x23().b""")                ==== false
+    T ~ cc("""x24().b""")                ==== false
+    T ~ cc("""x25().b""")                ==== false
+    T ~ cc("""x26().b""")                ==== false
+    T ~ cc("""x27().b""")                ==== false
+    T ~ cc("""x28().b""")                ==== false
+    T ~ cc("""x29().b""")                ==== false
+    T ~ cc("""x34().c""")                ==== false
+    T ~ cc("""x35().c""")                ==== false
+    T ~ cc("""x36().c""")                ==== false
+    T ~ cc("""x37().c""")                ==== false
+    T ~ cc("""x38().c""")                ==== false
+    T ~ cc("""x39().c""")                ==== false
+    T ~ cc("""x45().d""")                ==== false
+    T ~ cc("""x46().d""")                ==== false
+    T ~ cc("""x47().d""")                ==== false
+    T ~ cc("""x48().d""")                ==== false
+    T ~ cc("""x49().d""")                ==== false
+    T ~ cc("""x56().e""")                ==== false
+    T ~ cc("""x57().e""")                ==== false
+    T ~ cc("""x58().e""")                ==== false
+    T ~ cc("""x59().e""")                ==== false
+    T ~ cc("""x67().f""")                ==== false
+    T ~ cc("""x68().f""")                ==== false
+    T ~ cc("""x69().f""")                ==== false
+    T ~ cc("""x78().g""")                ==== false
+    T ~ cc("""x79().g""")                ==== false
+    T ~ cc("""x89().h""")                ==== false
     T ~ cc("""x12.relabel("a")("=")""")  ==== false
     T ~ cc("""x13.relabel("a")("=")""")  ==== false
     T ~ cc("""x14.relabel("a")("=")""")  ==== false

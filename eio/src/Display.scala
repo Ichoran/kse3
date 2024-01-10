@@ -6,8 +6,6 @@ package kse.eio
 
 import java.lang.{StringBuilder => StB}
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.util.{Try, Success, Failure, boundary}
 
 import kse.basics._

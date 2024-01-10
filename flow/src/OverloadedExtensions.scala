@@ -14,8 +14,6 @@ Annoying, but at least it's possible.
 package kse.flow
 
 
-import scala.language.experimental.relaxedExtensionImports
-
 
 extension [X](is: Is[X])
   /** use is trivial--just apply function and return this Is */

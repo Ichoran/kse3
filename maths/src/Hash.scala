@@ -14,9 +14,6 @@ import java.lang.Long.{rotateLeft => rotl64, rotateRight => rotr64 }
 import java.nio.{ByteBuffer, ByteOrder}
 import java.util.concurrent.atomic.AtomicReference
 
-import scala.language.experimental.relaxedExtensionImports
-
-
 
 trait SimpleIncrementalHash {
   def begin(): this.type

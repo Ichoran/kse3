@@ -23,8 +23,6 @@ import java.time._
 import java.util.concurrent.TimeUnit
 import java.nio.file.attribute.FileTime
 
-import scala.language.experimental.relaxedExtensionImports
-
 import scala.annotation.targetName
 
 

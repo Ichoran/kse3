@@ -4,7 +4,6 @@
 package kse.maths
 
 
-import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.targetName
 import scala.compiletime.erasedValue
 

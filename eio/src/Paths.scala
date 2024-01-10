@@ -11,7 +11,6 @@ import java.nio.file.attribute.{ FileTime, BasicFileAttributes }
 import java.time._
 import java.util.zip._
 
-import scala.language.experimental.relaxedExtensionImports
 import scala.annotation.tailrec
 import scala.util.boundary
 
