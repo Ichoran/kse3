@@ -28,7 +28,7 @@ class FlowTest {
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
     (m, test, x) => assertNotEquals(m, x, test),
-    assertTrue _
+    assertTrue
   )
 
   def nlen(s: String) = if s eq null then -1 else s.length

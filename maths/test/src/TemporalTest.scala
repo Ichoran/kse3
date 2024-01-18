@@ -34,7 +34,7 @@ class TemporalTest() {
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
     (m, test, x) => assertNotEquals(m, x, test),
-    assertTrue _
+    assertTrue
   )
 
   def testCreation(): Unit =

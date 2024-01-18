@@ -21,7 +21,7 @@ It also assumes at least Java 17.**
 ## How do I get it?
 
 Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
-In mill, make sure your module has a sufficiently recent 3.4, e.g.
+Make sure your module has a sufficiently recent 3.4, e.g. in mill
 
 ```scala
 def scalaVersion = "3.4.0-RC1"
@@ -62,7 +62,7 @@ no reason to try to maintain binary compatibility.
 
 #### How do I pronounce it?
 
-I don't hear words when I read them, so I don't have any strong opinion.  I think the most conventional way to pronounce something with that spelling would be K-see, so let's go with that?
+I don't hear words when I read them, so I don't have any strong opinion.  I think the most conventional way to pronounce something with that spelling would be Ksee, so let's go with that?
 
 
 ## Subprojects
@@ -135,9 +135,11 @@ println(n)      // Prints 10
 ```
 
 There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`,
-and if you have a tuple which is entirely labelled, you can refer to the values by name by using `~`
+and if you have a tuple which is entirely labelled, you can refer to the values by name by using `~` if you `import kse.basics.labels._`
 
 ```scala
+import kse.basics.labels._
+
 val person = ("John" \ "first", "Smith" \ "last")
 val nosrep = ("Smith" \ "last", "John" \ "first")
 println(person == nosrep)  // false
@@ -154,7 +156,7 @@ welcome(("Jane", "Doe")) // Compile-time error; labels are needed
 welcome(("Jane", "Doe").label)  // Works, .label means infer labels
 ```
 
-Use it whenever identity is really important, but types aren't specific enough!
+Use it whenever identity is really important, but types aren't specific enough.
 
 See the test suite, or package Scaladoc, for more examples of what you could do with `kse.basics`!
 

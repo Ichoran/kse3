@@ -32,7 +32,7 @@ class PackedTest() {
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
     (m, test, x) => assertNotEquals(m, x, test),
-    assertTrue _
+    assertTrue
   )
 
 
