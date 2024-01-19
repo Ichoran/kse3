@@ -576,9 +576,9 @@ object Attempt {
       inline def &&[A](inline a: => A) = a
   }
 
-  inline def failed: Attempt[Nothing] = Alt.unit
+  inline def failed: kse.flow.Attempt[Nothing] = Alt.unit
 
-  inline def asAttempt[A](or: A Or Unit): Attempt[A] = or
+  inline def asAttempt[A](or: A Or Unit): kse.flow.Attempt[A] = or
 
   extension [A](att: Attempt[A]) {
     inline def underlying: A Or Unit = att
@@ -586,41 +586,49 @@ object Attempt {
   }
 
   extension [A](att: kse.flow.Attempt[A]) {
-    inline def attempt(inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+    inline def attempt(inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
       att || kse.flow.attempt(f).underlying
-    inline def safe(inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+    inline def safe(inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
       att || {
-        try kse.flow.attempt(f).underlying
-        catch case e if e.catchable => Attempt.failed: Attempt[A]
+        try kse.flow.attempt(f)
+        catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
+      }
+    inline def orCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
+      att || kse.flow.attempt(kse.flow.inCase(b)(pf))
+    inline def safeCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
+      att || {
+        try kse.flow.attempt(kse.flow.inCase(b)(pf))
+        catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
       }
   }
 }
 object attempt {
-  inline def apply[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
-    boundary[Attempt[A]]:
+  inline def apply[A](inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
+    boundary[kse.flow.Attempt[A]]:
       Attempt asAttempt Is(f)
 
-  inline def safe[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+  inline def safe[A](inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
     try apply(f)
-    catch case e if e.catchable => Attempt.failed: Attempt[A]
+    catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
 
-  inline def threadsafe[A](inline f: Label[Attempt[A]] ?=> A): Attempt[A] =
+  inline def threadsafe[A](inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
     try apply(f)
-    catch case e if e.threadCatchable => Attempt.failed: Attempt[A]
+    catch case e if e.threadCatchable => Attempt.failed: kse.flow.Attempt[A]
 }
 
+
 extension [X, Y](or: X Or Y)
-  inline def ![A](using Label[Attempt[A]]): X =
-    or.getOrElse(_ => break(Attempt.failed))
+  inline def ![A](using Label[kse.flow.Attempt[A]]): X =
+    or.getOrElse(_ => break(kse.flow.Attempt.failed))
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): X =
     or.getOrElse(_ => break(shortcut.Quits: T))
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): X =
     or.getOrElse(_ => break(shortcut.Skips: T))
 
 extension [L, R](either: Either[L, R])
-  inline def ![A](using Label[Attempt[A]]): R = either match
+  inline def ![A](using Label[kse.flow.Attempt[A]]): R = either match
     case Right(r) => r
-    case _        => break(Attempt.failed)
+    case _        => break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): R = either match
     case Right(r) => r
     case _        => break(shortcut.Quits: T)
@@ -629,9 +637,9 @@ extension [L, R](either: Either[L, R])
     case _        => break(shortcut.Skips: T)
 
 extension [O](option: Option[O])
-  inline def ![A](using Label[Attempt[A]]): O = option match
+  inline def ![A](using Label[kse.flow.Attempt[A]]): O = option match
     case Some(o) => o
-    case _       => break(Attempt.failed)
+    case _       => break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): O = option match
     case Some(o) => o
     case _       => break(shortcut.Quits: T)
@@ -640,9 +648,9 @@ extension [O](option: Option[O])
     case _       => break(shortcut.Skips: T)
 
 extension [T](`try`: Try[T])
-  inline def ![A](using Label[Attempt[A]]): T = `try` match
+  inline def ![A](using Label[kse.flow.Attempt[A]]): T = `try` match
     case Success(t) => t
-    case _          => break(Attempt.failed)
+    case _          => break(kse.flow.Attempt.failed)
   inline def orQuit[S >: shortcut.Quits.type](using Label[S]): T = `try` match
     case Success(t) => t
     case _          => break(shortcut.Quits: S)
@@ -651,9 +659,9 @@ extension [T](`try`: Try[T])
     case _          => break(shortcut.Skips: S)
 
 extension [I](iterator: Iterator[I])
-  inline def ![A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
-    else break(Attempt.failed)
+    else break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
     else break(shortcut.Quits: T)
@@ -662,9 +670,9 @@ extension [I](iterator: Iterator[I])
     else break(shortcut.Skips: T)
 
 extension [I](stepper: scala.collection.Stepper[I])
-  inline def ![A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if stepper.hasStep then stepper.nextStep
-    else break(Attempt.failed)
+    else break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if stepper.hasStep then stepper.nextStep
     else break(shortcut.Quits: T)
@@ -673,9 +681,9 @@ extension [I](stepper: scala.collection.Stepper[I])
     else break(shortcut.Skips: T)
 
 extension [I](iterator: java.util.Iterator[I])
-  inline def ![A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
-    else break(Attempt.failed)
+    else break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
     else break(shortcut.Quits: T)
@@ -684,9 +692,9 @@ extension [I](iterator: java.util.Iterator[I])
     else break(shortcut.Skips: T)
 
 extension [I](enumerator: java.util.Enumeration[I])
-  inline def ![A](using Label[Attempt[A]]): I =
+  inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
-    else break(Attempt.failed)
+    else break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
     else break(shortcut.Quits: T)
@@ -694,6 +702,15 @@ extension [I](enumerator: java.util.Enumeration[I])
     if enumerator.hasMoreElements then enumerator.nextElement
     else break(shortcut.Skips: T)
 
-inline def ensure[A](z: Boolean)(using Label[Attempt[A]]): kse.flow.Attempt.Passed =
-  if z then Attempt.Passed.value
-  else break(Attempt.failed)
+inline def ensure[A](z: Boolean)(using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+  if z then kse.flow.Attempt.Passed.value
+  else break(kse.flow.Attempt.failed)
+
+extension [A](a: A)
+  inline def inCase[B, Z](pf: PartialFunction[A, B])(using Label[kse.flow.Attempt[Z]]): B =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => break(kse.flow.Attempt.failed)
+      case y => y.asInstanceOf[B]
+  inline def attemptCase[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
+    attempt:
+      a.inCase(pf)

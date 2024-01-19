@@ -1333,6 +1333,14 @@ class FlowTest {
     T ~ attempt.threadsafe{ "eel".toInt }.default(0)                          ==== 0
     T ~ attempt.threadsafe{ "888".toInt }.default(0)                          ==== 888
     T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
+    T ~ "eel".attemptCase{ case s if s.length > 3 => s.length }.default(0)    ==== 0
+    T ~ "bass".attemptCase{ case s if s.length > 3 => s.length }.default(0)   ==== 4
+    T ~ attempt(enn.!).orCase("eel"){ case "bass" => 1 }.default(0)           ==== 0
+    T ~ attempt(enn.!).orCase("bass"){ case "bass" => 1 }.default(0)          ==== 1
+    T ~ attempt{ "eel".inCase{ case "bass" => 1 } }.default(0)                ==== 0
+    T ~ attempt{ "bass".inCase{ case "bass" => 1 } }.default(0)               ==== 1
+    T ~ attempt(enn.!).safeCase("eel"(3)){ case 's' => 1 }.default(0)         ==== 0
+    T ~ attempt(enn.!).safeCase("bass"(3)){ case 's' => 1 }.default(0)        ==== 1
 
     def jasi(s: String): java.util.Iterator[String] =
       java.util.Arrays.stream(s.copyOp( (c, _) => c.toString)).iterator
