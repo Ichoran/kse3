@@ -18,6 +18,67 @@ import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
+import language.dynamics
+
+object SporarumTuple:
+  type LabelType = String & Singleton
+
+  // Named pair constructor
+  object P extends Dynamic:
+    transparent inline def applyDynamicNamed[LA <: LabelType, A, LB <: LabelType, B, T <: Tuple](inline s: "apply")(inline a: (LA, A), b: (LB, B)): Any =
+      (a._2, b._2).asInstanceOf[NamedPair[LA, A, LB, B]]
+
+  // Named sinleton constructor
+  object Q extends Dynamic:
+    transparent inline def applyDynamicNamed[LA <: LabelType, A, T](inline s: "apply")(inline a: (LA, A)): Any =
+      a._2.asInstanceOf[NamedSingleton[LA, A]]
+
+  opaque type NamedPair[LabelA <: LabelType, A, LabelB <: LabelType, B] <: Dynamic = (A, B) & Dynamic
+
+  extension [LabelA <: LabelType, A, LabelB <: LabelType, B](p: NamedPair[LabelA, A, LabelB, B])
+    transparent inline def selectDynamic(inline s: String) =
+      inline s match
+        case _ : LabelA => p._1
+        case _ : LabelB => p._2
+        case _ =>
+          compiletime.error("Field does not exist")
+
+  given [LabelA <: LabelType, A, LabelB <: LabelType, B]: Conversion[(A, B), NamedPair[LabelA, A, LabelB, B]] = identity
+
+
+  opaque type NamedSingleton[LabelA <: LabelType, A] <: Dynamic = A & Dynamic
+
+  extension [LabelA <: LabelType, A](p: NamedSingleton[LabelA, A])
+    transparent inline def selectDynamic(inline s: String) =
+      inline s match
+        case _ : LabelA => p.asInstanceOf[A]
+        case _ =>
+          compiletime.error("Field does not exist")
+
+  given [LabelA <: LabelType, A]: Conversion[A, NamedSingleton[LabelA, A]] = identity
+
+  type Person = NamedPair["age", Int, "name", String]
+
+  type Meter = NamedSingleton["meter", Double]
+
+  def testPair: Unit =
+    val john = P(age = 42, name = "John")
+
+    println(john.age)
+    println(john.name)
+
+    //john.address // error: Field does not exist
+
+
+    val bill: Person = (3, "Bill")
+
+    val john2: Person = john
+
+  def testSingle: Unit =
+    val height = Q(meter = 1.89)
+    println(height.meter)
+    val h2: Meter = height
+
 class BytecodeCheck {
   import kse.basics.{_, given}
 
@@ -29,6 +90,19 @@ class BytecodeCheck {
 
   def dynamiclabel(s: String \ "tag"): String =
     s().tag
+
+  def mktag(d: Double): Double \ "meter" =
+    import labels._
+    d \ "meter"
+
+  def splabel(p: SporarumTuple.Person): String =
+    p.name
+
+  def sqlabel(m: SporarumTuple.Meter): Double =
+    m.meter
+
+  def mkq(d: Double): SporarumTuple.Meter =
+    SporarumTuple.Q(meter = d)  
 }
 
 @RunWith(classOf[JUnit4])

@@ -688,20 +688,23 @@ extension (b: Byte) {
 
   @targetName("byte_unsigned") inline def unsigned: kse.maths.UByte = UByte.wrap(b)
   @targetName("byte_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap(b)
+  @targetName("byte_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap((b & 0xFF).toShort)
   @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
   @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
 
-  @targetName("byte_clampNeg")   inline def clampNeg: Byte = if b != (-128: Byte) then (-b).toByte else (127: Byte)
-  @targetName("byte_clampUByte") inline def clampToUByte: kse.maths.UByte = UByte.clamp(b)
-  @targetName("byte_clampChar")  inline def clampToChar: Char             = if b < 0 then '\u0000' else b.toChar
-  @targetName("byte_clampUInt")  inline def clampToUInt: kse.maths.UInt   = if b < 0 then UInt(0) else UInt(b.toInt)
-  @targetName("byte_clampULong") inline def clampToULong: kse.maths.ULong = if b < 0 then ULong(0L) else ULong(b.toLong)
+  @targetName("byte_clampNeg")    inline def clampNeg: Byte = if b != (-128: Byte) then (-b).toByte else (127: Byte)
+  @targetName("byte_clampUByte")  inline def clampToUByte: kse.maths.UByte   = UByte.clamp(b)
+  @targetName("byte_clampUShort") inline def clampToUShort: kse.maths.UShort = UShort.wrap(if b < 0 then 0 else b.toShort)
+  @targetName("byte_clampChar")   inline def clampToChar: Char               = if b < 0 then '\u0000' else b.toChar
+  @targetName("byte_clampUInt")   inline def clampToUInt: kse.maths.UInt     = if b < 0 then UInt(0) else UInt(b.toInt)
+  @targetName("byte_clampULong")  inline def clampToULong: kse.maths.ULong   = if b < 0 then ULong(0L) else ULong(b.toLong)
 
-  @targetName("byte_checkedNeg")   def checkedNeg: Byte = if b != (-128: Byte) then (-b).toByte else throw new ArithmeticException("byte overflow")
-  @targetName("byte_checkedUByte") def checkedToUByte: kse.maths.UByte = if b < 0 then throw new ArithmeticException("negative UByte") else UByte(b)
-  @targetName("byte_checkedChar")  def checkedToChar: Char             = if b < 0 then throw new ArithmeticException("negative Char")  else b.toChar
-  @targetName("byte_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if b < 0 then throw new ArithmeticException("negative UInt")  else UInt(b.toInt)
-  @targetName("byte_checkedULong") def checkedToULong: kse.maths.ULong = if b < 0 then throw new ArithmeticException("negative ULong") else ULong(b.toLong)
+  @targetName("byte_checkedNeg")    def checkedNeg: Byte = if b != (-128: Byte) then (-b).toByte else throw new ArithmeticException("byte overflow")
+  @targetName("byte_checkedUByte")  def checkedToUByte: kse.maths.UByte   = if b < 0 then throw new ArithmeticException("negative UByte")  else UByte(b)
+  @targetName("byte_checkedUShort") def checkedToUShort: kse.maths.UShort = if b < 0 then throw new ArithmeticException("negative UShort") else UShort(b.toShort)
+  @targetName("byte_checkedChar")   def checkedToChar: Char               = if b < 0 then throw new ArithmeticException("negative Char")   else b.toChar
+  @targetName("byte_checkedUInt")   def checkedToUInt: kse.maths.UInt     = if b < 0 then throw new ArithmeticException("negative UInt")   else UInt(b.toInt)
+  @targetName("byte_checkedULong")  def checkedToULong: kse.maths.ULong   = if b < 0 then throw new ArithmeticException("negative ULong")  else ULong(b.toLong)
 }
 
 extension (s: Short) {
@@ -732,23 +735,26 @@ extension (s: Short) {
   @targetName("short_hex")   inline def hexString:   String = ToHexString.hi(s)
 
   @targetName("short_unsigned") inline def unsigned: Char = compiletime.error("No unsigned Short implementation.  Use .toChar if you want a Char.")
-  @targetName("short_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((s & 0xFF).toByte)
-  @targetName("short_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
-  @targetName("short_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(s & 0xFFFFL)
+  @targetName("short_toUByte")  inline def toUByte:  kse.maths.UByte  = UByte.wrap((s & 0xFF).toByte)
+  @targetName("short_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap(s)
+  @targetName("short_toUInt")   inline def toUInt:   kse.maths.UInt   = UInt.wrap(s & 0xFFFF)
+  @targetName("short_toULong")  inline def toULong:  kse.maths.ULong  = ULong.wrap(s & 0xFFFFL)
 
-  @targetName("short_clampNeg")   def clampNeg: Short               = if s != (-32768: Short) then (-s).toShort else (32767: Short)
-  @targetName("short_clampByte")  def clampToByte: Byte             = if s < -128 then -128 else if s > 127 then 127 else s.toByte
-  @targetName("short_clampUByte") def clampToUByte: kse.maths.UByte = if s < 0 then UByte(0) else if s > 255 then UByte(255) else UByte(s.toByte)
-  @targetName("short_clampChar")  def clampToChar: Char             = if s < 0 then '\u0000' else s.toChar
-  @targetName("short_clampUInt")  def clampToUInt: kse.maths.UInt   = if s < 0 then UInt(0) else UInt(s.toInt)
-  @targetName("short_clampULong") def clampToULong: kse.maths.ULong = if s < 0 then ULong(0L) else ULong(s.toLong)
+  @targetName("short_clampNeg")    def clampNeg: Short                 = if s != (-32768: Short) then (-s).toShort else (32767: Short)
+  @targetName("short_clampByte")   def clampToByte: Byte               = if s < -128 then -128 else if s > 127 then 127 else s.toByte
+  @targetName("short_clampUByte")  def clampToUByte: kse.maths.UByte   = if s < 0 then UByte(0) else if s > 255 then UByte(255) else UByte(s.toByte)
+  @targetName("short_clampUShort") def clampToUShort: kse.maths.UShort = if s < 0 then UShort(0) else UShort(s)
+  @targetName("short_clampChar")   def clampToChar: Char               = if s < 0 then '\u0000' else s.toChar
+  @targetName("short_clampUInt")   def clampToUInt: kse.maths.UInt     = if s < 0 then UInt(0) else UInt(s.toInt)
+  @targetName("short_clampULong")  def clampToULong: kse.maths.ULong   = if s < 0 then ULong(0L) else ULong(s.toLong)
 
-  @targetName("short_checkedNeg")   def checkedNeg: Short               = if s != (-32768: Short) then (-s).toShort else throw new ArithmeticException("short overflow")
-  @targetName("short_checkedByte")  def checkedToByte: Byte             = if s < -128 || s > 127 then throw new ArithmeticException("byte overflow")  else s.toByte
-  @targetName("short_checkedUByte") def checkedToUByte: kse.maths.UByte = if s < 0    || s > 255 then throw new ArithmeticException("UByte overflow") else UByte(s.toByte)
-  @targetName("short_checkedChar")  def checkedToChar: Char             = if s < 0               then throw new ArithmeticException("negative Char")  else s.toChar
-  @targetName("short_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if s < 0               then throw new ArithmeticException("negative UInt")  else UInt(s.toInt)
-  @targetName("short_checkedULong") def checkedToULong: kse.maths.ULong = if s < 0               then throw new ArithmeticException("negative ULong") else ULong(s.toLong)
+  @targetName("short_checkedNeg")    def checkedNeg: Short                 = if s != (-32768: Short) then (-s).toShort else throw new ArithmeticException("short overflow")
+  @targetName("short_checkedByte")   def checkedToByte: Byte               = if s < -128 || s > 127 then throw new ArithmeticException("byte overflow")   else s.toByte
+  @targetName("short_checkedUByte")  def checkedToUByte: kse.maths.UByte   = if s < 0    || s > 255 then throw new ArithmeticException("UByte overflow")  else UByte(s.toByte)
+  @targetName("short_checkedUShort") def checkedToUShort: kse.maths.UShort = if s < 0               then throw new ArithmeticException("negative UShort") else UShort(s)
+  @targetName("short_checkedChar")   def checkedToChar: Char               = if s < 0               then throw new ArithmeticException("negative Char")   else s.toChar
+  @targetName("short_checkedUInt")   def checkedToUInt: kse.maths.UInt     = if s < 0               then throw new ArithmeticException("negative UInt")   else UInt(s.toInt)
+  @targetName("short_checkedULong")  def checkedToULong: kse.maths.ULong   = if s < 0               then throw new ArithmeticException("negative ULong")  else ULong(s.toLong)
 }
 
 extension (c: Char) {
@@ -760,9 +766,10 @@ extension (c: Char) {
   @targetName("char_loHex") inline def loHexString: String = ToHexString.lo(c)
   @targetName("char_hex")   inline def hexString:   String = ToHexString.hi(c)
 
-  @targetName("char_toUByte") inline def toUByte: kse.maths.UByte = UByte.wrap((c & 0xFF).toByte)
-  @targetName("char_toUInt")  inline def toUInt: kse.maths.UInt   = UInt.wrap(c)
-  @targetName("char_toULong") inline def toULong: kse.maths.ULong = ULong.wrap(c)
+  @targetName("char_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((c & 0xFF).toByte)
+  @targetName("char_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap(c.toShort)
+  @targetName("char_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(c)
+  @targetName("char_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(c)
 
   @targetName("char_clampByte")  def clampToByte: Byte             = if c > '\u007F' then 127 else c.toByte
   @targetName("char_clampUByte") def clampToUByte: kse.maths.UByte = if c > '\u00FF' then UByte.MaxValue else UByte(c.toByte)
@@ -800,26 +807,29 @@ extension (i: Int) {
   @targetName("int_loHex") inline def loHexString: String = ToHexString.lo(i)
   @targetName("int_hex")   inline def hexString:   String = ToHexString.hi(i)
 
-  @targetName("int_unsigned") inline def unsigned: kse.maths.UInt = UInt.wrap(i)
-  @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte = UByte.wrap((i & 0xFF).toByte)
-  @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt   = UInt.wrap(i)
-  @targetName("int_toULong")  inline def toULong: kse.maths.ULong = ULong.wrap(i & 0xFFFFFFFFL)
+  @targetName("int_unsigned") inline def unsigned: kse.maths.UInt   = UInt.wrap(i)
+  @targetName("int_toUByte")  inline def toUByte: kse.maths.UByte   = UByte.wrap((i & 0xFF).toByte)
+  @targetName("int_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap((i & 0xFFFF).toShort)
+  @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt     = UInt.wrap(i)
+  @targetName("int_toULong")  inline def toULong: kse.maths.ULong   = ULong.wrap(i & 0xFFFFFFFFL)
 
-  @targetName("int_clampNeg")   def clampNeg: Int                 = if i != Int.MinValue then -i else Int.MaxValue
-  @targetName("int_clampByte")  def clampToByte: Byte             = if i < -128 then -128 else if i > 127 then 127 else i.toByte
-  @targetName("int_clampUByte") def clampToUByte: kse.maths.UByte = if i < 0 then UByte(0) else if i > 255 then UByte(255) else UByte(i.toByte)
-  @targetName("int_clampShort") def clampToShort: Short           = if i < Short.MinValue then Short.MinValue else if i > Short.MaxValue then Short.MaxValue else i.toShort
-  @targetName("int_clampChar")  def clampToChar: Char             = if i < 0 then '\u0000' else if i > 0xFFFF then '\uFFFF' else i.toChar
-  @targetName("int_clampUInt")  def clampToUInt: kse.maths.UInt   = if i < 0 then UInt(0) else UInt(i)
-  @targetName("int_clampULong") def clampToULong: kse.maths.ULong = if i < 0 then ULong(0L) else ULong(i.toLong)
+  @targetName("int_clampNeg")    def clampNeg: Int                   = if i != Int.MinValue then -i else Int.MaxValue
+  @targetName("int_clampByte")   def clampToByte: Byte               = if i < -128 then -128 else if i > 127 then 127 else i.toByte
+  @targetName("int_clampUByte")  def clampToUByte: kse.maths.UByte   = if i < 0 then UByte(0) else if i > 255 then UByte(255) else UByte(i.toByte)
+  @targetName("int_clampShort")  def clampToShort: Short             = if i < Short.MinValue then Short.MinValue else if i > Short.MaxValue then Short.MaxValue else i.toShort
+  @targetName("int_clampUShort") def clampToUShort: kse.maths.UShort = if i < 0 then UShort(0) else if i > UShort.MaxValue then UShort.MaxValue else UShort(i.toShort)
+  @targetName("int_clampChar")   def clampToChar: Char               = if i < 0 then '\u0000' else if i > 0xFFFF then '\uFFFF' else i.toChar
+  @targetName("int_clampUInt")   def clampToUInt: kse.maths.UInt     = if i < 0 then UInt(0) else UInt(i)
+  @targetName("int_clampULong")  def clampToULong: kse.maths.ULong   = if i < 0 then ULong(0L) else ULong(i.toLong)
 
-  @targetName("int_checkedNeg")   def checkedNeg: Int                 = if i != Int.MinValue then -i else throw new ArithmeticException("int overflow")
-  @targetName("int_checkedByte")  def checkedToByte: Byte             = if i < -128   || i > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
-  @targetName("int_checkedUByte") def checkedToUByte: kse.maths.UByte = if i < 0      || i > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-  @targetName("int_checkedShort") def checkedToShort: Short           = if i < -32768 || i > 32767 then throw new ArithmeticException("short overflow") else i.toShort
-  @targetName("int_checkedChar")  def checkedToChar: Char             = if i < 0      || i > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
-  @targetName("int_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if i < 0                   then throw new ArithmeticException("negative UInt")  else UInt(i)
-  @targetName("int_checkedULong") def checkedToULong: kse.maths.ULong = if i < 0                   then throw new ArithmeticException("negative ULong") else ULong(i.toLong)
+  @targetName("int_checkedNeg")    def checkedNeg: Int                 = if i != Int.MinValue then -i else throw new ArithmeticException("int overflow")
+  @targetName("int_checkedByte")   def checkedToByte: Byte             = if i < -128   || i > 127   then throw new ArithmeticException("byte overflow")   else i.toByte
+  @targetName("int_checkedUByte")  def checkedToUByte: kse.maths.UByte = if i < 0      || i > 255   then throw new ArithmeticException("UByte overflow")  else UByte(i.toByte)
+  @targetName("int_checkedShort")  def checkedToShort: Short           = if i < -32768 || i > 32767 then throw new ArithmeticException("short overflow")  else i.toShort
+  @targetName("int_checkedUShort") def checkedToUShort: UShort         = if i < 0      || i > 65535 then throw new ArithmeticException("UShort overflow") else UShort(i.toShort)
+  @targetName("int_checkedChar")   def checkedToChar: Char             = if i < 0      || i > 65535 then throw new ArithmeticException("char overflow")   else i.toChar
+  @targetName("int_checkedUInt")   def checkedToUInt: kse.maths.UInt   = if i < 0                   then throw new ArithmeticException("negative UInt")   else UInt(i)
+  @targetName("int_checkedULong")  def checkedToULong: kse.maths.ULong = if i < 0                   then throw new ArithmeticException("negative ULong")  else ULong(i.toLong)
 }
 
 extension (l: Long) {
@@ -884,28 +894,31 @@ extension (l: Long) {
   @targetName("long_loHex") inline def loHexString: String = ToHexString.lo(l)
   @targetName("long_hex")   inline def hexString:   String = ToHexString.hi(l)
 
-  @targetName("long_unsigned") inline def unsigned: kse.maths.ULong = ULong.wrap(l)
-  @targetName("long_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap((l & 0xFFL).toByte)
-  @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap((l & 0xFFFFFFFFL).toInt)
-  @targetName("long_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(l)
+  @targetName("long_unsigned") inline def unsigned: kse.maths.ULong  = ULong.wrap(l)
+  @targetName("long_toUByte")  inline def toUByte: kse.maths.UByte   = UByte.wrap((l & 0xFFL).toByte)
+  @targetName("long_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap((l & 0xFFFFL).toShort)
+  @targetName("long_toUInt")   inline def toUInt: kse.maths.UInt     = UInt.wrap((l & 0xFFFFFFFFL).toInt)
+  @targetName("long_toULong")  inline def toULong: kse.maths.ULong   = ULong.wrap(l)
 
-  @targetName("long_clampNeg")   def clampNeg: Long                = if l != Long.MinValue then -l else Long.MaxValue
-  @targetName("long_clampByte")  def clampToByte: Byte             = if l < -128 then -128 else if l > 127 then 127 else l.toByte
-  @targetName("long_clampUByte") def clampToUByte: kse.maths.UByte = if l < 0 then UByte(0) else if l > 255 then UByte(255) else UByte(l.toByte)
-  @targetName("long_clampShort") def clampToShort: Short           = if l < Short.MinValue then Short.MinValue else if l > Short.MaxValue then Short.MaxValue else l.toShort
-  @targetName("long_clampChar")  def clampToChar: Char             = if l < 0 then '\u0000' else if l > 0xFFFF then '\uFFFF' else l.toChar
-  @targetName("long_clampInt")   def clampToInt: Int               = if l < Int.MinValue then Int.MinValue else if l > Int.MaxValue then Int.MaxValue else l.toInt
-  @targetName("long_clampUInt")  def clampToUInt: kse.maths.UInt   = if l < 0 then UInt(0) else if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
-  @targetName("long_clampULong") def clampToULong: kse.maths.ULong = if l < 0 then ULong(0L) else ULong(l)
+  @targetName("long_clampNeg")    def clampNeg: Long                  = if l != Long.MinValue then -l else Long.MaxValue
+  @targetName("long_clampByte")   def clampToByte: Byte               = if l < -128 then -128 else if l > 127 then 127 else l.toByte
+  @targetName("long_clampUByte")  def clampToUByte: kse.maths.UByte   = if l < 0 then UByte(0) else if l > 255 then UByte(255) else UByte(l.toByte)
+  @targetName("long_clampShort")  def clampToShort: Short             = if l < Short.MinValue then Short.MinValue else if l > Short.MaxValue then Short.MaxValue else l.toShort
+  @targetName("long_clampUShort") def clampToUShort: kse.maths.UShort = if l < 0 then UShort(0) else if l > 0xFFFFL then UShort.MaxValue else UShort((l & 0xFFFFL).toShort)
+  @targetName("long_clampChar")   def clampToChar: Char               = if l < 0 then '\u0000' else if l > 0xFFFFL then '\uFFFF' else l.toChar
+  @targetName("long_clampInt")    def clampToInt: Int                 = if l < Int.MinValue then Int.MinValue else if l > Int.MaxValue then Int.MaxValue else l.toInt
+  @targetName("long_clampUInt")   def clampToUInt: kse.maths.UInt     = if l < 0 then UInt(0) else if l > 0xFFFFFFFFL then UInt.MaxValue else UInt(l.toInt)
+  @targetName("long_clampULong")  def clampToULong: kse.maths.ULong   = if l < 0 then ULong(0L) else ULong(l)
 
-  @targetName("long_checkedNeg")   def checkedNeg: Long                = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
-  @targetName("long_checkedByte")  def checkedToByte: Byte             = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
-  @targetName("long_checkedUByte") def checkedToUByte: kse.maths.UByte = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
-  @targetName("long_checkedShort") def checkedToShort: Short           = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
-  @targetName("long_checkedChar")  def checkedToChar: Char             = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")  else l.toChar
-  @targetName("long_checkedInt")   def checkedToInt: Int               = jm.toIntExact(l)
-  @targetName("long_checkedUInt")  def checkedToUInt: kse.maths.UInt   = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")  else UInt(l.toInt)
-  @targetName("long_checkedULong") def checkedToULong: kse.maths.ULong = if l < 0                    then throw new ArithmeticException("negative ULong") else ULong(l)
+  @targetName("long_checkedNeg")    def checkedNeg: Long                  = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
+  @targetName("long_checkedByte")   def checkedToByte: Byte               = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
+  @targetName("long_checkedUByte")  def checkedToUByte: kse.maths.UByte   = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
+  @targetName("long_checkedShort")  def checkedToShort: Short             = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
+  @targetName("long_checkedUShort") def checkedToUShort: kse.maths.UShort = if l < 0      || l > 65535  then throw new ArithmeticException("UShort overflow")  else UShort(l.toShort)
+  @targetName("long_checkedChar")   def checkedToChar: Char               = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")  else l.toChar
+  @targetName("long_checkedInt")    def checkedToInt: Int                 = jm.toIntExact(l)
+  @targetName("long_checkedUInt")   def checkedToUInt: kse.maths.UInt     = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")  else UInt(l.toInt)
+  @targetName("long_checkedULong")  def checkedToULong: kse.maths.ULong   = if l < 0                    then throw new ArithmeticException("negative ULong") else ULong(l)
 }
 
 extension (inline x: Byte | Short | Int | Long) {
@@ -952,11 +965,12 @@ extension (inline x: Byte | Short | Int | Long) {
     case l: Long => java.lang.Long.rotateRight(l, j)
     case _ => compiletime.error("rotr (rotate right) is defined only on Int and Long\nother primitive types are not promoted")
 
-  transparent inline def u: UByte | UInt | ULong = inline x match
-    case b: Byte => UByte(b)
-    case i: Int  => UInt(i)
-    case l: Long => ULong(l)
-    case _ => compiletime.error("u (for unsigned) is defined only on Byte, Int, and Long\nother primitive types are not promoted")
+  transparent inline def u: UByte | UShort | UInt | ULong = inline x match
+    case b: Byte  => UByte(b)
+    case s: Short => UShort(s)
+    case i: Int   => UInt(i)
+    case l: Long  => ULong(l)
+    case _ => compiletime.error("u (for unsigned) is defined only on Byte, Short, Int, and Long\nother primitive types are not promoted")
 }
 
 extension (f: Float) {
@@ -967,6 +981,8 @@ extension (f: Float) {
 
   def toUByte: kse.maths.UByte =
     if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
+  def toUShort: kse.maths.UShort =
+    if f < 0 then UShort(0) else if f > 65535 then UShort.MaxValue else UShort((f.toInt & 0xFFFF).toByte)
   def toUInt: kse.maths.UInt =
     if f < 0 then UInt(0)
     else
@@ -1068,6 +1084,8 @@ extension (d: Double) {
 
   def toUByte: kse.maths.UByte =
     if d < 0 then UByte(0) else if d > 255 then UByte(255) else UByte((d.toInt & 0xFF).toByte)
+  def toUShort: kse.maths.UShort =
+    if d < 0 then UShort(0) else if d > 65535 then UShort.MaxValue else UShort((d.toInt & 0xFFFF).toByte)
   def toUInt: kse.maths.UInt =
     if d < 0 then UInt(0)
     else
@@ -1293,9 +1311,10 @@ object UByte {
   }
 
   extension (b: kse.maths.UByte) {
-    inline def +(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) + (c.signed & 0xFF) )
-    inline def +(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) + j.signed )
-    inline def +(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) + k.signed)
+    inline def +(c: kse.maths.UByte ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) + (c.signed & 0xFF))
+    inline def +(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) + (s.signed & 0xFFFF))
+    inline def +(j: kse.maths.UInt  ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) + j.signed )
+    inline def +(k: kse.maths.ULong ): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) + k.signed )
 
     def +#(c: kse.maths.UByte): kse.maths.UByte =
       val ans = (b.signed & 0xFF) + (c.signed & 0xFF)
@@ -1305,9 +1324,10 @@ object UByte {
       val ans = (b.signed & 0xFF) + (c.signed & 0xFF)
       if ans > 0xFF then throw new ArithmeticException("UByte overflow") else UByte(ans.toByte)
 
-    inline def -(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) - (c.signed & 0xFF) )
-    inline def -(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) - j.signed )
-    inline def -(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) - k.signed)
+    inline def -(c: kse.maths.UByte ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) - (c.signed & 0xFF))
+    inline def -(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) - (s.signed & 0xFFFF))
+    inline def -(j: kse.maths.UInt  ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) - j.signed )
+    inline def -(k: kse.maths.ULong ): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) - k.signed )
 
     def -#(c: kse.maths.UByte): kse.maths.UByte =
       val ans = (b.signed & 0xFF) - (c.signed & 0xFF)
@@ -1317,9 +1337,10 @@ object UByte {
       val ans = (b.signed & 0xFF) - (c.signed & 0xFF)
       if ans < 0 then throw new ArithmeticException("UByte overflow") else UByte(ans.toByte)
 
-    inline def *(c: kse.maths.UByte): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) * (c.signed & 0xFF) )
-    inline def *(j: kse.maths.UInt ): kse.maths.UInt  = UInt.wrap( (b.signed & 0xFF) * j.signed )
-    inline def *(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) * k.signed)
+    inline def *(c: kse.maths.UByte ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) * (c.signed & 0xFF))
+    inline def *(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) * (s.signed & 0xFFFF))
+    inline def *(j: kse.maths.UInt  ): kse.maths.UInt  =  UInt.wrap((b.signed & 0xFF) * j.signed )
+    inline def *(k: kse.maths.ULong ): kse.maths.ULong = ULong.wrap((b.signed & 0xFF) * k.signed )
 
     def *#(c: kse.maths.UByte): kse.maths.UByte =
       val ans = (b.signed & 0xFF) * (c.signed & 0xFF)
@@ -1329,9 +1350,10 @@ object UByte {
       val ans = (b.signed & 0xFF) * (c.signed & 0xFF)
       if ans > 0xFF then throw new ArithmeticException("UByte overflow") else UByte(ans.toByte)
 
-    inline def /(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / UInt.wrap(c.signed & 0xFF)
-    inline def /(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / j
-    inline def /(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap(b.signed & 0xFF) / k
+    inline def /(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / UInt.wrap(c.signed & 0xFF)
+    inline def /(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / UInt.wrap(s.signed & 0xFFFF)
+    inline def /(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) / j
+    inline def /(k: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(b.signed & 0xFF) / k
 
     def /#(c: kse.maths.UByte): kse.maths.UByte =
       if c.signed == 0 then { if b.signed == 0 then UByte(0) else UByte.MaxValue }
@@ -1339,9 +1361,10 @@ object UByte {
 
     def /!(c: kse.maths.UByte): kse.maths.UByte = UByte(((b.signed & 0xFF) / (c.signed & 0xFF)).toByte)
 
-    inline def %(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % UInt.wrap(c.signed & 0xFF)
-    inline def %(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % j
-    inline def %(k: kse.maths.ULong): kse.maths.ULong = ULong.wrap(b.signed & 0xFF) % k
+    inline def %(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % UInt.wrap(c.signed & 0xFF)
+    inline def %(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % UInt.wrap(s.signed & 0xFFFF)
+    inline def %(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF) % j
+    inline def %(k: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(b.signed & 0xFF) % k
 
     def %#(c: kse.maths.UByte): kse.maths.UByte =
       if c.signed == 0 then UByte(0)
@@ -1353,18 +1376,12 @@ object UByte {
 
     inline def ^(c: kse.maths.UByte): kse.maths.UByte = UByte.wrap(((b.signed & 0xFF) ^ (c.signed & 0xFF)).toByte)
 
+    inline def unary_~ : kse.maths.UByte = UByte.wrap((~b.signed).toByte)
+
     inline def <( c: kse.maths.UByte): Boolean = (b.signed & 0xFF) <  (c.signed & 0xFF)
     inline def <=(c: kse.maths.UByte): Boolean = (b.signed & 0xFF) <= (c.signed & 0xFF)
     inline def >=(c: kse.maths.UByte): Boolean = (b.signed & 0xFF) >= (c.signed & 0xFF)
     inline def >( c: kse.maths.UByte): Boolean = (b.signed & 0xFF) >  (c.signed & 0xFF)
-
-    transparent inline def >>(inline j: Int | kse.maths.UInt): kse.maths.UInt = inline j match
-      case x: Int => UInt.wrap((b.signed & 0xFF) >>> x)
-      case y: kse.maths.UInt => UInt.wrap((b.signed & 0xFF) >>> y.signed)
-
-    transparent inline def <<(inline j: Int | kse.maths.UInt): kse.maths.UInt = inline j match
-      case x: Int => UInt.wrap((b.signed & 0xFF) << x)
-      case y: kse.maths.UInt => UInt.wrap((b.signed & 0xFF) << y.signed)
 
     inline def max(c: kse.maths.UByte): kse.maths.UByte = if (b.signed & 0xFF) < (c.signed & 0xFF) then c else b
     inline def min(c: kse.maths.UByte): kse.maths.UByte = if (b.signed & 0xFF) > (c.signed & 0xFF) then c else b
@@ -1386,14 +1403,15 @@ object UByte {
       if (b.signed & 0xFF) < (lo.signed & 0xFF) || (b.signed & 0xFF) > (hi.signed & 0xFF) then throw new ArithmeticException("UByte out of range")
       else b
 
-    inline def toShort:  Short           =           (b.signed & 0xFF).toShort
-    inline def toChar:   Char            =           (b.signed & 0xFF).toChar
-    inline def toInt:    Int             =            b.signed & 0xFF
-    inline def toUInt:   kse.maths.UInt  =  UInt.wrap(b.signed & 0xFF)
-    inline def toLong:   Long            =           (b.signed & 0xFF).toLong
-    inline def toULong:  kse.maths.ULong = ULong.wrap(b.signed & 0xFF)
-    inline def toFloat:  Float           =           (b.signed & 0xFF).toFloat
-    inline def toDouble: Double          =           (b.signed & 0xFF).toDouble
+    inline def toShort:  Short            =             (b.signed & 0xFF).toShort
+    inline def toUShort: kse.maths.UShort = UShort.wrap((b.signed & 0xFF).toShort)
+    inline def toChar:   Char             =             (b.signed & 0xFF).toChar
+    inline def toInt:    Int              =              b.signed & 0xFF
+    inline def toUInt:   kse.maths.UInt   =    UInt.wrap(b.signed & 0xFF)
+    inline def toLong:   Long             =             (b.signed & 0xFF).toLong
+    inline def toULong:  kse.maths.ULong  =   ULong.wrap(b.signed & 0xFF)
+    inline def toFloat:  Float            =             (b.signed & 0xFF).toFloat
+    inline def toDouble: Double           =             (b.signed & 0xFF).toDouble
 
     def clampToByte: Byte = if b.signed < 0 then 127 else b.signed
     def checkedToByte: Byte = if b.signed < 0 then throw new ArithmeticException("byte overflow") else b.signed
@@ -1403,6 +1421,146 @@ object UByte {
     inline def hiHexString = ToHexString.hi(b.signed)
     inline def loHexString = ToHexString.lo(b.signed)
     inline def hexString   = ToHexString.hi(b.signed)
+  }
+}
+
+
+opaque type UShort = Short
+object UShort {
+  inline def MaxValue: UShort = -1
+
+  inline def wrap(i: Short): UShort = i
+
+  inline def apply(i: Short): UShort = i
+
+  inline def clamp(i: Short): UShort = if i <= 0 then 0 else i
+
+  extension (i: UShort) {
+    inline def s: Short       = i
+    inline def unwrap: Short  = i
+    inline def signed: Short  = i
+    inline def toShort: Short = i
+  }
+
+  extension (i: kse.maths.UShort) {
+    inline def +(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) + (b.signed & 0xFF))
+    inline def +(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) + (t.signed & 0xFFFF))
+    inline def +(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) + j.signed )
+    inline def +(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap((i.signed & 0xFFFF) + l.signed )
+
+    def +#(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) + (j.signed & 0xFFFF)
+      UShort.wrap(if ans > 0xFFFF then (-1: Short) else ans.toShort)
+
+    def +!(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) + (j.signed & 0xFFFF)
+      if ans > 0xFFFF then throw new ArithmeticException("UShort overflow") else UShort(ans.toShort)
+
+    inline def -(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) - (b.signed & 0xFF))
+    inline def -(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) - (t.signed & 0xFFFF))
+    inline def -(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) - j.signed )
+    inline def -(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap((i.signed & 0xFFFF) - l.signed )
+
+    def -#(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) - (j.signed & 0xFFFF)
+      UShort.wrap(if ans < 0 then (0: Short) else ans.toShort)
+
+    def -!(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) - (j.signed & 0xFFFF)
+      if ans < 0 then throw new ArithmeticException("UShort overflow") else UShort(ans.toShort)
+
+    inline def *(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) * (b.signed & 0xFF))
+    inline def *(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) * (t.signed & 0xFFFF))
+    inline def *(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) * j.signed )
+    inline def *(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap((i.signed & 0xFFFF) * l.signed )
+
+    def *#(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) * (j.signed & 0xFFFF)
+      UShort.wrap(if ans < 0 || ans > 0xFFFF then -1 else ans.toShort)
+
+    def *!(j: kse.maths.UShort): kse.maths.UShort =
+      val ans = (i.signed & 0xFFFF) * (j.signed & 0xFFFF)
+      if ans < 0 || ans > 0xFFFF then throw new ArithmeticException("UShort overflow") else UShort(ans.toShort)
+
+    inline def /(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) / (b.signed & 0xFF))
+    inline def /(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) / (t.signed & 0xFFFF))
+    inline def /(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(i.signed & 0xFFFF) / j.signed
+    inline def /(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.signed & 0xFFFFL) / l.signed
+
+    def /#(j: kse.maths.UShort): kse.maths.UShort =
+      if j.signed == 0 then { if i.signed == 0 then UShort(0) else UShort.MaxValue }
+      else UShort(((i.signed & 0xFFFF) / (j.signed & 0xFFFF)).toShort)
+
+    def /!(j: kse.maths.UShort): kse.maths.UShort  =
+      if j.signed == 0 then throw new ArithmeticException("UShort division by zero")
+      else UShort(((i.signed & 0xFFFF) / (j.signed & 0xFFFF)).toShort)
+
+    inline def %(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) % (b.signed & 0xFF))
+    inline def %(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) % (t.signed & 0xFFFF))
+    inline def %(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(i.signed & 0xFFFF) % j.signed
+    inline def %(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.signed & 0xFFFFL) % l.signed
+
+    def %#(j: kse.maths.UShort): kse.maths.UShort =
+      if j.signed == 0 then UShort(0)
+      else UShort(((i.signed & 0xFFFF) % (j.signed & 0xFFFF)).toShort)
+
+    inline def |(t: kse.maths.UShort): kse.maths.UShort = UShort.wrap(((i.signed & 0xFFFF) | (t.signed & 0xFFFF)).toShort)
+
+    inline def &(t: kse.maths.UShort): kse.maths.UShort = UShort.wrap(((i.signed & 0xFFFF) & (t.signed & 0xFFFF)).toShort)
+
+    inline def ^(t: kse.maths.UShort): kse.maths.UShort = UShort.wrap(((i.signed & 0xFFFF) ^ (t.signed & 0xFFFF)).toShort)
+
+    inline def unary_~ : kse.maths.UShort = UShort.wrap((~i.signed).toShort)
+
+    inline def <( j: kse.maths.UShort): Boolean = (i.signed & 0xFFFF) < (j.signed & 0xFFFF)
+    inline def <=(j: kse.maths.UShort): Boolean = (i.signed & 0xFFFF) <= (j.signed & 0xFFFF)
+    inline def >=(j: kse.maths.UShort): Boolean = (i.signed & 0xFFFF) >= (j.signed & 0xFFFF)
+    inline def >( j: kse.maths.UShort): Boolean = (i.signed & 0xFFFF) > (j.signed & 0xFFFF)
+
+    inline def max(j: kse.maths.UShort): kse.maths.UShort = if (i.signed & 0xFFFF) < (j.signed & 0xFFFF) then j else i
+    inline def min(j: kse.maths.UShort): kse.maths.UShort = if (i.signed & 0xFFFF) > (j.signed & 0xFFFF) then j else i
+
+    def clamp(lo: kse.maths.UShort, hi: kse.maths.UShort): kse.maths.UShort =
+      if (lo.signed & 0xFFFF) <= (i.signed & 0xFFFF) then
+        if (i.signed & 0xFFFF) <= (hi.signed & 0xFFFF) then i
+        else if (lo.signed & 0xFFFF) <= (hi.signed & 0xFFFF) then hi
+        else lo
+      else lo
+
+    def in(lo: kse.maths.UShort, hi: kse.maths.UShort): Boolean =
+      (lo.signed & 0xFFFF) <= (i.signed & 0xFFFF) && (i.signed & 0xFFFF) <= (hi.signed & 0xFFFF)
+
+    def checkIn(lo: kse.maths.UShort, hi: kse.maths.UShort): kse.maths.UShort =
+      if (lo.signed & 0xFFFF) <= (i.signed & 0xFFFF) && (i.signed & 0xFFFF) <= (hi.signed & 0xFFFF) then i
+      else throw new ArithmeticException("UShort out of range")
+
+    inline def toByte:   Byte            =            i.signed.toByte
+    inline def toUByte:  kse.maths.UByte = UByte.wrap(i.signed.toByte)
+    inline def toChar:   Char            =            i.signed.toChar
+    inline def toInt:    Int             =           (i.signed & 0xFFFF)
+    inline def toUInt:   kse.maths.UInt  =  UInt.wrap(i.signed & 0xFFFF)
+    inline def toLong:   Long            =           (i.signed & 0xFFFFL)
+    inline def toULong:  kse.maths.ULong = ULong.wrap(i.signed & 0xFFFFL)
+    inline def toFloat:  Float           =           (i.signed & 0xFFFF).toFloat
+    inline def toDouble: Double          =           (i.signed & 0xFFFF).toDouble
+
+    def clampToByte: Byte             = if i.signed < 0 || i.signed > 127 then 127 else i.signed.toByte
+    def clampToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.signed.toByte)
+    def clampToShort: Short           = if i.signed < 0 then Short.MaxValue else i.signed
+
+    def checkedToByte: Byte             = if i.signed < 0 || i.signed > 127   then throw new ArithmeticException("byte overflow")  else i.signed.toByte
+    def checkedToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.signed.toByte)
+    def checkedToShort: Short           = if i.signed < 0                     then throw new ArithmeticException("short overflow") else i.signed
+
+    inline def pr: String = (i.signed & 0xFFFF).toString
+
+    inline def hiHexString = ToHexString.hi(i.signed)
+    inline def loHexString = ToHexString.lo(i.signed)
+    inline def hexString   = ToHexString.hi(i.signed)
+  }
+
+  given Ordering[kse.maths.UShort] = new {
+    def compare(i: kse.maths.UShort, j: kse.maths.UShort): Int = java.lang.Integer.compare(i.signed & 0xFFFF, j.signed & 0xFFFF)
   }
 }
 
@@ -1428,45 +1586,49 @@ object UInt {
   }
 
   extension (i: kse.maths.UInt) {
-    inline def +(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed + (c.signed & 0xFF) )
-    inline def +(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed +  j.signed )
-    inline def +(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong + l.signed)
+    inline def +(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(i.signed + (c.signed & 0xFF) )
+    inline def +(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(i.signed + (s.signed & 0xFFFF) )
+    inline def +(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(i.signed +  j.signed)
+    inline def +(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.toLong +  l.signed)
 
     def +#(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) + (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) + (j.signed & 0xFFFFFFFFL)
       UInt.wrap(if ans > 0xFFFFFFFFL then -1 else ans.toInt)
 
     def +!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) + (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) + (j.signed & 0xFFFFFFFFL)
       if ans > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow") else UInt(ans.toInt)
 
-    inline def -(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed - (c.signed & 0xFF))
-    inline def -(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed -  j.signed )
-    inline def -(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong -  l.signed)
+    inline def -(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(i.signed - (c.signed & 0xFF))
+    inline def -(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(i.signed - (s.signed & 0xFFFF) )
+    inline def -(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(i.signed -  j.signed)
+    inline def -(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.toLong -  l.signed)
 
     def -#(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) - (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) - (j.signed & 0xFFFFFFFFL)
       UInt.wrap(if ans < 0L then 0 else ans.toInt)
 
     def -!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) - (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) - (j.signed & 0xFFFFFFFFL)
       if ans < 0L then throw new ArithmeticException("UInt overflow") else UInt(ans.toInt)
 
-    inline def *(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed * (c.signed & 0xFF))
-    inline def *(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed *  j.signed )
-    inline def *(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong *  l.signed)
+    inline def *(c: kse.maths.UByte): kse.maths.UInt   =  UInt.wrap(i.signed * (c.signed & 0xFF))
+    inline def *(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(i.signed * (s.signed & 0xFFFF) )
+    inline def *(j: kse.maths.UInt ): kse.maths.UInt   =  UInt.wrap(i.signed *  j.signed)
+    inline def *(l: kse.maths.ULong): kse.maths.ULong  = ULong.wrap(i.toLong *  l.signed)
 
     def *#(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) * (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) * (j.signed & 0xFFFFFFFFL)
       UInt.wrap(if ans < 0L || ans > 0xFFFFFFFFL then -1 else ans.toInt)
 
     def *!(j: kse.maths.UInt): kse.maths.UInt =
-      val ans: Long = (i & 0xFFFFFFFFL) * (j & 0xFFFFFFFFL)
+      val ans: Long = (i.signed & 0xFFFFFFFFL) * (j.signed & 0xFFFFFFFFL)
       if ans < 0L || ans > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow") else UInt(ans.toInt)
 
-    inline def /(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed, (c.signed & 0xFF)))
-    inline def /(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed,  j.signed))
-    inline def /(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divUnsignedL(i.toLong, l.signed))
+    inline def /(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed, (c.signed & 0xFF)))
+    inline def /(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed, (s.signed & 0xFFFF)))
+    inline def /(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed,  j.signed))
+    inline def /(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(divUnsignedL(i.toLong, l.signed))
 
     def /#(j: kse.maths.UInt): kse.maths.UInt =
       if j.signed == 0 then { if i.signed == 0 then UInt(0) else UInt.MaxValue }
@@ -1474,25 +1636,20 @@ object UInt {
 
     def /!(j: kse.maths.UInt): kse.maths.UInt  =  UInt.wrap(divideUnsigned(i.signed,  j.signed))
 
-    inline def %(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed, (c.signed & 0xFF)))
-    inline def %(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed,  j.signed))
-    inline def %(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(modUnsignedL(i.toLong, l.signed))
+    inline def %(c: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed, (c.signed & 0xFF)))
+    inline def %(s: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed, (s.signed & 0xFFFF)))
+    inline def %(j: kse.maths.UInt ):  kse.maths.UInt  =  UInt.wrap(remainderUnsigned(i.signed,  j.signed))
+    inline def %(l: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(modUnsignedL(i.toLong, l.signed))
 
     def %#(j: kse.maths.UInt): kse.maths.UInt =
       if j.signed == 0 then UInt(0)
       else UInt.wrap(remainderUnsigned(i.signed,  j.signed))
 
-    inline def |(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed | (c.signed & 0xFF))
-    inline def |(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed |  j.signed )
-    inline def |(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong |  l.signed)
+    inline def |(j: kse.maths.UInt): kse.maths.UInt  =  UInt.wrap(i.signed |  j.signed)
 
-    inline def &(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed & (c.signed & 0xFF))
-    inline def &(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed &  j.signed )
-    inline def &(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong &  l.signed)
+    inline def &(j: kse.maths.UInt): kse.maths.UInt  =  UInt.wrap(i.signed &  j.signed)
 
-    inline def ^(c: kse.maths.UByte): kse.maths.UInt  =  UInt.wrap(i.signed ^ (c.signed & 0xFF))
-    inline def ^(j: kse.maths.UInt ): kse.maths.UInt  =  UInt.wrap(i.signed ^  j.signed )
-    inline def ^(l: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.toLong ^  l.signed)
+    inline def ^(j: kse.maths.UInt): kse.maths.UInt  =  UInt.wrap(i.signed ^  j.signed)
 
     inline def unary_~ : kse.maths.UInt = UInt.wrap(~i.signed)
 
@@ -1526,26 +1683,29 @@ object UInt {
       if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("UInt out of range")
       else i
 
-    inline def toByte:   Byte            =            i.signed.toByte
-    inline def toUByte:  kse.maths.UByte = UByte.wrap(i.signed.toByte)
-    inline def toShort:  Short           =            i.signed.toShort
-    inline def toChar:   Char            =            i.signed.toChar
-    inline def toLong:   Long            =           (i.signed & 0xFFFFFFFFL)
-    inline def toULong:  kse.maths.ULong = ULong.wrap(i.signed & 0xFFFFFFFFL)
-    inline def toFloat:  Float           =           (i.signed & 0xFFFFFFFFL).toFloat
-    inline def toDouble: Double          =           (i.signed & 0xFFFFFFFFL).toDouble
+    inline def toByte:   Byte             =             i.signed.toByte
+    inline def toUByte:  kse.maths.UByte  =  UByte.wrap(i.signed.toByte)
+    inline def toShort:  Short            =             i.signed.toShort
+    inline def toUShort: kse.maths.UShort = UShort.wrap(i.signed.toShort)
+    inline def toChar:   Char             =             i.signed.toChar
+    inline def toLong:   Long             =            (i.signed & 0xFFFFFFFFL)
+    inline def toULong:  kse.maths.ULong  =  ULong.wrap(i.signed & 0xFFFFFFFFL)
+    inline def toFloat:  Float            =            (i.signed & 0xFFFFFFFFL).toFloat
+    inline def toDouble: Double           =            (i.signed & 0xFFFFFFFFL).toDouble
 
-    def clampToByte: Byte             = if i.signed < 0 || i.signed > 127 then 127 else i.toByte
-    def clampToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.toByte)
-    def clampToShort: Short           = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.toShort
-    def clampToChar: Char             = if i.signed < 0 || i.signed > 0xFFFF then '\uFFFF' else i.toChar
-    def clampToInt: Int               = if i.signed < 0 then Int.MaxValue else i.signed
+    def clampToByte: Byte               = if i.signed < 0 || i.signed > 127 then 127 else i.toByte
+    def clampToUByte: kse.maths.UByte   = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.toByte)
+    def clampToShort: Short             = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.toShort
+    def clampToUShort: kse.maths.UShort = if i.signed < 0 || i.signed > 0xFFFF then UShort.MaxValue else UShort((i.signed & 0xFFFF).toShort)
+    def clampToChar: Char               = if i.signed < 0 || i.signed > 0xFFFF then '\uFFFF' else i.toChar
+    def clampToInt: Int                 = if i.signed < 0 then Int.MaxValue else i.signed
 
-    def checkedToByte: Byte             = if i.signed < 0 || i.signed > 127   then throw new ArithmeticException("byte overflow")  else i.toByte
-    def checkedToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255   then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-    def checkedToShort: Short           = if i.signed < 0 || i.signed > 32767 then throw new ArithmeticException("short overflow") else i.toShort
-    def checkedToChar: Char             = if i.signed < 0 || i.signed > 65535 then throw new ArithmeticException("char overflow")  else i.toChar
-    def checkedToInt: Int               = if i.signed < 0                     then throw new ArithmeticException("int overflow")   else i.signed
+    def checkedToByte: Byte               = if i.signed < 0 || i.signed > 127   then throw new ArithmeticException("byte overflow")   else i.toByte
+    def checkedToUByte: kse.maths.UByte   = if i.signed < 0 || i.signed > 255   then throw new ArithmeticException("UByte overflow")  else UByte(i.toByte)
+    def checkedToShort: Short             = if i.signed < 0 || i.signed > 32767 then throw new ArithmeticException("short overflow")  else i.toShort
+    def checkedToUShort: kse.maths.UShort = if i.signed < 0 || i.signed > 65535 then throw new ArithmeticException("UShort overflow") else UShort((i.signed & 0xFFFF).toShort)
+    def checkedToChar: Char               = if i.signed < 0 || i.signed > 65535 then throw new ArithmeticException("char overflow")   else i.toChar
+    def checkedToInt: Int                 = if i.signed < 0                     then throw new ArithmeticException("int overflow")    else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
 
@@ -1581,9 +1741,10 @@ object ULong {
   }
 
   extension (i: kse.maths.ULong) {
-    inline def +(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed + (c.signed & 0xFF))
-    inline def +(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed + (j.signed & 0xFFFFFFFFL))
-    inline def +(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed + j.signed)
+    inline def +(c: kse.maths.UByte):  kse.maths.ULong = ULong.wrap(i.signed + (c.signed & 0xFF))
+    inline def +(s: kse.maths.UShort): kse.maths.ULong = ULong.wrap(i.signed + (s.signed & 0xFFFF))
+    inline def +(j: kse.maths.UInt):   kse.maths.ULong = ULong.wrap(i.signed + (j.signed & 0xFFFFFFFFL))
+    inline def +(j: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.signed + j.signed)
 
     def +#(j: kse.maths.ULong): kse.maths.ULong =
       if      ((i.signed | j.signed) & 0x8000000000000000L) == 0 then ULong.wrap(i.signed + j.signed)
@@ -1600,9 +1761,10 @@ object ULong {
         if ans >= 0 then throw new ArithmeticException("ULong overflow")
         else ULong(ans)
 
-    inline def -(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed - (c.signed & 0xFF))
-    inline def -(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed - (j.signed & 0xFFFFFFFFL))
-    inline def -(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed - j.signed)
+    inline def -(c: kse.maths.UByte):  kse.maths.ULong = ULong.wrap(i.signed - (c.signed & 0xFF))
+    inline def -(s: kse.maths.UShort): kse.maths.ULong = ULong.wrap(i.signed - (s.signed & 0xFFFF))
+    inline def -(j: kse.maths.UInt):   kse.maths.ULong = ULong.wrap(i.signed - (j.signed & 0xFFFFFFFFL))
+    inline def -(j: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.signed - j.signed)
     
     def -#(j: kse.maths.ULong): kse.maths.ULong =
       if compareUnsigned(i.signed, j.signed) < 0 then ULong(0L) else ULong(i.signed - j.signed)
@@ -1611,9 +1773,10 @@ object ULong {
       if compareUnsigned(i.signed, j.signed) < 0 then throw new ArithmeticException("ULong overflow")
       else ULong(i.signed - j.signed)
 
-    inline def *(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed * (c.signed & 0xFF))
-    inline def *(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed * (j.signed & 0xFFFFFFFFL))
-    inline def *(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed * j.signed)
+    inline def *(c: kse.maths.UByte):  kse.maths.ULong = ULong.wrap(i.signed * (c.signed & 0xFF))
+    inline def *(s: kse.maths.UShort): kse.maths.ULong = ULong.wrap(i.signed * (s.signed & 0xFFFF))
+    inline def *(j: kse.maths.UInt):   kse.maths.ULong = ULong.wrap(i.signed * (j.signed & 0xFFFFFFFFL))
+    inline def *(j: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(i.signed * j.signed)
 
     def *#(j: kse.maths.ULong): kse.maths.ULong =
       if j.signed < 0 then
@@ -1643,9 +1806,10 @@ object ULong {
         val ans = ULong(i.signed * j.signed)
         if ans == (i *# j) then ans else throw new ArithmeticException("ULong overflow")
     
-    inline def /(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, c.signed & 0xFF))
-    inline def /(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
-    inline def /(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
+    inline def /(c: kse.maths.UByte):  kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, c.signed & 0xFF))
+    inline def /(s: kse.maths.UShort): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, s.signed & 0xFFFF))
+    inline def /(j: kse.maths.UInt):   kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
+    inline def /(j: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
 
     def /#(j: kse.maths.ULong): kse.maths.ULong =
       if j.signed == 0 then { if i.signed == 0 then ULong(0L) else ULong.MaxValue }
@@ -1653,24 +1817,19 @@ object ULong {
 
     inline def /!(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(divideUnsigned(i.signed, j.signed))
     
-    inline def %(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, c.signed & 0xFF))
-    inline def %(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
-    inline def %(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed))
+    inline def %(c: kse.maths.UByte):  kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, c.signed & 0xFF))
+    inline def %(s: kse.maths.UShort): kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, s.signed & 0xFFFF))
+    inline def %(j: kse.maths.UInt):   kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed & 0xFFFFFFFFL))
+    inline def %(j: kse.maths.ULong):  kse.maths.ULong = ULong.wrap(remainderUnsigned(i.signed, j.signed))
 
     def %#(j: kse.maths.ULong): kse.maths.ULong = 
       if j.signed == 0 then ULong(0)
       else ULong.wrap(remainderUnsigned(i.signed, j.signed))    
 
-    inline def |(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed | (c.signed & 0xFF))
-    inline def |(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed | (j.signed & 0xFFFFFFFFL))
     inline def |(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed | j.signed)
     
-    inline def &(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed & (c.signed & 0xFF))
-    inline def &(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed & (j.signed & 0xFFFFFFFFL))
     inline def &(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed & j.signed)
     
-    inline def ^(c: kse.maths.UByte): kse.maths.ULong = ULong.wrap(i.signed ^ (c.signed & 0xFF))
-    inline def ^(j: kse.maths.UInt):  kse.maths.ULong = ULong.wrap(i.signed ^ (j.signed & 0xFFFFFFFFL))
     inline def ^(j: kse.maths.ULong): kse.maths.ULong = ULong.wrap(i.signed ^ j.signed)
     
     inline def unary_~ : kse.maths.ULong = ULong.wrap(~i.signed)
@@ -1707,30 +1866,33 @@ object ULong {
       if compareUnsigned(i.signed, lo.signed) < 0 || compareUnsigned(i.signed, hi.signed) > 0 then throw new ArithmeticException("ULong out of range")
       else i
 
-    inline def toByte:  Byte            =            i.signed.toByte
-    inline def toUByte: kse.maths.UByte = UByte.wrap(i.signed.toByte)
-    inline def toShort: Short           =            i.signed.toShort
-    inline def toChar:  Char            =            i.signed.toChar
-    inline def toInt:   Int             =            i.signed.toInt
-    inline def toUInt:  kse.maths.UInt  =  UInt.wrap(i.signed.toInt)
+    inline def toByte:  Byte              =             i.signed.toByte
+    inline def toUByte: kse.maths.UByte   =  UByte.wrap(i.signed.toByte)
+    inline def toShort: Short             =             i.signed.toShort
+    inline def toUShort: kse.maths.UShort = UShort.wrap(i.signed.toShort)
+    inline def toChar:  Char              =             i.signed.toChar
+    inline def toInt:   Int               =             i.signed.toInt
+    inline def toUInt:  kse.maths.UInt    =   UInt.wrap(i.signed.toInt)
     def toFloat:  Float  = if i.signed < 0 then  2f * (i.signed >>> 1).toFloat  else i.signed.toFloat
     def toDouble: Double = if i.signed < 0 then 2.0 * (i.signed >>> 1).toDouble else i.signed.toDouble
 
-    def clampToByte: Byte             = if i.signed < 0 || i.signed > 127 then 127 else i.toByte
-    def clampToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.toByte)
-    def clampToShort: Short           = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.toShort
-    def clampToChar: Char             = if i.signed < 0 || i.signed > 0xFFFFL then '\uFFFF' else i.toChar
-    def clampToInt: Int               = if i.signed < 0 || i.signed > Int.MaxValue then Int.MaxValue else i.toInt
-    def clampToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL then UInt.MaxValue else UInt(i.toInt)
-    def clampToLong                   = if i.signed < 0 then Long.MaxValue else i.signed
+    def clampToByte: Byte               = if i.signed < 0 || i.signed > 127 then 127 else i.signed.toByte
+    def clampToUByte: kse.maths.UByte   = if i.signed < 0 || i.signed > 255 then UByte.MaxValue else UByte(i.signed.toByte)
+    def clampToShort: Short             = if i.signed < 0 || i.signed > Short.MaxValue then Short.MaxValue else i.signed.toShort
+    def clampToUShort: kse.maths.UShort = if i.signed < 0 || i.signed > 0xFFFFL then UShort.MaxValue else UShort(i.signed.toShort)
+    def clampToChar: Char               = if i.signed < 0 || i.signed > 0xFFFFL then '\uFFFF' else i.signed.toChar
+    def clampToInt: Int                 = if i.signed < 0 || i.signed > Int.MaxValue then Int.MaxValue else i.signed.toInt
+    def clampToUInt: kse.maths.UInt     = if i.signed < 0 || i.signed > 0xFFFFFFFFL then UInt.MaxValue else UInt(i.signed.toInt)
+    def clampToLong                     = if i.signed < 0 then Long.MaxValue else i.signed
 
-    def checkedToByte: Byte             = if i.signed < 0 || i.signed > 127          then throw new ArithmeticException("byte overflow")  else i.toByte
-    def checkedToUByte: kse.maths.UByte = if i.signed < 0 || i.signed > 255          then throw new ArithmeticException("UByte overflow") else UByte(i.toByte)
-    def checkedToShort: Short           = if i.signed < 0 || i.signed > 32767        then throw new ArithmeticException("short overflow") else i.toShort
-    def checkedToChar: Char             = if i.signed < 0 || i.signed > 65535        then throw new ArithmeticException("char overflow")  else i.toChar
-    def checkedToInt: Int               = if i.signed < 0 || i.signed > Int.MaxValue then throw new ArithmeticException("int overflow")   else i.toInt
-    def checkedToUInt: kse.maths.UInt   = if i.signed < 0 || i.signed > 0xFFFFFFFFL  then throw new ArithmeticException("UInt overflow")  else UInt(i.toInt)
-    def checkedToLong                   = if i.signed < 0                            then throw new ArithmeticException("long overflow")  else i.signed
+    def checkedToByte: Byte               = if i.signed < 0 || i.signed > 127          then throw new ArithmeticException("byte overflow")   else i.signed.toByte
+    def checkedToUByte: kse.maths.UByte   = if i.signed < 0 || i.signed > 255          then throw new ArithmeticException("UByte overflow")  else UByte(i.signed.toByte)
+    def checkedToShort: Short             = if i.signed < 0 || i.signed > 32767        then throw new ArithmeticException("short overflow")  else i.signed.toShort
+    def checkedToUShort: kse.maths.UShort = if i.signed < 0 || i.signed > 65535        then throw new ArithmeticException("UShort overflow") else UShort(i.signed.toShort)
+    def checkedToChar: Char               = if i.signed < 0 || i.signed > 65535        then throw new ArithmeticException("char overflow")   else i.signed.toChar
+    def checkedToInt: Int                 = if i.signed < 0 || i.signed > Int.MaxValue then throw new ArithmeticException("int overflow")    else i.signed.toInt
+    def checkedToUInt: kse.maths.UInt     = if i.signed < 0 || i.signed > 0xFFFFFFFFL  then throw new ArithmeticException("UInt overflow")   else UInt(i.signed.toInt)
+    def checkedToLong                     = if i.signed < 0                            then throw new ArithmeticException("long overflow")   else i.signed
 
     inline def pr: String = toUnsignedString(i.signed)
 
