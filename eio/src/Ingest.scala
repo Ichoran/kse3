@@ -74,7 +74,7 @@ object Ingester {
   }
 
   object StringIngester extends Ingester[String, Int, Char] {
-    inline def reminaing(a: String, inline i: => Int) = a.length - i
+    inline def remaining(a: String, inline i: => Int): Long = a.length - i
     inline def has(a: String, inline i: => Int)(n: Int) = n <= 0 || i < a.length - n
     inline def nonEmpty(a: String, inline i: => Int) = i < a.length
 

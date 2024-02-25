@@ -11,10 +11,11 @@ import kse.flow._
 import kse.maths._
 
 
+/*
 trait Grok {
   def Z[E >: Alt[Err]](using Lb[E])
 }
-
+*/
 
 trait Grok {
   type Elt <: Byte | Char
