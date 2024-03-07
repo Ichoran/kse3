@@ -2054,6 +2054,8 @@ class MathTest {
     T ~ b.hexString     ==== "C8"
     T ~ b.hiHexString   ==== "C8"
     T ~ b.loHexString   ==== "c8"
+    T ~ Array(b, b).copy   =**= Array(b, b)
+    T ~ Array(b, b).copy   ==== typed[Array[UByte]]
 
     val s = UShort(40000.toShort)
     val t = UShort(14)
@@ -2154,6 +2156,8 @@ class MathTest {
     T ~ s.hexString      ==== "9C40"
     T ~ s.hiHexString    ==== "9C40"
     T ~ s.loHexString    ==== "9c40"
+    T ~ Array(s, s).copy   =**= Array(s, s)
+    T ~ Array(s, s).copy   ==== typed[Array[UShort]]
 
     val h = UInt(0x22000070)
     val i = UInt(0xA0000000)
@@ -2284,6 +2288,8 @@ class MathTest {
     T ~ i.hexString            ==== "A0000000"
     T ~ i.hiHexString          ==== "A0000000"
     T ~ i.loHexString          ==== "a0000000"
+    T ~ Array(i, i).copy   =**= Array(i, i)
+    T ~ Array(i, i).copy   ==== typed[Array[UInt]]
 
     val l = ULong(0xA2D03579B4E6FC81L)
     val k = ULong(3425191356L)
@@ -2449,6 +2455,8 @@ class MathTest {
     T ~ l.hexString     ==== "A2D03579B4E6FC81"
     T ~ l.hiHexString   ==== "A2D03579B4E6FC81"
     T ~ l.loHexString   ==== "a2d03579b4e6fc81"
+    T ~ Array(l, l).copy   =**= Array(l, l)
+    T ~ Array(l, l).copy   ==== typed[Array[ULong]]
 
 
   @Test

@@ -45,7 +45,9 @@ trait NewType[A] {
   /** Because this is only for boxing-style newtypes, have a direct method too */
   inline def apply(a: A): Type = a
 
-  /** Get the value from the newtype--this is the ONLY way to interact with it */
+  /** Get the value from the newtype--this is the only way to interact with it
+    * because the implementing object is in a different scope than the type.
+    */
   extension (t: Type)
     inline def unwrap: A = t
     inline def value: A = t
@@ -53,7 +55,7 @@ trait NewType[A] {
   /** Defer to the wrapped type's CanEqual */
   given (using CanEqual[A, A]): CanEqual[Type, Type] = CanEqual.derived
 
-  /** Enable array copying via translucency */
+  /** Enable array copying etc. via translucency */
   given translucency: Translucent[Type, A] with {}
 }
 

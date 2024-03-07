@@ -127,7 +127,7 @@ Plus there are handy methods provided on tuples, wrappers to suppress printing o
 val a = Array(1, 2, 3, 4, 5)
 val b = a.select(_ % 2 == 1)  // Array(1, 3, 5)
 b(1 to End) = a  // b is now Array(1, 1, 2)
-b(End - 1) = 4   // b is now Arary(1, 4, 2)
+b(End - 1) = 4   // b is now Array(1, 4, 2)
 b.inject(a, 2)() // a is now Array(1, 2, 1, 4, 2)
 var n = 0
 a.peek()(n += _)

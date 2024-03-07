@@ -8,6 +8,8 @@ import java.lang.{Math => jm}
 
 import scala.annotation.targetName
 
+import kse.basics.Translucent
+
 
 object NumericConstants {
   // Common constants involving Pi or roots
@@ -1422,6 +1424,11 @@ object UByte {
     inline def loHexString = ToHexString.lo(b.signed)
     inline def hexString   = ToHexString.hi(b.signed)
   }
+
+  given Ordering[kse.maths.UByte] with
+    def compare(i: kse.maths.UByte, j: kse.maths.UByte): Int = java.lang.Integer.compare(i.signed & 0xFF, j.signed & 0xFF)
+
+  given Translucent[UByte, Byte] with {}
 }
 
 
@@ -1559,9 +1566,10 @@ object UShort {
     inline def hexString   = ToHexString.hi(i.signed)
   }
 
-  given Ordering[kse.maths.UShort] = new {
+  given Ordering[kse.maths.UShort] with
     def compare(i: kse.maths.UShort, j: kse.maths.UShort): Int = java.lang.Integer.compare(i.signed & 0xFFFF, j.signed & 0xFFFF)
-  }
+
+  given Translucent[UShort, Short] with {}
 }
 
 
@@ -1714,9 +1722,10 @@ object UInt {
     inline def hexString   = ToHexString.hi(i.signed)
   }
 
-  given Ordering[kse.maths.UInt] = new {
+  given Ordering[kse.maths.UInt] with
     def compare(i: kse.maths.UInt, j: kse.maths.UInt): Int = java.lang.Integer.compareUnsigned(i.signed, j.signed)
-  }
+
+  given Translucent[UInt, Int] with {}
 }
 
 
@@ -1901,9 +1910,10 @@ object ULong {
     inline def hexString   = ToHexString.hi(i.signed)
   }
 
-  given Ordering[kse.maths.ULong] = new {
+  given Ordering[kse.maths.ULong] with
     def compare(i: kse.maths.ULong, j: kse.maths.ULong): Int = java.lang.Long.compareUnsigned(i.signed, j.signed)
-  }
+  
+  given Translucent[ULong, Long] with {}
 }
 
 

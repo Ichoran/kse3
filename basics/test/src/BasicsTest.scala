@@ -18,66 +18,6 @@ import scala.util.boundary.break
 
 import sourcecode.{Line, given}
 
-import language.dynamics
-
-object SporarumTuple:
-  type LabelType = String & Singleton
-
-  // Named pair constructor
-  object P extends Dynamic:
-    transparent inline def applyDynamicNamed[LA <: LabelType, A, LB <: LabelType, B, T <: Tuple](inline s: "apply")(inline a: (LA, A), b: (LB, B)): Any =
-      (a._2, b._2).asInstanceOf[NamedPair[LA, A, LB, B]]
-
-  // Named sinleton constructor
-  object Q extends Dynamic:
-    transparent inline def applyDynamicNamed[LA <: LabelType, A, T](inline s: "apply")(inline a: (LA, A)): Any =
-      a._2.asInstanceOf[NamedSingleton[LA, A]]
-
-  opaque type NamedPair[LabelA <: LabelType, A, LabelB <: LabelType, B] <: Dynamic = (A, B) & Dynamic
-
-  extension [LabelA <: LabelType, A, LabelB <: LabelType, B](p: NamedPair[LabelA, A, LabelB, B])
-    transparent inline def selectDynamic(inline s: String) =
-      inline s match
-        case _ : LabelA => p._1
-        case _ : LabelB => p._2
-        case _ =>
-          compiletime.error("Field does not exist")
-
-  given [LabelA <: LabelType, A, LabelB <: LabelType, B]: Conversion[(A, B), NamedPair[LabelA, A, LabelB, B]] = identity
-
-
-  opaque type NamedSingleton[LabelA <: LabelType, A] <: Dynamic = A & Dynamic
-
-  extension [LabelA <: LabelType, A](p: NamedSingleton[LabelA, A])
-    transparent inline def selectDynamic(inline s: String) =
-      inline s match
-        case _ : LabelA => p.asInstanceOf[A]
-        case _ =>
-          compiletime.error("Field does not exist")
-
-  given [LabelA <: LabelType, A]: Conversion[A, NamedSingleton[LabelA, A]] = identity
-
-  type Person = NamedPair["age", Int, "name", String]
-
-  type Meter = NamedSingleton["meter", Double]
-
-  def testPair: Unit =
-    val john = P(age = 42, name = "John")
-
-    println(john.age)
-    println(john.name)
-
-    //john.address // error: Field does not exist
-
-
-    val bill: Person = (3, "Bill")
-
-    val john2: Person = john
-
-  def testSingle: Unit =
-    val height = Q(meter = 1.89)
-    println(height.meter)
-    val h2: Meter = height
 
 class BytecodeCheck {
   import kse.basics.{_, given}
@@ -88,21 +28,9 @@ class BytecodeCheck {
     import kse.basics.{given, _}
     s(2)
 
-  def dynamiclabel(s: String \ "tag"): String =
-    s().tag
-
   def mktag(d: Double): Double \ "meter" =
     import labels._
     d \ "meter"
-
-  def splabel(p: SporarumTuple.Person): String =
-    p.name
-
-  def sqlabel(m: SporarumTuple.Meter): Double =
-    m.meter
-
-  def mkq(d: Double): SporarumTuple.Meter =
-    SporarumTuple.Q(meter = d)  
 }
 
 @RunWith(classOf[JUnit4])
@@ -128,6 +56,8 @@ class BasicsTest() {
     T ~ m.toString         ==== "~2"
     T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
 
+    object Meter extends NewType[Double] {}
+
     T ~ Mu(())      .zap(_ => ())           .pipe(x => (x, x.copy.set(())))   .sameOp(_.value) ==== ((), ())
     T ~ Mu(true)    .zap(z => !z)           .pipe(x => (x, x.copy.set(true))) .sameOp(_.value) ==== (false, true)
     T ~ Mu(1: Byte ).zap(b => (b+1).toByte) .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
@@ -138,7 +68,8 @@ class BasicsTest() {
     T ~ Mu(1f)      .zap(_ + 1f)            .pipe(x => (x, x.copy.set(4f)))   .sameOp(_.value) ==== (2f, 4f)             --: typed[(Float, Float)]
     T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.set(4.0)))  .sameOp(_.value) ==== (2.0, 4.0)           --: typed[(Double, Double)]
     T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.set("eel"))).sameOp(_.value) ==== ("cod!", "eel")      --: typed[(String, String)]
-
+    T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.set(Meter(3)))).sameOp(_.value) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
+    T ~ Mu.T(Meter(2.0)).getClass ==== Mu.MuDouble(2.0).getClass
 
     inline def gm[A](a: A): Mu[A] = inline a match
       case _: Unit    => Mu.MuUnit.asInstanceOf[Mu[A]]
@@ -180,7 +111,6 @@ class BasicsTest() {
     T ~ Anon(gm(7.0).specific)      ==== typed[Anon[Mu.MuDouble]]
     T ~ Anon(Mu("cod"))             ==== typed[Anon[Mu[String]]]
     T ~ Anon(gm("cod"))             ==== typed[Anon[Mu[String]]]
-    T ~ Anon(gm("cod").specific)    ==== typed[Anon[Mu[String]]]
 
     T ~ Anon("secret!").toString ==== "..."
     T ~ Anon("secret!").##       ==== 1239182
@@ -258,6 +188,8 @@ class BasicsTest() {
 
     T ~ (1 to End)                                 ==== typed[PIv]
     T ~ Iv.of(3 to 4)                              ==== Iv(3, 5)
+    T ~ Iv.of("salmon")                            ==== Iv(0, 6)
+    T ~ Iv.of(Array(1, 2, 3, 4))                   ==== Iv(0, 4)
     T ~ (1 to End-1).of(Array(1, 2, 3, 4))         ==== Iv(1, 3)  --: typed[Iv]
     T ~ (1 to End-1).of("abcd")                    ==== Iv(1, 3)  --: typed[Iv]
     T ~ Iv(3, 5).where()                           =**= Array(3, 4)
@@ -266,6 +198,12 @@ class BasicsTest() {
     T ~ (1 to End-1).of("abcd").where()            =**= Array(1, 2)
 
     T ~ n{ Iv(3, 5).visit(cuml += _) }             ==== 7
+    T ~ Iv(3, 5).i0                                ==== 3
+    T ~ Iv(3, 5).iN                                ==== 5
+    T ~ Iv(3, 5).i0To(1)                           ==== Iv(1, 5)
+    T ~ Iv(3, 5).iNTo(7)                           ==== Iv(3, 7)
+    T ~ Iv(3, 5).i0Op(_ + 1)                       ==== Iv(4, 5)
+    T ~ Iv(3, 5).iNOp(_ - 1)                       ==== Iv(3, 4)
     T ~ Iv(3, 5).length                            ==== 2
     T ~ Iv(3, -2).length                           ==== 0
     T ~ Iv(3, 5).isEmpty                           ==== false

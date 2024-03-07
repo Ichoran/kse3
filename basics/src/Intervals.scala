@@ -15,22 +15,34 @@ object Iv extends Translucent.Companion[Iv, Long] {
 
   inline def wrap(l: Long): Iv = l
 
-  inline def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
+  inline infix def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
 
-  inline def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, a: Array[A]): Iv =
+  inline infix def of(s: String): Iv = apply(0, s.length)
+
+  inline infix def of[A](a: Array[A]): Iv = apply(0, a.length)
+
+  inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, a: Array[A]): Iv =
     inline v match
       case piv: kse.basics.intervals.PIv => piv of a
       case siv: kse.basics.intervals.Iv  => siv  
 
-  inline def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, s: String): Iv =
+  inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, s: String): Iv =
     inline v match
       case piv: kse.basics.intervals.PIv => piv of s
-      case siv: kse.basics.intervals.Iv  => siv  
+      case siv: kse.basics.intervals.Iv  => siv
 
   extension (iv: Iv)
     inline def unwrap: Long = iv
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
     inline def iN: Int = (iv >>> 32).toInt
+    inline def i0To(i: Int): Iv =
+      (i & 0xFFFFFFFFL) | ((iv: Long) & 0xFFFFFFFF00000000L)
+    inline def iNTo(i: Int): Iv =
+      ((iv: Long) & 0xFFFFFFFFL) | (i.toLong << 32)
+    inline def i0Op(inline f: Int => Int): Iv =
+      (f(((iv: Long) & 0xFFFFFFFFL).toInt) & 0xFFFFFFFFL) | ((iv: Long) & 0xFFFFFFFF00000000L)
+    inline def iNOp(inline f: Int => Int): Iv =
+      ((iv: Long) & 0xFFFFFFFFL) | (f(((iv: Long) >>> 32).toInt).toLong << 32)
     inline def length: Int =
       val i = i0
       val j = iN

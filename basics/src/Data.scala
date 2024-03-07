@@ -4,6 +4,7 @@
 package kse.basics
 
 import scala.annotation.targetName
+import scala.compiletime.{erasedValue, summonFrom}
 import scala.reflect.ClassTag
 import scala.util.boundary
 
@@ -213,10 +214,10 @@ object FromLengthIdx {
 
     inline def +(i: Int): kse.basics.FromLengthIdx = (idx: Int) + i
     inline def -(i: Int): kse.basics.FromLengthIdx = (idx: Int) - i
-    inline def of[A](a: Array[A]): Int =
+    inline infix def of[A](a: Array[A]): Int =
       val i: Int = idx
       if i < 0 then a.length + i else i
-    inline def of(a: String): Int =
+    inline infix def of(a: String): Int =
       val i: Int = idx
       if i < 0 then a.length + i else i
     inline def asEndpointOf[A](a: Array[A]): Int =
@@ -229,14 +230,14 @@ object FromLengthIdx {
       if i >= 0 && n < 0 then Int.MaxValue else n
 
     @targetName("toLiteral")
-    def to(j: Int): PIv =
+    infix def to(j: Int): PIv =
       val i = (idx: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
       if j < 0  then throw new IllegalArgumentException(s"Cannot index ending at $j")
       PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     @targetName("toFromLengthIdx")
-    def to(e: kse.basics.FromLengthIdx): PIv =
+    infix def to(e: kse.basics.FromLengthIdx): PIv =
       val i = (idx: Int)
       val j = (e: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
@@ -244,7 +245,7 @@ object FromLengthIdx {
       PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     @targetName("toEnd")
-    def to(end: End.type): PIv =
+    infix def to(end: End.type): PIv =
       val i = (idx: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
       PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
@@ -253,16 +254,16 @@ object FromLengthIdx {
 object End {
   inline def -(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1-i) 
   inline def +(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1+i)
-  inline def of[A](a: Array[A]): Int = a.length - 1
+  inline infix def of[A](a: Array[A]): Int = a.length - 1
 
   @targetName("toLiteral")
-  inline def to(j: Int): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(j)
+  inline infix def to(j: Int): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(j)
 
   @targetName("toFromLengthIdx")
-  inline def to(e: kse.basics.FromLengthIdx): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(e)
+  inline infix def to(e: kse.basics.FromLengthIdx): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(e)
 
   @targetName("toEnd")
-  inline def to(end: End.type): PIv = PIv.wrap(-1L)
+  inline infix def to(end: End.type): PIv = PIv.wrap(-1L)
 }
 
 extension (i: Int){
@@ -4752,66 +4753,400 @@ object ShortClipString {
 
 /** Holds mutable data (would be better if standard library exposed this!) */
 sealed abstract class Mu[A] {
-  inline def apply(): A = value
-  def value: A
-  def value_=(a: A): Unit
-  def set(a: A): this.type = { value = a; this }
-  inline final def zap(inline f: A => A): this.type = { value = f(value); this }
-  inline final def use(inline f: A => Unit): this.type = { f(value); this }
+  def getValue: A
+  def setValue(a: A): Unit
   def copy: Mu[A]
-  override def toString = s"~$value"
-  override def hashCode = value.##
+  override def toString = s"~$getValue"
+  override def hashCode = getValue.##
   override def equals(a: Any) = a match
-    case m: Mu[?] => m.value.asInstanceOf[Any] == value
+    case m: Mu[?] => m.getValue.asInstanceOf[Any] == getValue
     case _ => false
 }
 object Mu {
-  object      MuUnit                   extends Mu[Unit]    { def copy: MuUnit.type = this               ; def value: Unit = (); def value_=(u: Unit): Unit = () }
-  final class MuBoolean(init: Boolean) extends Mu[Boolean] { def copy: MuBoolean = new MuBoolean(value) ; var value = init }
-  final class MuByte   (init: Byte)    extends Mu[Byte]    { def copy: MuByte    = new MuByte(value)    ; var value = init }
-  final class MuShort  (init: Short)   extends Mu[Short]   { def copy: MuShort   = new MuShort(value)   ; var value = init }
-  final class MuChar   (init: Char)    extends Mu[Char]    { def copy: MuChar    = new MuChar(value)    ; var value = init }
-  final class MuInt    (init: Int)     extends Mu[Int]     { def copy: MuInt     = new MuInt(value)     ; var value = init }
-  final class MuLong   (init: Long)    extends Mu[Long]    { def copy: MuLong    = new MuLong(value)    ; var value = init }
-  final class MuFloat  (init: Float)   extends Mu[Float]   { def copy: MuFloat   = new MuFloat(value)   ; var value = init }
-  final class MuDouble (init: Double)  extends Mu[Double]  { def copy: MuDouble  = new MuDouble(value)  ; var value = init }
-  final class MuAny[A] (init: A)       extends Mu[A]       { def copy: MuAny[A]  = new MuAny[A](value)  ; var value = init }
-  def apply(u: Unit):    MuUnit.type = MuUnit
-  def apply(z: Boolean): MuBoolean   = new MuBoolean(z)
-  def apply(b: Byte):    MuByte      = new MuByte(b)
-  def apply(s: Short):   MuShort     = new MuShort(s)
-  def apply(c: Char):    MuChar      = new MuChar(c)
-  def apply(i: Int):     MuInt       = new MuInt(i)
-  def apply(l: Long):    MuLong      = new MuLong(l)
-  def apply(f: Float):   MuFloat     = new MuFloat(f)
-  def apply(d: Double):  MuDouble    = new MuDouble(d)
-  def apply[A](a: A):    Mu[A]       = new MuAny(a)
+  type Primitive = Unit | Boolean | Byte | Short | Char | Int | Long | Float | Double
+
+  sealed abstract class T[A] extends Mu[A] {
+    override def copy: T[A]
+  }
+  object T {
+    inline def apply[X <: Primitive](x: X): T[X] = inline x match
+      case u: Unit    => MuUnit.asInstanceOf[T[X]]
+      case z: Boolean => (new MuBoolean(z)).asInstanceOf[T[X]]
+      case b: Byte    => (new MuByte(b)).asInstanceOf[T[X]]
+      case s: Short   => (new MuShort(s)).asInstanceOf[T[X]]
+      case c: Char    => (new MuChar(c)).asInstanceOf[T[X]]
+      case i: Int     => (new MuInt(i)).asInstanceOf[T[X]]
+      case l: Long    => (new MuLong(l)).asInstanceOf[T[X]]
+      case f: Float   => (new MuFloat(f)).asInstanceOf[T[X]]
+      case d: Double  => (new MuDouble(d)).asInstanceOf[T[X]]
+
+    inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): T[A] = summonFrom {
+      case t: Translucent[A, Unit]    => MuUnit.asInstanceOf[T[A]]
+      case t: Translucent[A, Boolean] => MuBoolean(t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Byte]    => MuByte(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Short]   => MuShort(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Char]    => MuChar(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Int]     => MuInt(    t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Long]    => MuLong(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Float]   => MuFloat(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent[A, Double]  => MuDouble( t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    }
+
+    given [A]: Copies[T[A]] with
+      def copy(m: T[A]): T[A] = m.copy
+  }
+
+  type Specialized[X <: Primitive] = X match
+    case Unit    => MuUnit.type
+    case Boolean => MuBoolean
+    case Byte    => MuByte
+    case Short   => MuShort
+    case Char    => MuChar
+    case Int     => MuInt
+    case Long    => MuLong
+    case Float   => MuFloat
+    case Double  => MuDouble
+
+  object      MuUnit                   extends  T[Unit]    { def copy: MuUnit.type = this                 ;                      def getValue = ()      ; def setValue(a: Unit   ): Unit = () }
+  final class MuBoolean(init: Boolean) extends  T[Boolean] { def copy: MuBoolean = new MuBoolean(myValue) ; var myValue = init ; def getValue = myValue ; def setValue(a: Boolean): Unit = { myValue = a} }
+  final class MuByte   (init: Byte)    extends  T[Byte]    { def copy: MuByte    = new MuByte(myValue)    ; var myValue = init ; def getValue = myValue ; def setValue(a: Byte   ): Unit = { myValue = a} }
+  final class MuShort  (init: Short)   extends  T[Short]   { def copy: MuShort   = new MuShort(myValue)   ; var myValue = init ; def getValue = myValue ; def setValue(a: Short  ): Unit = { myValue = a} }
+  final class MuChar   (init: Char)    extends  T[Char]    { def copy: MuChar    = new MuChar(myValue)    ; var myValue = init ; def getValue = myValue ; def setValue(a: Char   ): Unit = { myValue = a} }
+  final class MuInt    (init: Int)     extends  T[Int]     { def copy: MuInt     = new MuInt(myValue)     ; var myValue = init ; def getValue = myValue ; def setValue(a: Int    ): Unit = { myValue = a} }
+  final class MuLong   (init: Long)    extends  T[Long]    { def copy: MuLong    = new MuLong(myValue)    ; var myValue = init ; def getValue = myValue ; def setValue(a: Long   ): Unit = { myValue = a} }
+  final class MuFloat  (init: Float)   extends  T[Float]   { def copy: MuFloat   = new MuFloat(myValue)   ; var myValue = init ; def getValue = myValue ; def setValue(a: Float  ): Unit = { myValue = a} }
+  final class MuDouble (init: Double)  extends  T[Double]  { def copy: MuDouble  = new MuDouble(myValue)  ; var myValue = init ; def getValue = myValue ; def setValue(a: Double ): Unit = { myValue = a} }
+  final class MuAny[A] (init: A)       extends Mu[A]       { def copy: MuAny[A]  = new MuAny[A](myValue)  ; var myValue = init ; def getValue = myValue ; def setValue(a: A      ): Unit = { myValue = a} }
+
+  transparent inline def apply[X <: Primitive](x: X): Specialized[X] = inline x match
+    case u: Unit    => MuUnit
+    case z: Boolean => new MuBoolean(z)
+    case b: Byte    => new MuByte(b)
+    case s: Short   => new MuShort(s)
+    case c: Char    => new MuChar(c)
+    case i: Int     => new MuInt(i)
+    case l: Long    => new MuLong(l)
+    case f: Float   => new MuFloat(f)
+    case d: Double  => new MuDouble(d)
+
+  transparent inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): Mu[A] = summonFrom {
+    case t: Translucent[A, Unit]    => MuUnit.asInstanceOf[T[A]]
+    case t: Translucent[A, Boolean] => MuBoolean(t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Byte]    => MuByte(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Short]   => MuShort(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Char]    => MuChar(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Int]     => MuInt(    t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Long]    => MuLong(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Float]   => MuFloat(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent[A, Double]  => MuDouble( t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case _                          => new MuAny(a)
+  }
 
   given [A]: Copies[Mu[A]] with
     def copy(m: Mu[A]): Mu[A] = m.copy
 }
 
-extension [A, M <: Mu[A]](mu: M)
-  transparent inline def specific: Any = inline mu match
-    case mz: Mu.MuBoolean => mz
-    case mb: Mu.MuByte    => mb
-    case ms: Mu.MuShort   => ms
-    case mc: Mu.MuChar    => mc
-    case mi: Mu.MuInt     => mi
-    case ml: Mu.MuLong    => ml
-    case mf: Mu.MuFloat   => mf
-    case md: Mu.MuDouble  => md
-    case mv: Mu[Unit]     => Mu.MuUnit
-    case miq: Mu[Boolean]  => miq match { case mi: Mu.MuBoolean => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Byte   ]  => miq match { case mi: Mu.MuByte    => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Short  ]  => miq match { case mi: Mu.MuShort   => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Char   ]  => miq match { case mi: Mu.MuChar    => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Int    ]  => miq match { case mi: Mu.MuInt     => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Long   ]  => miq match { case mi: Mu.MuLong    => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Float  ]  => miq match { case mi: Mu.MuFloat   => mi; case _ => Mu(miq.value) }
-    case miq: Mu[Double ]  => miq match { case mi: Mu.MuDouble  => mi; case _ => Mu(miq.value) }
-    case _ => mu
+extension [A, M <: Mu[A]](mu: M) {
+  inline def value: A = inline mu match
+    case mut: Mu.T[A] => inline mut match
+      case u: Mu.MuUnit.type => ()
+      case u: Mu.T[Unit]     => ()
+      case z: Mu.MuBoolean   => z.myValue
+      case z: Mu.T[Boolean]  => z.asInstanceOf[Mu.MuBoolean].myValue
+      case b: Mu.MuByte      => b.myValue
+      case b: Mu.T[Byte]     => b.asInstanceOf[Mu.MuByte].myValue
+      case s: Mu.MuShort     => s.myValue
+      case s: Mu.T[Short]    => s.asInstanceOf[Mu.MuShort].myValue
+      case c: Mu.MuChar      => c.myValue
+      case c: Mu.T[Char]     => c.asInstanceOf[Mu.MuChar].myValue
+      case i: Mu.MuInt       => i.myValue
+      case i: Mu.T[Int]      => i.asInstanceOf[Mu.MuInt].myValue
+      case l: Mu.MuLong      => l.myValue
+      case l: Mu.T[Long]     => l.asInstanceOf[Mu.MuLong].myValue
+      case f: Mu.MuFloat     => f.myValue
+      case f: Mu.T[Float]    => f.asInstanceOf[Mu.MuFloat].myValue
+      case d: Mu.MuDouble    => d.myValue
+      case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue
+      case _                 => summonFrom {
+        case t: Translucent[A, Unit]    => t.inlineUncheckedIntoOpaque(())
+        case t: Translucent[A, Boolean] => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuBoolean].myValue)
+        case t: Translucent[A, Byte]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuByte   ].myValue)
+        case t: Translucent[A, Short]   => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuShort  ].myValue)
+        case t: Translucent[A, Char]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuChar   ].myValue)
+        case t: Translucent[A, Int]     => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuInt    ].myValue)
+        case t: Translucent[A, Long]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuLong   ].myValue)
+        case t: Translucent[A, Float]   => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuFloat  ].myValue)
+        case t: Translucent[A, Double]  => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuDouble ].myValue)
+      }
+    case _ => inline erasedValue[A] match
+      case _: Unit    => ().asInstanceOf[A]
+      case _: Boolean => mu match
+        case z: Mu.MuBoolean => z.myValue
+        case _               => mu.getValue
+      case _: Byte    => mu match
+        case b: Mu.MuByte    => b.myValue
+        case _               => mu.getValue
+      case _: Short   => mu match
+        case s: Mu.MuShort   => s.myValue
+        case _               => mu.getValue
+      case _: Char    => mu match
+        case c: Mu.MuChar    => c.myValue
+        case _               => mu.getValue
+      case _: Int     => mu match
+        case i: Mu.MuInt     => i.myValue
+        case _               => mu.getValue
+      case _: Long    => mu match
+        case l: Mu.MuLong    => l.myValue
+        case _               => mu.getValue
+      case _: Float   => mu match
+        case f: Mu.MuFloat   => f.myValue
+        case _               => mu.getValue
+      case _: Double  => mu match
+        case d: Mu.MuDouble  => d.myValue
+        case _               => mu.getValue
+      case _ => summonFrom {
+        case t: Translucent[A, Unit]    => t.inlineUncheckedIntoOpaque(())
+        case t: Translucent[A, Boolean] => mu match
+          case z: Mu.MuBoolean => t.inlineUncheckedIntoOpaque(z.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Byte]    => mu match
+          case b: Mu.MuByte    => t.inlineUncheckedIntoOpaque(b.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Short]   => mu match
+          case s: Mu.MuShort   => t.inlineUncheckedIntoOpaque(s.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Char]    => mu match
+          case c: Mu.MuChar    => t.inlineUncheckedIntoOpaque(c.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Int]     => mu match
+          case i: Mu.MuInt     => t.inlineUncheckedIntoOpaque(i.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Long]    => mu match
+          case l: Mu.MuLong    => t.inlineUncheckedIntoOpaque(l.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Float]   => mu match
+          case f: Mu.MuFloat   => t.inlineUncheckedIntoOpaque(f.myValue)
+          case _               => mu.getValue
+        case t: Translucent[A, Double]  => mu match
+          case d: Mu.MuDouble  => t.inlineUncheckedIntoOpaque(d.myValue)
+          case _               => mu.getValue
+        case _ => mu.getValue
+      }
 
+  inline def value_=(a: A): Unit = inline mu match
+    case mut: Mu.T[A] => inline mut match
+      case u: Mu.MuUnit.type => ()
+      case u: Mu.T[Unit]     => ()
+      case z: Mu.MuBoolean   => z.myValue = a
+      case z: Mu.T[Boolean]  => z.asInstanceOf[Mu.MuBoolean].myValue = a
+      case b: Mu.MuByte      => b.myValue = a
+      case b: Mu.T[Byte]     => b.asInstanceOf[Mu.MuByte].myValue = a
+      case s: Mu.MuShort     => s.myValue = a
+      case s: Mu.T[Short]    => s.asInstanceOf[Mu.MuShort].myValue = a
+      case c: Mu.MuChar      => c.myValue = a
+      case c: Mu.T[Char]     => c.asInstanceOf[Mu.MuChar].myValue = a
+      case i: Mu.MuInt       => i.myValue = a
+      case i: Mu.T[Int]      => i.asInstanceOf[Mu.MuInt].myValue = a
+      case l: Mu.MuLong      => l.myValue = a
+      case l: Mu.T[Long]     => l.asInstanceOf[Mu.MuLong].myValue = a
+      case f: Mu.MuFloat     => f.myValue = a
+      case f: Mu.T[Float]    => f.asInstanceOf[Mu.MuFloat].myValue = a
+      case d: Mu.MuDouble    => d.myValue = a
+      case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue = a
+      case _                 => summonFrom {
+        case t: Translucent[A, Unit]    => ()
+        case t: Translucent[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.inlineFromOpaque(a)
+      }
+    case _ => inline erasedValue[A] match
+      case _: Unit    => ()
+      case _: Boolean => mu match
+        case z: Mu.MuBoolean => z.myValue = a
+        case _               => mu.setValue(a)
+      case _: Byte    => mu match
+        case b: Mu.MuByte    => b.myValue = a
+        case _               => mu.setValue(a)
+      case _: Short   => mu match
+        case s: Mu.MuShort   => s.myValue = a
+        case _               => mu.setValue(a)
+      case _: Char    => mu match
+        case c: Mu.MuChar    => c.myValue = a
+        case _               => mu.setValue(a)
+      case _: Int     => mu match
+        case i: Mu.MuInt     => i.myValue = a
+        case _               => mu.setValue(a)
+      case _: Long    => mu match
+        case l: Mu.MuLong    => l.myValue = a
+        case _               => mu.setValue(a)
+      case _: Float   => mu match
+        case f: Mu.MuFloat   => f.myValue = a
+        case _               => mu.setValue(a)
+      case _: Double  => mu match
+        case d: Mu.MuDouble  => d.myValue = a
+        case _               => mu.setValue(a)
+      case _ => summonFrom {
+        case t: Translucent[A, Unit]    => ()
+        case t: Translucent[A, Boolean] => mu match
+          case z: Mu.MuBoolean => z.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Byte]    => mu match
+          case b: Mu.MuByte    => b.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Short]   => mu match
+          case s: Mu.MuShort   => s.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Char]    => mu match
+          case c: Mu.MuChar    => c.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Int]     => mu match
+          case i: Mu.MuInt     => i.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Long]    => mu match
+          case l: Mu.MuLong    => l.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Float]   => mu match
+          case f: Mu.MuFloat   => f.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case t: Translucent[A, Double]  => mu match
+          case d: Mu.MuDouble  => d.myValue = t.inlineFromOpaque(a)
+          case _               => mu.setValue(a)
+        case _ => mu.setValue(a)
+      }
+
+  inline def apply(): A =
+    mu.value
+
+  inline def set(a: A): mu.type =
+    mu.value = a
+    mu
+
+  inline def use(inline f: A => Unit): mu.type =
+    f(mu.value)
+    mu
+
+  inline def zap(inline f: A => A): mu.type = 
+    inline mu match
+      case mut: Mu.T[A] => inline mut match
+        case u: Mu.MuUnit.type => ()
+        case u: Mu.T[Unit]     => ()
+        case z: Mu.MuBoolean   => z.myValue = f(z.myValue)
+        case z: Mu.T[Boolean]  => z.asInstanceOf[Mu.MuBoolean].myValue = f(z.asInstanceOf[Mu.MuBoolean].myValue)
+        case b: Mu.MuByte      => b.myValue = f(b.myValue)
+        case b: Mu.T[Byte]     => b.asInstanceOf[Mu.MuByte].myValue = f(b.asInstanceOf[Mu.MuByte].myValue)
+        case s: Mu.MuShort     => s.myValue = f(s.myValue)
+        case s: Mu.T[Short]    => s.asInstanceOf[Mu.MuShort].myValue = f(s.asInstanceOf[Mu.MuShort].myValue)
+        case c: Mu.MuChar      => c.myValue = f(c.myValue)
+        case c: Mu.T[Char]     => c.asInstanceOf[Mu.MuChar].myValue = f(c.asInstanceOf[Mu.MuChar].myValue)
+        case i: Mu.MuInt       => i.myValue = f(i.myValue)
+        case i: Mu.T[Int]      => i.asInstanceOf[Mu.MuInt].myValue = f(i.asInstanceOf[Mu.MuInt].myValue)
+        case l: Mu.MuLong      => l.myValue = f(l.myValue)
+        case l: Mu.T[Long]     => l.asInstanceOf[Mu.MuLong].myValue = f(l.asInstanceOf[Mu.MuLong].myValue)
+        case x: Mu.MuFloat     => x.myValue = f(x.myValue)
+        case x: Mu.T[Float]    => x.asInstanceOf[Mu.MuFloat].myValue = f(x.asInstanceOf[Mu.MuFloat].myValue)
+        case d: Mu.MuDouble    => d.myValue = f(d.myValue)
+        case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue = f(d.asInstanceOf[Mu.MuDouble].myValue)
+        case _                 => summonFrom {
+          case t: Translucent[A, Unit]    => ()
+          case t: Translucent[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuBoolean].myValue)))
+          case t: Translucent[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuByte   ].myValue)))
+          case t: Translucent[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuShort  ].myValue)))
+          case t: Translucent[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuChar   ].myValue)))
+          case t: Translucent[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuInt    ].myValue)))
+          case t: Translucent[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuLong   ].myValue)))
+          case t: Translucent[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuFloat  ].myValue)))
+          case t: Translucent[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuDouble ].myValue)))
+        }
+      case _ => inline erasedValue[A] match
+        case _: Unit    => ()
+        case _: Boolean => mu match
+          case z: Mu.MuBoolean => z.myValue = f(z.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Byte    => mu match
+          case b: Mu.MuByte    => b.myValue = f(b.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Short   => mu match
+          case s: Mu.MuShort   => s.myValue = f(s.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Char    => mu match
+          case c: Mu.MuChar    => c.myValue = f(c.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Int     => mu match
+          case i: Mu.MuInt     => i.myValue = f(i.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Long    => mu match
+          case l: Mu.MuLong    => l.myValue = f(l.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Float   => mu match
+          case x: Mu.MuFloat   => x.myValue = f(x.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _: Double  => mu match
+          case d: Mu.MuDouble  => d.myValue = f(d.myValue)
+          case _               => mu.setValue(f(mu.getValue))
+        case _ => summonFrom {
+          case t: Translucent[A, Unit]    => ()
+          case t: Translucent[A, Boolean] => mu match
+            case z: Mu.MuBoolean => z.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(z.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Byte]    => mu match
+            case b: Mu.MuByte    => b.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(b.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Short]   => mu match
+            case s: Mu.MuShort   => s.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(s.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Char]    => mu match
+            case c: Mu.MuChar    => c.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(c.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Int]     => mu match
+            case i: Mu.MuInt     => i.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(i.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Long]    => mu match
+            case l: Mu.MuLong    => l.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(l.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Float]   => mu match
+            case x: Mu.MuFloat   => x.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(x.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent[A, Double]  => mu match
+            case d: Mu.MuDouble  => d.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(d.myValue)))
+            case _               => mu.setValue(f(mu.getValue))
+          case _ => mu.setValue(f(mu.getValue))
+        }
+      mu
+}
+
+extension [A <: Mu.Primitive, M <: Mu[A]](mu: M) {
+  inline def specific: Mu.Specialized[A] = inline erasedValue[A] match
+    case _: Unit    => Mu.MuUnit
+    case _: Boolean => mu match
+      case z: Mu.MuBoolean => z
+      case _               => new Mu.MuBoolean(mu.asInstanceOf[Mu[Boolean]].getValue)
+    case _: Byte    => mu match
+      case b: Mu.MuByte    => b
+      case _               => new Mu.MuByte(   mu.asInstanceOf[Mu[Byte   ]].getValue)
+    case _: Short   => mu match
+      case s: Mu.MuShort   => s
+      case _               => new Mu.MuShort(  mu.asInstanceOf[Mu[Short  ]].getValue)
+    case _: Char    => mu match
+      case c: Mu.MuChar    => c
+      case _               => new Mu.MuChar(   mu.asInstanceOf[Mu[Char   ]].getValue)
+    case _: Int     => mu match
+      case i: Mu.MuInt     => i
+      case _               => new Mu.MuInt(    mu.asInstanceOf[Mu[Int    ]].getValue)
+    case _: Long    => mu match
+      case l: Mu.MuLong    => l
+      case _               => new Mu.MuLong(   mu.asInstanceOf[Mu[Long   ]].getValue)
+    case _: Float   => mu match
+      case x: Mu.MuFloat   => x
+      case _               => new Mu.MuFloat(  mu.asInstanceOf[Mu[Float  ]].getValue)
+    case _: Double  => mu match
+      case d: Mu.MuDouble  => d
+      case _               => new Mu.MuDouble( mu.asInstanceOf[Mu[Double ]].getValue)
+}
 
 
 /** Hides data from case classes, etc.
