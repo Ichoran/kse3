@@ -828,6 +828,25 @@ extends SeekableByteChannel {
         position(p)
       limit = p
     this
+
+  def unsafeDirectBufferAccess: RotatingBuffer[Byte] = new RotatingBuffer[Byte] {
+    private var i = 0
+    private var consumed = 0L
+    private val storageAtCreation = storage
+    private val limitAtCreation = limit
+    def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
+      if consumed >= limitAtCreation then
+        interval.value = Iv(0, 0)
+        buffer.value = Alt.unit
+      else
+        val a = storage(i)
+        val iv = if limitAtCreation - consumed < a.length then Iv(0, (limitAtCreation - consumed).toInt) else Iv.of(a)
+        consumed += iv.length
+        interval.value = iv
+        buffer.value = Is(a)
+    override def recycling: Boolean = false
+  }
+
   def readTo[T](target: T, start: Int)(count: Int)(using transfer: CountedTransfer[Array[Byte], T]): Int =
     if count <= 0 then 0
     else
@@ -1116,7 +1135,6 @@ final class ByteBufferOutputStream(val buffer: ByteBuffer) extends OutputStream 
 }
 
 final class ByteBufferInputStream(val buffer: ByteBuffer) extends InputStream {
-  buffer.flip
   private var isNowOpen = true
   private def checkOpen(): Unit = if !isNowOpen then throw new IOException("InputStream is closed")
 
@@ -1137,11 +1155,12 @@ final class ByteBufferInputStream(val buffer: ByteBuffer) extends InputStream {
     if len <= 0 then 0
     else
       checkOpen()
-      if buffer.remaining < len then
-        val n = buffer.remaining
-        if n == 0 then throw new BufferUnderflowException()
-        buffer.get(b, offset, n)
-        n
+      val n = buffer.remaining
+      if n < len then
+        if n == 0 then -1
+        else
+          buffer.get(b, offset, n)
+          n
       else
         buffer.get(b, offset, len)
         len
@@ -1298,9 +1317,39 @@ final class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends
         n
 }
 
+final class SeekableByteChannelRotatingBuffer(val sbc: SeekableByteChannel, bufferSize: Int = 16384) extends RotatingBuffer[Byte] {
+  private var consumed = 0L
+  private var totalSize = sbc.size - sbc.position
+  def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
+    val remaining = totalSize - consumed
+    if remaining <= 0 || !sbc.isOpen then
+      interval.value = Iv(0, 0)
+      buffer.value = Alt.unit
+    else
+      val b = buffer.value.
+        flatMap(buf => if buf.length >= 1024 || buf.length >= remaining then Is(buf) else Alt.unit).
+        getOrElse{ _ =>
+          var n = math.min(bufferSize, Int.MaxValue - 7)
+          if remaining <= n then n = remaining.toInt
+          else if (remaining + 7)/2 < n then n = ((remaining + 7)/2).toInt
+          new Array[Byte](n)        
+        }
+      val k = sbc.read(ByteBuffer wrap b)
+      if k < 0 then
+        totalSize = consumed
+        interval.value = Iv(0, 0)
+        buffer.value = Alt.unit
+      else
+        consumed += k
+        interval.value = Iv(0, k)
+        buffer.value = Is(b)
+}
+
 extension (sbc: SeekableByteChannel)
   inline def output = new SeekableByteChannelOutputStream(sbc)
   inline def input = new SeekableByteChannelInputStream(sbc)
+  inline def rotating() = new SeekableByteChannelRotatingBuffer(sbc, 16384)
+  inline def rotating(bufferSize: Int) = new SeekableByteChannelRotatingBuffer(sbc, bufferSize)
 
 
 final class InputStreamByteChannel(input: InputStream) extends ReadableByteChannel {
@@ -1332,5 +1381,37 @@ final class InputStreamByteChannel(input: InputStream) extends ReadableByteChann
         n
 }
 
+final class InputStreamRotatingBuffer(input: InputStream, bufferSize: Int = 16384) extends RotatingBuffer[Byte] {
+  private var completed = false
+  private var believeAvailable = true
+  def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
+    if completed then
+      interval.value = Iv(0, 0)
+      buffer.value = Alt.unit
+    else
+      val av =
+        if believeAvailable then
+          believeAvailable = false
+          input.available()
+        else 0
+      val b = buffer.value.
+        flatMap(buf => if buf.length >= 1024 || (av > 0 && buf.length >= av) then Is(buf) else Alt.unit).
+        getOrElse{ _ =>
+          var n = math.min(bufferSize, Int.MaxValue - 7)
+          if av > 0 && av < n then n = av.toInt
+          new Array[Byte](n)
+        }
+      val k = input.read(b)
+      if k < 0 then
+        completed = true
+        interval.value = Iv(0, 0)
+        buffer.value = Alt.unit
+      else
+        interval.value = Iv(0, k)
+        buffer.value = Is(b)
+}
+
 extension (is: InputStream)
   inline def channel = new InputStreamByteChannel(is)
+  inline def rotating() = new InputStreamRotatingBuffer(is, 16384)
+  inline def rotating(bufferSize: Int) = new InputStreamRotatingBuffer(is, bufferSize)

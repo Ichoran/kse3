@@ -3,6 +3,10 @@
 
 package kse.flow
 
+import scala.reflect.ClassTag
+
+import kse.basics._
+import kse.basics.intervals._
 
 //////////////////////////////////////////////////////////////
 /// Methods for dealing with errors and Ors in collections ///
@@ -87,3 +91,97 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
     while i.hasNext do
       b += f(i.next).?
     b.result()
+
+
+//////////////////////////////////////////////////
+/// Interface for traversing internal buffers  ///
+//////////////////////////////////////////////////
+
+trait RotatingBuffer[A] {
+  def rotate(buffer: Mu[Array[A] Or Unit], interval: Mu.T[Iv]): Unit
+  def recycling: Boolean = true
+  final def asIterator: Iterator[(Array[A], Iv)] = RotatingBuffer.AsIterator(this)
+  final def asCopyingIterator(using ClassTag[A]): Iterator[Array[A]] = RotatingBuffer.CopyIterator(this)
+}
+object RotatingBuffer {
+  sealed abstract class Iterating[A, C](ib: RotatingBuffer[A], recycle: Boolean = true) extends Iterator[C] {
+    protected val ma = Mu(().orIs[Array[A]])
+    protected val miv = Mu(Iv(0, 0))
+    protected var state = 0
+    def hasNext: Boolean =
+      if state > 0 then true
+      else if state < 0 then false
+      else
+        if !recycle then ma.value = Alt.unit
+        ib.rotate(ma, miv)
+        if ma.value.isAlt then
+          state = -1
+          false
+        else
+          state = 1
+          true
+  }
+  final class AsIterator[A](ib: RotatingBuffer[A]) extends Iterating[A, (Array[A], Iv)](ib, true) {
+    def next: (Array[A], Iv) =
+      if hasNext then
+        state = 0
+        (ma.value.get, miv.value)
+      else Iterator.empty.next
+  }
+  final class CopyIterator[A](ib: RotatingBuffer[A])(using ClassTag[A]) extends Iterating[A, Array[A]](ib, false) {
+    def next: Array[A] =
+      if hasNext then
+        state = 0
+        val a = ma.value.get
+        a.clip.select(miv.value)
+      else Iterator.empty.next
+  }
+
+  final class Lines(source: Array[Char], where: Iv = Iv(0, Int.MaxValue)) extends RotatingBuffer[Char] {
+    override def recycling = false
+    private var i0 = math.max(0, where.i0)
+    private val iN = math.min(source.length, where.iN)
+    def rotate(buffer: Mu[Array[Char] Or Unit], interval: Mu.T[Iv]): Unit =
+      if i0 >= iN then
+        interval.value = Iv(0, 0)
+        buffer.value = Alt.unit
+      else
+        val i = i0
+        var c = ' '
+        while i0 < iN && { c = source(i0); c != '\n' && c != '\r' } do i0 += 1
+        interval.value = Iv(i, i0)
+        if i0 < iN then
+          i0 += 1
+          if c == '\r' && i0 < iN && source(i0) == '\n' then i0 += 1
+        buffer.value = Is(source)
+  }
+
+  final class TextLines(source: Array[Byte], where: Iv = Iv(0, Int.MaxValue)) extends RotatingBuffer[Byte] {
+    override def recycling = false
+    private var i0 = math.max(0, where.i0)
+    private var iN = math.min(source.length, where.iN)
+    def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
+      if i0 >= iN then
+        interval.value = Iv(0, 0)
+        buffer.value = Alt.unit
+      else
+        val i = i0
+        var b: Byte = 0
+        while i0 < iN && { b = source(i0); b != (10: Byte) && b != (13: Byte) } do i0 += 1
+        interval.value = Iv(i, i0)
+        if i0 < iN then
+          i0 += 1
+          if b == (13: Byte) && i0 < iN && source(i0) == (10: Byte) then i0 += 1
+        buffer.value = Is(source)
+  }
+}
+
+extension (ac: Array[Char])
+  inline def lines(): RotatingBuffer.Lines = RotatingBuffer.Lines(ac)
+  inline def lines(iv: Iv | PIv): RotatingBuffer.Lines = RotatingBuffer.Lines(ac, Iv.of(iv, ac))
+  inline def lines(inline rg: collection.immutable.Range): RotatingBuffer.Lines = RotatingBuffer.Lines(ac, Iv.of(rg))
+
+extension (ab: Array[Byte])
+  inline def textLines(): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab)
+  inline def textLines(iv: Iv | PIv): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, Iv.of(iv, ab))
+  inline def textLines(inline rg: collection.immutable.Range): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, Iv.of(rg))

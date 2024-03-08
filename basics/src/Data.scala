@@ -268,16 +268,16 @@ object End {
 
 extension (i: Int){
   @targetName("rangeTo")
-  inline def to(j: Int): collection.immutable.Range.Inclusive =
+  inline infix def to(j: Int): collection.immutable.Range.Inclusive =
     scala.runtime.RichInt(i).to(j)
 
   @targetName("toEndIdx")
-  inline def to(end: End.type): PIv =
+  inline infix def to(end: End.type): PIv =
     if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
     PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
 
   @targetName("toFromLengthIdx")
-  inline def to(e: FromLengthIdx): PIv =
+  inline infix def to(e: FromLengthIdx): PIv =
     val j = FromLengthIdx.unwrap(e)
     if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
     if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")

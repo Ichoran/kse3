@@ -14,13 +14,23 @@ import kse.basics.intervals.{given, _}
 import kse.flow.{given, _}
 
 sealed trait Ingester[A, I, E] {
+  /** If empty, must return 0.  If size is known for sure, the size.  If at least N items are available but more might be, returns -N. */
   inline def remaining(a: A, inline i: => I): Long
+
+  /** Requests `n` items; `true` means they're available, `false` means not.  Must block / cache results to avoid a "maybe". */
   inline def has(a: A, inline i: => I)(n: Int): Boolean
+
+  /** True if at least one item is available. */
   inline def nonEmpty(a: A, inline i: => I): Boolean
 
-  inline def skip(a: A, inline i: => I, inline inc: Int => Unit)(n: Int): Int
+  /** Skip up to `n` items; passes the actual number skipped into `inc`, which the caller must use to handle any updates to `I` if needed. */
+  inline def skip(a: A, inline i: => I, inline inc: Int => Unit)(n: Int): Unit
 
-  transparent inline def step[X >: Alt[Err]](a: A, inline i: => I, inline inc: () => Unit)(using Lb[X]): E
+  /** Undo up to `n` items; passes the actual number undone into 'dec', which the caller must use to handle any updates to `I` if needed. */
+  inline def undo(a: A, inline i: => I, inline dec: Int => Unit)(n: Int): Unit
+
+  /** Return the next item if available, or jump to the boundary with an error if not. Calls `inc` if successful. */
+  inline def step[X >: Alt[Err]](a: A, inline i: => I, inline inc: () => Unit)(using Lb[X]): E
 }
 object Ingester {
   sealed trait CompleteIngester[A, E] extends Ingester[A, Unit, E] {
@@ -33,30 +43,34 @@ object Ingester {
     final inline def nonEmpty(a: A, inline i: => Unit): Boolean = nonEmpty(a)
     inline def nonEmpty(a: A): Boolean
 
-    final inline def skip(a: A, inline i: => Unit, inline inc: Int => Unit)(n: Int): Int = skip(a, inc)(n)
-    inline def skip(a: A, inline inc: Int => Unit)(n: Int): Int
+    final inline def skip(a: A, inline i: => Unit, inline inc: Int => Unit)(n: Int): Unit = skip(a, inc)(n)
+    inline def skip(a: A, inline inc: Int => Unit)(n: Int): Unit
 
-    final transparent inline def step[X >: Alt[Err]](a: A, inline i: => Unit, inline inc: () => Unit)(using Lb[X]): E = step[X](a, inc)
-    transparent inline def step[X >: Alt[Err]](a: A, inline inc: () => Unit)(using Lb[X]): E
+    final inline def undo(a: A, inline i: => Unit, inline dec: Int => Unit)(n: Int): Unit = undo(a, dec)(n)
+    inline def undo(a: A, inline dec: Int => Unit)(n: Int): Unit
+
+    final inline def step[X >: Alt[Err]](a: A, inline i: => Unit, inline inc: () => Unit)(using Lb[X]): E = step[X](a, inc)
+    inline def step[X >: Alt[Err]](a: A, inline inc: () => Unit)(using Lb[X]): E
   }
 
-  sealed trait ArrayIngester[A] extends Ingester[Array[A], Int, A] {
-    inline def remaining(a: Array[A], inline i: => Int) = a.length - i
-    inline def has(a: Array[A], inline i: => Int)(n: Int) = n <= 0 || i < a.length - n
-    inline def nonEmpty(a: Array[A], inline i: => Int) = i < a.length
+  sealed trait ArrayIngester[E] extends Ingester[Array[E], Int, E] {
+    inline def remaining(a: Array[E], inline i: => Int) = a.length - i
+    inline def has(a: Array[E], inline i: => Int)(n: Int) = n <= 0 || i < a.length - n
+    inline def nonEmpty(a: Array[E], inline i: => Int) = i < a.length
 
-    inline def skip(a: Array[A], inline i: => Int, inline inc: Int => Unit)(n: Int): Int =
-      if n <= 0 then 0
-      else
+    inline def skip(a: Array[E], inline i: => Int, inline inc: Int => Unit)(n: Int): Unit =
+      if n > 0 then
         val m = a.length - i
-        if m < n then
-          inc(m)
-          m
-        else
-          inc(n)
-          n
+        val h = if m < n then m else n
+        inc(h)
 
-    transparent inline def step[X >: Alt[Err]](a: Array[A], inline i: => Int, inline inc: () => Unit)(using Lb[X]): A =
+    inline def undo(a: Array[E], inline i: => Int, inline dec: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = i
+        val h = if m < n then m else n
+        dec(h)
+
+    inline def step[X >: Alt[Err]](a: Array[E], inline i: => Int, inline inc: () => Unit)(using Lb[X]): E =
       val ii = i
       if ii < a.length then
         inc()
@@ -72,20 +86,32 @@ object Ingester {
     inline def has(a: B)(n: Int) = a.remaining() >= n
     inline def nonEmpty(a: B): Boolean = a.hasRemaining()    
 
-    inline def skip(a: B, inline inc: Int => Unit)(n: Int): Int =
-      if n > a.remaining() then
-        val ans = a.remaining()
-        a.position(a.limit)
-        inc(ans)
-        ans
-      else if n > 0 then
-        a.position(a.position + n)
-        inc(n)
-        n
-      else 0
+    inline def skip(a: B, inline inc: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = a.remaining()
+        val h =
+          if m < n then
+            a.position(a.limit)
+            m
+          else
+            a.position(a.position + n)
+            n
+        inc(h)
+
+    inline def undo(a: B, inline dec: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = a.position
+        val h =
+          if m < n then
+            a.position(0)
+            m
+          else
+            a.position(a.position - n)
+            n
+        dec(h)
   }
   object ByteBufferIngester extends BufferIngester[ByteBuffer, Byte] {
-    transparent inline def step[X >: Alt[Err]](a: ByteBuffer, inline inc: () => Unit)(using Lb[X]): Byte =
+    inline def step[X >: Alt[Err]](a: ByteBuffer, inline inc: () => Unit)(using Lb[X]): Byte =
       if a.hasRemaining() then
         inc()
         a.get()
@@ -93,7 +119,7 @@ object Ingester {
         boundary.break(Err.or(s"Buffer at end, position ${a.limit}"))
   }
   object CharBufferIngester extends BufferIngester[CharBuffer, Char] {
-    transparent inline def step[X >: Alt[Err]](a: CharBuffer, inline inc: () => Unit)(using Lb[X]): Char =
+    inline def step[X >: Alt[Err]](a: CharBuffer, inline inc: () => Unit)(using Lb[X]): Char =
       if a.hasRemaining() then
         inc()
         a.get()
@@ -107,18 +133,19 @@ object Ingester {
     inline def has(a: String, inline i: => Int)(n: Int) = n <= 0 || i < a.length - n
     inline def nonEmpty(a: String, inline i: => Int) = i < a.length
 
-    inline def skip(a: String, inline i: => Int, inline inc: Int => Unit)(n: Int): Int =
-      if n <= 0 then 0
-      else
+    inline def skip(a: String, inline i: => Int, inline inc: Int => Unit)(n: Int): Unit =
+      if n > 0 then
         val m = a.length - i
-        if m < n then
-          inc(m)
-          m
-        else
-          inc(n)
-          n
+        val h = if m < n then m else n
+        inc(h)
 
-    transparent inline def step[X >: Alt[Err]](a: String, inline i: => Int, inline inc: () => Unit)(using Lb[X]): Char =
+    inline def undo(a: String, inline i: => Int, inline dec: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = i
+        val h = if m < n then m else n
+        dec(h)
+
+    inline def step[X >: Alt[Err]](a: String, inline i: => Int, inline inc: () => Unit)(using Lb[X]): Char =
       val ii = i
       if ii < a.length then
         inc()
@@ -126,4 +153,41 @@ object Ingester {
       else
         boundary.break(Err.or(s"Array at end, position ${a.length}"))
   }
+
+  /*
+  trait MultiArrayByteIngester extends CompleteIngester[MultiArrayChannel, Byte] {
+    inline def remaining(a: MultiArrayChannel): Long = a.size - a.position
+    inline def has(a: MultiArrayChannel)(n: Int): Boolean = n <= (a.size - a.position)
+    inline def nonEmpty(a: MultiArrayChannel): Boolean = a.position < a.size
+
+    inline def skip(a: MultiArrayChannel, inline inc: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = a.size - a.position
+        val h =
+          if m < n then
+            a.position(a.size)
+            m.toInt
+          else
+            a.position(a.position + n)
+            n
+        inc(h)
+
+    inline def undo(a: MultiArrayChannel, inline dec: Int => Unit)(n: Int): Unit =
+      if n > 0 then
+        val m = a.position
+        val h =
+          if m < n then
+            a.position(0)
+            m.toInt
+          else
+            a.position(m - n)
+            n
+        dec(h)
+
+    inline def step[X >: Alt[Err]](a: MultiArrayChannel, inline inc: () => Unit)(using Lb[X]): Byte =
+      val x = a.readOne()
+      if x < 0 then boundary.break(Err.or(s"Input at end, position ${a.size}"))
+      else (x & 0xFF).toByte
+  }
+  */
 }

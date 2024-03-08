@@ -311,7 +311,7 @@ class EioTest {
     T ~ bbos.close                     ==== ()
     T ~ bbos.write('s'.toByte)         ==== thrown[IOException]
     T ~ ba.take(6).utf8                ==== "minnow"
-    val bbis = bb.input
+    val bbis = bb.flip.input
     T ~ bbis.available                 ==== 6
     T ~ bbis.skip(1)                   ==== 1   --: typed[Long]
     T ~ bbis.read()                    ==== 'i' --: typed[Int]

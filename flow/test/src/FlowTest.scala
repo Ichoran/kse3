@@ -1730,6 +1730,15 @@ class FlowTest {
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[?]]
     T ~ List("2", "3").validMap(s => nice{ s.toInt }) ==== List(2, 3)
 
+    val linedC = "salmon\ncod\r\nherring\rbass\nperch\n".toCharArray
+    val linedB = linedC.copyWith(_.toByte)
+    val linedV = Vector("salmon", "cod", "herring", "bass", "perch")
+    T ~ linedC.lines().asCopyingIterator.map(_.str).toVector ==== linedV
+    T ~ linedB.textLines().asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== linedV
+    T ~ linedC.lines(13 to End-3).asCopyingIterator.map(_.str).toVector ==== Vector("erring", "bass", "per")
+    T ~ linedB.textLines(13 to End-3).asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== Vector("erring", "bass", "per")
+
+
 
   @Test
   def cacheTest(): Unit =
