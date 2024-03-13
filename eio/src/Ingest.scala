@@ -154,6 +154,52 @@ object Ingester {
         boundary.break(Err.or(s"Array at end, position ${a.length}"))
   }
 
+  final class CyclingBytes(val source: RotatingBuffer[Byte]) {
+    var bkw: Array[Byte] = null
+    var cur: Array[Byte] = null
+    var fwd: Array[Byte] = null
+
+    var ib0 = 0
+    var ibN = 0
+    var ic0 = 0
+    var icN = 0
+    var if0 = 0
+    var ifN = 0
+
+    var consumed = 0L
+    var index = 0
+
+    val ma: Mu[Array[Byte] Or Unit] = Mu(Alt.unit)
+    val miv: Mu.T[Iv] = Mu(Iv(0, 0))
+
+    def remaining(): Long = ???
+    def has(n: Int): Boolean = ???
+    def skip(n: Int): Int = ???
+    def undo(n: Int): Int = ???
+    def advance(): Unit = ???
+  }
+  object CyclingByteIngester extends CompleteIngester[CyclingBytes, Byte] {
+    inline def remaining(a: CyclingBytes): Long = a.remaining()
+    inline def has(a: CyclingBytes)(n: Int): Boolean = a.has(n)
+    inline def nonEmpty(a: CyclingBytes): Boolean = a.has(1)
+    inline def skip(a: CyclingBytes, inline inc: Int => Unit)(n: Int): Unit = if n > 0 then inc(a.skip(n))
+    inline def undo(a: CyclingBytes, inline dec: Int => Unit)(n: Int): Unit = if n > 0 then dec(a.undo(n))
+    inline def step[X >: Alt[Err]](a: CyclingBytes, inline inc: () => Unit)(using Lb[X]): Byte =
+      if a.index >= 0 then
+        if a.index >= a.icN then
+          a.advance()
+          if a.index >= a.icN then boundary.break(Err.or(s"Input at end, position ${a.consumed}"))
+        val i = a.index
+        a.index += 1
+        inc()
+        a.cur(i)
+      else
+        val k = a.ibN + a.index
+        a.index += 1
+        inc()
+        a.bkw(k)
+  }
+
   /*
   trait MultiArrayByteIngester extends CompleteIngester[MultiArrayChannel, Byte] {
     inline def remaining(a: MultiArrayChannel): Long = a.size - a.position
