@@ -234,7 +234,7 @@ object FromLengthIdx {
       val i = (idx: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
       if j < 0  then throw new IllegalArgumentException(s"Cannot index ending at $j")
-      PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      PIv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     @targetName("toFromLengthIdx")
     infix def to(e: kse.basics.FromLengthIdx): PIv =
@@ -242,13 +242,13 @@ object FromLengthIdx {
       val j = (e: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
       if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
-      PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      PIv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     @targetName("toEnd")
     infix def to(end: End.type): PIv =
       val i = (idx: Int)
       if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
-      PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
+      PIv `wrap` ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
 }
 
 object End {
@@ -274,14 +274,14 @@ extension (i: Int){
   @targetName("toEndIdx")
   inline infix def to(end: End.type): PIv =
     if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
-    PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
+    PIv `wrap` ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
 
   @targetName("toFromLengthIdx")
   inline infix def to(e: FromLengthIdx): PIv =
     val j = FromLengthIdx.unwrap(e)
     if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
     if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
-    PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+    PIv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
   inline def times(f: => Unit): Unit =
     var j = 0
@@ -349,9 +349,9 @@ extension [A](a: Array[A]) {
     if i >= 0 && i < a.length then a(i) = f(a(i))
     a
 
-  inline def clip: kse.basics.ClippedArray[A] = ClippedArray wrap a
+  inline def clip: kse.basics.ClippedArray[A] = ClippedArray `wrap` a
 
-  inline def breakable: kse.basics.BreakableArray[A] = BreakableArray wrap a
+  inline def breakable: kse.basics.BreakableArray[A] = BreakableArray `wrap` a
 
   inline def peek()(inline f: A => Unit): a.type =
     var i = 0
@@ -513,10 +513,10 @@ extension [A](a: Array[A]) {
 
   @targetName("update_Py_constant")
   inline def update(piv: PIv, value: A): Unit =
-    update(piv of a, value)
+    update(piv `of` a, value)
   @targetName("update_Py_array")
   inline def update(piv: PIv, values: Array[A]): Unit =
-    update(piv of a, values)
+    update(piv `of` a, values)
 
   @targetName("update_Places_constant")
   inline def update(indices: Array[Int], value: A): Unit =
@@ -587,11 +587,11 @@ extension [A](a: Array[A]) {
 
   @targetName("set_Py_generate")
   inline def set(piv: PIv)(inline generator: () => A): Unit =
-    val iv = piv of a
+    val iv = piv `of` a
     set(iv.i0, iv.iN)(generator)
   @targetName("set_Py_index")
   inline def set(piv: PIv)(inline indexer: Int => A): Unit =
-    val iv = piv of a
+    val iv = piv `of` a
     set(iv.i0, iv.iN)(indexer)
 
   @targetName("set_Places_generate")
@@ -647,7 +647,7 @@ extension [A](a: Array[A]) {
     edit(iv.i0, iv.iN)(function)
   @targetName("edit_Py_function")
   inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
-    val iv = piv of a
+    val iv = piv `of` a
     edit(iv.i0, iv.iN)(function)
   @targetName("edit_Range_function")
   inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
@@ -1131,7 +1131,7 @@ object ClippedArray {
     inline def unwrap: Array[A] = ca
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
-    inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
+    inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray `wrap` ca.unwrap
 
     inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
       val a = ca.unwrap
@@ -1286,10 +1286,10 @@ object ClippedArray {
 
     @targetName("update_Py_constant")
     inline def update(piv: PIv, value: A): Unit =
-      update(piv of ca.unwrap, value)
+      update(piv `of` ca.unwrap, value)
     @targetName("update_Py_array")
     inline def update(piv: PIv, values: Array[A]): Unit =
-      update(piv of ca.unwrap, values)
+      update(piv `of` ca.unwrap, values)
 
     @targetName("update_Places_constant")
     inline def update(indices: Array[Int], value: A): Unit =
@@ -1366,11 +1366,11 @@ object ClippedArray {
 
     @targetName("set_Py_generate")
     inline def set(piv: PIv)(inline generator: () => A): Unit =
-      val iv = piv of ca.unwrap
+      val iv = piv `of` ca.unwrap
       set(iv.i0, iv.iN)(generator)
     @targetName("set_Py_index")
     inline def set(piv: PIv)(inline indexer: Int => A): Unit =
-      val iv = piv of ca.unwrap
+      val iv = piv `of` ca.unwrap
       set(iv.i0, iv.iN)(indexer)
 
     @targetName("set_Places_generate")
@@ -1418,7 +1418,7 @@ object ClippedArray {
       edit(iv.i0, iv.iN)(function)
     @targetName("edit_Py_function")
     inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
-      val iv = piv of ca.unwrap
+      val iv = piv `of` ca.unwrap
       edit(iv.i0, iv.iN)(function)
     @targetName("edit_Range_function")
     inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
@@ -1819,7 +1819,7 @@ object BreakableArray {
     inline def unwrap: Array[A] = sa
 
   extension [A](sa: kse.basics.BreakableArray[A]) {
-    inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray wrap sa.unwrap
+    inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray `wrap` sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sa.unwrap
@@ -3212,9 +3212,9 @@ extension (a: String) {
     f(b)
     b.toString
 
-  inline def clip: kse.basics.ClippedString = ClippedString wrap a
+  inline def clip: kse.basics.ClippedString = ClippedString `wrap` a
 
-  inline def breakable: kse.basics.BreakableString = BreakableString wrap a
+  inline def breakable: kse.basics.BreakableString = BreakableString `wrap` a
 
   inline def peek()(inline f: Char => Unit): a.type =
     var i = 0
@@ -3321,7 +3321,7 @@ extension (a: String) {
     val b = new java.lang.StringBuilder
     var i = 0
     while i < a.length do
-      b append f(a.charAt(i))
+      b `append` f(a.charAt(i))
       i += 1
     b.toString
   transparent inline def copyOp[B](inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -3509,14 +3509,14 @@ extension (a: String) {
     val b = new java.lang.StringBuilder(indices.length)
     var i = 0
     while i < indices.length do
-      b append a.charAt(indices(i))
+      b `append` a.charAt(indices(i))
       i += 1
     b.toString
   inline def select(indices: scala.collection.IntStepper): String =
     var b = new java.lang.StringBuilder()
     var j = 0
     while indices.hasStep do
-      b append a.charAt(indices.nextStep)
+      b `append` a.charAt(indices.nextStep)
       j += 1
     b.toString
   inline def select(inline pick: Char => Boolean): String =
@@ -3525,7 +3525,7 @@ extension (a: String) {
     while i < a.length do
       val x = a.charAt(i)
       if pick(x) then
-        b append x
+        b `append` x
       i += 1
     b.toString
 
@@ -3693,7 +3693,7 @@ object ClippedString {
     inline def unwrap: String = ca
 
   extension (ca: kse.basics.ClippedString) {
-    inline def breakable: kse.basics.ShortClipString = ShortClipString wrap ca.unwrap
+    inline def breakable: kse.basics.ShortClipString = ShortClipString `wrap` ca.unwrap
 
     inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): String =
       val a = ca.unwrap
@@ -3995,7 +3995,7 @@ object ClippedString {
       while i < indices.length do
         val k = indices(i)
         if k >= 0 && k < a.length then
-          b append a.charAt(k)
+          b `append` a.charAt(k)
         i += 1
       b.toString
     inline def select(indices: scala.collection.IntStepper): String =
@@ -4004,7 +4004,7 @@ object ClippedString {
       while indices.hasStep do
         val i = indices.nextStep
         if i >= 0 && i < a.length then
-          b append a.charAt(i)
+          b `append` a.charAt(i)
       b.toString
 
     transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -4159,7 +4159,7 @@ object BreakableString {
     inline def unwrap: String = sa
 
   extension (sa: kse.basics.BreakableString) {
-    inline def clip: kse.basics.ShortClipString = ShortClipString wrap sa.unwrap
+    inline def clip: kse.basics.ShortClipString = ShortClipString `wrap` sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val a = sa.unwrap
@@ -4248,7 +4248,7 @@ object BreakableString {
       shortcut.outer:
         while i < a.length do
           shortcut.inner:
-            b append f(a.charAt(i))
+            b `append` f(a.charAt(i))
           i += 1
       b.toString
     transparent inline def copyOp[B](inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -4392,7 +4392,7 @@ object BreakableString {
         while i < a.length do
           val x = a.charAt(i)
           if pick(x) then
-            b append x
+            b `append` x
           i += 1
       b.toString
 

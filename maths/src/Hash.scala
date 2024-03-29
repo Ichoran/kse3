@@ -183,9 +183,9 @@ final class XxHash32() extends Hash32 {
       myBuffer = null
     else
       myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 16))
-      myBuffer order ByteOrder.LITTLE_ENDIAN
-      myBuffer limit bb.limit
-      myBuffer position bb.position
+      myBuffer `order` ByteOrder.LITTLE_ENDIAN
+      myBuffer `limit` bb.limit
+      myBuffer `position` bb.position
 
   def copy: XxHash32 =
     val ans = new XxHash32()
@@ -205,8 +205,8 @@ final class XxHash32() extends Hash32 {
 
   private inline def createBufferIfNeeded(): Boolean =
     if myBuffer eq null then
-      myBuffer = ByteBuffer allocate 16
-      myBuffer order ByteOrder.LITTLE_ENDIAN
+      myBuffer = ByteBuffer `allocate` 16
+      myBuffer `order` ByteOrder.LITTLE_ENDIAN
       true
     else
       false
@@ -275,7 +275,7 @@ final class XxHash32() extends Hash32 {
       v1
   
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if (myBuffer ne null) && (myBuffer.position > 0) then
       while myBuffer.position <= 12 && bb.remaining >= 4 do myBuffer.putInt(bb.getInt)
       while myBuffer.position <  16 && bb.remaining >= 1 do myBuffer.put(bb.get)
@@ -283,8 +283,8 @@ final class XxHash32() extends Hash32 {
     if bb.remaining >= 16 then appendBy16(bb)
     if bb.remaining > 0 then
       if myBuffer eq null then
-        myBuffer = ByteBuffer allocate 16
-        myBuffer order ByteOrder.LITTLE_ENDIAN
+        myBuffer = ByteBuffer `allocate` 16
+        myBuffer `order` ByteOrder.LITTLE_ENDIAN
       while bb.remaining >= 4 do myBuffer.putInt(bb.getInt)
       while bb.remaining >= 1 do myBuffer.put(bb.get)
     this
@@ -294,7 +294,7 @@ final class XxHash32() extends Hash32 {
     val j = if iN > ab.length then ab.length else iN
     if (myBuffer ne null) && myBuffer.position > 0 then
       while i < j && myBuffer.remaining > 0 do
-        myBuffer put ab(i)
+        myBuffer `put` ab(i)
         i += 1
       if myBuffer.remaining == 0 then appendMyBuffer()
     while i <= j-16 do
@@ -307,7 +307,7 @@ final class XxHash32() extends Hash32 {
     if i < j then
       createBufferIfNeeded()
       while i < j do
-        myBuffer put ab(i)
+        myBuffer `put` ab(i)
         i += 1
     this
 
@@ -317,12 +317,12 @@ final class XxHash32() extends Hash32 {
     if (myBuffer ne null) && myBuffer.position > 0 then
       if (myBuffer.position % 2) != 0 then
         while i < j do
-          appendChar(s charAt i)
+          appendChar(s `charAt` i)
           i += 1
         return this
       else
         while i < j && myBuffer.remaining > 0 do
-          myBuffer putChar s.charAt(i)
+          myBuffer `putChar` s.charAt(i)
           i += 1
         if myBuffer.remaining == 0 then appendMyBuffer()
     while i <= j-8 do
@@ -336,82 +336,82 @@ final class XxHash32() extends Hash32 {
     if i < j then
       createBufferIfNeeded()
       while i < j do
-        myBuffer putChar s.charAt(i)
+        myBuffer `putChar` s.charAt(i)
         i += 1
     this
   
   def appendLong(l: Long): this.type =
     if createBufferIfNeeded() then
-      myBuffer putLong l
+      myBuffer `putLong` l
     else if myBuffer.remaining >= 8 then
-      myBuffer putLong l
+      myBuffer `putLong` l
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining > 4 then
-      myBuffer putInt (l & 0xFFFFFFFFL).toInt
+      myBuffer `putInt` (l & 0xFFFFFFFFL).toInt
       myAppendInt((l >>> 32).toInt)
     else
       myAppendInt((l & 0xFFFFFFFFL).toInt)
-      myBuffer putInt ((l >>> 32).toInt)
+      myBuffer `putInt` ((l >>> 32).toInt)
     this
 
   private def myAppendInt(i: Int): Unit = 
     if myBuffer.remaining >= 4 then
-      myBuffer putInt i
+      myBuffer `putInt` i
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining >= 2 then
-      myBuffer putChar i.toChar
+      myBuffer `putChar` i.toChar
       if myBuffer.remaining == 0 then
         appendMyBuffer()
-        myBuffer putChar (i >>> 16).toChar
+        myBuffer `putChar` (i >>> 16).toChar
       else
         myAppendChar((i >>> 16).toChar)
     else if myBuffer.remaining == 1 then
-      myBuffer put (i & 0xFF).toByte
+      myBuffer `put` (i & 0xFF).toByte
       appendMyBuffer()
-      myBuffer put ((i >>> 8) & 0xFF).toByte
-      myBuffer putChar (i >>> 16).toChar
+      myBuffer `put` ((i >>> 8) & 0xFF).toByte
+      myBuffer `putChar` (i >>> 16).toChar
     else
       appendMyBuffer()
-      myBuffer putInt i
+      myBuffer `putInt` i
 
   def appendInt(i: Int): this.type =
     if createBufferIfNeeded() then
-      myBuffer putInt i
+      myBuffer `putInt` i
     else
       myAppendInt(i)
     this
 
   private def myAppendChar(c: Char): Unit =
     if myBuffer.remaining >= 2 then
-      myBuffer putChar c
+      myBuffer `putChar` c
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining == 1 then
-      myBuffer put (c & 0xFF).toByte
+      myBuffer `put` (c & 0xFF).toByte
       appendMyBuffer()
-      myBuffer put (c >>> 8).toByte
+      myBuffer `put` (c >>> 8).toByte
     else
       appendMyBuffer()
-      myBuffer putChar c
+      myBuffer `putChar` c
 
   def appendChar(c: Char): this.type =
     if createBufferIfNeeded() then
-      myBuffer putChar c
+      myBuffer `putChar` c
     else
       myAppendChar(c)
     this
 
   def appendByte(b: Byte): this.type =
     if createBufferIfNeeded() || myBuffer.remaining > 1 then
-      myBuffer put b
+      myBuffer `put` b
     else if myBuffer.remaining == 1 then
-      myBuffer put b
+      myBuffer `put` b
       appendMyBuffer()
     else
       appendMyBuffer()
-      myBuffer put b
+      myBuffer `put` b
     this
 
   def result(bb: ByteBuffer): Int =
@@ -422,7 +422,7 @@ final class XxHash32() extends Hash32 {
         if (myBuffer.remaining == 16) appendIx4(myBuffer.getInt, myBuffer.getInt, myBuffer.getInt, myBuffer.getInt)
         myBuffer
       else
-        bb order ByteOrder.LITTLE_ENDIAN
+        bb `order` ByteOrder.LITTLE_ENDIAN
         if bb.remaining >= 16 then appendBy16(bb)
         bb
     counting(terminal.remaining)
@@ -476,9 +476,9 @@ final class XxHash64() extends Hash64 {
     if bb eq null then myBuffer = null
     else
       myBuffer = ByteBuffer.wrap(java.util.Arrays.copyOf(bb.array, 32))
-      myBuffer order ByteOrder.LITTLE_ENDIAN
-      myBuffer limit bb.limit
-      myBuffer position bb.position
+      myBuffer `order` ByteOrder.LITTLE_ENDIAN
+      myBuffer `limit` bb.limit
+      myBuffer `position` bb.position
 
   def copy: XxHash64 =
     val ans = new XxHash64()
@@ -498,8 +498,8 @@ final class XxHash64() extends Hash64 {
 
   private def createBufferIfNeeded(): Boolean =
     if myBuffer eq null then
-      myBuffer = ByteBuffer allocate 32
-      myBuffer order ByteOrder.LITTLE_ENDIAN
+      myBuffer = ByteBuffer `allocate` 32
+      myBuffer `order` ByteOrder.LITTLE_ENDIAN
       true
     else
       false
@@ -584,7 +584,7 @@ final class XxHash64() extends Hash64 {
       v1     
   
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if (myBuffer ne null) && (myBuffer.position > 0) then
       while myBuffer.position <= 24 && bb.remaining >= 8 do myBuffer.putLong(bb.getLong)
       while myBuffer.position < 32 && bb.remaining >= 1 do myBuffer.put(bb.get)
@@ -595,8 +595,8 @@ final class XxHash64() extends Hash64 {
     if bb.remaining >= 32 then appendBy32(bb)
     if bb.remaining > 0 then
       if myBuffer eq null then
-        myBuffer = ByteBuffer allocate 32
-        myBuffer order ByteOrder.LITTLE_ENDIAN
+        myBuffer = ByteBuffer `allocate` 32
+        myBuffer `order` ByteOrder.LITTLE_ENDIAN
       while bb.remaining >= 8 do myBuffer.putLong(bb.getLong)
       while bb.remaining >= 1 do myBuffer.put(bb.get)
     this
@@ -606,7 +606,7 @@ final class XxHash64() extends Hash64 {
     val j = if iN > ab.length then ab.length else iN
     if (myBuffer ne null) && myBuffer.position > 0 then
       while i < j && myBuffer.remaining > 0 do
-        myBuffer put ab(i)
+        myBuffer `put` ab(i)
         i += 1
       if myBuffer.remaining == 0 then appendMyBuffer()
     while i <= j-32 do
@@ -628,7 +628,7 @@ final class XxHash64() extends Hash64 {
     if i < j then
       createBufferIfNeeded()
       while i < j do
-        myBuffer put ab(i)
+        myBuffer `put` ab(i)
         i += 1
     this
 
@@ -638,12 +638,12 @@ final class XxHash64() extends Hash64 {
     if (myBuffer ne null) && myBuffer.position > 0 then
       if (myBuffer.position % 2) != 0 then
         while i < j do
-          appendChar(s charAt i)
+          appendChar(s `charAt` i)
           i += 1
         return this
       else
         while i < j && myBuffer.remaining > 0 do
-          myBuffer putChar s.charAt(i)
+          myBuffer `putChar` s.charAt(i)
           i += 1
         if myBuffer.remaining == 0 then appendMyBuffer()
     while i <= j-16 do
@@ -657,82 +657,82 @@ final class XxHash64() extends Hash64 {
     if i < j then
       createBufferIfNeeded()
       while i < j do
-        myBuffer putChar s.charAt(i)
+        myBuffer `putChar` s.charAt(i)
         i += 1
     this
 
   def appendLong(l: Long): this.type =
     if createBufferIfNeeded() then
-      myBuffer putLong l
+      myBuffer `putLong` l
     else if myBuffer.remaining >= 8 then
-      myBuffer putLong l
+      myBuffer `putLong` l
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining > 4 then
-      myBuffer putInt (l & 0xFFFFFFFFL).toInt
+      myBuffer `putInt` (l & 0xFFFFFFFFL).toInt
       myAppendInt((l >>> 32).toInt)
     else
       myAppendInt((l & 0xFFFFFFFFL).toInt)
-      myBuffer putInt ((l >>> 32).toInt)
+      myBuffer `putInt` ((l >>> 32).toInt)
     this
 
   private def myAppendInt(i: Int): Unit = 
     if myBuffer.remaining >= 4 then
-      myBuffer putInt i
+      myBuffer `putInt` i
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining >= 2 then
-      myBuffer putChar i.toChar
+      myBuffer `putChar` i.toChar
       if myBuffer.remaining == 0 then
         appendMyBuffer()
-        myBuffer putChar (i >>> 16).toChar
+        myBuffer `putChar` (i >>> 16).toChar
       else
         myAppendChar((i >>> 16).toChar)
     else if myBuffer.remaining == 1 then
-      myBuffer put (i & 0xFF).toByte
+      myBuffer `put` (i & 0xFF).toByte
       appendMyBuffer()
-      myBuffer put ((i >>> 8) & 0xFF).toByte
-      myBuffer putChar (i >>> 16).toChar
+      myBuffer `put` ((i >>> 8) & 0xFF).toByte
+      myBuffer `putChar` (i >>> 16).toChar
     else
       appendMyBuffer()
-      myBuffer putInt i
+      myBuffer `putInt` i
 
   def appendInt(i: Int): this.type =
     if createBufferIfNeeded() then
-      myBuffer putInt i
+      myBuffer `putInt` i
     else
       myAppendInt(i)
     this
 
   private def myAppendChar(c: Char): Unit =
     if myBuffer.remaining >= 2 then
-      myBuffer putChar c
+      myBuffer `putChar` c
       if myBuffer.remaining == 0 then
         appendMyBuffer()
     else if myBuffer.remaining == 1 then
-      myBuffer put (c & 0xFF).toByte
+      myBuffer `put` (c & 0xFF).toByte
       appendMyBuffer()
-      myBuffer put (c >>> 8).toByte
+      myBuffer `put` (c >>> 8).toByte
     else
       appendMyBuffer()
-      myBuffer putChar c
+      myBuffer `putChar` c
 
   def appendChar(c: Char): this.type =
     if createBufferIfNeeded() then
-      myBuffer putChar c
+      myBuffer `putChar` c
     else
       myAppendChar(c)
     this
 
   def appendByte(b: Byte): this.type =
     if createBufferIfNeeded() || myBuffer.remaining > 1 then
-      myBuffer put b
+      myBuffer `put` b
     else if myBuffer.remaining == 1 then
-      myBuffer put b
+      myBuffer `put` b
       appendMyBuffer()
     else
       appendMyBuffer()
-      myBuffer put b
+      myBuffer `put` b
     this
 
   def result(bb: ByteBuffer): Long =
@@ -743,7 +743,7 @@ final class XxHash64() extends Hash64 {
         if (myBuffer.remaining == 36) appendLx4(myBuffer.getLong, myBuffer.getLong, myBuffer.getLong, myBuffer.getLong)
         myBuffer
       else 
-        bb order ByteOrder.LITTLE_ENDIAN
+        bb `order` ByteOrder.LITTLE_ENDIAN
         if bb.remaining >= 32 then appendBy32(bb)
         bb
     counting(terminal.remaining)
@@ -870,7 +870,7 @@ object XxHash extends FullHash32 with FullHash64 {
       h32 = rotl32(h32, 17) * Prime32_4
       i += 2
     while i < iM do
-      val c = s charAt i
+      val c = s `charAt` i
       h32 += (c & 0xFF) * Prime32_5
       h32 = rotl32(h32, 11) * Prime32_1
       h32 += (c >> 8) * Prime32_5
@@ -883,7 +883,7 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 ^ (h32 >>> 16)
 
   def hash32(seed: Int, bb: ByteBuffer): Int =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     val len = bb.remaining
     var h32 =
       if bb.remaining < 16 then seed + Prime32_5
@@ -922,7 +922,7 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 ^ (h32 >>> 16)
 
   def hash64(seed: Long, bb: ByteBuffer): Long =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     val len = bb.remaining
     var h64 =
       if bb.remaining < 32 then seed + Prime64_5
@@ -1149,7 +1149,7 @@ final class MurmurHash32() extends Hash32 {
     this
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while partialN < 4 && bb.hasRemaining do
         partial |= (bb.get & 0xFF) << (partialN*8)
@@ -1190,7 +1190,7 @@ final class MurmurHash32() extends Hash32 {
     val iM = math.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
-        appendChar(s charAt i)
+        appendChar(s `charAt` i)
         i += 1
       return this
     if partialN > 0 && i < iM then
@@ -1202,7 +1202,7 @@ final class MurmurHash32() extends Hash32 {
       appendI(s.charAt(i) | (s.charAt(i+1) << 16))
       i += 2
     if i < iM then
-      partial = s charAt i
+      partial = s `charAt` i
       partialN = 2
     this
 
@@ -1342,7 +1342,7 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
       finalized = true
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while bb.hasRemaining && partialN < 8 do
         partial0 |= ((bb.get & 0xFFL) << (partialN*8))
@@ -1404,7 +1404,7 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
     if partialN > 0 then
       if (partialN % 2) != 0 then
         while i < iM do
-          appendChar(s charAt i)
+          appendChar(s `charAt` i)
           i += 1
         return this
       while i < iM && partialN < 8 do
@@ -1603,7 +1603,7 @@ final class SumHash32() extends Hash32 {
     this
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while partialN < 4 && bb.hasRemaining do
         partial |= (bb.get & 0xFF) << (partialN*8)
@@ -1643,7 +1643,7 @@ final class SumHash32() extends Hash32 {
     val iM = math.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
-        appendChar(s charAt i)
+        appendChar(s `charAt` i)
         i += 1
       return this
     if partialN > 0 && i < iM then
@@ -1655,7 +1655,7 @@ final class SumHash32() extends Hash32 {
       sum += s.charAt(i) | (s.charAt(i+1) << 16)
       i += 2
     if i < iM then
-      partial = s charAt i
+      partial = s `charAt` i
       partialN = 2
     this
 
@@ -1737,7 +1737,7 @@ final class SumHash64() extends Hash64 {
     this
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while partialN < 8 && bb.hasRemaining do
         partial |= (bb.get & 0xFFL) << (partialN*8)
@@ -1779,7 +1779,7 @@ final class SumHash64() extends Hash64 {
     val iM = math.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
-        appendChar(s charAt i)
+        appendChar(s `charAt` i)
         i += 1
       return this
     while partialN > 0 && i < iM do
@@ -1929,7 +1929,7 @@ final class XorHash32() extends Hash32 {
     this
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while partialN < 4 && bb.hasRemaining do
         partial |= (bb.get & 0xFF) << (partialN*8)
@@ -1969,7 +1969,7 @@ final class XorHash32() extends Hash32 {
     val iM = math.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
-        appendChar(s charAt i)
+        appendChar(s `charAt` i)
         i += 1
       return this
     if partialN > 0 && i < iM then
@@ -1981,7 +1981,7 @@ final class XorHash32() extends Hash32 {
       xor ^= s.charAt(i) | (s.charAt(i+1) << 16)
       i += 2
     if i < iM then
-      partial = s charAt i
+      partial = s `charAt` i
       partialN = 2
     this
 
@@ -2064,7 +2064,7 @@ final class XorHash64() extends Hash64 {
   def begin(seed: Long): this.type = { xor = seed; partial = 0; partialN = 0; this }
 
   def append(bb: ByteBuffer): this.type =
-    bb order ByteOrder.LITTLE_ENDIAN
+    bb `order` ByteOrder.LITTLE_ENDIAN
     if partialN > 0 then
       while partialN < 8 && bb.hasRemaining do
         partial |= (bb.get & 0xFFL) << (partialN*8)
@@ -2106,7 +2106,7 @@ final class XorHash64() extends Hash64 {
     val iM = math.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
-        appendChar(s charAt i)
+        appendChar(s `charAt` i)
         i += 1
       return this
     while partialN > 0 && i < iM do
@@ -2253,7 +2253,7 @@ extends IncrementalHash[(A, B), (Z, Y)] {
     new PairHash(h1.copy, h2.copy)
 
   def result(bb: ByteBuffer): (Z, Y) =
-    (h1 result bb.asReadOnlyBuffer, h2 result bb)
+    (h1 `result` bb.asReadOnlyBuffer, h2 `result` bb)
 
   def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y) = (h1.result(ab, i0, iN), h2.result(ab, i0, iN))
 
@@ -2272,8 +2272,8 @@ extends IncrementalHash[(A, B), (Z, Y)] {
     this
 
   def append(bb: ByteBuffer): this.type =
-    h1 append bb.asReadOnlyBuffer
-    h2 append bb
+    h1 `append` bb.asReadOnlyBuffer
+    h2 `append` bb
     this
 
   def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
@@ -2287,23 +2287,23 @@ extends IncrementalHash[(A, B), (Z, Y)] {
     this
 
   def appendLong(l: Long): this.type =
-    h1 appendLong l
-    h2 appendLong l
+    h1 `appendLong` l
+    h2 `appendLong` l
     this
 
   def appendInt(i: Int): this.type =
-    h1 appendInt i
-    h2 appendInt i
+    h1 `appendInt` i
+    h2 `appendInt` i
     this
 
   def appendChar(c: Char): this.type =
-    h1 appendChar c
-    h2 appendChar c
+    h1 `appendChar` c
+    h2 `appendChar` c
     this
 
   def appendByte(b: Byte): this.type =
-    h1 appendByte b
-    h2 appendByte b
+    h1 `appendByte` b
+    h2 `appendByte` b
     this
 }
 object PairHash {
@@ -2318,7 +2318,7 @@ extends IncrementalHash[(A, B, C), (Z, Y, X)] {
     new TrioHash(h1.copy, h2.copy, h3.copy)
 
   def result(bb: ByteBuffer): (Z, Y, X) =
-    (h1 result bb.asReadOnlyBuffer, h2 result bb.asReadOnlyBuffer, h3 result bb)
+    (h1 `result` bb.asReadOnlyBuffer, h2 `result` bb.asReadOnlyBuffer, h3 `result` bb)
 
   def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y, X) =
     (h1.result(ab, i0, iN), h2.result(ab, i0, iN), h3.result(ab, i0, iN))
@@ -2341,9 +2341,9 @@ extends IncrementalHash[(A, B, C), (Z, Y, X)] {
     this
 
   def append(bb: ByteBuffer): this.type =
-    h1 append bb.asReadOnlyBuffer
-    h2 append bb.asReadOnlyBuffer
-    h3 append bb
+    h1 `append` bb.asReadOnlyBuffer
+    h2 `append` bb.asReadOnlyBuffer
+    h3 `append` bb
     this
 
   def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
@@ -2359,27 +2359,27 @@ extends IncrementalHash[(A, B, C), (Z, Y, X)] {
     this
 
   def appendLong(l: Long): this.type =
-    h1 appendLong l
-    h2 appendLong l
-    h3 appendLong l
+    h1 `appendLong` l
+    h2 `appendLong` l
+    h3 `appendLong` l
     this
 
   def appendInt(i: Int): this.type =
-    h1 appendInt i
-    h2 appendInt i
-    h3 appendInt i
+    h1 `appendInt` i
+    h2 `appendInt` i
+    h3 `appendInt` i
     this
 
   def appendChar(c: Char): this.type =
-    h1 appendChar c
-    h2 appendChar c
-    h3 appendChar c
+    h1 `appendChar` c
+    h2 `appendChar` c
+    h3 `appendChar` c
     this
 
   def appendByte(b: Byte): this.type =
-    h1 appendByte b
-    h2 appendByte b
-    h3 appendByte b
+    h1 `appendByte` b
+    h2 `appendByte` b
+    h3 `appendByte` b
     this
 }
 object TrioHash {
@@ -2400,7 +2400,7 @@ extends IncrementalHash[(A, B, C, D), (Z, Y, X, W)] {
     new QuadHash(h1.copy, h2.copy, h3.copy, h4.copy)
 
   def result(bb: ByteBuffer): (Z, Y, X, W) =
-    (h1 result bb.asReadOnlyBuffer, h2 result bb.asReadOnlyBuffer, h3 result bb.asReadOnlyBuffer, h4 result bb)
+    (h1 `result` bb.asReadOnlyBuffer, h2 `result` bb.asReadOnlyBuffer, h3 `result` bb.asReadOnlyBuffer, h4 `result` bb)
 
   def result(ab: Array[Byte], i0: Int, iN: Int): (Z, Y, X, W) =
     (h1.result(ab, i0, iN), h2.result(ab, i0, iN), h3.result(ab, i0, iN), h4.result(ab, i0, iN))
@@ -2425,10 +2425,10 @@ extends IncrementalHash[(A, B, C, D), (Z, Y, X, W)] {
     this
 
   def append(bb: ByteBuffer): this.type =
-    h1 append bb.asReadOnlyBuffer
-    h2 append bb.asReadOnlyBuffer
-    h3 append bb.asReadOnlyBuffer
-    h4 append bb
+    h1 `append` bb.asReadOnlyBuffer
+    h2 `append` bb.asReadOnlyBuffer
+    h3 `append` bb.asReadOnlyBuffer
+    h4 `append` bb
     this
 
   def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
@@ -2446,31 +2446,31 @@ extends IncrementalHash[(A, B, C, D), (Z, Y, X, W)] {
     this
 
   def appendLong(l: Long): this.type =
-    h1 appendLong l
-    h2 appendLong l
-    h3 appendLong l
-    h4 appendLong l
+    h1 `appendLong` l
+    h2 `appendLong` l
+    h3 `appendLong` l
+    h4 `appendLong` l
     this
 
   def appendInt(i: Int): this.type =
-    h1 appendInt i
-    h2 appendInt i
-    h3 appendInt i
-    h4 appendInt i
+    h1 `appendInt` i
+    h2 `appendInt` i
+    h3 `appendInt` i
+    h4 `appendInt` i
     this
 
   def appendChar(c: Char): this.type =
-    h1 appendChar c
-    h2 appendChar c
-    h3 appendChar c
-    h4 appendChar c
+    h1 `appendChar` c
+    h2 `appendChar` c
+    h3 `appendChar` c
+    h4 `appendChar` c
     this
 
   def appendByte(b: Byte): this.type =
-    h1 appendByte b
-    h2 appendByte b
-    h3 appendByte b
-    h4 appendByte b
+    h1 `appendByte` b
+    h2 `appendByte` b
+    h3 `appendByte` b
+    h4 `appendByte` b
     this
 }
 object QuadHash {
@@ -2505,7 +2505,7 @@ final class PreseededHash[A, Z](seed: A, h: IncrementalHash[A, Z]) extends Incre
     this
 
   def append(bb: ByteBuffer): this.type =
-    h append bb
+    h `append` bb
     this
 
   def append(ab: Array[Byte], i0: Int, iN: Int): this.type =
@@ -2517,22 +2517,22 @@ final class PreseededHash[A, Z](seed: A, h: IncrementalHash[A, Z]) extends Incre
     this
 
   def appendLong(l: Long): this.type =
-    h appendLong l
+    h `appendLong` l
     this 
 
   def appendInt(i: Int): this.type =
-    h appendInt i
+    h `appendInt` i
     this 
 
   def appendChar(c: Char): this.type =
-    h appendChar c
+    h `appendChar` c
     this 
 
   def appendByte(b: Byte): this.type =
-    h appendByte b
+    h `appendByte` b
     this 
 }
 object PreseededHash {
   def of[A, Z](seed: A, h: IncrementalHash[A, Z]): PreseededHash[A, Z] =
-    new PreseededHash(seed, h begin seed)
+    new PreseededHash(seed, h `begin` seed)
 }

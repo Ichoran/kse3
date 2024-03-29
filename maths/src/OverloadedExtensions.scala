@@ -373,25 +373,25 @@ extension (d: Duration) {
 
   @targetName("Duration_add_Instant")
   def +(i: Instant): Instant =
-    try i plus d
+    try i `plus` d
     catch
       case _: DateTimeException => if d.getSeconds < 0 then Instant.MIN else Instant.MAX
 
   @targetName("Duration_add_LocalDateTime")
   def +(ldt: LocalDateTime): LocalDateTime =
-    try ldt plus d
+    try ldt `plus` d
     catch
       case _: DateTimeException => if d.getSeconds < 0 then LocalDateTime.MIN else LocalDateTime.MAX
 
   @targetName("Duration_add_OffsetDateTime")
   def +(odt: OffsetDateTime): OffsetDateTime =
-    try odt plus d
+    try odt `plus` d
     catch
       case _: DateTimeException => OffsetDateTime.of(if d.getSeconds < 0 then LocalDateTime.MIN else LocalDateTime.MAX, odt.getOffset)
 
   @targetName("Duration_add_ZonedDateTime")
   def +(zdt: ZonedDateTime): ZonedDateTime =
-    try zdt plus d
+    try zdt `plus` d
     catch
       case _: DateTimeException => ZonedDateTime.of(if d.getSeconds < 0 then LocalDateTime.MIN else LocalDateTime.MAX, zdt.getZone)
 
@@ -401,16 +401,16 @@ extension (d: Duration) {
     DurationCompanion.robustAddition(ft, d, subtract = false)
   */
 
-  inline def +!(dd: Duration): Duration = d plus dd
-  inline def -!(dd: Duration): Duration = d minus dd
-  inline def *!(scale: Int): Duration = d multipliedBy scale
-  inline def /!(factor: Int): Duration = d dividedBy factor
+  inline def +!(dd: Duration): Duration = d `plus` dd
+  inline def -!(dd: Duration): Duration = d `minus` dd
+  inline def *!(scale: Int): Duration = d `multipliedBy` scale
+  inline def /!(factor: Int): Duration = d `dividedBy` factor
   inline def /!(duration: Duration): Long = DurationCompanion.div(d, duration, checked = true)
 
-  inline def +!(i: Instant): Instant = i plus d
-  inline def +!(ldt: LocalDateTime): LocalDateTime = ldt plus d
-  inline def +!(odt: OffsetDateTime): OffsetDateTime = odt plus d
-  inline def +!(zdt: ZonedDateTime): ZonedDateTime = zdt plus d
+  inline def +!(i: Instant): Instant = i `plus` d
+  inline def +!(ldt: LocalDateTime): LocalDateTime = ldt `plus` d
+  inline def +!(odt: OffsetDateTime): OffsetDateTime = odt `plus` d
+  inline def +!(zdt: ZonedDateTime): ZonedDateTime = zdt `plus` d
 
   /*
   inline def +!(ft: FileTime): FileTime = DurationCompanion.checkedAddition(ft, d, subtract = false)
@@ -424,13 +424,13 @@ extension (instant: Instant) {
   inline def +(duration: Duration): Instant = TemporalCompanion.addToInstant(instant, duration, subtract = false)
 
   @targetName("Instant_addexc_Duration")
-  inline def +!(duration: Duration): Instant = instant plus duration
+  inline def +!(duration: Duration): Instant = instant `plus` duration
 
   @targetName("Instant_sub_Duration")
   inline def -(duration: Duration): Instant = TemporalCompanion.addToInstant(instant, duration, subtract = true)
 
   @targetName("Instant_subexc_Duration")
-  inline def -!(duration: Duration): Instant = instant minus duration
+  inline def -!(duration: Duration): Instant = instant `minus` duration
 
   @targetName("Instant_sub_Instant")
   inline def -(inst: Instant): Duration = Duration.between(inst, instant)
@@ -463,13 +463,13 @@ extension (local: LocalDateTime) {
   inline def +(duration: Duration): LocalDateTime = TemporalCompanion.addToLocal(local, duration, subtract = false)
 
   @targetName("LocalDateTime_addexc_Duration")
-  inline def +!(duration: Duration): LocalDateTime = local plus duration
+  inline def +!(duration: Duration): LocalDateTime = local `plus` duration
 
   @targetName("LocalDateTime_sub_Duration")
   inline def -(duration: Duration): LocalDateTime = TemporalCompanion.addToLocal(local, duration, subtract = true)
 
   @targetName("LocalDateTime_subexc_Duration")
-  inline def -!(duration: Duration): LocalDateTime = local minus duration
+  inline def -!(duration: Duration): LocalDateTime = local `minus` duration
 
   @targetName("LocalDateTime_sub_LocalDateTime")
   inline def -(ldt: LocalDateTime): Duration = Duration.between(ldt, local)
@@ -495,13 +495,13 @@ extension (offset: OffsetDateTime) {
   inline def +(duration: Duration): OffsetDateTime = TemporalCompanion.addToOffset(offset, duration, subtract = false)
 
   @targetName("OffsetDateTime_addexc_Duration")
-  inline def +!(duration: Duration): OffsetDateTime = offset plus duration
+  inline def +!(duration: Duration): OffsetDateTime = offset `plus` duration
 
   @targetName("OffsetDateTime_sub_Duration")
   inline def -(duration: Duration): OffsetDateTime = TemporalCompanion.addToOffset(offset, duration, subtract = true)
 
   @targetName("OffsetDateTime_subexc_Duration")
-  inline def -!(duration: Duration): OffsetDateTime = offset minus duration
+  inline def -!(duration: Duration): OffsetDateTime = offset `minus` duration
 
   @targetName("OffsetDateTime_sub_OffsetDateTime")
   def -(odt: OffsetDateTime): Duration =
@@ -536,13 +536,13 @@ extension (zoned: ZonedDateTime) {
   inline def +(duration: Duration): ZonedDateTime = TemporalCompanion.addToZoned(zoned, duration, subtract = false)
 
   @targetName("ZonedDateTime_addexc_Duration")
-  inline def +!(duration: Duration): ZonedDateTime = zoned plus duration
+  inline def +!(duration: Duration): ZonedDateTime = zoned `plus` duration
 
   @targetName("ZonedDateTime_sub_Duration")
   inline def -(duration: Duration): ZonedDateTime = TemporalCompanion.addToZoned(zoned, duration, subtract = true)
 
   @targetName("ZonedDateTime_subexc_Duration")
-  inline def -!(duration: Duration): ZonedDateTime = zoned minus duration
+  inline def -!(duration: Duration): ZonedDateTime = zoned `minus` duration
 
   @targetName("ZonedDateTime_sub_ZonedDateTime")
   def -(zdt: ZonedDateTime): Duration =

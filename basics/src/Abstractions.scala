@@ -126,7 +126,7 @@ object Copies {
 
 /** Use copier typeclasses, if available, to copy a (presumably mutable) object. */
 extension [A](a: A)
-  inline def copy(using copier: Copies[A]): A = copier copy a
+  inline def copy(using copier: Copies[A]): A = copier `copy` a
 
 
 

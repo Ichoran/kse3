@@ -330,7 +330,7 @@ object Bootstrap {
 }
 
 extension (values: Array[Int])
-  inline def est: Est = Est from values
+  inline def est: Est = Est `from` values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
@@ -343,7 +343,7 @@ extension (values: Array[Int])
     estRange(iv.i0, iv.iN)
 
 extension (values: Array[Long])
-  inline def est: Est = Est from values
+  inline def est: Est = Est `from` values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
@@ -356,7 +356,7 @@ extension (values: Array[Long])
     estRange(iv.i0, iv.iN)
 
 extension (values: Array[Float])
-  inline def est: Est = Est from values
+  inline def est: Est = Est `from` values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
@@ -369,7 +369,7 @@ extension (values: Array[Float])
     estRange(iv.i0, iv.iN)
 
 extension (values: Array[Double])
-  inline def est: Est = Est from values
+  inline def est: Est = Est `from` values
   inline def estRange(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)

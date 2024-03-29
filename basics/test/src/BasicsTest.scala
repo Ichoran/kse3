@@ -109,7 +109,7 @@ class BasicsTest() {
     T ~ Anon(Mu(7.0))               ==== typed[Anon[Mu.MuDouble]]
     T ~ Anon(gm(7.0))               ==== typed[Anon[Mu[Double]]]
     T ~ Anon(gm(7.0).specific)      ==== typed[Anon[Mu.MuDouble]]
-    T ~ Anon(Mu("cod"))             ==== typed[Anon[Mu[String]]]
+    T ~ Anon(Mu("cod"))             ==== typed[Anon[Mu.MuAny[String]]]
     T ~ Anon(gm("cod"))             ==== typed[Anon[Mu[String]]]
 
     T ~ Anon("secret!").toString ==== "..."

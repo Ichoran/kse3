@@ -507,9 +507,9 @@ sealed abstract class Prng {
       var i = n
       val sb = new java.lang.StringBuilder(m)
       if m == 1 then
-        val c = letters charAt 0
+        val c = letters `charAt` 0
         while i > 0 do
-          sb append c
+          sb `append` c
           i -= 1
       else
         val mask = 0xFFFFFFFF >>> java.lang.Integer.numberOfLeadingZeros(m)
@@ -517,13 +517,13 @@ sealed abstract class Prng {
           while i > 0 do
             val k = B & mask
             if k < m then
-              sb append letters.charAt(k)
+              sb `append` letters.charAt(k)
               i -= 1
         else
           while i > 0 do
             val k = C & mask
             if k < m then
-              sb append letters.charAt(k)
+              sb `append` letters.charAt(k)
               i -= 1
       sb.toString
 
@@ -539,7 +539,7 @@ sealed abstract class Prng {
     val sb = new java.lang.StringBuilder(math.max(0, n))
     var i = n
     while i > 0 do
-      sb append (B & 0x7F).toChar
+      sb `append` (B & 0x7F).toChar
       i -= 1
     sb.toString
   final def validString(n: Int): String =
@@ -549,11 +549,11 @@ sealed abstract class Prng {
       val c = C
       if java.lang.Character.isSurrogate(c) then
         if i > 1 && java.lang.Character.isHighSurrogate(c) then
-          sb append c
-          sb append ((C & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
+          sb `append` c
+          sb `append` ((C & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
           i -= 2
       else
-        sb append c
+        sb `append` c
         i -= 1
     sb.toString
 

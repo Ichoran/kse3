@@ -23,12 +23,12 @@ object Iv extends Translucent.Companion[Iv, Long] {
 
   inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, a: Array[A]): Iv =
     inline v match
-      case piv: kse.basics.intervals.PIv => piv of a
+      case piv: kse.basics.intervals.PIv => piv `of` a
       case siv: kse.basics.intervals.Iv  => siv  
 
   inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, s: String): Iv =
     inline v match
-      case piv: kse.basics.intervals.PIv => piv of s
+      case piv: kse.basics.intervals.PIv => piv `of` s
       case siv: kse.basics.intervals.Iv  => siv
 
   extension (iv: Iv)
@@ -108,7 +108,7 @@ object PIv {
       if j < 0 then
         if j > Int.MinValue then j = a.length + j + 1
       else if j < Int.MaxValue then j += 1
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      Iv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     def of(a: String): Iv =
       var i = ((piv: Long) & 0xFFFFFFFFL).toInt
@@ -117,7 +117,7 @@ object PIv {
       if j < 0 then
         if j > Int.MinValue then j = a.length + j + 1
       else if j < Int.MaxValue then j += 1
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      Iv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
     def clippedTo[A](a: Array[A]): Iv =
       var i = ((piv: Long) & 0xFFFFFFFFL).toInt
@@ -131,7 +131,7 @@ object PIv {
       else if j < Int.MaxValue then j += 1
       if i > a.length then i = a.length
       if j > a.length then j = a.length
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      Iv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
 
     def clippedTo(a: String): Iv =
@@ -146,7 +146,7 @@ object PIv {
       else if j < Int.MaxValue then j += 1
       if i > a.length then i = a.length
       if j > a.length then j = a.length
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+      Iv `wrap` ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
   val all: PIv = 0xFFFFFFFF00000000L
 }

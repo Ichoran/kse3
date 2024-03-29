@@ -32,9 +32,9 @@ extension (the_file: File) {
 extension (the_path: Path) {
   inline def name = the_path.getFileName.toString
 
-  inline def nameTo(s: String) = the_path resolveSibling s
+  inline def nameTo(s: String) = the_path `resolveSibling` s
 
-  inline def nameOp(inline f: String => String) = the_path resolveSibling f(the_path.getFileName.toString)
+  inline def nameOp(inline f: String => String) = the_path `resolveSibling` f(the_path.getFileName.toString)
 
   def ext =
     val n = the_path.getFileName.toString
@@ -46,10 +46,10 @@ extension (the_path: Path) {
     val i = n.lastIndexOf('.')
     if i < 1 || i == n.length - 1 then
       if x.isEmpty then the_path
-      else the_path resolveSibling (n + "." + x)
+      else the_path `resolveSibling` (n + "." + x)
     else
-      if x.isEmpty then the_path resolveSibling n.substring(0, i)
-      else the_path resolveSibling n.substring(0, i+1) + x
+      if x.isEmpty then the_path `resolveSibling` n.substring(0, i)
+      else the_path `resolveSibling` n.substring(0, i+1) + x
   
   def extOp(f: String => String) =
     val n = the_path.getFileName.toString
@@ -57,9 +57,9 @@ extension (the_path: Path) {
     val e = if i < 1 || i == n.length -1 then "" else n.substring(i+1)
     val x = f(e)
     if x == e then the_path
-    else if e.isEmpty then the_path resolveSibling (n + "." + x)
-    else if x.isEmpty then the_path resolveSibling n.substring(0, i)
-    else the_path resolveSibling n.substring(0, i+1) + x
+    else if e.isEmpty then the_path `resolveSibling` (n + "." + x)
+    else if x.isEmpty then the_path `resolveSibling` n.substring(0, i)
+    else the_path `resolveSibling` n.substring(0, i+1) + x
   
   def base =
     val n = the_path.getFileName.toString
@@ -71,10 +71,10 @@ extension (the_path: Path) {
     val i = n.lastIndexOf('.')
     if i < 1 || i == n.length - 1 then
       if n == b then the_path
-      else the_path resolveSibling b
+      else the_path `resolveSibling` b
     else
       if i == b.length && n.substring(0, i) == b then the_path
-      else the_path resolveSibling b + n.substring(i)
+      else the_path `resolveSibling` b + n.substring(i)
   
   def baseOp(f: String => String) =
     val n = the_path.getFileName.toString
@@ -82,8 +82,8 @@ extension (the_path: Path) {
     val b = if i < 1 || i == n.length - 1 then n else n.substring(0, i)
     val x = f(b)
     if b == x then the_path
-    else if (b eq n) then the_path resolveSibling x
-    else the_path resolveSibling x+n.substring(i)
+    else if (b eq n) then the_path `resolveSibling` x
+    else the_path `resolveSibling` x+n.substring(i)
   
   inline def parentName = the_path.getParent match
     case null => ""
@@ -103,21 +103,21 @@ extension (the_path: Path) {
     case null => the_path
     case p => p
 
-  inline def sib(that: String) = the_path resolveSibling that
+  inline def sib(that: String) = the_path `resolveSibling` that
 
-  inline def sib(that: Path) = the_path resolveSibling that
+  inline def sib(that: Path) = the_path `resolveSibling` that
 
   def reroot(oldRoot: Path, newRoot: Path): Path Or Unit =
-    if the_path startsWith oldRoot then Is(newRoot resolve oldRoot.relativize(the_path))
+    if the_path `startsWith` oldRoot then Is(newRoot `resolve` oldRoot.relativize(the_path))
     else Alt.unit
 
   inline def reroot(roots: (Path, Path)): Path Or Unit = reroot(roots._1, roots._2)
 
   def adopt(child: Path): Path Or Unit =
-    if child startsWith the_path then Is(the_path relativize child)
+    if child `startsWith` the_path then Is(the_path `relativize` child)
     else Alt.unit
 
-  inline def relativeTo(other: Path) = other relativize the_path
+  inline def relativeTo(other: Path) = other `relativize` the_path
 
 
   inline def raw: kse.eio.PathsHelper.RawPath = PathsHelper.RawPath(the_path)
@@ -130,9 +130,9 @@ extension (the_path: Path) {
   
   inline def file: File Or Err = nice{ the_path.toFile }
 
-  inline def isDirectory = Files isDirectory the_path
+  inline def isDirectory = Files `isDirectory` the_path
 
-  inline def isSymlink = Files isSymbolicLink the_path
+  inline def isSymlink = Files `isSymbolicLink` the_path
 
   def size: Long = ratchet(-1L): _ =>
     if Files.exists(the_path) then Files.size(the_path)
@@ -140,7 +140,7 @@ extension (the_path: Path) {
 
   def time: FileTime Or Err =
     if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files getLastModifiedTime the_path }
+    else nice{ Files `getLastModifiedTime` the_path }
 
   def time_=(ft: FileTime): Unit Or Err =
     if !Files.exists(the_path) then Err.or(s"$the_path not found")
@@ -150,17 +150,17 @@ extension (the_path: Path) {
     if Files.exists(the_path) then
       if Files.isDirectory(the_path) then Is(false) else Err.or(s"$the_path already exists and is not a directory")
     else the_path.getParent match
-      case null => nice{ Files createDirectory the_path ; true }
+      case null => nice{ Files `createDirectory` the_path ; true }
       case p =>
         if !Files.exists(p) then Err.or(s"Cannot create $the_path because $p not found")
-          else nice{ Files createDirectory the_path ; true }
+          else nice{ Files `createDirectory` the_path ; true }
 
-  inline def mkdirs(): Unit Or Err = nice{ Files createDirectories the_path ; () }
+  inline def mkdirs(): Unit Or Err = nice{ Files `createDirectories` the_path ; () }
 
   inline def mkParents(): Unit Or Err = nice{ PathsHelper.RawPath(the_path).mkParents() }
 
   inline def delete(): Boolean = ratchet(false): _ =>
-    Files deleteIfExists the_path
+    Files `deleteIfExists` the_path
 
   def makeSymlink(s: String): Unit Or Err = Err.Or:
     val target = the_path.getFileSystem.getPath(s)
@@ -181,41 +181,41 @@ extension (the_path: Path) {
       if p.isAbsolute then Files.createSymbolicLink(the_path, p)
       else the_path.getParent match
         case null => Files.createSymbolicLink(the_path, p)
-        case q    => Files.createSymbolicLink(the_path, q relativize p)
+        case q    => Files.createSymbolicLink(the_path, q `relativize` p)
 
   def symlink: String Or Err =
-    if Files isSymbolicLink the_path then nice{ (Files readSymbolicLink the_path).toString }
+    if Files `isSymbolicLink` the_path then nice{ (Files `readSymbolicLink` the_path).toString }
     else Err.or(s"$the_path is not a symbolic link")
 
   def followSymlink: Path Or Err =
-    if Files isSymbolicLink the_path then nice {
-      val q = Files readSymbolicLink the_path
+    if Files `isSymbolicLink` the_path then nice {
+      val q = Files `readSymbolicLink` the_path
       if q.isAbsolute then q
       else the_path.getParent match
         case null => q
-        case p    => (p resolve q).normalize
+        case p    => (p `resolve` q).normalize
     }
     else Err.or(s"$the_path is not a symbolic link")
 
   def touch(): Unit Or Err = nice {
-    if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
+    if Files `exists` the_path then Files.setLastModifiedTime(the_path, FileTime `from` Instant.now)
     else Files.write(the_path, new Array[Byte](0))
   }
 
   def paths =
-    if !(Files exists the_path) || !(Files isDirectory the_path) then PathsHelper.emptyPathArray
+    if !(Files `exists` the_path) || !(Files `isDirectory` the_path) then PathsHelper.emptyPathArray
     else Resource
-      .safe(Files list the_path)(_.close): list =>
+      .safe(Files `list` the_path)(_.close): list =>
         list.toArray(i => new Array[Path](i))
       .getOrElse(_ => PathsHelper.emptyPathArray)
 
   def slurp: Array[String] Or Err =
-    if Files exists the_path then
-      nice{ Resource(Files lines the_path)(_.close)(_.toArray(i => new Array[String](i))) }
+    if Files `exists` the_path then
+      nice{ Resource(Files `lines` the_path)(_.close)(_.toArray(i => new Array[String](i))) }
     else Err.or(s"$the_path not found")
 
   def gulp: Array[Byte] Or Err =
-    if Files exists the_path then nice{ Files readAllBytes the_path }
+    if Files `exists` the_path then nice{ Files `readAllBytes` the_path }
     else Err.or(s"$the_path not found")
 
   def write(data: Array[Byte]): Unit Or Err = nice{ Files.write(the_path, data) }
@@ -224,7 +224,7 @@ extension (the_path: Path) {
     nice{ Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
   def create(data: Array[Byte]): Unit Or Err =
-    if Files exists the_path then Err.or(s"$the_path already exists")
+    if Files `exists` the_path then Err.or(s"$the_path already exists")
     else nice{ Files.write(the_path, data, StandardOpenOption.CREATE_NEW) }
 
   def createIfAbsent(data: Array[Byte]): Boolean Or Err =
@@ -241,7 +241,7 @@ extension (the_path: Path) {
     nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
   def createLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
-    if Files exists the_path then Err.or(s"$the_path already exists")
+    if Files `exists` the_path then Err.or(s"$the_path already exists")
     else nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) }
 
   def createLinesIfAbsent(coll: scala.collection.IterableOnce[String]): Boolean Or Err =
@@ -253,15 +253,15 @@ extension (the_path: Path) {
 
 
   def openRead(bufferSize: Int = 8192)(using Tidy.Nice[InputStream]): InputStream Or Err =
-    if Files exists the_path then nice {
-      val is = Files newInputStream the_path
+    if Files `exists` the_path then nice {
+      val is = Files `newInputStream` the_path
       if bufferSize > 0 then new BufferedInputStream(is, 8192) else is
     }
     else Err.or(s"$the_path not found")
 
   def openWrite(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
     nice{
-      val os = Files newOutputStream the_path
+      val os = Files `newOutputStream` the_path
       if bufferSize > 0 then new BufferedOutputStream(os, 8192) else os 
     }
 
@@ -323,7 +323,7 @@ extension (the_path: Path) {
     else if !Files.exists(that) then Err.or(s"Target directory $that not found")
     else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
     else nice:
-      val target = that resolve the_path.getFileName
+      val target = that `resolve` the_path.getFileName
       Files.move(the_path, target, StandardCopyOption.REPLACE_EXISTING)
       target
 
@@ -333,23 +333,23 @@ extension (the_path: Path) {
   inline def recursively = new PathsHelper.RootedRecursion(the_path, the_path)
 
   def recurseIn(inside: Path) =
-    if the_path startsWith inside then new PathsHelper.RootedRecursion(inside, the_path)
+    if the_path `startsWith` inside then new PathsHelper.RootedRecursion(inside, the_path)
     else throw new IOException(s"Trying recursive operation in $inside but started outside at $the_path")
 }
 
 implicit class DisambiguateExtensionMethodNames(private val the_path: Path) extends AnyVal {
-  inline def /(that: String) = the_path resolve that
+  inline def /(that: String) = the_path `resolve` that
 
-  inline def /(that: Path) = the_path resolve that
+  inline def /(that: Path) = the_path `resolve` that
 
-  inline def exists = Files exists the_path
+  inline def exists = Files `exists` the_path
 
   def copyInto(that: Path): Path Or Err =
     if !Files.exists(the_path) then Err.or(s"$the_path not found")
     else if !Files.exists(that) then Err.or(s"Target directory $that not found")
     else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
     else nice:
-      val target = that resolve the_path.getFileName
+      val target = that `resolve` the_path.getFileName
       Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
       target
 }
@@ -599,12 +599,12 @@ object PathsHelper {
     else if n == 0 then
       extant.toRealPath()
     else if !Files.isSymbolicLink(last) then
-      extant.toRealPath() resolve norm.subpath(norm.getNameCount - n, norm.getNameCount)
+      extant.toRealPath() `resolve` norm.subpath(norm.getNameCount - n, norm.getNameCount)
     else
       val real = extant.toRealPath()
       val symname = last.getFileName
-      val direct = real resolve norm.subpath(norm.getNameCount - n, norm.getNameCount)
-      val sympath = if n == 1 then direct else real resolve last.getFileName
+      val direct = real `resolve` norm.subpath(norm.getNameCount - n, norm.getNameCount)
+      val sympath = if n == 1 then direct else real `resolve` last.getFileName
       val key = Files.readAttributes(sympath, classOf[BasicFileAttributes], LinkOption.NOFOLLOW_LINKS).fileKey
       if syms.exists{ case (p, o, i, q) => (p == sympath || (o != null && key != null & o == key)) && !(n < i) } then
         syms.reduce{ (l, r) =>
@@ -612,8 +612,8 @@ object PathsHelper {
         }._4
       else
         val link = Files.readSymbolicLink(sympath)
-        val target = (if link.isAbsolute then link else real resolve link).normalize()
-        val full = if n < 2 then target else target resolve norm.subpath(norm.getNameCount - (n-1), norm.getNameCount)
+        val target = (if link.isAbsolute then link else real `resolve` link).normalize()
+        val full = if n < 2 then target else target `resolve` norm.subpath(norm.getNameCount - (n-1), norm.getNameCount)
         symlinkToReal(full, ((sympath, key, n, direct)) :: syms)
 
   def javaIterable(i1: scala.collection.IterableOnce[String]): java.lang.Iterable[String] = new java.lang.Iterable[String] {
@@ -665,7 +665,7 @@ object PathsHelper {
             val stable = current.paths
             val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
             files.foreach{ fi =>
-              val rel = base relativize fi
+              val rel = base `relativize` fi
               val ze = new ZipEntry(rel.toString)
               ze.setLastModifiedTime(Files.getLastModifiedTime(fi))
               zos.putNextEntry(ze)
@@ -693,14 +693,14 @@ object PathsHelper {
     def atomicDelete(hook: Path => Unit = doNothingHook) = atomicRecursiveDelete(origin, root, hook)
   }
   private[PathsHelper] def recursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
-    if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
+    if !(f `startsWith` root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
     if Files.isDirectory(f) && !Files.isSymbolicLink(f) then
       f.paths.foreach(fi => recursiveDelete(fi, root, hook))
     hook(f)
-    Files delete f
+    Files `delete` f
 
   private[PathsHelper] def atomicRecursiveDelete(f: Path, root: Path, hook: Path => Unit = _ => ()): Unit =
-    if !(f startsWith root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
+    if !(f `startsWith` root) then throw new IOException(s"Tried to delete $f but escaped root path $root")
     val name = f.getFileName.toString
     val i = name.lastIndexOf('.')
     val delext = if i > 0 then name.substring(i+1) else ""
@@ -716,7 +716,7 @@ object PathsHelper {
       case Some(n) => name.substring(0, i) + ".deleted" + (n+1).toString
       case _ => name + ".deleted"
     val del = f.resolveSibling(delname).normalize
-    if Files exists del then atomicRecursiveDelete(del, root, hook)
+    if Files `exists` del then atomicRecursiveDelete(del, root, hook)
     Files.move(f, del, StandardCopyOption.ATOMIC_MOVE)
     val drp = del.toRealPath()
     recursiveDelete(drp, drp, hook)
@@ -733,16 +733,16 @@ object PathsHelper {
 
       inline def file = the_path.path.toFile
 
-      inline def size = Files size the_path.path
+      inline def size = Files `size` the_path.path
 
-      inline def time: FileTime = Files getLastModifiedTime the_path.path
+      inline def time: FileTime = Files `getLastModifiedTime` the_path.path
 
       inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path.path, ft)
 
 
-      inline def mkdir(): Unit = Files createDirectory the_path.path
+      inline def mkdir(): Unit = Files `createDirectory` the_path.path
 
-      inline def mkdirs(): Unit = Files createDirectories the_path.path
+      inline def mkdirs(): Unit = Files `createDirectories` the_path.path
 
       def mkParents(): Unit =
         val p = the_path.path.getParent
@@ -751,7 +751,7 @@ object PathsHelper {
             Files.createDirectories(PathsHelper.symlinkToReal(the_path.path.toAbsolutePath().normalize()))
           else Files.createDirectories(p)
 
-      inline def delete() = Files delete the_path.path
+      inline def delete() = Files `delete` the_path.path
 
       def makeSymlink(s: String): Unit =
         Files.createSymbolicLink(the_path.path, the_path.path.getFileSystem.getPath(s))
@@ -761,29 +761,29 @@ object PathsHelper {
         if p.isAbsolute then Files.createSymbolicLink(the_path.path, p)
         else the_path.path.getParent match
           case null => Files.createSymbolicLink(the_path.path, p)
-          case q    => Files.createSymbolicLink(the_path.path, q relativize p)
+          case q    => Files.createSymbolicLink(the_path.path, q `relativize` p)
         ()
 
-      inline def symlink: String = (Files readSymbolicLink the_path.path).toString
+      inline def symlink: String = (Files `readSymbolicLink` the_path.path).toString
 
       def followSymlink: Path =
-        val q = Files readSymbolicLink the_path.path
+        val q = Files `readSymbolicLink` the_path.path
         if q.isAbsolute then q
         else the_path.path.getParent match
           case null => q
-          case p    => (p resolve q).normalize
+          case p    => (p `resolve` q).normalize
 
       def touch(): Unit =
-        if Files exists the_path.path then Files.setLastModifiedTime(the_path.path, FileTime from Instant.now)
+        if Files `exists` the_path.path then Files.setLastModifiedTime(the_path.path, FileTime `from` Instant.now)
         else Files.write(the_path.path, new Array[Byte](0))
 
       def slurp: Array[String] =
-        Resource(Files lines the_path.path)(_.close)(_.toArray(i => new Array[String](i)))
+        Resource(Files `lines` the_path.path)(_.close)(_.toArray(i => new Array[String](i)))
 
-      inline def gulp: Array[Byte] = Files readAllBytes the_path.path
+      inline def gulp: Array[Byte] = Files `readAllBytes` the_path.path
 
       inline def openRead(): java.io.BufferedInputStream =
-        new BufferedInputStream(Files newInputStream the_path, 8192)
+        new BufferedInputStream(Files `newInputStream` the_path, 8192)
 
       inline def write(data: Array[Byte]): Unit =
         Files.write(the_path, data)
@@ -804,7 +804,7 @@ object PathsHelper {
         Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
 
       inline def openWrite(): java.io.BufferedOutputStream =
-        new BufferedOutputStream(Files newOutputStream the_path, 8192)
+        new BufferedOutputStream(Files `newOutputStream` the_path, 8192)
 
       inline def openAppend(): java.io.BufferedOutputStream =
         new BufferedOutputStream(

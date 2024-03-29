@@ -94,17 +94,17 @@ object ErrType {
   private def indentString(string: String, indent: String = "  ", header: String = ""): String =
     val b = new java.lang.StringBuilder
     if header.nonEmpty then
-      b append header
-      if header.charAt(header.length - 1) != '\n' && string.nonEmpty then b append '\n'
+      b `append` header
+      if header.charAt(header.length - 1) != '\n' && string.nonEmpty then b `append` '\n'
     var i = 0
     var j = string.indexOf('\n', i)
     while j > 0 do
-      b append indent
+      b `append` indent
       b.append(string, i, j + 1)
       i = j + 1
       j = string.indexOf('\n', i)
     if i < string.length then
-      b append indent
+      b `append` indent
       b.append(string, i, string.length)
     b.toString
 

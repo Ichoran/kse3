@@ -2074,20 +2074,20 @@ object Vc {
 
     def pr: String =
       val sb = new java.lang.StringBuilder
-      sb append '['
-      sb append v.x
-      sb append ' '
-      sb append v.y
-      sb append ']'
+      sb `append` '['
+      sb `append` v.x
+      sb `append` ' '
+      sb `append` v.y
+      sb `append` ']'
       sb.toString
 
     def prf(fmt: String): String =
       val sb = new java.lang.StringBuilder
-      sb append '['
-      sb append fmt.format(v.x)
-      sb append ' '
-      sb append fmt.format(v.y)
-      sb append ']'
+      sb `append` '['
+      sb `append` fmt.format(v.x)
+      sb `append` ' '
+      sb `append` fmt.format(v.y)
+      sb `append` ']'
       sb.toString
   }
 }
@@ -2211,16 +2211,16 @@ object PlusMinus {
 
     def pr: String =
       val sb = new java.lang.StringBuilder
-      sb append pm.value
-      sb append " +- "
-      sb append pm.error
+      sb `append` pm.value
+      sb `append` " +- "
+      sb `append` pm.error
       sb.toString
 
     def prf(fmt: String): String =
       val sb = new java.lang.StringBuilder
-      sb append fmt.format(pm.value)
-      sb append " +- "
-      sb append fmt.format(pm.error)
+      sb `append` fmt.format(pm.value)
+      sb `append` " +- "
+      sb `append` fmt.format(pm.error)
       sb.toString
   }
 }

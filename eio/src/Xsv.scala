@@ -629,11 +629,11 @@ object Xsv {
         case null => q = data.substring(start, end)
         case s: String =>
           val sb = new java.lang.StringBuilder
-          sb append s
-          sb append data.substring(start, end)
+          sb `append` s
+          sb `append` data.substring(start, end)
           q = sb
         case sb: java.lang.StringBuilder =>
-          sb append data.substring(start, end)
+          sb `append` data.substring(start, end)
     }
 
 
@@ -649,11 +649,11 @@ object Xsv {
           case null => q = x
           case s: String =>
             val sb = new java.lang.StringBuilder
-            sb append s
-            sb append x
+            sb `append` s
+            sb `append` x
             q = sb
           case sb: java.lang.StringBuilder =>
-            sb append x
+            sb `append` x
     }
 
     def onString(strictRect: Boolean = false) = new TableFromString(strictRect)
@@ -668,9 +668,9 @@ object Xsv {
         (c != '\r' && c != '\n' && c != '"' && c != separator).?
         n = i
       }
-    if n == cell.length-1 then sb append cell
+    if n == cell.length-1 then sb `append` cell
     else
-      sb append '"'
+      sb `append` '"'
       var m = 0
       escape:
         cell.visit(n+1 to End){ (c, i) =>
@@ -679,7 +679,7 @@ object Xsv {
         }
       while n != cell.length-1 do
         sb.append(cell, m, n+1)
-        sb append "\"\""
+        sb `append` "\"\""
         m = n+2
         if m < cell.length then
           n = m
@@ -690,12 +690,12 @@ object Xsv {
             }
         else n = cell.length -1
       if m <= n then sb.append(cell, m, n+1)
-      sb append '"'
+      sb `append` '"'
 
   def encodeRow(cells: Array[String], separator: Char)(sb: java.lang.StringBuilder): Unit =
     cells.visit(){ (cell, i) =>
       encodeCell(cell, separator)(sb)
-      if i+1 == cells.length then sb append "\r\n" else sb append separator
+      if i+1 == cells.length then sb `append` "\r\n" else sb `append` separator
     }
 
   def encodeTable(table: Array[Array[String]], separator: Char): Iterator[Array[Byte]] =

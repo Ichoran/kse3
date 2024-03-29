@@ -31,15 +31,15 @@ object SemanticOrder {
       case Kind.Empty  =>
       case Kind.Digits =>
         i += 1
-        while i < j && java.lang.Character.isDigit(s charAt i) do
+        while i < j && java.lang.Character.isDigit(s `charAt` i) do
           i += 1
       case Kind.Text =>
         i += 1
-        while i < j && java.lang.Character.isLetter(s charAt i) do
+        while i < j && java.lang.Character.isLetter(s `charAt` i) do
           i += 1
       case Kind.Other =>
         i += 1
-        while i < j && { val c = s charAt i; !java.lang.Character.isDigit(c) && !java.lang.Character.isLetter(c)} do
+        while i < j && { val c = s `charAt` i; !java.lang.Character.isDigit(c) && !java.lang.Character.isLetter(c)} do
           i += 1
     Iv(iv.i0, i)
 

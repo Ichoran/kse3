@@ -1125,10 +1125,10 @@ final class ByteBufferOutputStream(val buffer: ByteBuffer) extends OutputStream 
     isNowOpen = false
   def write(b: Int): Unit =
     checkOpen()
-    buffer put (b & 0xFF).toByte
+    buffer `put` (b & 0xFF).toByte
   override def write(b: Array[Byte]): Unit =
     checkOpen()
-    buffer put b
+    buffer `put` b
   override def write(b: Array[Byte], off: Int, len: Int): Unit =
     checkOpen()
     buffer.put(b, off, len)
@@ -1245,12 +1245,12 @@ final class SeekableByteChannelOutputStream(val sbc: SeekableByteChannel) extend
 
   override def close(): Unit = sbc.close()
   override def write(b: Array[Byte]): Unit =
-    val bb = ByteBuffer wrap b
+    val bb = ByteBuffer `wrap` b
     val n = sbc.write(bb)
     if (n < b.length) throw new IOException("Tried to write ${b.length} bytes but only could write $n")
   override def write(b: Array[Byte], off: Int, len: Int): Unit =
     if (len > 0) {
-      val bb = ByteBuffer wrap b
+      val bb = ByteBuffer `wrap` b
       bb.position(off)
       bb.limit(off +# len)
       val n = sbc.write(bb)
@@ -1258,7 +1258,7 @@ final class SeekableByteChannelOutputStream(val sbc: SeekableByteChannel) extend
     }
   override def write(b: Int): Unit = synchronized {
     oneByte.clear
-    oneByte put b.toByte
+    oneByte `put` b.toByte
     oneByte.flip
     val n = sbc.write(oneByte)
     if (n != 1) throw new IOException("Tried to write a byte but couldn't")
@@ -1290,12 +1290,12 @@ final class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends
   override def read(b: Array[Byte]): Int =
     if b.length == 0 then 0
     else
-      val bb = ByteBuffer wrap b
+      val bb = ByteBuffer `wrap` b
       checkReadSize( sbc.read(bb) )
   override def read(b: Array[Byte], offset: Int, len: Int): Int =
     if len <= 0 then 0
     else
-      val bb = ByteBuffer wrap b
+      val bb = ByteBuffer `wrap` b
       bb.position(offset)
       bb.limit(offset +# len)
       checkReadSize( sbc.read(bb) )
@@ -1334,7 +1334,7 @@ final class SeekableByteChannelRotatingBuffer(val sbc: SeekableByteChannel, buff
           else if (remaining + 7)/2 < n then n = ((remaining + 7)/2).toInt
           new Array[Byte](n)        
         }
-      val k = sbc.read(ByteBuffer wrap b)
+      val k = sbc.read(ByteBuffer `wrap` b)
       if k < 0 then
         totalSize = consumed
         interval.value = Iv(0, 0)

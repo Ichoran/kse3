@@ -200,40 +200,4 @@ object Ingester {
         a.bkw(k)
   }
 
-  /*
-  trait MultiArrayByteIngester extends CompleteIngester[MultiArrayChannel, Byte] {
-    inline def remaining(a: MultiArrayChannel): Long = a.size - a.position
-    inline def has(a: MultiArrayChannel)(n: Int): Boolean = n <= (a.size - a.position)
-    inline def nonEmpty(a: MultiArrayChannel): Boolean = a.position < a.size
-
-    inline def skip(a: MultiArrayChannel, inline inc: Int => Unit)(n: Int): Unit =
-      if n > 0 then
-        val m = a.size - a.position
-        val h =
-          if m < n then
-            a.position(a.size)
-            m.toInt
-          else
-            a.position(a.position + n)
-            n
-        inc(h)
-
-    inline def undo(a: MultiArrayChannel, inline dec: Int => Unit)(n: Int): Unit =
-      if n > 0 then
-        val m = a.position
-        val h =
-          if m < n then
-            a.position(0)
-            m.toInt
-          else
-            a.position(m - n)
-            n
-        dec(h)
-
-    inline def step[X >: Alt[Err]](a: MultiArrayChannel, inline inc: () => Unit)(using Lb[X]): Byte =
-      val x = a.readOne()
-      if x < 0 then boundary.break(Err.or(s"Input at end, position ${a.size}"))
-      else (x & 0xFF).toByte
-  }
-  */
 }

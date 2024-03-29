@@ -27,7 +27,7 @@ extension [X, Y](or: X Or Y)
   /** Delivers the favored branch or returns, perhaps nonlocally the disfavored branch. */
   inline def ?[L >: Alt[Y]](using Label[L]): X = (or: @unchecked) match
     case y: Alt[Y @unchecked] => boundary.break(y)
-    case _ => Is unwrap or.asInstanceOf[Is[X]]
+    case _ => Is `unwrap` or.asInstanceOf[Is[X]]
 
   /** Delivers the favored branch or remaps the disfavored branch and returns it perhaps nonlocally. */
   inline def ?+[YY, L >: Alt[YY]](inline f: Y => YY)(using Label[L]): X =
@@ -250,7 +250,7 @@ inline def nice[X](inline x: => X): X Or Err =
   */
 inline def cope[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
-  catch case e if e.catchable => Alt(cope fromThrowable e)
+  catch case e if e.catchable => Alt(cope `fromThrowable` e)
 
 /** Run something safely, also catching any control constructs that might escape. */
 inline def threadsafe[X](inline x: => X): X Or Throwable =
@@ -267,7 +267,7 @@ inline def threadnice[X](inline x: => X): X Or Err =
   */
 inline def threadcope[X, Y](inline x: => X)(using cope: Cope[Y]): X Or Y = 
   try Is(x)
-  catch case e if e.threadCatchable => Alt(cope fromThrowable e)
+  catch case e if e.threadCatchable => Alt(cope `fromThrowable` e)
 
 /** Run something safely, with a pregenerated value if things go wrong */
 inline def ratchet[A](default: A)(inline f: A => A): A =
@@ -283,7 +283,7 @@ extension [A, E](or: A Or E)
   def copeMap[B](f: A => B)(using cope: Cope[E]): B Or E =
     or.flatMap{ a =>
       try Is(f(a))
-      catch case t if t.catchable => Alt(cope fromThrowable t)
+      catch case t if t.catchable => Alt(cope `fromThrowable` t)
     }
 
 
@@ -320,15 +320,15 @@ extension [Y](alt: Alt[Y]) {
 extension [X](is: Is[X]) {
   /** Put value into Right */
   inline def toEither: Either[Nothing, X] =
-    Right(Is unwrap is)
+    Right(Is `unwrap` is)
 
   /** Put value into Left */
   inline def swapToEither: Either[X, Nothing] =
-    Left(Is unwrap is)
+    Left(Is `unwrap` is)
 
   /** Put value into Option */
   inline def toOption: Option[X] =
-    Some(Is unwrap is)
+    Some(Is `unwrap` is)
 
   /** Discard value and return None */
   inline def swapToOption: Option[Nothing] =
@@ -336,28 +336,28 @@ extension [X](is: Is[X]) {
 
   /** Put value into Try */
   inline def toTry: Try[X] =
-    Success(Is unwrap is)
+    Success(Is `unwrap` is)
 
   /** Pack value into WrongBranchException and return as a Try */
   inline def swapToTry: Try[Nothing] =
-    Failure(new WrongBranchException(Is unwrap is))
+    Failure(new WrongBranchException(Is `unwrap` is))
 }
 
 extension [X, Y](or: X Or Y) {
   /** Turns this `Or` into an `Either` maintaining favored and disfavored branches (i.e `Is[X]` becomes `Right[X]`) */
   inline def toEither: Either[Y, X] = or match
     case a: Alt[?] => Left(a.alt.asInstanceOf[Y])
-    case _ => Right(Is unwrap or.asInstanceOf[Is[X]])
+    case _ => Right(Is `unwrap` or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Either` swapping favored and disfavored branches (i.e `Is[X]` becomes `Left[X]`) */
   inline def swapToEither: Either[X, Y] = or match
     case a: Alt[?] => Right(a.alt.asInstanceOf[Y])
-    case _ => Left(Is unwrap or.asInstanceOf[Is[X]])
+    case _ => Left(Is `unwrap` or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Option` by discarding the disfavored branch if present. */
   inline def toOption: Option[X] = or match
     case _: Alt[?] => None
-    case _ => Some(Is unwrap or.asInstanceOf[Is[X]])
+    case _ => Some(Is `unwrap` or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into an `Option` by discarding the favored branch if present. */
   inline def swapToOption: Option[Y] = or match
@@ -367,12 +367,12 @@ extension [X, Y](or: X Or Y) {
   /** Turns this `Or` into a `Try` by packing the disfavored branch into a `WrongBranchException` created for that purpose. */
   inline def toTry: Try[X] = or match
     case a: Alt[?] => Failure(new WrongBranchException(a.alt.asInstanceOf[Y]))
-    case _ => Success(Is unwrap or.asInstanceOf[Is[X]])
+    case _ => Success(Is `unwrap` or.asInstanceOf[Is[X]])
 
   /** Turns this `Or` into a `Try` by packing the favored branch into a `WrongBranchException` created for that purpose. */
   inline def swapToTry: Try[Y] = or match
     case a: Alt[?] => Success(a.alt.asInstanceOf[Y])
-    case _ => Failure(new WrongBranchException(Is unwrap or.asInstanceOf[Is[X]]))
+    case _ => Failure(new WrongBranchException(Is `unwrap` or.asInstanceOf[Is[X]]))
 
   /** Tries to get this value, throwing the disfavored branch directly, if possible. */
   @targetName("grabXOrY")
@@ -392,13 +392,13 @@ extension [X](or: X Or Err)
 
 extension [L, R](either: Either[L, R]) {
   /** Converts to an `Or`, placing `Right` as the favored branch */
-  inline def toOr: R Or L = Or from either
+  inline def toOr: R Or L = Or `from` either
 }
 
 
 extension [A](`try`: Try[A]) {
   /** Converts to an `Or`, placing a success as the favored branch and a failure as a `Throwable` in the disfavored branch. */
-  inline def toOr: A Or Throwable = Or from `try`
+  inline def toOr: A Or Throwable = Or `from` `try`
 
   /** Converts to an `Or`, mapping a failure to a disfavored value, or keeping a success as the favored branch. */
   inline def toOrWith[B](f: Throwable => B): A Or B = Or.from(`try`, f)
@@ -407,7 +407,7 @@ extension [A](`try`: Try[A]) {
   inline def niceOr: A Or Err = Or.from(`try`, t => Err(t))
 
   /** Converts to an `Or`, mapping a failure automatically to a disfavored value, or keeping a success as the favored branch. */
-  inline def copeOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
+  inline def copeOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope `fromThrowable` _)
 }
 
 
@@ -418,7 +418,7 @@ extension [A](option: Option[A]) {
     case _ => Failure(new WrongBranchException(None))
 
   /** Converts to an Or by using a value as the favored branch and unit as the disfavored branch if there is no value */
-  inline def toOr: A Or Unit = Or from option
+  inline def toOr: A Or Unit = Or `from` option
 
   /** Converts to an Or by using a default value for the disfavored branch if there is no value */
   inline def toOrElse[B](b: => B): A Or B = Or.fromOrElse(option, b)
@@ -605,7 +605,7 @@ object Attempt {
 object attempt {
   inline def apply[A](inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
     boundary[kse.flow.Attempt[A]]:
-      Attempt asAttempt Is(f)
+      Attempt `asAttempt` Is(f)
 
   inline def safe[A](inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
     try apply(f)

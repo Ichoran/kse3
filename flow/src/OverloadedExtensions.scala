@@ -18,14 +18,14 @@ package kse.flow
 extension [X](is: Is[X])
   /** use is trivial--just apply function and return this Is */
   inline def use(inline f: X => Unit): is.type =
-    f(Is unwrap is); is
+    f(Is `unwrap` is); is
 
 extension [X, Y](or: Or[X, Y])
   /** Operate on the favored value if it exists, but pass on the original `Or`. */
   inline def use(inline f: X => Unit): or.type =
     (or: X Or Y) match
       case _: Alt[?] =>
-      case _ => f(Is unwrap or.asInstanceOf[Is[X]])
+      case _ => f(Is `unwrap` or.asInstanceOf[Is[X]])
     or
 
 extension [A](option: Option[A])

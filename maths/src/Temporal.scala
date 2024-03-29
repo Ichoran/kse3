@@ -371,7 +371,7 @@ object NanoDuration {
   }
 
   given Ordering[kse.maths.NanoDuration] = new {
-    def compare(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration) = a.unwrap compareTo b.unwrap
+    def compare(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration) = a.unwrap `compareTo` b.unwrap
   }
 }
 
@@ -994,7 +994,7 @@ object DurationCompanion {
     case  1 => d
     case -1 => if d.getSeconds == Long.MinValue && d.getNano == 0 then DurationCompanion.MAX else d.negated
     case  0 => if d == Duration.ZERO then d else if d.getSeconds < 0 then DurationCompanion.MIN else DurationCompanion.MAX
-    case  _ => d dividedBy factor
+    case  _ => d `dividedBy` factor
 
   private def divUsingBigInt(ds: Long, dn: Int, es: Long, en: Int, checked: Boolean): Long =
       val bd = BigInt(ds)*1000000000 + dn
@@ -1553,15 +1553,15 @@ object DoubleInstant {
   def apply(ft: FileTime): kse.maths.DoubleInstant =
     val i = ft.toInstant
     if i == Instant.MAX || i == Instant.MIN then
-      val s = ft to TimeUnit.SECONDS
+      val s = ft `to` TimeUnit.SECONDS
       if s == Long.MinValue || s == Long.MaxValue then
-        val m = ft to TimeUnit.MINUTES
+        val m = ft `to` TimeUnit.MINUTES
         if m == -153722867280912930L || m == 153722867280912930L then DoubleInstant.apply(s.toDouble)
         else if m == Long.MinValue || m == Long.MaxValue then
-          val h = ft to TimeUnit.HOURS
+          val h = ft `to` TimeUnit.HOURS
           if h == -153722867280912930L || h == 153722867280912930L then DoubleInstant.apply(m.toDouble * 60)
           else if h == Long.MinValue || h == Long.MaxValue then
-            val d = ft to TimeUnit.DAYS
+            val d = ft `to` TimeUnit.DAYS
             if d == -384307168202282325L || d == 384307168202282325L then DoubleInstant.apply(h.toDouble * 3600)
             else DoubleInstant.apply(d.toDouble * 86400)
           else DoubleInstant.apply(h.toDouble * 3600)
@@ -1846,7 +1846,7 @@ object TemporalCompanion {
       predictLocalOverflow(local.toEpochSecond(ZoneOffset.UTC), local.getNano, duration.getSeconds, duration.getNano, subtract) match
         case -1 => LocalDateTime.MIN
         case  1 => LocalDateTime.MAX
-        case _  => if subtract then local minus duration else local plus duration
+        case _  => if subtract then local `minus` duration else local `plus` duration
     catch case _: DateTimeException =>
       if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN
 
@@ -1855,12 +1855,12 @@ object TemporalCompanion {
       predictLocalOverflow(offset.toEpochSecond + offset.getOffset.getTotalSeconds, offset.getNano, duration.getSeconds, duration.getNano, subtract) match
         case -1 => LocalDateTime.MIN.atOffset(offset.getOffset)
         case  1 => LocalDateTime.MAX.atOffset(offset.getOffset)
-        case _  => if subtract then offset minus duration else offset plus duration
+        case _  => if subtract then offset `minus` duration else offset `plus` duration
     catch case _: DateTimeException =>
       (if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN).atOffset(offset.getOffset)
 
   def addToZoned(zoned: ZonedDateTime, duration: Duration, subtract: Boolean): ZonedDateTime =
-    try if subtract then zoned minus duration else zoned plus duration
+    try if subtract then zoned `minus` duration else zoned `plus` duration
     catch case _: DateTimeException =>
       (if duration.getSeconds < 0 == subtract then LocalDateTime.MAX else LocalDateTime.MIN).atZone(zoned.getZone)
 
@@ -1873,20 +1873,20 @@ object TemporalCompanion {
     val i = filetime.toInstant
     if i != Instant.MIN && i != Instant.MAX then i
     else
-      val s = filetime to TimeUnit.SECONDS
+      val s = filetime `to` TimeUnit.SECONDS
       if s == Instant.MAX.getEpochSecond || s == Instant.MIN.getEpochSecond then i
       else
         if s != Long.MinValue && s != Long.MaxValue then TimeAndUnit(TimeUnit.SECONDS, s)
         else
-          val m = filetime to TimeUnit.MINUTES
+          val m = filetime `to` TimeUnit.MINUTES
           if m == -153722867280912930L || m == 153722867280912930L then TimeAndUnit(TimeUnit.SECONDS, s)
           else if m != Long.MinValue && m != Long.MaxValue then TimeAndUnit(TimeUnit.MINUTES, m)
           else
-            val h = filetime to TimeUnit.HOURS
+            val h = filetime `to` TimeUnit.HOURS
             if h == -153722867280912930L || h == 153722867280912930L then TimeAndUnit(TimeUnit.MINUTES, m)
             else if h != Long.MinValue && h != Long.MaxValue then TimeAndUnit(TimeUnit.HOURS, h)
             else
-              val d = filetime to TimeUnit.DAYS
+              val d = filetime `to` TimeUnit.DAYS
               if d == -384307168202282325L || d == 384307168202282325L then TimeAndUnit(TimeUnit.HOURS, h)
               else TimeAndUnit(TimeUnit.DAYS, d)
 
@@ -1914,7 +1914,7 @@ object TemporalCompanion {
       major += n
       minor -= 2000000000*n
     if major >= (Instant.MIN.getEpochSecond >> 1) && major <= (Instant.MAX.getEpochSecond >> 1) then
-      FileTime from Instant.ofEpochSecond(major*2 + minor/1000000000, minor % 1000000000)
+      FileTime `from` Instant.ofEpochSecond(major*2 + minor/1000000000, minor % 1000000000)
     else if major >= (Long.MinValue >> 1) && major <= (Long.MaxValue >> 1) then
       major = 2 * major + (if minor >= 1000000000 then { minor -= 1000000000; 1 } else 0)
       if major < 0 && minor > 0 then major += 1
@@ -2312,7 +2312,7 @@ object TemporalCompanion {
       try
         predictLocalOverflow(local.toEpochSecond(ZoneOffset.UTC), local.getNano, fs, fix - fs*1000000000, subtract = false) match
           case 1 => LocalDateTime.MAX.minusNanos(scale - 1)
-          case _ => local plusNanos fix
+          case _ => local `plusNanos` fix
       catch case _: DateTimeException => LocalDateTime.MAX.minusNanos(scale - 1)
 
   private def localMinErr(local: LocalDateTime): Long = 1000000000L*local.getSecond + local.getNano
@@ -2520,8 +2520,8 @@ object TemporalCompanion {
           val s = i.getEpochSecond
           if s == Instant.MAX.getEpochSecond && m >= thresh && (ns - m) + scale >= 1000000000 then
             FileTime.from(Instant.MAX.getEpochSecond + 1, TimeUnit.SECONDS)
-          else if m < thresh then FileTime.from(i minusNanos m)
-          else FileTime.from(i plusNanos (scale - m))
+          else if m < thresh then FileTime.from(i `minusNanos` m)
+          else FileTime.from(i `plusNanos` (scale - m))
       case _ => filetime  // Already properly rounded
 
   private def fixFileTimeBigly(filetime: FileTime, v: TimeUnit, thresh: Long): FileTime =
@@ -2539,7 +2539,7 @@ object TemporalCompanion {
         else
           s += (ns + delta) / 1000000000L  // No remainder by design
           if s < Instant.MIN.getEpochSecond || s > Instant.MAX.getEpochSecond then FileTime.from(s, TimeUnit.SECONDS)
-          else FileTime from Instant.ofEpochSecond(s)  // Pay cost of Instant up front since we mostly use Instants
+          else FileTime `from` Instant.ofEpochSecond(s)  // Pay cost of Instant up front since we mostly use Instants
       case TimeAndUnit(u, x) =>
         if v.compareTo(u) <= 0 then filetime  // Already at least this rounded
         else
@@ -2706,8 +2706,8 @@ extension (local: LocalDateTime) {
 
 
 extension (offset: OffsetDateTime) {
-  def MaxValue: OffsetDateTime = LocalDateTime.MAX atOffset offset.getOffset
-  def MinValue: OffsetDateTime = LocalDateTime.MIN atOffset offset.getOffset
+  def MaxValue: OffsetDateTime = LocalDateTime.MAX `atOffset` offset.getOffset
+  def MinValue: OffsetDateTime = LocalDateTime.MIN `atOffset` offset.getOffset
 
   // +(Duration) in OverloadedExtensions
   // +!(Duration) in OverloadedExtensions
@@ -2763,8 +2763,8 @@ extension (offset: OffsetDateTime) {
 
 
 extension (zoned: ZonedDateTime) {
-  def MaxValue: ZonedDateTime = LocalDateTime.MAX atZone zoned.getZone
-  def MinValue: ZonedDateTime = LocalDateTime.MIN atZone zoned.getZone
+  def MaxValue: ZonedDateTime = LocalDateTime.MAX `atZone` zoned.getZone
+  def MinValue: ZonedDateTime = LocalDateTime.MIN `atZone` zoned.getZone
 
   // +(Duration) in OverloadedExtensions
   // +!(Duration) in OverloadedExtensions
