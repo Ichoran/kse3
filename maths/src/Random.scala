@@ -690,7 +690,6 @@ sealed abstract class Prng {
       sb.toString
 
 
-
   final def webString(n: Int): String =
     stringFrom(Prng.WebCharacters, n)
 
@@ -854,25 +853,6 @@ extension [A](a: Array[A])
   @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
   @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
-extension (a: String)
-  // inline def %(r: Prng): Char = r.sample(a)    ===>   In OverloadedExtensions
-  @targetName("that_sample") inline def sample()(r: Prng): Char = r.sample(a)
-  @targetName("auto_sample") inline def sample()(using ar: AutoPrng): Char = AutoPrng.get(ar).sample(a)
-  @targetName("that_sample") inline def sample(i0: Int, iN: Int)(r: Prng): Char = r.sampleRange(a)(i0, iN)
-  @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(i0, iN)
-  @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): Char = r.sampleRange(a)(rg)
-  @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(rg)
-  @targetName("that_sample") inline def sample(inline v: Iv | PIv)(r: Prng): Char = r.sampleRange(a)(v)
-  @targetName("auto_sample") inline def sample(inline v: Iv | PIv)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
-  @targetName("that_sample") inline def sample(k: Int)(r: Prng): String = r.sample(k)(a)
-  @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sample(k)(a)
-  @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng): String = r.sampleRange(k)(a)(i0, iN)
-  @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
-  @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng): String = r.sampleRange(k)(a)(rg)
-  @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(rg)
-  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng): String = r.sampleRange(k)(a)(v)
-  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
-
 extension (a: Array[Boolean])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillZ(a); a }
@@ -976,6 +956,52 @@ extension (a: Array[Double])
   @targetName("auto_randGau") inline def randomGaussian(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
   @targetName("that_randGau") inline def randomGaussian(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
   @targetName("auto_randGau") inline def randomGaussian(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
+
+extension (a: String)
+  // inline def %(r: Prng): Char = r.sample(a)    ===>   In OverloadedExtensions
+  @targetName("that_sample") inline def sample()(r: Prng): Char = r.sample(a)
+  @targetName("auto_sample") inline def sample()(using ar: AutoPrng): Char = AutoPrng.get(ar).sample(a)
+  @targetName("that_sample") inline def sample(i0: Int, iN: Int)(r: Prng): Char = r.sampleRange(a)(i0, iN)
+  @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(i0, iN)
+  @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): Char = r.sampleRange(a)(rg)
+  @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(rg)
+  @targetName("that_sample") inline def sample(inline v: Iv | PIv)(r: Prng): Char = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample(inline v: Iv | PIv)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample(k: Int)(r: Prng): String = r.sample(k)(a)
+  @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sample(k)(a)
+  @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng): String = r.sampleRange(k)(a)(i0, iN)
+  @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
+  @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng): String = r.sampleRange(k)(a)(rg)
+  @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(rg)
+  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng): String = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
+
+extension [A, CC[A] <: IndexedSeq[A]](coll: CC[A])
+  @targetName("that_ix_sample") inline def sample()(r: Prng): A = coll.apply(r % coll.length)
+  @targetName("auto_ix_sample") inline def sample()(using ar: AutoPrng): A = coll.apply(AutoPrng.get(ar) % coll.length)
+  @targetName("that_ix_sample") inline def sample(k: Int)(r: Prng)(using factory: scala.collection.Factory[A, CC[A]]): CC[A] =
+    val b = factory.newBuilder
+    if k > 0 then
+      if coll.length == 0 then throw new IllegalArgumentException("sample of empty range")
+      else if k < coll.length then
+        val indices = r.chooseIndices(coll.length, k)
+        var i = 0
+        while i < k do
+          b += coll.apply(indices(i))
+          i += 1
+      else
+        val indices = Iv(0, coll.length).where()
+        var h = 0
+        while h < k do
+          r.shuffleRangeI(indices)(0, indices.length)
+          var i = 0
+          while i < indices.length && h < k do
+            b += coll.apply(indices(i))
+            i += 1
+            h += 1
+    b.result
+  @targetName("auto_ix_sample") inline def sample(k: Int)(using ar: AutoPrng, factory: scala.collection.Factory[A, CC[A]]): CC[A] =
+    sample(k)(AutoPrng.get(ar))
 
 extension (i: Int)(using ar: AutoPrng)
   inline def roll: Int = 1 + (AutoPrng.get(ar) % i)
