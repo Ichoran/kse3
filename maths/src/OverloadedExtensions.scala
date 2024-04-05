@@ -327,6 +327,11 @@ extension [A](a: Array[A]) {
 }
 
 
+extension (a: String) {
+  inline def %(r: Prng): Char = r.sample(a)
+}
+
+
 extension (d: Duration) {
   //////////////////////////////////////
   // Range-aware and rounding methods //

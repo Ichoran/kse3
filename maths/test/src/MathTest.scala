@@ -703,12 +703,16 @@ class MathTest {
       while tenk.toSet.size != 10000 do tenk = 10000.arrayed(_ => r3.F)
       val tenkSet = tenk.toSet
 
+      val text = "anchovies"
+
       T(title) ~ r3.sample(five).fn(x => five contains x) ==== true
       T(title) ~ five.sample() ==== five.sample()(r2)
       T(title) ~ r3.sample(hund).fn(x => hund contains x) ==== true
       T(title) ~ hund.sample() ==== hund.sample()(r2)
       T(title) ~ r3.sample(tenk).fn(x => tenk contains x) ==== true
       T(title) ~ tenk.sample() ==== tenk.sample()(r2)
+      T(title) ~ (text.indexOf(r3.sample(text)) >= 0) ==== true
+      T(title) ~ text.sample() ==== text.sample()(r2)
 
       T(title) ~ r3.sampleRange(five)(2, 4).fn(x => five.select(2, 4) contains x) ==== true
       T(title) ~ five.sample(2, 4) ==== five.sample(2, 4)(r2)
@@ -716,6 +720,8 @@ class MathTest {
       T(title) ~ hund.sample(20, 40) ==== hund.sample(20, 40)(r2)
       T(title) ~ r3.sampleRange(tenk)(111, 999).fn(x => tenk.select(111, 999) contains x) ==== true
       T(title) ~ tenk.sample(111, 999) ==== tenk.sample(111, 999)(r2)
+      T(title) ~ "chov".contains(r3.sampleRange(text)(2, 6)) ==== true
+      T(title) ~ text.sample(2, 6) ==== text.sample(2, 6)(r2)
 
       T(title) ~ r3.sampleRange(five)(Iv(2, 4)).fn(x => five.select(Iv(2, 4)) contains x) ==== true
       T(title) ~ five.sample(Iv(2, 4)) ==== five.sample(Iv(2, 4))(r2)
@@ -723,6 +729,8 @@ class MathTest {
       T(title) ~ hund.sample(Iv(20, 40)) ==== hund.sample(Iv(20, 40))(r2)
       T(title) ~ r3.sampleRange(tenk)(Iv(111, 999)).fn(x => tenk.select(Iv(111, 999)) contains x) ==== true
       T(title) ~ tenk.sample(Iv(111, 999)) ==== tenk.sample(Iv(111, 999))(r2)
+      T(title) ~ "chov".contains(r3.sampleRange(text)(Iv(2, 6))) ==== true
+      T(title) ~ text.sample(Iv(2, 6)) ==== text.sample(Iv(2, 6))(r2)
 
       T(title) ~ r3.sampleRange(five)(2 to 4).fn(x => five.select(2 to 4) contains x) ==== true
       T(title) ~ five.sample(2 to 4) ==== five.sample(2 to 4)(r2)
@@ -730,6 +738,8 @@ class MathTest {
       T(title) ~ hund.sample(20 to 40) ==== hund.sample(20 to 40)(r2)
       T(title) ~ r3.sampleRange(tenk)(111 to 999).fn(x => tenk.select(111 to 999) contains x) ==== true
       T(title) ~ tenk.sample(111 to 999) ==== tenk.sample(111 to 999)(r2)
+      T(title) ~ "chov".contains(r3.sampleRange(text)(2 to 5)) ==== true
+      T(title) ~ text.sample(2 to 5) ==== text.sample(2 to 5)(r2)
 
       T(title) ~ r3.sampleRange(five)(2 to End-1).fn(x => five.select(2 to End-1) contains x) ==== true
       T(title) ~ five.sample(2 to End-1) ==== five.sample(2 to End-1)(r2)
@@ -737,6 +747,8 @@ class MathTest {
       T(title) ~ hund.sample(20 to End-40) ==== hund.sample(20 to End-40)(r2)
       T(title) ~ r3.sampleRange(tenk)(111 to End-999).fn(x => tenk.select(111 to End-999) contains x) ==== true
       T(title) ~ tenk.sample(111 to End-999) ==== tenk.sample(111 to End-999)(r2)
+      T(title) ~ "chov".contains(r3.sampleRange(text)(2 to End-3)) ==== true
+      T(title) ~ text.sample(2 to End-3) ==== text.sample(2 to End-3)(r2)
 
       // Should be direct method
       T(title) ~ lovely(fiveSet, r3.sample(1)(five)) ==== 0
@@ -771,6 +783,8 @@ class MathTest {
       T(title) ~ hund.sample(527) =**= hund.sample(527)(r2)
 
       T(title) ~ r3.sample(14)(hund).length ==== 14
+
+      T(title) ~ text.sample(4).toCharArray =**= text.toCharArray.sample(4)(r2)
 
       T(title) ~ lovely(hund.select(20, 40).toSet, r3.sampleRange(14)(hund)(20, 40)) ==== 0
       T(title) ~ r3.sampleRange(14)(hund)(20, 40).length ==== 14
