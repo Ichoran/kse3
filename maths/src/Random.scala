@@ -499,6 +499,124 @@ sealed abstract class Prng {
     val iv = Iv.of(v, a)
     shuffleRange(a)(iv.i0, iv.iN)
 
+  private def liAlgorithmL(n: Int, k: Int): Array[Int] =
+    val ans = new Array[Int](k)
+    ans.set()(i => i)
+    var i = k
+    var w = math.exp(math.log(this.D)/k)
+    while i <= n do
+      i += 1 + math.floor(math.log(this.D)/math.log(1-w)).toInt
+      if i <= n then
+        ans(this % ans.length) = i - 1
+        w *= math.exp(math.log(this.D)/k)
+    ans
+
+  final def chooseIndices(n: Int, k: Int, sorted: Boolean = false): Array[Int] =
+    if k <= 0 || k >= n then throw new IllegalArgumentException("must have 0 < k < n for meaningful choice")
+    else if k <= 3 then 
+      // Direct selection
+      val one = this % n
+      if k == 1 then Array(one)
+      else
+        var two = this % (n - 1)
+        if two >= 1 then two += 1
+        if k == 2 then
+          if !sorted || one < two then Array(one, two)
+          else Array(two, one)
+        else
+          var three = this % (n - 2)
+          if three >= one || three >= two then
+            three += 1
+            if three >= one && three >= two then
+              three += 1
+          val ans = Array(one, two, three)
+          if sorted then java.util.Arrays.sort(ans)
+          ans
+    else if k <= 16 && k <= n/4 then
+      // Resampling (quadratic in k)
+      val ans = new Array[Int](k)
+      ans(0) = this % n
+      var i = 1
+      while i < ans.length do
+        val v = this % n
+        var j = 0
+        while j < i && ans(j) != v do j += 1
+        if j == i then
+          ans(i) = v
+          i += 1
+      if sorted then java.util.Arrays.sort(ans)
+      ans
+    else if k < n/16 then
+      val ans = liAlgorithmL(n, k)
+      if !sorted then shuffleRangeI(ans)(0, ans.length)
+      else java.util.Arrays.sort(ans)
+      ans
+    else if k < n/2 || sorted then
+      // Pursuit, uses n random doubles
+      val ans = new Array[Int](k)
+      var in = k
+      var out = n - k
+      var i = 0
+      while i < n && in > 0 do
+        if D < in.toDouble/(in + out) then
+          ans(ans.length - in) = i
+          in -= 1
+        else out -= 1
+        i += 1
+      if !sorted then shuffleRangeI(ans)(0, ans.length)
+      ans
+    else
+      // Truncated Fisher-Yates shuffle, uses n random integers
+      val full = new Array[Int](n)
+      full.set()(i => i)
+      shuffleRangeI(full)(0, full.length)
+      full.select(0, k)
+
+  final inline def sample[A](a: Array[A]): A = a(this % a.length)
+  final inline def sample[A](k: Int)(a: Array[A])(using ClassTag[A]): Array[A] = sampleRange(k)(a)(0, a.length)
+
+  final inline def sampleRange[A](a: Array[A])(i0: Int, iN: Int): A =
+    if i0 >= iN then throw new IllegalArgumentException("sample of empty range")
+    else a(i0 + (this % (iN - i0)))
+  final inline def sampleRange[A](a: Array[A])(inline rg: Rg): A =
+    val iv = Iv of rg
+    sampleRange(a)(iv.i0, iv.iN)
+  final inline def sampleRange[A](a: Array[A])(inline v: Iv | PIv): A =
+    val iv = Iv.of(v, a)
+    sampleRange(a)(iv.i0, iv.iN)
+
+  final inline def sampleRange[A](k: Int)(a: Array[A])(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
+    if k <= 0 then new Array[A](0)
+    else if i0 >= iN then throw new IllegalArgumentException("sample of empty range")
+    else if k < iN - i0 then
+      val ans = new Array[A](k)
+      val indices = chooseIndices(iN - i0, k)
+      var i = 0
+      while i < ans.length do
+        ans(i) = a(indices(i) + i0)
+        i += 1
+      ans
+    else
+      val ans = new Array[A](k)
+      val indices = Iv(i0, iN).where()
+      var h = 0
+      while h < ans.length do
+        shuffleRangeI(indices)(0, indices.length)
+        var i = 0
+        while i < indices.length && h < ans.length do
+          ans(h) = a(indices(i) + i0)
+          i += 1
+          h += 1
+      ans
+
+  final inline def sampleRange[A](k: Int)(a: Array[A])(inline rg: Rg)(using ClassTag[A]): Array[A] =
+    val iv = Iv of rg
+    sampleRange(k)(a)(iv.i0, iv.iN)
+  final inline def sampleRange[A](k: Int)(a: Array[A])(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
+    val iv = Iv.of(v, a)
+    sampleRange(k)(a)(iv.i0, iv.iN)
+
+
   final def stringFrom(letters: String, n: Int): String =
     if n <= 0 then ""
     else if letters.isEmpty then stringFrom("\u0000", n)
@@ -674,6 +792,23 @@ extension [A](a: Array[A])
   inline def randomFillOp(inline rg: Rg)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
   inline def randomFillOp(inline v: Iv | PIv)(r: Prng)(f: Prng => A): a.type = { val iv = Iv.of(v, a); r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
   inline def randomFillOp(inline v: Iv | PIv)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
+  // inline def %(r: Prng): A = r.sample(a)    ===>   In OverloadedExtensions
+  @targetName("that_sample") inline def sample()(r: Prng): A = r.sample(a)
+  @targetName("auto_sample") inline def sample()(using ar: AutoPrng): A = AutoPrng.get(ar).sample(a)
+  @targetName("that_sample") inline def sample(i0: Int, iN: Int)(r: Prng): A = r.sampleRange(a)(i0, iN)
+  @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(i0, iN)
+  @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): A = r.sampleRange(a)(rg)
+  @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(rg)
+  @targetName("that_sample") inline def sample(inline v: Iv | PIv)(r: Prng): A = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample(inline v: Iv | PIv)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample(k: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sample(k)(a)
+  @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sample(k)(a)
+  @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(i0, iN)
+  @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
+  @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(rg)
+  @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(rg)
+  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension (a: Array[Boolean])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }

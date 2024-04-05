@@ -322,6 +322,10 @@ extension (value: Double) {
 }
 
 
+extension [A](a: Array[A]) {
+  inline def %(r: Prng): A = r.sample(a)
+}
+
 
 extension (d: Duration) {
   //////////////////////////////////////

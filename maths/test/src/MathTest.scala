@@ -667,6 +667,128 @@ class MathTest {
       T(name) ~ us1.randomFillOp(1 to k)(p => (p%9).u)   =**= us2.randomFillOp(1 to 8)(r2)(p => (p%9).u)
     }
 
+    nFor(20){ n =>
+      import kse.basics.intervals._
+      given AutoPrng = rng.givable
+
+      val r3: Prng = rng.copy
+
+      val title = s"$name iter $n"
+
+      def uniqueSubset(full: Set[Float], part: Array[Float], i0: Int, iN: Int): Int =
+        if part.toSet.size == part.length then 1
+        else if !part.select(i0, iN).forall(full contains _) then 2
+        else 0
+
+      def lovely(full: Set[Float], part: Array[Float]): Int =
+        var n = 0
+        var ans = 0
+        var i = 0
+        while part.length - n > full.size && ans == 0 do
+          i += 1
+          ans += 10*i*uniqueSubset(full, part, n, n + full.size)
+          n += full.size
+        if ans == 0 then 10*i*uniqueSubset(full, part, n, part.length)
+        else ans
+
+      var five: Array[Float] = 5.arrayed(_ => r3.F)
+      while five.toSet.size != 5 do five = 5.arrayed(_ => r3.F)
+      val fiveSet = five.toSet
+
+      var hund: Array[Float] = 100.arrayed(_ => r3.F)
+      while hund.toSet.size != 100 do hund = 100.arrayed(_ => r3.F)
+      val hundSet = hund.toSet
+
+      var tenk: Array[Float] = 10000.arrayed(_ => r3.F)
+      while tenk.toSet.size != 10000 do tenk = 10000.arrayed(_ => r3.F)
+      val tenkSet = tenk.toSet
+
+      T(title) ~ r3.sample(five).fn(x => five contains x) ==== true
+      T(title) ~ five.sample() ==== five.sample()(r2)
+      T(title) ~ r3.sample(hund).fn(x => hund contains x) ==== true
+      T(title) ~ hund.sample() ==== hund.sample()(r2)
+      T(title) ~ r3.sample(tenk).fn(x => tenk contains x) ==== true
+      T(title) ~ tenk.sample() ==== tenk.sample()(r2)
+
+      T(title) ~ r3.sampleRange(five)(2, 4).fn(x => five.select(2, 4) contains x) ==== true
+      T(title) ~ five.sample(2, 4) ==== five.sample(2, 4)(r2)
+      T(title) ~ r3.sampleRange(hund)(20, 40).fn(x => hund.select(20, 40) contains x) ==== true
+      T(title) ~ hund.sample(20, 40) ==== hund.sample(20, 40)(r2)
+      T(title) ~ r3.sampleRange(tenk)(111, 999).fn(x => tenk.select(111, 999) contains x) ==== true
+      T(title) ~ tenk.sample(111, 999) ==== tenk.sample(111, 999)(r2)
+
+      T(title) ~ r3.sampleRange(five)(Iv(2, 4)).fn(x => five.select(Iv(2, 4)) contains x) ==== true
+      T(title) ~ five.sample(Iv(2, 4)) ==== five.sample(Iv(2, 4))(r2)
+      T(title) ~ r3.sampleRange(hund)(Iv(20, 40)).fn(x => hund.select(Iv(20, 40)) contains x) ==== true
+      T(title) ~ hund.sample(Iv(20, 40)) ==== hund.sample(Iv(20, 40))(r2)
+      T(title) ~ r3.sampleRange(tenk)(Iv(111, 999)).fn(x => tenk.select(Iv(111, 999)) contains x) ==== true
+      T(title) ~ tenk.sample(Iv(111, 999)) ==== tenk.sample(Iv(111, 999))(r2)
+
+      T(title) ~ r3.sampleRange(five)(2 to 4).fn(x => five.select(2 to 4) contains x) ==== true
+      T(title) ~ five.sample(2 to 4) ==== five.sample(2 to 4)(r2)
+      T(title) ~ r3.sampleRange(hund)(20 to 40).fn(x => hund.select(20 to 40) contains x) ==== true
+      T(title) ~ hund.sample(20 to 40) ==== hund.sample(20 to 40)(r2)
+      T(title) ~ r3.sampleRange(tenk)(111 to 999).fn(x => tenk.select(111 to 999) contains x) ==== true
+      T(title) ~ tenk.sample(111 to 999) ==== tenk.sample(111 to 999)(r2)
+
+      T(title) ~ r3.sampleRange(five)(2 to End-1).fn(x => five.select(2 to End-1) contains x) ==== true
+      T(title) ~ five.sample(2 to End-1) ==== five.sample(2 to End-1)(r2)
+      T(title) ~ r3.sampleRange(hund)(20 to End-40).fn(x => hund.select(20 to End-40) contains x) ==== true
+      T(title) ~ hund.sample(20 to End-40) ==== hund.sample(20 to End-40)(r2)
+      T(title) ~ r3.sampleRange(tenk)(111 to End-999).fn(x => tenk.select(111 to End-999) contains x) ==== true
+      T(title) ~ tenk.sample(111 to End-999) ==== tenk.sample(111 to End-999)(r2)
+
+      // Should be direct method
+      T(title) ~ lovely(fiveSet, r3.sample(1)(five)) ==== 0
+      T(title) ~ five.sample(1) =**= five.sample(1)(r2)
+      T(title) ~ lovely(fiveSet, r3.sample(2)(five)) ==== 0
+      T(title) ~ five.sample(2) =**= five.sample(2)(r2)
+      T(title) ~ lovely(fiveSet, r3.sample(3)(five)) ==== 0
+      T(title) ~ five.sample(3) =**= five.sample(3)(r2)
+
+      // Should be sampling with replacement (quadratic)
+      T(title) ~ lovely(hundSet, r3.sample(4)(hund)) ==== 0
+      T(title) ~ hund.sample(4) =**= hund.sample(4)(r2)
+      T(title) ~ lovely(hundSet, r3.sample(16)(hund)) ==== 0
+      T(title) ~ hund.sample(16) =**= hund.sample(16)(r2)
+
+      // Should be Algorithm L
+      T(title) ~ lovely(tenkSet, r3.sample(30)(tenk)) ==== 0
+      T(title) ~ tenk.sample(30) =**= tenk.sample(30)(r2)
+      T(title) ~ lovely(tenkSet, r3.sample(150)(tenk)) ==== 0
+      T(title) ~ tenk.sample(150) =**= tenk.sample(150)(r2)
+
+      // Should be pursuit
+      T(title) ~ lovely(hundSet, r3.sample(40)(hund)) ==== 0
+      T(title) ~ hund.sample(40) =**= hund.sample(40)(r2)
+      T(title) ~ lovely(tenkSet, r3.sample(1000)(tenk)) ==== 0
+      T(title) ~ tenk.sample(1000) =**= tenk.sample(1000)(r2)
+
+      // Should be truncated (or repeated then truncated) Fisher-Yates
+      T(title) ~ lovely(hundSet, r3.sample(80)(hund)) ==== 0
+      T(title) ~ hund.sample(80) =**= hund.sample(80)(r2)
+      T(title) ~ lovely(fiveSet, r3.sample(77)(five)) ==== 0
+      T(title) ~ hund.sample(527) =**= hund.sample(527)(r2)
+
+      T(title) ~ r3.sample(14)(hund).length ==== 14
+
+      T(title) ~ lovely(hund.select(20, 40).toSet, r3.sampleRange(14)(hund)(20, 40)) ==== 0
+      T(title) ~ r3.sampleRange(14)(hund)(20, 40).length ==== 14
+      T(title) ~ hund.sample(14)(20, 40) =**= hund.sample(14)(20, 40)(r2)
+
+      T(title) ~ lovely(hund.select(Iv(20, 40)).toSet, r3.sampleRange(14)(hund)(Iv(20, 40))) ==== 0
+      T(title) ~ r3.sampleRange(14)(hund)(Iv(20, 40)).length ==== 14
+      T(title) ~ hund.sample(14)(Iv(20, 40)) =**= hund.sample(14)(Iv(20, 40))(r2)
+
+      T(title) ~ lovely(hund.select(20 to 40).toSet, r3.sampleRange(14)(hund)(20 to 40)) ==== 0
+      T(title) ~ r3.sampleRange(14)(hund)(20 to 40).length ==== 14
+      T(title) ~ hund.sample(14)(20 to 40) =**= hund.sample(14)(20 to 40)(r2)
+
+      T(title) ~ lovely(hund.select(20 to End-40).toSet, r3.sampleRange(14)(hund)(20 to End-40)) ==== 0
+      T(title) ~ r3.sampleRange(14)(hund)(20 to End-40).length ==== 14
+      T(title) ~ hund.sample(14)(20 to End-40) =**= hund.sample(14)(20 to End-40)(r2)
+    }
+
     val tfs = rng.stringFrom("FT", 100)
     T(name) ~ (tfs.count(_ == 'T') > 25) ==== true
     T(name) ~ (tfs.count(_ == 'T') < 75) ==== true
