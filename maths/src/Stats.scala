@@ -330,81 +330,81 @@ object Bootstrap {
 }
 
 extension (values: Array[Int])
-  inline def est: Est = Est from values
-  inline def estRange(i0: Int, iN: Int): Est =
+  inline def est(): Est = Est from values
+  inline def est(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def estRange(inline v: Iv | PIv): Est =
+  inline def est(inline v: Iv | PIv): Est =
     val iv = Iv.of(v, values)
-    estRange(iv.i0, iv.iN)
-  inline def estRange(inline rg: Rg): Est =
+    est(iv.i0, iv.iN)
+  inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
-    estRange(iv.i0, iv.iN)
+    est(iv.i0, iv.iN)
 
 extension (values: Array[Long])
-  inline def est: Est = Est from values
-  inline def estRange(i0: Int, iN: Int): Est =
+  inline def est(): Est = Est from values
+  inline def est(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def estRange(inline v: Iv | PIv): Est =
+  inline def est(inline v: Iv | PIv): Est =
     val iv = Iv.of(v, values)
-    estRange(iv.i0, iv.iN)
-  inline def estRange(inline rg: Rg): Est =
+    est(iv.i0, iv.iN)
+  inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
-    estRange(iv.i0, iv.iN)
+    est(iv.i0, iv.iN)
 
 extension (values: Array[Float])
-  inline def est: Est = Est from values
-  inline def estRange(i0: Int, iN: Int): Est =
+  inline def est(): Est = Est from values
+  inline def est(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def estRange(inline v: Iv | PIv): Est =
+  inline def est(inline v: Iv | PIv): Est =
     val iv = Iv.of(v, values)
-    estRange(iv.i0, iv.iN)
-  inline def estRange(inline rg: Rg): Est =
+    est(iv.i0, iv.iN)
+  inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
-    estRange(iv.i0, iv.iN)
+    est(iv.i0, iv.iN)
 
 extension (values: Array[Double])
-  inline def est: Est = Est from values
-  inline def estRange(i0: Int, iN: Int): Est =
+  inline def est(): Est = Est from values
+  inline def est(i0: Int, iN: Int): Est =
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def estRange(inline v: Iv | PIv): Est =
+  inline def est(inline v: Iv | PIv): Est =
     val iv = Iv.of(v, values)
-    estRange(iv.i0, iv.iN)
-  inline def estRange(inline rg: Rg): Est =
+    est(iv.i0, iv.iN)
+  inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
-    estRange(iv.i0, iv.iN)
+    est(iv.i0, iv.iN)
 
 extension [A](values: Array[A])
-  inline def estWith(inline f: A => Double): Est =
+  inline def estWith()(inline f: A => Double): Est =
     val m = Est.M.empty
     m.addRangeWith(values)(0, values.length)(f)
     m
-  inline def estRangeWith(i0: Int, iN: Int)(inline f: A => Double): Est =
+  inline def estWith(i0: Int, iN: Int)(inline f: A => Double): Est =
     val m = Est.M.empty
     m.addRangeWith(values)(i0, iN)(f)
     m
-  inline def estRangeWith(inline v: Iv | PIv)(inline f: A => Double): Est =
+  inline def estWith(inline v: Iv | PIv)(inline f: A => Double): Est =
     val iv = Iv.of(v, values)
-    estRangeWith(iv.i0, iv.iN)(f)
-  inline def estRangeWith(inline rg: Rg)(inline f: A => Double): Est =
+    estWith(iv.i0, iv.iN)(f)
+  inline def estWith(inline rg: Rg)(inline f: A => Double): Est =
     val iv = Iv of rg
-    estRangeWith(iv.i0, iv.iN)(f)
+    estWith(iv.i0, iv.iN)(f)
 
 extension [A <: Int | Long | Float | Double](values: IterableOnce[A])
-  inline def est: Est =
+  inline def est(): Est =
     val m = Est.M.empty
     m ++= values.iterator
     m
 
 extension [A](values: IterableOnce[A])
-  inline def estWith(f: A => Double): Est =
+  inline def estWith()(f: A => Double): Est =
     val m = Est.M.empty
     m.addWith(values.iterator)(f)
     m

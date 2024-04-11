@@ -705,6 +705,8 @@ class MathTest {
 
       val text = "anchovies"
 
+      val ixsq = Vector("eel", "perch", "bass", "herring", "halibut", "minnow", "cod")
+
       T(title) ~ r3.sample(five).fn(x => five contains x) ==== true
       T(title) ~ five.sample() ==== five.sample()(r2)
       T(title) ~ r3.sample(hund).fn(x => hund contains x) ==== true
@@ -713,6 +715,8 @@ class MathTest {
       T(title) ~ tenk.sample() ==== tenk.sample()(r2)
       T(title) ~ (text.indexOf(r3.sample(text)) >= 0) ==== true
       T(title) ~ text.sample() ==== text.sample()(r2)
+      T(title) ~ ixsq.sample()(r3).fn(x => ixsq contains x) ==== true
+      T(title) ~ ixsq.sample() ==== ixsq.sample()(r2)
 
       T(title) ~ r3.sampleRange(five)(2, 4).fn(x => five.select(2, 4) contains x) ==== true
       T(title) ~ five.sample(2, 4) ==== five.sample(2, 4)(r2)
@@ -785,6 +789,9 @@ class MathTest {
       T(title) ~ r3.sample(14)(hund).length ==== 14
 
       T(title) ~ text.sample(4).toCharArray =**= text.toCharArray.sample(4)(r2)
+      T(title) ~ ixsq.sample(4)(r3).length ==== 4
+      T(title) ~ ixsq.sample(4)(r3).forall(ixsq contains _) ==== true
+      T(title) ~ ixsq.sample(4) =**= ixsq.sample(4)(r2)
 
       T(title) ~ lovely(hund.select(20, 40).toSet, r3.sampleRange(14)(hund)(20, 40)) ==== 0
       T(title) ~ r3.sampleRange(14)(hund)(20, 40).length ==== 14
@@ -3006,8 +3013,8 @@ class MathTest {
     val ad = ai.map(_.toDouble)
     val as = Array("a", "eel", "bass", "perch", "barracuda", "herring", "bb")
     val ls = as.toList
-    val two = Array(2, 3).est
-    val one = Array(7).est
+    val two = Array(2, 3).est()
+    val one = Array(7).est()
     val m = Est.mut
     m ++= ai
     T ~ m.n               ==== 7
@@ -3054,57 +3061,57 @@ class MathTest {
     m -= 1
     m -= 7
     m -= 2
-    T ~ ai.est.n                    ==== m2.n
-    T ~ ai.est.mean                 =~~= m2.mean
-    T ~ ai.est.sse                  =~~= m2.sse
-    T ~ ai.estRange(1, 5).n         ==== 4
-    T ~ ai.estRange(1, 5).mean      =~~= m.mean
-    T ~ ai.estRange(1, 5).sse       =~~= m.sse
-    T ~ ai.estRange(1 to 4).sse     =~~= m.sse
-    T ~ ai.estRange(Iv(1,5)).sse    =~~= m.sse
-    T ~ ai.estRange(1 to End-2).sse =~~= m.sse
-    T ~ al.est.n                    ==== m2.n
-    T ~ al.est.mean                 =~~= m2.mean
-    T ~ al.est.sse                  =~~= m2.sse
-    T ~ al.estRange(1, 5).n         ==== 4
-    T ~ al.estRange(1, 5).mean      =~~= m.mean
-    T ~ al.estRange(1, 5).sse       =~~= m.sse
-    T ~ al.estRange(1 to 4).sse     =~~= m.sse
-    T ~ al.estRange(Iv(1,5)).sse    =~~= m.sse
-    T ~ al.estRange(1 to End-2).sse =~~= m.sse
-    T ~ af.est.n                    ==== m2.n
-    T ~ af.est.mean                 =~~= m2.mean
-    T ~ af.est.sse                  =~~= m2.sse
-    T ~ af.estRange(1, 5).n         ==== 4
-    T ~ af.estRange(1, 5).mean      =~~= m.mean
-    T ~ af.estRange(1, 5).sse       =~~= m.sse
-    T ~ af.estRange(1 to 4).sse     =~~= m.sse
-    T ~ af.estRange(Iv(1,5)).sse    =~~= m.sse
-    T ~ af.estRange(1 to End-2).sse =~~= m.sse
-    T ~ ad.est.n                    ==== m2.n
-    T ~ ad.est.mean                 =~~= m2.mean
-    T ~ ad.est.sse                  =~~= m2.sse
-    T ~ ad.estRange(1, 5).n         ==== 4
-    T ~ ad.estRange(1, 5).mean      =~~= m.mean
-    T ~ ad.estRange(1, 5).sse       =~~= m.sse
-    T ~ ad.estRange(1 to 4).sse     =~~= m.sse
-    T ~ ad.estRange(Iv(1,5)).sse    =~~= m.sse
-    T ~ ad.estRange(1 to End-2).sse =~~= m.sse
-    T ~ ai.toVector.est             ==== m2
-    T ~ as.estWith(_.length)        ==== m2
-    T ~ ls.estWith(_.length)        ==== m2
-    T ~ Est.M.empty                 ==== Est.mut
-    T ~ Est.M.from(ai)              ==== Est.from(ai)
-    T ~ Est.M.from(al)              ==== Est.from(al)
-    T ~ Est.M.from(af)              ==== Est.from(af)
-    T ~ Est.M.from(ad)              ==== Est.from(ad)
+    T ~ ai.est().n             ==== m2.n
+    T ~ ai.est().mean          =~~= m2.mean
+    T ~ ai.est().sse           =~~= m2.sse
+    T ~ ai.est(1, 5).n         ==== 4
+    T ~ ai.est(1, 5).mean      =~~= m.mean
+    T ~ ai.est(1, 5).sse       =~~= m.sse
+    T ~ ai.est(1 to 4).sse     =~~= m.sse
+    T ~ ai.est(Iv(1,5)).sse    =~~= m.sse
+    T ~ ai.est(1 to End-2).sse =~~= m.sse
+    T ~ al.est().n             ==== m2.n
+    T ~ al.est().mean          =~~= m2.mean
+    T ~ al.est().sse           =~~= m2.sse
+    T ~ al.est(1, 5).n         ==== 4
+    T ~ al.est(1, 5).mean      =~~= m.mean
+    T ~ al.est(1, 5).sse       =~~= m.sse
+    T ~ al.est(1 to 4).sse     =~~= m.sse
+    T ~ al.est(Iv(1,5)).sse    =~~= m.sse
+    T ~ al.est(1 to End-2).sse =~~= m.sse
+    T ~ af.est().n             ==== m2.n
+    T ~ af.est().mean          =~~= m2.mean
+    T ~ af.est().sse           =~~= m2.sse
+    T ~ af.est(1, 5).n         ==== 4
+    T ~ af.est(1, 5).mean      =~~= m.mean
+    T ~ af.est(1, 5).sse       =~~= m.sse
+    T ~ af.est(1 to 4).sse     =~~= m.sse
+    T ~ af.est(Iv(1,5)).sse    =~~= m.sse
+    T ~ af.est(1 to End-2).sse =~~= m.sse
+    T ~ ad.est().n             ==== m2.n
+    T ~ ad.est().mean          =~~= m2.mean
+    T ~ ad.est().sse           =~~= m2.sse
+    T ~ ad.est(1, 5).n         ==== 4
+    T ~ ad.est(1, 5).mean      =~~= m.mean
+    T ~ ad.est(1, 5).sse       =~~= m.sse
+    T ~ ad.est(1 to 4).sse     =~~= m.sse
+    T ~ ad.est(Iv(1,5)).sse    =~~= m.sse
+    T ~ ad.est(1 to End-2).sse =~~= m.sse
+    T ~ ai.toVector.est()      ==== m2
+    T ~ as.estWith()(_.length) ==== m2
+    T ~ ls.estWith()(_.length) ==== m2
+    T ~ Est.M.empty            ==== Est.mut
+    T ~ Est.M.from(ai)         ==== Est.from(ai)
+    T ~ Est.M.from(al)         ==== Est.from(al)
+    T ~ Est.M.from(af)         ==== Est.from(af)
+    T ~ Est.M.from(ad)         ==== Est.from(ad)
 
-    T ~ as.estRangeWith(1, 5)(_.length).n          ==== m.n
-    T ~ as.estRangeWith(1, 5)(_.length).mean       =~~= m.mean
-    T ~ as.estRangeWith(1, 5)(_.length).sse        =~~= m.sse
-    T ~ as.estRangeWith(1 to 4)(_.length).sse      =~~= m.sse
-    T ~ as.estRangeWith(Iv(1, 5))(_.length).sse    =~~= m.sse
-    T ~ as.estRangeWith(1 to End-2)(_.length).sse  =~~= m.sse
+    T ~ as.estWith(1, 5)(_.length).n          ==== m.n
+    T ~ as.estWith(1, 5)(_.length).mean       =~~= m.mean
+    T ~ as.estWith(1, 5)(_.length).sse        =~~= m.sse
+    T ~ as.estWith(1 to 4)(_.length).sse      =~~= m.sse
+    T ~ as.estWith(Iv(1, 5))(_.length).sse    =~~= m.sse
+    T ~ as.estWith(1 to End-2)(_.length).sse  =~~= m.sse
 
     T ~ Est.M.fromSD(m2.n)(m2.pmSD).n              ==== m2.n
     T ~ Est.M.fromSD(m2.n)(m2.pmSD).mean.toFloat   =~~= m2.mean.toFloat
@@ -3114,46 +3121,46 @@ class MathTest {
     T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).sse.toFloat  =~~= m2.sse.toFloat
 
     val m3 = m.snapshot
-    T ~ m.tap(_.reset)                               ==== Est.mut
-    T ~ m2.mutableCopy.tap(_ += 400L).n              ==== m2.n + 1
-    T ~ m2.mutableCopy.tap(_ += 400L).mean           =~~= (al :+ 400L).est.mean
-    T ~ m2.mutableCopy.tap(_ += 400L).sse            =~~= (al :+ 400L).est.sse
-    T ~ m2.mutableCopy.tap(_ += 0.17).n              ==== m2.n + 1
-    T ~ m2.mutableCopy.tap(_ += 0.17).mean           =~~= (ad :+ 0.17).est.mean
-    T ~ m2.mutableCopy.tap(_ += 0.17).sse            =~~= (ad :+ 0.17).est.sse
-    T ~ m2.mutableCopy.tap(_ += Double.NaN)          ==== m2
-    T ~ m2.mutableCopy.tap(_ += m2).n                ==== (ai ++ ai).est.n
-    T ~ m2.mutableCopy.tap(_ += m2).mean             =~~= (ai ++ ai).est.mean
-    T ~ m2.mutableCopy.tap(_ += m2).sse              =~~= (ai ++ ai).est.sse
-    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).n    =~~= m2.n
-    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).mean =~~= m2.mean
-    T ~ (ai ++ ai).est.mutableCopy.tap(_ -= m2).sse  =~~= m2.sse
-    T ~ m2.mutableCopy.tap(_ ++= ai).n               ==== 2 * m2.n
-    T ~ m2.mutableCopy.tap(_ ++= ai).mean            =~~= (ai ++ ai).est.mean
-    T ~ m2.mutableCopy.tap(_ ++= ai).sse             =~~= (ai ++ ai).est.sse
-    T ~ m2.mutableCopy.tap(_ ++= al).n               ==== 2 * m2.n
-    T ~ m2.mutableCopy.tap(_ ++= al).mean            =~~= (al ++ al).est.mean
-    T ~ m2.mutableCopy.tap(_ ++= al).sse             =~~= (al ++ al).est.sse
-    T ~ m2.mutableCopy.tap(_ ++= af).n               ==== 2 * m2.n
-    T ~ m2.mutableCopy.tap(_ ++= af).mean            =~~= (af ++ af).est.mean
-    T ~ m2.mutableCopy.tap(_ ++= af).sse             =~~= (af ++ af).est.sse
-    T ~ m2.mutableCopy.tap(_ ++= Array(Float.NaN))   ==== m2
-    T ~ m2.mutableCopy.tap(_ ++= ad).n               ==== 2 * m2.n
-    T ~ m2.mutableCopy.tap(_ ++= ad).mean            =~~= (ad ++ ad).est.mean
-    T ~ m2.mutableCopy.tap(_ ++= ad).sse             =~~= (ad ++ ad).est.sse
-    T ~ m2.mutableCopy.tap(_ ++= Array(Double.NaN))  ==== m2
-    T ~ Est.mut.tap(_ ++= ai.iterator).n             ==== m2.n
-    T ~ Est.mut.tap(_ ++= ai.iterator).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= ai.iterator).sse           =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= al.iterator).n             ==== m2.n
-    T ~ Est.mut.tap(_ ++= al.iterator).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= al.iterator).sse           =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= af.iterator).n             ==== m2.n
-    T ~ Est.mut.tap(_ ++= af.iterator).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= af.iterator).sse           =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= ad.iterator).n             ==== m2.n
-    T ~ Est.mut.tap(_ ++= ad.iterator).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= ad.iterator).sse           =~~= m2.sse
+    T ~ m.tap(_.reset)                                 ==== Est.mut
+    T ~ m2.mutableCopy.tap(_ += 400L).n                ==== m2.n + 1
+    T ~ m2.mutableCopy.tap(_ += 400L).mean             =~~= (al :+ 400L).est().mean
+    T ~ m2.mutableCopy.tap(_ += 400L).sse              =~~= (al :+ 400L).est().sse
+    T ~ m2.mutableCopy.tap(_ += 0.17).n                ==== m2.n + 1
+    T ~ m2.mutableCopy.tap(_ += 0.17).mean             =~~= (ad :+ 0.17).est().mean
+    T ~ m2.mutableCopy.tap(_ += 0.17).sse              =~~= (ad :+ 0.17).est().sse
+    T ~ m2.mutableCopy.tap(_ += Double.NaN)            ==== m2
+    T ~ m2.mutableCopy.tap(_ += m2).n                  ==== (ai ++ ai).est().n
+    T ~ m2.mutableCopy.tap(_ += m2).mean               =~~= (ai ++ ai).est().mean
+    T ~ m2.mutableCopy.tap(_ += m2).sse                =~~= (ai ++ ai).est().sse
+    T ~ (ai ++ ai).est().mutableCopy.tap(_ -= m2).n    =~~= m2.n
+    T ~ (ai ++ ai).est().mutableCopy.tap(_ -= m2).mean =~~= m2.mean
+    T ~ (ai ++ ai).est().mutableCopy.tap(_ -= m2).sse  =~~= m2.sse
+    T ~ m2.mutableCopy.tap(_ ++= ai).n                 ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= ai).mean              =~~= (ai ++ ai).est().mean
+    T ~ m2.mutableCopy.tap(_ ++= ai).sse               =~~= (ai ++ ai).est().sse
+    T ~ m2.mutableCopy.tap(_ ++= al).n                 ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= al).mean              =~~= (al ++ al).est().mean
+    T ~ m2.mutableCopy.tap(_ ++= al).sse               =~~= (al ++ al).est().sse
+    T ~ m2.mutableCopy.tap(_ ++= af).n                 ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= af).mean              =~~= (af ++ af).est().mean
+    T ~ m2.mutableCopy.tap(_ ++= af).sse               =~~= (af ++ af).est().sse
+    T ~ m2.mutableCopy.tap(_ ++= Array(Float.NaN))     ==== m2
+    T ~ m2.mutableCopy.tap(_ ++= ad).n                 ==== 2 * m2.n
+    T ~ m2.mutableCopy.tap(_ ++= ad).mean              =~~= (ad ++ ad).est().mean
+    T ~ m2.mutableCopy.tap(_ ++= ad).sse               =~~= (ad ++ ad).est().sse
+    T ~ m2.mutableCopy.tap(_ ++= Array(Double.NaN))    ==== m2
+    T ~ Est.mut.tap(_ ++= ai.iterator).n               ==== m2.n
+    T ~ Est.mut.tap(_ ++= ai.iterator).mean            =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= ai.iterator).sse             =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= al.iterator).n               ==== m2.n
+    T ~ Est.mut.tap(_ ++= al.iterator).mean            =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= al.iterator).sse             =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= af.iterator).n               ==== m2.n
+    T ~ Est.mut.tap(_ ++= af.iterator).mean            =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= af.iterator).sse             =~~= m2.sse
+    T ~ Est.mut.tap(_ ++= ad.iterator).n               ==== m2.n
+    T ~ Est.mut.tap(_ ++= ad.iterator).mean            =~~= m2.mean
+    T ~ Est.mut.tap(_ ++= ad.iterator).sse             =~~= m2.sse
 
     T ~ Est.mut.tap(_.addWith(as)(_.length)).n             ==== m2.n
     T ~ Est.mut.tap(_.addWith(as)(_.length)).mean          =~~= m2.mean
@@ -3161,9 +3168,9 @@ class MathTest {
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).n    ==== m2.n
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).mean =~~= m2.mean
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).sse  =~~= m2.sse
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est.n
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est.mean
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est.sse
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est().n
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est().mean
+    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est().sse
     T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).n                   ==== m2.n
     T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).mean                =~~= m2.mean
     T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).sse                 =~~= m2.sse
@@ -3238,8 +3245,8 @@ class MathTest {
     T ~ fit.y2x.slopeError      =~~= 0.05794
     T ~ fit.y2x.pm(0)           =~~= (3.00252 +- 0.11894)
     T ~ fit.y2x.pm(0.0 +- 0.11) =~~= (3.00252 +- 0.13559)
-    T ~ fit.estX.pmSD           =~~= xs.est.pmSD
-    T ~ fit.estY.pmSD           =~~= ys.est.pmSD
+    T ~ fit.estX.pmSD           =~~= xs.est().pmSD
+    T ~ fit.estY.pmSD           =~~= ys.est().pmSD
     val fyt = Fit2D.Impl()
     val fet = fit.mutableCopy
     xs.visit(){ (x, i) => val v = Vc.D(x, ys(i)); fyt += v }
@@ -3566,7 +3573,7 @@ class MathTest {
     }
     val N = 64
     val a = (new Array[Double](N)).randomGaussian(Pcg64(897158911235L)).sorted
-    val e = a.est
+    val e = a.est()
     val b = Bootstrap(1024)(                       0, N)(Est.M.empty)((m, i) => m += a(i))
     val c = Bootstrap(1024)(Pcg64(1789157893427L))(0, N)(Est.M.empty)((m, i) => m += a(i))
     val p = b.pm(_.mean)
