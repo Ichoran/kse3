@@ -706,6 +706,7 @@ class MathTest {
       val text = "anchovies"
 
       val ixsq = Vector("eel", "perch", "bass", "herring", "halibut", "minnow", "cod")
+      def ib() = Iterator("eel", "perch", "bass", "herring", "halibut", "minnow", "cod")
 
       T(title) ~ r3.sample(five).fn(x => five contains x) ==== true
       T(title) ~ five.sample() ==== five.sample()(r2)
@@ -717,6 +718,10 @@ class MathTest {
       T(title) ~ text.sample() ==== text.sample()(r2)
       T(title) ~ ixsq.sample()(r3).fn(x => ixsq contains x) ==== true
       T(title) ~ ixsq.sample() ==== ixsq.sample()(r2)
+      T(title) ~ ixsq.sample(3) ==== typed[Vector[String]]
+      T(title) ~ ib().sample()(r3).fn(x => ixsq contains x) ==== true
+      T(title) ~ ib().sample() =**= ib().sample()(r2)
+      T(title) ~ ib().sample(3) ==== typed[Iterator[String]]
 
       T(title) ~ r3.sampleRange(five)(2, 4).fn(x => five.select(2, 4) contains x) ==== true
       T(title) ~ five.sample(2, 4) ==== five.sample(2, 4)(r2)
@@ -789,9 +794,17 @@ class MathTest {
       T(title) ~ r3.sample(14)(hund).length ==== 14
 
       T(title) ~ text.sample(4).toCharArray =**= text.toCharArray.sample(4)(r2)
+      T(title) ~ lovely(text.toCharArray.map(_.toFloat).toSet, text.sample(71)(r3).toCharArray.map(_.toFloat)) ==== 0
+
       T(title) ~ ixsq.sample(4)(r3).length ==== 4
       T(title) ~ ixsq.sample(4)(r3).forall(ixsq contains _) ==== true
       T(title) ~ ixsq.sample(4) =**= ixsq.sample(4)(r2)
+      T(title) ~ lovely(ixsq.toArray.map(_.##.toFloat).toSet, ixsq.sample(71)(r3).toArray.map(_.##.toFloat)) ==== 0
+
+      T(title) ~ ib().sample(4)(r3).size ==== 4
+      T(title) ~ ib().sample(4)(r3).forall(ixsq contains _) ==== true
+      T(title) ~ ib().sample(4).toArray =**= ib().sample(4)(r2).toArray
+      T(title) ~ lovely(ib().toArray.map(_.##.toFloat).toSet, ib().sample(71)(r3).toArray.map(_.##.toFloat)) ==== 0
 
       T(title) ~ lovely(hund.select(20, 40).toSet, r3.sampleRange(14)(hund)(20, 40)) ==== 0
       T(title) ~ r3.sampleRange(14)(hund)(20, 40).length ==== 14

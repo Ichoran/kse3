@@ -660,6 +660,63 @@ sealed abstract class Prng {
     val iv = Iv.of(v, a)
     sampleRange(k)(a)(iv.i0, iv.iN)
 
+  final def sampleIndexedSeq[A, CC <: IndexedSeq[A]](k: Int)(coll: CC)(using factory: scala.collection.Factory[A, CC]): CC =
+    val b = factory.newBuilder
+    if k > 0 then
+      b.sizeHint(k)
+      if coll.length == 0 then throw new IllegalArgumentException("sample of empty range")
+      else if k < coll.length then
+        val indices = chooseIndices(coll.length, k)
+        var i = 0
+        while i < k do
+          b += coll.apply(indices(i))
+          i += 1
+      else
+        val indices = Iv(0, coll.length).where()
+        var h = 0
+        while h < k do
+          shuffleRangeI(indices)(0, indices.length)
+          var i = 0
+          while i < indices.length && h < k do
+            b += coll.apply(indices(i))
+            i += 1
+            h += 1
+    b.result
+
+  final def sampleCollection[A, CC <: IterableOnce[A]](k: Int)(coll: CC)(using factory: scala.collection.Factory[A, CC]): CC =
+    val b = factory.newBuilder
+    if k > 0 then
+      val i = coll.iterator
+      val a = new Array[AnyRef](k)
+      b.sizeHint(k)
+      var n = 0
+      while i.hasNext && n < a.length do
+        a(n) = i.next.asInstanceOf[AnyRef]
+        n += 1
+      if n == k then   
+        // Li algorithmL in unknown length mode
+        var w = math.exp(math.log(D)/k)
+        while i.hasNext do
+          var h = math.floor(math.log(D)/math.log(1-w)).toInt
+          while h > 0 && i.hasNext do
+            i.next
+            h -= 1
+          if i.hasNext then
+            a(this % a.length) = i.next.asInstanceOf[AnyRef]
+            w *= math.exp(math.log(D)/k)
+        shuffle(a)
+        a.peek()(x => b += x.asInstanceOf[A])
+      else
+        var m = 0
+        while m < k do
+          shuffleRange(a)(0, n)
+          var j = 0
+          while j < n && m < k do
+            b += a(j).asInstanceOf[A]
+            j += 1
+            m += 1
+    b.result
+
 
   final def stringFrom(letters: String, n: Int): String =
     if n <= 0 then ""
@@ -976,32 +1033,29 @@ extension (a: String)
   @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng): String = r.sampleRange(k)(a)(v)
   @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
-extension [A, CC[A] <: IndexedSeq[A]](coll: CC[A])
-  @targetName("that_ix_sample") inline def sample()(r: Prng): A = coll.apply(r % coll.length)
-  @targetName("auto_ix_sample") inline def sample()(using ar: AutoPrng): A = coll.apply(AutoPrng.get(ar) % coll.length)
-  @targetName("that_ix_sample") inline def sample(k: Int)(r: Prng)(using factory: scala.collection.Factory[A, CC[A]]): CC[A] =
-    val b = factory.newBuilder
-    if k > 0 then
-      if coll.length == 0 then throw new IllegalArgumentException("sample of empty range")
-      else if k < coll.length then
-        val indices = r.chooseIndices(coll.length, k)
-        var i = 0
-        while i < k do
-          b += coll.apply(indices(i))
-          i += 1
-      else
-        val indices = Iv(0, coll.length).where()
-        var h = 0
-        while h < k do
-          r.shuffleRangeI(indices)(0, indices.length)
-          var i = 0
-          while i < indices.length && h < k do
-            b += coll.apply(indices(i))
-            i += 1
-            h += 1
-    b.result
-  @targetName("auto_ix_sample") inline def sample(k: Int)(using ar: AutoPrng, factory: scala.collection.Factory[A, CC[A]]): CC[A] =
-    sample(k)(AutoPrng.get(ar))
+extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
+  @targetName("that_coll_sample") inline def sample()(r: Prng): A = inline coll match
+    case ix: IndexedSeq[A] => ix.apply(r % ix.length)
+    case _ => sampleOneAlgorithmL(r)
+  @targetName("auto_coll_sample") inline def sample()(using ar: AutoPrng): A = sample()(AutoPrng.get(ar))
+  @targetName("that_ii_sample") inline def sample(k: Int)(r: Prng)(using factory: scala.collection.Factory[A, CC]): CC = inline coll match
+    case ix: IndexedSeq[A] => r.sampleIndexedSeq(k)(ix)(using factory.asInstanceOf[scala.collection.Factory[A, IndexedSeq[A]]]).asInstanceOf[CC]
+    case _                 => r.sampleCollection(k)(coll)(using factory)
+  @targetName("auto_ii_sample") inline def sample(k: Int)(using ar: AutoPrng, factory: scala.collection.Factory[A, CC]): CC = sample(k)(AutoPrng.get(ar))
+  def sampleOneAlgorithmL(rng: Prng): A =
+      // Li algorithmL specialized to a single sample
+      val i = coll.iterator
+      var a = i.next
+      var w = rng.D
+      while i.hasNext do
+        var h = math.floor(math.log(rng.D)/math.log(1-w)).toInt
+        while h > 0 && i.hasNext do
+          i.next
+          h -= 1
+        if i.hasNext then
+          a = i.next
+          w *= rng.D
+      a
 
 extension (i: Int)(using ar: AutoPrng)
   inline def roll: Int = 1 + (AutoPrng.get(ar) % i)

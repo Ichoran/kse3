@@ -527,13 +527,13 @@ extension [A](a: A) {
 }
 
 extension [X, Y](or: X Or Y) {
-  /** Exit to boundary matching the disfavored branch, or keep going with the favored branch's value.  Same as `.?` */
+  /** Exit to boundary matching the disfavored branch, or keep going with the favored branch's value.  Like `.?` but unwraps Alt */
   inline def getOrBreak(using Label[Y]): X = or.fold{ x => x }{ y => boundary.break(y) }
 
-  /** Exit to boundary matching mapping of the disfavored branch, or keep going with the favored branch's value.  Same as `.?+` */
+  /** Exit to boundary matching mapping of the disfavored branch, or keep going with the favored branch's value.  Like `.?+` but unwraps Alt */
   inline def getOrBreakWith[Z](inline f: Y => Z)(using Label[Z]): X = or.fold{ x => x }{ y => boundary.break(f(y)) }
 
-  /** Exit to boundary matching automatically mapped disfavored branch, or keep going with the favored branch's value.  Same as `.?*` */
+  /** Exit to boundary matching automatically mapped disfavored branch, or keep going with the favored branch's value.  Like `.?*` but unwraps Alt */
   inline def getOrAutoBreak[Z](using am: AutoMap[Y, Z], l: Label[Z]): X = or.fold{ x => x }{ y => boundary.break(am(y)) }
 
   /** Exit to boundary matching the favored branch, or keep going with the disfavored branch's value */
