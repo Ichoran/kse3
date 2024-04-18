@@ -113,6 +113,14 @@ inline def escape(inline f: Label[Unit] ?=> Unit): Boolean =
   */
 inline def calculate(inline a: Label[Double] ?=> Double): Double = boundary{ a }
 
+
+/** Loops until broken */
+inline def loop(inline f: Label[Unit] ?=> Unit): Unit =
+  boundary:
+    while true do
+      f
+      
+
 extension (objectOr: Or.type) {
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     *

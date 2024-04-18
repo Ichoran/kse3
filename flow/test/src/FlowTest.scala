@@ -1300,6 +1300,14 @@ class FlowTest {
     T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
     T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[?]]
 
+    {
+      var k = 0
+      T ~ escape{ k += 1; (k > 1).?; k += 1 } ==== false
+      T ~ escape{ k += 1; (k > 1).?; k += 1 } ==== true
+      T ~ k ==== 3
+      T ~ { loop{ k += 1; (k < 10).? }; k } ==== 10
+    }
+
     T ~ attempt( optionQ1("eel").! ).default(0)                               ==== 0
     T ~ attempt( optionQ1("888").! ).default(0)                               ==== 888
     T ~ attempt{ val n = optionQ1("eel").!; ensure(n > 9); n - 1 }.default(0) ==== 0
