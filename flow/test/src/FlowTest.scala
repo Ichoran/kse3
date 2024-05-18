@@ -100,6 +100,12 @@ class FlowTest {
       T ~ eT            ==== typed[Throwable]
     }
 
+    def erm(s: String): Int Or Err = Err.Or:
+      if s.isEmpty then Err ?# "empty"
+      else s.length
+    T ~ erm("")    ==== Alt(Err("empty"))
+    T ~ erm("eel") ==== 3 --: typed[Int Or Err]
+
     // Make sure side-effecting code is called exactly once per comparison
     // (Test of test machinery)
     var sideA = 0
@@ -1214,6 +1220,12 @@ class FlowTest {
     T ~ orQ8("")                                               ==== Alt(Err(""))
     T ~ orQ8("1858")                                           ==== 1858 --: typed[Int Or Err]
     T ~ orQ8("-3")                                             ==== Alt(Err("Negative: -3"))
+
+    def orQ9(s: String): Int Or Err = Err.Or:
+      orQ7(s) ?# "Parse error"
+    T ~ orQ9("perch").alt.toString.startsWith("Parse error")  ==== true
+    T ~ orQ9("").existsAlt(_.isInstanceOf[ErrType.Explained]) ==== true
+    T ~ orQ9("1858")                                          ==== 1858 --: typed[Int Or Err]
 
     def floatQ(f: Float) = calculate:
       val g = f.?

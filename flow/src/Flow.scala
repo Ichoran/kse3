@@ -37,6 +37,12 @@ extension [X, Y](or: X Or Y)
   inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY): X =
     or.mapAlt(m).?
 
+extension [A](or: A Or Err)
+  /** Adds an explanation for an error (independent of error content) */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A = (or: @unchecked) match
+    case e: Alt[Err] => boundary.break(Alt(e.alt explainBy msg))
+    case _ => Is unwrap or.asInstanceOf[Is[A]]
+
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
   inline def ?[E >: Left[L, R]](using Label[E]): R = either match

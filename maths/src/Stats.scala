@@ -192,72 +192,109 @@ object Est {
       while values.hasNext do
         this += f(values.next)
 
-    def addSomeWith[A](values: Iterator[A], n: Int)(f: A => Double): Unit =
-      var k = n
-      while k > 0 && values.hasNext do
-        this += f(values.next)
-        k -= 1
-
-    def addRange(values: Array[Int])(i0: Int, iN: Int): Unit =
-      val i = if i0 < 0 then 0 else i0
-      val iM = if iN < values.length then iN else values.length
-      values.peek(i, iM): j =>
+    @targetName("raw_add_I") def addRange(values: Array[Int])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): j =>
         val x = j.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-    def addRange(values: Array[Long])(i0: Int, iN: Int): Unit =
-      val i = if i0 < 0 then 0 else i0
-      val iM = if iN < values.length then iN else values.length
-      values.peek(i, iM): l =>
+    @targetName("raw_add_L") def addRange(values: Array[Long])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): l =>
         val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
-    def addRange(values: Array[Float])(i0: Int, iN: Int): Unit =
-      val i = if i0 < 0 then 0 else i0
-      val iM = if iN < values.length then iN else values.length
-      values.peek(i, iM): v =>
+    @targetName("raw_add_F") def addRange(values: Array[Float])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): v =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
           mean = (n*mean + u)/(n+1)
           sse += (u - mean)*(u - mold)
           n += 1
-    def addRange(values: Array[Double])(i0: Int, iN: Int): Unit =
-      val i = if i0 < 0 then 0 else i0
-      val iM = if iN < values.length then iN else values.length
-      values.peek(i, iM): v =>
+    @targetName("raw_add_D") def addRange(values: Array[Double])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): v =>
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
           sse += (v - mean)*(v - mold)
           n += 1
 
-    inline def addRange(values: Array[Int   ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Long  ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_I_rg") inline def addRange(values: Array[Int   ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_L_rg") inline def addRange(values: Array[Long  ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_F_rg") inline def addRange(values: Array[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_D_rg") inline def addRange(values: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
 
-    inline def addRange(values: Array[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    inline def addRange(values: Array[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_I_iv") inline def addRange(values: Array[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_L_iv") inline def addRange(values: Array[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_F_iv") inline def addRange(values: Array[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_D_iv") inline def addRange(values: Array[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
 
-    inline def addRangeWith[A](values: Array[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
-      val i = if i0 < 0 then 0 else i0
-      val iM = if iN < values.length then iN else values.length
-      values.peek(i, iM): x =>
+    @targetName("clip_add_I") def addRange(values: ClippedArray[Int])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): j =>
+        val x = j.toDouble
+        val mold = mean
+        mean = (n*mean + x)/(n+1)
+        sse += (x - mean)*(x - mold)
+        n += 1
+    @targetName("clip_add_L") def addRange(values: ClippedArray[Long])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): l =>
+        val x = l.toDouble
+        val mold = mean
+        mean = (n*mean + x)/(n+1)
+        sse += (x - mean)*(x - mold)
+        n += 1
+    @targetName("clip_add_F") def addRange(values: ClippedArray[Float])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): v =>
+        if !v.nan then
+          val u = v.toDouble
+          val mold = mean
+          mean = (n*mean + u)/(n+1)
+          sse += (u - mean)*(u - mold)
+          n += 1
+    @targetName("clip_add_D") def addRange(values: ClippedArray[Double])(i0: Int, iN: Int): Unit =
+      values.peek(i0, iN): v =>
+        if !v.nan then
+          val mold = mean
+          mean = (n*mean + v)/(n+1)
+          sse += (v - mean)*(v - mold)
+          n += 1
+
+    @targetName("clip_add_I_rg") inline def addRange(values: ClippedArray[Int   ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_L_rg") inline def addRange(values: ClippedArray[Long  ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_F_rg") inline def addRange(values: ClippedArray[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_D_rg") inline def addRange(values: ClippedArray[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
+
+    @targetName("clip_add_I_iv") inline def addRange(values: ClippedArray[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_L_iv") inline def addRange(values: ClippedArray[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_F_iv") inline def addRange(values: ClippedArray[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_D_iv") inline def addRange(values: ClippedArray[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
+
+
+    @targetName("raw_add_with") inline def addRangeWith[A](values: Array[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
+      values.peek(i0, iN): x =>
         val v = f(x)
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
           sse += (v - mean)*(v - mold)
           n += 1
-    inline def addRangeWith[A](values: Array[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
-    inline def addRangeWith[A](values: Array[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values); addRangeWith(values)(iv.i0, iv.iN)(f) }
+    @targetName("raw_add_with_rg") inline def addRangeWith[A](values: Array[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
+    @targetName("raw_add_with_iv") inline def addRangeWith[A](values: Array[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values); addRangeWith(values)(iv.i0, iv.iN)(f) }
+
+
+    @targetName("clip_add_with") inline def addRangeWith[A](values: ClippedArray[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
+      values.peek(i0, iN): x =>
+        val v = f(x)
+        if !v.nan then
+          val mold = mean
+          mean = (n*mean + v)/(n+1)
+          sse += (v - mean)*(v - mold)
+          n += 1
+    @targetName("clip_add_with_rg") inline def addRangeWith[A](values: ClippedArray[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
+    @targetName("clip_add_with_iv") inline def addRangeWith[A](values: ClippedArray[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values.unwrap); addRangeWith(values)(iv.i0, iv.iN)(f) }
   }
   object M {
     inline val smallestNonzeroWeight = 1e-9

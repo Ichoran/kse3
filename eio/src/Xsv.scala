@@ -468,7 +468,7 @@ class Xsv private (
   def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
     Xsv.encodeTable(table, separator)
   def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
-    Xsv.encodeTable(table, separator).writeAt(p)
+    Xsv.encodeTable(table, separator).writeTo(p)
 }
 object Xsv {
   def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =

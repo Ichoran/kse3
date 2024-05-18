@@ -54,7 +54,26 @@ and you're ready to go.
 givens in places where they'll be automatically found.  No givens would be defined that
 aren't essential for functionality, so if they're there, you want to import them.)
 
-#### Is this stable?  Binary compatible?
+#### What about infix?
+
+Kse3 is intended to be used with a liberally infix style.  Although methods will sometimes be explicitly
+notated `infix`, the recommendation is to turn off infix warnings altogether.  In Mill, this would be
+something like
+
+```scala
+  def scalacOptions = Seq(
+    // Add other options as needed
+    "-Wconf:msg=is not declared infix:s"
+  )
+```
+
+If you use scala-cli headers, where spaces don't parse as part of the message, you can use instead
+
+```scala
+//> using options -Wconf:msg=is.not.declared.infix:s
+```
+
+#### Is Kse3 stable?  Binary compatible?
 
 Not yet and no.  Eventually it will be stable.  Binary compatibility is not likely to ever be an explicit goal,
 because Kse3 makes very heavy use of inlining.  Because you have to recompile all the time anyway, there is
@@ -62,7 +81,7 @@ no reason to try to maintain binary compatibility.
 
 #### How do I pronounce it?
 
-I don't hear words when I read them, so I don't have any strong opinion.  I think the most conventional way to pronounce something with that spelling would be Ksee, so let's go with that?
+I don't hear words when I read them, so I don't have any strong opinion.  I think the most conventional way to pronounce something with that spelling would be Ks-ee, so let's go with that?
 
 
 ## Subprojects

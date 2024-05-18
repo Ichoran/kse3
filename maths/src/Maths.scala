@@ -18,6 +18,7 @@ object NumericConstants {
   inline val TwoOverPi = 0.63661977236758134308
   inline val OverSqrtTwo = 0.7071067811865475244
   inline val SqrtTwo = 1.4142135623730950488
+  inline val SqrtThree = 1.7320508075688772
   inline val PiOverTwo = 1.5707963267948966192
   inline val SqrtTwoPi = 2.5066282746310005024
   inline val TwoPi = 6.2831853071795864769
@@ -28,7 +29,10 @@ object NumericConstants {
   inline val HalfLnTwoPi = 0.91893853320467274178
   inline val OverSqrtEight = 0.3535533905932737622
   inline val QuarterSqrtPi = 0.44311346272637900682
+  inline val TwoThirdsPi = 2.0943951023931954923
+  inline val FourThirdsPi = 4.1887902047863909846
 
+  // Angle unit conversions
   inline val DegreesPerRadian = 57.295779513082320877
   inline val RadiansPerDegree = 0.017453292519943295769
 

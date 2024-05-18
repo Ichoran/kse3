@@ -39,6 +39,8 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
   inline def break[L >: Alt[Err]](et: ErrType)(using Label[L]): Nothing = boundary.break(Alt(apply(et)))
   inline def break[E, L >: Alt[Err]](e: E)(using ef: ErrFrom[E], lb: Label[L]): Nothing = boundary.break(Alt(apply(e)))
 
+  inline def ?#[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
+
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
@@ -199,3 +201,4 @@ extension [A](a: A) {
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Is(a)
       case e => Alt(e.asInstanceOf[Err])
 }
+

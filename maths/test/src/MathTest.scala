@@ -3181,39 +3181,56 @@ class MathTest {
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).n    ==== m2.n
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).mean =~~= m2.mean
     T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).sse  =~~= m2.sse
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).n    ==== (ai.take(4)).est().n
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).mean =~~= (ai.take(4)).est().mean
-    T ~ Est.mut.tap(_.addSomeWith(ls.iterator, 4)(_.length)).sse  =~~= (ai.take(4)).est().sse
-    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(ai)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(ai)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).sse            =~~= m2.sse
     T ~ Est.mut.tap(_.addRange(ai)(1, 5)).n                     ==== m3.n
     T ~ Est.mut.tap(_.addRange(ai)(1, 5)).mean                  =~~= m3.mean
     T ~ Est.mut.tap(_.addRange(ai)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(al)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).sse            =~~= m2.sse
     T ~ Est.mut.tap(_.addRange(al)(1, 5)).n                     ==== m3.n
     T ~ Est.mut.tap(_.addRange(al)(1, 5)).mean                  =~~= m3.mean
     T ~ Est.mut.tap(_.addRange(al)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(af)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).sse            =~~= m2.sse
     T ~ Est.mut.tap(_.addRange(af)(1, 5)).n                     ==== m3.n
     T ~ Est.mut.tap(_.addRange(af)(1, 5)).mean                  =~~= m3.mean
     T ~ Est.mut.tap(_.addRange(af)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).n                   ==== m2.n
-    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).mean                =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(ad)(-5, 99)).sse                 =~~= m2.sse
+    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).sse            =~~= m2.sse
     T ~ Est.mut.tap(_.addRange(ad)(1, 5)).n                     ==== m3.n
     T ~ Est.mut.tap(_.addRange(ad)(1, 5)).mean                  =~~= m3.mean
     T ~ Est.mut.tap(_.addRange(ad)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).n     ==== m2.n
-    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).mean  =~~= m2.mean
-    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length)).sse   =~~= m2.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).n       ==== m3.n
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).mean    =~~= m3.mean
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).sse     =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length))           ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).n    ==== m2.n
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).mean =~~= m2.mean
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).sse  =~~= m2.sse
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).n           ==== m3.n
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).mean        =~~= m3.mean
+    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).sse         =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).n      ==== m3.n
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).mean   =~~= m3.mean
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).sse    =~~= m3.sse
     T ~ Est.mut.tap(_.addRange(ai)(Iv(1, 5))).sse                 =~~= m3.sse
     T ~ Est.mut.tap(_.addRange(ai)(1 to End-2)).sse               =~~= m3.sse
     T ~ Est.mut.tap(_.addRange(ai)(1 to 4)).sse                   =~~= m3.sse
@@ -3229,6 +3246,21 @@ class MathTest {
     T ~ Est.mut.tap(_.addRangeWith(as)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
     T ~ Est.mut.tap(_.addRangeWith(as)(1 to End-2)(_.length)).sse =~~= m3.sse
     T ~ Est.mut.tap(_.addRangeWith(as)(1 to 4)(_.length)).sse     =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ai.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(al.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(af.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.mut.tap(_.addRange(ad.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1 to End-2)(_.length)).sse =~~= m3.sse
+    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1 to 4)(_.length)).sse     =~~= m3.sse
 
 
 
@@ -3239,8 +3271,8 @@ class MathTest {
         summon[Approximation[Double]].approx(pma.value, pmb.value) && 
         summon[Approximation[Double]].approx(pma.error, pmb.error)
     }
-    val fot = Fit2D.Impl()
-    val fit: Fit2D = fot
+    val fot = FitLine.Impl()
+    val fit: FitLine = fot
     val xs = Array(1, 1.5, 2.1, 2.4, 3.1)
     val ys = Array(3.5, 2.4, 1.6, 0.7, 0.1)
     val vs = (xs zip ys).map{ case (x, y) => Vc.D(x, y) }
@@ -3260,7 +3292,7 @@ class MathTest {
     T ~ fit.y2x.pm(0.0 +- 0.11) =~~= (3.00252 +- 0.13559)
     T ~ fit.estX.pmSD           =~~= xs.est().pmSD
     T ~ fit.estY.pmSD           =~~= ys.est().pmSD
-    val fyt = Fit2D.Impl()
+    val fyt = FitLine.Impl()
     val fet = fit.mutableCopy
     xs.visit(){ (x, i) => val v = Vc.D(x, ys(i)); fyt += v }
     T ~ fyt.samples       ==== fit.samples
@@ -3335,23 +3367,13 @@ class MathTest {
     T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
     T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
     fit.reset()
-    fit ++= (xs ++ xs, ys)
-    T ~ fit.samples       ==== fet.samples
-    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
-    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
-    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
-    fit.reset()
-    fit ++= (xs, ys ++ ys)
-    T ~ fit.samples       ==== fet.samples
-    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
-    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
-    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
-    fit.reset()
-    fit.addRange(xs, 0, 14)(ys, 0, 8)
-    T ~ fit.samples       ==== fet.samples
-    T ~ fit.estX.pmSD     =~~= fet.estX.pmSD
-    T ~ fit.estY.pmSD     =~~= fet.estY.pmSD
-    T ~ fit.x2y.pm(1.5)   =~~= fet.x2y.pm(1.5)
+    T ~ (fit ++= (xs++xs, ys))            ==== thrown[IllegalArgumentException]
+    T ~ (fit ++= (xs, ys++ys))            ==== thrown[IllegalArgumentException]
+    T ~ fit.addRange(xs, 0, 14)(ys, 0, 3) ==== thrown[IllegalArgumentException]
+    T ~ fit.addRange(xs, -2, 1)(ys, 0, 3) ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fit.addRange(xs, 0, 3)(ys, 0, 14) ==== thrown[IllegalArgumentException]
+    T ~ fit.addRange(xs, 0, 3)(ys, -2, 1) ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ fit.addRange(xs, 1, 4)(ys, 1, 3)  ==== thrown[IllegalArgumentException]
     fit.reset()
     fit.addRange(xs, 1, 4)(ys, 1, 4)
     T ~ fit.samples       ==== fyt.samples
@@ -3446,7 +3468,7 @@ class MathTest {
   @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
-    val fin = Fit2D.Impl()
+    val fin = FitLine.Impl()
     fin += (0, 2.0)
     fin += (-1, -0.5)
     fin += (-3, -5.5)
@@ -3463,9 +3485,9 @@ class MathTest {
     T ~ xyl(-2)          =~~= -3.0
     T ~ xyf(-2)          =~~= -3.0
     T ~ xyg(-2)          =~~= -3.0
-    T ~ xyl.underlying   ==== lin --: typed[LinearFn2D | Fit2D.Impl]
-    T ~ xyf.underlying   ==== fin --: typed[LinearFn2D | Fit2D.Impl]
-    T ~ xyg.underlying   ==== fin --: typed[LinearFn2D | Fit2D.Impl]
+    T ~ xyl.underlying   ==== lin --: typed[LinearFn2D | FitLine.Impl]
+    T ~ xyf.underlying   ==== fin --: typed[LinearFn2D | FitLine.Impl]
+    T ~ xyg.underlying   ==== fin --: typed[LinearFn2D | FitLine.Impl]
     T ~ lin.inverse(4.5) =~~= 1.0
     T ~ xyl.inverse(4.5) =~~= 1.0
     T ~ xyf.inverse(4.5) =~~= 1.0

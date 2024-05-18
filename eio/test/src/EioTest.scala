@@ -914,8 +914,8 @@ class EioTest {
     val q = p / "rw"
     val r = p / "wr"
     q.mkdirs()   // Might be race with pathsTest, but it shouldn't matter!
-    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(r / "fish.bin") ==== runtype[Alt[?]]
-    T ~ List("bass", "salmon", "cod").map(_.bytes).writeAt(q / "fish.bin") ==== ()  --: typed[Unit Or Err]
+    T ~ List("bass", "salmon", "cod").map(_.bytes).writeTo(r / "fish.bin") ==== runtype[Alt[?]]
+    T ~ List("bass", "salmon", "cod").map(_.bytes).writeTo(q / "fish.bin") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncod".bytes
     T ~ List("herring", "sturgeon").map(_.bytes).appendTo(r / "fish.bin")  ==== runtype[Alt[?]]
     T ~ List("herring", "sturgeon").map(_.bytes).appendTo(q / "fish.bin")  ==== ()  --: typed[Unit Or Err]
@@ -927,8 +927,8 @@ class EioTest {
     T ~ List("heron", "pelican").map(_.bytes).createAt(q / "birds.bin")    ==== ()  --: typed[Unit Or Err]
     T ~ (q / "birds.bin").gulp.get                                         =**= "heronpelican".bytes
     List("fish", "fishy", "birds").foreach(n => (q/n).extTo("bin").delete())
-    T ~ List("bass", "salmon", "cod").writeAt(r / "fish.txt") ==== runtype[Alt[?]]
-    T ~ List("bass", "salmon", "cod").writeAt(q / "fish.txt") ==== ()  --: typed[Unit Or Err]
+    T ~ List("bass", "salmon", "cod").writeTo(r / "fish.txt") ==== runtype[Alt[?]]
+    T ~ List("bass", "salmon", "cod").writeTo(q / "fish.txt") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.txt").slurp.get.mkString                   ==== "basssalmoncod"
     T ~ List("herring", "sturgeon").appendTo(r / "fish.txt")  ==== runtype[Alt[?]]
     T ~ List("herring", "sturgeon").appendTo(q / "fish.txt")  ==== ()  --: typed[Unit Or Err]

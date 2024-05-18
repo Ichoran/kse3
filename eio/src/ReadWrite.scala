@@ -404,7 +404,7 @@ extension (iter: IterableOnce[Array[Byte]]) {
   def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter.iterator, out)
 
   @targetName("ioArrayByteWriteAt")
-  def writeAt(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def writeTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
     Resource.Nice(p.openWrite())(_.close): out =>
       var m = 0L
       val n = iter.iterator
@@ -435,8 +435,8 @@ extension (iter: IterableOnce[String]) {
   @targetName("ioStringSendTo")
   def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter.iterator, out)
 
-  @targetName("ioStringWriteAt")
-  def writeAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
+  @targetName("ioStringWriteTo")
+  def writeTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
     Resource.Nice(p.openWrite())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
