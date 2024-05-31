@@ -267,6 +267,71 @@ val list = List("salmon", "herring", "perch")
 iFor(list.iterator){ (i, s) => println(s*i) }  // prints newline, then "herring", then "perchperch"
 ```
 
+Error handling is greatly simplified and streamlined by using an `Err` type that is either a simple string message, or is
+a wrapped exception.  (Custom `Err` types can also be defined by extending `ErrType`.)  Any operation that may fail should
+return `A Or Err`, where `A` is the success type.  If you use `Err.Or:` instead of `Or.Ret:` any exceptions that occur
+within the block will also be caught and packaged.  Use `Err.break("message")` or `Err ?# "message"` to exit with a lightweight
+error message.  Use `foo().?` to propagate errors from an error-prone method that you call.  Use `foo() ?# "message"` to
+propagate the error with an explanation about the context.  To catch exceptions and pack them as an `Err`, use `nice{ baz() }`.
+
+```scala
+def positiveInt(s: String): Int Or Err = Err.Or:
+  var ndigits = 0
+  s.peek(){ c => if c.isDigit then ndigits += 1 }
+  if ndigits < s.length then Err ?# s"${s.length - ndigits} characters are not digits"
+  val n = nice{ s.toInt }.?
+  if n == 0 then Err ?# "Zero not allowed"
+  n
+
+val pi1 = positiveInt("9815")  // Is(9815)
+val pi2 = positiveInt("45wx")  // Alt(Err("2 characters are not digits"))
+val pi3 = positiveInt("123456789013245")  // Exception packed in Err
+```
+
+Because `Or` is unboxed, this style of error-handling has particularly low overhead for the success case, and if
+user-defined error strings or a custom `ErrType` are used rather than wrapping exceptions, the failure case also
+has much higher performance than the alternative of throwing exceptions.
+
+Project Loom has delivered low-overhead virtual threads to Java 21, making concurrency especially approachable.  `kse.flow` embraces this
+with an ultra-lightweight futures system based around virtual threads, where blocking is an encouraged form of concurrency control.
+
+Offload any error-prone computation to a virtual thread by using `Fu`:
+
+```scala
+def readFile(p: Path): Array[String] Or Err = ???
+
+val p = getMyPath()
+val lines = Fu:
+  readFile(p)   // Immediately queues for execution on a virtual thread
+
+doSlowStuff()  // Presumably concurrent
+
+val answer = Err.Or:
+  lines.ask().?.find(_ startsWith "import ").toOrElse(Err ?# "No imports")
+```
+
+In the above example, `lines` loads in the background while `doSlowStuff()` is running; if there is any work left to do,
+the current thread blocks on the call to `ask()`, and any errors during execution cause an early exit to the
+`Err.Or:` block.
+
+But what if you don't want to block the current thread?  You can `map` and `flatMap` `Fu`.  But, even better, you can
+just keep `Fu:`-ing, because `Fu:` itself (and `Fu.of:`, which takes a direct function but catches exceptions and packs
+them into `Err`) provides a boundary point enabling `.?`.  **Hoewver, you must be careful not to have control flow jump out of a Fu**
+
+```scala
+val lines = Fu:
+  readFile(p)
+
+val slow = Fu.of:
+  doSlowStuff()
+
+val answer = Fu:
+  slow.ask().?  // Make sure it's done
+  lines.ask().?.find(_ startsWith "import ").toOrElse(Err("No imports"))
+
+// Now it's all in virtual-thread futures!  answer.ask() will get you the result when you need it
+```
+
 And a variety of other nice things that you can find by perusing the ScalaDoc, the unit tests, or the code.
 
 ### kse.maths
