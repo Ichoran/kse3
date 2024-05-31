@@ -18,6 +18,42 @@ extension [X, Y, CC[_]](coll: CC[X Or Y])(using iter: scala.collection.generic.I
 
   def collectAlt(using factory: scala.collection.Factory[Y, CC[Y]], id: iter.A =:= (X Or Y)): CC[Y] =
     factory.fromSpecific(iter(coll).iterator.asInstanceOf[Iterator[X Or Y]].collect{ case xy if xy.isAlt => xy.alt })
+
+  def collectThem(using fax: scala.collection.Factory[X, CC[X]], fay: scala.collection.Factory[Y, CC[Y]], id: iter.A =:= (X Or Y)): (CC[X], CC[Y]) =
+    val bx = fax.newBuilder
+    val by = fay.newBuilder
+    iter(coll).iterator.foreach{ i =>
+      id(i).foreachThem(x => bx += x)(y => by += y)
+    }
+    (bx.result, by.result)
+}
+
+extension [X, Y](a: Array[X Or Y]) {
+  def collectIs(using ClassTag[X]): Array[X] =
+    var n = 0
+    a.peek()(xy => if xy.isIs then n += 1)
+    val xs = new Array[X](n)
+    n = 0
+    a.peek(){ xy => xy.foreach{ x => xs(n) = x; n += 1 } }
+    xs
+
+  def collectAlt(using ClassTag[Y]): Array[Y] =
+    var n = 0
+    a.peek()(xy => if xy.isAlt then n += 1)
+    val ys = new Array[Y](n)
+    n = 0
+    a.peek(){ xy => xy.foreachAlt{ y => ys(n) = y; n += 1 } }
+    ys
+
+  def collectThem(using ClassTag[X], ClassTag[Y]): (Array[X], Array[Y]) =
+    var n = 0
+    a.peek()(xy => if xy.isIs then n += 1)
+    val xs = new Array[X](n)
+    val ys = new Array[Y](a.length - n)
+    n = 0
+    var m = 0
+    a.peek()(xy => xy.foreachThem{ x => xs(n) = x; n += 1 }{ y => ys(m) = y; m += 1 })
+    (xs, ys)
 }
 
 
@@ -74,11 +110,79 @@ extension [A, CC[_]](coll: CC[A Or Err])(using seq: scala.collection.generic.IsS
     val i = seq(coll).iterator.asInstanceOf[Iterator[A Or Err]]
     while i.hasNext do
       i.next.foreachThem(ba += _){ err =>
-        if bie eq null then bie = fie.newBuilder; bie += ((n, err))
+        if bie eq null then bie = fie.newBuilder
+        bie += ((n, err))
       }
       n += 1
     if bie eq null then ba.result().asIs
     else (ba.result(), bie.result()).asAlt
+
+
+extension [A](a: Array[A Or Err]) {
+  def valid(using ClassTag[A]): Array[A] Or Err = Or.Ret:
+    a.copyWith(_.?)
+
+  def errors: Array[Err] =
+    a.collectAlt
+
+  def validOrErrors(using ClassTag[A]): Array[A] Or Array[Err] =
+    var xs: Array[A] = null
+    var es: Array[Err] = null
+    var xi = 0
+    var ei = 0
+    a.peek(){ xe =>
+      xe.fold{ x =>
+        if es eq null then
+          if xs eq null then
+            xs = new Array[A](16 min a.length)
+          else
+            if xi == xs.length then xs.enlargeTo(if (xs.length >> 1) + (xs.length >> 2) >= xi then xs.length else 2*xi)
+          xs(xi) = x
+        xi += 1
+      }{ e =>
+        if es eq null then
+          es = new Array[Err](8 min (a.length - xi))
+          xs = null
+        else if ei == es.length then
+          es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
+        es(ei) = e
+        ei += 1
+      }
+    }
+    if es ne null then Alt(es.shrinkTo(ei))
+    else if xs ne null then Is(xs)
+    else Is(new Array[A](0))
+
+  def validOrIndexedResults(using ClassTag[A]): Array[A] Or (Array[A], Array[(Int, Err)]) =
+    var xs: Array[A] = null
+    var es: Array[(Int, Err)] = null
+    var xi = 0
+    var ei = 0
+    a.visit(){ (xe, i) =>
+      xe.fold{ x =>
+        if xs eq null then
+          xs = new Array[A](16 min (a.length - ei))
+        else if xi == xs.length then
+          val biggest = xs.length - ei
+          xs.enlargeTo(if (biggest >> 1) + (biggest >> 2) >= xi then biggest else 2*xi)
+        xs(xi) = x
+        xi += 1
+      }{ e =>
+        if es eq null then
+          es = new Array[(Int, Err)](8 min (a.length - xi))
+        else if ei == es.length then
+          es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
+        es(ei) = (i, e)
+        ei += 1
+      }
+    }
+    if es eq null then
+      if xs eq null then Is(new Array[A](0))
+      else Is(xs)
+    else
+      if xs eq null then Alt((new Array[A](0), es))
+      else Alt((xs.shrinkTo(xi), es.shrinkTo(ei)))
+}
 
 
 extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterable[CC[A]])
@@ -91,6 +195,12 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
     while i.hasNext do
       b += f(i.next).?
     b.result()
+
+
+extension [A](a: Array[A])
+  inline def validMap[B](f: A => B Or Err)(using ClassTag[B]): Array[B] Or Err = Or.Ret:
+    a.breakable.copyWith(x => f(x).?)
+
 
 
 //////////////////////////////////////////////////

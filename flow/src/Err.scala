@@ -156,7 +156,7 @@ object ErrType {
 
     override lazy val toString = indentString(error.toString, indent = indent, header = explanation)
 
-    override def toThrowable =
+    def toThrowable =
       var explanations: List[Explained] = Nil
       var x: kse.flow.Err = Err(this)
       var last: String | ErrType = ""
@@ -174,6 +174,22 @@ object ErrType {
           val u = t.toThrowable
           val msg = explanations.foldLeft(u.toString)((m, x) => indentString(m, indent = x.indent, header = x.explanation))
           new CatchableException(msg, u)
+  }
+
+   final class Many(val errs: scala.collection.Seq[Err]) extends ErrType {
+    type E = scala.collection.Seq[Err]
+
+    def error: E = errs
+
+    override def equals(a: Any) = a match
+      case m: Many => errs == m.errs
+      case _ => false
+
+    override def hashCode = errs.##
+
+    override lazy val toString = s"Multiple errors found (${errs.length})"
+
+    def toThrowable = new StringErrException(this.toString)
   }
 }
 

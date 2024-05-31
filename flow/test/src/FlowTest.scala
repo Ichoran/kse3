@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences, LLC.
+// Copyright (c) 2022-24 Rex Kerr and Calico Life Sciences, LLC.
 
-package kse.flow.test
+package kse.test.flow
 
 
 import org.junit.runner.RunWith
@@ -1730,8 +1730,12 @@ class FlowTest {
   def dataCollectionTest(): Unit =
     T ~ Seq(Is(3), Alt("eel"), Is(5)).collectIs     ==== List(3, 5)  --: typed[Seq[Int]]
     T ~ Seq(Is(3), Alt("eel"), Is(5)).collectAlt    ==== List("eel") --: typed[Seq[String]]
+    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectThem   ==== (List(3, 5), List("eel"))
     T ~ Array(Is(3), Alt("eel")).collectIs          ==== typed[Array[Int]]
     T ~ Array(Is(3), Alt("eel")).collectIs.head     ==== 3
+    T ~ Array(Is(3), Alt("eel")).collectAlt.head    ==== "eel"
+    T ~ Array(Is(3), Alt("eel")).collectThem._1     =**= Array(3)
+    T ~ Array(Is(3), Alt("eel")).collectThem._2     =**= Array("eel")
     T ~ Iterator(Is(3), Alt("eel")).collectAlt      ==== typed[Iterator[String]]
     T ~ Iterator(Is(3), Alt("eel")).collectAlt.next ==== "eel"
 
@@ -1742,13 +1746,24 @@ class FlowTest {
     T ~ xs.errors                       ==== xs.collect{ case Alt(a) => a }
     T ~ xs.validOrErrors                ==== Alt(xs.collectAlt)
     T ~ xs.filter(_.isIs).validOrErrors ==== Is(xs.collectIs)
-
     T ~ xs.filter(_.isIs).validOrIndexedResults ==== Vector(5, 6) --: typed[Vector[Int] Or (Vector[Int], Vector[(Int, Err)])]
     T ~ xs.validOrIndexedResults                ==== Alt((Vector(5, 6), Vector((1, xs(1).alt), (3, xs(3).alt))))
+
+    val as = xs.toArray
+    T ~ as.valid                        ==== eparse      --: typed[Array[Int] Or Err]
+    T ~ as.filter(_.isIs).valid.get     =**= Array(5, 6)
+    T ~ as.errors                       =**= as.collect{ case Alt(a) => a }
+    T ~ as.validOrErrors.alt            =**= as.collectAlt
+    T ~ as.filter(_.isIs).validOrErrors.get         =**= xs.collectIs
+    T ~ as.filter(_.isIs).validOrIndexedResults.get =**= Array(5, 6)
+    T ~ as.validOrIndexedResults.alt.ops(_.toList, _.toList) ==== (List(5, 6), List((1, xs(1).alt), (3, xs(3).alt)))
 
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== typed[List[Int] Or Err]
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[?]]
     T ~ List("2", "3").validMap(s => nice{ s.toInt }) ==== List(2, 3)
+    T ~ Array("2", "e").validMap(s => nice{ s.toInt }) ==== typed[Array[Int] Or Err]
+    T ~ Array("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[?]]
+    T ~ Array("2", "3").validMap(s => nice{ s.toInt }).get =**= Array(2, 3)
 
     val linedC = "salmon\ncod\r\nherring\rbass\nperch\n".toCharArray
     val linedB = linedC.copyWith(_.toByte)
@@ -1758,6 +1773,56 @@ class FlowTest {
     T ~ linedC.lines(13 to End-3).asCopyingIterator.map(_.str).toVector ==== Vector("erring", "bass", "per")
     T ~ linedB.textLines(13 to End-3).asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== Vector("erring", "bass", "per")
 
+
+  @Test
+  def loomTest(): Unit =
+    val dt = new java.util.concurrent.atomic.AtomicLong(0L)
+    def time[A](t: => A): A =
+      val t0 = System.nanoTime
+      val ans = t
+      val t1 = System.nanoTime
+      dt.set(t1 - t0)
+      ans
+    def yikes(s: String): Nothing =
+      throw new Exception(s)
+    extension (ai: java.util.concurrent.atomic.AtomicInteger)
+      def ++ : Unit = ai.getAndIncrement
+    val n = java.util.concurrent.atomic.AtomicInteger(0)
+    T ~ Fu.of{ n.++; "eel" }.complete()  ==== "eel" --: typed[String Or Err]
+    T ~ n.get                             ==== 1
+    T ~ Fu{ n.++; Is("eel") }.complete() ==== "eel" --: typed[String Or Err]
+    T ~ n.get                            ==== 2
+    val fex = Fu.Executor.create()
+    val foo = Fu.of(using fex){ Thread.sleep(50); n.++; 4 }
+    T ~ foo.isComplete ==== false
+    T ~ foo.complete() ==== Is(4)
+    T ~ foo.isComplete ==== true
+    T ~ n.get          ==== 3
+    val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
+    val fs = alnum.arr.map(c => Fu of { Thread.sleep(100); n.++; c })
+    val ans: Array[Char] Or Err = time{ fs.validFu.complete() }
+    T ~ (dt.get/1e9 > 0.05)  ==== true
+    T ~ (dt.get/1e9 < 0.15)  ==== true
+    T ~ ans.map(_.mkString)  ==== alnum --: typed[String Or Err]
+    T ~ fs.fu.complete().get =**= alnum.arr.copyWith(x => x.orAlt[Err])
+    T ~ n.get               ==== 3 + alnum.length
+    T ~ Fu{ nice{ "1".toInt }    }.map(_ * 3).complete() ==== 3 --: typed[Int Or Err]
+    T ~ Fu{ Err("eel").orIs[Int] }.map(_ * 3).complete() ==== Alt(Err("eel"))
+    T ~ Fu{ nice{ "1".toInt } }.map(x => 5/(x-1)).complete().isAlt ==== true
+    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => (n+n).orAlt[Err]    ).complete() ==== 2 --: typed[Int Or Err]
+    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => Err("cod").orIs[Int]).complete() ==== Alt(Err("cod"))
+    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => (5/(n-1)).orAlt[Err]).complete() ==== runtype[Alt[?]]
+    T ~ Fu{ Err("eel").orIs[Int] }.flatMap(n => (n+n).orAlt[Err]    ).complete() ==== Alt(Err("eel"))
+    T ~ Fu{ Err("eel").orIs[Int] }.flatMap(n => yikes("salmon")     ).complete() ==== Alt(Err("eel"))
+    T ~ Err.Or[Int]{ Fu.of{ "eel".length }.? * 3 } ==== 9 --: typed[Int Or Err]
+    T ~ Err.Or[Int]{ Fu.of{ "eel".toInt  }.? * 3 } ==== runtype[Alt[?]]
+    T ~ Or.Ret[Int, String]{ Fu.of{ "eel".length }.?+(_.toString) * 2 } ==== 6 --: typed[Int Or String]
+    T ~ Or.Ret[Int, String]{ Fu.of{ "eel".toInt  }.?+(_.toString) * 2 } ==== runtype[Alt[?]]
+    given AutoMap[Err, Char] = e => e.toString.fn(s => if s.length > 0 then '+' else '-')
+    T ~ Or.Ret[Int, Char]{ Fu.of{ "eel".length }.?* + 4 } ==== 7 --: typed[Int Or Char]
+    T ~ Or.Ret[Int, Char]{ Fu.of{ "eel".toInt }.?* + 4 }  ==== Alt('+')
+    T ~ Err.Or[Int]{ Fu.of{ "eel".length }.?#("Yo") / 2 } ==== 1 --: typed[Int Or Err]
+    T ~ Err.Or[Int]{ Fu.of{ "eel".toInt  }.?#("Yo") / 2 }.alt.toString.take(2) ==== "Yo"
 
 
   @Test

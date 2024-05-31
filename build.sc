@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
-// Copyright 2021-2023 Rex Kerr and Calico Life Sciences, LLC
+// Copyright 2021-2024 Rex Kerr and Calico Life Sciences, LLC
 
 
 import mill._
@@ -25,7 +25,7 @@ trait PublishKse3 extends PublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.2.15"
+  def publishVersion = "0.3.0"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -51,7 +51,7 @@ trait Common extends Base {
   def extraTestDeps: Seq[ScalaModule] = Seq.empty
   def extraTestIvy: T[Agg[Dep]] = T{ Agg.empty[Dep] }
 
-  object test extends Tests with TestModule.Junit4 {
+  object test extends ScalaTests with TestModule.Junit4 {
     override def ivyDeps = T{
       super.ivyDeps() ++
       Agg(
@@ -69,7 +69,7 @@ object basics extends Common with PublishKse3 {}
 
 object flow extends Common with PublishKse3 {
   def moduleDeps = Seq(basics)
-  object bench extends Tests with TestModule.Junit4 {}
+  object bench extends ScalaTests with TestModule.Junit4 {}
 }
 
 object maths extends Common with PublishKse3 {

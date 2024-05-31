@@ -2,8 +2,9 @@
 
 This repository contains the Kerr Standard Extensions to Scala 3.
 
-These are intended to cover everything that the standard library forgot that
-is commonly used for general-purpose programming and general-purpose data analysis.
+These are intended to cover everything that is commonly used for general-purpose
+programming and general-purpose data analysis, but isn't in the Scala
+standard library (or is, but needs improvement).
 
 Kse3 has no pretenses of being an idiomatic toolchain.  It is designed for
 high-productivity programming for people who like direct style, good error
@@ -15,7 +16,8 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.4 and later due to its use of
 `scala.util.boundary` and same-named extensions from multiple namespaces.
-It also assumes at least Java 17.**
+It also assumes at least Java 17 for 0.2.x and before, and Java 21 for
+0.3.0 and later.**
 
 
 ## How do I get it?
@@ -24,16 +26,16 @@ Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) 
 Make sure your module has a sufficiently recent 3.4, e.g. in mill
 
 ```scala
-def scalaVersion = "3.4.1"
+def scalaVersion = "3.4.2"
 ```
 
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.2.15"
-ivy"com.github.ichoran::kse3-flow:0.2.15"
-ivy"com.github.ichoran::kse3-maths:0.2.15"
-ivy"com.github.ichoran::kse3-eio:0.2.15"
+ivy"com.github.ichoran::kse3-basics:0.3.0"
+ivy"com.github.ichoran::kse3-flow:0.3.0"
+ivy"com.github.ichoran::kse3-maths:0.3.0"
+ivy"com.github.ichoran::kse3-eio:0.3.0"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -96,7 +98,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.2.15"
+ivy"com.github.ichoran::kse3-basics:0.3.0"
 ```
 
 and in your code,
@@ -185,7 +187,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.2.15"
+ivy"com.github.ichoran::kse3-flow:0.3.0"
 ```
 
 and in your code,

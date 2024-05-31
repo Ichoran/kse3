@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-24 Rex Kerr and Calico Life Sciences LLC.
 
-package kse.maths.test
+package kse.test.maths
 
 
 import org.junit.runner.RunWith
