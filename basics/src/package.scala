@@ -44,7 +44,7 @@ package kse
   * 
   * == Copying Things ==
   * 
-  * kse.flow defines a typeclass `Copies` that enables an extension method `.copy` on any class `A`
+  * kse.basics defines a typeclass `Copies` that enables an extension method `.copy` on any class `A`
   * for which there is a given `Copies[A]`.  If you import givens, you get `Copies` for array types
   * (the primitives and AnyRef).  Support for arrays of opaques is based on Translucent.
   * (see source or test suite).

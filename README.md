@@ -32,10 +32,10 @@ def scalaVersion = "3.4.2"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.0"
-ivy"com.github.ichoran::kse3-flow:0.3.0"
-ivy"com.github.ichoran::kse3-maths:0.3.0"
-ivy"com.github.ichoran::kse3-eio:0.3.0"
+ivy"com.github.ichoran::kse3-basics:0.3.1"
+ivy"com.github.ichoran::kse3-flow:0.3.1"
+ivy"com.github.ichoran::kse3-maths:0.3.1"
+ivy"com.github.ichoran::kse3-eio:0.3.1"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -98,7 +98,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.0"
+ivy"com.github.ichoran::kse3-basics:0.3.1"
 ```
 
 and in your code,
@@ -187,7 +187,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.3.0"
+ivy"com.github.ichoran::kse3-flow:0.3.1"
 ```
 
 and in your code,

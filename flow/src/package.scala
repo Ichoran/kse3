@@ -263,6 +263,10 @@ package kse
   *   i1 + i2
   * }}}
   * 
+  * If you just need to exit early, use `Err.break("message")` or `Err ?# "message"`.  If you want
+  * to add a message (e.g. to explain context) when returning in the error condition, use
+  * `foo() ?# "message"` where `foo()` has an -`Or Err` type.
+  * 
   * **attempt.safe**
   * 
   * If you are going to be discarding the error case and want to try several approaches before
@@ -313,13 +317,68 @@ package kse
   * (If `NaN`s are common, this could save a lot of computation.)
   * 
   * 
-  * == Copying mutables ==
+  * == Ultra-lightweight Futures ==
   * 
-  * kse.flow defines a typeclass `Copies` that enables an extension method `.copy` on any class `A`
-  * for which there is a given `Copies[A]`.  If you import givens, you get `Copies` for array types
-  * (the primitives and AnyRef).  Support for arrays of opaques is experimental and trait-based
-  * (see source).  **This has moved to kse.basics**
+  * Java 21 has introduced lightweight virtual threads which can be used to run (Java-style) futures.
+  * kse embraces this capability to provide a clean, direct style for working concurrently.  Note: you
+  * are still responsible for solving all typical concurrency issues, like simultaneous modification!
   * 
+  * The basic unit of work is a function that returns a value `Or Err`.  If you have such a function `f`,
+  * `Fu(f)` will run it concurrently.  Get the value with `ask()`; this will block until the value is
+  * computed.  But that's okay!  Just wrap your work in _another_ `Fu` and you don't have to worry about
+  * that block until later.
   * 
+  * If you're in a `Fu` block, you can jump out with an `Err` using `.?`, just as if it was an `A Or Err`.
+  * Furthermore, if you want to block on and then get the value of another `Fu`, no need to `ask()` first;
+  * just `.?` directly.
+  * 
+  * {{{
+  * val myMap = Fu:
+  *   val result = add3("5", "7").?  // Ends early
+  *   Map("5+7" -> result)
+  * 
+  * def yourValue(problem: String) = Fu:
+  *   myMap.?.get(problem).getOrElse(Err ?# "Can't help you") + 4
+  * 
+  * println(yourValue("2+2").ask())  // prints Alt(Err("Can't help you"))
+  * println(yourValue("5+7").ask())  // prints 16
+  * }}}
+  * 
+  * If you want, you can `map` or `flatMap` to chain computations; if you don't have any expected `Or Err` you
+  * can use `Fu.of:` with a code block that produces any value (the `Or Err` will be added).  But you don't need
+  * to!  `Fu(f).map(x => g(x))` is the same as `Fu.of(g(Fu(f).?))`.  Monadic operations make it easy to define
+  * _linear_ chains of computation, but by using early-exit, you can define trees of computation.  Just remember
+  * not to block until you've gotten everything running that you can.
+  * 
+  * {{{
+  * val wrong = Fu:
+  *   val n = Fu( add3("1", "2") ).?  // Wait, we blocked right away!
+  *   val m = Fu( add3("3", "4") ).?  // ...so the previous one had to finish before we started this
+  *   n + m
+  * 
+  * val right = Fu:
+  *   val n = Fu( add3("1", "2") )  // Running...
+  *   val m = Fu( add3("3", "4") )  // also running...
+  *   n.? + m.?  // And now we block until everyone's done
+  * }}}
+  * 
+  * Finally, if you have an array of `Fu`s, you can create a new `Fu` that assembles all the results into an
+  * array using `.fu` or only succeeds if all results succeed and packs the successes into an array using `.validFu`.
+  * Because the `Fu` capability is so powerful, though, you may wish to just do the same things explicitly:
+  * {{{
+  * def cheeser() = Array.tabulate(7)(i => Fu.of("cheese".take(i)))
+  * 
+  * // Same behavior as cheeser().fu
+  * val cheesy = Fu.of:
+  *   cheeser().map(_.ask())
+  * 
+  * // Same behavior as xs.validFu
+  * val cheezed = Fu.of:
+  *   cheeser().map(_.?)
+  * }}}
+  * 
+  * `Fu` has no capabilities that other futures do not (at least if you add `Err.Or:` blocks liberally inside them).
+  * Their purpose is to be simple, leveraging the extremely low overhead of JVM 21 futures, and with syntactic overhead
+  * that is as good or better than the best-case for for-comprehensions on monadic futures.
   */
 package object flow {}
