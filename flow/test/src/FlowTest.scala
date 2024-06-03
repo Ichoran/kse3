@@ -1788,51 +1788,51 @@ class FlowTest {
     extension (ai: java.util.concurrent.atomic.AtomicInteger)
       def ++ : Unit = ai.getAndIncrement
     val n = java.util.concurrent.atomic.AtomicInteger(0)
-    T ~ Fu.of{ n.++; "eel" }.ask()  ==== "eel" --: typed[String Or Err]
+    T ~ Fu{ n.++; "eel" }.ask()  ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 1
-    T ~ Fu{ n.++; Is("eel") }.ask() ==== "eel" --: typed[String Or Err]
+    T ~ Fu.flat{ n.++; Is("eel") }.ask() ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 2
     val fex = Fu.Executor.create()
-    val foo = Fu.of(using fex){ Thread.sleep(50); n.++; 4 }
+    val foo = Fu(using fex){ Thread.sleep(50); n.++; 4 }
     T ~ foo.isComplete ==== false
     T ~ foo.ask()      ==== Is(4)
     T ~ foo.isComplete ==== true
     T ~ n.get          ==== 3
     fex.unwrap.close()
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
-    val fs = alnum.arr.map(c => Fu of { Thread.sleep(100); n.++; c })
+    val fs = alnum.arr.map(c => Fu{ Thread.sleep(100); n.++; c })
     val ans: Array[Char] Or Err = time{ fs.validFu.ask() }
     T ~ (dt.get/1e9 > 0.05)  ==== true
     T ~ (dt.get/1e9 < 0.15)  ==== true
     T ~ ans.map(_.mkString)  ==== alnum --: typed[String Or Err]
     T ~ fs.fu.ask().get =**= alnum.arr.copyWith(x => x.orAlt[Err])
     T ~ n.get               ==== 3 + alnum.length
-    T ~ Fu{ nice{ "1".toInt }    }.map(_ * 3).ask() ==== 3 --: typed[Int Or Err]
-    T ~ Fu{ Err("eel").orIs[Int] }.map(_ * 3).ask() ==== Alt(Err("eel"))
-    T ~ Fu{ nice{ "1".toInt } }.map(x => 5/(x-1)).ask().isAlt ==== true
-    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => (n+n).orAlt[Err]    ).ask() ==== 2 --: typed[Int Or Err]
-    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => Err("cod").orIs[Int]).ask() ==== Alt(Err("cod"))
-    T ~ Fu{ nice{ "1".toInt }    }.flatMap(n => (5/(n-1)).orAlt[Err]).ask() ==== runtype[Alt[?]]
-    T ~ Fu{ Err("eel").orIs[Int] }.flatMap(n => (n+n).orAlt[Err]    ).ask() ==== Alt(Err("eel"))
-    T ~ Fu{ Err("eel").orIs[Int] }.flatMap(n => yikes("salmon")     ).ask() ==== Alt(Err("eel"))
-    T ~ Err.Or[Int]{ Fu.of{ "eel".length }.? * 3 } ==== 9 --: typed[Int Or Err]
-    T ~ Err.Or[Int]{ Fu.of{ "eel".toInt  }.? * 3 } ==== runtype[Alt[?]]
-    T ~ Or.Ret[Int, String]{ Fu.of{ "eel".length }.?+(_.toString) * 2 } ==== 6 --: typed[Int Or String]
-    T ~ Or.Ret[Int, String]{ Fu.of{ "eel".toInt  }.?+(_.toString) * 2 } ==== runtype[Alt[?]]
+    T ~ Fu.flat{ nice{ "1".toInt }    }.map(_ * 3).ask() ==== 3 --: typed[Int Or Err]
+    T ~ Fu.flat{ Err("eel").orIs[Int] }.map(_ * 3).ask() ==== Alt(Err("eel"))
+    T ~ Fu.flat{ nice{ "1".toInt } }.map(x => 5/(x-1)).ask().isAlt ==== true
+    T ~ Fu.flat{ nice{ "1".toInt }    }.flatMap(n => (n+n).orAlt[Err]    ).ask() ==== 2 --: typed[Int Or Err]
+    T ~ Fu.flat{ nice{ "1".toInt }    }.flatMap(n => Err("cod").orIs[Int]).ask() ==== Alt(Err("cod"))
+    T ~ Fu.flat{ nice{ "1".toInt }    }.flatMap(n => (5/(n-1)).orAlt[Err]).ask() ==== runtype[Alt[?]]
+    T ~ Fu.flat{ Err("eel").orIs[Int] }.flatMap(n => (n+n).orAlt[Err]    ).ask() ==== Alt(Err("eel"))
+    T ~ Fu.flat{ Err("eel").orIs[Int] }.flatMap(n => yikes("salmon")     ).ask() ==== Alt(Err("eel"))
+    T ~ Err.Or[Int]{ Fu{ "eel".length }.? * 3 } ==== 9 --: typed[Int Or Err]
+    T ~ Err.Or[Int]{ Fu{ "eel".toInt  }.? * 3 } ==== runtype[Alt[?]]
+    T ~ Or.Ret[Int, String]{ Fu{ "eel".length }.?+(_.toString) * 2 } ==== 6 --: typed[Int Or String]
+    T ~ Or.Ret[Int, String]{ Fu{ "eel".toInt  }.?+(_.toString) * 2 } ==== runtype[Alt[?]]
     given AutoMap[Err, Char] = e => e.toString.fn(s => if s.length > 0 then '+' else '-')
-    T ~ Or.Ret[Int, Char]{ Fu.of{ "eel".length }.?* + 4 } ==== 7 --: typed[Int Or Char]
-    T ~ Or.Ret[Int, Char]{ Fu.of{ "eel".toInt }.?* + 4 }  ==== Alt('+')
-    T ~ Err.Or[Int]{ Fu.of{ "eel".length }.?#("Yo") / 2 } ==== 1 --: typed[Int Or Err]
-    T ~ Err.Or[Int]{ Fu.of{ "eel".toInt  }.?#("Yo") / 2 }.alt.toString.take(2) ==== "Yo"
-    T ~ Fu{ nice{ Fu.of{ "eel".length }.? + 2 } }.ask() ==== 5
-    T ~ Fu{ nice{ Fu.of{ "eel".toInt  }.? + 2 } }.ask() ==== runtype[Alt[?]]
-    T ~ Fu.of{ Fu.of{ "eel".length }.?#("Yo") + 1 }.ask() ==== 4
-    T ~ Fu.of{ Fu.of{ "eel".toInt  }.?#("Yo") + 1 }.ask().alt.toString.take(2) ==== "Yo"
-    T ~ Fu.of{ "eel".length }.map{ x => Fu.of{ x*x }.? - 1 }.ask() ==== 8
-    T ~ Fu.of{ "eel".length }.map{ x => Fu.of{ "e"(x)}.? - 1 }.ask() ==== runtype[Alt[?]]
-    T ~ Fu.of{ "eel".length }.flatMap{ x => (Fu.of{ x*x }.? + 1).orAlt[Err] }.ask() ==== 10
-    T ~ Fu.of{ "eel".length }.flatMap{ x => (Fu.of{ "e"(x)}.? + 1).orAlt[Err] }.ask() ==== runtype[Alt[?]]
-    def fus(): Array[Fu[Int]] = Array(Fu.of{ "eel".length }, Fu.of{ "eel".toInt }, Fu{ nice{ "bass".length } }, Fu{ nice{ "bass".toInt } })
+    T ~ Or.Ret[Int, Char]{ Fu{ "eel".length }.?* + 4 } ==== 7 --: typed[Int Or Char]
+    T ~ Or.Ret[Int, Char]{ Fu{ "eel".toInt }.?* + 4 }  ==== Alt('+')
+    T ~ Err.Or[Int]{ Fu{ "eel".length }.?#("Yo") / 2 } ==== 1 --: typed[Int Or Err]
+    T ~ Err.Or[Int]{ Fu{ "eel".toInt  }.?#("Yo") / 2 }.alt.toString.take(2) ==== "Yo"
+    T ~ Fu.flat{ nice{ Fu{ "eel".length }.? + 2 } }.ask() ==== 5
+    T ~ Fu.flat{ nice{ Fu{ "eel".toInt  }.? + 2 } }.ask() ==== runtype[Alt[?]]
+    T ~ Fu{ Fu{ "eel".length }.?#("Yo") + 1 }.ask() ==== 4
+    T ~ Fu{ Fu{ "eel".toInt  }.?#("Yo") + 1 }.ask().alt.toString.take(2) ==== "Yo"
+    T ~ Fu{ "eel".length }.map{ x => Fu{ x*x }.? - 1 }.ask() ==== 8
+    T ~ Fu{ "eel".length }.map{ x => Fu{ "e"(x)}.? - 1 }.ask() ==== runtype[Alt[?]]
+    T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ x*x }.? + 1).orAlt[Err] }.ask() ==== 10
+    T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ "e"(x)}.? + 1).orAlt[Err] }.ask() ==== runtype[Alt[?]]
+    def fus(): Array[Fu[Int]] = Array(Fu{ "eel".length }, Fu{ "eel".toInt }, Fu.flat{ nice{ "bass".length } }, Fu.flat{ nice{ "bass".toInt } })
     T ~ fus().fu.ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
     T ~ fus().validFu.ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
     T ~ fus().fuMap(n => 14/(n-3)).fu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)

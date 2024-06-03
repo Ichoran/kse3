@@ -295,14 +295,14 @@ has much higher performance than the alternative of throwing exceptions.
 Project Loom has delivered low-overhead virtual threads to Java 21, making concurrency especially approachable.  `kse.flow` embraces this
 with an ultra-lightweight futures system based around virtual threads, where blocking is an encouraged form of concurrency control.
 
-Offload any error-prone computation to a virtual thread by using `Fu`:
+Offload any computation to a virtual thread by using `Fu`:
 
 ```scala
-def readFile(p: Path): Array[String] Or Err = ???
+def readFileUnsafe(p: Path): Array[String] = ???  // Live dangerously!
 
 val p = getMyPath()
 val lines = Fu:
-  readFile(p)   // Immediately queues for execution on a virtual thread
+  readFileUnsafe(p)   // Immediately queues for execution on a virtual thread
 
 doSlowStuff()  // Presumably concurrent
 
@@ -315,19 +315,21 @@ the current thread blocks on the call to `ask()`, and any errors during executio
 `Err.Or:` block.
 
 But what if you don't want to block the current thread?  You can `map` and `flatMap` `Fu`.  But, even better, you can
-just keep `Fu:`-ing, because `Fu:` itself (and `Fu.of:`, which takes a direct function but catches exceptions and packs
-them into `Err`) provides a boundary point enabling `.?`.  **Hoewver, you must be careful not to have control flow jump out of a Fu**
+just keep `Fu:`-ing, because `Fu:` itself (and `Fu.flat:`, which takes an `A => (B Or Err)`) provides a boundary point
+enabling `.?`.  **Hoewver, you must be careful not to have control flow jump out of a Fu**
 
 ```scala
-val lines = Fu:
+def readFile(p: Path): Array[String] Or Err = ???
+
+val lines = Fu.flat:
   readFile(p)
 
-val slow = Fu.of:
+val slow = Fu:
   doSlowStuff()
 
 val answer = Fu:
-  slow.ask().?  // Make sure it's done
-  lines.ask().?.find(_ startsWith "import ").toOrElse(Err("No imports"))
+  slow.?  // Make sure it's done
+  lines.?.find(_ startsWith "import ").getOrElse(Err ?# "No imports")
 
 // Now it's all in virtual-thread futures!  answer.ask() will get you the result when you need it
 ```
