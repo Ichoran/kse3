@@ -16,8 +16,7 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.4 and later due to its use of
 `scala.util.boundary` and same-named extensions from multiple namespaces.
-It also assumes at least Java 17 for 0.2.x and before, and Java 21 for
-0.3.0 and later.**
+It also assumes at least Java 21.  (Java 17 for 0.2.x and before.)**
 
 
 ## How do I get it?
@@ -32,10 +31,10 @@ def scalaVersion = "3.4.2"
 And add at least the first line out of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.1"
-ivy"com.github.ichoran::kse3-flow:0.3.1"
-ivy"com.github.ichoran::kse3-maths:0.3.1"
-ivy"com.github.ichoran::kse3-eio:0.3.1"
+ivy"com.github.ichoran::kse3-basics:0.3.2"
+ivy"com.github.ichoran::kse3-flow:0.3.2"
+ivy"com.github.ichoran::kse3-maths:0.3.2"
+ivy"com.github.ichoran::kse3-eio:0.3.2"
 ```
 
 to try it out.  If you use some other build system, you can probably figure out from the above what you need.
@@ -44,13 +43,15 @@ Then in your code,
 
 ```scala
 import kse.basics.{given, _}
+import kse.basics.intervals.{given, _}
+import kse.basics.labels.{given, _}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 import kse.maths.packed.{given, _}
 import kse.eio.{given, _}
 ```
 
-and you're ready to go.
+and you have everything available.
 
 (Note: I don't test without the `given` imports.  They may work, as Kse3 generally puts
 givens in places where they'll be automatically found.  No givens would be defined that
@@ -98,7 +99,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.1"
+ivy"com.github.ichoran::kse3-basics:0.3.2"
 ```
 
 and in your code,
@@ -187,7 +188,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.3.1"
+ivy"com.github.ichoran::kse3-flow:0.3.2"
 ```
 
 and in your code,
@@ -316,7 +317,7 @@ the current thread blocks on the call to `ask()`, and any errors during executio
 
 But what if you don't want to block the current thread?  You can `map` and `flatMap` `Fu`.  But, even better, you can
 just keep `Fu:`-ing, because `Fu:` itself (and `Fu.flat:`, which takes an `A => (B Or Err)`) provides a boundary point
-enabling `.?`.  **Hoewver, you must be careful not to have control flow jump out of a Fu**
+enabling `.?`.  **However, you must be careful not to have control flow jump out of a Fu**
 
 ```scala
 def readFile(p: Path): Array[String] Or Err = ???
