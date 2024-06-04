@@ -335,7 +335,15 @@ val answer = Fu:
 // Now it's all in virtual-thread futures!  answer.ask() will get you the result when you need it
 ```
 
-And a variety of other nice things that you can find by perusing the ScalaDoc, the unit tests, or the code.
+If you want subcomputations to be cancelled, if possible, by using Java's executor services, then use
+`Fu.group:` and `Fu.flatGroup:` in place of `Fu:` and `Fu.flat:`.  This raises the overhead, however,
+so it's only worth doing when you know that the subcomputations will take a while, and early ones might
+fail, so the later ones should be cancelled.  The Java mechanism is to use `InterruptedException`, so
+anything that catches and ignores the exception won't be killed, and long-running computations would
+need explicit `Thread.yield` calls to mark points where interruption is acceptable.
+
+In addition to these features, kse.flow provides a variety of other nice things that you can find by
+perusing the ScalaDoc, the unit tests, or the code.
 
 ### kse.maths
 

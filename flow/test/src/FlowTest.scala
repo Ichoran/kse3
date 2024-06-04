@@ -1776,7 +1776,11 @@ class FlowTest {
 
   @Test
   def loomTest(): Unit =
-    val dt = new java.util.concurrent.atomic.AtomicLong(0L)
+    import java.util.concurrent.atomic.{AtomicLong, AtomicInteger}
+    extension (ai: AtomicInteger)
+      def ++ : Unit = ai.getAndIncrement
+      def :=(i: Integer): Unit = ai.getAndSet(i)
+    val dt = new AtomicLong(0L)
     def time[A](t: => A): A =
       val t0 = System.nanoTime
       val ans = t
@@ -1785,9 +1789,7 @@ class FlowTest {
       ans
     def yikes(s: String): Nothing =
       throw new Exception(s)
-    extension (ai: java.util.concurrent.atomic.AtomicInteger)
-      def ++ : Unit = ai.getAndIncrement
-    val n = java.util.concurrent.atomic.AtomicInteger(0)
+    val n = AtomicInteger(0)
     T ~ Fu{ n.++; "eel" }.ask()  ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 1
     T ~ Fu.flat{ n.++; Is("eel") }.ask() ==== "eel" --: typed[String Or Err]
@@ -1801,7 +1803,7 @@ class FlowTest {
     fex.unwrap.close()
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
     val fs = alnum.arr.map(c => Fu{ Thread.sleep(100); n.++; c })
-    val ans: Array[Char] Or Err = time{ fs.validFu.ask() }
+    val ans: Array[Char] Or Err = time{ fs.fu.ask() }
     T ~ (dt.get/1e9 > 0.05)  ==== true
     T ~ (dt.get/1e9 < 0.15)  ==== true
     T ~ ans.map(_.mkString)  ==== alnum --: typed[String Or Err]
@@ -1833,10 +1835,30 @@ class FlowTest {
     T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ x*x }.? + 1).orAlt[Err] }.ask() ==== 10
     T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ "e"(x)}.? + 1).orAlt[Err] }.ask() ==== runtype[Alt[?]]
     def fus(): Array[Fu[Int]] = Array(Fu{ "eel".length }, Fu{ "eel".toInt }, Fu.flat{ nice{ "bass".length } }, Fu.flat{ nice{ "bass".toInt } })
-    T ~ fus().fu.ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
-    T ~ fus().validFu.ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
-    T ~ fus().fuMap(n => 14/(n-3)).fu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)
-    T ~ fus().fuFlatMap(n => nice{ "123abc".take(n).toInt }).fu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(123, -1, -1 ,-1)
+    T ~ fus().allFu.ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
+    T ~ fus().fu.ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
+    T ~ fus().fuMap(n => 14/(n-3)).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)
+    T ~ fus().fuFlatMap(n => nice{ "123abc".take(n).toInt }).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(123, -1, -1 ,-1)
+    val v1 = new AtomicInteger(0)
+    val v2 = new AtomicInteger(0)
+    val v3 = new AtomicInteger(0)
+    val v4 = new AtomicInteger(0)
+    val ten = Fu.group:
+      val one = Fu{ v1 := 1 ; 1 }
+      val two = Fu{ Thread.sleep(20); v2 := 2; 2 }
+      val three = Fu{ Thread.sleep(40); v3 := 4; nice{ "three".toInt }.? }
+      val four = Fu{ Thread.sleep(60); v4 := 8; 4 }
+      one.? + two.? + three.? + four.?
+    T ~ ten.ask() ==== runtype[Alt[?]]
+    T ~ { Thread.sleep(80); v1.get + v2.get + v3.get + v4.get } ==== 7
+    val thirty = Fu.flatGroup:
+      val six = Fu{ v1 := 16 ; 6 }
+      val seven = Fu.flat{ Thread.sleep(20); v2 := 32; nice{ "seven".toInt } }
+      val eight = Fu{ Thread.sleep(40); v3 := 64; 8 }
+      val nine = Fu{ Thread.sleep(60); v4 := 128; 9 }
+      (nine.? + eight.? + seven.? + six.?).orErr
+    T ~ { Thread.sleep(80); v1.get + v2.get + v3.get + v4.get } ==== 52
+    T ~ thirty.ask() ==== runtype[Alt[?]]
 
 
   @Test

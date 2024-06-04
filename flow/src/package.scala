@@ -362,23 +362,45 @@ package kse
   *   n.? + m.?  // And now we block until everyone's done
   * }}}
   * 
-  * Finally, if you have an array of `Fu`s, you can create a new `Fu` that assembles all the results into an
+  * If you have an array of `Fu`s, you can create a new `Fu` that assembles all the results into an
   * array using `.fu` or only succeeds if all results succeed and packs the successes into an array using `.validFu`.
   * Because the `Fu` capability is so powerful, though, you may wish to just do the same things explicitly:
   * {{{
   * def cheeser() = Array.tabulate(7)(i => Fu.of("cheese".take(i)))
   * 
-  * // Same behavior as cheeser().fu
-  * val cheesy = Fu.of:
+  * // Same behavior as cheeser().allFu
+  * val cheesy = Fu:
   *   cheeser().map(_.ask())
   * 
-  * // Same behavior as xs.validFu
-  * val cheezed = Fu.of:
+  * // Similar behavior to cheeser().fu except only the first error is returned
+  * val cheezed = Fu:
   *   cheeser().map(_.?)
   * }}}
   * 
   * `Fu` has no capabilities that other futures do not (at least if you add `Err.Or:` blocks liberally inside them).
   * Their purpose is to be simple, leveraging the extremely low overhead of JVM 21 futures, and with syntactic overhead
   * that is as good or better than the best-case for for-comprehensions on monadic futures.
+  * 
+  * Futures, in general, and `Fu` specifically, are not intrinsically interruptable.  However, one can attempt to
+  * terminate work in progress, or work yet to begin, by terminating the executor used to run Java futures.  To
+  * create a block of work that terminates started but not completed subtasks using this mechanism, use `Fu.group:`
+  * or `Fu.flatGroup:` like so:
+  * 
+  * {{{
+  * val ten = Fu.group:
+  *   val one = Fu{ Thread.sleep(100); println("Hi"); 1 }
+  *   val two = Fu{ Thread.sleep(200); println("Hello"); 2 }
+  *   val three = Fu{ Thread.sleep(300); println("Hey"); "three".toInt }
+  *   val four = Fu{ thread.sleep(400); println("Yo"); 4 }
+  *   four.? + three.? + two.? + one.?
+  * 
+  * println(ten.ask()) 
+  * }}}
+  * 
+  * This will always print the `NumberFormatException` caused by `three`, but
+  * will typically not print "Yo" because the future for `four` will be
+  * interrupted and will stop once `three` generates an error condition (even
+  * though the calling thread is blocked on `four`).  In the
+  * case of multiple errors, the first one to occur will be returned.
   */
 package object flow {}
