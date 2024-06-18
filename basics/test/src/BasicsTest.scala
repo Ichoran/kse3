@@ -47,6 +47,27 @@ class BasicsTest() {
 
 
   @Test
+  def hopTest(): Unit =
+    T ~ {
+      Corral:
+        hop[Int].here:
+          hop[String].here:
+            Hop.jump(5)
+            Hop.jump("cod")
+            Corral:
+              "eel"
+          2
+    } ==== 5
+    T ~ { compiletime.testing.typeChecks("""
+      hop[Int].here:
+        Corral:
+          hop[String].here:
+            Hop.jump(5)
+        2
+    """) } ==== false
+
+
+  @Test
   def dataWrapperTest(): Unit =
     val m = Mu(5)
     T ~ m.value            ==== 5

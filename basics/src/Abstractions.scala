@@ -3,8 +3,8 @@
 
 package kse.basics
 
-import scala.util.boundary
-
+import scala.util.{boundary, NotGiven}
+import scala.compiletime.summonFrom
 
 
 /** Typeclass that witnesses that O is actually opaquely implemented by I */
@@ -130,6 +130,43 @@ extension [A](a: A)
 
 
 
+/** Implements barriers to crossing boundaries; you can only jump within your own Corral. */
+opaque type Corral[S <: Singleton] = Unit
+object Corral {
+  given zero: Corral[0] = ()
+  given unwrappedCorral[S <: Singleton, C <: Singleton & Corral[S]](using Corral[C]): C = ().asInstanceOf[C]
+
+  inline def apply[A, S <: Singleton](using c: Corral[S])(inline f: Corral[c.type] ?=> A): A =
+    f(using ((): Corral[c.type]))
+}
+
+/** Witnesses that a boundary jump is possible but specifies the Corral within which one can jump */
+opaque type Hop[A, S <: Singleton] = boundary.Label[A]
+object Hop {
+  inline def apply[A, S <: Singleton](using c: Corral[S])(inline f: Hop[A, c.type] ?=> A): A =
+    boundary[A]: label ?=>
+      f(using (label: Hop[A, c.type]))
+
+  inline def jump[A, S <: Singleton](a: A)(using h: Hop[A, S], s: S): Nothing = summonFrom{
+    case _: NotGiven[Corral[S]] => boundary.break(a)(using (h: boundary.Label[A]))
+    case _                      => scala.compiletime.error("Hop cannot cross its containing Corral")
+  }
+}
+
+/** Helper class to specify what the type of the boundary is without having to specify the Corral instance */
+opaque type HopWith[A] = Unit
+object HopWith{
+  inline def apply[A](): kse.basics.HopWith[A] = ()
+
+  extension [A](h: HopWith[A])
+    inline def here[S <: Singleton](using c: Corral[S])(inline f: Hop[A, c.type] ?=> A) = Hop.apply[A, S](f)
+}
+
+/** Witnesses that you want a boundary with a type; the actual boundary must be instantiated with `.here`, e.g. `hop[Int].here:` */
+inline def hop[A]: HopWith[A] = HopWith.apply[A]()
+
+
+
 object shortcut {
   sealed trait Type {}
   object Skips extends Type {}
@@ -164,3 +201,4 @@ object shortcut {
 
   inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
 }
+
