@@ -31,6 +31,29 @@ class BytecodeCheck {
   def mktag(d: Double): Double \ "meter" =
     import labels._
     d \ "meter"
+  
+  def boundaryTest(d: Double): Double =
+    boundary[Double]:
+      var i = d.toInt
+      val f = d - i
+      while i > 0 do
+        i -= boundary[Int]:
+          if f < 0 then boundary.break(i)
+          if 1.0/i < f then boundary.break(1.0/i)
+          1
+      0.0
+
+  def hopTest(d: Double): Double =
+    Hop:
+      var i = d.toInt
+      val f = d - i
+      while i > 0 do
+        val j: Int = Hop:
+          if f < 0 then Hop.jump(i)
+          if 1.0/i < f then Hop.jump(1.0/i)
+          1
+        i -= j
+      0.0
 }
 
 @RunWith(classOf[JUnit4])
@@ -65,6 +88,18 @@ class BasicsTest() {
             Hop.jump(5)
         2
     """) } ==== false
+   T ~ {
+     hop[Option[Int]].here:
+       Hop.jump(Some(3))
+       None
+   } ==== Some(3) --: typed[Option[Int]]
+   T ~ {
+     hop[Seq[Int]].here:
+       hop[Vector[Int]].here:
+         Hop.jump(List(2, 3))
+         Hop.jump(Vector(1, 4))
+         Vector.empty
+   } ==== Seq(2, 3)
 
 
   @Test

@@ -141,15 +141,15 @@ object Corral {
 }
 
 /** Witnesses that a boundary jump is possible but specifies the Corral within which one can jump */
-opaque type Hop[A, S <: Singleton] = boundary.Label[A]
+opaque type Hop[-A, S <: Singleton] = boundary.Label[A]
 object Hop {
   inline def apply[A, S <: Singleton](using c: Corral[S])(inline f: Hop[A, c.type] ?=> A): A =
     boundary[A]: label ?=>
-      f(using (label: Hop[A, c.type]))
+      f(using label)
 
   inline def jump[A, S <: Singleton](a: A)(using h: Hop[A, S], s: S): Nothing = summonFrom{
-    case _: NotGiven[Corral[S]] => boundary.break(a)(using (h: boundary.Label[A]))
-    case _                      => scala.compiletime.error("Hop cannot cross its containing Corral")
+    case _: Corral[S] => scala.compiletime.error("Hop cannot cross its containing Corral")
+    case _            => boundary.break(a)
   }
 }
 
