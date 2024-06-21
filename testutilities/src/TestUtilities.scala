@@ -193,6 +193,10 @@ object TestUtilities {
   }
 
   trait GenLabeled {
+    private def compileAnswer(compiled: Boolean) =
+      if compiled then "successfully compiles"
+      else "fails to compile"
+
     def message: String
 
     def ~[A](a: => A)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): Labeled[A] =
@@ -200,6 +204,8 @@ object TestUtilities {
 
     def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): LabeledCollection[A, ii.type] =
       LabeledCollection[A, ii.type](message, () => a, ii)
+
+    inline def !(inline code: String)(using Asserter, sourcecode.Line, sourcecode.FileName): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
   }
 
   object T extends GenLabeled {

@@ -25,7 +25,6 @@ object Translucent {
 }
 
 
-
 /** Way to create new unboxed types.  Use
   * ```
   * object MyThing extends NewType[OldThing] {
@@ -129,7 +128,6 @@ extension [A](a: A)
   inline def copy(using copier: Copies[A]): A = copier copy a
 
 
-
 /** Implements barriers to crossing boundaries; you can only jump within your own Corral. */
 opaque type Corral[S <: Singleton] = Unit
 object Corral {
@@ -166,7 +164,6 @@ object HopWith{
 inline def hop[A]: HopWith[A] = HopWith.apply[A]()
 
 
-
 object shortcut {
   sealed trait Type {}
   object Skips extends Type {}
@@ -200,5 +197,36 @@ object shortcut {
   inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
+
+  object hopped {
+    inline def quittable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Quits.type], Hop[Quits.type, c.type]) ?=> Unit): Unit =
+      Hop(using c):
+        f
+        Quits
+
+    inline def skippable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Skips.type], Hop[Skips.type, c.type]) ?=> Unit): Unit =
+      Hop(using c):
+        f
+        Skips
+
+    inline def outer[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Type], Hop[Type, c.type]) ?=> Unit): Unit =
+      Hop(using c):
+        f
+        Quits
+
+    inline def inner[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Type], Hop[Type, c.type]) ?=> Unit)(using l: boundary.Label[Type], h: Hop[Type, c.type]): Unit =
+      val what = Hop(using c):
+        f
+        Skips
+      if what eq Quits then Hop.jump(Quits)
+
+    inline def skip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
+
+    inline def skipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
+
+    inline def quit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
+
+    inline def quitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
+  }
 }
 

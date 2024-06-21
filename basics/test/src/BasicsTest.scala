@@ -54,6 +54,19 @@ class BytecodeCheck {
           1
         i -= j
       0.0
+
+  def corralTest(d: Double): Double =
+    Corral:
+      Hop:
+        var i = d.toInt
+        val f = d - i
+        while i > 0 do
+          val j: Int = Hop:
+            if f < 0 then Hop.jump(i)
+            if 1.0/i < f then Hop.jump(1.0/i)
+            1
+          i -= j
+        0.0
 }
 
 @RunWith(classOf[JUnit4])
@@ -103,6 +116,58 @@ class BasicsTest() {
 
 
   @Test
+  def shortcutTest(): Unit =
+    var x = 0
+    T ~ { shortcut.quittable{ x += 1; shortcut.quit();        x += 1 }; x } ==== 1
+    T ~ { shortcut.quittable{ x += 1; shortcut.quitIf(x > 1); x += 1 }; x } ==== 2
+    T ~ { shortcut.quittable{ x += 1; shortcut.quitIf(x > 3); x += 1 }; x } ==== 4
+    T ~ { shortcut.skippable{ x += 1; shortcut.skip();        x += 1 }; x } ==== 5
+    T ~ { shortcut.skippable{ x += 1; shortcut.skipIf(x > 5); x += 1 }; x } ==== 6
+    T ~ { shortcut.skippable{ x += 1; shortcut.skipIf(x > 7); x += 1 }; x } ==== 8
+    T ~ { shortcut.outer{ x += 2; shortcut.quit(); x += 1 }; x } ==== 10
+    T ~ { shortcut.outer{ x += 2; shortcut.skip(); x += 1 }; x } ==== 12
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.skip(); x += 1 }; x += 3 }; x } ==== 18
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.quit(); x += 1 }; x += 3 }; x } ==== 21
+
+    var y = 0
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit();        y += 1 }; y } ==== 1
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 1); y += 1 }; y } ==== 2
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 3); y += 1 }; y } ==== 4
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip();        y += 1 }; y } ==== 5
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 5); y += 1 }; y } ==== 6
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 7); y += 1 }; y } ==== 8
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.quit(); y += 1 }; y } ==== 10
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.skip(); y += 1 }; y } ==== 12
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.skip(); y += 1 }; y += 3 }; y } ==== 18
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.quit(); y += 1 }; y += 3 }; y } ==== 21
+
+    var z = 0
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit();        z += 1 }; z } ==== 1
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 1); z += 1 }; z } ==== 2
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 3); z += 1 }; z } ==== 4
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip();        z += 1 }; z } ==== 5
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 5); z += 1 }; z } ==== 6
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 7); z += 1 }; z } ==== 8
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.quit(); z += 1 }; z } ==== 10
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.skip(); z += 1 }; z } ==== 12
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.skip(); z += 1 }; z += 3 }; z } ==== 18
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.quit(); z += 1 }; z += 3 }; z } ==== 21
+
+    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit();        z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quitIf(z > 1); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quitIf(z > 3); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip();        z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skipIf(z > 5); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skipIf(z > 7); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.quit(); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.skip(); z += 1 } }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.skip(); z += 1 }; z += 3 } }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.quit(); z += 1 }; z += 3 } }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.skip(); z += 1 } }; z += 3 }; z }"""
+    T ! """{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.quit(); z += 1 } }; z += 3 }; z }"""
+
+
+  @Test
   def dataWrapperTest(): Unit =
     val m = Mu(5)
     T ~ m.value            ==== 5
@@ -126,6 +191,78 @@ class BasicsTest() {
     T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.set("eel"))).sameOp(_.value) ==== ("cod!", "eel")      --: typed[(String, String)]
     T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.set(Meter(3)))).sameOp(_.value) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
     T ~ Mu.T(Meter(2.0)).getClass ==== Mu.MuDouble(2.0).getClass
+
+    val ab = Atom(2: Byte)
+    val as = Atom(2: Short)
+    val ac = Atom('e')
+    val ai = Atom(2)
+    val al = Atom(2L)
+    val af = Atom(0.5f)
+    val ad = Atom(0.5)
+    val aa = Atom("eel")
+    val am = Atom(Meter(1.5))
+    inline def q(x: Int | Double) = inline x match
+      case i: Int => Meter(0.5+i)
+      case d: Double => Meter(1.0+d)
+    T ~ ab() ==== (2: Byte)  --: typed[Byte]
+    T ~ as() ==== (2: Short) --: typed[Short]
+    T ~ ac() ==== 'e'        --: typed[Char]
+    T ~ ai() ==== 2          --: typed[Int]
+    T ~ al() ==== 2L         --: typed[Long]
+    T ~ af() ==== 0.5f       --: typed[Float]
+    T ~ ad() ==== 0.5        --: typed[Double]
+    T ~ aa() ==== "eel"      --: typed[String]
+    T ~ am() ==== 1.5        --: typed[Meter.Type]
+    T ~ { ab := 3;     ab swap 4 }      ==== (3: Byte)
+    T ~ { as := 3;     as swap 4 }      ==== (3: Short)
+    T ~ { ac := 'f';   ac swap 'g' }    ==== 'f'
+    T ~ { ai := 3;     ai swap 4 }      ==== 3
+    T ~ { al := 3L;    al swap 4L }     ==== 3L
+    T ~ { af := 0.4f;  af swap 0.3f }   ==== 0.4f
+    T ~ { ad := 0.4;   ad swap 0.3 }    ==== 0.4
+    T ~ { aa := "cod"; aa swap "bass" } ==== "cod"
+    T ~ { am := q(2);  am swap q(3) }   ==== 2.5
+    T ~ ab.swapOp(b => (b+1).toByte)  ==== (4: Byte)
+    T ~ as.swapOp(s => (s+1).toShort) ==== (4: Short)
+    T ~ ac.swapOp(c => (c+1).toChar)  ==== 'g'
+    T ~ ai.swapOp(_ + 1)              ==== 4
+    T ~ al.swapOp(_ + 1L)             ==== 4L
+    T ~ af.swapOp(_ - 0.1f)           ==== 0.3f
+    T ~ ad.swapOp(_ - 0.1)            ==== 0.3
+    T ~ aa.swapOp(_ + " cod")         ==== "bass"
+    T ~ am.swapOp(m => q(m.value))    ==== 3.5
+    T ~ ab(b => (b+2).toByte)  ==== (7: Byte)
+    T ~ as(s => (s+2).toShort) ==== (7: Short)
+    T ~ ac(c => (c+2).toChar)  ==== 'j'
+    T ~ ai(_ + 2)              ==== 7
+    T ~ al(_ + 2)              ==== 7L
+    T ~ af(_ / 2.0f)           =~~= 0.1f
+    T ~ ad(_ / 2.0)            =~~= 0.1
+    T ~ aa(_ + " perch")       ==== "bass cod perch"
+    T ~ am(m => q(m.value+1))  ==== 6.5
+
+    val na = Atom.Count.from(1)
+    T ~ na()              ==== 1 --: typed[Long]
+    T ~ { na := 2; na() } ==== 2
+    T ~ na.swap(3)        ==== 2
+    T ~ { na.++; na() }   ==== 4
+    T ~ { na.--; na() }   ==== 3
+    T ~ { na += 3; na() } ==== 6
+    T ~ { na -= 2; na() } ==== 4
+
+    val tg = Atom.Toggle()
+    T ~ tg()               ==== false
+    T ~ { tg.on();  tg() } ==== true
+    T ~ { tg.off(); tg() } ==== false
+    T ~ tg.turnOff()       ==== false
+    T ~ tg()               ==== false
+    T ~ tg.turnOn()        ==== true
+    T ~ tg()               ==== true
+    T ~ tg.turnOn()        ==== false
+    T ~ tg()               ==== true
+    T ~ tg.turnOff()       ==== true
+    T ~ tg()               ==== false
+
 
     inline def gm[A](a: A): Mu[A] = inline a match
       case _: Unit    => Mu.MuUnit.asInstanceOf[Mu[A]]

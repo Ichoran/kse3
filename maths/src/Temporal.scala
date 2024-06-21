@@ -11,6 +11,8 @@ import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
 
+import kse.basics.Translucent
+
 import kse.maths._
 
 
@@ -373,6 +375,8 @@ object NanoDuration {
   given Ordering[kse.maths.NanoDuration] = new {
     def compare(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration) = a.unwrap compareTo b.unwrap
   }
+
+  given Translucent[NanoDuration, Long] with {}
 }
 
 
@@ -734,6 +738,8 @@ object DoubleDuration {
   given Ordering[kse.maths.DoubleDuration] = new {
     def compare(dt: kse.maths.DoubleDuration, du: kse.maths.DoubleDuration) = java.lang.Double.compare(dt.unwrap, du.unwrap)
   }
+
+  given Translucent[DoubleDuration, Double] with {}
 }
 
 
@@ -1535,6 +1541,8 @@ object NanoInstant {
       val diff = a.unwrap - b.unwrap
       if diff > 0 then 1 else (diff >> 63).toInt
   }
+
+  given Translucent[NanoInstant, Long] with {}
 }
 
 
@@ -1777,6 +1785,8 @@ object DoubleInstant {
   given Ordering[kse.maths.DoubleInstant] = new {
     def compare(t: kse.maths.DoubleInstant, u: kse.maths.DoubleInstant) = java.lang.Double.compare(t.unwrap, u.unwrap)
   }
+
+  given Translucent[DoubleInstant, Double] with {}
 }
 
 
@@ -2880,6 +2890,8 @@ object Tic {
   extension (t: kse.maths.Tic) {
     inline def toc: kse.maths.NanoDuration = t.unwrap.age
   }
+
+  given Translucent[Tic, Long] with {}
 }
 
 inline def tic: kse.maths.Tic = Tic()

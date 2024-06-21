@@ -3,6 +3,8 @@
 
 package kse.basics
 
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference, LongAdder}
+
 import scala.annotation.targetName
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.reflect.ClassTag
@@ -5146,6 +5148,302 @@ extension [A <: Mu.Primitive, M <: Mu[A]](mu: M) {
     case _: Double  => mu match
       case d: Mu.MuDouble  => d
       case _               => new Mu.MuDouble( mu.asInstanceOf[Mu[Double ]].getValue)
+}
+
+
+/** Simplifies the interface to atomics
+  *
+  * You still need to be careful not to pull data out, modify it, and put it back in without realizing that you've missed an update
+  */
+opaque type Atom[A] <: AnyRef = AtomicInteger | AtomicLong | AtomicReference[A]
+object Atom {
+  import java.lang.Double.{doubleToRawLongBits => d2l, longBitsToDouble => l2d}
+  import java.lang.Float.{floatToRawIntBits => f2i, intBitsToFloat => i2f}
+
+  inline def apply[A](a: A): kse.basics.Atom[A] = inline a match
+    case i: Int    => new AtomicInteger(i)
+    case l: Long   => new AtomicLong(l)
+    case b: Byte   => new AtomicInteger(b)
+    case s: Short  => new AtomicInteger(s)
+    case c: Char   => new AtomicInteger(c)
+    case f: Float  => new AtomicInteger(f2i(f))
+    case d: Double => new AtomicLong(d2l(d))
+    case x: AnyRef => new AtomicReference(x)
+    case _ => summonFrom{
+      case _: Translucent[A, Int]    => new AtomicInteger(a.asInstanceOf[Int])
+      case _: Translucent[A, Long]   => new AtomicLong(a.asInstanceOf[Long])
+      case _: Translucent[A, Byte]   => new AtomicInteger(a.asInstanceOf[Byte].toInt) 
+      case _: Translucent[A, Short]  => new AtomicInteger(a.asInstanceOf[Short].toInt)
+      case _: Translucent[A, Char]   => new AtomicInteger(a.asInstanceOf[Char].toInt)
+      case _: Translucent[A, Float]  => new AtomicInteger(f2i(a.asInstanceOf[Float]))
+      case _: Translucent[A, Double] => new AtomicLong(d2l(a.asInstanceOf[Double]))
+      case _ => compiletime.error("No Atomic support for values of this type")
+    }
+
+  extension [A](a: Atom[A])
+    transparent inline def underlying: AnyRef = inline erasedValue[A] match
+      case _: Int => a.asInstanceOf[AtomicInteger]
+      case _: Long => a.asInstanceOf[AtomicLong]
+      case _: AnyRef => a.asInstanceOf[AtomicReference[A]]
+      case _ => compiletime.error("The underlying instance is virtually wrapped")
+
+    inline def apply(): A = inline erasedValue[A] match
+      case _: Int    => a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+      case _: Long   => a.asInstanceOf[AtomicLong   ].get().asInstanceOf[A]
+      case _: Byte   => a.asInstanceOf[AtomicInteger].get().toByte .asInstanceOf[A]
+      case _: Short  => a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+      case _: Char   => a.asInstanceOf[AtomicInteger].get().toChar .asInstanceOf[A]
+      case _: Float  => i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+      case _: Double => l2d(a.asInstanceOf[AtomicLong   ].get()).asInstanceOf[A]
+      case _: AnyRef => a.asInstanceOf[AtomicReference[A]].get()
+      case _ => summonFrom{
+        case _: Translucent[A, Int]    => a.asInstanceOf[AtomicInteger].get().asInstanceOf[A] 
+        case _: Translucent[A, Long]   => a.asInstanceOf[AtomicLong   ].get().asInstanceOf[A]
+        case _: Translucent[A, Byte]   => a.asInstanceOf[AtomicInteger].get().toByte .asInstanceOf[A]
+        case _: Translucent[A, Short]  => a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        case _: Translucent[A, Char]   => a.asInstanceOf[AtomicInteger].get().toChar .asInstanceOf[A]
+        case _: Translucent[A, Float]  => i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        case _: Translucent[A, Double] => l2d(a.asInstanceOf[AtomicLong   ].get()).asInstanceOf[A]
+        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+      }
+
+    inline def :=(x: A): Unit = inline x match
+      case i: Int    => a.asInstanceOf[AtomicInteger].set(i)
+      case l: Long   => a.asInstanceOf[AtomicLong   ].set(l)
+      case b: Byte   => a.asInstanceOf[AtomicInteger].set(b)
+      case s: Short  => a.asInstanceOf[AtomicInteger].set(s)
+      case c: Char   => a.asInstanceOf[AtomicInteger].set(c)
+      case f: Float  => a.asInstanceOf[AtomicInteger].set(f2i(f))
+      case d: Double => a.asInstanceOf[AtomicLong   ].set(d2l(d))
+      case _: AnyRef => a.asInstanceOf[AtomicReference[A]].set(x)
+      case _ => summonFrom{
+        case _: Translucent[A, Int]    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Int])
+        case _: Translucent[A, Long]   => a.asInstanceOf[AtomicLong   ].set(x.asInstanceOf[Long])
+        case _: Translucent[A, Byte]   => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Byte].toInt)
+        case _: Translucent[A, Short]  => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Short].toInt)
+        case _: Translucent[A, Char]   => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Char].toInt)
+        case _: Translucent[A, Float]  => a.asInstanceOf[AtomicInteger].set(f2i(x.asInstanceOf[Float]))
+        case _: Translucent[A, Double] => a.asInstanceOf[AtomicLong   ].set(d2l(x.asInstanceOf[Double]))
+        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+      }
+
+    inline infix def swap(x: A): A = inline x match
+      case i: Int    => a.asInstanceOf[AtomicInteger].getAndSet(i).asInstanceOf[A]
+      case l: Long   => a.asInstanceOf[AtomicLong   ].getAndSet(l).asInstanceOf[A]
+      case b: Byte   => a.asInstanceOf[AtomicInteger].getAndSet(b).toByte .asInstanceOf[A]
+      case s: Short  => a.asInstanceOf[AtomicInteger].getAndSet(s).toShort.asInstanceOf[A]
+      case c: Char   => a.asInstanceOf[AtomicInteger].getAndSet(c).toChar .asInstanceOf[A]
+      case f: Float  => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(f))).asInstanceOf[A]
+      case d: Double => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(d))).asInstanceOf[A]
+      case _: AnyRef => a.asInstanceOf[AtomicReference[A]].getAndSet(x)
+      case _ => summonFrom{
+        case _: Translucent[A, Int]    => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Int ]).asInstanceOf[A]
+        case _: Translucent[A, Long]   => a.asInstanceOf[AtomicLong   ].getAndSet(x.asInstanceOf[Long]).asInstanceOf[A]
+        case _: Translucent[A, Byte]   => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Byte ].toInt).toByte .asInstanceOf[A]
+        case _: Translucent[A, Short]  => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Short].toInt).toShort.asInstanceOf[A]
+        case _: Translucent[A, Char]   => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Char ].toInt).toChar .asInstanceOf[A]
+        case _: Translucent[A, Float]  => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(x.asInstanceOf[Float ]))).asInstanceOf[A]
+        case _: Translucent[A, Double] => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(x.asInstanceOf[Double]))).asInstanceOf[A]
+        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+      }
+
+    inline def swapOp(inline f: A => A): A = inline erasedValue[A] match
+      case _: Int =>
+        var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+        while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], f(x).asInstanceOf[Int]) do
+          x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+        x
+      case _: Long =>
+        var x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+        while !a.asInstanceOf[AtomicLong].compareAndSet(x.asInstanceOf[Long], f(x).asInstanceOf[Long]) do
+          x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+        x
+      case _: Byte =>
+        var x = a.asInstanceOf[AtomicInteger].get().toByte.asInstanceOf[A]
+        while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Byte].toInt, f(x).asInstanceOf[Byte].toInt) do
+          x = a.asInstanceOf[AtomicInteger].get().toByte.asInstanceOf[A]
+        x
+      case _: Short =>
+        var x = a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Short].toInt, f(x).asInstanceOf[Short].toInt) do
+          x = a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        x
+      case _: Char =>
+        var x = a.asInstanceOf[AtomicInteger].get().toChar.asInstanceOf[A]
+        while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Char].toInt, f(x).asInstanceOf[Char].toInt) do
+          x = a.asInstanceOf[AtomicInteger].get().toChar.asInstanceOf[A]
+        x
+      case _: Float =>
+        var x = i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        while !a.asInstanceOf[AtomicInteger].compareAndSet(f2i(x.asInstanceOf[Float]), f2i(f(x).asInstanceOf[Float])) do
+          x = i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        x
+      case _: Double =>
+        var x = a.asInstanceOf[AtomicLong].get()
+        while !a.asInstanceOf[AtomicLong].compareAndSet(x, d2l(f(l2d(x).asInstanceOf[A]).asInstanceOf[Double])) do
+          x = a.asInstanceOf[AtomicLong].get()
+        l2d(x).asInstanceOf[A]
+      case _: AnyRef =>
+        var x = a.asInstanceOf[AtomicReference[A]].get()
+        while !a.asInstanceOf[AtomicReference[A]].compareAndSet(x, f(x)) do
+          x = a.asInstanceOf[AtomicReference[A]].get()
+        x
+      case _ => summonFrom{
+        case _: Translucent[A, Int] =>
+          var x = a.asInstanceOf[AtomicInteger].get()
+          while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Int]) do
+            x = x.asInstanceOf[AtomicInteger].get()
+          x.asInstanceOf[A]
+        case _: Translucent[A, Long] =>
+          var x = a.asInstanceOf[AtomicLong].get()
+          while !a.asInstanceOf[AtomicLong].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Long]) do
+            x = x.asInstanceOf[AtomicLong].get()
+          x.asInstanceOf[A]
+        case _: Translucent[A, Byte] =>
+          var x = a.asInstanceOf[AtomicInteger].get()
+          while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toByte.asInstanceOf[A]).asInstanceOf[Byte].toInt) do
+            x = x.asInstanceOf[AtomicInteger].get()
+          x.toByte.asInstanceOf[A]
+        case _: Translucent[A, Short] =>
+          var x = a.asInstanceOf[AtomicInteger].get()
+          while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toShort.asInstanceOf[A]).asInstanceOf[Short].toInt) do
+            x = x.asInstanceOf[AtomicInteger].get()
+          x.toShort.asInstanceOf[A]
+        case _: Translucent[A, Char] =>
+          var x = a.asInstanceOf[AtomicInteger].get()
+          while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toChar.asInstanceOf[A]).asInstanceOf[Char].toInt) do
+            x = x.asInstanceOf[AtomicInteger].get()
+          x.toChar.asInstanceOf[A]
+        case _: Translucent[A, Float] =>
+          var x = a.asInstanceOf[AtomicInteger].get()
+          while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f2i(f(i2f(x).asInstanceOf[A]).asInstanceOf[Float])) do
+            x = x.asInstanceOf[AtomicInteger].get()
+          i2f(x).asInstanceOf[A]
+        case _: Translucent[A, Double] =>
+          var x = a.asInstanceOf[AtomicLong].get()
+          while !a.asInstanceOf[AtomicLong].compareAndSet(x, d2l(f(l2d(x).asInstanceOf[A]).asInstanceOf[Double])) do
+            x = x.asInstanceOf[AtomicLong].get()
+          l2d(x).asInstanceOf[A]
+        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+      }
+
+    inline def apply(inline f: A => A): A = inline erasedValue[A] match
+      case _: Int =>
+        var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], y.asInstanceOf[Int]); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+        x
+      case _: Long =>
+        var x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicLong].compareAndSet(x.asInstanceOf[Long], y.asInstanceOf[Long]); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+        x
+      case _: Byte =>
+        var x = a.asInstanceOf[AtomicInteger].get().toByte.asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Byte].toInt, y.asInstanceOf[Byte].toInt); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicInteger].get().toByte.asInstanceOf[A]
+        x
+      case _: Short =>
+        var x = a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Short].toInt, y.asInstanceOf[Short].toInt); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        x
+      case _: Char =>
+        var x = a.asInstanceOf[AtomicInteger].get().toChar.asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Char].toInt, y.asInstanceOf[Char].toInt); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicInteger].get().toChar.asInstanceOf[A]
+        x
+      case _: Float =>
+        var x = i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(f2i(x.asInstanceOf[Float]), f2i(y.asInstanceOf[Float])); if done then x = y; !done } do
+          x = i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        x
+      case _: Double =>
+        var x = l2d(a.asInstanceOf[AtomicLong].get()).asInstanceOf[A]
+        while { val y = f(x); val done = a.asInstanceOf[AtomicLong].compareAndSet(d2l(x.asInstanceOf[Double]), d2l(y.asInstanceOf[Double])); if done then x = y; !done } do
+          x = l2d(a.asInstanceOf[AtomicLong].get()).asInstanceOf[A]
+        x
+      case _: AnyRef => boundary[A]:
+        var x = a.asInstanceOf[AtomicReference[A]].get()
+        while { val y = f(x); val done = a.asInstanceOf[AtomicReference[A]].compareAndSet(x, y); if done then x = y; !done } do
+          x = a.asInstanceOf[AtomicReference[A]].get()
+        x
+      case _ => summonFrom{
+        case _: Translucent[A, Int] =>
+          var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+          while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], y.asInstanceOf[Int]); if done then x = y; !done } do
+            x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
+          x
+        case _: Translucent[A, Long] =>
+          var x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+          while { val y = f(x); val done = a.asInstanceOf[AtomicLong].compareAndSet(x.asInstanceOf[Long], y.asInstanceOf[Long]); if done then x = y; !done } do
+            x = a.asInstanceOf[AtomicLong].get().asInstanceOf[A]
+          x
+        case _: Translucent[A, Byte] =>
+          var x = a.asInstanceOf[AtomicInteger].get().toByte
+          while { val y = f(x.asInstanceOf[A]).asInstanceOf[Byte]; val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.toInt, y.toInt); if done then x = y; !done } do
+            x = a.asInstanceOf[AtomicInteger].get().toByte
+          x.asInstanceOf[A]
+        case _: Translucent[A, Short] =>
+          var x = a.asInstanceOf[AtomicInteger].get().toShort
+          while { val y = f(x.asInstanceOf[A]).asInstanceOf[Short]; val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.toInt, y.toInt); if done then x = y; !done } do
+            x = a.asInstanceOf[AtomicInteger].get().toShort
+          x.asInstanceOf[A]
+        case _: Translucent[A, Char] =>
+          var x = a.asInstanceOf[AtomicInteger].get().toChar
+          while { val y = f(x.asInstanceOf[A]).asInstanceOf[Char]; val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.toInt, y.toInt); if done then x = y; !done } do
+            x = a.asInstanceOf[AtomicInteger].get().toChar
+          x.asInstanceOf[A]
+        case _: Translucent[A, Float] =>
+          var x = i2f(a.asInstanceOf[AtomicInteger].get())
+          while { val y = f(x.asInstanceOf[A]).asInstanceOf[Float]; val done = a.asInstanceOf[AtomicInteger].compareAndSet(f2i(x), f2i(y)); if done then x = y; !done } do
+            x = i2f(a.asInstanceOf[AtomicInteger].get())
+          x.asInstanceOf[A]
+        case _: Translucent[A, Double] =>
+          var x = l2d(a.asInstanceOf[AtomicLong].get())
+          while { val y = f(x.asInstanceOf[A]).asInstanceOf[Double]; val done = a.asInstanceOf[AtomicLong].compareAndSet(d2l(x), d2l(y)); if done then x = y; !done } do
+            x = l2d(a.asInstanceOf[AtomicLong].get())
+          x.asInstanceOf[A]
+        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+      }
+
+  opaque type Count = LongAdder
+  object Count {
+    inline def apply(): kse.basics.Atom.Count = new LongAdder()
+    def from(l: Long): kse.basics.Atom.Count =
+      val a = new LongAdder()
+      a.add(l)
+      a
+
+    extension (c: Count)
+      inline def underlying: LongAdder = c
+      inline def apply(): Long = c.sum()
+      inline def :=(l: Long): Unit =
+        c.reset()
+        c.add(l)
+      inline def ++ : Unit = c.increment()
+      inline def -- : Unit = c.decrement()
+      inline def swap(l: Long): Long =
+        val ans = c.sumThenReset()
+        c.add(l)
+        ans
+      inline def +=(l: Long): Unit = c.add(l)
+      inline def -=(l: Long): Unit = c.add(-l)
+  }
+
+  opaque type Toggle = AtomicBoolean
+  object Toggle {
+    inline def apply(): kse.basics.Atom.Toggle = new AtomicBoolean()
+    inline def apply(b: Boolean): kse.basics.Atom.Toggle = new AtomicBoolean(b)
+
+    extension (t: Toggle)
+      inline def underlying: AtomicBoolean = t
+      inline def apply(): Boolean = (t: AtomicBoolean).get()
+      inline def on(): Unit = (t: AtomicBoolean).set(true)
+      inline def off(): Unit = (t: AtomicBoolean).set(false)
+      inline def turnOn(): Boolean = (t: AtomicBoolean).compareAndSet(false, true)
+      inline def turnOff(): Boolean = (t: AtomicBoolean).compareAndSet(true, false)
+  }
 }
 
 

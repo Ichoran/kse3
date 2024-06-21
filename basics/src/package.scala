@@ -75,6 +75,18 @@ package kse
   * your code use `shortcut.outer:` and `shortcut.inner:` for the points to quit and skip to, respectively.  If you only
   * need skips or quits, use `shortcut.Skips.type` or `shortcut.Quits.type` instead of `shortcut.Type`.
   * 
+  * == Guarded Boundaries ===
+  * 
+  * If you are writing code where boundary jumps might cross some block that you can't protect any other way,
+  * you can use a `Corral:` to declare an unbreakable boundary, and then use `Hop:` or `hop[Int].here:` instead
+  * of `boundary:` to declare the boundary, and then `Hop.jump(2)` to exit the boundary block, or get a compile-time
+  * error if you have messed up and are trying to jump out of the `Corral` you're in.
+  * 
+  * `shortcut.hopped` obeys these guarded boundaries.
+  * 
+  * However, there is a bit of a bytecode penalty to guarded boundaries, so they are not widely used throughout Kse3.  This
+  * is likely to change (but so is the type signature of Hops) as the compiler improves and `erased` is a standard feature.
+  * 
   * == Standard Inline-Style Utility Methods ==
   * 
   * The Scala standard library defines `tap`, which allows operating on a value in-line, and `pipe`, which allows
@@ -97,10 +109,11 @@ package kse
   * 
   * If you need to do something `n` times, use `n.times`.  If you need the indices, use `n.visit`.
   * 
-  * == Tuple, Mutability, and Visibility Helpers ===
+  * == Tuple, Mutability, Atomicity, and Visibility Helpers ===
   * 
   * A variety of tuple helpers are specified in `Data.scala`.  Check them out!  You can join tuples with `.join`,
-  * create simple mutable boxes with `Mu(x)`, hide identity with `Anon`, and more!
+  * create simple mutable boxes with `Mu(x)`, declare `val n = Atom.Count` and atomically increment with `n.++`
+  * and get the final result with `n()`, hide identity with `Anon`, and more!
   * 
   * == Tag Anything ==
   * 

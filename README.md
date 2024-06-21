@@ -180,6 +180,16 @@ welcome(("Jane", "Doe").label)  // Works, .label means infer labels
 
 Use it whenever identity is really important, but types aren't specific enough.
 
+There's an extra-easy interface to atomic types, too (plus counters and toggles).  Use `val a = Atom(value)` to declare an atomic value,
+then get it with `a()`, set it with `a := newValue`, and update it atomically (using CAS operations, so the
+operation may be repeated when under contention) using `a(x => f(x))`:
+
+```scala
+val a = Atom("salmon eel")
+val eel = a(_.split(' ').head)  // Atomic!
+println(eel == a())   // prints true
+```
+
 See the test suite, or package Scaladoc, for more examples of what you could do with `kse.basics`!
 
 
