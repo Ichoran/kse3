@@ -217,9 +217,11 @@ extension (value: Float) {
   @targetName("float_trunc")
   inline def trunc = if value < 0 then jm.ceil(value) else jm.floor(value)
 
-  inline def clamp(lo: Float, hi: Float) =
+  def clamp(lo: Float, hi: Float) =
     if lo <= value && value <= hi then value
-    else if value < lo then lo
+    else if value < lo then
+      if hi.nan then hi
+      else lo
     else if value > hi then
       if lo <= hi then hi
       else lo
@@ -231,13 +233,13 @@ extension (value: Float) {
     if value >= lo && value <= hi then value
     else throw new ArithmeticException("float overflow")
 
-  final def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
+  def closeTo(that: Float, abstol: Float, fractol: Float): Boolean = 
     jm.abs(value - that) match
       case x if x <= abstol =>
         val big = jm.max(jm.abs(value), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
-  inline final def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
+  inline def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
 
 
   //////////////////////////////////////////////////////  NOTE: need argument union to resolve successfully
@@ -282,7 +284,9 @@ extension (value: Double) {
 
   inline def clamp(lo: Double, hi: Double) =
     if lo <= value && value <= hi then value
-    else if value < lo then lo
+    else if value < lo then
+      if hi.nan then hi
+      else lo
     else if value > hi then
       if lo <= hi then hi
       else lo

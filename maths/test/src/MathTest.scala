@@ -1956,7 +1956,9 @@ class MathTest {
     T ~ f.clamp(2.3f, 3.4f) ==== 2.3f
     T ~ f.clamp(5.6f, 0.4f) ==== 5.6f
     T ~ f.clamp(0.7f, fnan) ==== fnan
+    T ~ f.clamp(2.6f, fnan) ==== fnan
     T ~ f.clamp(fnan, 3.5f) ==== fnan
+    T ~ f.clamp(fnan, 0.8f) ==== fnan
     T ~ f.clamp(fnan, fnan) ==== fnan
     T ~ fnan.clamp(1f, 32f) ==== fnan
     T ~ fnan.clamp(32f, 1f) ==== fnan
@@ -2072,7 +2074,9 @@ class MathTest {
     T ~ d.clamp(2.3, 3.4)     ==== 2.3
     T ~ d.clamp(5.6, 0.4)     ==== 5.6
     T ~ d.clamp(0.7, dnan)    ==== dnan
+    T ~ d.clamp(2.6, dnan)    ==== dnan
     T ~ d.clamp(dnan, 3.5)    ==== dnan
+    T ~ d.clamp(dnan, 0.8)    ==== dnan
     T ~ d.clamp(dnan, dnan)   ==== dnan
     T ~ dnan.clamp(1.0, 32.0) ==== dnan
     T ~ dnan.clamp(32.0, 1.0) ==== dnan
@@ -2114,6 +2118,19 @@ class MathTest {
     T ~ Array(1.0, Double.NaN).bisect(2.0) ==== Double.NaN
     T ~ Array(1.0, 2.0).bisect(Double.NaN) ==== Double.NaN
 
+
+  @Test
+  def bfloat16MathTest(): Unit =
+    val bf = Bf16(1.7f)  // Eight bits = 1 + 0.5 + 0 + 0.125 + 0.0625 + 0 + 0.015625 + 0
+    val bi = Bf16.PositiveInfinity
+    val bj = Bf16.NegativeInfinity
+    val bn = Bf16.NaN
+    T ~ bf.toFloat ==== 1.703125f
+    T ~ bf         ==== 1.7f.bf16
+    T ~ bf         ==== 1.7.bf16
+    T ~ bi.toFloat ==== Float.PositiveInfinity
+    T ~ bj.toFloat ==== Float.NegativeInfinity
+    T ~ bn.toFloat ==== Float.NaN
 
   @Test
   def unsignedMathTest(): Unit =
@@ -2625,18 +2642,21 @@ class MathTest {
     T ~ (0.0f ~> 1.0f)             ==== Vc.wrap(0x3F80000000000000L)
     T ~ (1.0f ~> 0.0f).unwrap      ==== 0x000000003F800000L
     T ~ Vc(0, 0)                   ==== Vc.zero
+    T ~ Vc(5, 9)                   ==== Vc.F(5f, 9f)
+    T ~ Vc(5f, 9f)                 ==== Vc.F(5f, 9f)
+    T ~ Vc(5.0, 9.0)               ==== Vc.F(5f, 9f)
     T ~ Vc.NaN.x.nan               ==== true
     T ~ Vc.NaN.y.nan               ==== true
     T ~ v.x                        ==== 1.2f
     T ~ v.y                        ==== 3.1f
     T ~ v.xTo(5.4f).x              ==== 5.4f
     T ~ v.xTo(5.4f).y              ==== 3.1f
-    T ~ v.xFn(_ + 1).x             ==== 2.2f
-    T ~ v.xFn(_ + 1).y             ==== 3.1f
+    T ~ v.xOp(_ + 1).x             ==== 2.2f
+    T ~ v.xOp(_ + 1).y             ==== 3.1f
     T ~ v.yTo(0.3f).x              ==== 1.2f
     T ~ v.yTo(0.3f).y              ==== 0.3f
-    T ~ v.yFn(_ - 1).x             ==== 1.2f
-    T ~ v.yFn(_ - 1).y             ==== 2.1f
+    T ~ v.yOp(_ - 1).x             ==== 1.2f
+    T ~ v.yOp(_ - 1).y             ==== 2.1f
     T ~ Vc.zero.isZero             ==== true
     T ~ Vc(-0f, 0f).isZero         ==== true
     T ~ Vc(0f, -0f).isZero         ==== true
@@ -2728,12 +2748,12 @@ class MathTest {
     T ~ pm.error                ==== 0.2f
     T ~ pm.valueTo(1.9f).value  ==== 1.9f
     T ~ pm.valueTo(1.9f).error  ==== 0.2f
-    T ~ pm.valueFn(_ + 1).value ==== 4.5f
-    T ~ pm.valueFn(_ + 1).error ==== 0.2f
+    T ~ pm.valueOp(_ + 1).value ==== 4.5f
+    T ~ pm.valueOp(_ + 1).error ==== 0.2f
     T ~ pm.errorTo(0.6f).value  ==== 3.5f
     T ~ pm.errorTo(0.6f).error  ==== 0.6f
-    T ~ pm.errorFn(_ - 1).value ==== 3.5f
-    T ~ pm.errorFn(_ - 1).error ==== 0.8f
+    T ~ pm.errorOp(_ - 1).value ==== 3.5f
+    T ~ pm.errorOp(_ - 1).error ==== 0.8f
     T ~ (-pm).value             ==== -3.5f
     T ~ (-pm).error             ==== 0.2f
     T ~ (pm + 1).value          ==== 4.5f

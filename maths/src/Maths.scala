@@ -8,7 +8,7 @@ import java.lang.{Math => jm}
 
 import scala.annotation.targetName
 
-import kse.basics.Translucent
+import kse.basics._
 
 
 object NumericConstants {
@@ -985,6 +985,8 @@ extension (f: Float) {
   // in moved to OverloadedExtensions
   // checkIn moved to OverloadedExtensions
 
+  inline def ===(x: Float): Boolean = (f == x) || (java.lang.Float.isNaN(f) && java.lang.Float.isNaN(x))
+
   def toUByte: kse.maths.UByte =
     if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
   def toUShort: kse.maths.UShort =
@@ -1041,6 +1043,8 @@ extension (d: Double) {
   inline def rad2rev = d * NumericConstants.OverTwoPi
   inline def deg2rad = d * NumericConstants.RadiansPerDegree
   inline def rev2rad = d * NumericConstants.TwoPi
+
+  inline def ===(x: Double) = (d == x) || (java.lang.Double.isNaN(d) && java.lang.Double.isNaN(x))
 
   inline def between(x0: Double, x1: Double): Double = x0 + d*(x1 - x0)
   def between(xs: Array[Double]): Double =
@@ -1215,13 +1219,18 @@ extension (inline x: Byte | Short | Int | Long | Float | Double) {
     case d: Double => java.lang.Double.doubleToRawLongBits(d)
     case _ => compiletime.error("bitsL is defined only on Double\nother primitive types are not promoted")
 
-  transparent inline def f64: Double = inline x match
+  inline def f64: Double = inline x match
     case f: Float => f.toDouble
     case _ => compiletime.error("f64 is defined only on Float\nother primitive types are not promoted")
 
-  transparent inline def f32: Float = inline x match
+  inline def f32: Float = inline x match
     case d: Double => d.toFloat
     case _ => compiletime.error("f32 is defined only on Double\nother primitive types are not promoted")
+
+  inline def bf16: kse.maths.Bf16 = inline x match
+    case f: Float => Bf16(f)
+    case d: Double => Bf16(d.toFloat)
+    case _ => compiletime.error("bf16 is defined only on Float and Double")
 
   transparent inline def sq = inline x match
     case b: Byte   => val d = b.toDouble; d * d
@@ -1921,11 +1930,177 @@ object ULong {
 }
 
 
+opaque type Bf16 = Char
+object Bf16 {
+  final val Zero: kse.maths.Bf16 = '\u0000'
+  final val One: kse.maths.Bf16 = '\u3F80'
+  final val NegativeOne: kse.maths.Bf16 = '\uBF80'
+  final val NaN: kse.maths.Bf16 = '\u7FC0'
+  final val PositiveInfinity: kse.maths.Bf16 = '\u7F80'
+  final val NegativeInfinity: kse.maths.Bf16 = '\uFF80'
+  final val MinValue: kse.maths.Bf16 = '\uFF7F'
+  final val MaxValue: kse.maths.Bf16 = '\u7F7F'
+  final val MinPositiveValue: kse.maths.Bf16 = '\u0001'
+
+  inline def apply(f: Float): kse.maths.Bf16 = (java.lang.Float.floatToRawIntBits(f * 1.001953125f) >>> 16).toChar
+  inline def wrap(c: Char): kse.maths.Bf16 = c
+
+  extension (h: Bf16)
+     inline def underlying: Char = h
+     inline def bitsC: Char = h
+     inline def toFloat: Float = java.lang.Float.intBitsToFloat((h: Char) << 16)
+     inline def f32: Float = java.lang.Float.intBitsToFloat((h: Char) << 16)
+
+  extension (h: kse.maths.Bf16)
+      inline def unary_- : kse.maths.Bf16 = Bf16.wrap((h.underlying ^ 0x8000).toChar)
+
+      inline def abs : kse.maths.Bf16 = Bf16.wrap((h.underlying & 0x7FFF).toChar)
+
+      inline def +(g: kse.maths.Bf16): Float = h.toFloat + g.toFloat
+      inline def +(g: Float): Float = h.toFloat + g
+      inline def +(g: Double): Double = h.toFloat + g
+
+      inline def -(g: kse.maths.Bf16): Float = h.toFloat - g.toFloat
+      inline def -(g: Float): Float = h.toFloat - g
+      inline def -(g: Double): Double = h.toFloat - g
+
+      inline def *(g: kse.maths.Bf16): Float = h.toFloat * g.toFloat
+      inline def *(g: Float): Float = h.toFloat * g
+      inline def *(g: Double): Double = h.toFloat * g
+
+      inline def /(g: kse.maths.Bf16): Float = h.toFloat / g.toFloat
+      inline def /(g: Float): Float = h.toFloat / g
+      inline def /(g: Double): Double = h.toFloat / g
+
+      inline def %(g: kse.maths.Bf16): Float = h.toFloat % g.toFloat
+      inline def %(g: Float): Float = h.toFloat % g
+      inline def %(g: Double): Double = h.toFloat % g
+
+      inline def ===(g: kse.maths.Bf16): Boolean = (h.underlying == g.underlying) || (h.nan && g.nan) || ((h.underlying | g.underlying) & 0x7FFF) == 0
+      inline def <(g: kse.maths.Bf16): Boolean = h.toFloat < g.toFloat
+      inline def <=(g: kse.maths.Bf16): Boolean = h.toFloat <= g.toFloat
+      inline def >=(g: kse.maths.Bf16): Boolean = h.toFloat >= g.toFloat
+      inline def >(g: kse.maths.Bf16): Boolean = h.toFloat > g.toFloat
+
+      inline def <(g: Float): Boolean = h.toFloat < g
+      inline def <=(g: Float): Boolean = h.toFloat <= g
+      inline def >=(g: Float): Boolean = h.toFloat >= g
+      inline def >(g: Float): Boolean = h.toFloat > g
+
+      inline def <(g: Double): Boolean = h.toFloat < g
+      inline def <=(g: Double): Boolean = h.toFloat <= g
+      inline def >=(g: Double): Boolean = h.toFloat >= g
+      inline def >(g: Double): Boolean = h.toFloat > g
+
+      inline def finite: Boolean = ((h: Char) & 0x7F80) != 0x7F80
+      inline def inf: Boolean = ((h: Char) & 0x7FFF) == 0x7F80
+      inline def nan: Boolean = ((h: Char) & 0x7FFF) > 0x7F80
+      inline def isInfinite: Boolean = h.inf
+      inline def isNaN: Boolean = h.nan
+
+      def ulp: kse.maths.Bf16 =
+        val bits = h.underlying.toInt
+        if (bits & 0x7FFF) >= 0x7F80 then Bf16.wrap((bits & 0x7FFF).toChar)
+        else
+          val exp = bits & 0x7F80
+          if exp >= 0x0400 then Bf16.wrap((exp - 0x0380).toChar)
+          else if exp == 0 then Bf16.wrap('\u0001')
+          else Bf16.wrap((1 << ((exp >> 7) - 1)).toChar)
+
+      def next: kse.maths.Bf16 =
+        val bits = h.underlying.toInt
+        if (bits & 0x7F80) >= 0x7F80 then
+          if (h.underlying & 0x8000) == 0x8000 && (bits & 0x7FFF) == 0x7F80 then MinValue
+          else h
+        else if bits == 0 then MinPositiveValue
+        else
+          val u = h.underlying
+          if (u & 0x8000) == 0 then Bf16.wrap((u+1).toChar)
+          else Bf16.wrap((u-1).toChar)
+
+      def prev: kse.maths.Bf16 =
+        val bits = h.underlying.toInt
+        if (bits & 0x7F80) >= 0x7F80 then
+          if (h.underlying & 0x8000) == 0 && (bits & 0x7FFF) == 0x7F80 then MaxValue
+          else h
+        else if bits == 0 then Bf16.wrap('\u8001')
+        else
+          val u = h.underlying
+          if (u & 0x8000) == 0 then Bf16.wrap((u-1).toChar)
+          else Bf16.wrap((u+1).toChar)
+
+      inline def sign: kse.maths.Bf16 =
+        val signless = (h.underlying & 0x7FFF)
+        if signless > 0x7F80 || signless == 0 then h
+        else Bf16((((h: Char) & 0x8000) | 0x3F80).toChar)
+
+
+      def max(g: kse.maths.Bf16): kse.maths.Bf16 =
+        if h.nan then h
+        else if g.nan then g
+        else if g.toFloat < h.toFloat then g
+        else h
+
+      def min(g: kse.maths.Bf16): kse.maths.Bf16 =
+        if h.nan then h
+        else if g.nan then g
+        else if g.toFloat > h.toFloat then g
+        else h
+
+      def clamp(lo: kse.maths.Bf16, hi: kse.maths.Bf16): kse.maths.Bf16 =
+        val bits = h.underlying.toShort
+        val lob = lo.underlying.toShort
+        val hib = hi.underlying.toShort
+        if (bits & 0x7FFF) > 0x7F80 then h
+        else if (lob & 0x7FFF) > 0x7F80 then lo
+        else if (hib & 0x7FFF) > 0x7F80 then hi
+        else
+          if lob <= bits && bits <= hib then h
+          else if bits < lob then lo
+          else if lob <= hib then hi
+          else lo
+
+      inline def in(lo: kse.maths.Bf16, hi: kse.maths.Bf16): Boolean =
+        val f = h.toFloat
+        lo.toFloat <= f && f <= hi.toFloat
+
+      inline def toDouble: Double = h.toFloat.toDouble
+      inline def f64: Double = h.toFloat.toDouble
+
+      def pr: String =
+        val f = h.toFloat
+        val af = jm.abs(f)
+        if af > 256f then
+          val s = if af >= 1e3f then "%.3e".format(f) else "%.2e".format(f)
+          s.select(0 to End-3) + s.select(if s(End-1) == '0' then End to End else End-1to End)
+        else if af < 1e-3f then
+          val s = "%.3e".format(f)
+          if s(End - 1) == '0' then s.select(0 to End-2) + s.select(End to End)
+          else s
+        else if af < 1e-2f then "%.6f".format(f)
+        else if af < 1e-1f then "%.5f".format(f)
+        else if af < 1f then "%.4f".format(f)
+        else if af < 10f then "%.3f".format(f)
+        else if af < 100f then "%.2f".format(f)
+        else "%.1f".format(f)
+
+  given Ordering[kse.maths.Bf16] with
+    def compare(f: kse.maths.Bf16, g: kse.maths.Bf16): Int =
+      if f.underlying == g.underlying then 0
+      else java.lang.Float.compare(toFloat(f), toFloat(g))
+
+  given Translucent[Bf16, Char] with {}
+}
+
+
 opaque type Vc = Long
 object Vc {
   inline def wrap(l: Long): kse.maths.Vc = l
-  inline def apply(x: Float, y: Float): kse.maths.Vc = 
-    (java.lang.Float.floatToRawIntBits(x) & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(y).toLong << 32)
+  inline def apply(inline x: Int | Float | Double, inline y: Int | Float | Double): kse.maths.Vc = wrap(
+    (java.lang.Float.floatToRawIntBits(inline x match { case fx: Float => fx; case dx: Double => dx.toFloat; case ix: Int => ix.toFloat }) & 0xFFFFFFFFL)
+    |
+    (java.lang.Float.floatToRawIntBits(inline y match { case fy: Float => fy; case dy: Double => dy.toFloat; case iy: Int => iy.toFloat }).toLong << 32)
+  )
   inline def F(x: Float, y: Float): kse.maths.Vc =
     apply(x, y)
   inline def D(x: Double, y: Double): kse.maths.Vc = 
@@ -1941,12 +2116,12 @@ object Vc {
 
     inline def xTo(f: Float): kse.maths.Vc =
       (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f) & 0xFFFFFFFFL)
-    inline def xFn(inline f: Float => Float): kse.maths.Vc =
+    inline def xOp(inline f: Float => Float): kse.maths.Vc =
       (v & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(v.x)) & 0xFFFFFFFFL)
 
     inline def yTo(f: Float): kse.maths.Vc =
       (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f).toLong << 32)
-    inline def yFn(inline f: Float => Float): kse.maths.Vc =
+    inline def yOp(inline f: Float => Float): kse.maths.Vc =
       (v & 0xFFFFFFFFL) | (java.lang.Float.floatToRawIntBits(f(v.y)).toLong << 32)
 
     inline def isZero = (v & 0x7FFFFFFF7FFFFFFFL) == 0
@@ -2104,6 +2279,7 @@ extension (value: Float) {
 }
 
 
+
 opaque type PlusMinus = Long
 object PlusMinus {
   inline def wrap(l: Long): kse.maths.PlusMinus = l
@@ -2120,13 +2296,13 @@ object PlusMinus {
     inline def value: Float = java.lang.Float.intBitsToFloat((pm >>> 32).toInt)
     inline def valueTo(value: Float): kse.maths.PlusMinus =
       (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32)
-    inline def valueFn(f: Float => Float): kse.maths.PlusMinus =
+    inline def valueOp(f: Float => Float): kse.maths.PlusMinus =
       (pm & 0xFFFFFFFFL) | ((java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm >>> 32).toInt))) & 0xFFFFFFFFL) << 32)
 
     inline def error: Float = java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt)
     inline def errorTo(error: Float): kse.maths.PlusMinus =
       (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(error) & 0x7FFFFFFFL)
-    inline def errorFn(f: Float => Float): kse.maths.PlusMinus =
+    inline def errorOp(f: Float => Float): kse.maths.PlusMinus =
       (pm & 0xFFFFFFFF00000000L) | (java.lang.Float.floatToRawIntBits(f(java.lang.Float.intBitsToFloat((pm & 0xFFFFFFFFL).toInt))) & 0x7FFFFFFFL)
 
     inline def unary_- : kse.maths.PlusMinus = pm ^ 0x8000000000000000L
