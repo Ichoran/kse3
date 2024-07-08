@@ -2125,12 +2125,156 @@ class MathTest {
     val bi = Bf16.PositiveInfinity
     val bj = Bf16.NegativeInfinity
     val bn = Bf16.NaN
-    T ~ bf.toFloat ==== 1.703125f
+    val b0 = Bf16.Zero
+    val b1 = Bf16.One
+    T ~ bf.toFloat ==== 1.703125f  --: typed[Float]
     T ~ bf         ==== 1.7f.bf16
     T ~ bf         ==== 1.7.bf16
     T ~ bi.toFloat ==== Float.PositiveInfinity
     T ~ bj.toFloat ==== Float.NegativeInfinity
     T ~ bn.toFloat ==== Float.NaN
+    T ~ bf.f32     ==== bf.toFloat
+    T ~ bf.bitsC   ==== '\u3FDA'
+    T ~ bf.bitsC   ==== bf.underlying
+    T ~ (-bf).f32  ==== -1.703125f
+    T ~ (-bf).abs  ==== bf
+    T ~ (bf + bf)  ==== 3.40625f   --: typed[Float]
+    T ~ (bf + 2f)  ==== 3.703125f  --: typed[Float]
+    T ~ (bf + 2.0) ==== 3.703125   --: typed[Double]
+    T ~ (2f + bf)  ==== 3.703125f  --: typed[Float]
+    T ~ (2.0 + bf) ==== 3.703125   --: typed[Double]
+    T ~ (bf - bf)  ==== 0f         --: typed[Float]
+    T ~ (bf - 1f)  ==== 0.703125f  --: typed[Float]
+    T ~ (bf - 1.0) ==== 0.703125   --: typed[Double]
+    T ~ (2f - bf)  ==== 0.296875f  --: typed[Float]
+    T ~ (2.0 - bf) ==== 0.296875   --: typed[Double]
+    T ~ (bf * bf)  ==== 2.9006348f --: typed[Float]
+    T ~ (bf * 2f)  ==== 3.40625f   --: typed[Float]
+    T ~ (bf * 2.0) ==== 3.40625    --: typed[Double]
+    T ~ (2f * bf)  ==== 3.40625f   --: typed[Float]
+    T ~ (2.0 * bf) ==== 3.40625    --: typed[Double]
+    T ~ (bf / bf)  ==== 1f         --: typed[Float]
+    T ~ (bf / 2f)  ==== 0.8515625f --: typed[Float]
+    T ~ (bf / 2.0) ==== 0.8515625  --: typed[Double]
+    T ~ (2f / bf)  ==== 1.1743119f --: typed[Float]
+    T ~ (2.0 / bf) ==== 1.1743119266055047 --: typed[Double]
+    T ~ (bf % bf)  ==== 0f         --: typed[Float]
+    T ~ (bf % 0.5f)==== 0.203125f  --: typed[Float]
+    T ~ (bf % 0.5) ==== 0.203125   --: typed[Double]
+    T ~ (2f % bf)  ==== 0.296875f  --: typed[Float]
+    T ~ (2.0 % bf) ==== 0.296875   --: typed[Double]
+
+    T ~ (bf === Bf16(1.7f))      ==== true
+    T ~ (bi === bj)              ==== false
+    T ~ (bn === bn)              ==== true
+    T ~ (Bf16(0f) == Bf16(-0f))  ==== false
+    T ~ (Bf16(0f) === Bf16(-0f)) ==== true
+    T ~ (bf =!= Bf16(1.7001f))   ==== false
+    T ~ (bi =!= bj)              ==== true
+    T ~ (Bf16(0f) =!= Bf16(-0f)) ==== false
+    T ~ (bf < Bf16(1f))          ==== false
+    T ~ (bf < bf)                ==== false
+    T ~ (bf < Bf16(2f))          ==== true
+    T ~ (bf < bn)                ==== false
+    T ~ (bn < bf)                ==== false
+    T ~ (bf <= Bf16(1f))         ==== false
+    T ~ (bf <= bf)               ==== true
+    T ~ (bf <= Bf16(2f))         ==== true
+    T ~ (bf <= bn)               ==== false
+    T ~ (bn <= bf)               ==== false
+    T ~ (bf >= Bf16(1f))         ==== true
+    T ~ (bf >= bf)               ==== true
+    T ~ (bf >= Bf16(2f))         ==== false
+    T ~ (bf >= bn)               ==== false
+    T ~ (bn >= bf)               ==== false
+    T ~ (bf > Bf16(1f))          ==== true
+    T ~ (bf > bf)                ==== false
+    T ~ (bf > Bf16(2f))          ==== false
+    T ~ (bf > bn)                ==== false
+    T ~ (bn > bf)                ==== false
+
+    T ~ bf.finite     ==== true
+    T ~ bi.finite     ==== false
+    T ~ bj.finite     ==== false
+    T ~ bn.finite     ==== false
+    T ~ bf.inf        ==== false
+    T ~ bi.inf        ==== true
+    T ~ bj.inf        ==== true
+    T ~ bn.inf        ==== false
+    T ~ bf.nan        ==== false
+    T ~ bi.nan        ==== false
+    T ~ bj.nan        ==== false
+    T ~ bn.nan        ==== true
+    T ~ bf.isInfinite ==== false
+    T ~ bi.isInfinite ==== true
+    T ~ bj.isInfinite ==== true
+    T ~ bn.isInfinite ==== false
+    T ~ bf.isNaN      ==== false
+    T ~ bi.isNaN      ==== false
+    T ~ bj.isNaN      ==== false
+    T ~ bn.isNaN      ==== true
+
+    T ~ bf.ulp           ==== Bf16(0.0078125f)
+    T ~ bf.next          ==== Bf16(1.7109375f)
+    T ~ bf.prev          ==== Bf16(1.6953125f)
+    T ~ bf.sign          ==== Bf16(1f)
+    T ~ bi.sign          ==== Bf16(1f)
+    T ~ bj.sign          ==== Bf16(-1f)
+    T ~ bn.sign          ==== bn
+    T ~ Bf16(0f).sign    ==== Bf16(0f)
+    T ~ Bf16(-0f).sign   ==== Bf16(-0f)
+    T ~ (bf max bf)      ==== bf
+    T ~ (bf max b0)      ==== bf
+    T ~ (b0 max bf)      ==== bf
+    T ~ (bf max bi)      ==== bi
+    T ~ (bi max bf)      ==== bi
+    T ~ (bj max bf)      ==== bf
+    T ~ (bf max bj)      ==== bf
+    T ~ (bn max bf)      ==== bn
+    T ~ (bf max bn)      ==== bn
+    T ~ (bi max bn)      ==== bn
+    T ~ (bn max bi)      ==== bn
+    T ~ (bf min bf)      ==== bf
+    T ~ (bf min b0)      ==== b0
+    T ~ (b0 min bf)      ==== b0
+    T ~ (bf min bi)      ==== bf
+    T ~ (bi min bf)      ==== bf
+    T ~ (bj min bf)      ==== bj
+    T ~ (bf min bj)      ==== bj
+    T ~ (bn min bf)      ==== bn
+    T ~ (bf min bn)      ==== bn
+    T ~ (bj min bn)      ==== bn
+    T ~ (bn min bj)      ==== bn
+    T ~ b1.clamp(b0, bf) ==== b1
+    T ~ b0.clamp(b1, bf) ==== b1
+    T ~ bf.clamp(b0, b1) ==== b1
+    T ~ b1.clamp(bf, b0) ==== bf
+    T ~ bf.clamp(b0, bi) ==== bf
+    T ~ bi.clamp(bj, bf) ==== bf
+    T ~ bf.clamp(bj, bn) ==== bn
+    T ~ bf.clamp(bn, bi) ==== bn
+    T ~ bn.clamp(bj, bi) ==== bn
+    T ~ b1.in(b0, bf)    ==== true
+    T ~ b0.in(b1, bf)    ==== false
+    T ~ bf.in(b0, b1)    ==== false
+    T ~ b1.in(bf, b0)    ==== false
+    T ~ bf.in(b0, bi)    ==== true
+    T ~ bi.in(bj, bf)    ==== false
+    T ~ bf.in(bj, bn)    ==== false
+    T ~ bf.in(bn, bi)    ==== false
+    T ~ bn.in(bj, bi)    ==== false
+    T ~ bf.in(bf, bf)    ==== true
+    T ~ bf.in(bj, bf)    ==== true
+    T ~ bf.in(bf, bi)    ==== true
+    T ~ bn.in(bn, bn)    ==== false
+
+    T ~ bf.f64      ==== 1.703125 --: typed[Double]
+    T ~ bf.toDouble ==== 1.703125 --: typed[Double]
+    T ~ 1.7f.bf16   ==== bf       --: typed[kse.maths.Bf16]
+    T ~ 1.7.bf16    ==== bf       --: typed[kse.maths.Bf16]
+
+    T ~ bf.pr       ==== "1.703"
+
 
   @Test
   def unsignedMathTest(): Unit =

@@ -131,6 +131,7 @@ extension (value: Int) {
     if i == -1 && value == Int.MinValue then throw new ArithmeticException("int overflow")
     else value / i
 
+
   /////////////////////////
   // Range-aware methods //
   /////////////////////////
@@ -144,6 +145,7 @@ extension (value: Int) {
   inline def checkIn(lo: Int, hi: Int) =
     if value < lo || value > hi then throw new ArithmeticException("int out of range")
     else value
+
 
   ////////////////////////////////////////
   // Int _ Frac Operators (Maths.scala) //
@@ -187,6 +189,7 @@ extension (value: Long) {
     if l == -1 && value == Long.MinValue then throw new ArithmeticException("long overflow")
     else value / l
 
+
   /////////////////////////
   // Range-aware methods //
   /////////////////////////
@@ -200,6 +203,7 @@ extension (value: Long) {
   inline def checkIn(lo: Long, hi: Long) =
     if value < lo || value > hi then throw new ArithmeticException("long overflow")
     else value
+
 
   /////////////////////////////////////
   // Time operators (Temporal.scala) //
@@ -246,31 +250,37 @@ extension (value: Float) {
   // Float _ Vc and PlusMinus Operators (Maths.scala) //  when not only are there opaque arguments with identical
   //////////////////////////////////////////////////////  types but also an overload shared with Double (or anything??)
 
-  @targetName("Float_add_Vc_PM")
-  transparent inline def +(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  @targetName("Float_add_Vc_PM_Bf16")
+  transparent inline def +(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case bf: kse.maths.Bf16 => value + bf.toFloat
     case v: kse.maths.Vc => Vc(value + v.x, value + v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value + pm.value)
 
-  @targetName("Float_sub_Vc_PM")
-  transparent inline def -(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  @targetName("Float_sub_Vc_PM_Bf16")
+  transparent inline def -(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case bf: kse.maths.Bf16 => value - bf.toFloat
     case v: kse.maths.Vc => Vc(value - v.x, value - v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value - pm.value)
 
-  @targetName("Float_mul_Vc_PM")
-  transparent inline def *(inline that: kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  @targetName("Float_mul_Vc_PM_Bf16")
+  transparent inline def *(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+    case bf: kse.maths.Bf16 => value * bf.toFloat
     case v: kse.maths.Vc => Vc(value * v.x, value * v.y)
     case pm: kse.maths.PlusMinus => PlusMinus(value * pm.value, value * pm.error)
 
+  @targetName("Float_div_PlusMinus_Bf16")
+  transparent inline def /(inline that: kse.maths.Bf16 | kse.maths.PlusMinus) = inline that match
+    case bf: kse.maths.Bf16 =>
+      value / bf.toFloat
+    case pm: kse.maths.PlusMinus =>
+      val v = pm.value.toDouble
+      val u = value.toDouble
+      val r = 1.0/v
+      PlusMinus.D(u*r, pm.error.toDouble*u*r*r)
 
-  ///////////////////////////////////////////////
-  // Float _ PlusMinus Operators (Maths.scala) //
-  ///////////////////////////////////////////////
-  @targetName("Float_div_PlusMinus")
-  inline def /(pm: kse.maths.PlusMinus): kse.maths.PlusMinus =
-    val v = pm.value.toDouble
-    val u = value.toDouble
-    val r = 1.0/v
-    PlusMinus.D(u*r, pm.error.toDouble*u*r*r)
+  @targetName("Float_mod_Bf16")
+  inline def %(bf: kse.maths.Bf16): Float =
+    value % bf.toFloat
 }
 
 
@@ -304,6 +314,26 @@ extension (value: Double) {
         val big = jm.max(jm.abs(value), jm.abs(that))
         big <= 1 || x <= big*fractol
       case _ => false
+
+
+  ///////////////////////////////////////////
+  // Double _ Bf16 Operators (Maths.scala) //
+  ///////////////////////////////////////////
+
+  @targetName("Double_add_Bf16")
+  inline def +(f: kse.maths.Bf16): Double = value + f.toFloat
+
+  @targetName("Double_sub_Bf16")
+  inline def -(f: kse.maths.Bf16): Double = value - f.toFloat
+
+  @targetName("Double_mul_Bf16")
+  inline def *(f: kse.maths.Bf16): Double = value * f.toFloat
+
+  @targetName("Double_div_Bf16")
+  inline def /(f: kse.maths.Bf16): Double = value / f.toFloat
+
+  @targetName("Double_mod_Bf16")
+  inline def %(f: kse.maths.Bf16): Double = value % f.toFloat
 
 
   ////////////////////////////////////////////////

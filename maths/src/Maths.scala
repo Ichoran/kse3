@@ -1213,7 +1213,7 @@ extension (ad: Array[Double]) {
 extension (inline x: Byte | Short | Int | Long | Float | Double) {
   transparent inline def bitsI = inline x match
     case f: Float => java.lang.Float.floatToRawIntBits(f)
-    case _ => compiletime.error("bitsI is defined only on Float\nother primitive types are not promoted")
+    case _ => compiletime.error("bits is defined only on Float and Double\nother primitive types are not promoted")
 
   transparent inline def bitsL = inline x match
     case d: Double => java.lang.Double.doubleToRawLongBits(d)
@@ -1228,9 +1228,12 @@ extension (inline x: Byte | Short | Int | Long | Float | Double) {
     case _ => compiletime.error("f32 is defined only on Double\nother primitive types are not promoted")
 
   inline def bf16: kse.maths.Bf16 = inline x match
+    case b: Byte => Bf16(b.toFloat)
+    case s: Short => Bf16(s.toFloat)
+    case i: Int => Bf16(i.toFloat)
+    case l: Long => Bf16(l.toFloat)
     case f: Float => Bf16(f)
     case d: Double => Bf16(d.toFloat)
-    case _ => compiletime.error("bf16 is defined only on Float and Double")
 
   transparent inline def sq = inline x match
     case b: Byte   => val d = b.toDouble; d * d
@@ -1942,7 +1945,11 @@ object Bf16 {
   final val MaxValue: kse.maths.Bf16 = '\u7F7F'
   final val MinPositiveValue: kse.maths.Bf16 = '\u0001'
 
-  inline def apply(f: Float): kse.maths.Bf16 = (java.lang.Float.floatToRawIntBits(f * 1.001953125f) >>> 16).toChar
+  inline def apply(x: Float | Long | Int | Double): kse.maths.Bf16 = inline x match
+    case f: Float => (java.lang.Float.floatToRawIntBits(f * 1.001953125f) >>> 16).toChar
+    case d: Double => (java.lang.Float.floatToRawIntBits(d.toFloat * 1.001953125f) >>> 16).toChar
+    case i: Int => (java.lang.Float.floatToRawIntBits(i.toFloat * 1.001953125f) >>> 16).toChar
+    case l: Long => (java.lang.Float.floatToRawIntBits(l.toFloat * 1.001953125f) >>> 16).toChar
   inline def wrap(c: Char): kse.maths.Bf16 = c
 
   extension (h: Bf16)
@@ -1957,40 +1964,36 @@ object Bf16 {
       inline def abs : kse.maths.Bf16 = Bf16.wrap((h.underlying & 0x7FFF).toChar)
 
       inline def +(g: kse.maths.Bf16): Float = h.toFloat + g.toFloat
+      inline def +(l: Long): Float = compiletime.error("Use only floating-point types to add to Bf16")
       inline def +(g: Float): Float = h.toFloat + g
       inline def +(g: Double): Double = h.toFloat + g
 
       inline def -(g: kse.maths.Bf16): Float = h.toFloat - g.toFloat
+      inline def -(l: Long): Float = compiletime.error("Use only floating-point types to subtract from Bf16")
       inline def -(g: Float): Float = h.toFloat - g
       inline def -(g: Double): Double = h.toFloat - g
 
       inline def *(g: kse.maths.Bf16): Float = h.toFloat * g.toFloat
+      inline def *(l: Long): Float = compiletime.error("Use only floating-point types to multiply with Bf16")
       inline def *(g: Float): Float = h.toFloat * g
       inline def *(g: Double): Double = h.toFloat * g
 
       inline def /(g: kse.maths.Bf16): Float = h.toFloat / g.toFloat
+      inline def /(l: Long): Float = compiletime.error("Use only floating-point types to divide Bf16")
       inline def /(g: Float): Float = h.toFloat / g
       inline def /(g: Double): Double = h.toFloat / g
 
       inline def %(g: kse.maths.Bf16): Float = h.toFloat % g.toFloat
+      inline def %(l: Long): Float = compiletime.error("Use only floating-point types to compute modulus with Bf16")
       inline def %(g: Float): Float = h.toFloat % g
       inline def %(g: Double): Double = h.toFloat % g
 
       inline def ===(g: kse.maths.Bf16): Boolean = (h.underlying == g.underlying) || (h.nan && g.nan) || ((h.underlying | g.underlying) & 0x7FFF) == 0
+      inline def =!=(g: kse.maths.Bf16): Boolean = !(h === g)
       inline def <(g: kse.maths.Bf16): Boolean = h.toFloat < g.toFloat
       inline def <=(g: kse.maths.Bf16): Boolean = h.toFloat <= g.toFloat
       inline def >=(g: kse.maths.Bf16): Boolean = h.toFloat >= g.toFloat
       inline def >(g: kse.maths.Bf16): Boolean = h.toFloat > g.toFloat
-
-      inline def <(g: Float): Boolean = h.toFloat < g
-      inline def <=(g: Float): Boolean = h.toFloat <= g
-      inline def >=(g: Float): Boolean = h.toFloat >= g
-      inline def >(g: Float): Boolean = h.toFloat > g
-
-      inline def <(g: Double): Boolean = h.toFloat < g
-      inline def <=(g: Double): Boolean = h.toFloat <= g
-      inline def >=(g: Double): Boolean = h.toFloat >= g
-      inline def >(g: Double): Boolean = h.toFloat > g
 
       inline def finite: Boolean = ((h: Char) & 0x7F80) != 0x7F80
       inline def inf: Boolean = ((h: Char) & 0x7FFF) == 0x7F80
@@ -2032,19 +2035,18 @@ object Bf16 {
       inline def sign: kse.maths.Bf16 =
         val signless = (h.underlying & 0x7FFF)
         if signless > 0x7F80 || signless == 0 then h
-        else Bf16((((h: Char) & 0x8000) | 0x3F80).toChar)
-
+        else Bf16.wrap((((h: Char) & 0x8000) | 0x3F80).toChar)
 
       def max(g: kse.maths.Bf16): kse.maths.Bf16 =
         if h.nan then h
         else if g.nan then g
-        else if g.toFloat < h.toFloat then g
+        else if g.toFloat > h.toFloat then g
         else h
 
       def min(g: kse.maths.Bf16): kse.maths.Bf16 =
         if h.nan then h
         else if g.nan then g
-        else if g.toFloat > h.toFloat then g
+        else if g.toFloat < h.toFloat then g
         else h
 
       def clamp(lo: kse.maths.Bf16, hi: kse.maths.Bf16): kse.maths.Bf16 =
