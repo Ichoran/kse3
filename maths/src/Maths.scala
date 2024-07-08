@@ -1120,7 +1120,7 @@ extension (af: Array[Float]) {
     while i < af.length && af(i-1) < af(i) do i += 1
     i >= af.length
 
-  def bisect(x: Float): Float =
+  def bisect(x: Float): Double =
     if af.length > 1 then  
       var x0 = af(0)
       var x1 = af(af.length - 1)
@@ -1136,22 +1136,22 @@ extension (af: Array[Float]) {
           else if x > y then
             x0 = y
             i0 = j
-          else if x == y then return j.toFloat
-          else return Float.NaN
+          else if x == y then return j.toDouble
+          else return Double.NaN
         val f = (x - x0)/(x1 - x0)
-        i0 + f
+        i0.toDouble + f
       else
         if x == x0 then 0
-        else if x == x1 then (af.length - 1).toFloat
-        else if x < x0 then Float.NegativeInfinity
-        else if x > x1 then Float.PositiveInfinity
-        else Float.NaN
+        else if x == x1 then (af.length - 1).toDouble
+        else if x < x0 then Double.NegativeInfinity
+        else if x > x1 then Double.PositiveInfinity
+        else Double.NaN
     else if af.length == 1 then
       if x == af(0) then 0.0
-      else if x > af(0) then Float.PositiveInfinity
-      else if x < af(0) then Float.NegativeInfinity
-      else Float.NaN
-    else Float.NaN
+      else if x > af(0) then Double.PositiveInfinity
+      else if x < af(0) then Double.NegativeInfinity
+      else Double.NaN
+    else Double.NaN
 }
 
 extension (ad: Array[Double]) {
@@ -2094,6 +2094,50 @@ object Bf16 {
   given Translucent[Bf16, Char] with {}
 }
 
+
+extension (ab: Array[kse.maths.Bf16]) {
+  def isIncreasing: Boolean =
+    if ab.length == 0 then true
+    else
+      var prev = ab(0).toFloat
+      var i = 1
+      while i < ab.length && { var x = ab(i).toFloat; if prev < x then { prev = x; true } else false } do i += 1
+      i >= ab.length
+
+  def bisect(xb: kse.maths.Bf16): Double =
+    val x = xb.toFloat
+    if ab.length > 1 then  
+      var x0 = ab(0).toFloat
+      var x1 = ab(ab.length - 1).toFloat
+      if x > x0 && x < x1 then
+        var i0 = 0
+        var i1 = ab.length - 1
+        while i1 - i0 > 1 do
+          val j = (i0 + i1) >>> 1
+          val y = ab(j).toFloat
+          if x < y then
+            x1 = y
+            i1 = j
+          else if x > y then
+            x0 = y
+            i0 = j
+          else if x == y then return j.toDouble
+          else return Double.NaN
+        val f = (x - x0)/(x1 - x0)
+        i0.toDouble + f
+      else
+        if x == x0 then 0
+        else if x == x1 then (ab.length - 1).toDouble
+        else if x < x0 then Double.NegativeInfinity
+        else if x > x1 then Double.PositiveInfinity
+        else Double.NaN
+    else if ab.length == 1 then
+      if x == ab(0).toFloat then 0
+      else if x > ab(0).toFloat then Double.PositiveInfinity
+      else if x < ab(0).toFloat then Double.NegativeInfinity
+      else Double.NaN
+    else Double.NaN
+}
 
 opaque type Vc = Long
 object Vc {

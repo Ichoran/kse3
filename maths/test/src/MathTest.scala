@@ -1984,16 +1984,35 @@ class MathTest {
 
     T ~ Array(1f, 2f, 4f).isIncreasing  ==== true
     T ~ Array(1f, 4f, 2f).isIncreasing  ==== false
-    T ~ Array(1f, 2f, 4f).bisect(3f)    =~~= 1.5f
-    T ~ Array(1f, 2f, 4f).bisect(5f)    ==== Float.PositiveInfinity
-    T ~ Array(1f, 2f, 4f).bisect(2f)    ==== 1f
-    T ~ Array(1f, 2f, 4f).bisect(-1f)   ==== Float.NegativeInfinity
-    T ~ Array[Float]().bisect(0f)       ==== Float.NaN
-    T ~ Array(1f).bisect(0f)            ==== Float.NegativeInfinity
-    T ~ Array(1f).bisect(1f)            ==== 0f
-    T ~ Array(1f).bisect(2f)            ==== Float.PositiveInfinity
-    T ~ Array(1f, Float.NaN).bisect(2f) ==== Float.NaN
-    T ~ Array(1f, 2f).bisect(Float.NaN) ==== Float.NaN
+    T ~ Array(1f, 2f, 4f).bisect(3f)    =~~= 1.5
+    T ~ Array(1f, 2f, 4f).bisect(5f)    ==== Double.PositiveInfinity
+    T ~ Array(1f, 2f, 4f).bisect(2f)    ==== 1.0
+    T ~ Array(1f, 2f, 4f).bisect(-1f)   ==== Double.NegativeInfinity
+    T ~ Array[Float]().bisect(0f)       ==== Double.NaN
+    T ~ Array(1f).bisect(0f)            ==== Double.NegativeInfinity
+    T ~ Array(1f).bisect(1f)            ==== 0.0
+    T ~ Array(1f).bisect(2f)            ==== Double.PositiveInfinity
+    T ~ Array(1f, Float.NaN).bisect(2f) ==== Double.NaN
+    T ~ Array(1f, 2f).bisect(Float.NaN) ==== Double.NaN
+
+    val h0 = Bf16(0f)
+    val h1 = Bf16(1f)
+    val h2 = Bf16(2f)
+    val h3 = Bf16(3f)
+    val h4 = Bf16(4f)
+    val h5 = Bf16(5f)
+    T ~ Array(h1, h2, h4).isIncreasing ==== true
+    T ~ Array(h1, h4, h2).isIncreasing ==== false
+    T ~ Array(h1, h2, h4).bisect(h3)   =~~= 1.5
+    T ~ Array(h1, h2, h4).bisect(h5)   ==== Double.PositiveInfinity
+    T ~ Array(h1, h2, h4).bisect(h2)   ==== 1.0
+    T ~ Array(h1, h2, h4).bisect(-h1)  ==== Double.NegativeInfinity
+    T ~ Array[Bf16]().bisect(h0)       ==== Double.NaN
+    T ~ Array(h1).bisect(h0)           ==== Double.NegativeInfinity
+    T ~ Array(h1).bisect(h1)           ==== 0.0
+    T ~ Array(h1).bisect(h2)           ==== Double.PositiveInfinity
+    T ~ Array(h1, Bf16.NaN).bisect(h2) ==== Double.NaN
+    T ~ Array(h1, h2).bisect(Bf16.NaN) ==== Double.NaN
 
     val d = 1.2
     val dnan = Double.NaN
