@@ -1329,9 +1329,12 @@ class FlowTest {
 
     T ~ attempt( optionQ1("eel").! ).default(0)                               ==== 0
     T ~ attempt( optionQ1("888").! ).default(0)                               ==== 888
-    T ~ attempt{ val n = optionQ1("eel").!; ensure(n > 9); n - 1 }.default(0) ==== 0
-    T ~ attempt{ val n = optionQ1("888").!; ensure(n > 9); n - 1 }.default(0) ==== 887
-    T ~ attempt{ val n = optionQ1(  "5").!; ensure(n > 9); n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).!; n - 1 }.default(0)     ==== 0
+    T ~ attempt{ val n = optionQ1("888").!; (n > 9).!; n - 1 }.default(0)     ==== 887
+    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).!; n - 1 }.default(0)     ==== 0
+    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).not_!; n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1("888").!; (n > 9).not_!; n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).not_!; n - 1 }.default(0) ==== 4
     T ~ attempt( eitherQ1("eel").! ).default(0)                               ==== 0
     T ~ attempt( eitherQ1("888").! ).default(0)                               ==== 889
     T ~ attempt( Try("eel".toInt).! ).default(0)                              ==== 0
@@ -1364,8 +1367,8 @@ class FlowTest {
     T ~ "bass".attemptCase{ case s if s.length > 3 => s.length }.default(0)   ==== 4
     T ~ attempt(enn.!).orCase("eel"){ case "bass" => 1 }.default(0)           ==== 0
     T ~ attempt(enn.!).orCase("bass"){ case "bass" => 1 }.default(0)          ==== 1
-    T ~ attempt{ "eel".inCase{ case "bass" => 1 } }.default(0)                ==== 0
-    T ~ attempt{ "bass".inCase{ case "bass" => 1 } }.default(0)               ==== 1
+    T ~ attempt{ "eel".case_!{ case "bass" => 1 } }.default(0)                ==== 0
+    T ~ attempt{ "bass".case_!{ case "bass" => 1 } }.default(0)               ==== 1
     T ~ attempt(enn.!).safeCase("eel"(3)){ case 's' => 1 }.default(0)         ==== 0
     T ~ attempt(enn.!).safeCase("bass"(3)){ case 's' => 1 }.default(0)        ==== 1
 
@@ -1392,6 +1395,8 @@ class FlowTest {
     T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).orQuit.head   }.str ==== "l"
     T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orSkip }                              =**= Array(3, 2)
     T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orQuit }                              =**= Array(3)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).orSkip; n + 1 }                       =**= Array(3, 4)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).orQuit; n + 1 }                       =**= Array(3)
 
     val l = Left("herring")
     val r = Right(15)

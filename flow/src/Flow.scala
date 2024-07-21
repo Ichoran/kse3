@@ -45,9 +45,9 @@ extension [A](or: A Or Err)
 
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
-  inline def ?[E >: Left[L, R]](using Label[E]): R = either match
+  inline def ?[E >: Left[L, Nothing]](using Label[E]): R = either match
     case Right(r) => r
-    case l: Left[L, R] => boundary.break(l)
+    case l: Left[L, R] => boundary.break(l.asInstanceOf[E])
 
   /** Delivers the value in Right if it exists, or remaps the left branch and returns it perhaps nonlocally. */
   inline def ?+[LL, E >: Left[LL, Nothing]](inline f: L => LL)(using Label[E]): R = either match
@@ -208,6 +208,16 @@ extension (objectEither: Either.type){
     * Because `Left` and `Right` have two types, this is awkward and not recommended.
     */
   inline def FlatRet[L, R](inline r: Label[Either[L, R]] ?=> Either[L, R]): Either[L, R] = boundary{ r }
+}
+
+extension (objectRight: Right.type) {
+  /** Exits to a compatible boundary--perhaps an Either.Ret--with a newly constructed Right value. */
+  inline def break[R, E >: Right[Nothing, R]](inline r: => R)(using Label[E]): Nothing = boundary.break(Right(r))
+}
+
+extension (objectRight: Left.type) {
+  /** Exits to a compatible boundary--perhaps an Either.Ret--with a newly constructed Left value. */
+  inline def break[L, E >: Left[L, Nothing]](inline l: => L)(using Label[E]): Nothing = boundary.break(Left(l))
 }
 
 
@@ -614,10 +624,10 @@ object Attempt {
         catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
       }
     inline def orCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
-      att || kse.flow.attempt(kse.flow.inCase(b)(pf))
+      att || kse.flow.attempt(kse.flow.case_!(b)(pf))
     inline def safeCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
       att || {
-        try kse.flow.attempt(kse.flow.inCase(b)(pf))
+        try kse.flow.attempt(kse.flow.case_!(b)(pf))
         catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
       }
   }
@@ -722,15 +732,23 @@ extension [I](enumerator: java.util.Enumeration[I])
     if enumerator.hasMoreElements then enumerator.nextElement
     else break(shortcut.Skips: T)
 
-inline def ensure[A](z: Boolean)(using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
-  if z then kse.flow.Attempt.Passed.value
-  else break(kse.flow.Attempt.failed)
+extension (z: Boolean)
+  inline def ![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+    if z then kse.flow.Attempt.Passed.value
+    else break(kse.flow.Attempt.failed)
+  inline def not_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+    if z then break(kse.flow.Attempt.failed)
+    else kse.flow.Attempt.Passed.value
+  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): Unit =
+    if !z then break(shortcut.Quits: T)
+  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): Unit =
+    if !z then break(shortcut.Skips: T)
 
 extension [A](a: A)
-  inline def inCase[B, Z](pf: PartialFunction[A, B])(using Label[kse.flow.Attempt[Z]]): B =
+  inline def case_![B, Z](pf: PartialFunction[A, B])(using Label[kse.flow.Attempt[Z]]): B =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => break(kse.flow.Attempt.failed)
       case y => y.asInstanceOf[B]
   inline def attemptCase[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
     attempt:
-      a.inCase(pf)
+      a.case_!(pf)
