@@ -49,6 +49,11 @@ extension [L, R](either: Either[L, R])
     case Right(r) => r
     case l: Left[L, R] => boundary.break(l)
 
+  /** Delivers the value in Right if it exists, or remaps the left branch and returns it perhaps nonlocally. */
+  inline def ?+[LL, E >: Left[LL, Nothing]](inline f: L => LL)(using Label[E]): R = either match
+    case Right(r) => r
+    case Left(l) => boundary.break(Left[LL, Nothing](f(l)))
+
 extension [A](option: Option[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `None`. */
   inline def ?[N >: None.type](using Label[N]): A = option match
@@ -471,6 +476,7 @@ extension [A, B](pf: PartialFunction[A, B]) {
 
 
 extension [A, B](f: A => (B Or Unit)) {
+  @annotation.nowarn
   inline def unlift: PartialFunction[A, B] = new PartialFunction[A, B] {
     override def applyOrElse[AA <: A, BB >: B](a: AA, default: AA => BB): BB = f(a).fold(b => b)(_ => default(a))
     def isDefinedAt(a: A) = f(a).isIs

@@ -8,7 +8,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.4.2"
+  def scalaVersion = "3.5.0-RC3"
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -25,7 +25,7 @@ trait PublishKse3 extends PublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.3.5"
+  def publishVersion = "0.3.6"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -97,5 +97,9 @@ object jsonal extends Common {
 }
 
 object all extends Common {
-  def moduleDeps = Seq(basics, flow, maths, jsonal, eio)
+  override def ivyDeps = T {
+    super.ivyDeps() ++
+    Agg(ivy"org.typelevel::cats-core:2.12.0")
+  }
+  def moduleDeps = Seq(basics, flow, maths, eio)
 }

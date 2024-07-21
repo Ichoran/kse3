@@ -1264,6 +1264,13 @@ class FlowTest {
     T ~ eitherQ2("55")     ==== Right(57)      --: typed[Either[String, Int]]
     T ~ eitherQ2("4")      ==== Left("Bad 4")  --: typed[Either[String, Int]]
 
+    def eitherQ3(s: String): Either[String, Int] = Either.Ret:
+      val e = if s.forall(_.isDigit) then Right(s) else Left(s)
+      e.?+(b => s"Has digits: ${b.exists(_.isDigit) }").toInt
+    T ~ eitherQ3("herring") ==== Left("Has digits: false") --: typed[Either[String, Int]]
+    T ~ eitherQ3("5 eels")  ==== Left("Has digits: true")  --: typed[Either[String, Int]]
+    T ~ eitherQ3("14")      ==== Right(14)                 --: typed[Either[String, Int]]
+
     def optionQ1(s: String): Option[Int] = Option.Ret[Int]:
       Option(s).filter(_.forall(_.isDigit)).?.toInt
     T ~ optionQ1("herring") ==== None     --: typed[Option[Int]]
