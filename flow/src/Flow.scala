@@ -623,12 +623,22 @@ object Attempt {
         try kse.flow.attempt(f)
         catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
       }
+    inline def threadsafe(inline f: Label[kse.flow.Attempt[A]] ?=> A): kse.flow.Attempt[A] =
+      att || {
+        try kse.flow.attempt(f)
+        catch case e if e.threadCatchable => Attempt.failed: kse.flow.Attempt[A]
+      }
     inline def orCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
       att || kse.flow.attempt(kse.flow.case_!(b)(pf))
     inline def safeCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
       att || {
         try kse.flow.attempt(kse.flow.case_!(b)(pf))
         catch case e if e.catchable => Attempt.failed: kse.flow.Attempt[A]
+      }
+    inline def threadsafeCase[B](inline b: B)(inline pf: PartialFunction[B, A]): kse.flow.Attempt[A] =
+      att || {
+        try kse.flow.attempt(kse.flow.case_!(b)(pf))
+        catch case e if e.threadCatchable => Attempt.failed: kse.flow.Attempt[A]
       }
   }
 }
