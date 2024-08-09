@@ -1135,6 +1135,11 @@ object ClippedArray {
   extension [A](ca: kse.basics.ClippedArray[A]) {
     inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
 
+    inline def apply(i: Int)(inline x0: => A): A =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then a(i)
+      else x0
+
     inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
       val a = ca.unwrap
       var i = i0
@@ -3696,6 +3701,11 @@ object ClippedString {
 
   extension (ca: kse.basics.ClippedString) {
     inline def breakable: kse.basics.ShortClipString = ShortClipString wrap ca.unwrap
+
+    inline def apply(i: Int)(inline c: => Char): Char =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then a.charAt(i)
+      else c
 
     inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): String =
       val a = ca.unwrap

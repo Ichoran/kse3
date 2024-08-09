@@ -84,6 +84,8 @@ object Fu {
       try (fu: Future[A Or Err]).get()
       catch case e if e.catchable => Alt(Err(e))
 
+    def cancel(): Boolean = (fu: Future[A Or Err]).cancel(true)
+
     inline def ?[L >: Alt[Err]](using lb: Label[L]): A = kse.flow.?[A, Err](Fu.ask(fu)())(using lb)
     inline def ?+[E, L >: Alt[E]](inline f: Err => E)(using lb: Label[L]): A = kse.flow.?+(Fu.ask(fu)())(f)(using lb)
     inline def ?*[E, L >: Alt[E]](using lb: Label[L], m: Err AutoMap E): A = kse.flow.?*[A, Err](Fu.ask(fu)())(using lb, m)

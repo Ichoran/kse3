@@ -682,16 +682,41 @@ object CountedTransfer {
 }
 
 
-extension (underlying: Array[Byte])
-  inline def buffer = ByteBuffer.wrap(underlying).order(ByteOrder.LITTLE_ENDIAN)
-  inline def input = new ByteArrayInputStream(underlying)
-  inline def output = new FixedArrayOutputStream(underlying, 0, underlying.length)
-  inline def readChannel = MultiArrayChannel.fixedBuffer(underlying, underlying.length)
-  inline def writeChannel = MultiArrayChannel.fixedBuffer(underlying, 0)
-  inline def growCopy = MultiArrayChannel.copyOf(underlying)
+extension (underlying: Array[Byte]) {
+  inline def buffer(): ByteBuffer = ByteBuffer.wrap(underlying).order(ByteOrder.LITTLE_ENDIAN)
+  inline def buffer(i0: Int, iN: Int): ByteBuffer = ByteBuffer.wrap(underlying, i0, iN-i0).order(ByteOrder.LITTLE_ENDIAN)
+  inline def buffer(inline rg: collection.immutable.Range): ByteBuffer =
+    val iv = Iv of rg
+    ByteBuffer.wrap(underlying, iv.i0, iv.length).order(ByteOrder.LITTLE_ENDIAN)
+  inline def buffer(v: Iv | PIv): ByteBuffer =
+    val iv = Iv.of(v, underlying)
+    ByteBuffer.wrap(underlying, iv.i0, iv.length).order(ByteOrder.LITTLE_ENDIAN)
+
+  inline def input(): ByteArrayInputStream = new ByteArrayInputStream(underlying)
+  inline def input(i0: Int, iN: Int): ByteArrayInputStream = new ByteArrayInputStream(underlying, i0, iN - i0)
+  inline def input(inline rg: collection.immutable.Range): ByteArrayInputStream =
+    val iv = Iv of rg
+    new ByteArrayInputStream(underlying, iv.i0, iv.length)
+  inline def input(v: Iv | PIv): ByteArrayInputStream =
+    val iv = Iv.of(v, underlying)
+    new ByteArrayInputStream(underlying, iv.i0, iv.length)
+
+  inline def output(): FixedArrayOutputStream = new FixedArrayOutputStream(underlying, 0, underlying.length)
+  inline def output(i0: Int, iN: Int): FixedArrayOutputStream = new FixedArrayOutputStream(underlying, i0, iN)
+  inline def output(inline rg: collection.immutable.Range): FixedArrayOutputStream =
+    val iv = Iv of rg
+    new FixedArrayOutputStream(underlying, iv.i0, iv.iN)
+  inline def output(v: Iv | PIv): FixedArrayOutputStream =
+    val iv = Iv.of(v, underlying)
+    new FixedArrayOutputStream(underlying, iv.i0, iv.iN)
+
+  inline def readChannel() = MultiArrayChannel.fixedBuffer(underlying, underlying.length)
+  inline def writeChannel() = MultiArrayChannel.fixedBuffer(underlying, 0)
+  inline def growCopy() = MultiArrayChannel.copyOf(underlying)
   inline def growCopyBy(chunk: Int) = MultiArrayChannel.chunked(chunk).copyOf(underlying)
   inline def growCopyMax(maxSize: Long) = MultiArrayChannel.copyOf(underlying, maxSize)
   inline def growCopyMaxBy(maxSize: Long, chunk: Int) = MultiArrayChannel.chunked(chunk).copyOf(underlying, maxSize)
+}
 
 final class FixedArrayOutputStream(val buffer: Array[Byte], val i0: Int, val iN: Int) extends OutputStream {
   private var isNowOpen = true

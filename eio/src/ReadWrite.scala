@@ -53,7 +53,7 @@ object Send {
     private val msdr = msDelayRetry.toInt
     def limited(count: Long)(in: InputStream, out: WritableByteChannel): Long Or Err = Err.Or:
       var data: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
-      var buffer: ByteBuffer = data.buffer
+      var buffer: ByteBuffer = data.buffer()
       var n = 0L
       var m = 0L max count
       var k = 0
@@ -82,7 +82,7 @@ object Send {
               var bigger = (data.length *# 2) min maxb
               if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
               data = new Array[Byte](bigger)
-              buffer = data.buffer
+              buffer = data.buffer()
             k = 0
       n
   }
@@ -97,7 +97,7 @@ object Send {
         case sbc: SeekableByteChannel => (sbc.size - sbc.position).clamp(0L, Int.MaxValue - 7).toInt
         case _ => 4096
       var data: Array[Byte] = new Array[Byte]( speculativeSize.clamp(if maxb < 4096 then maxb else 4096, maxb) )
-      var buffer: ByteBuffer = data.buffer
+      var buffer: ByteBuffer = data.buffer()
       var n = 0L
       var m = 0L max count
       var nz = 0
@@ -117,7 +117,7 @@ object Send {
             var bigger = (data.length *# 2) min maxb
             if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
             data = new Array[Byte](bigger)
-            buffer = data.buffer
+            buffer = data.buffer()
           else buffer.clear
       n
   }
@@ -245,7 +245,7 @@ object Send {
   extends Send[Iterator[Array[Byte]], WritableByteChannel] {
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
-    private val ebuf = endline.buffer
+    private val ebuf = endline.buffer()
     def limited(count: Long)(in: Iterator[Array[Byte]], out: WritableByteChannel): Long Or Err = Err.Or:
       var m = 0L max count
       var n = 0L
@@ -254,7 +254,7 @@ object Send {
         val passes = if endline.length == 0 then 1 else 2
         var i = if ab.length > 0 then 0 else 1
         while i < passes do
-          val bb = if i == 0 then ab.buffer else { ebuf.clear; ebuf }
+          val bb = if i == 0 then ab.buffer() else { ebuf.clear; ebuf }
           i += 1
           if m - n < bb.limit then bb.limit((m - n).toInt)
           var nr = 0

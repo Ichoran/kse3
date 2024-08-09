@@ -83,7 +83,7 @@ object Worm {
 
     /** Gets the value, or sets a new value if it hasn't been set yet. */
     inline def getOrSet(v: => V): V = worm.wormAsAtomic.get() match
-      case x if x eq Worm.notSetSentinel => { worm.setIfEmpty(v); get }
+      case x if x eq Worm.notSetSentinel => { worm.setIfEmpty(v); Worm.get(worm) }
       case x => x.asInstanceOf[V]
 
     /** If the value is set, return it in a favored branch; otherwise, Unit in the disfavored branch. */

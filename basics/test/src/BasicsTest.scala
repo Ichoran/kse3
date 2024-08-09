@@ -69,6 +69,7 @@ class BytecodeCheck {
         0.0
 }
 
+
 @RunWith(classOf[JUnit4])
 class BasicsTest() {
   import kse.testutilities.TestUtilities.{_, given}
@@ -405,6 +406,9 @@ class BasicsTest() {
     T ~ Iv(3, 5).contains(3)                       ==== true
     T ~ Iv(3, 5).contains(4)                       ==== true
     T ~ Iv(3, 5).contains(5)                       ==== false
+    T ~ Iv(-7, 9).clippedToSize(3)                 ==== Iv(0, 3)
+    T ~ Iv(2, 9).clippedToSize(3)                  ==== Iv(2, 3)
+    T ~ Iv(-7, 2).clippedToSize(3)                 ==== Iv(0, 2)
     T ~ Iv(-7, 9).clippedTo(Array(1, 2, 3))        ==== Iv(0, 3)
     T ~ Iv(2, 9).clippedTo(Array(1, 2, 3))         ==== Iv(2, 3)
     T ~ Iv(-7, 2).clippedTo(Array(1, 2, 3))        ==== Iv(0, 2)

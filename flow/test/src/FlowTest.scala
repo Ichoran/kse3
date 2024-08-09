@@ -1807,20 +1807,29 @@ class FlowTest {
       ans
     def yikes(s: String): Nothing =
       throw new Exception(s)
+    def zzzz(n: Int, increment: Int = Int.MaxValue): Unit =
+      val t0 = System.nanoTime
+      var remaining = n.toLong * 1000000L
+      while remaining > 0 do
+        Thread.sleep(1 max (increment min (remaining/1000000L).toInt))
+        remaining = (t0 + n.toLong * 1000000L) - System.nanoTime
     val n = AtomicInteger(0)
     T ~ Fu{ n.++; "eel" }.ask()  ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 1
     T ~ Fu.flat{ n.++; Is("eel") }.ask() ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 2
     val fex = Fu.Executor.create()
-    val foo = Fu(using fex){ Thread.sleep(50); n.++; 4 }
+    val foo = Fu(using fex){ zzzz(50); n.++; 4 }
     T ~ foo.isComplete ==== false
     T ~ foo.ask()      ==== Is(4)
     T ~ foo.isComplete ==== true
     T ~ n.get          ==== 3
     fex.unwrap.close()
+    val sluggish = Fu{ zzzz(100, 1); 100 }
+    T ~ time{ zzzz(1); sluggish.cancel(); sluggish.ask() } ==== runtype[Alt[?]]
+    T ~ { dt.get() < 50000000L } ==== true
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
-    val fs = alnum.arr.map(c => Fu{ Thread.sleep(100); n.++; c })
+    val fs = alnum.arr.map(c => Fu{ zzzz(100); n.++; c })
     val ans: Array[Char] Or Err = time{ fs.fu.ask() }
     T ~ (dt.get/1e9 > 0.05)  ==== true
     T ~ (dt.get/1e9 < 0.15)  ==== true

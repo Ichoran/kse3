@@ -284,16 +284,31 @@ class EioTest {
     T ~ zok.cleanPath  ==== (new java.io.File("all/fine/here.txt")).toPath
     T ~ zwin.cleanPath ==== (new java.io.File("bad/win/name.txt")).toPath
 
-    val bf = "fish".bytes.buffer
+    val bf = "fish".bytes.buffer()
     T ~ bf.remaining     ==== 4
     T ~ bf.get           ==== 'f'.toByte --: typed[Byte]
     T ~ bf.get           ==== 'i'
     T ~ bf.getBytes.utf8 ==== "sh"
     T ~ bf.hasRemaining  ==== false
-    val bis = "fish".bytes.input
+    def partFishB(b: ByteBuffer): Unit =
+      T ~ b.remaining     ==== 2
+      T ~ b.get           ==== 'i'.toByte --: typed[Byte]
+      T ~ b.getBytes.utf8 ==== "s"
+    partFishB("fish".bytes.buffer(1, 3))
+    partFishB("fish".bytes.buffer(1 to 2))
+    partFishB("fish".bytes.buffer(Iv(1, 3)))
+    partFishB("fish".bytes.buffer(1 to End-1))
+    val bis = "fish".bytes.input()
     T ~ bis.available    ==== 4
     T ~ { val a = new Array[Byte](4); bis.read(a); a.utf8 } ==== "fish"
     T ~ bis.available    ==== 0
+    def partFishI(i: InputStream): Unit =
+      T ~ i.available ==== 2
+      T ~ { val a = new Array[Byte](2); i.read(a); a.utf8 } ==== "is"
+    partFishI("fish".bytes.input(1, 3))
+    partFishI("fish".bytes.input(1 to 2))
+    partFishI("fish".bytes.input(Iv(1, 3)))
+    partFishI("fish".bytes.input(1 to End-1))
 
     val ba = new Array[Byte](8)
     val bb = ByteBuffer.wrap(ba)
@@ -333,38 +348,38 @@ class EioTest {
     T ~ bbis.close()                   ==== ()
     T ~ bbis.reset                     ==== thrown[IOException]
 
-    val wsbc = ba.writeChannel
-    T ~ wsbc.bufferAvailableToWrite         ==== 8
-    T ~ wsbc.maxAvailableToWrite            ==== 8
-    T ~ wsbc.position                       ==== 0
-    T ~ wsbc.position(1)                    ==== wsbc
-    T ~ wsbc.size                           ==== 0
-    T ~ wsbc.write("sup".bytes.input)       ==== 3
-    T ~ wsbc.size                           ==== 4
-    T ~ wsbc.write("person".bytes.input)    ==== 4
-    T ~ ba.drop(1).utf8                     ==== "suppers"
-    T ~ wsbc.position(3)                    ==== wsbc
-    T ~ wsbc.write("mm".bytes.readChannel)  ==== 2
-    T ~ wsbc.position(7)                    ==== wsbc
-    T ~ wsbc.write("yes".bytes.readChannel) ==== 1
-    T ~ ba.drop(1).utf8                     ==== "summery"
-    T ~ wsbc.position(1)                    ==== wsbc
-    T ~ wsbc.write("hi".bytes)              ==== 2
-    T ~ wsbc.write("everyone".bytes.buffer) ==== 5
-    T ~ wsbc.write("here".bytes.buffer)     ==== -1
-    T ~ wsbc.position(0)                    ==== wsbc
-    T ~ { wsbc.read(ab2.buffer); ab2 }      =**= Array[Byte](0, 'h'.toByte)
-    T ~ wsbc.position(0)                    ==== wsbc
-    T ~ wsbc.write("e".bytes.input)         ==== 1
-    T ~ wsbc.position(0)                    ==== wsbc
-    T ~ { wsbc.read(ab2.buffer); ab2 }      =**= "eh".bytes
-    T ~ wsbc.position(0)                    ==== wsbc
-    T ~ wsbc.write("YETI".bytes, 2)(1)      ==== 1
-    T ~ wsbc.close                          ==== ()
-    T ~ wsbc.position(3)                    ==== thrown[ClosedChannelException]
+    val wsbc = ba.writeChannel()
+    T ~ wsbc.bufferAvailableToWrite           ==== 8
+    T ~ wsbc.maxAvailableToWrite              ==== 8
+    T ~ wsbc.position                         ==== 0
+    T ~ wsbc.position(1)                      ==== wsbc
+    T ~ wsbc.size                             ==== 0
+    T ~ wsbc.write("sup".bytes.input())       ==== 3
+    T ~ wsbc.size                             ==== 4
+    T ~ wsbc.write("person".bytes.input())    ==== 4
+    T ~ ba.drop(1).utf8                       ==== "suppers"
+    T ~ wsbc.position(3)                      ==== wsbc
+    T ~ wsbc.write("mm".bytes.readChannel())  ==== 2
+    T ~ wsbc.position(7)                      ==== wsbc
+    T ~ wsbc.write("yes".bytes.readChannel()) ==== 1
+    T ~ ba.drop(1).utf8                       ==== "summery"
+    T ~ wsbc.position(1)                      ==== wsbc
+    T ~ wsbc.write("hi".bytes)                ==== 2
+    T ~ wsbc.write("everyone".bytes.buffer()) ==== 5
+    T ~ wsbc.write("here".bytes.buffer())     ==== -1
+    T ~ wsbc.position(0)                      ==== wsbc
+    T ~ { wsbc.read(ab2.buffer()); ab2 }      =**= Array[Byte](0, 'h'.toByte)
+    T ~ wsbc.position(0)                      ==== wsbc
+    T ~ wsbc.write("e".bytes.input())         ==== 1
+    T ~ wsbc.position(0)                      ==== wsbc
+    T ~ { wsbc.read(ab2.buffer()); ab2 }      =**= "eh".bytes
+    T ~ wsbc.position(0)                      ==== wsbc
+    T ~ wsbc.write("YETI".bytes, 2)(1)        ==== 1
+    T ~ wsbc.close                            ==== ()
+    T ~ wsbc.position(3)                      ==== thrown[ClosedChannelException]
     ba(0) = 'T'
     bb.clear
-    val rsbc = ba.readChannel
+    val rsbc = ba.readChannel()
     val bc = ByteBuffer.allocate(12)
     val ab3 = new Array[Byte](3)
     val ab9 = new Array[Byte](9)
@@ -385,22 +400,22 @@ class EioTest {
     T ~ bc.tap(_.flip).getBytes.utf8             ==== "eve"
     T ~ ab3                                      =**= Array('r'.toByte, 'y'.toByte, 0: Byte)
     T ~ rsbc.position(1)                         ==== rsbc
-    T ~ rsbc.read(ab2.writeChannel)              ==== 2
+    T ~ rsbc.read(ab2.writeChannel())            ==== 2
     T ~ ab2.utf8                                 ==== "hi"
-    T ~ rsbc.read(ab9.writeChannel)              ==== 5
+    T ~ rsbc.read(ab9.writeChannel())            ==== 5
     T ~ ab9.utf8                                 ==== "every\u0000\u0000\u0000\u0000"
     T ~ rsbc.position(3)                         ==== rsbc
     T ~ rsbc.read(ab3)                           ==== 3
     T ~ rsbc.read(ab3, 1)(1)                     ==== 1
     T ~ ab3.utf8                                 ==== "ere"
     T ~ rsbc.position(1)                         ==== rsbc
-    T ~ rsbc.read(ab3.output)(3)                 ==== 3
+    T ~ rsbc.read(ab3.output())(3)               ==== 3
     T ~ ab3.utf8                                 ==== "hie"
     T ~ rsbc.position(4)                         ==== rsbc
-    T ~ rsbc.read(ab3.output)(1)                 ==== 1
+    T ~ rsbc.read(ab3.output())(1)               ==== 1
     T ~ ab3.utf8                                 ==== "vie"
     T ~ rsbc.position(6)                         ==== rsbc
-    T ~ rsbc.read(ab3.output)                    ==== 2
+    T ~ rsbc.read(ab3.output())                  ==== 2
     T ~ ab3.utf8                                 ==== "rye"
     T ~ rsbc.close                               ==== ()
     T ~ rsbc.position(1)                         ==== thrown[ClosedChannelException]
@@ -415,7 +430,7 @@ class EioTest {
       def pickn() = 1 + rng % (if (counter % 10) == 0 then 2048 else 128)
       val more = (big.length - nwrote) min pickn()
       T ~ sbc.size ==== nwrote
-      T ~ sbc.write(big.copyOfRange(nwrote, nwrote + more).buffer) ==== more
+      T ~ sbc.write(big.copyOfRange(nwrote, nwrote + more).buffer()) ==== more
       nwrote += more
       val p = sbc.position
       val ptarg = r % p.toInt
@@ -435,7 +450,7 @@ class EioTest {
     val sbc2 = Array.empty[Byte].growCopyBy(337)
     val sbc3 = Array.empty[Byte].growCopyBy(294)
     T ~ sbc.position(0)                      ==== sbc
-    T ~ sbc.read(weird.writeChannel)         ==== weird.length
+    T ~ sbc.read(weird.writeChannel())       ==== weird.length
     T ~ sbc.read(sbc2)                       ==== (big.length - weird.length)
     T ~ weird                                =**= big.take(weird.length)
     T ~ { sbc2.close; sbc2.getBytes.get }    =**= big.drop(weird.length)
@@ -705,9 +720,9 @@ class EioTest {
     Resource(q.raw.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream])
     T ~ Resource(q.raw.openRead())(_.close)(_.available) ==== 1
     T ~ Resource(q.raw.openRead())(_.close)(_.read)      ==== 'e'
-    Resource(q.raw.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o ==== runtype[BufferedOutputStream] }
-    T ~ Resource(q.raw.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
-    T ~ Resource(q.raw.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
+    Resource(q.raw.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o   ==== runtype[BufferedOutputStream] }
+    T ~ Resource(q.raw.openIO())(_.close)(_.position(1).write(ab2.buffer()))   ==== 2
+    T ~ Resource(q.raw.openIO())(_.close){o => o.read(ab2.buffer()); ab2.utf8} ==== "ef"
 
     "ft".bytes.inject(ab2)
     q.delete()
@@ -719,9 +734,9 @@ class EioTest {
     Resource.nice(q.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream])
     T ~ Resource.nice(q.openRead())(_.close)(_.available) ==== 1
     T ~ Resource.nice(q.openRead())(_.close)(_.read)      ==== 'e'
-    Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o ==== runtype[BufferedOutputStream] }
-    T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer))   ==== 2
-    T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer); ab2.utf8} ==== "ef"
+    Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o   ==== runtype[BufferedOutputStream] }
+    T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer()))   ==== 2
+    T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer()); ab2.utf8} ==== "ef"
 
     val ps = "temp/eio/sym".path
     T ~ (p / "x" / "y").mkdirs().isIs       ==== true
@@ -773,142 +788,142 @@ class EioTest {
     val b9999 = rng.arrayB(9999)
     val z9999 = new Array[Byte](9999)
     val z1024 = new Array[Byte](1024)
-    def rsbc: SeekableByteChannel = b9999.readChannel
-    def rmac: MultiArrayChannel = b9999.readChannel
-    def zwc: WritableByteChannel = z9999.writeChannel
-    def zws: WritableByteChannel = z1024.writeChannel
+    def rsbc: SeekableByteChannel = b9999.readChannel()
+    def rmac: MultiArrayChannel = b9999.readChannel()
+    def zwc: WritableByteChannel = z9999.writeChannel()
+    def zws: WritableByteChannel = z1024.writeChannel()
 
     val sms2s = Send.StreamToStream(391)
-    T ~ b9999.input.sendTo(z9999.output)              ==== 9999L  --: typed[Long Or Err]
-    T ~ z9999                                         =**= b9999
+    T ~ b9999.input().sendTo(z9999.output())              ==== 9999L  --: typed[Long Or Err]
+    T ~ z9999                                             =**= b9999
     z9999.fill(0)
-    T ~ b9999.input.sendTo(z9999.output)(using sms2s) ==== 9999L
-    T ~ z9999                                         =**= b9999
-    T ~ b9999.input.sendTo(z1024.output).isAlt        ==== true
-    T ~ b9999.input.sendTo(z1024.output).alt.toss     ==== thrown[IOException]
+    T ~ b9999.input().sendTo(z9999.output())(using sms2s) ==== 9999L
+    T ~ z9999                                             =**= b9999
+    T ~ b9999.input().sendTo(z1024.output()).isAlt        ==== true
+    T ~ b9999.input().sendTo(z1024.output()).alt.toss     ==== thrown[IOException]
 
     val sms2c = Send.StreamToChannel(391, allowFullTarget = true)
     z9999.fill(0)
-    T ~ b9999.input.sendTo(zwc)                        ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ b9999.input().sendTo(zwc)                        ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ b9999.input.sendTo(zwc)(using sms2c)           ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ b9999.input.sendTo(zws).isAlt                  ==== true
-    T ~ b9999.input.sendTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
-    T ~ b9999.input.sendTo(zws)(using sms2c)           ==== 1024
-    T ~ z1024                                          =**= b9999.take(1024)
+    T ~ b9999.input().sendTo(zwc)(using sms2c)           ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ b9999.input().sendTo(zws).isAlt                  ==== true
+    T ~ b9999.input().sendTo(zws).alt.toss               ==== thrown[ErrType.StringErrException]
+    T ~ b9999.input().sendTo(zws)(using sms2c)           ==== 1024
+    T ~ z1024                                            =**= b9999.take(1024)
 
     val smc2s = Send.ChannelToStream(391)
     z9999.fill(0)
-    T ~ rsbc.sendTo(z9999.output)                      ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ rsbc.sendTo(z9999.output())                      ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ rsbc.sendTo(z9999.output)(using smc2s)         ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ rsbc.sendTo(z1024.output).isAlt                ==== true
-    T ~ rsbc.sendTo(z1024.output).alt.toss             ==== thrown[IOException]
+    T ~ rsbc.sendTo(z9999.output())(using smc2s)         ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ rsbc.sendTo(z1024.output()).isAlt                ==== true
+    T ~ rsbc.sendTo(z1024.output()).alt.toss             ==== thrown[IOException]
 
     val smc2c = Send.ChannelToChannel(391, allowFullTarget = true)
     z9999.fill(0)
-    T ~ rsbc.sendTo(zwc)                               ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ rsbc.sendTo(zwc)                                 ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ rsbc.sendTo(zwc)(using smc2c)                  ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ rsbc.sendTo(zws).isAlt                         ==== true
-    T ~ rsbc.sendTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    T ~ rsbc.sendTo(zwc)(using smc2c)                    ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ rsbc.sendTo(zws).isAlt                           ==== true
+    T ~ rsbc.sendTo(zws).alt.toss                        ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ rsbc.sendTo(zws)(using smc2c)                  ==== 1024
-    T ~ z1024                                          =**= b9999.take(1024)
+    T ~ rsbc.sendTo(zws)(using smc2c)                    ==== 1024
+    T ~ z1024                                            =**= b9999.take(1024)
 
     z9999.fill(0)
-    T ~ rmac.sendTo(z9999.output)                      ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ rmac.sendTo(z1024.output).isAlt                ==== true
-    T ~ rmac.sendTo(z1024.output).alt.toss             ==== thrown[IOException]
+    T ~ rmac.sendTo(z9999.output())                      ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ rmac.sendTo(z1024.output()).isAlt                ==== true
+    T ~ rmac.sendTo(z1024.output()).alt.toss             ==== thrown[IOException]
 
     val smm2c = Send.MultiToChannel(allowFullTarget = true)
     z9999.fill(0)
-    T ~ rmac.sendTo(zwc)                               ==== 9999L
-    T ~ z9999                                              =**= b9999
-    T ~ rmac.sendTo(zws).isAlt                         ==== true
-    T ~ rmac.sendTo(zws).alt.toss                      ==== thrown[ErrType.StringErrException]
+    T ~ rmac.sendTo(zwc)                                  ==== 9999L
+    T ~ z9999                                             =**= b9999
+    T ~ rmac.sendTo(zws).isAlt                            ==== true
+    T ~ rmac.sendTo(zws).alt.toss                         ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ rmac.sendTo(zws)(using smm2c)                  ==== 1024L
-    T ~ z1024                                          =**= b9999.take(1024)
+    T ~ rmac.sendTo(zws)(using smm2c)                     ==== 1024L
+    T ~ z1024                                             =**= b9999.take(1024)
 
     val bits = (Array.fill(27)(rng % 9999) ++ Array(0, 9999)).sorted.sliding(2).map(xs => b9999.copyOfRange(xs(0), xs(1))).toList
     def biter = bits.iterator
     z9999.fill(0)
-    T ~ biter.sendTo(z9999.output)                     ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ biter.sendTo(z9999.output())                     ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ bits.sendTo(z9999.output)                      ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ bits.sendTo(z9999.output())                      ==== 9999L
+    T ~ z9999                                            =**= b9999
 
     val smb2c = Send.IterBytesToChannel(allowFullTarget = true)
     z9999.fill(0)
-    T ~ biter.sendTo(zwc)                              ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ biter.sendTo(zwc)                                ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ bits.sendTo(zwc)                               ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ biter.sendTo(zws).isAlt                        ==== true
-    T ~ biter.sendTo(zws).alt.toss                     ==== thrown[ErrType.StringErrException]
+    T ~ bits.sendTo(zwc)                                 ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ biter.sendTo(zws).isAlt                          ==== true
+    T ~ biter.sendTo(zws).alt.toss                       ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ biter.sendTo(zws)(using smb2c)                 ==== 1024L
-    T ~ z1024                                          =**= b9999.take(1024)
+    T ~ biter.sendTo(zws)(using smb2c)                   ==== 1024L
+    T ~ z1024                                            =**= b9999.take(1024)
 
     val smb2m = Send.IterBytesToMulti(allowFullTarget = true)
     z9999.fill(0)
-    T ~ biter.sendTo(z9999.writeChannel)               ==== 9999L
-    T ~ z9999                                          =**= b9999
+    T ~ biter.sendTo(z9999.writeChannel())               ==== 9999L
+    T ~ z9999                                            =**= b9999
     z9999.fill(0)
-    T ~ bits.sendTo(z9999.writeChannel)                ==== 9999L
-    T ~ z9999                                          =**= b9999
-    T ~ biter.sendTo(z1024.writeChannel).isAlt         ==== true
-    T ~ biter.sendTo(z1024.writeChannel).alt.toss      ==== thrown[ErrType.StringErrException]
+    T ~ bits.sendTo(z9999.writeChannel())                ==== 9999L
+    T ~ z9999                                            =**= b9999
+    T ~ biter.sendTo(z1024.writeChannel()).isAlt         ==== true
+    T ~ biter.sendTo(z1024.writeChannel()).alt.toss      ==== thrown[ErrType.StringErrException]
     z1024.fill(0)
-    T ~ biter.sendTo(z1024.writeChannel)(using smb2m)  ==== 1024L
-    T ~ z1024                                          =**= b9999.take(1024)
+    T ~ biter.sendTo(z1024.writeChannel())(using smb2m)  ==== 1024L
+    T ~ z1024                                            =**= b9999.take(1024)
 
     val strings = List("salmon", "herring", "cod", "perch")
     def siter = strings.iterator
     z9999.fill(0)
-    T ~ siter.sendTo(z9999.output)                     ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum)      =**= "salmon\nherring\ncod\nperch\n".bytes
+    T ~ siter.sendTo(z9999.output())                     ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum)        =**= "salmon\nherring\ncod\nperch\n".bytes
     z9999.fill(0)
-    T ~ strings.sendTo(z9999.output)                   ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum)      =**= "salmon\nherring\ncod\nperch\n".bytes
+    T ~ strings.sendTo(z9999.output())                   ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum)        =**= "salmon\nherring\ncod\nperch\n".bytes
 
     val smi2c = Send.IterStringToChannel(allowFullTarget = true)
     val z20 = new Array[Byte](20)
-    def w20: WritableByteChannel = z20.writeChannel
+    def w20: WritableByteChannel = z20.writeChannel()
     z9999.fill(0)
-    T ~ siter.sendTo(zwc)                              ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.sendTo(zwc)                                ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8   ==== "salmon\nherring\ncod\nperch\n"
     z9999.fill(0)
-    T ~ strings.sendTo(zwc)                            ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
-    T ~ siter.sendTo(w20).isAlt                        ==== true
-    T ~ siter.sendTo(w20).alt.toss                     ==== thrown[ErrType.StringErrException]
+    T ~ strings.sendTo(zwc)                              ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8   ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.sendTo(w20).isAlt                          ==== true
+    T ~ siter.sendTo(w20).alt.toss                       ==== thrown[ErrType.StringErrException]
     z20.fill(0)
-    T ~ siter.sendTo(w20)(using smi2c)                 ==== 20L
-    T ~ z20.utf8                                       ==== "salmon\nherring\ncod\np"
+    T ~ siter.sendTo(w20)(using smi2c)                   ==== 20L
+    T ~ z20.utf8                                         ==== "salmon\nherring\ncod\np"
 
     val smi2m = Send.IterStringToMulti(allowFullTarget = true)
     z9999.fill(0)
-    T ~ siter.sendTo(z9999.writeChannel)               ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.sendTo(z9999.writeChannel())               ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8   ==== "salmon\nherring\ncod\nperch\n"
     z9999.fill(0)
-    T ~ strings.sendTo(z9999.writeChannel)             ==== strings.map(_.length + 1).sum
-    T ~ z9999.take(strings.map(_.length + 1).sum).utf8 ==== "salmon\nherring\ncod\nperch\n"
-    T ~ siter.sendTo(z20.writeChannel).isAlt           ==== true
-    T ~ siter.sendTo(z20.writeChannel).alt.toss        ==== thrown[ErrType.StringErrException]
+    T ~ strings.sendTo(z9999.writeChannel())             ==== strings.map(_.length + 1).sum
+    T ~ z9999.take(strings.map(_.length + 1).sum).utf8   ==== "salmon\nherring\ncod\nperch\n"
+    T ~ siter.sendTo(z20.writeChannel()).isAlt           ==== true
+    T ~ siter.sendTo(z20.writeChannel()).alt.toss        ==== thrown[ErrType.StringErrException]
     z20.fill(0)
-    T ~ siter.sendTo(z20.writeChannel)(using smi2m)    ==== 20L
-    T ~ z20.utf8                                       ==== "salmon\nherring\ncod\np"
+    T ~ siter.sendTo(z20.writeChannel())(using smi2m)    ==== 20L
+    T ~ z20.utf8                                         ==== "salmon\nherring\ncod\np"
 
     val p = "temp/eio".path
     val q = p / "rw"
@@ -942,13 +957,13 @@ class EioTest {
     T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
 
     z9999.fill(0)
-    b9999.input.channel.sendTo(zwc)
+    b9999.input().channel.sendTo(zwc)
     T ~ b9999 =**= z9999
 
-    T ~ Send.IterateInputStream("hi".bytes.input).map(_.utf8).toList.map(_.toString)                                  =**= List("hi")
-    T ~ Send.IterateByteChannel("hi".bytes.readChannel).map(_.utf8).toList.map(_.toString)                            =**= List("hi")
-    T ~ Send.IterateInputStream("hi".bytes.input, reloadUnderfilled = false).map(_.utf8).toList.map(_.toString)       =**= List("hi", "")
-    T ~ Send.IterateByteChannel("hi".bytes.readChannel, reloadUnderfilled = false).map(_.utf8).toList.map(_.toString) =**= List("hi", "")
+    T ~ Send.IterateInputStream("hi".bytes.input()).map(_.utf8).toList.map(_.toString)                                  =**= List("hi")
+    T ~ Send.IterateByteChannel("hi".bytes.readChannel()).map(_.utf8).toList.map(_.toString)                            =**= List("hi")
+    T ~ Send.IterateInputStream("hi".bytes.input(), reloadUnderfilled = false).map(_.utf8).toList.map(_.toString)       =**= List("hi", "")
+    T ~ Send.IterateByteChannel("hi".bytes.readChannel(), reloadUnderfilled = false).map(_.utf8).toList.map(_.toString) =**= List("hi", "")
 
 
   @Test
@@ -1097,16 +1112,16 @@ class EioTest {
 
     T ~ Csv.bomless.decode("\uFEFFHi,there\nevery,one".bytes).get.flatten                       =**= Array("Hi", "there", "every", "one")
     T ~ Csv.bomless.decode(Seq("\uFEFFHi,th", "ere\nev", "ery,one").map(_.bytes)).get.flatten   =**= Array("Hi", "there", "every", "one")
-    T ~ Csv.bomless.decode("\uFEFFHi,there\nevery,one".bytes.input).get.flatten                 =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode("\uFEFFHi,there\nevery,one".bytes.input()).get.flatten               =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode("\uFEFFHi\tthere\nevery\tone".bytes).get.flatten                     =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode(Seq("\uFEFFHi\tth", "ere\nev", "ery\tone").map(_.bytes)).get.flatten =**= Array("Hi", "there", "every", "one")
-    T ~ Tsv.bomless.decode("\uFEFFHi\tthere\nevery\tone".bytes.input).get.flatten               =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("\uFEFFHi\tthere\nevery\tone".bytes.input()).get.flatten             =**= Array("Hi", "there", "every", "one")
     T ~ Csv.bomless.decode("Hi,there\nevery,one".bytes).get.flatten                             =**= Array("Hi", "there", "every", "one")
     T ~ Csv.bomless.decode(Seq("Hi,th", "ere\nev", "ery,one").map(_.bytes)).get.flatten         =**= Array("Hi", "there", "every", "one")
-    T ~ Csv.bomless.decode("Hi,there\nevery,one".bytes.input).get.flatten                       =**= Array("Hi", "there", "every", "one")
+    T ~ Csv.bomless.decode("Hi,there\nevery,one".bytes.input()).get.flatten                     =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes).get.flatten                           =**= Array("Hi", "there", "every", "one")
     T ~ Tsv.bomless.decode(Seq("Hi\tth", "ere\nev", "ery\tone").map(_.bytes)).get.flatten       =**= Array("Hi", "there", "every", "one")
-    T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes.input).get.flatten                     =**= Array("Hi", "there", "every", "one")
+    T ~ Tsv.bomless.decode("Hi\tthere\nevery\tone".bytes.input()).get.flatten                   =**= Array("Hi", "there", "every", "one")
 
     val tab = Array(Array("apple", "pear\n", "pe\"ach"), Array("herring", "", ",", "salmon"))
     T ~ Xsv.encodeTable(tab, 'l').toArray.map(_.utf8)                           =**= Array("\"apple\"l\"pear\n\"l\"pe\"\"ach\"\r\n", "herringll,l\"salmon\"\r\n")

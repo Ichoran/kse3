@@ -520,6 +520,13 @@ class ArraysTest() {
 
     T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
 
+    T ~ car.clip(2)(C('!'))          ==== car(2)
+    T ~ car.clip(-2)(C('!'))         ==== C('!')
+    T ~ car.clip(car.length)(C('!')) ==== C('!')
+    T ~ str.clip(2)('!')             ==== str(2)
+    T ~ str.clip(-2)('!')            ==== '!'
+    T ~ str.clip(str.length)('!')    ==== '!'
+
     T ~ z{ car.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
     T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
     T ~ z{ car.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str

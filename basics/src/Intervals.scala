@@ -31,6 +31,11 @@ object Iv extends Translucent.Companion[Iv, Long] {
       case piv: kse.basics.intervals.PIv => piv of s
       case siv: kse.basics.intervals.Iv  => siv
 
+  inline infix def ofSize[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, n: Int): Iv =
+    inline v match
+      case piv: kse.basics.intervals.PIv => piv sized n
+      case siv: kse.basics.intervals.Iv  => siv
+
   extension (iv: Iv)
     inline def unwrap: Long = iv
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
@@ -53,24 +58,17 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def isEmpty: Boolean = (iv & 0xFFFFFFFFL).toInt >= (iv >>> 32).toInt
     inline def contains(i: Int): Boolean = (i >= Iv.i0(iv)) && (i < Iv.iN(iv))
     def pr: String = s"${Iv.i0(iv)}..${Iv.iN(iv)}"
-    def clippedTo[A](a: Array[A]): Iv =
+    def clippedToSize(n: Int): Iv =
       val i = i0
       val j = iN
       if i < 0 then
-        if j > a.length then a.length.toLong << 32
+        if j > n then n.toLong << 32
         else j.toLong << 32
-      else if j > a.length then
-        (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
+      else if j > n then
+        (i & 0xFFFFFFFFL) | (n.toLong << 32)
       else iv
-    def clippedTo(a: String): Iv =
-      val i = i0
-      val j = iN
-      if i < 0 then
-        if j > a.length then a.length.toLong << 32
-        else j.toLong << 32
-      else if j > a.length then
-        (i & 0xFFFFFFFFL) | (a.length.toLong << 32)
-      else iv
+    inline def clippedTo[A](a: Array[A]): Iv = clippedToSize(a.length)
+    inline def clippedTo(a: String): Iv = clippedToSize(a.length)
     inline def visit(inline f: Int => Unit): Unit =
       var i = (iv & 0xFFFFFFFFL).toInt
       val j = (iv >>> 32).toInt
@@ -101,52 +99,36 @@ object PIv {
   extension (piv: PIv)
     inline def unwrap: Long = piv
 
-    def of[A](a: Array[A]): Iv =
+    def sized(n: Int): Iv =
       var i = ((piv: Long) & 0xFFFFFFFFL).toInt
       var j = ((piv: Long) >>> 32).toInt
-      if i < 0 then i = a.length+i
+      if i < 0 then i = n + i
       if j < 0 then
-        if j > Int.MinValue then j = a.length + j + 1
+        if j > Int.MinValue then j = n + j + 1
       else if j < Int.MaxValue then j += 1
       Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
-    def of(a: String): Iv =
-      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
-      var j = ((piv: Long) >>> 32).toInt
-      if i < 0 then i = a.length+i
-      if j < 0 then
-        if j > Int.MinValue then j = a.length + j + 1
-      else if j < Int.MaxValue then j += 1
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+    inline def of[A](a: Array[A]): Iv = sized(a.length)
 
-    def clippedTo[A](a: Array[A]): Iv =
+    inline def of(a: String): Iv = sized(a.length)
+
+    def clippedToSize(n: Int): Iv =
       var i = ((piv: Long) & 0xFFFFFFFFL).toInt
       var j = ((piv: Long) >>> 32).toInt
       if i < 0 then
-        i = a.length+i
+        i = n+i
         if i < 0 then i = 0
       if j < 0 then
-        if j > Int.MinValue then j = a.length + j + 1
+        if j > Int.MinValue then j = n + j + 1
         if j < 0 then j = 0
       else if j < Int.MaxValue then j += 1
-      if i > a.length then i = a.length
-      if j > a.length then j = a.length
+      if i > n then i = n
+      if j > n then j = n
       Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
 
+    inline def clippedTo[A](a: Array[A]): Iv = clippedToSize(a.length)
 
-    def clippedTo(a: String): Iv =
-      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
-      var j = ((piv: Long) >>> 32).toInt
-      if i < 0 then
-        i = a.length+i
-        if i < 0 then i = 0
-      if j < 0 then
-        if j > Int.MinValue then j = a.length + j + 1
-        if j < 0 then j = 0
-      else if j < Int.MaxValue then j += 1
-      if i > a.length then i = a.length
-      if j > a.length then j = a.length
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+    def clippedTo(a: String): Iv = clippedToSize(a.length)
 
   val all: PIv = 0xFFFFFFFF00000000L
 }
