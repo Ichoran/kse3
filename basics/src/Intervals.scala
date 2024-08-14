@@ -15,7 +15,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
 
   inline def wrap(l: Long): Iv = l
 
-  inline infix def of(inline r: scala.collection.immutable.Range): Iv = intervalMacroImpl.rangePackedInLong(r)
+  inline infix def of(inline r: scala.collection.immutable.Range): Iv = basicsMacroImpl.rangePackedInLong(r)
 
   inline infix def of(s: String): Iv = apply(0, s.length)
 
@@ -48,6 +48,54 @@ object Iv extends Translucent.Companion[Iv, Long] {
       (f(((iv: Long) & 0xFFFFFFFFL).toInt) & 0xFFFFFFFFL) | ((iv: Long) & 0xFFFFFFFF00000000L)
     inline def iNOp(inline f: Int => Int): Iv =
       ((iv: Long) & 0xFFFFFFFFL) | (f(((iv: Long) >>> 32).toInt).toLong << 32)
+    inline def ops(inline f: Int => Int, inline g: Int => Int): Iv =
+      (f(((iv: Long) & 0xFFFFFFFFL).toInt) & 0xFFFFFFFFL) | (g(((iv: Long) >>> 32).toInt).toLong << 32)
+    def +#(i: Int): Iv =
+      val i0 = (iv & 0xFFFFFFFFL).toInt
+      val iN = (iv >>> 32).toInt
+      var j = i
+      if i >= 0 then
+        if i0 + j < i0 then j = Int.MaxValue - i0
+        if iN + j < iN then j = Int.MaxValue - iN
+      else
+        if i0 + j > i0 then j = Int.MinValue - i0
+        if iN + j > iN then j = Int.MinValue - iN
+      ((i0+j) & 0xFFFFFFFFL) | ((iN+j).toLong << 32)
+    def -#(i: Int): Iv =
+      val i0 = (iv & 0xFFFFFFFFL).toInt
+      val iN = (iv >>> 32).toInt
+      var j = i
+      if i >= 0 then
+        if i0 - j > i0 then j = i0 - Int.MinValue
+        if iN - j > iN then j = iN - Int.MinValue
+      else
+        if i0 - j < i0 then j = i0 - Int.MaxValue
+        if iN - j < iN then j = iN - Int.MaxValue
+      ((i0-j) & 0xFFFFFFFFL) | ((iN-j).toLong << 32)
+    def &(that: Iv): Iv =
+      val i0 = (iv & 0xFFFFFFFFL)
+      var i = (that & 0xFFFFFFFFL)
+      if i0 > i then i = i0
+      val iN = (iv >>> 32).toInt
+      var j = (that >>> 32).toInt
+      if iN < j then j = iN
+      (i & 0xFFFFFFFFL) | (j.toLong << 32)
+    def |(that: Iv): Iv =
+      val i0 = (iv & 0xFFFFFFFFL)
+      var i = (that & 0xFFFFFFFFL)
+      val iN = (iv >>> 32).toInt
+      var j = (that >>> 32).toInt
+      if iN <= i0 then
+        if j <= i then
+          if i0 > i then i = i0
+          if iN < j then j = iN
+      else if j <= i then
+        i = i0
+        j = iN
+      else
+        if i0 < i then i = i0
+        if iN > j then j = iN
+      (i & 0xFFFFFFFFL) | (j.toLong << 32)
     inline def length: Int =
       val i = i0
       val j = iN
@@ -63,12 +111,36 @@ object Iv extends Translucent.Companion[Iv, Long] {
       val j = iN
       if i < 0 then
         if j > n then n.toLong << 32
+        else if j <= 0 then 0L
         else j.toLong << 32
       else if j > n then
-        (i & 0xFFFFFFFFL) | (n.toLong << 32)
+        if i > n then (n & 0xFFFFFFFFL) | (n.toLong << 32)
+        else (i & 0xFFFFFFFFL) | (n.toLong << 32)
       else iv
     inline def clippedTo[A](a: Array[A]): Iv = clippedToSize(a.length)
     inline def clippedTo(a: String): Iv = clippedToSize(a.length)
+    def shiftIntoSize(n: Int): Iv =
+      if n <= 0 then 0L
+      else
+        var i = i0
+        var j = iN
+        if j <= i then
+          if i < 0 then 0L
+          else
+            if i >= n then i = n
+            (i & 0xFFFFFFFFL) | (i.toLong << 32)
+        else if i < 0 then
+          j -= i
+          if j < 0 || j > n then j = n
+          j.toLong << 32
+        else if j > n then
+          i -= j - n
+          if i < 0 || i > j then i = 0
+          (i & 0xFFFFFFFFL) | (n.toLong << 32)
+        else iv
+    inline def shiftInto[A](a: Array[A]): Iv = shiftIntoSize(a.length)
+    inline def shiftInto(a: String): Iv = shiftIntoSize(a.length)
+
     inline def visit(inline f: Int => Unit): Unit =
       var i = (iv & 0xFFFFFFFFL).toInt
       val j = (iv >>> 32).toInt

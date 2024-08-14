@@ -257,6 +257,7 @@ object End {
   inline def -(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1-i) 
   inline def +(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1+i)
   inline infix def of[A](a: Array[A]): Int = a.length - 1
+  inline infix def of(s: String): Int = s.length - 1
 
   @targetName("toLiteral")
   inline infix def to(j: Int): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(j)
@@ -5513,7 +5514,7 @@ extension [A](a: A) {
   /** Apply a function to this value and return the result.  Same as `pipe`. */
   inline def fn[B](inline f: A => B): B = f(a)
 
-  /** Apply a function to this value and return the result.  Same as `fn`. */
+  /** Apply a function to this value and return the result.  Same as `pipe`. */
   inline def pipe[B](inline f: A => B): B = f(a)
 
   /** Apply a side-effecting function to this value; return the original value */
@@ -5521,5 +5522,14 @@ extension [A](a: A) {
 
   /** Apply a test and alter the value if it passes */
   inline def fixIf(inline p: A => Boolean)(inline f: A => A): A = if p(a) then f(a) else a
-}
 
+  inline def |->[Z](inline op: A => Z): Z = op(a)
+  inline def |->[B, Z](inline opb: ((A, B) => Z, B)) = basicsMacroImpl.applyWithoutBoxing2(a, opb)
+  inline def |->[B, C, Z](inline opbc: ((A, B, C) => Z, B, C)) = basicsMacroImpl.applyWithoutBoxing3(a, opbc)
+  inline def |->[B, C, D, Z](inline opbcd: ((A, B, C, D) => Z, B, C, D)) = basicsMacroImpl.applyWithoutBoxing4(a, opbcd) 
+  inline def |->[B, C, D, E, Z](inline opbcde: ((A, B, C, D, E) => Z, B, C, D, E)) = basicsMacroImpl.applyWithoutBoxing5(a, opbcde) 
+  inline def |->[B, C, D, E, F, Z](inline opbcdef: ((A, B, C, D, E, F) => Z, B, C, D, E, F)) = basicsMacroImpl.applyWithoutBoxing6(a, opbcdef) 
+  inline def |->[B, C, D, E, F, G, Z](inline opbcdefg: ((A, B, C, D, E, F, G) => Z, B, C, D, E, F, G)) = basicsMacroImpl.applyWithoutBoxing7(a, opbcdefg) 
+  inline def |->[B, C, D, E, F, G, H, Z](inline opbcdefgh: ((A, B, C, D, E, F, G, H) => Z, B, C, D, E, F, G, H)) = basicsMacroImpl.applyWithoutBoxing8(a, opbcdefgh) 
+  inline def |->[B, C, D, E, F, G, H, I, Z](inline opbcdefghi: ((A, B, C, D, E, F, G, H, I) => Z, B, C, D, E, F, G, H, I)) = basicsMacroImpl.applyWithoutBoxing9(a, opbcdefghi) 
+}

@@ -31,6 +31,11 @@ class BytecodeCheck {
   def mktag(d: Double): Double \ "meter" =
     import labels._
     d \ "meter"
+
+  def strcut(s: String, i0: Int, iN: Int) = s.substring(i0, iN)
+
+  def apply3test(s: String) =
+    s |-> (strcut, 3, 7)
   
   def boundaryTest(d: Double): Double =
     boundary[Double]:
@@ -398,6 +403,22 @@ class BasicsTest() {
     T ~ Iv(3, 5).iNTo(7)                           ==== Iv(3, 7)
     T ~ Iv(3, 5).i0Op(_ + 1)                       ==== Iv(4, 5)
     T ~ Iv(3, 5).iNOp(_ - 1)                       ==== Iv(3, 4)
+    T ~ Iv(3, 5).ops(_ + 1, _ - 1)                 ==== Iv(4, 4)
+    T ~ (Iv(3, 5) +# 2)                            ==== Iv(5, 7)
+    T ~ (Iv(3, 5) -# 2)                            ==== Iv(1, 3)
+    T ~ (Iv(3, 5) +# (Int.MaxValue - 1))           ==== Iv(Int.MaxValue - 2, Int.MaxValue)
+    T ~ (Iv(-5, -3) -# (Int.MaxValue - 1))         ==== Iv(Int.MinValue, Int.MinValue + 2)
+    T ~ (Iv(3, 5) & Iv(4, 8))                      ==== Iv(4, 5)
+    T ~ (Iv(3, 5) & Iv(6, 8))                      ==== Iv(6, 5)
+    T ~ (Iv(1, 6) & Iv(2, 4))                      ==== Iv(2, 4)
+    T ~ (Iv(2, 4) & Iv(3, 1))                      ==== Iv(3, 1)
+    T ~ (Iv(4, 2) & Iv(1, 3))                      ==== Iv(4, 2)
+    T ~ (Iv(4, 2) & Iv(3, 1))                      ==== Iv(4, 1)                      
+    T ~ (Iv(3, 5) | Iv(4, 8))                      ==== Iv(3, 8)
+    T ~ (Iv(3, 5) | Iv(6, 8))                      ==== Iv(3, 8)
+    T ~ (Iv(3, 5) | Iv(2, 1))                      ==== Iv(3, 5)
+    T ~ (Iv(2, 1) | Iv(3, 5))                      ==== Iv(3, 5)
+    T ~ (Iv(2, 1) | Iv(5, 3))                      ==== Iv(5, 1)
     T ~ Iv(3, 5).length                            ==== 2
     T ~ Iv(3, -2).length                           ==== 0
     T ~ Iv(3, 5).isEmpty                           ==== false
@@ -409,12 +430,28 @@ class BasicsTest() {
     T ~ Iv(-7, 9).clippedToSize(3)                 ==== Iv(0, 3)
     T ~ Iv(2, 9).clippedToSize(3)                  ==== Iv(2, 3)
     T ~ Iv(-7, 2).clippedToSize(3)                 ==== Iv(0, 2)
+    T ~ Iv(-7, -3).clippedToSize(3)                ==== Iv(0, 0)
+    T ~ Iv(7, 9).clippedToSize(3)                  ==== Iv(3, 3)
     T ~ Iv(-7, 9).clippedTo(Array(1, 2, 3))        ==== Iv(0, 3)
     T ~ Iv(2, 9).clippedTo(Array(1, 2, 3))         ==== Iv(2, 3)
     T ~ Iv(-7, 2).clippedTo(Array(1, 2, 3))        ==== Iv(0, 2)
     T ~ Iv(-7, 9).clippedTo("cod")                 ==== Iv(0, 3)
     T ~ Iv(2, 9).clippedTo("cod")                  ==== Iv(2, 3)
     T ~ Iv(-7, 2).clippedTo("cod")                 ==== Iv(0, 2)
+    T ~ Iv(1, 3).shiftIntoSize(4)                  ==== Iv(1, 3)
+    T ~ Iv(-1, 1).shiftIntoSize(4)                 ==== Iv(0, 2)
+    T ~ Iv(8, 11).shiftIntoSize(4)                 ==== Iv(1, 4)
+    T ~ Iv(-7, 9).shiftIntoSize(4)                 ==== Iv(0, 4)
+    T ~ Iv(-7, -9).shiftIntoSize(4)                ==== Iv(0, 0)
+    T ~ Iv(3, 5).shiftIntoSize(4)                  ==== Iv(2, 4)
+    T ~ Iv(1, 3).shiftInto(Array(1, 2, 3, 4))      ==== Iv(1, 3)
+    T ~ Iv(-1, 1).shiftInto(Array(1, 2, 3, 4))     ==== Iv(0, 2)
+    T ~ Iv(8, 11).shiftInto(Array(1, 2, 3, 4))     ==== Iv(1, 4)
+    T ~ Iv(-7, 9).shiftInto(Array(1, 2, 3, 4))     ==== Iv(0, 4)
+    T ~ Iv(1, 3).shiftInto("bass")                 ==== Iv(1, 3)
+    T ~ Iv(-1, 1).shiftInto("bass")                ==== Iv(0, 2)
+    T ~ Iv(8, 11).shiftInto("bass")                ==== Iv(1, 4)
+    T ~ Iv(-7, 9).shiftInto("bass")                ==== Iv(0, 4)
 
 
   val arrayTester = new ArraysTest()

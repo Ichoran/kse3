@@ -99,6 +99,10 @@ extension (the_path: Path) {
 
   inline def absolute = the_path.toAbsolutePath()
 
+  inline def /(that: String) = the_path resolve that
+
+  inline def /(that: Path) = the_path resolve that
+
   inline def `..` = the_path.getParent match
     case null => the_path
     case p => p
@@ -129,6 +133,8 @@ extension (the_path: Path) {
           PathsHelper.symlinkToReal(norm)
   
   inline def file: File Or Err = nice{ the_path.toFile }
+
+  inline def exists = Files exists the_path
 
   inline def isDirectory = Files isDirectory the_path
 
@@ -305,6 +311,15 @@ extension (the_path: Path) {
     if !Files.exists(the_path) then Err.or(s"$the_path not found")
     else nice{ Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING) }
 
+  def copyInto(that: Path): Path Or Err =
+    if !Files.exists(the_path) then Err.or(s"$the_path not found")
+    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
+    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
+    else nice:
+      val target = that resolve the_path.getFileName
+      Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+      target
+
   def copyCreate(to: Path): Unit Or Err =
     if !Files.exists(the_path) then Err.or(s"$the_path not found")
     else if Files.exists(to) then Err.or(s"$to already exists")
@@ -337,22 +352,6 @@ extension (the_path: Path) {
     else throw new IOException(s"Trying recursive operation in $inside but started outside at $the_path")
 }
 
-implicit class DisambiguateExtensionMethodNames(private val the_path: Path) extends AnyVal {
-  inline def /(that: String) = the_path resolve that
-
-  inline def /(that: Path) = the_path resolve that
-
-  inline def exists = Files exists the_path
-
-  def copyInto(that: Path): Path Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
-    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
-    else nice:
-      val target = that resolve the_path.getFileName
-      Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
-      target
-}
 
 /*
 extension (underlying: File) {

@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2023 Rex Kerr and Calico Life Sciences LLC.
 
-package kse.basics.intervalMacroImpl
+package kse.basics.basicsMacroImpl
 
 import scala.quoted.*
 
@@ -40,3 +40,60 @@ def rangePackedInLongExpr(range: Expr[Any])(using qt: Quotes): Expr[Long] =
 
 inline def rangePackedInLong(inline range: scala.collection.immutable.Range): Long =
   ${ rangePackedInLongExpr('range) }
+
+def applyWithoutBoxingExpr2[A: Type, B: Type, Z: Type](a: Expr[A], e: Expr[((A, B) => Z, B)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B) => Z), $b: B) } => '{ $op.apply($a, $b) }
+
+inline def applyWithoutBoxing2[A, B, Z](inline a: A, inline opb: ((A, B) => Z, B)): Z =
+  ${ applyWithoutBoxingExpr2('a, 'opb) }
+
+def applyWithoutBoxingExpr3[A: Type, B: Type, C: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C) => Z, B, C)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C) => Z), $b: B, $c: C) } => '{ $op.apply($a, $b, $c) }
+
+inline def applyWithoutBoxing3[A, B, C, Z](inline a: A, inline opbc: ((A, B, C) => Z, B, C)): Z =
+  ${ applyWithoutBoxingExpr3('a, 'opbc) }
+
+def applyWithoutBoxingExpr4[A: Type, B: Type, C: Type, D: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D) => Z, B, C, D)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D) => Z), $b: B, $c: C, $d: D) } => '{ $op.apply($a, $b, $c, $d) }
+
+inline def applyWithoutBoxing4[A, B, C, D, Z](inline a: A, inline opbcd: ((A, B, C, D) => Z, B, C, D)): Z =
+  ${ applyWithoutBoxingExpr4('a, 'opbcd) }
+
+def applyWithoutBoxingExpr5[A: Type, B: Type, C: Type, D: Type, E: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D, E) => Z, B, C, D, E)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D, E) => Z), $b: B, $c: C, $d: D, $e: E) } => '{ $op.apply($a, $b, $c, $d, $e) }
+
+inline def applyWithoutBoxing5[A, B, C, D, E, Z](inline a: A, inline opbcde: ((A, B, C, D, E) => Z, B, C, D, E)): Z =
+  ${ applyWithoutBoxingExpr5('a, 'opbcde) }
+
+def applyWithoutBoxingExpr6[A: Type, B: Type, C: Type, D: Type, E: Type, F: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D, E, F) => Z, B, C, D, E, F)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D, E, F) => Z), $b: B, $c: C, $d: D, $e: E, $f: F) } => '{ $op.apply($a, $b, $c, $d, $e, $f) }
+
+inline def applyWithoutBoxing6[A, B, C, D, E, F, Z](inline a: A, inline opbcdef: ((A, B, C, D, E, F) => Z, B, C, D, E, F)): Z =
+  ${ applyWithoutBoxingExpr6('a, 'opbcdef) }
+
+def applyWithoutBoxingExpr7[A: Type, B: Type, C: Type, D: Type, E: Type, F: Type, G: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D, E, F, G) => Z, B, C, D, E, F, G)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D, E, F, G) => Z), $b: B, $c: C, $d: D, $e: E, $f: F, $g: G) } => '{ $op.apply($a, $b, $c, $d, $e, $f, $g) }
+
+inline def applyWithoutBoxing7[A, B, C, D, E, F, G, Z](inline a: A, inline opbcdefg: ((A, B, C, D, E, F, G) => Z, B, C, D, E, F, G)): Z =
+  ${ applyWithoutBoxingExpr7('a, 'opbcdefg) }
+
+def applyWithoutBoxingExpr8[A: Type, B: Type, C: Type, D: Type, E: Type, F: Type, G: Type, H: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D, E, F, G, H) => Z, B, C, D, E, F, G, H)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D, E, F, G, H) => Z), $b: B, $c: C, $d: D, $e: E, $f: F, $g: G, $h: H) } => '{ $op.apply($a, $b, $c, $d, $e, $f, $g, $h) }
+
+inline def applyWithoutBoxing8[A, B, C, D, E, F, G, H, Z](inline a: A, inline opbcdefgh: ((A, B, C, D, E, F, G, H) => Z, B, C, D, E, F, G, H)): Z =
+  ${ applyWithoutBoxingExpr8('a, 'opbcdefgh) }
+
+def applyWithoutBoxingExpr9[A: Type, B: Type, C: Type, D: Type, E: Type, F: Type, G: Type, H: Type, I: Type, Z: Type](a: Expr[A], e: Expr[((A, B, C, D, E, F, G, H, I) => Z, B, C, D, E, F, G, H, I)])(using qt: Quotes): Expr[Z] =
+  e match
+    case '{ ($op: ((A, B, C, D, E, F, G, H, I) => Z), $b: B, $c: C, $d: D, $e: E, $f: F, $g: G, $h: H, $i: I) } => '{ $op.apply($a, $b, $c, $d, $e, $f, $g, $h, $i) }
+
+inline def applyWithoutBoxing9[A, B, C, D, E, F, G, H, I, Z](inline a: A, inline opbcdefghi: ((A, B, C, D, E, F, G, H, I) => Z, B, C, D, E, F, G, H, I)): Z =
+  ${ applyWithoutBoxingExpr9('a, 'opbcdefghi) }
+

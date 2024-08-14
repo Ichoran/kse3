@@ -90,6 +90,9 @@ class ArraysTest() {
     T ~ car(End-1).value ==== 'n'
     T ~ oar(End-1).value ==== None
 
+    T ~ End.of(car) ==== car.length - 1
+    T ~ End.of(str) ==== str.length - 1
+
     T ~ (End+1).asEndpointOf("salmon") ==== 7
     T ~ (End+1).asEndpointOf(ix)       ==== 6
 

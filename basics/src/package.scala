@@ -107,7 +107,16 @@ package kse
   * You can also patch up a value with a test and a fix operation using `fixIf`, e.g. `x.fixIf(_ < 0)(- _)` 
   * computes the absolute value of `x`.
   * 
-  * If you need to do something `n` times, use `n.times`.  If you need the indices, use `n.visit`.
+  * If you want to do R/F# style pipe where you insert the piped value into the first argument and then supply
+  * extra arguments after the method/function name, you can do that with `|->`.  For example:
+  * 
+  * {{{
+  * def subrev(s: String, i0: Int, iN: Int) = s.select(i0, iN).reverse
+  * 
+  * "minnow" |-> (subrev, 3, 6)   // Returns "now"
+  * }}}
+  * 
+  * If you need to do something `n` times, use `n.times:`.  If you need the indices, use `n.visit: i =>`.
   * 
   * == Tuple, Mutability, Atomicity, and Visibility Helpers ===
   * 
@@ -175,6 +184,13 @@ package kse
   * This enables easy length-relative creation of intervals.  For instance, `1 to End-1` is the interval that leaves off the first
   * and last elements of an `Array` or `String`.
   * 
+  * Absolute (Iv) intervals can be shifted around with `+#` and `-#` (the `#`
+  * warns you that you cannot wrap: the interval endpoints must stay within Int values), and can be clipped or shifted into a desired
+  * 0..n range with `clippedToSize` and `shiftIntoSize`, or into a target (string or array) range with `clippedTo` and `shiftInto`.
+  * You can find interval intersections and unions (filling in gaps) with `&` and `|`.  Difference is not supported since it might
+  * leave an inexpressible hole.
+  * 
+  * (Math on relative (PIv) intervals can be error-prone and not supplied.)
   * 
   * == Full-Powered Arrays ==
   * 
