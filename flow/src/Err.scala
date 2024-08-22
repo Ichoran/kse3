@@ -16,6 +16,7 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
     inline def underlying: String | ErrType = e
 
   extension (e: kse.flow.Err)
+    def +#(s: String): kse.flow.Err = ErrType.Explained(s, e, "  ")
     def explainWith(f: kse.flow.Err => String, indent: String = "  "): kse.flow.Err = Err.apply(ErrType.Explained(f(e), e, indent))
     def explainBy(s: String, indent: String = "  "): Err = Err.apply(ErrType.Explained(s, e, indent))
     def explainValue[A](s: String, value: A): kse.flow.Err = Err.apply(ErrType.Explained(s, e, context = Some(value)))
@@ -26,10 +27,28 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
     def toOr: String Or ErrType = e.underlying match
       case s: String => Is(s)
       case t: ErrType => Alt(t)
+    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit = e.underlying match
+      case s: String  => ErrType.buildLinesFromString(sb, s, prefix)
+      case t: ErrType => t.buildLines(sb, prefix)
 
   def apply(s: String): kse.flow.Err = s
   def apply(et: ErrType): kse.flow.Err = et
   def apply[E](e: E)(using ef: ErrFrom[E]): kse.flow.Err = ef(e)
+  def apply(es: Err*)(desc: String): kse.flow.Err =
+    if es.isEmpty then desc
+    else ErrType.Many(es, desc)
+    /*
+    val ae = new Array[Err](2 + es.length)
+    ae(0) = e1
+    ae(1) = e2
+    if es.nonEmpty then es match
+      case esa: collection.mutable.ArraySeq[?] => ae(2 to End) = esa.asInstanceOf[ArraySeq[Err]].array
+      case _ =>
+        ei = esa.iterator
+        ae.set(2 to End)(() => ei.next)
+    new ErrType.Many(collection.mutable.ArraySeq.make(ae))
+    */
+
 
   def or(s: String): kse.flow.Alt[kse.flow.Err] = Alt(s)
   def or(et: ErrType): kse.flow.Alt[kse.flow.Err] = Alt(et)
@@ -91,13 +110,33 @@ trait ErrType {
 
   /** Converts this into a `Throwable`.  This `Throwable` should be `catchable`--wrap in `ErrType.CatchableException` if necessary. */
   def toThrowable: Throwable
+
+  /** Adds a description of this error, indented as requested, to a `StringBuilder` */
+  def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit
 }
 object ErrType {
+  def buildLinesFromString(sb: java.lang.StringBuilder, s: String, prefix: String): Unit =
+    var i = 0
+    var j = s.indexOf('\n')
+    while j >= 0 do
+      sb append prefix
+      if j > i then
+        if s.charAt(j-1) == '\r' then
+          if j-1 > i then sb.append(s, i, j-1)
+        else sb.append(s, i, j)
+      sb append '\n'
+      i = j + 1
+      j = if i < s.length then s.indexOf('\n', i) else -1
+    if i < s.length then
+      sb append prefix
+      sb.append(s, i, s.length)
+      if s.charAt(s.length-1) != '\n' then sb append '\n'
+  
   private def indentString(string: String, indent: String = "  ", header: String = ""): String =
-    val b = new java.lang.StringBuilder
-    if header.nonEmpty then
-      b append header
-      if header.charAt(header.length - 1) != '\n' && string.nonEmpty then b append '\n'
+    val sb = new java.lang.StringBuilder
+    if header.nonEmpty then buildLinesFromString(sb, header, "")
+    buildLinesFromString(sb, string, indent)
+    /*
     var i = 0
     var j = string.indexOf('\n', i)
     while j > 0 do
@@ -108,7 +147,9 @@ object ErrType {
     if i < string.length then
       b append indent
       b.append(string, i, string.length)
-    b.toString
+    */
+    sb.toString
+
 
   final class StringErrException(msg: String) extends RuntimeException(msg, null, true, false) {
     override def toString = 
@@ -130,6 +171,9 @@ object ErrType {
     override def hashCode = error.hashCode
 
     override lazy val toString = explainer(error)
+
+    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+      buildLinesFromString(sb, this.toString, prefix)
 
     def toThrowable = if error.catchable then error else new CatchableException("", error)
   }
@@ -156,6 +200,10 @@ object ErrType {
 
     override lazy val toString = indentString(error.toString, indent = indent, header = explanation)
 
+    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+      if explanation.nonEmpty then buildLinesFromString(sb, explanation, prefix)
+      Err.buildLines(error)(sb, prefix + indent)
+
     def toThrowable =
       var explanations: List[Explained] = Nil
       var x: kse.flow.Err = Err(this)
@@ -176,7 +224,7 @@ object ErrType {
           new CatchableException(msg, u)
   }
 
-   final class Many(val errs: scala.collection.Seq[Err]) extends ErrType {
+   final class Many(val errs: scala.collection.Seq[Err], desc: String = "") extends ErrType {
     type E = scala.collection.Seq[Err]
 
     def error: E = errs
@@ -187,9 +235,25 @@ object ErrType {
 
     override def hashCode = errs.##
 
-    override lazy val toString = s"Multiple errors found (${errs.length})"
+    override lazy val toString = 
+      val sb = new java.lang.StringBuilder()
+      buildLines(sb, "")
+      sb.toString
 
-    def toThrowable = new StringErrException(this.toString)
+    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+      buildLinesFromString(sb, if desc.isEmpty then s"Multiple errors found (${errs.length})" else desc, prefix)
+      val fmt = s"%0${errs.length.toString.length}d: "
+      var i = 0
+      val it = errs.iterator
+      while it.hasNext do
+        i += 1
+        val e = it.next
+        Err.buildLines(e)(sb, prefix + fmt.format(i))
+
+    def toThrowable =
+      val see = new StringErrException(this.toString)
+      errs.foreach(e => see.addSuppressed(e.toThrowable))
+      see
   }
 }
 

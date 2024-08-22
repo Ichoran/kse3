@@ -155,6 +155,25 @@ class ArraysTest() {
     T ~ n{ car.visit(st)(cuml += _.n + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ n{ oar.visit(st)(cuml += _.n + _) }     ==== ix.map(i => oar(i).n).sum + ix.sum
 
+    T ~ n{ car.pairs((x, y) => if x.l && y.l then cuml += 1) }                   ==== 2
+    T ~ n{ oar.pairs((x, y) => if x.l != y.l then cuml += 1) }                   ==== 2
+    T ~ n{ car.trios((x, y, z) => if x.l && !y.l && z.l then cuml += 1 ) }       ==== 1
+    T ~ n{ oar.trios((x, y, z) => if x.l != y.l && y.l != z.l then cuml += 1 ) } ==== 1
+
+    T ~ n{ car.together(oar)((c, o, i) => if c.l && o.n > 1 then cuml += 1+i) }     ==== 3
+    T ~ n{ car.together(str)((c, s, i) => if c.l && s > 'c' then cuml += 1+i) }     ==== 19
+    T ~ n{ oar.together(car)((o, c, i) => if o.n > 1 && c.l then cuml += 1+i) }     ==== 3
+    T ~ n{ oar.together(str)((o, s, i) => if o.n > 1 && s > 'c' then cuml += 1+i) } ==== 2
+    T ~ n{ car.together(oar, car)((c, o, d, i) => if c.l && o.n > 1 && d.n > 'c' then cuml += 1+i) } ==== 2
+    T ~ n{ car.together(oar, str)((c, o, s, i) => if c.l && o.n > 1 && s > 'c' then cuml += 1+i) }   ==== 2
+    T ~ n{ car.together(car, oar)((c, d, o, i) => if c.l && o.n > 1 && d.n > 'c' then cuml += 1+i) } ==== 2
+    T ~ n{ car.together(str, oar)((c, s, o, i) => if c.l && o.n > 1 && s > 'c' then cuml += 1+i) }   ==== 2
+    T ~ n{ car.together(str, str)((c, s, t, i) => if c.l && s > 'c' && s < 'x' then cuml += 1+i) }   ==== 14
+    T ~ n{ oar.together(car, car)((o, c, d, i) => if o.l && c.l && d.n != 'h' then cuml += 1+i) }    ==== 5
+    T ~ n{ oar.together(car, str)((o, c, s, i) => if o.l && c.l && s != 'h' then cuml += 1+i) }      ==== 5
+    T ~ n{ oar.together(str, car)((o, s, c, i) => if o.l && c.l && s != 'h' then cuml += 1+i) }      ==== 5
+    T ~ n{ oar.together(str, str)((o, s, t, i) => if o.l && s != '.' && t != 'h' then cuml += 1+i) } ==== 5
+
     T ~ n{ car.wander(){  (c, i) => cuml += c.n; i+2 } } ==== str.grouped(2).map(_(0).toInt).sum
     T ~ n{ oar.wander(){  (o, i) => cuml += o.n; i+2 } } ==== Array(0, 2).map(i => oar(i).n).sum
     T ~ n{ car.wander(1){ (c, i) => cuml += c.n; i+2 } } ==== str.grouped(2).filter(_.length == 2).map(_(1).toInt).sum
@@ -2252,6 +2271,16 @@ class ArraysTest() {
     T ~ n{ str.visit(cpv)(cuml += _ + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
     T ~ n{ str.visit(ix)(cuml += _ + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ n{ str.visit(st)(cuml += _ + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
+
+    T ~ n{ str.pairs((x, y) => if x.isLetter && y.isLetter then cuml += 1) }                   ==== 2
+    T ~ n{ str.trios((x, y, z) => if x.isLetter && !y.isLetter && z.isLetter then cuml += 1) } ==== 1
+
+    T ~ n{ str.together(str)((s, t, i) => if s > 'c' && t < 'x' then cuml += 1+i) } ==== 14
+    T ~ n{ str.together(arr)((s, a, i) => if s > 'c' && a < 'x' then cuml += 1+i) } ==== 14
+    T ~ n{ str.together(str, str)((s, t, u, i) => if s > 'c' && t < 'x' && u != 'i' then cuml += 1+i) } ==== 10
+    T ~ n{ str.together(str, arr)((s, t, a, i) => if s > 'c' && t < 'x' && a != 'i' then cuml += 1+i) } ==== 10
+    T ~ n{ str.together(arr, str)((s, a, t, i) => if s > 'c' && t < 'x' && a != 'i' then cuml += 1+i) } ==== 10
+    T ~ n{ str.together(arr, arr)((s, a, b, i) => if s > 'c' && a < 'x' && b != 'i' then cuml += 1+i) } ==== 10
 
     T ~ n{ str.wander(){  (c, i) => cuml += c; i+2 } } ==== str.grouped(2).map(_(0).toInt).sum
     T ~ n{ str.wander(1){ (c, i) => cuml += c; i+2 } } ==== str.grouped(2).filter(_.length == 2).map(_(1).toInt).sum

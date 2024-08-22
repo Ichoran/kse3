@@ -121,6 +121,7 @@ class FlowTest {
     T ~ Err(e)                               ==== ErrType.ThrowableErr(e) --: typed[Err]
     T ~ Err(ErrType.Explained("fish", herr)) ==== herr.explainBy("fish")  --: typed[Err]
     T ~ herr.explainBy("fish")               ==== typed[Err]
+    T ~ (herr +# "fish")                     ==== herr.explainBy("fish")
     T ~ herr.explainWith(_.toString.take(4)) ==== herr.explainBy("herr")  --: typed[Err]
     T ~ herr.toThrowable                     ==== runtype[Throwable]
     T ~ herr.toss                            ==== thrown[ErrType.StringErrException]
@@ -137,6 +138,12 @@ class FlowTest {
          "e".toInt.errCase:
            case x if x < 0 => Err("x")
        }.alt.toThrowable                     ==== runtype[NumberFormatException]
+    val herrs = Err(herr, herr)("Two")
+    val herrsDesc = herrs.toString.linesIterator
+    T ~ herrsDesc.next    ==== "Two"
+    T ~ herrsDesc.next    ==== "1: " + herr.toString
+    T ~ herrsDesc.next    ==== "2: " + herr.toString
+    T ~ herrsDesc.hasNext ==== false
    
 
   @Test
@@ -1697,6 +1704,53 @@ class FlowTest {
     val oiN: Option[Int] = None
     T ~ { var x = 0; boundary{ x = oiS.getOrBreak }; x } ==== 2
     T ~ { var x = 0; boundary{ x = oiN.getOrBreak }; x } ==== 0
+
+
+  @Test
+  def qmarkTest(): Unit =
+    var cuml = 0
+    inline def n(inline f: => Unit): Int =
+      cuml = 0
+      f
+      cuml
+
+    inline def e[A, E >: boundary.Label[Alt[Err]]](inline f: E ?=> A): (A Or Err, Int) =
+      cuml = 0
+      (Err.Or[A](f), cuml)
+
+    def o2 = Array(Some(3), Some(5), None)
+    def i2 = Array(3, 5).iterator
+    def s2 = Array(5, 3).stepper
+    def j2 = java.util.Arrays.stream(Array(3, 5)).iterator
+    def e2 = new java.util.Enumeration[Int]() {
+      var i = 0
+      def hasMoreElements = i >= 0 && i < 2
+      def nextElement = i match
+        case 0 => i += 1; 3
+        case 1 => i += 1; 5
+        case _ => throw new Exception("only two elements")
+    }
+    def z2 = Array(true, true, false)
+
+    T ~ n{ escape{ val xs = o2; cuml += xs(0).?; cuml += xs(1).?; cuml += xs(2).?; cuml += 9 } } ==== 8
+    T ~ n{ escape{ val xs = i2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
+    T ~ n{ escape{ val xs = s2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
+    T ~ n{ escape{ val xs = j2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
+    T ~ n{ escape{ val xs = e2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
+    T ~ n{ escape{ val xs = z2; xs(0).?; cuml += 3; xs(1).?; cuml += 5; xs(2).?; cuml += 9 } }   ==== 8
+
+    T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no";                        "yes" }          ==== (Is("yes"), 8)
+    T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no"; cuml += xs(2) ?# "no"; "yes" }          ==== (Err.or("no"), 8)
+    T ~ e{ val xs = i2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
+    T ~ e{ val xs = i2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
+    T ~ e{ val xs = s2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
+    T ~ e{ val xs = s2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
+    T ~ e{ val xs = j2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
+    T ~ e{ val xs = j2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
+    T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
+    T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
+    T ~ e{ val xs = z2; xs(0) ?# "no"; cuml += 3; xs(1) ?# "no"; cuml += 5;                           "yes" } ==== (Is("yes"), 8)
+    T ~ e{ val xs = z2; xs(0) ?# "no"; cuml += 3; xs(1) ?# "no"; cuml += 5; xs(2) ?# "no"; cuml += 5; "yes" } ==== (Err.or("no"), 8)
 
 
   @Test

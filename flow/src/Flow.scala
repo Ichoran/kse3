@@ -55,30 +55,56 @@ extension [L, R](either: Either[L, R])
     case Left(l) => boundary.break(Left[LL, Nothing](f(l)))
 
 extension [A](option: Option[A])
-  /** Delivers the value if it exists, or does a perhaps nonlocal return of `None`. */
-  inline def ?[N >: None.type](using Label[N]): A = option match
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of `None` or `()`. */
+  inline def ? : A = option match
     case Some(a) => a
-    case n: None.type => boundary.break(n)
+    case _ => compiletime.summonFrom {
+      case ln: Label[None.type] => boundary.break(None)(using ln)
+      case lo: Label[Option[?]] => boundary.break(None)(using lo)
+      case lu: Label[Unit]      => boundary.break()(using lu)
+      case _                => compiletime.error("No Label found with Unit or None target")
+    }
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A = option match
+    case Some(a) => a
+    case _ => boundary.break(Alt(Err(msg)))
 
 extension [A](iterator: Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
   inline def ?(using Label[Unit]): A =
     if iterator.hasNext then iterator.next else boundary.break()
 
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
+    if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
+
 extension [A](stepper: scala.collection.Stepper[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
   inline def ?(using Label[Unit]): A =
     if stepper.hasStep then stepper.nextStep else boundary.break()
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break(Alt(Err(msg)))
 
 extension [A](iterator: java.util.Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
   inline def ?(using Label[Unit]): A =
     if iterator.hasNext then iterator.next else boundary.break()
 
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
+    if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
+
 extension [A](enumerator: java.util.Enumeration[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
   inline def ?(using Label[Unit]): A =
     if enumerator.hasMoreElements then enumerator.nextElement else boundary.break()
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(Alt(Err(msg)))
 
 extension (double: Double)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
@@ -96,6 +122,10 @@ extension (test: Boolean)
   /** Does a perhaps nonlocal return if the test value is false */
   inline def ?(using Label[Unit]): Unit =
     if !test then boundary.break()
+
+  /** If false, exits early with an `Alt[Err]` with a message. */
+  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): Unit =
+    if !test then boundary.break(Alt(Err(msg)))
 
 
 /** Enables early returns in side-effecting code.  Returns true if completed normally.

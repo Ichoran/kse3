@@ -443,6 +443,72 @@ extension [A](a: Array[A]) {
       val j = indices.nextStep
       f(a(j), j)
 
+  inline def pairs(inline f: (A, A) => Unit): Unit =
+    if a.length > 0 then
+      var a0 = a(0)
+      var i = 1
+      while i < a.length do
+        val a1 = a(i)
+        f(a0, a1)
+        a0 = a1
+        i += 1
+   inline def trios(inline f: (A, A, A) => Unit): Unit =
+    if a.length > 1 then
+      var a0 = a(0)
+      var a1 = a(1)
+      var i = 2
+      while i < a.length do
+        val a2 = a(i)
+        f(a0, a1, a2)
+        a0 = a1
+        a1 = a2
+        i += 1
+
+  inline def together[B](b: Array[B])(inline f: (A, B, Int) => Unit): Unit =
+    val n = if a.length > b.length then b.length else a.length
+    var i = 0
+    while i < n do
+      f(a(i), b(i), i)
+      i += 1
+  inline def together(b: String)(inline f: (A, Char, Int) => Unit): Unit =
+    val n = if a.length > b.length then b.length else a.length
+    var i = 0
+    while i < n do
+      f(a(i), b.charAt(i), i)
+      i += 1
+  inline def together[B, C](b: Array[B], c: Array[C])(inline f: (A, B, C, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a(i), b(i), c(i), i)
+      i += 1
+  inline def together[B](b: Array[B], c: String)(inline f: (A, B, Char, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a(i), b(i), c.charAt(i), i)
+      i += 1
+  inline def together[C](b: String, c: Array[C])(inline f: (A, Char, C, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a(i), b.charAt(i), c(i), i)
+      i += 1
+  inline def together(b: String, c: String)(inline f: (A, Char, Char, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a(i), b.charAt(i), c.charAt(i), i)
+      i += 1
+
   inline def wander()(inline f: (A, Int) => Int): Int =
     wander(0)(f)
   inline def wander(start: Int)(inline f: (A, Int) => Int): Int =
@@ -3279,6 +3345,72 @@ extension (a: String) {
     while indices.hasStep do
       val j = indices.nextStep
       f(a.charAt(j), j)
+
+  inline def pairs(inline f: (Char, Char) => Unit): Unit =
+    if a.length > 0 then
+      var a0 = a.charAt(0)
+      var i = 1
+      while i < a.length do
+        val a1 = a.charAt(i)
+        f(a0, a1)
+        a0 = a1
+        i += 1
+   inline def trios(inline f: (Char, Char, Char) => Unit): Unit =
+    if a.length > 1 then
+      var a0 = a.charAt(0)
+      var a1 = a.charAt(1)
+      var i = 2
+      while i < a.length do
+        val a2 = a.charAt(i)
+        f(a0, a1, a2)
+        a0 = a1
+        a1 = a2
+        i += 1
+
+  inline def together[B](b: Array[B])(inline f: (Char, B, Int) => Unit): Unit =
+    val n = if a.length > b.length then b.length else a.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b(i), i)
+      i += 1
+  inline def together(b: String)(inline f: (Char, Char, Int) => Unit): Unit =
+    val n = if a.length > b.length then b.length else a.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b.charAt(i), i)
+      i += 1
+  inline def together[B, C](b: Array[B], c: Array[C])(inline f: (Char, B, C, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b(i), c(i), i)
+      i += 1
+  inline def together[B](b: Array[B], c: String)(inline f: (Char, B, Char, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b(i), c.charAt(i), i)
+      i += 1
+  inline def together[C](b: String, c: Array[C])(inline f: (Char, Char, C, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b.charAt(i), c(i), i)
+      i += 1
+  inline def together(b: String, c: String)(inline f: (Char, Char, Char, Int) => Unit): Unit =
+    var n = a.length
+    if b.length < n then n = b.length
+    if c.length < n then n = c.length
+    var i = 0
+    while i < n do
+      f(a.charAt(i), b.charAt(i), c.charAt(i), i)
+      i += 1
 
   inline def wander()(inline f: (Char, Int) => Int): Int =
     wander(0)(f)
