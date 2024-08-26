@@ -356,6 +356,8 @@ extension [A](a: Array[A]) {
 
   inline def breakable: kse.basics.BreakableArray[A] = BreakableArray wrap a
 
+  inline def clipBreak: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap a
+
   inline def peek()(inline f: A => Unit): a.type =
     var i = 0
     while i < a.length do
@@ -840,6 +842,18 @@ extension [A](a: Array[A]) {
         j += 1
       i += 1
     ix.shrinkTo(j)
+  inline def whereOp(inline pick: (A, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      val h = pick(a(i), i)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
 
   inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
     var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
@@ -858,6 +872,25 @@ extension [A](a: Array[A]) {
   inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
     val iv = Iv of rg
     whereIn(iv.i0, iv.iN)(pick)
+  inline def whereInOp(i0: Int, iN: Int)(inline pick: (A, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+    var i = i0
+    var j = 0
+    while i < iN do
+      val h = pick(a(i), i)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+  inline def whereInOp(v: Iv | PIv)(inline pick: (A, Int) => Int): Array[Int] =
+    val iv = Iv.of(v, a)
+    whereInOp(iv.i0, iv.iN)(pick)
+  inline def whereInOp(inline rg: Range)(inline pick: (A, Int) => Int): Array[Int] =
+    val iv = Iv of rg
+    whereInOp(iv.i0, iv.iN)(pick)
+
 
   inline def whereFrom(indices: Array[Int])(inline pick: A => Boolean): Array[Int] =
     var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
@@ -870,7 +903,21 @@ extension [A](a: Array[A]) {
         ix(j) = k
         j += 1
       i += 1  
-    ix.shrinkTo(j)  
+    ix.shrinkTo(j)
+  inline def whereFromOp(indices: Array[Int])(inline pick: (A, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+    var i = 0
+    var j = 0
+    while i < indices.length do
+      val k = indices(i)
+      val h = pick(a(k), k)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+
 
   inline def inject(that: Array[A]): Int =
     java.lang.System.arraycopy(a, 0, that, 0, a.length)
@@ -1200,7 +1247,7 @@ object ClippedArray {
     inline def unwrap: Array[A] = ca
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
-    inline def breakable: kse.basics.ShortClipArray[A] = ShortClipArray wrap ca.unwrap
+    inline def breakable: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap ca.unwrap
 
     inline def apply(i: Int)(inline x0: => A): A =
       val a = ca.unwrap
@@ -1533,6 +1580,27 @@ object ClippedArray {
     inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: (A, Int) => Int): Array[Int] =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      while i < iM do
+        val h = pick(a(i), i)
+        if h >= 0 then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = h
+          j += 1
+        i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: (A, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, ca.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: (A, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: A => Boolean): Array[Int] =
       val a = ca.unwrap
@@ -1545,6 +1613,21 @@ object ClippedArray {
           if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
           ix(j) = k
           j += 1
+        i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: (A, Int) => Int): Array[Int] =
+      val a = ca.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      while i < indices.length do
+        val k = indices(i)
+        if k >= 0 && k < a.length then
+          val h = pick(a(k), k)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
         i += 1  
       ix.shrinkTo(j)
 
@@ -1893,7 +1976,7 @@ object BreakableArray {
     inline def unwrap: Array[A] = sa
 
   extension [A](sa: kse.basics.BreakableArray[A]) {
-    inline def clip: kse.basics.ShortClipArray[A] = ShortClipArray wrap sa.unwrap
+    inline def clip: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sa.unwrap
@@ -2052,6 +2135,20 @@ object BreakableArray {
             j += 1
           i += 1
       ix.shrinkTo(j)
+    inline def whereOp(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < a.length do
+          val h = pick(a(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
 
     inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -2072,6 +2169,26 @@ object BreakableArray {
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+      var i = i0
+      var j = 0
+      shortcut.quittable:
+        while i < iN do
+          val h = pick(a(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, sa.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -2084,6 +2201,21 @@ object BreakableArray {
           if pick(a(k)) then
             if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
             ix(j) = k
+            j += 1
+          i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          val h = pick(a(k), k)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
             j += 1
           i += 1  
       ix.shrinkTo(j)
@@ -2288,14 +2420,14 @@ object BreakableArray {
 }
 
 
-opaque type ShortClipArray[A] = Array[A]
-object ShortClipArray {
-  inline def wrap[A](a: Array[A]): ShortClipArray[A] = a
+opaque type ClipBreakArray[A] = Array[A]
+object ClipBreakArray {
+  inline def wrap[A](a: Array[A]): ClipBreakArray[A] = a
 
-  extension [A](sc: ShortClipArray[A])
+  extension [A](sc: ClipBreakArray[A])
     inline def unwrap: Array[A] = sc
 
-  extension [A](sc: kse.basics.ShortClipArray[A]) {
+  extension [A](sc: kse.basics.ClipBreakArray[A]) {
     inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sc.unwrap
       var i = i0
@@ -2419,6 +2551,28 @@ object ShortClipArray {
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      shortcut.quittable:
+        while i < iM do
+          val h = pick(a(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, sc.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val a = sc.unwrap
@@ -2432,6 +2586,22 @@ object ShortClipArray {
             if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
             ix(j) = k
             j += 1
+          i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val a = sc.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if k >= 0 && k < a.length then
+            val h = pick(a(k), k)
+            if h >= 0 then
+              if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+              ix(j) = h
+              j += 1
           i += 1  
       ix.shrinkTo(j)
 
@@ -3290,6 +3460,8 @@ extension (a: String) {
 
   inline def breakable: kse.basics.BreakableString = BreakableString wrap a
 
+  inline def clipBreak: kse.basics.ClipBreakString = ClipBreakString wrap a
+
   inline def peek()(inline f: Char => Unit): a.type =
     var i = 0
     while i < a.length do
@@ -3490,6 +3662,18 @@ extension (a: String) {
         j += 1
       i += 1
     ix.shrinkTo(j)
+  inline def whereOp(inline pick: (Char, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+    var i = 0
+    var j = 0
+    while i < a.length do
+      val h = pick(a.charAt(i), i)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
 
   inline def whereIn(i0: Int, iN: Int)(inline pick: Char => Boolean): Array[Int] =
     var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
@@ -3508,6 +3692,24 @@ extension (a: String) {
   inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
     val iv = Iv of rg
     whereIn(iv.i0, iv.iN)(pick)
+  inline def whereInOp(i0: Int, iN: Int)(inline pick: (Char, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+    var i = i0
+    var j = 0
+    while i < iN do
+      val h = pick(a.charAt(i), i)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
+        j += 1
+      i += 1
+    ix.shrinkTo(j)
+  inline def whereInOp(v: Iv | PIv)(inline pick: (Char, Int) => Int): Array[Int] =
+    val iv = Iv.of(v, a)
+    whereInOp(iv.i0, iv.iN)(pick)
+  inline def whereInOp(inline rg: Range)(inline pick: (Char, Int) => Int): Array[Int] =
+    val iv = Iv of rg
+    whereInOp(iv.i0, iv.iN)(pick)
 
   inline def whereFrom(indices: Array[Int])(inline pick: Char => Boolean): Array[Int] =
     var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
@@ -3518,6 +3720,19 @@ extension (a: String) {
       if pick(a.charAt(k)) then
         if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
         ix(j) = k
+        j += 1
+      i += 1  
+    ix.shrinkTo(j)  
+  inline def whereFromOp(indices: Array[Int])(inline pick: (Char, Int) => Int): Array[Int] =
+    var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+    var i = 0
+    var j = 0
+    while i < indices.length do
+      val k = indices(i)
+      val h = pick(a.charAt(k), k)
+      if h >= 0 then
+        if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+        ix(j) = h
         j += 1
       i += 1  
     ix.shrinkTo(j)  
@@ -3833,7 +4048,7 @@ object ClippedString {
     inline def unwrap: String = ca
 
   extension (ca: kse.basics.ClippedString) {
-    inline def breakable: kse.basics.ShortClipString = ShortClipString wrap ca.unwrap
+    inline def breakable: kse.basics.ClipBreakString = ClipBreakString wrap ca.unwrap
 
     inline def apply(i: Int)(inline c: => Char): Char =
       val a = ca.unwrap
@@ -3950,6 +4165,27 @@ object ClippedString {
     inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: (Char, Int) => Int): Array[Int] =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      while i < iM do
+        val h = pick(a.charAt(i), i)
+        if h >= 0 then
+          if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+          ix(j) = h
+          j += 1
+        i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: (Char, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, ca.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: (Char, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: Char => Boolean): Array[Int] =
       val a = ca.unwrap
@@ -3962,6 +4198,21 @@ object ClippedString {
           if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
           ix(j) = k
           j += 1
+        i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: (Char, Int) => Int): Array[Int] =
+      val a = ca.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      while i < indices.length do
+        val k = indices(i)
+        if k >= 0 && k < a.length then
+          val h = pick(a.charAt(k), k)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
         i += 1  
       ix.shrinkTo(j)
 
@@ -4304,7 +4555,7 @@ object BreakableString {
     inline def unwrap: String = sa
 
   extension (sa: kse.basics.BreakableString) {
-    inline def clip: kse.basics.ShortClipString = ShortClipString wrap sa.unwrap
+    inline def clip: kse.basics.ClipBreakString = ClipBreakString wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val a = sa.unwrap
@@ -4422,6 +4673,20 @@ object BreakableString {
             j += 1
           i += 1
       ix.shrinkTo(j)
+    inline def whereOp(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if a.length <= 8 then a.length else 8)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < a.length do
+          val h = pick(a.charAt(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
 
     inline def whereIn(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -4442,6 +4707,26 @@ object BreakableString {
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
+      var i = i0
+      var j = 0
+      shortcut.quittable:
+        while i < iN do
+          val h = pick(a.charAt(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, sa.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val a = sa.unwrap
@@ -4454,6 +4739,21 @@ object BreakableString {
           if pick(a.charAt(k)) then
             if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
             ix(j) = k
+            j += 1
+          i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val a = sa.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          val h = pick(a.charAt(k), k)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
             j += 1
           i += 1  
       ix.shrinkTo(j)
@@ -4648,14 +4948,14 @@ object BreakableString {
 }
 
 
-opaque type ShortClipString = String
-object ShortClipString {
-  inline def wrap(a: String): ShortClipString = a
+opaque type ClipBreakString = String
+object ClipBreakString {
+  inline def wrap(a: String): ClipBreakString = a
 
-  extension (sc: ShortClipString)
+  extension (sc: ClipBreakString)
     inline def unwrap: String = sc
 
-  extension (sc: kse.basics.ShortClipString) {
+  extension (sc: kse.basics.ClipBreakString) {
     inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val a = sc.unwrap
       var i = i0
@@ -4746,6 +5046,28 @@ object ShortClipString {
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val iv = Iv of rg
       whereIn(iv.i0, iv.iN)(pick)
+    inline def whereInOp(i0: Int, iN: Int)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      var ix = new Array[Int](if iM - i < 0 then 0 else if iM - i > 8 then 8 else iM - i)
+      var j = 0
+      shortcut.quittable:
+        while i < iM do
+          val h = pick(a.charAt(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+      ix.shrinkTo(j)
+    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = Iv.of(v, sc.unwrap)
+      whereInOp(iv.i0, iv.iN)(pick)
+    inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = Iv of rg
+      whereInOp(iv.i0, iv.iN)(pick)
 
     inline def whereFrom(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val a = sc.unwrap
@@ -4759,6 +5081,22 @@ object ShortClipString {
             if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
             ix(j) = k
             j += 1
+          i += 1  
+      ix.shrinkTo(j)
+    inline def whereFromOp(indices: Array[Int])(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val a = sc.unwrap
+      var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
+      var i = 0
+      var j = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val k = indices(i)
+          if k >= 0 && k < a.length then
+            val h = pick(a.charAt(k), k)
+            if h >= 0 then
+              if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+              ix(j) = h
+              j += 1
           i += 1  
       ix.shrinkTo(j)
 

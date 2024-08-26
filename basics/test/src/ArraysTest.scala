@@ -233,6 +233,14 @@ class ArraysTest() {
     T ~ car.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
     T ~ oar.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
 
+    def linc(c: C.Type, i: Int) = if c.l then i+7 else -1
+    T ~ car.whereOp(linc)                     =**= car.where(_.l).copyWith(_ + 7)
+    T ~ car.whereInOp(1, 7)(linc)             =**= car.whereIn(1, 7)(_.l).copyWith(_ + 7)
+    T ~ car.whereInOp(Iv(1, 7))(linc)         =**= car.whereIn(Iv(1, 7))(_.l).copyWith(_ + 7)
+    T ~ car.whereInOp(1 to End-2)(linc)       =**= car.whereIn(1 to End-2)(_.l).copyWith(_ + 7)
+    T ~ car.whereInOp(1 to 6)(linc)           =**= car.whereIn(1 to 6)(_.l).copyWith(_ + 7)    
+    T ~ car.whereFromOp(Array(7, 5, 3))(linc) =**= car.whereFrom(Array(7, 5, 3))(_.l).copyWith(_ + 7)
+
     T ~ car.dup(_() = C('x')).cs          ==== "xxxxxxxxx"
     T ~ oar.dup(_() = O(None)).os         ==== "####"
     T ~ car.dup(_() = "abcdefghi".c).cs   ==== "abcdefghi"
@@ -721,6 +729,17 @@ class ArraysTest() {
     T ~ car.clip.whereIn(niv)(_.l).length    ==== 0
     T ~ car.clip.whereIn(npv)(_.l).length    ==== 0
     T ~ car.clip.whereFrom(ex)(! _.l)        =**= Array(2, 3, 6)
+
+    def linc(c: C.Type, i: Int) = if c.l then i+7 else -1
+    def ninc(c: C.Type, i: Int) = if c.l then -1 else i+7
+    T ~ car.clip.whereInOp(1, 12)(linc)         =**= car.clip.whereIn(1, 12)(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(-3, 5)(linc)         =**= car.clip.whereIn(-3, 5)(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(Iv(1, 12))(linc)     =**= car.clip.whereIn(Iv(1, 12))(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(Iv(-3, 5))(linc)     =**= car.clip.whereIn(Iv(-3, 5))(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(End-9 to End-2)(linc) =**= car.clip.whereIn(End-9 to End-2)(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(1 to 12)(linc)        =**= car.clip.whereIn(1 to 12)(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereInOp(-3 to 5)(linc)        =**= car.clip.whereIn(-3 to 5)(_.l).copyWith(_ + 7)
+    T ~ car.clip.whereFromOp(ex)(ninc)           =**= car.clip.whereFrom(ex)(! _.l).copyWith(_ + 7)
 
     val ca9 = "ABCDEFGHI".c
     val ca7 = "1234567".c
@@ -1358,6 +1377,21 @@ class ArraysTest() {
     T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>                    !c.l } =**= Array(2, 3, 6)
     T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
 
+    def ninc(c: C.Type, i: Int) = if c.l then -1 else i+7
+    def nxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
+      qIf(c.value == '#')
+      if c.l then -1 else i+7
+    T ~ car.breakable.whereInOp(1, 5)(ninc)                =**= car.breakable.whereIn(1, 5)(! _.l).copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(Iv(1, 5))(ninc)            =**= car.breakable.whereIn(Iv(1, 5))(! _.l).copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(1 to End-2)(ninc)          =**= car.breakable.whereIn(1 to End-2)(! _.l).copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(1 to 4)(ninc)              =**= car.breakable.whereIn(1 to 4)(! _.l).copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(1, 5)(nxnc)                =**= car.breakable.whereIn(1, 5){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(Iv(1, 5))(nxnc)            =**= car.breakable.whereIn(Iv(1, 5)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(1 to End-2)(nxnc)          =**= car.breakable.whereIn(1 to End-2){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.breakable.whereInOp(1 to 4)(nxnc)              =**= car.breakable.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.breakable.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= car.breakable.whereFrom(Array(2, 0, 3, 6))(! _.l).copyWith(_ + 7)
+    T ~ car.breakable.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= car.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+
     T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "1h.#ik."
     T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "0h.#ik."
     T ~ car.dup{ a => qt{ var x = '0'; a.set(3, 5){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs   ==== "ch.1ik."
@@ -1502,8 +1536,9 @@ class ArraysTest() {
       f
       cuml
 
-    T ~ car.clip.breakable ==== typed[ShortClipArray[C.Type]]
-    T ~ car.breakable.clip ==== typed[ShortClipArray[C.Type]]
+    T ~ car.clip.breakable ==== typed[ClipBreakArray[C.Type]]
+    T ~ car.breakable.clip ==== typed[ClipBreakArray[C.Type]]
+    T ~ car.clipBreak      ==== typed[ClipBreakArray[C.Type]]
 
     T ~ z{ car.breakable.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
     T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
@@ -1658,6 +1693,32 @@ class ArraysTest() {
     T ~ car.clip.breakable.whereIn(-2 to 4){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
     T ~ car.clip.breakable.whereIn(fiv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
     T ~ car.clip.breakable.whereIn(fpv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+
+    T ~ car.clip.breakable.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l } =**= Array(5, 4)
+    T ~ car.clip.breakable.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l } =**= Array(5)
+
+    def linc(c: C.Type, i: Int) = if c.l then i+7 else -1
+    def li_#[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
+      qIf(c.value == '#')
+      if c.l then i+7 else -1
+    def li_k[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
+      qIf(c.value == 'k')
+      if c.l then i+7 else -1
+    T ~ car.clipBreak.whereInOp(3, 9)(linc)           =**= car.clipBreak.whereIn(3, 9)(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(Iv(3, 9))(linc)       =**= car.clipBreak.whereIn(Iv(3, 9))(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(3 to 8)(linc)         =**= car.clipBreak.whereIn(3 to 8)(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(-2, 5)(linc)          =**= car.clipBreak.whereIn(-2, 5)(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(Iv(-2, 5))(linc)      =**= car.clipBreak.whereIn(Iv(-2, 5))(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(End-9 to End-2)(linc) =**= car.clipBreak.whereIn(End-9 to End-2)(_.l).copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(3, 9)(li_k)           =**= car.clipBreak.whereIn(3, 9){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(Iv(3, 9))(li_k)       =**= car.clipBreak.whereIn(Iv(3, 9)){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(3 to 8)(li_k)         =**= car.clipBreak.whereIn(3 to 8){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(-2, 5)(li_#)          =**= car.clipBreak.whereIn(-2, 5){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(Iv(-2, 5))(li_#)      =**= car.clipBreak.whereIn(Iv(-2, 5)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereInOp(End-9 to End-2)(li_#) =**= car.clipBreak.whereIn(End-9 to End-2){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+
+    T ~ car.clipBreak.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(linc) =**= car.clipBreak.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l }.copyWith(_ + 7)
+    T ~ car.clipBreak.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(li_#) =**= car.clipBreak.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
 
     val ca7 = "1234567".c
     val ca3 = "890".c
@@ -2306,6 +2367,14 @@ class ArraysTest() {
     T ~ str.whereIn(cpv   )(_ == 'x') =**= Array(4)
     T ~ str.whereFrom(ix)(_ != 'i')   =**= Array(2, 1, 1)
 
+    def linc(c: Char, i: Int) = if c.isLetter then i+7 else -1
+    T ~ str.whereOp(linc)               =**= str.where(_.isLetter).copyWith(_ + 7)
+    T ~ str.whereInOp(3, 8)(linc)       =**= str.whereIn(3, 8)(_.isLetter).copyWith(_ + 7)
+    T ~ str.whereInOp(Iv(3, 8))(linc)   =**= str.whereIn(Iv(3, 8))(_.isLetter).copyWith(_ + 7)
+    T ~ str.whereInOp(3 to End-2)(linc) =**= str.whereIn(3 to End-2)(_.isLetter).copyWith(_ + 7)
+    T ~ str.whereInOp(3 to 7)(linc)     =**= str.whereIn(3 to 8)(_.isLetter).copyWith(_ + 7)
+    T ~ str.whereFromOp(ix)(linc)       =**= str.whereFrom(ix)(_.isLetter).copyWith(_ + 7)
+
     val cx = "___________".toCharArray
     var ninja = 0
     T ~ cx.dup(a => ninja = str.inject(a)).str                ==== "ch.ix.#n.__"
@@ -2555,6 +2624,15 @@ class ArraysTest() {
     T ~ str.clip.whereIn(niv)(_.isLetter).length    ==== 0
     T ~ str.clip.whereIn(npv)(_.isLetter).length    ==== 0
     T ~ str.clip.whereFrom(ex)(! _.isLetter)        =**= Array(2, 3, 6)
+
+    def linc(c: Char, i: Int) = if c.isLetter then i+7 else -1
+    T ~ str.clip.whereInOp(3, 9)(linc)           =**= str.clip.whereIn(3, 9)(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereInOp(Iv(3, 9))(linc)       =**= str.clip.whereIn(Iv(3, 9))(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereInOp(3 to 8)(linc)         =**= str.clip.whereIn(3 to 8)(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereInOp(-2, 5)(linc)          =**= str.clip.whereIn(-2, 5)(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereInOp(Iv(-2, 5))(linc)      =**= str.clip.whereIn(Iv(-2, 5))(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereInOp(End-9 to End-2)(linc) =**= str.clip.whereIn(End-9 to End-2)(_.isLetter).copyWith(_ + 7)
+    T ~ str.clip.whereFromOp(ex)(linc)           =**= str.clip.whereFrom(ex)(_.isLetter).copyWith(_ + 7)
 
     val ca9 = "ABCDEFGHI".arr
     val ca7 = "1234567".arr
@@ -2947,6 +3025,22 @@ class ArraysTest() {
     T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>              !c.isLetter } =**= Array(2, 3, 6)
     T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
 
+    def ninc(c: Char, i: Int) = if c.isLetter then -1 else i+7
+    def nxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: Char, i: Int)(using lb: boundary.Label[Q]) =
+      qIf(c == '#')
+      if c.isLetter then -1 else i+7
+    T ~ str.breakable.whereInOp(1, 5)(ninc)       =**= str.breakable.whereIn(1, 5)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(Iv(1, 5))(ninc)   =**= str.breakable.whereIn(Iv(1, 5))(! _.isLetter).copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(1 to End-2)(ninc) =**= str.breakable.whereIn(1 to End-2)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(1 to 4)(ninc)     =**= str.breakable.whereIn(1 to 4)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(1, 5)(nxnc)       =**= str.breakable.whereIn(1, 5){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(Iv(1, 5))(nxnc)   =**= str.breakable.whereIn(Iv(1, 5)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(1 to End-2)(nxnc) =**= str.breakable.whereIn(1 to End-2){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.breakable.whereInOp(1 to 4)(nxnc)     =**= str.breakable.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+
+    T ~ str.breakable.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= str.breakable.whereFrom(Array(2, 0, 3, 6))(! _.isLetter).copyWith(_ + 7)
+    T ~ str.breakable.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= str.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+
     val cx = "_________".arr
     var ninja = 0
     T ~ cx.dup(a => ninja = str.breakable.inject(a)(_.isLetter)).str                          ==== "chik_____"
@@ -3064,8 +3158,9 @@ class ArraysTest() {
       f
       cuml
 
-    T ~ str.clip.breakable ==== typed[ShortClipString]
-    T ~ str.breakable.clip ==== typed[ShortClipString]
+    T ~ str.clip.breakable ==== typed[ClipBreakString]
+    T ~ str.breakable.clip ==== typed[ClipBreakString]
+    T ~ str.clipBreak      ==== typed[ClipBreakString]
 
     T ~ z{ str.breakable.clip.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
     T ~ cuml                                                                    ==== str(3).toInt
@@ -3137,6 +3232,20 @@ class ArraysTest() {
     T ~ str.clip.breakable.whereIn(-2 to 4){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
     T ~ str.clip.breakable.whereIn(fiv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
     T ~ str.clip.breakable.whereIn(fpv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+
+    T ~ str.clipBreak.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter } =**= Array(1, 5)
+
+    def lxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: Char, i: Int)(using lb: boundary.Label[Q]) =
+      qIf(c == '#')
+      if c.isLetter then i+7 else -1
+    T ~ str.clipBreak.whereInOp(3, 9)(lxnc)           =**= str.clipBreak.whereIn(3, 9){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.clipBreak.whereInOp(Iv(3, 9))(lxnc)       =**= str.clipBreak.whereIn(Iv(3, 9)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.clipBreak.whereInOp(3 to 8)(lxnc)         =**= str.clipBreak.whereIn(3 to 8){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.clipBreak.whereInOp(-2, 5)(lxnc)          =**= str.clipBreak.whereIn(-2, 5){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.clipBreak.whereInOp(Iv(-2, 5))(lxnc)      =**= str.clipBreak.whereIn(Iv(-2, 5)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.clipBreak.whereInOp(End-9 to End-2)(lxnc) =**= str.clipBreak.whereIn(End-9 to End-2){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+
+    T ~ str.clipBreak.whereFromOp(Array(2, 1, -3, 9, 5, 3, 4))(lxnc) =**= str.clipBreak.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
 
     val ca7 = "1234567".arr
     val ca3 = "890".arr

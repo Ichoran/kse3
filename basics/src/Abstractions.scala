@@ -74,9 +74,6 @@ object \ {
     inline def valueTo[B](b: B): (B \ L) = b
     inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
     transparent inline def label: L = compiletime.constValue[L]
-    @annotation.targetName("applyByName")
-    @deprecated("Bytecode not appropriately optimized by compiler; please use ~ \"label\" syntax instead of ().label syntax")
-    inline def apply(): Accessor[A, L] = Accessor(la)
 
   class Accessor[A, L <: LabelVal](private val la: A \ L) extends AnyVal with Dynamic {
     inline def selectDynamic(inline s: String): A =

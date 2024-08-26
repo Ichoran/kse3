@@ -353,7 +353,6 @@ class TuplesTest() {
     T ~ (3 \ "eel").unlabel             ==== 3 --: typed[Int]
     T ~ (3 \ "eel").valueTo(4)          ==== 4 --: typed[Int \ "eel"]
     T ~ (3 \ "eel").valueOp(_+2)        ==== 5 --: typed[Int \ "eel"]
-    T ~ (3 \ "eel")().eel               ==== 3 --: typed[Int]
     T ~ subtyping(3, 3 \ "eel")         ==== 'X'
     T ~ subtyping(3 \ "eel", 3 \ "cod") ==== 'X'
     T ~ (3 \ "eel" == 3 \ "cod")        ==== true
@@ -373,8 +372,6 @@ class TuplesTest() {
     T ~ l2.label_1            ==== "a"
     T ~ l2.label_2            ==== "b"
     T ~ l2.labels             ==== ("a", "b")
-    T ~ l2().a                ==== 1      --: typed[Int]
-    T ~ l2().b                ==== 2      --: typed[Int]
     T ~ (l2 ~~ ("a", "b"))    ==== (1, 2) --: typed[(Int, Int)]
     T ~ l2.relabel("a")("_")  ==== (1, 2) --: typed[(Int \ "_", Int \ "b")]
     T ~ l2.relabel("b")("_")  ==== (1, 2) --: typed[(Int \ "a", Int \ "_")]
@@ -417,9 +414,6 @@ class TuplesTest() {
     T ~ l3.label_2              ==== "b"
     T ~ l3.label_3              ==== "c"
     T ~ l3.labels               ==== ("a", "b", "c")
-    T ~ l3().a                  ==== 1          --: typed[Int]
-    T ~ l3().b                  ==== 2          --: typed[Int]
-    T ~ l3().c                  ==== 3          --: typed[Int]
     T ~ (l3 ~~ ("a", "b", "c")) ==== t3         --: typed[(Int, Int, Int)] 
     T ~ l3.relabel("a")("_")    ==== t3         --: typed[(Int \ "_", Int \ "b", Int \ "c")]
     T ~ l3.relabel("b")("_")    ==== t3         --: typed[(Int \ "a", Int \ "_", Int \ "c")]
@@ -507,10 +501,6 @@ class TuplesTest() {
     T ~ l4.label_3                   ==== "c"
     T ~ l4.label_4                   ==== "d"
     T ~ l4.labels                    ==== ("a", "b", "c", "d")
-    T ~ l4().a                       ==== 1          --: typed[Int]
-    T ~ l4().b                       ==== 2          --: typed[Int]
-    T ~ l4().c                       ==== 3          --: typed[Int]
-    T ~ l4().d                       ==== 4          --: typed[Int]
     T ~ (l4 ~~ ("a", "b", "c", "d")) ==== t4         --: typed[(Int, Int, Int, Int)]
     T ~ l4.relabel("a")("_")         ==== t4         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d")]
     T ~ l4.relabel("b")("_")         ==== t4         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d")]
@@ -675,11 +665,6 @@ class TuplesTest() {
     T ~ l5.label_4                        ==== "d"
     T ~ l5.label_5                        ==== "e"
     T ~ l5.labels                         ==== ("a", "b", "c", "d", "e")
-    T ~ l5().a                            ==== 1          --: typed[Int]
-    T ~ l5().b                            ==== 2          --: typed[Int]
-    T ~ l5().c                            ==== 3          --: typed[Int]
-    T ~ l5().d                            ==== 4          --: typed[Int]
-    T ~ l5().e                            ==== 5          --: typed[Int]
     T ~ (l5 ~~ ("a", "b", "c", "d", "e")) ==== t5         --: typed[(Int, Int, Int, Int, Int)]
     T ~ l5.relabel("a")("_")              ==== t5         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e")]
     T ~ l5.relabel("b")("_")              ==== t5         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e")]
@@ -972,12 +957,6 @@ class TuplesTest() {
     T ~ l6.label_5                             ==== "e"
     T ~ l6.label_6                             ==== "f"
     T ~ l6.labels                              ==== ("a", "b", "c", "d", "e", "f")
-    T ~ l6().a                                 ==== 1          --: typed[Int]
-    T ~ l6().b                                 ==== 2          --: typed[Int]
-    T ~ l6().c                                 ==== 3          --: typed[Int]
-    T ~ l6().d                                 ==== 4          --: typed[Int]
-    T ~ l6().e                                 ==== 5          --: typed[Int]
-    T ~ l6().f                                 ==== 6          --: typed[Int]
     T ~ (l6 ~~ ("a", "b", "c", "d", "e", "f")) ==== t6         --: typed[(Int, Int, Int, Int, Int, Int)]
     T ~ l6.relabel("a")("_")                   ==== t6         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
     T ~ l6.relabel("b")("_")                   ==== t6         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f")]
@@ -1215,13 +1194,6 @@ class TuplesTest() {
     T ~ l7.label_6                                  ==== "f"
     T ~ l7.label_7                                  ==== "g"
     T ~ l7.labels                                   ==== ("a", "b", "c", "d", "e", "f", "g")
-    T ~ l7().a                                      ==== 1          --: typed[Int]
-    T ~ l7().b                                      ==== 2          --: typed[Int]
-    T ~ l7().c                                      ==== 3          --: typed[Int]
-    T ~ l7().d                                      ==== 4          --: typed[Int]
-    T ~ l7().e                                      ==== 5          --: typed[Int]
-    T ~ l7().f                                      ==== 6          --: typed[Int]
-    T ~ l7().g                                      ==== 7          --: typed[Int]
     T ~ (l7 ~~ ("a", "b", "c", "d", "e", "f", "g")) ==== t7         --: typed[(Int, Int, Int, Int, Int, Int, Int)]
     T ~ l7.relabel("a")("_")                        ==== t7         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
     T ~ l7.relabel("b")("_")                        ==== t7         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g")]
@@ -1537,14 +1509,6 @@ class TuplesTest() {
     T ~ l8.label_7                                       ==== "g"
     T ~ l8.label_8                                       ==== "h"
     T ~ l8.labels                                        ==== ("a", "b", "c", "d", "e", "f", "g", "h")
-    T ~ l8().a                                           ==== 1          --: typed[Int]
-    T ~ l8().b                                           ==== 2          --: typed[Int]
-    T ~ l8().c                                           ==== 3          --: typed[Int]
-    T ~ l8().d                                           ==== 4          --: typed[Int]
-    T ~ l8().e                                           ==== 5          --: typed[Int]
-    T ~ l8().f                                           ==== 6          --: typed[Int]
-    T ~ l8().g                                           ==== 7          --: typed[Int]
-    T ~ l8().h                                           ==== 8          --: typed[Int]
     T ~ (l8 ~~ ("a", "b", "c", "d", "e", "f", "g", "h")) ==== t8         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l8.relabel("a")("_")                             ==== t8         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
     T ~ l8.relabel("b")("_")                             ==== t8         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h")]
@@ -1950,15 +1914,6 @@ class TuplesTest() {
     T ~ l9.label_8                                            ==== "h"
     T ~ l9.label_9                                            ==== "i"
     T ~ l9.labels                                             ==== ("a", "b", "c", "d", "e", "f", "g", "h", "i")
-    T ~ l9().a                                                ==== 1          --: typed[Int]
-    T ~ l9().b                                                ==== 2          --: typed[Int]
-    T ~ l9().c                                                ==== 3          --: typed[Int]
-    T ~ l9().d                                                ==== 4          --: typed[Int]
-    T ~ l9().e                                                ==== 5          --: typed[Int]
-    T ~ l9().f                                                ==== 6          --: typed[Int]
-    T ~ l9().g                                                ==== 7          --: typed[Int]
-    T ~ l9().h                                                ==== 8          --: typed[Int]
-    T ~ l9().i                                                ==== 9          --: typed[Int]
     T ~ (l9 ~~ ("a", "b", "c", "d", "e", "f", "g", "h", "i")) ==== t9         --: typed[(Int, Int, Int, Int, Int, Int, Int, Int, Int)]
     T ~ l9.relabel("a")("_")                                  ==== t9         --: typed[(Int \ "_", Int \ "b", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
     T ~ l9.relabel("b")("_")                                  ==== t9         --: typed[(Int \ "a", Int \ "_", Int \ "c", Int \ "d", Int \ "e", Int \ "f", Int \ "g", Int \ "h", Int \ "i")]
