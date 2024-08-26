@@ -785,7 +785,7 @@ class EioTest {
   @Test
   def cleasyTest(): Unit =
     import cleasy.*
-  
+
     val cl = Cleasy()
       -- "axis" ~ ("x" | "y")
       -- "less"
@@ -798,6 +798,14 @@ class EioTest {
       -- "eel" ~ 'e'
       -- "bass" ~ 'b' ~ (_double, () => Double.NaN)
       -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
+
+    val ar = cl.parse(Array("--axis=y", "-ewh", "normal", "--bass=14.2")).get
+
+    T ~ (ar ~ "axis") ==== Some("y") --: typed[Option["x" | "y"]]
+    T ~ (ar ~ "bass") ==== 14.2      --: typed[Double]
+    T ~ (ar ~ "eel")  ==== Some(())  --: typed[Option[Unit]]
+    T ~ (ar ~ "x")    ==== None      --: typed[Option[Option[Int]]]
+    T ~ ar.args.toSeq ==== Seq("normal")
 
     val cd = Cleasy()
       -- "axis".x ~ ("x" | "y")
@@ -812,9 +820,15 @@ class EioTest {
       -- "bass".x ~ 'b' ~ (_double, () => Double.NaN)
       -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
 
-    val ar = cl.parse(Array("--axis=y", "-ewh", "normal", "--good=yes")).get
+    val br = cd.parse(Array("hi", "--g=n", "-gwwwx", "--x=", "--x=2", "--x=-2", "there", "--herring=5", "--", "-nop", "--nope", "--")).get
 
-    T ~ (ar ~ "axis") ==== Some("y") --: typed[Option["x" | "y"]]
+    T ~ (br ~ "less")    ==== List()  --: typed[List[Unit]]
+    T ~ (br ~ "g")       ==== List(false, true)
+    T ~ (br ~ "good")    ==== List(false)
+    T ~ (br ~ "w")       ==== List((), (), ())
+    T ~ (br ~ "x")       ==== List(None, None, Some(2), Some(-2)) --: typed[List[Option[Int]]]
+    T ~ (br ~ "herring") ==== List(Left(5)) --: typed[List[Either[Int, Boolean]]]
+    T ~ br.args.toSeq ==== Seq("hi", "there", "-nop", "--nope", "--")
 
 
   @Test
