@@ -783,6 +783,41 @@ class EioTest {
 
 
   @Test
+  def cleasyTest(): Unit =
+    import cleasy.*
+  
+    val cl = Cleasy()
+      -- "axis" ~ ("x" | "y")
+      -- "less"
+      -- "more" % "This is a really long description just to see what happens and whether it wraps or not"
+      -- "good" ~ (_tf, () => false)
+      -- 'x' ~ _int.maybe
+      -- 'w'
+      -- 'g' ~ (_tf, () => false)
+      -- "herring" ~ 'h' ~ (_tf | _int)
+      -- "eel" ~ 'e'
+      -- "bass" ~ 'b' ~ (_double, () => Double.NaN)
+      -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
+
+    val cd = Cleasy()
+      -- "axis".x ~ ("x" | "y")
+      -- "less".x
+      -- "more".x % "This is a really long description just to see what happens and whether it wraps or not"
+      -- "good".x ~ (_tf, () => false)
+      -- 'x'.x ~ _int.maybe
+      -- 'w'.x
+      -- 'g'.x ~ (_tf, () => false)
+      -- "herring".x ~ 'h' ~ (_tf | _int)
+      -- "eel".x ~ 'e'
+      -- "bass".x ~ 'b' ~ (_double, () => Double.NaN)
+      -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
+
+    val ar = cl.parse(Array("--axis=y", "-ewh", "normal", "--good=yes")).get
+
+    T ~ (ar ~ "axis") ==== Some("y") --: typed[Option["x" | "y"]]
+
+
+  @Test
   def readwriteTest(): Unit =
     val rng = Pcg64(9569856892L)
     val b9999 = rng.arrayB(9999)

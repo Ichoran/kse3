@@ -10,12 +10,12 @@ import scala.util.boundary.Break
 extension (t: Throwable) {
   /** Indicates that a throwable is meant to be caught as a normal part of control flow. */
   def catchable: Boolean = t match
-    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError | _: ControlThrowable | _: Break[?] => false
+    case _: VirtualMachineError |  _: InterruptedException | _: LinkageError | _: ControlThrowable | _: Break[?] => false
     case _ => true
 
   /** Indicates that a throwable should be caught rather than letting it kill the current thread. */
   def threadCatchable: Boolean = t match
-    case _: VirtualMachineError | _: ThreadDeath | _: InterruptedException | _: LinkageError => false
+    case _: VirtualMachineError |  _: InterruptedException | _: LinkageError => false
     case _ => true
 
   /** True if the Throwable or any causes has a stack trace */
