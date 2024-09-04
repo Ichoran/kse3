@@ -1175,12 +1175,12 @@ class EioTest {
     T ~ c3.parse(Array("1", "--", "-s", "--x")).get.args           =**= Array("1", "-s", "--x")
     T ~ c3.parse(Array("-w", "1", "2", "--", "-w", "-3")).get.args =**= Array("2", "-w", "-3")
 
-    val c4 = Cleasy("Big Grand Title")
+    val c4 = Cleasy("Big Grand Title", _ => "That's all, folks!")
       -- "salmon" ~ 's' ~ _str.desc("style") % "Request your preferred method of preparation"
       -- 'n'.x ~ _int.desc("count") % "How many?  (May repeat.)"
       -- "eel" ~ (_double.desc("length"), () => 1.0) % "You may specify the size of your eel"
       -- 'x' % "Crossed out"
-      -- 'y'.x % "Whyed out"
+      -- 'y'.x % "Whyed out, and why shouldn't it be?  X can't have all the fun, now, can it?  Surely not!"
       -- 'z' % "Zonked out"
 
     val a4 = c4.parse(Array("foo", "-n", "5", "--n=7", "-yn", "3", "bar", "-xyys", "raw", "baz", "--", "-n", "9")).get
@@ -1223,6 +1223,13 @@ class EioTest {
       T ~ (t4 ~ "y")        ==== List(((), 4), ((), 7), ((), 7))
       T ~ (t4 ~ "z")        ==== None
     }
+
+    val u4 = c4.userString().linesIterator.toArray
+
+    T ~ u4(0) ==== "Big Grand Title"
+    T ~ u4.find(_.startsWith("--salmon")).exists(x => x.contains("preferred") && x.contains("-s style")) ==== true
+    T ~ u4.forall(_.length < 80) ==== true
+    T ~ u4(End) ==== "That's all, folks!"
 
 
   @Test
