@@ -28,7 +28,7 @@ Make sure your module has a sufficiently recent 3.4 or later (at least 3.4.2).  
 def scalaVersion = "3.5.0"
 ```
 
-And add at least the first line out of
+And add at least one of
 
 ```scala
 ivy"com.github.ichoran::kse3-basics:0.3.11"
@@ -37,25 +37,38 @@ ivy"com.github.ichoran::kse3-maths:0.3.11"
 ivy"com.github.ichoran::kse3-eio:0.3.11"
 ```
 
-to try it out.  If you use some other build system, you can probably figure out from the above what you need.
+to try it out.  Or, the scala-cli header equivalent:
+
+```scala
+//> using scala 3.5.0
+//> using dep com.github.ichoran::kse3-flow:0.3.11
+//> using dep com.github.ichoran::kse3-flow:0.3.11
+//> using dep com.github.ichoran::kse3-maths:0.3.11
+//> using dep com.github.ichoran::kse3-maths:0.3.11
+```
+
+If you use some other build system, you can probably figure out from the above what you need.
 
 Then in your code,
 
 ```scala
-import kse.basics.{given, _}
-import kse.basics.intervals.{given, _}
-import kse.basics.labels.{given, _}
-import kse.flow.{given, _}
-import kse.maths.{given, _}
-import kse.maths.packed.{given, _}
-import kse.eio.{given, _}
+import kse.basics.{given, *}
+import kse.basics.intervals.{given, *}
+import kse.basics.labels.{given, *}
+import kse.flow.{given, *}
+import kse.maths.{given, *}
+import kse.maths.packed.{given, *}
+import kse.eio.{given, *}
 ```
 
 and you have everything available.
 
 (Note: I don't test without the `given` imports.  They may work, as Kse3 generally puts
-givens in places where they'll be automatically found.  No givens would be defined that
+givens in places where they'll be automatically found.  No givens are defined that
 aren't essential for functionality, so if they're there, you want to import them.)
+
+(Note 2: I find intervals indispensible but labels and packed maths only occasionally
+useful, so you may not want to bother with lines 3 and 6.)
 
 #### What about infix?
 

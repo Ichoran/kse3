@@ -786,49 +786,443 @@ class EioTest {
   def cleasyTest(): Unit =
     import cleasy.*
 
-    val cl = Cleasy()
-      -- "axis" ~ ("x" | "y")
-      -- "less"
-      -- "more" % "This is a really long description just to see what happens and whether it wraps or not"
-      -- "good" ~ (_tf, () => false)
-      -- 'x' ~ _int.maybe
-      -- 'w'
-      -- 'g' ~ (_tf, () => false)
-      -- "herring" ~ 'h' ~ (_tf | _int)
-      -- "eel" ~ 'e'
-      -- "bass" ~ 'b' ~ (_double, () => Double.NaN)
-      -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
+    T ~ _u("")  ==== Is(()) --: typed[Unit Or Err]
+    T ~ _u("x") ==== runtype[Alt[?]]
 
-    val ar = cl.parse(Array("--axis=y", "-ewh", "normal", "--bass=14.2")).get
+    Array("t", "T", "true", "y", "Y", "yes", "on").peek(): x =>
+      T ~ _tf(x) ==== Is(true) --: typed[Boolean Or Err]
+    Array("f", "F", "false", "n", "N", "no", "off").peek(): x =>
+      T ~ _tf(x) ==== Is(false) --: typed[Boolean Or Err]
+    T ~ _tf("eel") ==== runtype[Alt[?]]
 
-    T ~ (ar ~ "axis") ==== Some("y") --: typed[Option["x" | "y"]]
-    T ~ (ar ~ "bass") ==== 14.2      --: typed[Double]
-    T ~ (ar ~ "eel")  ==== Some(())  --: typed[Option[Unit]]
-    T ~ (ar ~ "x")    ==== None      --: typed[Option[Option[Int]]]
-    T ~ ar.args.toSeq ==== Seq("normal")
+    T ~ _int("715") ==== Is(715) --: typed[Int Or Err]
+    T ~ _int("-74") ==== Is(-74)
+    T ~ _int("2.9") ==== runtype[Alt[?]]
+    T ~ _int("eel") ==== runtype[Alt[?]]
+    T ~ _int("")    ==== runtype[Alt[?]]
 
-    val cd = Cleasy()
-      -- "axis".x ~ ("x" | "y")
-      -- "less".x
-      -- "more".x % "This is a really long description just to see what happens and whether it wraps or not"
-      -- "good".x ~ (_tf, () => false)
-      -- 'x'.x ~ _int.maybe
-      -- 'w'.x
-      -- 'g'.x ~ (_tf, () => false)
-      -- "herring".x ~ 'h' ~ (_tf | _int)
-      -- "eel".x ~ 'e'
-      -- "bass".x ~ 'b' ~ (_double, () => Double.NaN)
-      -- OptN.withDefault("salmon", 's', _tf, () => false) % "ThisIsAReallyLongDescriptionJustToSeeWhatHappensAndWhetherItWrapsOrNot!"
+    T ~ _uint("715") ==== Is(715) --: typed[UInt Or Err]
+    T ~ _uint("-74") ==== runtype[Alt[?]]
+    T ~ _uint("2.9") ==== runtype[Alt[?]]
+    T ~ _uint("eel") ==== runtype[Alt[?]]
 
-    val br = cd.parse(Array("hi", "--g=n", "-gwwwx", "--x=", "--x=2", "--x=-2", "there", "--herring=5", "--", "-nop", "--nope", "--")).get
+    T ~ _long("7150250350") ==== Is(7150250350L) --: typed[Long Or Err]
+    T ~ _long("-74")        ==== Is(-74L)
+    T ~ _long("2.9")        ==== runtype[Alt[?]]
+    T ~ _long("eel")        ==== runtype[Alt[?]]
 
-    T ~ (br ~ "less")    ==== List()  --: typed[List[Unit]]
-    T ~ (br ~ "g")       ==== List(false, true)
-    T ~ (br ~ "good")    ==== List(false)
-    T ~ (br ~ "w")       ==== List((), (), ())
-    T ~ (br ~ "x")       ==== List(None, None, Some(2), Some(-2)) --: typed[List[Option[Int]]]
-    T ~ (br ~ "herring") ==== List(Left(5)) --: typed[List[Either[Int, Boolean]]]
-    T ~ br.args.toSeq ==== Seq("hi", "there", "-nop", "--nope", "--")
+    T ~ _ulong("7150250350") ==== Is(7150250350L) --: typed[ULong Or Err]
+    T ~ _ulong("-74")        ==== runtype[Alt[?]]
+    T ~ _ulong("2.9")        ==== runtype[Alt[?]]
+    T ~ _ulong("eel")        ==== runtype[Alt[?]]
+
+    T ~ _double("3.14159")  ==== Is(3.14159) --: typed[Double Or Err]
+    T ~ _double("-0.31e1")  ==== Is(-3.1)
+    T ~ _double("infinity") ==== Is(Double.PositiveInfinity)
+    T ~ _double("inf")      ==== Is(Double.PositiveInfinity)
+    T ~ _double("-Inf")     ==== Is(Double.NegativeInfinity)
+    T ~ _double("nan")      ==== Is(Double.NaN)
+    T ~ _double("-NaN")     ==== Is(Double.NaN)
+    T ~ _double("eel")      ==== runtype[Alt[?]]
+
+    T ~ _str("herring") ==== Is("herring") --: typed[String Or Err]
+
+    T ~ _path("eel/cod") ==== Is("eel/cod".path) --: typed[Path Or Err]
+
+    T ~ _dir("eio/test")  ==== Is("eio/test".path) --: typed[Path Or Err]
+    T ~ _dir("not/found") ==== runtype[Alt[?]]
+
+    T ~ _file("eio/test/src/EioTest.scala") ==== Is("eio/test/src/EioTest.scala".path) --: typed[Path Or Err]
+    T ~ _file("not/found")                  ==== runtype[Alt[?]]
+
+    T ~ the("eel")("eel")   ==== Is("eel")
+    T ~ ("y" | "n")("y")    ==== Is("y")
+    T ~ ("y" | "n")("n")    ==== Is("n")
+    T ~ ("y" | "n")("eel")  ==== runtype[Alt[?]]
+
+    T ~ _int.maybe("")  ==== None --: typed[Option[Int] Or Err]
+    T ~ _int.maybe("1") ==== Some(1)
+    T ~ _int.maybe("x") ==== runtype[Alt[?]]
+
+    T ~ (_int | the("no"))("12")  ==== Right(12) --: typed[Either["no", Int] Or Err]
+    T ~ (_int | the("no"))("no")  ==== Left("no")
+    T ~ (_int | the("no"))("eel") ==== runtype[Alt[?]]
+
+    T ~ _str.userString            ==== "text"
+    T ~ _str.desc("hi").userString ==== "hi"
+
+    T ~ "eel".x               ==== typed[OptNLabel["eel"]]
+    T ~ "eel".x.label         ==== "eel"
+    T ~ 'e'.x                 ==== typed[OptNChar['e']]
+    T ~ 'e'.x.short           ==== 'e'
+    T ~ ("eel" ~ 'e')         ==== typed[OptLabelChar['e', "eel"]]
+    T ~ ("eel" ~ 'e').label   ==== "eel"
+    T ~ ("eel" ~ 'e').short   ==== 'e'
+    T ~ ("eel".x ~ 'e')       ==== typed[OptNLabelChar['e', "eel"]]
+    T ~ ("eel".x ~ 'e').label ==== "eel"
+    T ~ ("eel".x ~ 'e').short ==== 'e'
+
+    T ! """'e' ~ "eel""""
+    T ! """("eel" ~ 'e').x"""
+
+    T ~ ("eel"   ~ _int)         ==== typed[Opt[Int, '-', "eel"]]
+    T ~ ("eel"   ~ _int).label   ==== "eel"
+    T ~ ("eel"   ~ _int).short   ==== '-'
+    T ~ ("eel"   ~ _int).parse   ==== _int
+    T ~ ('e'     ~ _int)         ==== typed[Opt[Int, 'e', "e"]]
+    T ~ ('e'     ~ _int).label   ==== "e"
+    T ~ ('e'     ~ _int).short   ==== 'e'
+    T ~ ('e'     ~ _int).parse   ==== _int
+    T ~ ("eel".x ~ _int)         ==== typed[OptN[Int, '-', "eel"]]
+    T ~ ("eel".x ~ _int).label   ==== "eel"
+    T ~ ("eel".x ~ _int).short   ==== '-'
+    T ~ ("eel".x ~ _int).parse   ==== _int
+    T ~ ("eel".x ~ _int).default ==== None
+    T ~ ('e'.x   ~ _int)         ==== typed[OptN[Int, 'e', "e"]]
+    T ~ ('e'.x   ~ _int).label   ==== "e"
+    T ~ ('e'.x   ~ _int).short   ==== 'e'
+    T ~ ('e'.x   ~ _int).parse   ==== _int
+    T ~ ('e'.x   ~ _int).default ==== None
+
+    T ~ ("eel"   ~ (_int, () => 7))            ==== typed[OptD[Int, '-', "eel"]]
+    T ~ ("eel"   ~ (_int, () => 7)).label      ==== "eel"
+    T ~ ("eel"   ~ (_int, () => 7)).short      ==== '-'
+    T ~ ("eel"   ~ (_int, () => 7)).parse      ==== _int
+    T ~ ("eel"   ~ (_int, () => 7)).default()  ==== 7
+    T ~ ('e'     ~ (_int, () => 7))            ==== typed[OptD[Int, 'e', "e"]]
+    T ~ ('e'     ~ (_int, () => 7)).label      ==== "e"
+    T ~ ('e'     ~ (_int, () => 7)).short      ==== 'e'
+    T ~ ('e'     ~ (_int, () => 7)).parse      ==== _int
+    T ~ ('e'     ~ (_int, () => 7)).default()  ==== 7
+    T ~ ("eel".x ~ (_int, () => 7))            ==== typed[OptN[Int, '-', "eel"]]
+    T ~ ("eel".x ~ (_int, () => 7)).label      ==== "eel"
+    T ~ ("eel".x ~ (_int, () => 7)).short      ==== '-'
+    T ~ ("eel".x ~ (_int, () => 7)).parse      ==== _int
+    T ~ ("eel".x ~ (_int, () => 7)).getDefault ==== Some(7)
+    T ~ ('e'.x   ~ (_int, () => 7))            ==== typed[OptN[Int, 'e', "e"]]
+    T ~ ('e'.x   ~ (_int, () => 7)).label      ==== "e"
+    T ~ ('e'.x   ~ (_int, () => 7)).short      ==== 'e'
+    T ~ ('e'.x   ~ (_int, () => 7)).parse      ==== _int
+    T ~ ('e'.x   ~ (_int, () => 7)).getDefault ==== Some(7)
+
+    T ~ ("eel"   % "fish")         ==== typed[Opt[Unit, '-', "eel"]]
+    T ~ ("eel"   % "fish").label   ==== "eel"
+    T ~ ("eel"   % "fish").short   ==== '-'
+    T ~ ("eel"   % "fish").parse   ==== _u
+    T ~ ("eel"   % "fish").about   ==== "fish"
+    T ~ ('e'     % "fish")         ==== typed[Opt[Unit, 'e', "e"]]
+    T ~ ('e'     % "fish").label   ==== "e"
+    T ~ ('e'     % "fish").short   ==== 'e'
+    T ~ ('e'     % "fish").parse   ==== _u
+    T ~ ('e'     % "fish").about   ==== "fish"
+    T ~ ("eel".x % "fish")         ==== typed[OptN[Unit, '-', "eel"]]
+    T ~ ("eel".x % "fish").label   ==== "eel"
+    T ~ ("eel".x % "fish").short   ==== '-'
+    T ~ ("eel".x % "fish").parse   ==== _u
+    T ~ ("eel".x % "fish").default ==== None
+    T ~ ("eel".x % "fish").about   ==== "fish"
+    T ~ ('e'.x   % "fish")         ==== typed[OptN[Unit, 'e', "e"]]
+    T ~ ('e'.x   % "fish").label   ==== "e"
+    T ~ ('e'.x   % "fish").short   ==== 'e'
+    T ~ ('e'.x   % "fish").parse   ==== _u
+    T ~ ('e'.x   % "fish").default ==== None
+    T ~ ('e'.x   % "fish").about   ==== "fish"
+
+    T ~ Opt("eel"                    )          ==== typed[Opt [Unit, '-', "eel"]]
+    T ~ Opt(       'e'               )          ==== typed[Opt [Unit, 'e', "e"  ]]
+    T ~ Opt("eel", 'e'               )          ==== typed[Opt [Unit, 'e', "eel"]]
+    T ~ Opt("eel",      _int         )          ==== typed[Opt [Int,  '-', "eel"]]
+    T ~ Opt(       'e', _int         )          ==== typed[Opt [Int,  'e', "e"  ]]
+    T ~ Opt("eel", 'e', _int         )          ==== typed[Opt [Int,  'e', "eel"]]
+    T ~ Opt("eel",      _int, () => 4)          ==== typed[OptD[Int,  '-', "eel"]]
+    T ~ Opt(       'e', _int, () => 4)          ==== typed[OptD[Int,  'e', "e"  ]]
+    T ~ Opt("eel", 'e', _int, () => 4)          ==== typed[OptD[Int,  'e', "eel"]]
+    T ~ Opt("eel"                    ).label    ==== "eel"
+    T ~ Opt(       'e'               ).label    ==== "e"
+    T ~ Opt("eel", 'e'               ).label    ==== "eel"
+    T ~ Opt("eel",      _int         ).label    ==== "eel"
+    T ~ Opt(       'e', _int         ).label    ==== "e"
+    T ~ Opt("eel", 'e', _int         ).label    ==== "eel"
+    T ~ Opt("eel",      _int, () => 4).label    ==== "eel"
+    T ~ Opt(       'e', _int, () => 4).label    ==== "e"
+    T ~ Opt("eel", 'e', _int, () => 4).label    ==== "eel"
+    T ~ Opt("eel"                    ).short    ==== '-'
+    T ~ Opt(       'e'               ).short    ==== 'e'
+    T ~ Opt("eel", 'e'               ).short    ==== 'e'
+    T ~ Opt("eel",      _int         ).short    ==== '-'
+    T ~ Opt(       'e', _int         ).short    ==== 'e'
+    T ~ Opt("eel", 'e', _int         ).short    ==== 'e'
+    T ~ Opt("eel",      _int, () => 4).short    ==== '-'
+    T ~ Opt(       'e', _int, () => 4).short    ==== 'e'
+    T ~ Opt("eel", 'e', _int, () => 4).short    ==== 'e'
+    T ~ Opt("eel"                    ).parse    ==== _u
+    T ~ Opt(       'e'               ).parse    ==== _u
+    T ~ Opt("eel", 'e'               ).parse    ==== _u
+    T ~ Opt("eel",      _int         ).parse    ==== _int
+    T ~ Opt(       'e', _int         ).parse    ==== _int
+    T ~ Opt("eel", 'e', _int         ).parse    ==== _int
+    T ~ Opt("eel",      _int, () => 4).parse    ==== _int
+    T ~ Opt(       'e', _int, () => 4).parse    ==== _int
+    T ~ Opt("eel", 'e', _int, () => 4).parse    ==== _int
+    T ~ Opt("eel",      _int, () => 4).default() ==== 4
+    T ~ Opt(       'e', _int, () => 4).default() ==== 4
+    T ~ Opt("eel", 'e', _int, () => 4).default() ==== 4
+
+    T ~ OptN("eel"                    )           ==== typed[OptN[Unit, '-', "eel"]]
+    T ~ OptN(       'e'               )           ==== typed[OptN[Unit, 'e', "e"  ]]
+    T ~ OptN("eel", 'e'               )           ==== typed[OptN[Unit, 'e', "eel"]]
+    T ~ OptN("eel",      _int         )           ==== typed[OptN[Int,  '-', "eel"]]
+    T ~ OptN(       'e', _int         )           ==== typed[OptN[Int,  'e', "e"  ]]
+    T ~ OptN("eel", 'e', _int         )           ==== typed[OptN[Int,  'e', "eel"]]
+    T ~ OptN("eel",      _int, () => 4)           ==== typed[OptN[Int,  '-', "eel"]]
+    T ~ OptN(       'e', _int, () => 4)           ==== typed[OptN[Int,  'e', "e"  ]]
+    T ~ OptN("eel", 'e', _int, () => 4)           ==== typed[OptN[Int,  'e', "eel"]]
+    T ~ OptN("eel"                    ).label     ==== "eel"
+    T ~ OptN(       'e'               ).label     ==== "e"
+    T ~ OptN("eel", 'e'               ).label     ==== "eel"
+    T ~ OptN("eel",      _int         ).label     ==== "eel"
+    T ~ OptN(       'e', _int         ).label     ==== "e"
+    T ~ OptN("eel", 'e', _int         ).label     ==== "eel"
+    T ~ OptN("eel",      _int, () => 4).label     ==== "eel"
+    T ~ OptN(       'e', _int, () => 4).label     ==== "e"
+    T ~ OptN("eel", 'e', _int, () => 4).label     ==== "eel"
+    T ~ OptN("eel"                    ).short     ==== '-'
+    T ~ OptN(       'e'               ).short     ==== 'e'
+    T ~ OptN("eel", 'e'               ).short     ==== 'e'
+    T ~ OptN("eel",      _int         ).short     ==== '-'
+    T ~ OptN(       'e', _int         ).short     ==== 'e'
+    T ~ OptN("eel", 'e', _int         ).short     ==== 'e'
+    T ~ OptN("eel",      _int, () => 4).short     ==== '-'
+    T ~ OptN(       'e', _int, () => 4).short     ==== 'e'
+    T ~ OptN("eel", 'e', _int, () => 4).short     ==== 'e'
+    T ~ OptN("eel"                    ).parse     ==== _u
+    T ~ OptN(       'e'               ).parse     ==== _u
+    T ~ OptN("eel", 'e'               ).parse     ==== _u
+    T ~ OptN("eel",      _int         ).parse     ==== _int
+    T ~ OptN(       'e', _int         ).parse     ==== _int
+    T ~ OptN("eel", 'e', _int         ).parse     ==== _int
+    T ~ OptN("eel",      _int, () => 4).parse     ==== _int
+    T ~ OptN(       'e', _int, () => 4).parse     ==== _int
+    T ~ OptN("eel", 'e', _int, () => 4).parse     ==== _int
+    T ~ OptN("eel"                    ).getDefault ==== None
+    T ~ OptN(       'e'               ).getDefault ==== None
+    T ~ OptN("eel", 'e'               ).getDefault ==== None
+    T ~ OptN("eel",      _int         ).getDefault ==== None
+    T ~ OptN(       'e', _int         ).getDefault ==== None
+    T ~ OptN("eel", 'e', _int         ).getDefault ==== None
+    T ~ OptN("eel",      _int, () => 4).getDefault ==== Some(4)
+    T ~ OptN(       'e', _int, () => 4).getDefault ==== Some(4)
+    T ~ OptN("eel", 'e', _int, () => 4).getDefault ==== Some(4)
+
+    val nine = () => 9L.u
+    T ~ Opt.of("herring", 'h', _ulong)                 ==== Opt("herring", 'h', _ulong)
+    T ~ Opt.withDefault("herring", 'h', _ulong, nine)  ==== Opt("herring", 'h', _ulong, nine)
+    T ~ OptD("herring", _ulong, nine)                  ==== Opt("herring", _ulong, nine)
+    T ~ OptD('h', _ulong, nine)                        ==== Opt('h', _ulong, nine)
+    T ~ OptD("herring", 'h', _ulong, nine)             ==== Opt("herring", 'h', _ulong, nine)
+    T ~ OptD.of("herring", 'h', _ulong, nine)          ==== Opt("herring", 'h', _ulong, nine)
+    T ~ OptN.of("herring", 'h', _ulong)                ==== OptN("herring", 'h', _ulong)
+    T ~ OptN.withDefault("herring", 'h', _ulong, nine) ==== OptN("herring", 'h', _ulong, nine)
+
+    val bass = Opt.of("bass", 'b', _tf)
+    T ~ bass.comment("fish")       ==== typed[Opt[Boolean, 'b', "bass"]]
+    T ~ (bass % "fish")            ==== typed[Opt[Boolean, 'b', "bass"]]
+    T ~ bass.comment("fish").label ==== bass.label
+    T ~ bass.comment("fish").short ==== bass.short
+    T ~ bass.comment("fish").parse ==== bass.parse
+    T ~ bass.comment("fish").about ==== "fish"
+    T ~ (bass % "fish")            ==== bass.comment("fish")
+
+    val bassfish = bass % "fish"
+    val nope = () => false
+    T ~ bassfish.x            ==== typed[OptN[Boolean, 'b', "bass"]]
+    T ~ bassfish.x.label      ==== bassfish.label
+    T ~ bassfish.x.short      ==== bassfish.short
+    T ~ bassfish.x.parse      ==== bassfish.parse
+    T ~ bassfish.x.about      ==== bassfish.about
+    T ~ bassfish.x.getDefault ==== None
+    T ~ bassfish.withDefault(nope)           ==== typed[OptD[Boolean, 'b', "bass"]]
+    T ~ bassfish.withDefault(nope).label     ==== bassfish.label
+    T ~ bassfish.withDefault(nope).short     ==== bassfish.short
+    T ~ bassfish.withDefault(nope).parse     ==== bassfish.parse
+    T ~ bassfish.withDefault(nope).about     ==== bassfish.about
+    T ~ bassfish.withDefault(nope).default() ==== false
+
+    val sole = OptD.of("sole", 's', _tf, nope)
+    T ~ sole.comment("fish")       ==== typed[OptD[Boolean, 's', "sole"]]
+    T ~ (sole % "fish")            ==== typed[OptD[Boolean, 's', "sole"]]
+    T ~ sole.comment("fish").label ==== sole.label
+    T ~ sole.comment("fish").short ==== sole.short
+    T ~ sole.comment("fish").parse ==== sole.parse
+    T ~ sole.comment("fish").about ==== "fish"
+    T ~ (sole % "fish")            ==== sole.comment("fish")
+
+    val solefish = sole % "fish"
+    T ~ solefish.x            ==== typed[OptN[Boolean, 's', "sole"]]
+    T ~ solefish.x.label      ==== solefish.label
+    T ~ solefish.x.short      ==== solefish.short
+    T ~ solefish.x.parse      ==== solefish.parse
+    T ~ solefish.x.about      ==== solefish.about
+    T ~ solefish.x.getDefault ==== Some(false)
+
+    val tuna = OptN.withDefault("tuna", 't', _tf, nope)
+    T ~ tuna.comment("fish")         ==== typed[OptN[Boolean, 't', "tuna"]]
+    T ~ (tuna % "fish")              ==== typed[OptN[Boolean, 't', "tuna"]]
+    T ~ tuna.comment("fish").label   ==== tuna.label
+    T ~ tuna.comment("fish").short   ==== tuna.short
+    T ~ tuna.comment("fish").parse   ==== tuna.parse
+    T ~ tuna.comment("fish").default ==== tuna.default
+    T ~ tuna.comment("fish").about   ==== "fish"
+    T ~ (tuna % "fish")              ==== tuna.comment("fish")
+
+    val c0 = Cleasy()
+      -- "eel"
+      -- 'h'
+      -- "bass" ~ 'b'
+      -- "minnow".x
+      -- 't'.x
+      -- "salmon".x ~ 's'
+
+    T ~ c0.parse(Array("--eel")).get("eel")                   ==== Some(())
+    T ~ c0.parse(Array("-h")).get("h")                        ==== Some(())
+    T ~ c0.parse(Array("--bass")).get("bass")                 ==== Some(())
+    T ~ c0.parse(Array("-b")).get("bass")                     ==== Some(())
+    T ~ c0.parse(Array("--minnow", "--minnow")).get("minnow") ==== List((), ())
+    T ~ c0.parse(Array("-tttt", "-t")).get("t")               ==== List((), (), (), (), ())
+    T ~ c0.parse(Array("--salmon", "-s")).get("salmon")       ==== List((), ())
+    T ~ c0.parse(Array("--sturgeon"))                         ==== runtype[Alt[?]]
+    T ~ c0.parse(Array("-hz"))                                ==== runtype[Alt[?]]
+    T ~ c0.parse(Array("-zh"))                                ==== runtype[Alt[?]]
+    T ~ c0.parse(Array("eel", "-z"))                          ==== runtype[Alt[?]]
+
+    T ! """c0 ~ 'b'"""
+    T ! """c0 ~ "t""""
+
+    val c1 = Cleasy()
+      + Opt("perch", _int)
+      + Opt("bass", _int.maybe)
+      + OptD("minnow", _int, () => 2)
+      + OptD("cod", _int.maybe, () => Some(6))
+
+    T ~ c1.parse(Array("--perch=4")).get("perch")   ==== Some(4)
+    T ~ c1.parse(Array("--perch"))                  ==== runtype[Alt[?]]
+    T ~ c1.parse(Array("--bass=5")).get("bass")     ==== Some(Some(5))
+    T ~ c1.parse(Array("--bass")).get("bass")       ==== Some(None)
+    T ~ c1.parse(Array("--minnow=3")).get("minnow") ==== 3
+    T ~ c1.parse(Array("foo", "bar")).get("minnow") ==== 2
+    T ~ c1.parse(Array("--cod=7")).get("cod")       ==== Some(7)
+    T ~ c1.parse(Array("--cod")).get("cod")         ==== None
+    T ~ c1.parse(Array("foo", "bar")).get("cod")    ==== Some(6)
+
+    val c2 = Cleasy()
+      + OptN("perch", _int)
+      + OptN("bass", _int.maybe)
+      + OptN("minnow", _int, () => 2)
+      + OptN("cod", _int.maybe, () => Some(6))
+
+    T ~ c2.parse(Array("foo")).get("perch")                       ==== Nil
+    T ~ c2.parse(Array("--perch=5", "--perch=3")).get("perch")    ==== List(5, 3)
+    T ~ c2.parse(Array("foo")).get("bass")                        ==== Nil
+    T ~ c2.parse(Array("--bass=5", "--bass")).get("bass")         ==== List(Some(5), None)
+    T ~ c2.parse(Array("foo")).get("minnow")                      ==== List(2)
+    T ~ c2.parse(Array("--minnow=8")).get("minnow")               ==== List(8)
+    T ~ c2.parse(Array("--minnow=8", "--minnow=1")).get("minnow") ==== List(8, 1)
+    T ~ c2.parse(Array("foo")).get("cod")                         ==== List(Some(6))
+    T ~ c2.parse(Array("--cod=7")).get("cod")                     ==== List(Some(7))
+    T ~ c2.parse(Array("--cod")).get("cod")                       ==== List(None)
+    T ~ c2.parse(Array("--cod=7", "--cod")).get("cod")            ==== List(Some(7), None)
+
+    T ! """c2 + OptN("perch", _tf)"""
+    T ! """c2 + Opt("perch", _tf)"""
+    T ! """c2 + OptD("perch", _tf, () => true)"""
+
+    val c3 = Cleasy()
+      + Opt('x')
+      + OptN('y')
+      + Opt('z', _int)
+      + OptN('w', _int)
+      + OptD('v', _int, () => -1)
+      + OptN('u', _int, () => -1)
+      + Opt('t', _int.maybe)
+      + Opt('s', _str)
+
+    T ~ c3.parse(Array("1", "2", "3", "4")).get.args          =**= Array("1", "2", "3", "4")
+    T ~ c3.parse(Array("1", "-x", "2", "3", "4")).get.args    =**= Array("1", "2", "3", "4")
+    T ~ c3.parse(Array("1", "-t", "2", "3", "4")).get.args    =**= Array("1", "2", "3", "4")
+    T ~ c3.parse(Array("1", "-z", "2", "3", "4")).get.args    =**= Array("1", "3", "4")
+    T ~ c3.parse(Array("1", "-v", "2", "3", "4")).get.args    =**= Array("1", "3", "4")
+    T ~ c3.parse(Array("1", "2", "3", "4", "-z"))             ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("1", "2", "3", "4", "-w"))             ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("1", "2", "3", "4", "-v"))             ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("1", "2", "3", "4", "-u"))             ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("1", "-xz", "2", "3", "4")).get.args   =**= Array("1", "3", "4")
+    T ~ c3.parse(Array("1", "-xv", "2", "3", "4")).get.args   =**= Array("1", "3", "4")
+    T ~ c3.parse(Array("1", "-y", "2", "3", "-y")).get.args   =**= Array("1", "2", "3")
+    T ~ c3.parse(Array("1", "-w", "2", "-w", "3")).get.args   =**= Array("1")
+    T ~ c3.parse(Array("1", "-xw", "2", "-yw", "3")).get.args =**= Array("1")
+    T ~ c3.parse(Array("1", "-u", "2", "-u", "3")).get.args   =**= Array("1")
+    T ~ c3.parse(Array("1", "-xu", "2", "-yu", "3")).get.args =**= Array("1")
+    T ~ c3.parse(Array("-z", "-x"))                           ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-w", "-x"))                           ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-v", "-x"))                           ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-u", "-x"))                           ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-s", "-x"))                           ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-z", "--x"))                          ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-w", "--x"))                          ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-v", "--x"))                          ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-u", "--x"))                          ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("-s", "--x"))                          ==== runtype[Alt[?]]
+    T ~ c3.parse(Array("1", "--", "-s", "--x")).get.args           =**= Array("1", "-s", "--x")
+    T ~ c3.parse(Array("-w", "1", "2", "--", "-w", "-3")).get.args =**= Array("2", "-w", "-3")
+
+    val c4 = Cleasy("Big Grand Title")
+      -- "salmon" ~ 's' ~ _str.desc("style") % "Request your preferred method of preparation"
+      -- 'n'.x ~ _int.desc("count") % "How many?  (May repeat.)"
+      -- "eel" ~ (_double.desc("length"), () => 1.0) % "You may specify the size of your eel"
+      -- 'x' % "Crossed out"
+      -- 'y'.x % "Whyed out"
+      -- 'z' % "Zonked out"
+
+    val a4 = c4.parse(Array("foo", "-n", "5", "--n=7", "-yn", "3", "bar", "-xyys", "raw", "baz", "--", "-n", "9")).get
+
+    T ~ a4.args              =**= Array("foo", "bar", "baz", "-n", "9")
+    T ~ a4.indexedArgs       =**= Array(("foo", 0), ("bar", 6), ("baz", 9), ("-n", 11), ("9", 12))
+    T ~ a4("salmon")         ==== Some("raw")
+    T ~ a4("n")              ==== List(5, 7, 3)
+    T ~ a4("eel")            ==== 1.0
+    T ~ a4("x")              ==== Some(())
+    T ~ a4("y")              ==== List((), (), ())
+    T ~ a4("z")              ==== None
+    T ~ a4.found("salmon")   ==== true
+    T ~ a4.found("n")        ==== true
+    T ~ a4.found("eel")      ==== false
+    T ~ a4.found("x")        ==== true
+    T ~ a4.found("y")        ==== true
+    T ~ a4.found("z")        ==== false
+    T ~ a4.require("salmon") ==== ()
+    T ~ a4.require("n")      ==== ()
+    T ~ a4.require("eel")    ==== runtype[Alt[?]]
+    T ~ a4.require("x")      ==== ()
+    T ~ a4.require("y")      ==== ()
+    T ~ a4.require("z")      ==== runtype[Alt[?]]
+    T ~ a4.indexed("salmon") ==== Some(("raw", 7)) --: typed[Option[(String, Int)]]
+    T ~ a4.indexed("n")      ==== List((5, 1), (7, 3), (3, 4))
+    T ~ a4.indexed("eel")    ==== (1.0, None)
+    T ~ a4.indexed("x")      ==== Some(((), 7))
+    T ~ a4.indexed("y")      ==== List(((), 4), ((), 7), ((), 7))
+    T ~ a4.indexed("z")      ==== None
+
+    val t4 = a4.options
+
+    {
+      import kse.basics.labels.*
+      T ~ (t4 ~ "salmon")   ==== Some(("raw", 7))
+      T ~ (t4 ~ "n")        ==== List((5, 1), (7, 3), (3, 4))
+      T ~ (t4 ~ "eel")      ==== (1.0, None)
+      T ~ (t4 ~ "x")        ==== Some(((), 7))
+      T ~ (t4 ~ "y")        ==== List(((), 4), ((), 7), ((), 7))
+      T ~ (t4 ~ "z")        ==== None
+    }
 
 
   @Test
