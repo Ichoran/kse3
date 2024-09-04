@@ -374,9 +374,66 @@ perusing the ScalaDoc, the unit tests, or the code.
 
 This exists but presently is undocumented.  Feel free to look through the unit tests to see what can be done, however!
 
+A couple of highlights include unsigned primitives (`UInt`, `ULong`, and the like) which do math as they should (use `.unsigned` and `.signed` to
+convert back and forth (`.u` and `.s` if you want less typing), and `.pr` to get a string for the unsigned verson).
+So, for example, `0xE0000000.u / 2.u` is `0x40000000`.  And if you want math to be bounded rather than to wrap, use `+#`, `/#`, etc. operators to
+clip the value inside the range, or `+!`, `/!` etc. to throw an exception.  For example `UByte(0xF0) +# UByte(0x80)` is `UByte(0xFF)`.
+
+But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, and more.
+
 ### kse.eio
 
-This also partly exists but is also undocumented.  There are some tests, though!
+This also partly exists but is also mostly undocumented.  There are some tests, though!
+
+A couple of highlights include the path tools--just `.path` a `String` and you have a `java.nio.file.Path` and you can
+do a bunch of handy things with it like tell if it exists (`.exists`), change the extension `.extTo("jpg")`, and so on.
+
+And there's a very easy and yet safe command-line option parser.  Create it like so:
+
+```scala
+val parser =
+  import kse.eio.cleasy.*    // Don't import this everywhere!  Too many decorators!
+  Cleasy("My Nifty Title")
+    -- "axis" ~ ("x" | "y" | "z")      % "Pick which axis to rotate"
+    -- "angle" ~ (_double, () => 0.0)  % "Angle of rotation (default 0)"
+    -- "quiet" ~ 'q'                   % "Print as little as possible to stdout"
+    -- 'n'.x ~ _uint                   % "Rotate this many times before display (may be repeated)"
+```
+
+If you don't like the nifty operators, you can use `+ Opt("axis", "x" | "y" | "z")` style instead, and `.comment("...")` instead of `%`
+for the description.
+
+Then you can parse like so:
+
+```scala
+val args = Array("foo", "-qn", "99", "--axis=y")
+val oarg = parser.parse(args).?   // You're inside an `Err.Or:` block, right?
+val axis = oarg("axis")           // Some("y")
+val shhh = oarg.found("quiet")    // true
+val rots = oarg("n")              // List(99)
+val angl = oarg("angle")          // 0.0, the default
+val oops = oarg("oops")           // Does not compile!  You can't mess this up!
+```
+
+There are pre-defined parsers for flexible Boolean `_tf`, numbers (e.g. `_int`, `_ulong`, `_double`), strings (`_str`) and so on.
+
+The default error messages are sufficiently clear to pass back to a user who is familiar with command-lines.
+
+To print all the options, get a description string using `parser.userString()`:
+
+```text
+My Nifty Title
+
+Option         Short     Description                                           
+-------------  --------  ------------------------------------------------------
+--axis=x/y/z              Pick which axis to rotate
+--angle=value             Angle of rotation (default 0)
+--quiet        -q         Print as little as possible to stdout
+--n=value      -n value   Rotate this many times before display (may be
+                          repeated)
+Use -- to end option parsing. Short options may be combined as -abc.
+
+```
 
 ### kse.testing
 
