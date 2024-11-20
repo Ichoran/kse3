@@ -3,10 +3,14 @@
 
 package kse.flow
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.reflect.ClassTag
 
 import kse.basics._
 import kse.basics.intervals._
+
 
 //////////////////////////////////////////////////////////////
 /// Methods for dealing with errors and Ors in collections ///
@@ -59,7 +63,7 @@ extension [X, Y](a: Array[X Or Y]) {
 
 extension [A, CC[_]](coll: CC[A Or Err])(using iter: scala.collection.generic.IsIterable[CC[A Or Err]]) {
   /** Collects all favored results as favored, or gives the first disfavored result as disfavored */
-  def valid(using factory: scala.collection.Factory[A, CC[A]], id: iter.A =:= (A Or Err)): CC[A] Or Err = Or.Ret:
+  def valid(using factory: scala.collection.Factory[A, CC[A]], id: iter.A =:= (A Or Err)): Ask[CC[A]] = Or.Ret:
     val b = factory.newBuilder
     val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]] // id witnesses that this must be the case
     while i.hasNext do
@@ -119,7 +123,7 @@ extension [A, CC[_]](coll: CC[A Or Err])(using seq: scala.collection.generic.IsS
 
 
 extension [A](a: Array[A Or Err]) {
-  def valid(using ClassTag[A]): Array[A] Or Err = Or.Ret:
+  def valid(using ClassTag[A]): Ask[Array[A]] = Or.Ret:
     a.copyWith(_.?)
 
   def errors: Array[Err] =
@@ -189,7 +193,7 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
   /** Maps a value where an error might occur, returning the (first) error as disfavored,
     * and the mapped result as favored if no error is encountered
     */
-  def validMap[B](f: A => B Or Err)(using factory: scala.collection.Factory[B, CC[B]], id: iter.A =:= A): CC[B] Or Err = Or.Ret:
+  def validMap[B](f: A => B Or Err)(using factory: scala.collection.Factory[B, CC[B]], id: iter.A =:= A): Ask[CC[B]] = Or.Ret:
     val b = factory.newBuilder
     val i = iter(coll).iterator.asInstanceOf[Iterator[A]]
     while i.hasNext do
@@ -198,7 +202,7 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
 
 
 extension [A](a: Array[A])
-  inline def validMap[B](f: A => B Or Err)(using ClassTag[B]): Array[B] Or Err = Or.Ret:
+  inline def validMap[B](f: A => B Or Err)(using ClassTag[B]): Ask[Array[B]] = Or.Ret:
     a.breakable.copyWith(x => f(x).?)
 
 

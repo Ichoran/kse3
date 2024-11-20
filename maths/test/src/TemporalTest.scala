@@ -4,6 +4,8 @@
 package kse.test.maths
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._

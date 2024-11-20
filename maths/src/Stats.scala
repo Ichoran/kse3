@@ -4,6 +4,8 @@
 package kse.maths
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.annotation.targetName
 import scala.compiletime.erasedValue
 
@@ -11,7 +13,6 @@ import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}
 import kse.basics.intervals.{Iv, PIv}
-
 
 
 trait Est {
@@ -365,6 +366,19 @@ object Bootstrap {
   inline def apply[T](n: Int)(i0: Int, iN: Int)(init: => T)(inline update: (T, Int) => Unit)(using reflect.ClassTag[T], AutoPrng): Bootstrap[T] =
     apply(n)(summon[AutoPrng].get)(i0, iN)(init)(update)
 }
+
+
+/*
+object Ranks {
+  def order(a: Array[Double], i0: Int, iN: Int)(b: Array[Double], j0: Int, jN: Int): Array[Int] =
+    if iN > i0 && (i0 < 0 || iN >= a.length) then throw new NoSuchElementException(s"Bounds $i0 and $iN do not fit in array of length ${a.length}")
+    if jN > j0 && (j0 < 0 || jN >= j.length) then throw new NoSuchElementException(s"Bounds $j0 and $jN do not fit in array of length ${a.length}")
+    val ni = if i0 < iN then iN - i0 else 0
+    val nj = if j0 < jN then jN - j0 else 0
+
+}
+*/
+
 
 extension (values: Array[Int])
   inline def est(): Est = Est from values

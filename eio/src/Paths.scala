@@ -4,6 +4,8 @@
 package kse.eio
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.io._
 import java.nio.channels.SeekableByteChannel
 import java.nio.file._
@@ -132,7 +134,7 @@ extension (the_path: Path) {
         ratchet(abs.normalize): norm =>
           PathsHelper.symlinkToReal(norm)
   
-  inline def file: File Or Err = nice{ the_path.toFile }
+  inline def file: Ask[File] = nice{ the_path.toFile }
 
   inline def exists = Files exists the_path
 
@@ -144,44 +146,49 @@ extension (the_path: Path) {
     if Files.exists(the_path) then Files.size(the_path)
     else -1L
 
-  def time: FileTime Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files getLastModifiedTime the_path }
 
-  def time_=(ft: FileTime): Unit Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files.setLastModifiedTime(the_path, ft) }
+  def time: Ask[FileTime] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    else Files getLastModifiedTime the_path
 
-  def mkdir(): Boolean Or Err =
+  def time_=(ft: FileTime): Ask[Unit] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    else Files.setLastModifiedTime(the_path, ft)
+
+
+  def mkdir(): Ask[Boolean] = Ask:
     if Files.exists(the_path) then
-      if Files.isDirectory(the_path) then Is(false) else Err.or(s"$the_path already exists and is not a directory")
+      if !Files.isDirectory(the_path) then Err ?# s"$the_path already exists and is not a directory"
+      false
     else the_path.getParent match
-      case null => nice{ Files createDirectory the_path ; true }
+      case null =>
+        Files createDirectory the_path
+        true
       case p =>
-        if !Files.exists(p) then Err.or(s"Cannot create $the_path because $p not found")
-          else nice{ Files createDirectory the_path ; true }
+        if !Files.exists(p) then Err ?# s"Cannot create $the_path because $p not found"
+        Files createDirectory the_path
+        true
 
-  inline def mkdirs(): Unit Or Err = nice{ Files createDirectories the_path ; () }
+  inline def mkdirs(): Ask[Unit] = nice{ Files createDirectories the_path ; () }
 
-  inline def mkParents(): Unit Or Err = nice{ PathsHelper.RawPath(the_path).mkParents() }
+  inline def mkParents(): Ask[Unit] = nice{ PathsHelper.RawPath(the_path).mkParents() }
 
   inline def delete(): Boolean = ratchet(false): _ =>
     Files deleteIfExists the_path
 
-  def makeSymlink(s: String): Unit Or Err = Err.Or:
+  def makeSymlink(s: String): Ask[Unit] = Ask:
     val target = the_path.getFileSystem.getPath(s)
     if Files.exists(the_path) then
-      if Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == target then ()
-      else Err.break(s"$the_path exists so can't create it as a symbolic link")
+      if !(Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == target) then
+        Err ?# s"$the_path exists so can't create it as a symbolic link"
     else
       if Files.isSymbolicLink(the_path) then Files.delete(the_path)
       Files.createSymbolicLink(the_path, target)
-      ()
 
-  def symlinkTo(p: Path): Unit Or Err = Err.Or:
+  def symlinkTo(p: Path): Ask[Unit] = Ask:
     if Files.exists(the_path) then
-      if Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == p then ()
-      else Err.break(s"$the_path exists so can't create it as a symbolic link")
+      if !(Files.isSymbolicLink(the_path) && Files.readSymbolicLink(the_path) == p) then
+        Err ?# s"$the_path exists so can't create it as a symbolic link"
     else
       if Files.isSymbolicLink(the_path) then Files.delete(the_path)
       if p.isAbsolute then Files.createSymbolicLink(the_path, p)
@@ -189,24 +196,21 @@ extension (the_path: Path) {
         case null => Files.createSymbolicLink(the_path, p)
         case q    => Files.createSymbolicLink(the_path, q relativize p)
 
-  def symlink: String Or Err =
-    if Files isSymbolicLink the_path then nice{ (Files readSymbolicLink the_path).toString }
-    else Err.or(s"$the_path is not a symbolic link")
+  def symlink: Ask[String] = Ask:
+    if !Files.isSymbolicLink(the_path) then Err ?# s"$the_path is not a symbolic link"
+    Files.readSymbolicLink(the_path).toString
 
-  def followSymlink: Path Or Err =
-    if Files isSymbolicLink the_path then nice {
-      val q = Files readSymbolicLink the_path
-      if q.isAbsolute then q
-      else the_path.getParent match
-        case null => q
-        case p    => (p resolve q).normalize
-    }
-    else Err.or(s"$the_path is not a symbolic link")
+  def followSymlink: Ask[Path] = Ask:
+    if !Files.isSymbolicLink(the_path) then Err ?# s"$the_path is not a symbolic link"
+    val q = Files readSymbolicLink the_path
+    if q.isAbsolute then q
+    else the_path.getParent match
+      case null => q
+      case p    => (p resolve q).normalize
 
-  def touch(): Unit Or Err = nice {
+  def touch(): Ask[Unit] = Ask:
     if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
     else Files.write(the_path, new Array[Byte](0))
-  }
 
   def paths =
     if !(Files exists the_path) || !(Files isDirectory the_path) then PathsHelper.emptyPathArray
@@ -215,81 +219,71 @@ extension (the_path: Path) {
         list.toArray(i => new Array[Path](i))
       .getOrElse(_ => PathsHelper.emptyPathArray)
 
-  def slurp: Array[String] Or Err =
-    if Files exists the_path then
-      nice{ Resource(Files lines the_path)(_.close)(_.toArray(i => new Array[String](i))) }
-    else Err.or(s"$the_path not found")
+  def slurp: Ask[Array[String]] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    Resource(Files lines the_path)(_.close)(_.toArray(i => new Array[String](i)))
+  
+  def gulp: Ask[Array[Byte]] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    Files readAllBytes the_path
 
-  def gulp: Array[Byte] Or Err =
-    if Files exists the_path then nice{ Files readAllBytes the_path }
-    else Err.or(s"$the_path not found")
+  def write(data: Array[Byte]): Ask[Unit] = nice{ Files.write(the_path, data) }
 
-  def write(data: Array[Byte]): Unit Or Err = nice{ Files.write(the_path, data) }
-
-  def append(data: Array[Byte]): Unit Or Err =
+  def append(data: Array[Byte]): Ask[Unit] =
     nice{ Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
-  def create(data: Array[Byte]): Unit Or Err =
-    if Files exists the_path then Err.or(s"$the_path already exists")
-    else nice{ Files.write(the_path, data, StandardOpenOption.CREATE_NEW) }
+  def create(data: Array[Byte]): Ask[Unit] = Ask:
+    if Files exists the_path then Err ?# s"$the_path already exists"
+    Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
 
-  def createIfAbsent(data: Array[Byte]): Boolean Or Err =
-    if Files.exists(the_path) then Is(false)
-    else nice {
+  def createIfAbsent(data: Array[Byte]): Ask[Boolean] = Ask:
+    if Files.exists(the_path) then false
+    else
       Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
       true
-    }
 
-  def writeLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
+  def writeLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] =
     nice{ Files.write(the_path, PathsHelper.javaIterable(coll)) }
 
-  def appendLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
+  def appendLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] =
     nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
 
-  def createLines(coll: scala.collection.IterableOnce[String]): Unit Or Err =
-    if Files exists the_path then Err.or(s"$the_path already exists")
-    else nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) }
+  def createLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] = Ask:
+    if Files exists the_path then Err ?# s"$the_path already exists"
+    Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
 
-  def createLinesIfAbsent(coll: scala.collection.IterableOnce[String]): Boolean Or Err =
-    if Files.exists(the_path) then Is(false)
-    else nice {
+  def createLinesIfAbsent(coll: scala.collection.IterableOnce[String]): Ask[Boolean] = Ask:
+    if Files.exists(the_path) then false
+    else
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
       true
-    }
 
 
-  def openRead(bufferSize: Int = 8192)(using Tidy.Nice[InputStream]): InputStream Or Err =
-    if Files exists the_path then nice {
-      val is = Files newInputStream the_path
-      if bufferSize > 0 then new BufferedInputStream(is, 8192) else is
-    }
-    else Err.or(s"$the_path not found")
+  def openRead(bufferSize: Int = 8192)(using Tidy.Nice[InputStream]): Ask[InputStream] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    val is = Files newInputStream the_path
+    if bufferSize > 0 then new BufferedInputStream(is, 8192) else is
 
-  def openWrite(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
-    nice{
+  def openWrite(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): Ask[OutputStream] =
+    nice:
       val os = Files newOutputStream the_path
       if bufferSize > 0 then new BufferedOutputStream(os, 8192) else os 
-    }
 
-  def openAppend(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
-    nice {
+  def openAppend(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): Ask[OutputStream] =
+    nice:
       val os = Files.newOutputStream(the_path, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
       if bufferSize > 0 then new BufferedOutputStream(os, bufferSize) else os
-    }
 
-  def openCreate(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): OutputStream Or Err =
-    if Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice {
-      val os = Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW)
-      if bufferSize > 0 then new BufferedOutputStream(os, bufferSize) else os
-    }
+  def openCreate(bufferSize: Int = 8192)(using Tidy.Nice[OutputStream]): Ask[OutputStream] = Ask:
+    if Files.exists(the_path) then Err ?# s"$the_path already exists"
+    val os = Files.newOutputStream(the_path, StandardOpenOption.CREATE_NEW)
+    if bufferSize > 0 then new BufferedOutputStream(os, bufferSize) else os
 
-  def openIO()(using Tidy.Nice[SeekableByteChannel]): SeekableByteChannel Or Err = nice {
-    Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
-  }
+  def openIO()(using Tidy.Nice[SeekableByteChannel]): Ask[SeekableByteChannel] =
+    nice{ Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE) }
 
 
-  inline def inZip[A](inline f: boundary.Label[Unit Or Err] ?=> (Path => Unit)): Unit Or Err =
+  inline def inZip[A](inline f: boundary.Label[Unit Or Err] ?=> (Path => Unit)): Ask[Unit] =
     Resource.Nice{
       val fsys = FileSystems.newFileSystem(the_path, null: ClassLoader)
       var result: Path Or Err = Err.or(s"No directory structure inside $the_path")
@@ -301,46 +295,44 @@ extension (the_path: Path) {
       finally
         if result.isAlt then fsys.close
       result
-    }(_.getFileSystem.close)(f)
+    }(PathsHelper.closePathFileSystem)(f)
 
-  def asUnmanagedFilesystem(): FileSystem Or Err =
-    nice( FileSystems.newFileSystem(the_path, null: ClassLoader) )
+  def asUnmanagedFilesystem(): Ask[FileSystem] =
+    nice{ FileSystems.newFileSystem(the_path, null: ClassLoader) }
 
 
-  def copyTo(to: Path): Unit Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING) }
+  def copyTo(to: Path): Ask[Unit] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
-  def copyInto(that: Path): Path Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
-    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
-    else nice:
-      val target = that resolve the_path.getFileName
-      Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
-      target
+  def copyInto(that: Path): Ask[Path] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    if !Files.exists(that) then Err ?# s"Target directory $that not found"
+    if !Files.isDirectory(that) then Err ?# s"Target $that is not a directory"
+    val target = that resolve the_path.getFileName
+    Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+    target
 
-  def copyCreate(to: Path): Unit Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else if Files.exists(to) then Err.or(s"$to already exists")
-    else nice{ Files.copy(the_path, to) }
+  def copyCreate(to: Path): Ask[Unit] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    if Files.exists(to) then Err ?# s"$to already exists"
+    Files.copy(the_path, to)
 
-  def moveTo(to: Path): Unit Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING) }
+  def moveTo(to: Path): Ask[Unit] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING)
 
-  def moveCreate(to: Path): Unit Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else nice{ Files.move(the_path, to) }
+  def moveCreate(to: Path): Ask[Unit] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    Files.move(the_path, to)
 
-  def moveInto(that: Path): Path Or Err =
-    if !Files.exists(the_path) then Err.or(s"$the_path not found")
-    else if !Files.exists(that) then Err.or(s"Target directory $that not found")
-    else if !Files.isDirectory(that) then Err.or(s"Target $that is not a directory")
-    else nice:
-      val target = that resolve the_path.getFileName
-      Files.move(the_path, target, StandardCopyOption.REPLACE_EXISTING)
-      target
+  def moveInto(that: Path): Ask[Path] = Ask:
+    if !Files.exists(the_path) then Err ?# s"$the_path not found"
+    if !Files.exists(that) then Err ?# s"Target directory $that not found"
+    if !Files.isDirectory(that) then Err ?# s"Target $that is not a directory"
+    val target = that resolve the_path.getFileName
+    Files.move(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+    target
 
 
   inline def atomically: PathsHelper.AtomicPathOps = PathsHelper.AtomicPathOps(the_path)
@@ -583,6 +575,8 @@ extension (underlying: File) {
 
 object PathsHelper {
   val emptyPathArray = new Array[Path](0)
+
+  val closePathFileSystem: Tidy.Nice[Path] = _.getFileSystem.close
 
   @tailrec
   private[eio] def symlinkToReal(norm: Path, syms: List[(Path, Object, Int, Path)] = Nil): Path =

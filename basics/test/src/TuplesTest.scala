@@ -4,6 +4,8 @@
 package kse.test.basics
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._
@@ -17,6 +19,7 @@ import scala.util.boundary
 import scala.util.boundary.break
 
 import sourcecode.{Line, given}
+
 
 class TuplesTest() {
   import compiletime.testing.{typeChecks => cc}

@@ -3,8 +3,10 @@
 
 package kse.basics.labels
 
-import scala.compiletime.{codeOf, summonInline, summonFrom}
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
+import scala.compiletime.{codeOf, summonInline, summonFrom}
 import scala.annotation.targetName
 
 import kse.basics.{LabelVal, \ => \^ }

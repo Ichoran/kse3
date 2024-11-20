@@ -1,11 +1,14 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2023 Rex Kerr and Calico Life Sciences, LLC.
 
-
 package kse.flow
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.util.boundary
+
+import kse.basics._
 
 
 trait Tidy[-T] extends (T => Unit) {
@@ -35,7 +38,7 @@ object Resource {
         catch case e if e.catchable => wrong = e
     if result.isIs && (wrong ne null) then Alt(wrong) else result
 
-  def nice[R, A](rsc: Tidy.Nice[R] ?=> R Or Err)(done: Tidy.Nice[R])(f: R => A): A Or Err = boundary:
+  def nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(f: R => A): Ask[A] = boundary:
     var wrong: Throwable = null
     val result =
       val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
@@ -48,7 +51,7 @@ object Resource {
       Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
 
-  inline def Nice[R, A](rsc: Tidy.Nice[R] ?=> R Or Err)(done: Tidy.Nice[R])(inline f: boundary.Label[A Or Err] ?=> (R => A)): A Or Err =
+  inline def Nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(inline f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] =
     boundary:
       var wrong: Throwable = null
       val result =

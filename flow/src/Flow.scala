@@ -1,15 +1,16 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2014-15, 2021-24 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
-
 package kse.flow
+
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.annotation.targetName
 
 import scala.util.control.ControlThrowable
 import scala.util.boundary
 import scala.util.boundary.Label
-import scala.util.boundary.break
 
 import scala.util.{Try, Success, Failure}
 
@@ -118,15 +119,6 @@ extension (float: Float)
     case x if java.lang.Float.isNaN(x) => boundary.break(Double.NaN)
     case y => y
 
-extension (test: Boolean)
-  /** Does a perhaps nonlocal return if the test value is false */
-  inline def ?(using Label[Unit]): Unit =
-    if !test then boundary.break()
-
-  /** If false, exits early with an `Alt[Err]` with a message. */
-  inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): Unit =
-    if !test then boundary.break(Alt(Err(msg)))
-
 
 /** Enables early returns in side-effecting code.  Returns true if completed normally.
   *
@@ -138,13 +130,31 @@ extension (test: Boolean)
   *   println(ia.?)
   * }}}
   */
-inline def escape(inline f: Label[Unit] ?=> Unit): Boolean =
-  var executionComplete = false
-  boundary{ f; executionComplete = true }
-  executionComplete
+object escape {
+  inline def apply(inline f: Label[Unit] ?=> Unit): Boolean =
+    var executionComplete = false
+    boundary:
+      f
+      executionComplete = true
+    executionComplete
+
+  opaque type Test = Boolean
+  object Test {
+    extension (p: Test)
+      inline def ?(using Label[Unit]): Unit =
+        if p then boundary.break()
+  }
+  
+  /** Exit early if test condition is true */
+  inline def when(test: Boolean): Test = test
+
+  /** Exit early if test condition is false */
+  inline def unless(test: Boolean)(using Label[Unit]): Test = !test
+}
 
 
-/** Enables returning Double or Float NaN values from within a method.  Must enclose entire mthod.
+
+/** Enables early return of Double NaN values
   *
   * Usage:
   * {{{
@@ -155,11 +165,32 @@ inline def escape(inline f: Label[Unit] ?=> Unit): Boolean =
 inline def calculate(inline a: Label[Double] ?=> Double): Double = boundary{ a }
 
 
+
 /** Loops until broken */
-inline def loop(inline f: Label[Unit] ?=> Unit): Unit =
-  boundary:
-    while true do
-      f
+object loop {
+  opaque type LoopToken = Unit
+
+  inline def apply(inline f: Label[LoopToken] ?=> Unit): Unit =
+    boundary[LoopToken]:
+      while true do
+        f
+
+  inline def break()(using Label[LoopToken]): Nothing =
+    boundary.break((): LoopToken)
+
+  opaque type Test = Boolean
+  object Test {
+    extension (p: Test)
+      inline def ?(using Label[LoopToken]): Unit =
+        if p then boundary.break((): LoopToken)
+  }
+
+  inline def stop(p: Boolean): Test = p
+
+  inline def proceed(p: Boolean): Test = !p
+}
+
+
       
 
 extension (objectOr: Or.type) {
@@ -300,7 +331,7 @@ inline def safeWith[X, Y](f: Throwable => Y)(inline x: => X): X Or Y =
 /** Run something safely, packing all non-fatal exceptions into an `Err`, and returning
   * the no-exception result as the favored branch of an `Or`.
   */
-inline def nice[X](inline x: => X): X Or Err =
+inline def nice[X](inline x: => X): Ask[X] =
   try Is(x)
   catch case e if e.catchable => Alt(Err(e))    
 
@@ -317,7 +348,7 @@ inline def threadsafe[X](inline x: => X): X Or Throwable =
   catch case e if e.threadCatchable => Alt(e)
 
 /** Run something safely and pack errors into an Err, also catching any control constructs that might escape. */
-inline def threadnice[X](inline x: => X): X Or Err =
+inline def threadnice[X](inline x: => X): Ask[X] =
   try Is(x)
   catch case e if e.threadCatchable => Alt(Err(e))
 
@@ -335,8 +366,8 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
 
 
 extension [A](or: A Or Err)
-  inline def niceMap[B](f: A => B): B Or Err =
-    or.flatMap(a => Err.nice(f(a)))
+  inline def niceMap[B](f: A => B): Ask[B] = Ask.flat:
+    or.map(a => f(a))
 
 extension [A, E](or: A Or E)
   def copeMap[B](f: A => B)(using cope: Cope[E]): B Or E =
@@ -467,6 +498,11 @@ extension [A](`try`: Try[A]) {
 
   /** Converts to an `Or`, mapping a failure automatically to a disfavored value, or keeping a success as the favored branch. */
   inline def copeOr[E](using cope: Cope[E]): A Or E = Or.from(`try`, cope fromThrowable _)
+
+  /** Same as `niceOr`--repacks into an `A Or Err` (typed as `Ask[A]`) */
+  inline def ask(): Ask[A] = `try` match
+    case Success(a) => Is(a)
+    case Failure(t) => Alt(Err(t))
 }
 
 
@@ -559,10 +595,10 @@ extension [A, B](f: A => Try[B]) {
 
 extension [A](a: A) {
   /** Exit to a boundary that is this type */
-  inline def break(using Label[A]): Nothing = boundary.break(a)
+  inline def break()(using Label[A]): Nothing = boundary.break(a)
 
   /** Exit to a boundary that we can map from this type */
-  inline def autobreak[B](using am: AutoMap[A, B], l: Label[B]) = boundary.break(am(a))
+  inline def autobreak[B]()(using am: AutoMap[A, B], l: Label[B]) = boundary.break(am(a))
 
   /** Remap this value with a lambda, and then exit to boundary with that new value */
   inline def breakWith[B](inline f: A => B)(using Label[B]): Nothing = boundary.break(f(a))
@@ -622,7 +658,7 @@ extension [A](option: Option[A]) {
   /** Exit to unit-type boundary if the option is empty, or keep going with the option's value. */
   inline def getOrBreak(using Label[Unit]): A = option match
     case Some(a) => a
-    case _ => break(())
+    case _ => boundary.break()
 }
 
 
@@ -689,105 +725,105 @@ object attempt {
 
 extension [X, Y](or: X Or Y)
   inline def ![A](using Label[kse.flow.Attempt[A]]): X =
-    or.getOrElse(_ => break(kse.flow.Attempt.failed))
+    or.getOrElse(_ => boundary.break(kse.flow.Attempt.failed))
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): X =
-    or.getOrElse(_ => break(shortcut.Quits: T))
+    or.getOrElse(_ => boundary.break(shortcut.Quits: T))
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): X =
-    or.getOrElse(_ => break(shortcut.Skips: T))
+    or.getOrElse(_ => boundary.break(shortcut.Skips: T))
 
 extension [L, R](either: Either[L, R])
   inline def ![A](using Label[kse.flow.Attempt[A]]): R = either match
     case Right(r) => r
-    case _        => break(kse.flow.Attempt.failed)
+    case _        => boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): R = either match
     case Right(r) => r
-    case _        => break(shortcut.Quits: T)
+    case _        => boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): R = either match
     case Right(r) => r
-    case _        => break(shortcut.Skips: T)
+    case _        => boundary.break(shortcut.Skips: T)
 
 extension [O](option: Option[O])
   inline def ![A](using Label[kse.flow.Attempt[A]]): O = option match
     case Some(o) => o
-    case _       => break(kse.flow.Attempt.failed)
+    case _       => boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): O = option match
     case Some(o) => o
-    case _       => break(shortcut.Quits: T)
+    case _       => boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): O = option match
     case Some(o) => o
-    case _       => break(shortcut.Skips: T)
+    case _       => boundary.break(shortcut.Skips: T)
 
 extension [T](`try`: Try[T])
   inline def ![A](using Label[kse.flow.Attempt[A]]): T = `try` match
     case Success(t) => t
-    case _          => break(kse.flow.Attempt.failed)
+    case _          => boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[S >: shortcut.Quits.type](using Label[S]): T = `try` match
     case Success(t) => t
-    case _          => break(shortcut.Quits: S)
+    case _          => boundary.break(shortcut.Quits: S)
   inline def orSkip[S >: shortcut.Skips.type](using Label[S]): T = `try` match
     case Success(t) => t
-    case _          => break(shortcut.Skips: S)
+    case _          => boundary.break(shortcut.Skips: S)
 
 extension [I](iterator: Iterator[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
-    else break(kse.flow.Attempt.failed)
+    else boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
-    else break(shortcut.Quits: T)
+    else boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
-    else break(shortcut.Skips: T)
+    else boundary.break(shortcut.Skips: T)
 
 extension [I](stepper: scala.collection.Stepper[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if stepper.hasStep then stepper.nextStep
-    else break(kse.flow.Attempt.failed)
+    else boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if stepper.hasStep then stepper.nextStep
-    else break(shortcut.Quits: T)
+    else boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
     if stepper.hasStep then stepper.nextStep
-    else break(shortcut.Skips: T)
+    else boundary.break(shortcut.Skips: T)
 
 extension [I](iterator: java.util.Iterator[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
-    else break(kse.flow.Attempt.failed)
+    else boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
-    else break(shortcut.Quits: T)
+    else boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
     if iterator.hasNext then iterator.next
-    else break(shortcut.Skips: T)
+    else boundary.break(shortcut.Skips: T)
 
 extension [I](enumerator: java.util.Enumeration[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
-    else break(kse.flow.Attempt.failed)
+    else boundary.break(kse.flow.Attempt.failed)
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
-    else break(shortcut.Quits: T)
+    else boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
-    else break(shortcut.Skips: T)
+    else boundary.break(shortcut.Skips: T)
 
 extension (z: Boolean)
   inline def ![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
     if z then kse.flow.Attempt.Passed.value
-    else break(kse.flow.Attempt.failed)
+    else boundary.break(kse.flow.Attempt.failed)
   inline def not_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
-    if z then break(kse.flow.Attempt.failed)
+    if z then boundary.break(kse.flow.Attempt.failed)
     else kse.flow.Attempt.Passed.value
   inline def orQuit[T >: shortcut.Quits.type](using Label[T]): Unit =
-    if !z then break(shortcut.Quits: T)
+    if !z then boundary.break(shortcut.Quits: T)
   inline def orSkip[T >: shortcut.Skips.type](using Label[T]): Unit =
-    if !z then break(shortcut.Skips: T)
+    if !z then boundary.break(shortcut.Skips: T)
 
 extension [A](a: A)
   inline def case_![B, Z](pf: PartialFunction[A, B])(using Label[kse.flow.Attempt[Z]]): B =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
-      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => break(kse.flow.Attempt.failed)
+      case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break(kse.flow.Attempt.failed)
       case y => y.asInstanceOf[B]
   inline def attemptCase[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
     attempt:

@@ -3,10 +3,12 @@
 
 package kse.basics.basicsMacroImpl
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.quoted.*
 
 def deinliner(expr: Expr[Any])(using qt: Quotes): Expr[Any] =
-  import qt.reflect._
+  import qt.reflect.*
   expr.asTerm match
     case Inlined(None, Nil, e)  => deinliner(e.asExprOf[Any])
     case Inlined(Some(e), _, _) => e.asExprOf[Any]
@@ -20,7 +22,7 @@ def packRangeInLongExclusive(i0: Int, iN: Int): Long =
   (i0 & 0xFFFFFFFFL) | (iN.toLong << 32)
 
 def rangePackedInLongExpr(range: Expr[Any])(using qt: Quotes): Expr[Long] =
-  import qt.reflect._
+  import qt.reflect.*
   range match
     case '{ ($a: Int) to ($b: Int) }    => '{ packRangeInLongInclusive($a, $b) }
     case '{ ($a: Int) until ($b: Int) } => '{ packRangeInLongExclusive($a, $b) }

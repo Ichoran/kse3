@@ -1,8 +1,10 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2023 Rex Kerr, UCSF, and Calico Life Sciences LLC.
-
+// Copyright (c) 2023-24 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
 package kse.flow
+
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.util.boundary
 import scala.util.boundary.Label
@@ -37,18 +39,6 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
   def apply(es: Err*)(desc: String): kse.flow.Err =
     if es.isEmpty then desc
     else ErrType.Many(es, desc)
-    /*
-    val ae = new Array[Err](2 + es.length)
-    ae(0) = e1
-    ae(1) = e2
-    if es.nonEmpty then es match
-      case esa: collection.mutable.ArraySeq[?] => ae(2 to End) = esa.asInstanceOf[ArraySeq[Err]].array
-      case _ =>
-        ei = esa.iterator
-        ae.set(2 to End)(() => ei.next)
-    new ErrType.Many(collection.mutable.ArraySeq.make(ae))
-    */
-
 
   def or(s: String): kse.flow.Alt[kse.flow.Err] = Alt(s)
   def or(et: ErrType): kse.flow.Alt[kse.flow.Err] = Alt(et)
@@ -59,48 +49,6 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
   inline def break[E, L >: Alt[Err]](e: E)(using ef: ErrFrom[E], lb: Label[L]): Nothing = boundary.break(Alt(apply(e)))
 
   inline def ?#[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
-
-
-  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
-    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
-    * Strings and ErrTypes are allowed to jump out too.
-    *
-    * Usage:
-    * {{{
-    * def parseTwice(s: String): Int Or Err = Err.Or:
-    *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
-    * }}}
-    */
-  inline def Or[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): X Or Err = boundary[X Or Err] { label ?=>
-    try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
-    catch case t if t.catchable => Alt(Err(t))
-  }
-
-  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
-    * something `Or Err`.
-    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
-    * Strings and ErrTypes are allowed to jump out too.
-    *
-    * Usage:
-    * {{{
-    * def parseTwice(s: String): Int Or Err = Err.FlatOr:
-    *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
-    * }}}
-    */
-  inline def FlatOr[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X Or Err): X Or Err = boundary[X Or Err]{ label ?=>
-    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])
-    catch case t if t.catchable => Alt(Err(t))
-  }
-
-  /** Catches exceptions and packs them into an Err. */
-  inline def nice[X](x: => X): X Or Err =
-    try Is(x)
-    catch case t if t.catchable => Alt(Err(t))
-
-  /** Catches exceptions and packs them into an Err while evaluating something that might return an `Err` anyway. */
-  inline def flatNice[X](x: => X Or Err): X Or Err =
-    try x
-    catch case t if t.catchable => Alt(Err(t))
 }
 
 
@@ -136,18 +84,6 @@ object ErrType {
     val sb = new java.lang.StringBuilder
     if header.nonEmpty then buildLinesFromString(sb, header, "")
     buildLinesFromString(sb, string, indent)
-    /*
-    var i = 0
-    var j = string.indexOf('\n', i)
-    while j > 0 do
-      b append indent
-      b.append(string, i, j + 1)
-      i = j + 1
-      j = string.indexOf('\n', i)
-    if i < string.length then
-      b append indent
-      b.append(string, i, string.length)
-    */
     sb.toString
 
 
@@ -265,6 +201,80 @@ object ErrFrom {
   given ErrFrom[String]    = e => Err(e)
   given ErrFrom[Throwable] = e => Err(ErrType.ThrowableErr(e))
 }
+
+
+type Ask[A] = A Or Err
+object Ask {
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
+    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
+    * Strings and ErrTypes are allowed to jump out too.
+    *
+    * Usage:
+    * {{{
+    * def parseTwice(s: String): Ask[Int] = Ask:
+    *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
+    * }}}
+    */
+  inline def apply[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] = boundary[X Or Err] { label ?=>
+    try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
+    catch case t if t.catchable => Alt(Err(t))
+  }
+
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
+    * something `Or Err`.
+    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
+    * Strings and ErrTypes are allowed to jump out too.
+    *
+    * Usage:
+    * {{{
+    * def parseTwice(s: String): Ask[Int] = Ask.flat:
+    *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
+    * }}}
+    */
+  inline def flat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] = boundary[X Or Err] { label ?=>
+    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
+    catch case t if t.catchable => Alt(Err(t))
+  }
+}
+
+
+
+/** Provides the ability to cope with Throwable by converting to an error type `E`
+  * that can, for instance, be stored and passed as a disfavored branch in an `Or`.
+  */
+trait Cope[E] {
+  def fromThrowable(t: Throwable): E
+}
+object Cope {
+  /** The default coping strategy: store throwables */
+  val asErr = new Cope[kse.flow.Err] {
+    def fromThrowable(t: Throwable) = Err(t)
+  }
+
+  val asString = new Cope[String] { 
+    def fromThrowable(t: Throwable) = t.explainSuppressed(60, 12)
+  }
+
+  val fullTrace = new Cope[Array[String]] {
+    def fromThrowable(t: Throwable) = t.explainSuppressedAsArray()
+  }
+
+  val asThrowable = new Cope[Throwable] {
+    def fromThrowable(t: Throwable) = t
+  }
+}
+
+/** An exception specifically to reify the idea of the disfavored branch of a sum type
+  * (`Or`, `Either`, etc.) being packed into a `Try`: the disfavored branch of `Try`
+  * _must_ be a `Throwable`.
+  * 
+  * The exception does compute a stack trace because if you didn't need a stack trace
+  * you probably wouldn't be using `Try` to begin with.
+  */
+final case class WrongBranchException[+W](value: W) extends Exception {
+  override def getMessage: String = value.toString
+}
+
 
 
 extension [A](a: A) {

@@ -4,6 +4,8 @@
 package kse.eio
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.lang.{StringBuilder => StB}
 
 import scala.util.{Try, Success, Failure, boundary}
@@ -12,6 +14,7 @@ import kse.basics._
 import kse.flow._
 import kse.maths._
 import kse.maths.packed._
+
 
 /** Provides custom serialization to a StringBuilder. */
 trait Display[-A] {

@@ -4,6 +4,9 @@
 package kse.basics
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
+
 extension [A](a: A) {
   /** Make a tuple with this value and another.  Equivalent to `a -> z`. */
   inline def tup[Z](inline z: Z): (A, Z) = (a, z)

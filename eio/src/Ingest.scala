@@ -3,6 +3,9 @@
 
 package kse.eio
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.nio.{ByteBuffer, CharBuffer}
 
 import scala.util.boundary
@@ -12,6 +15,7 @@ import kse.basics.{given, _}
 import kse.basics.intervals.{given, _}
 
 import kse.flow.{given, _}
+
 
 sealed trait Ingester[A, I, E] {
   /** If empty, must return 0.  If size is known for sure, the size.  If at least N items are available but more might be, returns -N. */

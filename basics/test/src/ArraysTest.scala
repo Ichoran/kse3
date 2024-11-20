@@ -4,6 +4,8 @@
 package kse.test.basics
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._
@@ -17,6 +19,7 @@ import scala.util.boundary
 import scala.util.boundary.break
 
 import sourcecode.{Line, given}
+
 
 class ArraysTest() {
   import kse.testutilities.TestUtilities.{_, given}
@@ -1270,7 +1273,13 @@ class ArraysTest() {
 
 
   def arrayBreakInlinedDataTest(): Unit =
-    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+    import shortcut.{ quittable => qt }
+
+    inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
+      shortcut.quit(p).?
+
+    inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
+      shortcut.skip(p).?
 
     var cuml = 0
     val str = "ch.#ik."
@@ -1507,7 +1516,13 @@ class ArraysTest() {
 
 
   def arrayClipBreakIntervalTest(): Unit =
-    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+    import shortcut.{ quittable => qt }
+
+    inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
+      shortcut.quit(p).?
+
+    inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
+      shortcut.skip(p).?
 
     var cuml = 0
     val str = "ch.#ik."
@@ -2961,7 +2976,13 @@ class ArraysTest() {
 
 
   def stringBreakInlinedDataTest(): Unit =
-    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+    import shortcut.{ quittable => qt }
+
+    inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
+      shortcut.quit(p).?
+
+    inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
+      shortcut.skip(p).?
 
     var cuml = 0
     val str = "ch.#ik."
@@ -3130,7 +3151,13 @@ class ArraysTest() {
 
 
   def stringClipBreakIntervalTest(): Unit =
-    import shortcut.{ quittable => qt, quitIf => qIf, skipIf => sIf }
+    import shortcut.{ quittable => qt }
+
+    inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
+      shortcut.quit(p).?
+
+    inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
+      shortcut.skip(p).?
 
     var cuml = 0
     val str = "ch.#ik."

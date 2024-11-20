@@ -4,6 +4,8 @@
 package kse.maths.packed
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.lang.{Math => jm}
 
 import scala.annotation.targetName

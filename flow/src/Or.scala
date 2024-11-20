@@ -3,6 +3,9 @@
 
 package kse.flow
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
@@ -523,7 +526,7 @@ extension [X, Y](or: Or[X, Y]) {
     case a: Alt[?] => q(a.alt.asInstanceOf[Y])
     case _ => p(Is unwrap or.asInstanceOf[Is[X]])
 
-  /** Discards some favored values, when a favored value exists, by converting those into disfavored values.
+  /** Reject some favored values, when a favored value exists, by converting those into disfavored values.
     *
     * A partial function determines which favored values are to be rejected, and performs the remapping.
     * 
@@ -532,13 +535,13 @@ extension [X, Y](or: Or[X, Y]) {
     * -5.or[String].discard{ case x if x < 0 => "Negative value" }
     * }}}
     */
-  inline def discard[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = (or: X Or Y) match
+  inline def reject[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = (or: X Or Y) match
     case _: Alt[?] => or.asInstanceOf[Alt[Y]]
     case _ => pf.applyOrElse(Is unwrap or.asInstanceOf[Is[X]], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
       case yy => Alt(yy.asInstanceOf[YY])
 
-  /** Reclaims some disfavored values, when a disfavored value exists, by converting them into favored values.
+  /** Rescue some disfavored values, when a disfavored value exists, by converting them into favored values.
     * 
     * A partial function determines which disfavored values are to be restored, and performs the remapping.
     * 
@@ -547,14 +550,14 @@ extension [X, Y](or: Or[X, Y]) {
     * '7'.isnt[Int].reclaim{ case c if c.isDigit => java.lang.Character.digit(c, 10) }
     * }}}
     */
-  inline def reclaim[XX >: X](pf: PartialFunction[Y, XX]): XX Or Y = (or: X Or Y) match
+  inline def rescue[XX >: X](pf: PartialFunction[Y, XX]): XX Or Y = (or: X Or Y) match
     case a: Alt[?] => pf.applyOrElse(a.alt.asInstanceOf[Y], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or
       case xx => Is(xx.asInstanceOf[XX])
     case _ => or
 
-  /** Discards favored values without losing track of the other possible types of disfavored values. */
-  inline def alsoDiscard[Z](pf: PartialFunction[X, Z]): X Or (Z Or Y) = (or: X Or Y) match
+  /** Reject favored values without losing track of the other possible types of disfavored values. */
+  inline def alsoReject[Z](pf: PartialFunction[X, Z]): X Or (Z Or Y) = (or: X Or Y) match
     case _: Alt[?] => Alt(or.asInstanceOf[Alt[Y]])
     case _ => pf.applyOrElse(Is unwrap or.asInstanceOf[Is[X]], Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
       case x if x.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => or.asInstanceOf[Is[X]]

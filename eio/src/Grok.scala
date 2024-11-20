@@ -3,6 +3,9 @@
 
 package kse.eio.grok
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.util.boundary
 import scala.compiletime.{uninitialized, erasedValue}
 
@@ -110,5 +113,5 @@ object Grok {
 }
 
 extension (s: String)
-  inline def grok[A](inline f: boundary.Label[A Or Err] ?=> (Grok.Str => A)): A Or Err = Or.Ret[A, Err]:
+  inline def grok[A](inline f: boundary.Label[A Or Err] ?=> (Grok.Str => A)): Ask[A] = Or.Ret[A, Err]:
     f(Grok.Str(s, _ == ' ', true, 0, s.length))

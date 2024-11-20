@@ -3,6 +3,9 @@
 
 package kse.basics
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.util.{boundary, NotGiven}
 import scala.compiletime.summonFrom
 
@@ -187,13 +190,23 @@ object shortcut {
       Skips
     if what eq Quits then boundary.break(Quits)
 
-  inline def skip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
+  opaque type QuitTest = Boolean
+  object QuitTest {
+    extension (p: QuitTest)
+      inline def ?[Q >: Quits.type <: Type](using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
+  }
+  opaque type SkipTest = Boolean
+  object SkipTest {
+    extension (p: SkipTest)
+      inline def ?[S >: Skips.type <: Type](using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
+  }
 
-  inline def skipIf[S >: Skips.type <: Type](p: Boolean)(using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
+  inline def quit(p: Boolean): QuitTest = p
+  inline def skip(p: Boolean): SkipTest = p
 
-  inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
+  inline def breakAndSkip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
 
-  inline def quitIf[Q >: Quits.type <: Type](p: Boolean)(using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
+  inline def breakAndQuit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   object hopped {
     inline def quittable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Quits.type], Hop[Quits.type, c.type]) ?=> Unit): Unit =
@@ -217,13 +230,13 @@ object shortcut {
         Skips
       if what eq Quits then Hop.jump(Quits)
 
-    inline def skip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
+    inline def breakAndSkip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
 
-    inline def skipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
+    inline def breakAndSkipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
 
-    inline def quit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
+    inline def breakAndQuit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
 
-    inline def quitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
+    inline def breakAndQuitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
   }
 }
 

@@ -190,7 +190,7 @@ package kse
   * threadnice{ ... }               // Like nice but catches control flow to save your thread
   * }}}
   * 
-  * Four higher-level constructs are provided: `ratchet`; `niceMap/copeMap`;  `Err.Or/Err.FlatOr`; and `attempt.safe`
+  * Four higher-level constructs are provided: `ratchet`; `niceMap/copeMap`;  `Ask/Err.Or/Err.FlatOr`; and `attempt.safe`
   * 
   * **Ratchet**
   * 
@@ -233,13 +233,17 @@ package kse
   * }}}
   * 
   * 
-  * **Early Return (explicit and Err.Or/Err.FlatOr)**
+  * **Early Return (explicit and Ask/Err.Or/Err.FlatOr)**
   * 
-  * The preferred way to handle these situations, however, should usually be to use `.?` or `.?+` error
+  * Error results are modeled using the `Err` type in `kse.flow`.  Typically this will be represented as
+  * a disfavored value, `A Or Err`, where `A` is the favored type.  Because this is a common pattern, the
+  * type alias `Ask[A]` is defined to mean `A Or Err`.
+  * 
+  * The preferred way to handle errors should usually be to use `.?` or `.?+` error
   * handling, keeping the sites of error specific:
   * 
   * {{{
-  * def add2(s1: String, s2: String): Int Or Err = Or.Ret:
+  * def add2(s1: String, s2: String): Ask[Int] = Or.Ret:
   *   val i1 = nice{ s1.toInt }.?
   *   val i2 = nice{ s2.toInt }.?
   *   i1 + i2
@@ -252,12 +256,12 @@ package kse
   *   i1 + i2
   * }}}
   * 
-  * Furthermore, with the `Err` type you can use `Err.Or:` instead of `Or.Ret:` and `Err.FlatOr:`
+  * Furthermore, with the `Err` type you can use `Ask:` instead of `Or.Ret:` and `Ask.flat:`
   * instead of `Or.FlatRet:` in order to catch errors during processing as well; type inference
   * usually works without an explicit return type, also:
   * 
   * {{{
-  * def add3(s1: String, s2: String) = Err.Or:
+  * def add3(s1: String, s2: String) = Ask:
   *   val i1 = nice{ s1.toInt }.?   // Early return
   *   val i2 = s2.toInt             // Might throw, but that will be caught
   *   i1 + i2
@@ -265,7 +269,7 @@ package kse
   * 
   * If you just need to exit early, use `Err.break("message")` or `Err ?# "message"`.  If you want
   * to add a message (e.g. to explain context) when returning in the error condition, use
-  * `foo() ?# "message"` where `foo()` has an -`Or Err` type.
+  * `foo() ?# "message"` where `foo()` has an `Or Err` type (i.e. is an `Ask`).
   * 
   * **attempt.safe**
   * 
@@ -285,20 +289,15 @@ package kse
   * }}}
   * 
   * 
-  * **works with `.breakable`**
-  * 
-  * If you're using `kse.basics`, you can use `.orSkip` or `.orQuit` anywhere you could bail out of
-  * an attempt using `.!`.
-  * 
   * **escape and calculate**
   * 
-  * If you just want to bail out of some side-effecting code if a condition fails, use `escape:` and decorate
-  * the condition with `.?`
+  * If you just want to bail out of some side-effecting code if a condition fails, use `escape:` and specify
+  * the escape condition with `escape.when(condition).?` or `escape.unless(condition).?`.
   * 
   * {{{
   * escape:
   *   for i <- 0 to 10 do
-  *     (i < a.length).?
+  *     escape.unless(i < a.length).?
   *     a(i) = i
   * }}}
   * 

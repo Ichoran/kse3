@@ -22,7 +22,8 @@ It also assumes at least Java 21.  (Java 17 for 0.2.x and before.)**
 ## How do I get it?
 
 Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
-Make sure your module has a sufficiently recent 3.4 or later (at least 3.4.2).  For example, in mill:
+Make sure your module has a sufficiently recent 3.4 or later (at least 3.4.2).  Development occurs under 3.5,
+so that is probably the best version to use.  For example, in mill:
 
 ```scala
 def scalaVersion = "3.5.0"
@@ -31,20 +32,20 @@ def scalaVersion = "3.5.0"
 And add at least one of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.12"
-ivy"com.github.ichoran::kse3-flow:0.3.12"
-ivy"com.github.ichoran::kse3-maths:0.3.12"
-ivy"com.github.ichoran::kse3-eio:0.3.12"
+ivy"com.github.ichoran::kse3-basics:0.4.0"
+ivy"com.github.ichoran::kse3-flow:0.4.0"
+ivy"com.github.ichoran::kse3-maths:0.4.0"
+ivy"com.github.ichoran::kse3-eio:0.4.0"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
 //> using scala 3.5.0
-//> using dep com.github.ichoran::kse3-flow:0.3.12
-//> using dep com.github.ichoran::kse3-flow:0.3.12
-//> using dep com.github.ichoran::kse3-maths:0.3.12
-//> using dep com.github.ichoran::kse3-maths:0.3.12
+//> using dep com.github.ichoran::kse3-flow:0.4.0
+//> using dep com.github.ichoran::kse3-flow:0.4.0
+//> using dep com.github.ichoran::kse3-maths:0.4.0
+//> using dep com.github.ichoran::kse3-maths:0.4.0
 ```
 
 If you use some other build system, you can probably figure out from the above what you need.
@@ -114,7 +115,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.3.12"
+ivy"com.github.ichoran::kse3-basics:0.4.0"
 ```
 
 and in your code,
@@ -213,7 +214,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.3.12"
+ivy"com.github.ichoran::kse3-flow:0.4.0"
 ```
 
 and in your code,
@@ -554,7 +555,10 @@ same method, the last one should have `Me` appended, e.g. `reverseMe()`.
 The `Me` notation is generally considered good form regardless for
 self-modifying methods, unless the naming is clunky.
 
-#### Exceptions and Error Handling
+#### Control Flow, Exceptions and Error Handling
+
+1. Early-exit control flow is either called `break()`, with parens, or some
+modification thereof; or contains `?`.
 
 1. Anything called `safe`, `safely`, etc., will catch and package exceptions.
 Control flow will not be caught.

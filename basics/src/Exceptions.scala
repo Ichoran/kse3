@@ -1,7 +1,10 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-15, 2021-23 Rex Kerr, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2014-15, 2021-24 Rex Kerr, UCSF, and Calico Life Sciences LLC.
 
-package kse.flow
+package kse.basics
+
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.util.control.ControlThrowable
 import scala.util.boundary.Break
@@ -18,7 +21,7 @@ extension (t: Throwable) {
     case _: VirtualMachineError |  _: InterruptedException | _: LinkageError => false
     case _ => true
 
-  /** True if the Throwable or any causes has a stack trace */
+  /** True if the Throwable itself, or any of its causes, has a stack trace */
   def hasAnyStackTrace: Boolean =
     var x = t
     var found = false
@@ -227,40 +230,4 @@ extension (throwable: Throwable) {
     */
   def explainSuppressed(lines: Int = Int.MaxValue, childLines: Int = Int.MaxValue): String =
     ExceptionExplainer.explain(throwable, lines, true, childLines)
-}
-
-/** Provides the ability to cope with Throwable by converting to an error type `E`
-  * that can, for instance, be stored and passed as a disfavored branch in an `Or`.
-  */
-trait Cope[E] {
-  def fromThrowable(t: Throwable): E
-}
-object Cope {
-  /** The default coping strategy: store throwables */
-  val asErr = new Cope[kse.flow.Err] {
-    def fromThrowable(t: Throwable) = Err(t)
-  }
-
-  val asString = new Cope[String] { 
-    def fromThrowable(t: Throwable) = t.explainSuppressed(60, 12)
-  }
-
-  val fullTrace = new Cope[Array[String]] {
-    def fromThrowable(t: Throwable) = t.explainSuppressedAsArray()
-  }
-
-  val asThrowable = new Cope[Throwable] {
-    def fromThrowable(t: Throwable) = t
-  }
-}
-
-/** An exception specifically to reify the idea of the disfavored branch of a sum type
-  * (`Or`, `Either`, etc.) being packed into a `Try`: the disfavored branch of `Try`
-  * _must_ be a `Throwable`.
-  * 
-  * The exception does compute a stack trace because if you didn't need a stack trace
-  * you probably wouldn't be using `Try` to begin with.
-  */
-final case class WrongBranchException[+W](value: W) extends Exception {
-  override def getMessage: String = value.toString
 }

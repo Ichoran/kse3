@@ -18,13 +18,14 @@ Annoying, but at least it's possible.
 package kse.maths
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.lang.{Math => jm}
 import java.time._
 import java.util.concurrent.TimeUnit
 import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
-
 
 
 extension (value: Byte) {

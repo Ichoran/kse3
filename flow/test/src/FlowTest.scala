@@ -4,6 +4,8 @@
 package kse.test.flow
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._
@@ -41,39 +43,12 @@ class FlowTest {
     val basic = new Exception("basic-exception")
     val caused = new Exception("caused-exception", basic)
     val stackless = new scala.util.control.ControlThrowable("stackless-exception") {}
-    val circular = new Exception("circular-exception-1", stackless);
-    val circulas = new Exception("circular-exception-2", stackless);
-    circular.addSuppressed(circulas)
-    circulas.addSuppressed(circular)
 
-    for (thing, who) <- List(basic, caused, stackless, circular, circulas).zip(List("basic", "caused", "stackless", "circular", "circulas")) do
-      val msg = s"while testing $who"
-      T(msg) ~ thing.explainAsArray()           =**= ExceptionExplainer.explainAsArray(thing)
-      T(msg) ~ thing.explainAsArray()           =**= thing.explainAsVector()
-      T(msg) ~ thing.explain()                  ==== thing.explainAsArray().mkString("\n")
-      T(msg) ~ thing.explainSuppressedAsArray() =**= ExceptionExplainer.explainAsArray(thing, showSuppressed = true)
-      T(msg) ~ thing.explainSuppressedAsArray() =**= thing.explainSuppressedAsVector()
-      T(msg) ~ thing.explainSuppressed()        ==== thing.explainSuppressedAsArray().mkString("\n")
-
-    T ~ stackless.explainAsArray().length ==== 1
-    T ~ caused.explainAsArray()               exists { x => x.contains("CAUSE") }
-    T ~ circular.explainSuppressedAsArray()   exists { x => x.contains("circular-exception-2") }
-    T ~ caused.explainAsArray()               exists { x => x startsWith "| " }
-    T ~ caused.explainAsArray(childLines = 3) exists { x => x startsWith "| . . ." }
     def wrce(t: Throwable) = ErrType.CatchableException("", t)
-    T ~ basic.hasAnyStackTrace                             ==== true 
-    T ~ caused.hasAnyStackTrace                            ==== true
-    T ~ stackless.hasAnyStackTrace                         ==== false
     T ~ wrce(basic).hasAnyStackTrace                       ==== true
     T ~ wrce(stackless).hasAnyStackTrace                   ==== false
     T ~ wrce(wrce(wrce(wrce(basic)))).hasAnyStackTrace     ==== true
     T ~ wrce(wrce(wrce(wrce(stackless)))).hasAnyStackTrace ==== false
-
-    val short = caused.explainAsArray(lines = 10)
-    val full  = caused.explainAsArray()
-    T ~ short.take(9) =**= full.take(9)
-    val lines = full.drop(9).count(s => !s.startsWith("| "))
-    T ~ short.last ==== s". . . (+$lines lines and 1 more exception)"
 
     def copeT[E](t: Throwable)(using c: Cope[E]): E = c fromThrowable t
     val e = new Exception("salmon")
@@ -100,7 +75,7 @@ class FlowTest {
       T ~ eT            ==== typed[Throwable]
     }
 
-    def erm(s: String): Int Or Err = Err.Or:
+    def erm(s: String): Ask[Int] = Ask:
       if s.isEmpty then Err ?# "empty"
       else s.length
     T ~ erm("")    ==== Alt(Err("empty"))
@@ -130,11 +105,11 @@ class FlowTest {
     T ~ "herring".errIfNot(_.length > 5)     ==== "herring"
     T ~ "herring".errIf(_.length > 5)        ==== Err.or("herring")
     T ~ 5.errCase{case x if x<6 => Err("x")} ==== Err.or("x")             --: typed[Int Or Err]
-    T ~ Err.nice{ 5.toInt }                  ==== 5                       --: typed[Int Or Err]
-    T ~ Err.nice{"hi".toInt}.alt.toThrowable ==== runtype[NumberFormatException]
-    T ~ Err.flatNice{ "e".errIf(_.isEmpty) } ==== "e"                     --: typed[String Or Err]
-    T ~ Err.flatNice{"e".errIf(_(0) == 'e')} ==== Err.or("e")
-    T ~ Err.flatNice{
+    T ~ Ask{ 5.toInt }                       ==== 5                       --: typed[Int Or Err]
+    T ~ Ask{"hi".toInt}.alt.toThrowable      ==== runtype[NumberFormatException]
+    T ~ Ask.flat{ "e".errIf(_.isEmpty) }     ==== "e"                     --: typed[String Or Err]
+    T ~ Ask.flat{"e".errIf(_(0) == 'e')}     ==== Err.or("e")
+    T ~ Ask.flat{
          "e".toInt.errCase:
            case x if x < 0 => Err("x")
        }.alt.toThrowable                     ==== runtype[NumberFormatException]
@@ -991,74 +966,74 @@ class FlowTest {
     T ~ (ua && oa)                       ==== Alt("eel") --: typed[Int Or String]
     T ~ (ua && ua)                       ==== Alt("eel") --: typed[Unit Or String]
 
-    T ~ i.discard{ case x if x > 0 => "!"*x }                  ==== Alt("!!!!!")    --: typed[Int Or String]
-    T ~ i.discard{ case x if x < 0 => "@"*(-x) }               ==== 5               --: typed[Int Or String]
-    T ~ a.discard{ case x => "salmon" }                        ==== Alt("cod")
-    T ~ oi.discard{ case x if x > 0 => "!"*x }                 ==== Alt("!!!!!")    --: typed[Int Or String]
-    T ~ oi.discard{ case x if x < 0 => "@"*(-x) }              ==== 5               --: typed[Int Or String]
-    T ~ oa.discard{ case x if x > 0 => "!"*x }                 ==== Alt("cod")      --: typed[Int Or String]
-    T ~ oii.discard{ case Alt(y) if y.nonEmpty => y.head }     ==== 5               --: typed[(Int Or String) Or Char]
-    T ~ oia.discard{ case Alt(y) if y.nonEmpty => y.head }     ==== Alt('c')        --: typed[(Int Or String) Or Char]
-    T ~ oai.discard{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(5)          --: typed[Char Or (Int Or String)]
-    T ~ oaa.discard{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(Alt("cod")) --: typed[Char Or (Int Or String)]
-    T ~ n.discard{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[Null Or Int]
-    T ~ n.discard{ case x if x ne null => 4 }                  ==== null            --: typed[Null Or Int]
-    T ~ m.discard{ case x => "salmon" }                        ==== Alt(null)
-    T ~ on.discard{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[Null Or Int]
-    T ~ on.discard{ case x if x ne null => 4 }                 ==== null            --: typed[Null Or Int]
-    T ~ om.discard{ case x if x > 0 => null }                  ==== Alt(null)       --: typed[Int Or Null]
-    T ~ oin.discard{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(Null Or Int) Or Char]
-    T ~ oim.discard{ case Alt(y) if y eq null => '0' }         ==== Alt('0')        --: typed[(Int Or Null) Or Char]
-    T ~ oan.discard{ case c if c<' ' => c.toInt.orIs[Null] }   ==== Alt(null)       --: typed[Char Or (Null Or Int)]
-    T ~ oam.discard{ case c if c<' ' => c.toInt.orAlt[Null] }  ==== Alt(Alt(null))  --: typed[Char Or (Int Or Null)]
-    T ~ p.discard{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[String Or Int]
-    T ~ p.discard{ case x if x ne null => 4 }                  ==== null            --: typed[String Or Int]
-    T ~ q.discard{ case x => "salmon" }                        ==== Alt(null)
-    T ~ op.discard{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[String Or Int]
-    T ~ op.discard{ case x if x ne null => 4 }                 ==== null            --: typed[String Or Int]
-    T ~ oq.discard{ case x if x > 0 => "bass" }                ==== Alt(null)       --: typed[Int Or String]
-    T ~ oip.discard{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(String Or Int) Or Char]
-    T ~ oiq.discard{ case Alt(y) if nlen(y) <= 0 => '0' }      ==== Alt('0')        --: typed[(Int Or String) Or Char]
-    T ~ oan.discard{ case ' ' => 4.orIs[String] }              ==== Alt(null)       --: typed[Char Or (String Or Int)]
-    T ~ oaq.discard{ case ' ' => 4.orAlt[String] }             ==== Alt(Alt(null))  --: typed[Char Or (Int Or String)]
+    T ~ i.reject{ case x if x > 0 => "!"*x }                  ==== Alt("!!!!!")    --: typed[Int Or String]
+    T ~ i.reject{ case x if x < 0 => "@"*(-x) }               ==== 5               --: typed[Int Or String]
+    T ~ a.reject{ case x => "salmon" }                        ==== Alt("cod")
+    T ~ oi.reject{ case x if x > 0 => "!"*x }                 ==== Alt("!!!!!")    --: typed[Int Or String]
+    T ~ oi.reject{ case x if x < 0 => "@"*(-x) }              ==== 5               --: typed[Int Or String]
+    T ~ oa.reject{ case x if x > 0 => "!"*x }                 ==== Alt("cod")      --: typed[Int Or String]
+    T ~ oii.reject{ case Alt(y) if y.nonEmpty => y.head }     ==== 5               --: typed[(Int Or String) Or Char]
+    T ~ oia.reject{ case Alt(y) if y.nonEmpty => y.head }     ==== Alt('c')        --: typed[(Int Or String) Or Char]
+    T ~ oai.reject{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(5)          --: typed[Char Or (Int Or String)]
+    T ~ oaa.reject{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(Alt("cod")) --: typed[Char Or (Int Or String)]
+    T ~ n.reject{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[Null Or Int]
+    T ~ n.reject{ case x if x ne null => 4 }                  ==== null            --: typed[Null Or Int]
+    T ~ m.reject{ case x => "salmon" }                        ==== Alt(null)
+    T ~ on.reject{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[Null Or Int]
+    T ~ on.reject{ case x if x ne null => 4 }                 ==== null            --: typed[Null Or Int]
+    T ~ om.reject{ case x if x > 0 => null }                  ==== Alt(null)       --: typed[Int Or Null]
+    T ~ oin.reject{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(Null Or Int) Or Char]
+    T ~ oim.reject{ case Alt(y) if y eq null => '0' }         ==== Alt('0')        --: typed[(Int Or Null) Or Char]
+    T ~ oan.reject{ case c if c<' ' => c.toInt.orIs[Null] }   ==== Alt(null)       --: typed[Char Or (Null Or Int)]
+    T ~ oam.reject{ case c if c<' ' => c.toInt.orAlt[Null] }  ==== Alt(Alt(null))  --: typed[Char Or (Int Or Null)]
+    T ~ p.reject{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[String Or Int]
+    T ~ p.reject{ case x if x ne null => 4 }                  ==== null            --: typed[String Or Int]
+    T ~ q.reject{ case x => "salmon" }                        ==== Alt(null)
+    T ~ op.reject{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[String Or Int]
+    T ~ op.reject{ case x if x ne null => 4 }                 ==== null            --: typed[String Or Int]
+    T ~ oq.reject{ case x if x > 0 => "bass" }                ==== Alt(null)       --: typed[Int Or String]
+    T ~ oip.reject{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(String Or Int) Or Char]
+    T ~ oiq.reject{ case Alt(y) if nlen(y) <= 0 => '0' }      ==== Alt('0')        --: typed[(Int Or String) Or Char]
+    T ~ oan.reject{ case ' ' => 4.orIs[String] }              ==== Alt(null)       --: typed[Char Or (String Or Int)]
+    T ~ oaq.reject{ case ' ' => 4.orAlt[String] }             ==== Alt(Alt(null))  --: typed[Char Or (Int Or String)]
 
-    T ~ i.reclaim{ case x => 4 }                                 ==== 5
-    T ~ a.reclaim{ case s if s.nonEmpty => s.length }            ==== 3              --: typed[Int Or String]
-    T ~ a.reclaim{ case s if s.isEmpty => 4 }                    ==== Alt("cod")     --: typed[Int Or String]
-    T ~ oi.reclaim{ case s if s.isEmpty => 4 }                   ==== 5              --: typed[Int Or String]
-    T ~ oa.reclaim{ case s if s.nonEmpty => s.length }           ==== 3              --: typed[Int Or String]
-    T ~ oa.reclaim{ case s if s.isEmpty => 4 }                   ==== Alt("cod")     --: typed[Int Or String]
-    T ~ oii.reclaim{ case c if c<' ' => c.toInt.orAlt[String] }  ==== 5              --: typed[(Int Or String) Or Char]
-    T ~ oia.reclaim{ case c if c<' ' => c.toInt.orAlt[String] }  ==== Is(Alt("cod")) --: typed[(Int Or String) Or Char]
-    T ~ oai.reclaim{ case Alt(y) if y.nonEmpty => y.head }       ==== Alt(5)         --: typed[Char Or (Int Or String)]
-    T ~ oaa.reclaim{ case Alt(y) if y.nonEmpty => y.head }       ==== 'c'            --: typed[Char Or (Int Or String)]
-    T ~ n.reclaim{ case x => null }                              ==== null
-    T ~ m.reclaim{ case x if x eq null => 4 }                    ==== 4              --: typed[Int Or Null]
-    T ~ m.reclaim{ case x if x ne null => 4 }                    ==== Alt(null)      --: typed[Int Or Null]
-    T ~ on.reclaim{ case x if x < 0 => null }                    ==== null           --: typed[Null Or Int]
-    T ~ om.reclaim{ case x if x eq null => 4 }                   ==== 4              --: typed[Int Or Null]
-    T ~ om.reclaim{ case x if x ne null => 4 }                   ==== Alt(null)      --: typed[Int Or Null]
-    T ~ oin.reclaim{ case c if c < ' ' => c.toInt.orIs[Null] }   ==== null           --: typed[(Null Or Int) Or Char]
-    T ~ oim.reclaim{ case c if c < ' ' => c.toInt.orAlt[Null] }  ==== Is(Alt(null))  --: typed[(Int Or Null) Or Char]
-    T ~ oan.reclaim{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)      --: typed[Char Or (Null Or Int)]
-    T ~ oam.reclaim{ case Alt(y) if y eq null => '0' }           ==== '0'            --: typed[Char Or (Int Or Null)]
-    T ~ p.reclaim{ case x => null }                              ==== null
-    T ~ q.reclaim{ case x if x eq null => 4 }                    ==== 4              --: typed[Int Or String]
-    T ~ q.reclaim{ case x if x ne null => 4 }                    ==== Alt(null)      --: typed[Int Or String]
-    T ~ op.reclaim{ case x if x < 0 => "eel" }                   ==== null           --: typed[String Or Int]
-    T ~ oq.reclaim{ case x if x eq null => 4 }                   ==== 4              --: typed[Int Or String]
-    T ~ oq.reclaim{ case x if x == "bass" => 4 }                 ==== Alt(null)      --: typed[Int Or String]
-    T ~ oip.reclaim{ case c if c<' ' => c.toInt.orIs[String] }   ==== null           --: typed[(String Or Int) Or Char]
-    T ~ oiq.reclaim{ case c if c<' ' => c.toInt.orAlt[String] }  ==== Is(Alt(null))  --: typed[(Int Or String) Or Char]
-    T ~ oap.reclaim{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)      --: typed[Char Or (String Or Int)]
-    T ~ oaq.reclaim{ case Alt(y) if y != "salmon" => '0' }       ==== '0'            --: typed[Char Or (Int Or String)]
+    T ~ i.rescue{ case x => 4 }                                 ==== 5
+    T ~ a.rescue{ case s if s.nonEmpty => s.length }            ==== 3              --: typed[Int Or String]
+    T ~ a.rescue{ case s if s.isEmpty => 4 }                    ==== Alt("cod")     --: typed[Int Or String]
+    T ~ oi.rescue{ case s if s.isEmpty => 4 }                   ==== 5              --: typed[Int Or String]
+    T ~ oa.rescue{ case s if s.nonEmpty => s.length }           ==== 3              --: typed[Int Or String]
+    T ~ oa.rescue{ case s if s.isEmpty => 4 }                   ==== Alt("cod")     --: typed[Int Or String]
+    T ~ oii.rescue{ case c if c<' ' => c.toInt.orAlt[String] }  ==== 5              --: typed[(Int Or String) Or Char]
+    T ~ oia.rescue{ case c if c<' ' => c.toInt.orAlt[String] }  ==== Is(Alt("cod")) --: typed[(Int Or String) Or Char]
+    T ~ oai.rescue{ case Alt(y) if y.nonEmpty => y.head }       ==== Alt(5)         --: typed[Char Or (Int Or String)]
+    T ~ oaa.rescue{ case Alt(y) if y.nonEmpty => y.head }       ==== 'c'            --: typed[Char Or (Int Or String)]
+    T ~ n.rescue{ case x => null }                              ==== null
+    T ~ m.rescue{ case x if x eq null => 4 }                    ==== 4              --: typed[Int Or Null]
+    T ~ m.rescue{ case x if x ne null => 4 }                    ==== Alt(null)      --: typed[Int Or Null]
+    T ~ on.rescue{ case x if x < 0 => null }                    ==== null           --: typed[Null Or Int]
+    T ~ om.rescue{ case x if x eq null => 4 }                   ==== 4              --: typed[Int Or Null]
+    T ~ om.rescue{ case x if x ne null => 4 }                   ==== Alt(null)      --: typed[Int Or Null]
+    T ~ oin.rescue{ case c if c < ' ' => c.toInt.orIs[Null] }   ==== null           --: typed[(Null Or Int) Or Char]
+    T ~ oim.rescue{ case c if c < ' ' => c.toInt.orAlt[Null] }  ==== Is(Alt(null))  --: typed[(Int Or Null) Or Char]
+    T ~ oan.rescue{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)      --: typed[Char Or (Null Or Int)]
+    T ~ oam.rescue{ case Alt(y) if y eq null => '0' }           ==== '0'            --: typed[Char Or (Int Or Null)]
+    T ~ p.rescue{ case x => null }                              ==== null
+    T ~ q.rescue{ case x if x eq null => 4 }                    ==== 4              --: typed[Int Or String]
+    T ~ q.rescue{ case x if x ne null => 4 }                    ==== Alt(null)      --: typed[Int Or String]
+    T ~ op.rescue{ case x if x < 0 => "eel" }                   ==== null           --: typed[String Or Int]
+    T ~ oq.rescue{ case x if x eq null => 4 }                   ==== 4              --: typed[Int Or String]
+    T ~ oq.rescue{ case x if x == "bass" => 4 }                 ==== Alt(null)      --: typed[Int Or String]
+    T ~ oip.rescue{ case c if c<' ' => c.toInt.orIs[String] }   ==== null           --: typed[(String Or Int) Or Char]
+    T ~ oiq.rescue{ case c if c<' ' => c.toInt.orAlt[String] }  ==== Is(Alt(null))  --: typed[(Int Or String) Or Char]
+    T ~ oap.rescue{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)      --: typed[Char Or (String Or Int)]
+    T ~ oaq.rescue{ case Alt(y) if y != "salmon" => '0' }       ==== '0'            --: typed[Char Or (Int Or String)]
 
-    T ~ oi.alsoDiscard{ case x if x > 0 => x > 3 }     ==== Alt(true)       --: typed[Int Or (Boolean Or String)]
-    T ~ oi.alsoDiscard{ case x if x < 0 => x < -3 }    ==== 5               --: typed[Int Or (Boolean Or String)]
-    T ~ oa.alsoDiscard{ case 0 => true }               ==== Alt(Alt("cod")) --: typed[Int Or (Boolean Or String)]
-    T ~ on.alsoDiscard{ case x if x eq null => true }  ==== Alt(true)       --: typed[Null Or (Boolean Or Int)]
-    T ~ on.alsoDiscard{ case x if x ne null => true }  ==== null            --: typed[Null Or (Boolean Or Int)]
-    T ~ om.alsoDiscard{ case 0 => true }               ==== Alt(Alt(null))  --: typed[Int Or (Boolean Or Null)]
+    T ~ oi.alsoReject{ case x if x > 0 => x > 3 }     ==== Alt(true)       --: typed[Int Or (Boolean Or String)]
+    T ~ oi.alsoReject{ case x if x < 0 => x < -3 }    ==== 5               --: typed[Int Or (Boolean Or String)]
+    T ~ oa.alsoReject{ case 0 => true }               ==== Alt(Alt("cod")) --: typed[Int Or (Boolean Or String)]
+    T ~ on.alsoReject{ case x if x eq null => true }  ==== Alt(true)       --: typed[Null Or (Boolean Or Int)]
+    T ~ on.alsoReject{ case x if x ne null => true }  ==== null            --: typed[Null Or (Boolean Or Int)]
+    T ~ om.alsoReject{ case 0 => true }               ==== Alt(Alt(null))  --: typed[Int Or (Boolean Or Null)]
 
 
   @Test
@@ -1198,7 +1173,7 @@ class FlowTest {
 
     def orQ4(s: String): Int Or String = Or.Ret:
       given AutoMap[String Or String, String] = _.fold{ x => s"Too long: $x" }{ y => s"Non-numeric: $y" }
-      s.isIf(_.forall(_.isDigit)).alsoDiscard{ case s if s.length < 1 || s.length > 9 => s}.?*.toInt
+      s.isIf(_.forall(_.isDigit)).alsoReject{ case s if s.length < 1 || s.length > 9 => s}.?*.toInt
     T ~ orQ4("perch")      ==== Alt("Non-numeric: perch")   --: typed[Int Or String]
     T ~ orQ4("1234567890") ==== Alt("Too long: 1234567890") --: typed[Int Or String]
     T ~ orQ4("225")        ==== 225                         --: typed[Int Or String]
@@ -1215,20 +1190,20 @@ class FlowTest {
     T ~ orQ6("")                                               ==== Alt("")
     T ~ orQ6("1815")                                           ==== 1815    --: typed[Int Or Err]
 
-    def orQ7(s: String): Int Or Err = Err.Or:
+    def orQ7(s: String): Int Or Err = Ask:
       s.isIf(_.nonEmpty).?.toInt
     T ~ orQ7("perch").existsAlt(_.toString contains "NumberF") ==== true
     T ~ orQ7("")                                               ==== Alt(Err(""))
     T ~ orQ7("1858")                                           ==== 1858 --: typed[Int Or Err]
 
-    def orQ8(s: String): Int Or Err = Err.FlatOr:
+    def orQ8(s: String): Int Or Err = Ask.flat:
       s.isIf(_.nonEmpty).?.toInt.altCase{ case i if i < 0 => Err(s"Negative: $i") }
     T ~ orQ8("perch").existsAlt(_.toString contains "NumberF") ==== true
     T ~ orQ8("")                                               ==== Alt(Err(""))
     T ~ orQ8("1858")                                           ==== 1858 --: typed[Int Or Err]
     T ~ orQ8("-3")                                             ==== Alt(Err("Negative: -3"))
 
-    def orQ9(s: String): Int Or Err = Err.Or:
+    def orQ9(s: String): Int Or Err = Ask:
       orQ7(s) ?# "Parse error"
     T ~ orQ9("perch").alt.toString.startsWith("Parse error")  ==== true
     T ~ orQ9("").existsAlt(_.isInstanceOf[ErrType.Explained]) ==== true
@@ -1328,10 +1303,12 @@ class FlowTest {
 
     {
       var k = 0
-      T ~ escape{ k += 1; (k > 1).?; k += 1 } ==== false
-      T ~ escape{ k += 1; (k > 1).?; k += 1 } ==== true
+      T ~ escape{ k += 1; escape.when(k > 1).?;    k += 1 } ==== true
+      T ~ escape{ k += 1; escape.unless(k <= 1).?; k += 1 } ==== false
       T ~ k ==== 3
-      T ~ { loop{ k += 1; (k < 10).? }; k } ==== 10
+      T ~ { loop{ k += 1; if k > 4 then loop.break() }; k } ==== 5
+      T ~ { loop{ k += 1; loop.stop(k > 7).? }; k }         ==== 8
+      T ~ { loop{ k += 1; loop.proceed(k < 10).? }; k }     ==== 10
     }
 
     T ~ attempt( optionQ1("eel").! ).default(0)                               ==== 0
@@ -1501,7 +1478,7 @@ class FlowTest {
       var x = 0
       boundary {
         fish.foreach{ y =>
-          if y.length > 5 then ().break
+          if y.length > 5 then ().break()
           x += y.length
         }
       }
@@ -1520,7 +1497,7 @@ class FlowTest {
     T ~ {
       boundary[String] {
         fish.foldLeft("fish:"){ (acc, y) =>
-          if y.length > 5 then acc.break
+          if y.length > 5 then acc.break()
           acc + " " + y
         }
       }
@@ -1529,7 +1506,7 @@ class FlowTest {
     T("Break by default to inner context") ~ {
       boundary[Int] {
         fish.foldLeft(0){ (acc, y) =>
-          acc + boundary[Int] { y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break else bcc + z ) }
+          acc + boundary[Int] { y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break() else bcc + z ) }
         }
       }
     } ==== "ceeba".sum.toInt
@@ -1537,7 +1514,7 @@ class FlowTest {
     T("Break to outer context") ~ {
       boundary[Int]{ outer ?=>
         fish.foldLeft(0){ (acc, y) =>
-          acc + boundary[Int]{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break(using outer) else bcc + z ) }
+          acc + boundary[Int]{ y.foldLeft(0)( (bcc, z) => if z > 'g' then bcc.break()(using outer) else bcc + z ) }
         }
       }
     } ==== 'c'.toInt
@@ -1547,7 +1524,7 @@ class FlowTest {
       val s = boundary[String] {
         fish.foldLeft(""){ (acc, y) =>
           val c = boundary[Char] { 
-            y.foldLeft(0)( (bcc, z) => if z > 'g' then z.break else if z <= 'a' then s"$bcc $z".break else bcc + z ).toChar
+            y.foldLeft(0)( (bcc, z) => if z > 'g' then z.break() else if z <= 'a' then s"$bcc $z".break() else bcc + z ).toChar
           }
           x += c
           acc + c.toString
@@ -1562,7 +1539,7 @@ class FlowTest {
         fish.fold(""){ (acc, y) =>
           if y.length < acc.length then s"Error: got shorter from $acc to $y"
           else
-            y.foreach(c => if c == 'm' || c == 'n' then c.autobreak);
+            y.foreach(c => if c == 'm' || c == 'n' then c.autobreak());
             if y.length > acc.length || y > acc then y else acc
         }
       }
@@ -1714,9 +1691,9 @@ class FlowTest {
       f
       cuml
 
-    inline def e[A, E >: boundary.Label[Alt[Err]]](inline f: E ?=> A): (A Or Err, Int) =
+    inline def e[A, E >: boundary.Label[Alt[Err]]](inline f: E ?=> A): (Ask[A], Int) =
       cuml = 0
-      (Err.Or[A](f), cuml)
+      (Ask[A](f), cuml)
 
     def o2 = Array(Some(3), Some(5), None)
     def i2 = Array(3, 5).iterator
@@ -1730,14 +1707,12 @@ class FlowTest {
         case 1 => i += 1; 5
         case _ => throw new Exception("only two elements")
     }
-    def z2 = Array(true, true, false)
 
     T ~ n{ escape{ val xs = o2; cuml += xs(0).?; cuml += xs(1).?; cuml += xs(2).?; cuml += 9 } } ==== 8
     T ~ n{ escape{ val xs = i2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
     T ~ n{ escape{ val xs = s2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
     T ~ n{ escape{ val xs = j2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
     T ~ n{ escape{ val xs = e2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
-    T ~ n{ escape{ val xs = z2; xs(0).?; cuml += 3; xs(1).?; cuml += 5; xs(2).?; cuml += 9 } }   ==== 8
 
     T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no";                        "yes" }          ==== (Is("yes"), 8)
     T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no"; cuml += xs(2) ?# "no"; "yes" }          ==== (Err.or("no"), 8)
@@ -1749,8 +1724,6 @@ class FlowTest {
     T ~ e{ val xs = j2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
     T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
     T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
-    T ~ e{ val xs = z2; xs(0) ?# "no"; cuml += 3; xs(1) ?# "no"; cuml += 5;                           "yes" } ==== (Is("yes"), 8)
-    T ~ e{ val xs = z2; xs(0) ?# "no"; cuml += 3; xs(1) ?# "no"; cuml += 5; xs(2) ?# "no"; cuml += 5; "yes" } ==== (Err.or("no"), 8)
 
 
   @Test
@@ -1898,15 +1871,15 @@ class FlowTest {
     T ~ Fu.flat{ nice{ "1".toInt }    }.flatMap(n => (5/(n-1)).orAlt[Err]).ask() ==== runtype[Alt[?]]
     T ~ Fu.flat{ Err("eel").orIs[Int] }.flatMap(n => (n+n).orAlt[Err]    ).ask() ==== Alt(Err("eel"))
     T ~ Fu.flat{ Err("eel").orIs[Int] }.flatMap(n => yikes("salmon")     ).ask() ==== Alt(Err("eel"))
-    T ~ Err.Or[Int]{ Fu{ "eel".length }.? * 3 } ==== 9 --: typed[Int Or Err]
-    T ~ Err.Or[Int]{ Fu{ "eel".toInt  }.? * 3 } ==== runtype[Alt[?]]
+    T ~ Ask[Int]{ Fu{ "eel".length }.? * 3 } ==== 9 --: typed[Int Or Err]
+    T ~ Ask[Int]{ Fu{ "eel".toInt  }.? * 3 } ==== runtype[Alt[?]]
     T ~ Or.Ret[Int, String]{ Fu{ "eel".length }.?+(_.toString) * 2 } ==== 6 --: typed[Int Or String]
     T ~ Or.Ret[Int, String]{ Fu{ "eel".toInt  }.?+(_.toString) * 2 } ==== runtype[Alt[?]]
     given AutoMap[Err, Char] = e => e.toString.fn(s => if s.length > 0 then '+' else '-')
     T ~ Or.Ret[Int, Char]{ Fu{ "eel".length }.?* + 4 } ==== 7 --: typed[Int Or Char]
     T ~ Or.Ret[Int, Char]{ Fu{ "eel".toInt }.?* + 4 }  ==== Alt('+')
-    T ~ Err.Or[Int]{ Fu{ "eel".length }.?#("Yo") / 2 } ==== 1 --: typed[Int Or Err]
-    T ~ Err.Or[Int]{ Fu{ "eel".toInt  }.?#("Yo") / 2 }.alt.toString.take(2) ==== "Yo"
+    T ~ Ask[Int]{ Fu{ "eel".length }.?#("Yo") / 2 } ==== 1 --: typed[Int Or Err]
+    T ~ Ask[Int]{ Fu{ "eel".toInt  }.?#("Yo") / 2 }.alt.toString.take(2) ==== "Yo"
     T ~ Fu.flat{ nice{ Fu{ "eel".length }.? + 2 } }.ask() ==== 5
     T ~ Fu.flat{ nice{ Fu{ "eel".toInt  }.? + 2 } }.ask() ==== runtype[Alt[?]]
     T ~ Fu{ Fu{ "eel".length }.?#("Yo") + 1 }.ask() ==== 4
@@ -2269,11 +2242,11 @@ class FlowTest {
     T ~ m.value                                                 ==== 3
     T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }            ==== thrown[Exception]
     T ~ m.value                                                 ==== 6
-    T ~ Err.Or[Int]{ Resource(m)(_.zap(- _)){ x => 
+    T ~ Ask[Int]{ Resource(m)(_.zap(- _)){ x => 
           if x.value > 0 then Is.break(x.value)
           else if x.value < 0 then Err.break("negative")
           else 0
-        } }                                                     ==== 6 --: typed[Int Or Err]
+        } }                                                     ==== 6 --: typed[Ask[Int]]
     T ~ m.value                                                 ==== -6
 
     T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Throwable]

@@ -54,18 +54,17 @@ package kse
   * By using `scala.util.boundary` functionality, one can implement break-and-continue-like shortcuts.
   * `shortcut.outer:` defines a point equivalent to a break (customarily one would place this outside
   * a loop); you can stop execution and return from the `shortcut.quittable:` block--which must be side-effecting
-  * because it only returns `Unit`--by using `shortcut.quit`, or conditionally using `shortcut.quitIf`.
-  * `shortcut.skippable:` would generally go inside a loop, and can be exited by using `shortcut.skip` and
-  * `shortcut.skipIf`.
+  * because it only returns `Unit`--by using `shortcut.quit_?` with or without a condition.
+  * `shortcut.skippable:` would generally go inside a loop, and can be exited by using `shortcut.skip_?`.
   * 
   * {{{
   * var i = 0
   * shortcut.quittable:
   *   while i < 100 do
   *     shortcut.skippable:
-  *       if i % 2 == 0 then shortcut.skip
+  *       if i % 2 == 0 then shortcut.breakToSkip()
   *       println(i)
-  *     if i.toString.length > 1 then shortcut.quit
+  *     shortcut.test(i.toString.length > 1).quit_?
   *     i += 1
   * // This prints numbers from 0 to 9
   * }}}

@@ -3,6 +3,9 @@
 
 package kse.eio.cleasy
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import scala.compiletime.{constValue, summonFrom}
 import scala.compiletime.ops.any.ToString
 
@@ -15,10 +18,11 @@ import kse.flow.*
 import kse.maths.*
 import kse.eio.*
 
+
 type CharVal = Char & Singleton
 
 trait Parse[A] {
-  def apply(s: String): A Or Err
+  def apply(s: String): Ask[A]
   def argument: Parse.ArgStyle = Parse.ArgStyle.Always
   def userString: String = "value"
   final def maybe: Parse[Option[A]] = new Parse.Optional[A](this)
@@ -69,7 +73,7 @@ object Parse {
   }
 
   final class SumType[A, B](p: Parse[A], q: Parse[B]) extends Parse[Either[B, A]] {
-    def apply(s: String): Either[B, A] Or Err =
+    def apply(s: String): Ask[Either[B, A]] =
       p(s).fold{ a => Is(Right(a)) }{ e1 =>
         q(s).fold{ b => Is(Left(b)) }{ e2 =>
           Alt(Err(e1, e2)("Cannot parse either alternative"))
@@ -100,7 +104,7 @@ object Parse {
   }
 
   final class The[L <: LabelVal](ls: Vector[L]) extends Parse[L] {
-    def apply(s: String): L Or Err =
+    def apply(s: String): Ask[L] =
       ls.find(_ == s) match
         case Some(l) => Is(l)
         case _ => Err.or(s"$s is not a valid option.  ${choosy(ls)}")
@@ -128,10 +132,10 @@ object Parse {
   def whereKey(key: String)(args: Array[String]): Array[(Int, Int)] =
     var stop = false
     args.breakable.copyOp: (test, i) =>
-      shortcut.quitIf(stop)
+      shortcut.quit(stop).?
       stop = test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))
       val j = keyMatch(key)(test)
-      shortcut.skipIf(j < 0)
+      shortcut.skip(j < 0).?
       (i, j)
 
   def shortMatch(key: Char)(test: String): Option[Array[Int]] =
@@ -144,7 +148,7 @@ object Parse {
       args.visit(): (test, i) =>
         shortMatch(key)(test) match
           case Some(js) => js.peek()(j => iib += ((i, j)))
-          case _ => shortcut.quitIf(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '=')))
+          case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     iib.result
 
   def whereEither(key: String, short: Char)(args: Array[String]): Array[(Int, Boolean, Int)] =
@@ -155,7 +159,7 @@ object Parse {
         if j >= 0 then izib += ((i, true, j))
         else shortMatch(short)(test) match
           case Some(js) => js.peek()(j => izib += ((i, false, j)))
-          case _ => shortcut.quitIf(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '=')))
+          case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     izib.result
 }
 
@@ -197,7 +201,7 @@ val _ulong: Parse[ULong] = new:
   override def toString = "Parse[ULong]"
 
 val _double: Parse[Double] = new:
-  def apply(s: String): Double Or Err = Err.Or:
+  def apply(s: String): Ask[Double] = Ask:
     if s.length > 0 then
       val c = s.charAt(0)
       if c == 'i' || c == 'I' then
@@ -219,7 +223,7 @@ val _path: Parse[Path] = new:
   override def toString = "Parse[Path]"
 
 val _dir: Parse[Path] = new:
-  def apply(s: String): Path Or Err = Err.Or:
+  def apply(s: String): Ask[Path] = Ask:
     val p = s.path
     if !p.exists then Err ?# s"Folder does not exist: $p"
     if !p.isDirectory then Err ?# s"Not a folder: $p"
@@ -228,7 +232,7 @@ val _dir: Parse[Path] = new:
   override def toString = "Parse[Path]"
 
 val _file: Parse[Path] = new:
-  def apply(s: String): Path Or Err = Err.Or:
+  def apply(s: String): Ask[Path] = Ask:
     val p = s.path
     if !p.exists then Err ?# s"File does not exist: $p"
     if p.isDirectory then Err ?# s"Folder instead of file: $p"
@@ -393,7 +397,7 @@ object Opt {
         val msgIfShort = if shortIdx.length > 0 then s"as --$label " else ""
         sb append s"  ${msgIfShort}at arguments ${Parse.listy(labelIdx.map(i => s"#${i+1}"))}"
       if shortIdx.length > 0 then
-        val shortArgs = shortIdx.diced(shortIdx.breakable.copyOp{ (ix, j) => shortcut.skipIf(j == 0 || shortIdx(j-1) == ix); j } , "[)")
+        val shortArgs = shortIdx.diced(shortIdx.breakable.copyOp{ (ix, j) => shortcut.skip(j == 0 || shortIdx(j-1) == ix).?; j } , "[)")
         val argsMsg = shortArgs.copyWith: ixs =>
           if ixs.length == 1 then
             if args(ixs(0)).length == 2 then "#" + (ixs(0)+1)
@@ -602,7 +606,7 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
   val indexedArgs =
     var stopped = false
     original.breakable.copyOp: (arg, i) =>
-      shortcut.skipIf(used(i) > 0)
+      shortcut.skip(used(i) > 0).?
       (arg, i)
 
   val args = indexedArgs.copyWith(_._1)
@@ -674,7 +678,7 @@ object Args {
             result = result :* e.value
             work = rest
           case _ => Err("Internal error: trying to read options but did not put them in Elt").toss
-        case _ => false.?
+        case _ => loop.break()
     result.asInstanceOf[AsNamedTuple[T]]
 }
 
@@ -711,10 +715,10 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
   transparent inline def --[A, C <: CharVal, L <: LabelVal](o: OptN[A, C, L]) = this + o
   transparent inline def --[A, C <: CharVal, L <: LabelVal](o: OptD[A, C, L]) = this + o
 
-  transparent inline def parse[E >: Alt[Err]](args: Array[String]) = Err.Or:
+  transparent inline def parse[E >: Alt[Err]](args: Array[String]) = Ask:
     escape:
       args.visit(): (arg, i) =>
-        (arg != "--" && arg != "--=").?
+        escape.when(arg == "--" || arg == "--=").?
         if arg.startsWith("--") then
           val i = arg.indexOf('=')
           val argname = if i < 0 then arg.select(2 to End) else arg.select(2, i)
@@ -737,7 +741,7 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
       var aboutW = 0
       loop:
         ops match
-          case EmptyTuple => false.?
+          case EmptyTuple => loop.break()
           case t *: tp =>
             ops = tp
             t match
@@ -821,7 +825,7 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
       ops = options
       loop:
         ops match
-          case EmptyTuple => false.?
+          case EmptyTuple => loop.break()
           case t *: tp =>
             ops = tp
             if t.asInstanceOf[AnyRef] ne Opt.done then
@@ -881,7 +885,7 @@ object Cleasy {
             result = result :* Args.elt(o.parse_?(arguments, consumed))
             work = rest
           case _ => boundary.break(Err.or("Internal error: trying to parse options but not using Opt"))
-        case _ => false.?
+        case _ => loop.break()
     result.asInstanceOf[Parsed[T]]
 
   def goodCaps(s: String, ts: String*) =

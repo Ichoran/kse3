@@ -1,9 +1,10 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2015, 2020-23 Rex Kerr and Calico Life Sciences, LLC.
 
-
 package kse.flow
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import java.lang.ref.SoftReference
 import java.time._

@@ -1,8 +1,10 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2024 Rex Kerr.
 
-
 package kse.flow
+
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import java.util.concurrent.{Future, ExecutorService}
 import java.util.concurrent.atomic.AtomicReference
@@ -13,7 +15,8 @@ import scala.reflect.ClassTag
 
 import kse.basics._
 
-opaque type Fu[A] = Future[A Or Err]
+
+opaque type Fu[A] = Future[Ask[A]]
 object Fu {
   case class GroupExecutor(service: ExecutorService) {
     val failure: AtomicReference[Err Or Unit] = new AtomicReference(Alt.unit)
@@ -46,8 +49,8 @@ object Fu {
     case g: GroupExecutor => g.service.submit(() => boundary{ work }.useAlt(g.fail))
 
   inline def apply[A](using exec: Executor)(inline work: Label[A Or Err] ?=> A): kse.flow.Fu[A] = exec match
-    case service: ExecutorService => service.submit(() => Err.Or{ work })
-    case g: GroupExecutor => g.service.submit(() => Err.Or{ work }.useAlt(g.fail))
+    case service: ExecutorService => service.submit(() => Ask{ work })
+    case g: GroupExecutor => g.service.submit(() => Ask{ work }.useAlt(g.fail))
 
   inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[A Or Err] ?=> A Or Err): kse.flow.Fu[A] = exec match
     case service: ExecutorService =>
@@ -67,20 +70,20 @@ object Fu {
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
-        try Err.Or{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
+        try Ask{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
         finally Executor.stopIfGroup(ex)()
       })
     case g: GroupExecutor =>
       g.service.submit(() => {
         val ex: Executor = Executor.group()
-        try Err.Or{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
+        try Ask{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
         finally Executor.stopIfGroup(ex)()
       })
 
   extension [A](fu: Fu[A]) {
     def isComplete: Boolean = (fu: Future[A Or Err]).isDone
 
-    def ask(): A Or Err =
+    def ask(): Ask[A] =
       try (fu: Future[A Or Err]).get()
       catch case e if e.catchable => Alt(Err(e))
 
@@ -122,6 +125,6 @@ extension [A](a: Array[kse.flow.Fu[A]]) {
   inline def fuMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => B)): Array[kse.flow.Fu[B]] =
     a.copyWith(_ map f)
 
-  inline def fuFlatMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => (B Or Err))): Array[kse.flow.Fu[B]] =
+  inline def fuFlatMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => Ask[B])): Array[kse.flow.Fu[B]] =
     a.copyWith(_ flatMap f)
 }

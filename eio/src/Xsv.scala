@@ -4,6 +4,8 @@
 package kse.eio
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.io._
 import java.nio._
 import java.nio.file._
@@ -71,7 +73,7 @@ class Xsv private (
   // Assumes 0 <= i0 <= iN <= data.length, and Sp state on entry.
   private transparent inline def skipSpaceImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
     data: T, inline lookup: (T, Int) => C, i0: Int, iN: Int, visitor: Xsv.Visitor[T, ?]
-  ): Unit Or Err =
+  ): Ask[Unit] =
     Or.Ret:
       var i = i0
       while i < iN do
@@ -81,7 +83,7 @@ class Xsv private (
             pos += i - i0
             index = i + 1
             state = Tc
-            Is.unit.break
+            Is.unit.break()
           case ' '  | '\t' =>
             i += 1
           case '\r' | '\n' =>
@@ -93,15 +95,15 @@ class Xsv private (
           case _ =>
             pos += i - i0
             index = i
-            visitor.error(Err(sayWhere("Non-space cell content after quote"))).asAlt.break
+            visitor.breakWithError(Err(sayWhere("Non-space cell content after quote")))
       pos += i - i0
       index = i
       Is.unit
 
-  private def skipSpace[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], ?]): Unit Or Err =
+  private def skipSpace[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], ?]): Ask[Unit] =
     skipSpaceImpl[Array[Byte], U, Byte](data, (a, i) => a(i), i0, iN, visitor)
 
-  private def skipSpace[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, ?]): Unit Or Err =
+  private def skipSpace[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, ?]): Ask[Unit] =
     skipSpaceImpl[String, U, Char](data, (s, i) => s.charAt(i), i0, iN, visitor)
 
   // Loads quoted input into a visitor.
@@ -111,7 +113,7 @@ class Xsv private (
   // Assumes 0 <= i0 < iN <= data.length, and a Q state on entry.
   private transparent inline def visitQuoteImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
     data: T, inline lookup: (T, Int) => C, inline lf: T, i0: Int, iN: Int, visitor: Xsv.Visitor[T, U]
-  ): Unit Or Err =
+  ): Ask[Unit] =
     Or.Ret:
       var i = i0
       while i < iN do
@@ -136,24 +138,24 @@ class Xsv private (
               index = i + 1
               state = if c == '\n' then Tn else Tr
               (visitor.endquote() && visitor.newline(line)).?*
-              Is.unit.break
+              Is.unit.break()
             else if c == separator then
               // The quote is over and we've reached the end of a cell
               pos += 1
               index = i + 1
               state = Tc
               visitor.endquote().?*
-              Is.unit.break
+              Is.unit.break()
             else if permissiveWhitespace && (c == ' ' || c == '\t') then
               // The quote is over but there's whitespace after it and we've promised we'll handle it.
               pos += 1
               index = i + 1
               state = Sp
               visitor.endquote().?*
-              Is.unit.break
+              Is.unit.break()
             else
               // The quote is over and there's some junk here.
-              visitor.error(Err(sayWhere("Non-space cell content after quote"))).asAlt.break
+              visitor.breakWithError(Err(sayWhere("Non-space cell content after quote")))
           case _ =>
         // Now we know we're inside a quote so we try to walk forwards until something happens.
         while i < iN && (state & (Qq | Qr)) == 0 do
@@ -191,32 +193,32 @@ class Xsv private (
         state = Qt
       ()
 
-  private def visitQuote[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): Unit Or Err =
+  private def visitQuote[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): Ask[Unit] =
     visitQuoteImpl[Array[Byte], U, Byte](data, (d, i) => d(i), Xsv.lfByte, i0, iN, visitor)
 
-  private def visitQuote[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): Unit Or Err =
+  private def visitQuote[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): Ask[Unit] =
     visitQuoteImpl[String, U, Char](data, (d, i) => d(i), "\n", i0, iN, visitor)
 
   private transparent inline def trimmedImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
     data: T, inline lookup: (T, Int) => C, i0: Int, iN: Int, visitor: Xsv.Visitor[T, U]
-  ): Unit Or Err =
+  ): Ask[Unit] =
     var jN = iN
     while jN > i0 && lookup(data, jN-1).fn(c => c == ' ' || c == '\t') do jN -= 1
     var j0 = i0
     while j0 < jN && lookup(data, j0).fn(c => c == ' ' || c == '\t') do j0 += 1
     visitor.unquoted(data, j0, jN)
 
-  private def trimmed[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): Unit Or Err =
+  private def trimmed[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): Ask[Unit] =
     trimmedImpl[Array[Byte], U, Byte](data, (d, i) => d(i), i0, iN, visitor)
 
-  private def trimmed[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): Unit Or Err =
+  private def trimmed[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): Ask[Unit] =
     trimmedImpl[String, U, Char](data, (s, i) => s.charAt(i), i0, iN, visitor)
 
   private transparent inline def tokLineImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
     data: T, inline lookup: (T, Int) => C,
     inline trim: (T, Int, Int, Xsv.Visitor[T, U]) => Unit Or Err,
     i: Int, visitor: Xsv.Visitor[T, U]
-  ): Unit Or Err =
+  ): Ask[Unit] =
     Or.Ret:
       (if permissiveWhitespace then trim(data, index, i, visitor) else visitor.unquoted(data, index, i)).?*
       line = line +# UInt(1)
@@ -225,10 +227,10 @@ class Xsv private (
       index = i+1
       ()
 
-  private def tokLine[U](data: Array[Byte], i: Int, visitor: Xsv.Visitor[Array[Byte], U]): Unit Or Err =
+  private def tokLine[U](data: Array[Byte], i: Int, visitor: Xsv.Visitor[Array[Byte], U]): Ask[Unit] =
     tokLineImpl[Array[Byte], U, Byte](data, (d, i) => d(i), (d, i, j, v) => trimmed(d, i, j, v), i, visitor)
 
-  private def tokLine[U](data: String, i: Int, visitor: Xsv.Visitor[String, U]): Unit Or Err =
+  private def tokLine[U](data: String, i: Int, visitor: Xsv.Visitor[String, U]): Ask[Unit] =
     tokLineImpl[String, U, Char](data, (s, i) => s.charAt(i), (s, i, j, v) => trimmed[U](s, i, j, v), i, visitor)
 
 
@@ -241,13 +243,13 @@ class Xsv private (
   private transparent inline def visitRangeImpl[T <: Array[Byte] | String, U, C <: Byte | Char](
     data: T,
     inline lookup: (T, Int) => C,
-    inline sspace: (T, Int, Int, Xsv.Visitor[T, U]) => Unit Or Err,
-    inline vquote: (T, Int, Int, Xsv.Visitor[T, U]) => Unit Or Err,
-    inline trim: (T, Int, Int, Xsv.Visitor[T, U]) => Unit Or Err,
-    inline tokl: (T, Int, Xsv.Visitor[T, U]) => Unit Or Err,
+    inline sspace: (T, Int, Int, Xsv.Visitor[T, U]) => Ask[Unit],
+    inline vquote: (T, Int, Int, Xsv.Visitor[T, U]) => Ask[Unit],
+    inline trim: (T, Int, Int, Xsv.Visitor[T, U]) => Ask[Unit],
+    inline tokl: (T, Int, Xsv.Visitor[T, U]) => Ask[Unit],
     inline lf: T,
     i0: Int, iN: Int, visitor: Xsv.Visitor[T, U], e: Int
-  ): Unit Or Err =
+  ): Ask[Unit] =
     Or.Ret:
       var i = i0
       while i < iN do
@@ -265,7 +267,7 @@ class Xsv private (
                   case '"' =>
                     if i > index then
                       if !permissiveWhitespace || { while index < i && lookup(data, index).fn(c => c == ' ' || c == '\t') do { index += 1; pos += 1 }; index < i } then
-                        visitor.error(Err(sayWhere("Extra content before quote."))).asAlt.break
+                        visitor.breakWithError(Err(sayWhere("Extra content before quote.")))
                     i += 1
                     index = i
                     state = Q1
@@ -306,13 +308,13 @@ class Xsv private (
         // Make sure we consumed all the data and are not in a quote
         if (state & (Q1 | Qq | Qt | Qr)) != 0 then
           if state == Qq then visitor.endquote().?*
-          else visitor.error(Err(sayWhere("Input ended inside of quote"))).asAlt.break
+          else visitor.breakWithError(Err(sayWhere("Input ended inside of quote")))
         else if i > index || state == Tc then
           (if permissiveWhitespace then trim(data, index, i, visitor) else visitor.unquoted(data, index, i)).?*
           index = i
       ()
 
-  private def visitRange[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U], e: Int): Unit Or Err =
+  private def visitRange[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U], e: Int): Ask[Unit] =
     visitRangeImpl[Array[Byte], U, Byte](
       data, (d, i) => d(i),
       (d, i, j, v) => skipSpace(d, i, j, v),
@@ -323,7 +325,7 @@ class Xsv private (
       i0, iN, visitor, e
     )
 
-  private def visitRange[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U], e: Int): Unit Or Err =
+  private def visitRange[U](data: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U], e: Int): Ask[Unit] =
     visitRangeImpl[String, U, Char](
       data, (s, i) => s.charAt(i),
       (s, i, j, v) => skipSpace(s, i, j, v),
@@ -334,12 +336,12 @@ class Xsv private (
       i0, iN, visitor, e
     )
 
-  def visit[U](content: Array[Byte], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  def visit[U](content: Array[Byte], visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
     clear()
     visitor.clear()
     visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
 
-  def visit[U](content: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  def visit[U](content: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
     clear()
     visitor.clear()
     val j0 = 0 max i0
@@ -347,15 +349,15 @@ class Xsv private (
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
-  inline def visit[U](content: Array[Byte], inline rg: Rg, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  inline def visit[U](content: Array[Byte], inline rg: Rg, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
     val iv = Iv of rg
     visit(content, iv.i0, iv.iN, visitor)
-  inline def visit[U](content: Array[Byte], inline v: Iv | PIv, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  inline def visit[U](content: Array[Byte], inline v: Iv | PIv, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
     val iv = Iv.of(v, content)
     visit(content, iv.i0, iv.iN, visitor)
 
   @targetName("visitByteArrays")
-  def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
     Or.FlatRet:
       clear()
       visitor.clear()
@@ -377,7 +379,7 @@ class Xsv private (
               var m = ((4L * n) min a.length.toLong).toInt
               if m > buffer.length - k then
                 val h = (((k.toLong + m) max (2L * buffer.length)) min (Int.MaxValue - 7L)).toInt
-                if h <= buffer.length then visitor.error(Err(sayWhere("Buffer overflow"))).asAlt.break
+                if h <= buffer.length then visitor.breakWithError(Err(sayWhere("Buffer overflow")))
                 buffer = buffer.copyToSize(h)
                 if m > buffer.length - k then m = buffer.length - k
               moreExtra = m > n
@@ -393,18 +395,18 @@ class Xsv private (
             if (buffer eq null) || buffer.length - 128 < k then
               val g = if buffer eq null then 64 else buffer.length
               val h = (((k + 128L) max (2L * g)) min (Int.MaxValue - 7L)).toInt
-              if k >= h then visitor.error(Err(sayWhere(s"Buffer overflow"))).asAlt.break
+              if k >= h then visitor.breakWithError(Err(sayWhere(s"Buffer overflow")))
               buffer = new Array[Byte](h)
             a.inject(buffer)(index to End)
           else k = 0
       visitor.complete(line)
 
-  def visit[U](content: String, visitor: Xsv.Visitor[String, U]): U Or Err =
+  def visit[U](content: String, visitor: Xsv.Visitor[String, U]): Ask[U] =
     clear()
     visitor.clear()
     visitRange(content, 0, content.length, visitor, EoF) && visitor.complete(line)
 
-  def visit[U](content: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): U Or Err =
+  def visit[U](content: String, i0: Int, iN: Int, visitor: Xsv.Visitor[String, U]): Ask[U] =
     clear()
     visitor.clear()
     val j0 = 0 max i0
@@ -412,15 +414,15 @@ class Xsv private (
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
-  inline def visit[U](content: String, inline rg: Rg, visitor: Xsv.Visitor[String, U]): U Or Err =
+  inline def visit[U](content: String, inline rg: Rg, visitor: Xsv.Visitor[String, U]): Ask[U] =
     val iv = Iv of rg
     visit(content, iv.i0, iv.iN, visitor)
-  inline def visit[U](content: String, inline v: Iv | PIv, visitor: Xsv.Visitor[String, U]): U Or Err =
+  inline def visit[U](content: String, inline v: Iv | PIv, visitor: Xsv.Visitor[String, U]): Ask[U] =
     val iv = Iv.of(v, content)
     visit(content, iv.i0, iv.iN, visitor)
 
   @targetName("visitStrings")
-  def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): U Or Err =
+  def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): Ask[U] =
     Or.FlatRet:
       clear()
       visitor.clear()
@@ -430,22 +432,22 @@ class Xsv private (
         index = 0
         val s = it.next
         visitRange(s, 0, s.length, visitor, { more = it.hasNext; if more then EoL else EoF })
-        if index < s.length then visitor.error(Err(sayWhere(s"Only consumed $index of ${s.length} characters"))).asAlt.break
+        if index < s.length then visitor.breakWithError(Err(sayWhere(s"Only consumed $index of ${s.length} characters")))
       visitor.complete(line)
 
-  def visitInputStream[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): U Or Err =
+  def visitInputStream[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): Ask[U] =
     Or.FlatRet:
       nice{ visit(Send.IterateInputStream(content, startBufferSize, maxBufferSize), visitor).? }
 
-  def visit[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err = visitInputStream[U](content, visitor)
+  def visit[U](content: InputStream, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] = visitInputStream[U](content, visitor)
 
-  def visitByteChannel[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): U Or Err =
+  def visitByteChannel[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U], startBufferSize: Int = 256, maxBufferSize: Int = 4194304): Ask[U] =
     Or.FlatRet:
       nice{ visit(Send.IterateByteChannel(content, startBufferSize, maxBufferSize), visitor).? }
 
-  def visit[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err = visitByteChannel[U](content, visitor)
+  def visit[U](content: ReadableByteChannel, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] = visitByteChannel[U](content, visitor)
 
-  def visit[U](content: Path, visitor: Xsv.Visitor[Array[Byte], U]): U Or Err =
+  def visit[U](content: Path, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
       if !content.exists then Err.or(s"File not found: $content")
       else Resource.Nice(content.openRead(0))(_.close): input =>
         val sz = content.raw.size
@@ -453,25 +455,25 @@ class Xsv private (
         if sz > n && sz - n < 65536 then n = 2621440
         visit(Send.IterateInputStream(input, n, n), visitor).?
 
-  def decode[U](content: Array[Byte]        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(content.length))
+  def decode[U](content: Array[Byte]        )(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] = visit(content, gv.get(content.length))
   @targetName("decodeByteArrays")
-  def decode[U](content: IOnce[Array[Byte]] )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
-  def decode[U](content: String             )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(content.length))
+  def decode[U](content: IOnce[Array[Byte]] )(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] = visit(content, gv.get(-1))
+  def decode[U](content: String             )(using gv: Xsv.GetVisitor[String,      U]): Ask[U] = visit(content, gv.get(content.length))
   @targetName("decodeStrings")
-  def decode[U](content: IOnce[String]      )(using gv: Xsv.GetVisitor[String,      U]): U Or Err = visit(content, gv.get(-1))
-  def decode[U](content: InputStream        )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
-  def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(content, gv.get(-1))
-  def   read[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err = visit(path,    gv.get(path.size))
+  def decode[U](content: IOnce[String]      )(using gv: Xsv.GetVisitor[String,      U]): Ask[U] = visit(content, gv.get(-1))
+  def decode[U](content: InputStream        )(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] = visit(content, gv.get(-1))
+  def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] = visit(content, gv.get(-1))
+  def   read[U](path: Path                  )(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] = visit(path,    gv.get(path.size))
 
   def bomless: Xsv.Bomless = new Xsv.Bomless(this)
 
   def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
     Xsv.encodeTable(table, separator)
-  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Ask[Unit] =
     Xsv.encodeTable(table, separator).writeTo(p)
 }
 object Xsv {
-  def create(separator: Char, permissiveWhitespace: Boolean = false): Xsv Or Err =
+  def create(separator: Char, permissiveWhitespace: Boolean = false): Ask[Xsv] =
     if separator > 127 then Err.or("Xsv only supports basic one-byte separators (0-127)")
     else if separator == '\n' || separator == '\r' then Err.or("Separator cannot be a newline character")
     else if separator == '"' then Err.or("Separator cannot be a double quote character")
@@ -490,10 +492,10 @@ object Xsv {
   val lfByte = Array[Byte]('\n'.toByte)
 
   final class Bomless(xsv: Xsv) {
-    def decode[U](content: Array[Byte])(using gv: GetVisitor[Array[Byte], U]): U Or Err =
+    def decode[U](content: Array[Byte])(using gv: GetVisitor[Array[Byte], U]): Ask[U] =
       if content.hasBOM then xsv.visit(content, 3 to End, gv.get(content.length-3))
       else xsv.decode(content)
-    def decode[U](content: IOnce[Array[Byte]])(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+    def decode[U](content: IOnce[Array[Byte]])(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] =
       val it = content.iterator
       if !it.hasNext then xsv.decode(it)
       else
@@ -504,11 +506,11 @@ object Xsv {
         else
           if it.hasNext then xsv.decode(Iterator(first) ++ it)
           else xsv.decode(first)
-    def decode[U](content: InputStream)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+    def decode[U](content: InputStream)(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] =
       decode(Send.IterateInputStream(content, 256, 4194304))
-    def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+    def decode[U](content: ReadableByteChannel)(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] =
       decode(Send.IterateByteChannel(content, 256, 4194304))
-    def read[U](content: Path)(using gv: Xsv.GetVisitor[Array[Byte], U]): U Or Err =
+    def read[U](content: Path)(using gv: Xsv.GetVisitor[Array[Byte], U]): Ask[U] =
         if !content.exists then Err.or(s"File not found: $content")
         else Resource.Nice(content.openRead(0))(_.close): input =>
           val sz = content.raw.size
@@ -534,12 +536,13 @@ object Xsv {
 
   trait Visitor[T <: Array[Byte] | String, U] {
     def clear(): this.type
-    def unquoted(data: T, start: Int, end: Int): Unit Or Err
+    def unquoted(data: T, start: Int, end: Int): Ask[Unit]
     def quoted(data: T, start: Int, end: Int): Unit
-    def endquote(): Unit Or Err
-    def newline(line: UInt): Unit Or Err
-    def complete(line: UInt): U Or Err
+    def endquote(): Ask[Unit]
+    def newline(line: UInt): Ask[Unit]
+    def complete(line: UInt): Ask[U]
     def error(err: Err): Err
+    def breakWithError[L >: Alt[Err]](err: Err)(using boundary.Label[L]): Nothing = boundary.break(Alt(error(err)))
   }
   object Visitor {
     val emptyRow = Array("")
@@ -561,7 +564,7 @@ object Xsv {
         q = null
         this
 
-      protected def addToRow(cell: String): Unit Or Err =
+      protected def addToRow(cell: String): Ask[Unit] =
         if row eq null then
           if (table eq null) || rowIdx == 0 || rowIdx >= table.length then row = new Array[String](4)
           else row = new Array[String](table(rowIdx-1).length)
@@ -573,7 +576,7 @@ object Xsv {
         colIdx += 1
         Is.unit
 
-      def endquote(): Unit Or Err =
+      def endquote(): Ask[Unit] =
         val result = q match
           case null => Err.or(s"Supposed end-quote with no starting quote?")
           case s: String => addToRow(s)
@@ -581,13 +584,13 @@ object Xsv {
         q = null
         result
 
-      def newline(line: UInt): Unit Or Err =
-        if q ne null then return Err.or("New row in middle of quote")
+      def newline(line: UInt): Ask[Unit] = Or.Ret:
+        if q ne null then Err ?# "New row in middle of quote"
         if (row ne null) && colIdx > 0 then
           if table eq null then table = new Array[Array[String]](4)
           else if rowIdx >= table.length then
             val m = (rowIdx *# 2) min (Int.MaxValue - 7)
-            if m == table.length then return Err.or(s"Too many lines for table: ${m+1}")
+            if m == table.length then Err ?# s"Too many lines for table: ${m+1}"
             table = table.copyToSize(m)
           table(rowIdx) = row.shrinkCopy(colIdx)
           var i = rowIdx - 1
@@ -595,7 +598,7 @@ object Xsv {
             table(i) = emptyRow
             i -= 1
           if strictlyRectangular && rowIdx > 0 && table(rowIdx-1).length != colIdx then
-            return Err.or(s"Row $rowIdx has ${table(rowIdx-1).length} columns but row ${rowIdx+1} has $colIdx")
+            Err ?# s"Row $rowIdx has ${table(rowIdx-1).length} columns but row ${rowIdx+1} has $colIdx"
         else
           if (table ne null) && rowIdx < table.length then table(rowIdx) = emptyRow
         row = null
@@ -603,8 +606,8 @@ object Xsv {
         rowIdx += 1
         Is.unit
 
-      def complete(line: UInt): Array[Array[String]] Or Err = Or.Ret:
-        if q ne null then return Err.or("End of table in middle of quote")
+      def complete(line: UInt): Ask[Array[Array[String]]] = Or.Ret:
+        if q ne null then Err ?# "End of table in middle of quote"
         if colIdx > 0 then newline(line).?
         if table eq null then emptyTable
         else
@@ -621,7 +624,7 @@ object Xsv {
 
     final class TableFromString(strictRect: Boolean = false)
     extends ToStringTable[String](strictRect) {
-      def unquoted(data: String, start: Int, end: Int): Unit Or Err =
+      def unquoted(data: String, start: Int, end: Int): Ask[Unit] =
         if q ne null then Err.or(s"New token in middle of quote")
         addToRow(data.substring(start, end))
 
@@ -639,7 +642,7 @@ object Xsv {
 
     final class TableFromBytes(strictRect: Boolean = false)
     extends ToStringTable[Array[Byte]](strictRect) {
-      def unquoted(data: Array[Byte], start: Int, end: Int): Unit Or Err =
+      def unquoted(data: Array[Byte], start: Int, end: Int): Ask[Unit] =
         if q ne null then Err.or("New token in middle of quote")
         addToRow(new String(data, start, end-start))
 
@@ -665,7 +668,7 @@ object Xsv {
     var n = -1
     escape:
       cell.visit(){ (c, i) =>
-        (c != '\r' && c != '\n' && c != '"' && c != separator).?
+        escape.unless(c != '\r' && c != '\n' && c != '"' && c != separator).?
         n = i
       }
     if n == cell.length-1 then sb append cell
@@ -674,7 +677,7 @@ object Xsv {
       var m = 0
       escape:
         cell.visit(n+1 to End){ (c, i) =>
-          (c != '"').?
+          escape.unless(c != '"').?
           n = i
         }
       while n != cell.length-1 do
@@ -685,7 +688,7 @@ object Xsv {
           n = m
           escape:
             cell.visit(n to End){ (c, i) =>
-              (c != '"').?
+              escape.unless(c != '"').?
               n = i
             }
         else n = cell.length -1
@@ -718,20 +721,20 @@ object Xsv {
 }
 
 object Csv {
-  def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(content: Array[Byte]       ): Ask[Array[Array[String]]] = Xsv.comma.decode(content)
   @targetName("decodeByteArrays")
-  def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.comma.decode(content)
-  def decode(content: String            ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
+  def decode(content: IOnce[Array[Byte]]): Ask[Array[Array[String]]] = Xsv.comma.decode(content)
+  def decode(content: String            ): Ask[Array[Array[String]]] = Xsv.comma.decode(content)
   @targetName("decodeStrings")
-  def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
-  def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.decode(content)
-  def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.comma.read(path)
+  def decode(content: IOnce[String]     ): Ask[Array[Array[String]]] = Xsv.comma.decode(content)
+  def decode(content: InputStream       ): Ask[Array[Array[String]]] = Xsv.comma.decode(content)
+  def read(path: Path                   ): Ask[Array[Array[String]]] = Xsv.comma.read(path)
 
   object bomless {
-    def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
-    def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
-    def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.comma.bomless.decode(content)
-    def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.comma.bomless.read(path)
+    def decode(content: Array[Byte]       ): Ask[Array[Array[String]]] = Xsv.comma.bomless.decode(content)
+    def decode(content: IOnce[Array[Byte]]): Ask[Array[Array[String]]] = Xsv.comma.bomless.decode(content)
+    def decode(content: InputStream       ): Ask[Array[Array[String]]] = Xsv.comma.bomless.decode(content)
+    def read(path: Path                   ): Ask[Array[Array[String]]] = Xsv.comma.bomless.read(path)
   }
 
   def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
@@ -741,25 +744,25 @@ object Csv {
 }
 
 object Tsv {
-  def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(content: Array[Byte]       ): Ask[Array[Array[String]]] = Xsv.tab.decode(content)
   @targetName("decodeByteArrays")
-  def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.tab.decode(content)
-  def decode(content: String            ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
+  def decode(content: IOnce[Array[Byte]]): Ask[Array[Array[String]]] = Xsv.tab.decode(content)
+  def decode(content: String            ): Ask[Array[Array[String]]] = Xsv.tab.decode(content)
   @targetName("decodeStrings")
-  def decode(content: IOnce[String]     ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
-  def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.decode(content)
-  def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.tab.read(path)
+  def decode(content: IOnce[String]     ): Ask[Array[Array[String]]] = Xsv.tab.decode(content)
+  def decode(content: InputStream       ): Ask[Array[Array[String]]] = Xsv.tab.decode(content)
+  def read(path: Path                   ): Ask[Array[Array[String]]] = Xsv.tab.read(path)
 
   object bomless {
-    def decode(content: Array[Byte]       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
-    def decode(content: IOnce[Array[Byte]]): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
-    def decode(content: InputStream       ): Array[Array[String]] Or Err = Xsv.tab.bomless.decode(content)
-    def read(path: Path                   ): Array[Array[String]] Or Err = Xsv.tab.bomless.read(path)
+    def decode(content: Array[Byte]       ): Ask[Array[Array[String]]] = Xsv.tab.bomless.decode(content)
+    def decode(content: IOnce[Array[Byte]]): Ask[Array[Array[String]]] = Xsv.tab.bomless.decode(content)
+    def decode(content: InputStream       ): Ask[Array[Array[String]]] = Xsv.tab.bomless.decode(content)
+    def read(path: Path                   ): Ask[Array[Array[String]]] = Xsv.tab.bomless.read(path)
   }
 
 
   def encode(table: Array[Array[String]]): Iterator[Array[Byte]] =
     Xsv.tab.encode(table)
-  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def write(table: Array[Array[String]])(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Ask[Unit] =
     Xsv.tab.write(table)(p)
 }

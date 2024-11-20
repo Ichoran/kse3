@@ -3,12 +3,17 @@
 
 package kse.basics
 
+
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference, LongAdder}
 
 import scala.annotation.targetName
 import scala.compiletime.{erasedValue, summonFrom}
 import scala.reflect.ClassTag
 import scala.util.boundary
+
+import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.intervals._
 
@@ -1376,7 +1381,7 @@ object ClippedArray {
 
     @targetName("update_All_array")
     inline def update(values: Array[A]): Unit =
-      update(Iv(0, ca.unwrap.length), values)
+      kse.basics.ClippedArray.update(ca)(Iv(0, ca.unwrap.length), values)
 
     @targetName("update_Iv_constant")
     inline def update(iv: Iv, value: A): Unit =
@@ -1400,17 +1405,17 @@ object ClippedArray {
 
     @targetName("update_Range_constant")
     inline def update(inline rg: collection.immutable.Range, value: A): Unit =
-      update(Iv of rg, value)
+      kse.basics.ClippedArray.update(ca)(Iv of rg, value)
     @targetName("update_Range_array")
     inline def update(inline rg: collection.immutable.Range, values: Array[A]): Unit =
-      update(Iv of rg, values)
+      kse.basics.ClippedArray.update(ca)(Iv of rg, values)
 
     @targetName("update_Py_constant")
     inline def update(piv: PIv, value: A): Unit =
-      update(piv of ca.unwrap, value)
+      kse.basics.ClippedArray.update(ca)(piv of ca.unwrap, value)
     @targetName("update_Py_array")
     inline def update(piv: PIv, values: Array[A]): Unit =
-      update(piv of ca.unwrap, values)
+      kse.basics.ClippedArray.update(ca)(piv of ca.unwrap, values)
 
     @targetName("update_Places_constant")
     inline def update(indices: Array[Int], value: A): Unit =

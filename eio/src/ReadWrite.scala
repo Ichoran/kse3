@@ -4,6 +4,8 @@
 package kse.eio
 
 
+// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+
 import java.io._
 import java.nio._
 import java.nio.channels._
@@ -17,8 +19,8 @@ import kse.maths.{given, _}
 
 
 trait Send[A, -B] {
-  inline final def apply(in: A, out: B): Long Or Err = limited(Long.MaxValue)(in, out)
-  def limited(count: Long)(in: A, out: B): Long Or Err
+  inline final def apply(in: A, out: B): Ask[Long] = limited(Long.MaxValue)(in, out)
+  def limited(count: Long)(in: A, out: B): Ask[Long]
 }
 object Send {
   val emptyByteArray = Array.empty[Byte]
@@ -26,7 +28,7 @@ object Send {
   final class StreamToStream(maxBuffer: Int = 0x1000000)
   extends Send[InputStream, OutputStream] {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
-    def limited(count: Long)(in: InputStream, out: OutputStream): Long Or Err = Err.nice:
+    def limited(count: Long)(in: InputStream, out: OutputStream): Ask[Long] = nice:
       var buffer: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
       var n = 0L
       var m = 0L max count
@@ -51,7 +53,7 @@ object Send {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
-    def limited(count: Long)(in: InputStream, out: WritableByteChannel): Long Or Err = Err.Or:
+    def limited(count: Long)(in: InputStream, out: WritableByteChannel): Ask[Long] = Ask:
       var data: Array[Byte] = new Array[Byte]( in.available.clamp(if maxb < 4096 then maxb else 4096, maxb) )
       var buffer: ByteBuffer = data.buffer()
       var n = 0L
@@ -73,9 +75,9 @@ object Send {
           if r < 0 then
             n += buffer.position
             if allowFullTarget then m = 0
-            else Err.break(s"Full output after $n bytes with at least ${buffer.remaining} remaining")
+            else Err ?# s"Full output after $n bytes with at least ${buffer.remaining} remaining"
           else if r < k then
-            Err.break(s"After $maxr tries, write $n bytes but at least ${buffer.remaining} remaining")
+            Err ?# s"After $maxr tries, write $n bytes but at least ${buffer.remaining} remaining"
           else
             n += k
             if k == data.length && data.length < maxb && n - m > 2L*data.length then
@@ -92,7 +94,7 @@ object Send {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
-    def limited(count: Long)(in: ReadableByteChannel, out: OutputStream): Long Or Err = Err.Or:
+    def limited(count: Long)(in: ReadableByteChannel, out: OutputStream): Ask[Long] = Ask:
       val speculativeSize = in match
         case sbc: SeekableByteChannel => (sbc.size - sbc.position).clamp(0L, Int.MaxValue - 7).toInt
         case _ => 4096
@@ -107,7 +109,7 @@ object Send {
         if k < 0 then m = 0L
         else if k == 0 then
           nz += 1
-          if nz > maxr then Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+          if nz > maxr then Err ?# s"Read $n bytes but failed to make further progress after $nz tries"
           else if msdr > 0 then Thread.sleep(msdr)
         else
           nz = 0
@@ -127,7 +129,7 @@ object Send {
     private val maxb = maxBuffer.clamp(256, Int.MaxValue - 7)
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
-    def limited(count: Long)(in: ReadableByteChannel, out: WritableByteChannel): Long Or Err = Err.Or:
+    def limited(count: Long)(in: ReadableByteChannel, out: WritableByteChannel): Ask[Long] = Ask:
       val speculativeSize = in match
         case sbc: SeekableByteChannel => (sbc.size - sbc.position).clamp(0L, Int.MaxValue - 7).toInt
         case _ => 4096
@@ -148,19 +150,19 @@ object Send {
           m = 0L
         else if k == 0 then
           nz += 1
-          if nz > maxr then Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+          if nz > maxr then Err ?# s"Read $n bytes but failed to make further progress after $nz tries"
           else if msdr > 0 then Thread.sleep(msdr)
         else
           val w = out.write(buffer)
           if w < 0 then
             n += buffer.position
             if allowFullTarget then m = 0
-            else Err.break(s"Full output after $n bytes with at least ${buffer.remaining} remaining")
+            else Err ?# s"Full output after $n bytes with at least ${buffer.remaining} remaining"
           else if w == 0 then
             nz += 1
             if nz > maxr then
               n += buffer.position
-              Err.break(s"Read $n bytes but failed to make further progress after $nz tries")
+              Err ?# s"Read $n bytes but failed to make further progress after $nz tries"
             else if msdr > 0 then Thread.sleep(msdr)
           else
             nz = 0
@@ -179,7 +181,7 @@ object Send {
 
   final class MultiToStream()
   extends Send[MultiArrayChannel, OutputStream] {
-    def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Long Or Err = Err.nice:
+    def limited(count: Long)(in: MultiArrayChannel, out: OutputStream): Ask[Long] = nice:
       if count == Long.MaxValue then in.read(out)
       else if count <= 0 then 0L
       else
@@ -199,7 +201,7 @@ object Send {
   extends Send[MultiArrayChannel, WritableByteChannel] {
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
-    def limited(count: Long)(in: MultiArrayChannel, out: WritableByteChannel): Long Or Err = Err.Or:
+    def limited(count: Long)(in: MultiArrayChannel, out: WritableByteChannel): Ask[Long] = Ask:
       if count <= 0 then 0L
       else
         val nchunk = ((count - 1) / 0x20000000L) + 1
@@ -215,11 +217,11 @@ object Send {
             n += k
           else if k < 0 then
             if in.availableToRead == 0 || allowFullTarget then m = 0
-            else Err.break(s"Output full with ${in.availableToRead min (m-n)} bytes remaining")
+            else Err ?# s"Output full with ${in.availableToRead min (m-n)} bytes remaining"
           else
             nz += 1
             if nz > maxr then
-              Err.break(s"Made no progress writing after $nz tries with ${in.availableToRead min (m-n)} bytes remaining")
+              Err ?# s"Made no progress writing after $nz tries with ${in.availableToRead min (m-n)} bytes remaining"
             else
               if msdr > 0 then Thread.sleep(msdr)
         n
@@ -227,7 +229,7 @@ object Send {
 
   final class IterBytesToStream(endline: Array[Byte] = emptyByteArray)
   extends Send[Iterator[Array[Byte]], OutputStream] {
-    def limited(count: Long)(in: Iterator[Array[Byte]], out: OutputStream): Long Or Err = Err.nice:
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: OutputStream): Ask[Long] = nice:
       var m = 0L max count
       var n = 0L
       while in.hasNext && m - n > 0 do
@@ -246,7 +248,7 @@ object Send {
     private val maxr = maxRetries.clamp(0, Int.MaxValue)
     private val msdr = msDelayRetry.toInt
     private val ebuf = endline.buffer()
-    def limited(count: Long)(in: Iterator[Array[Byte]], out: WritableByteChannel): Long Or Err = Err.Or:
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: WritableByteChannel): Ask[Long] = Ask:
       var m = 0L max count
       var n = 0L
       while in.hasNext && m - n > 0 do
@@ -262,20 +264,20 @@ object Send {
             val w = out.write(bb)
             if w < 0 then
               if allowFullTarget then Is.break(n + bb.position)
-              else Err.break(s"Output channel full with at least ${bb.remaining} bytes remaining")
+              else Err ?# s"Output channel full with at least ${bb.remaining} bytes remaining"
             if w == 0 then
               nr += 1
               if msdr > 0 then Thread.sleep(msdr)
             else nr = 0
             nr += 1
-          if bb.remaining > 0 then Err.break(s"Made no progress writing after $nr attempts with at least ${bb.remaining} bytes remaining")
+          if bb.remaining > 0 then Err ?# s"Made no progress writing after $nr attempts with at least ${bb.remaining} bytes remaining"
           n += bb.limit
       n
   }
 
   final class IterBytesToMulti(endline: Array[Byte] = emptyByteArray, allowFullTarget: Boolean = false)
   extends Send[Iterator[Array[Byte]], MultiArrayChannel] {
-    def limited(count: Long)(in: Iterator[Array[Byte]], out: MultiArrayChannel): Long Or Err = Err.Or:
+    def limited(count: Long)(in: Iterator[Array[Byte]], out: MultiArrayChannel): Ask[Long] = Ask:
       var m = 0L max count
       var n = 0L
       while in.hasNext & m - n > 0 do
@@ -284,14 +286,14 @@ object Send {
         val k = out.write(ab, 0)(h)
         if k < h then
           if allowFullTarget then Is.break(n + (k max 0))
-          else Err.break(s"Output channel full with at least ${h - k} bytes remaining")
+          else Err ?# s"Output channel full with at least ${h - k} bytes remaining"
         n += h
         if endline.length > 0 then
           val g = if m - n < endline.length then (m - n).toInt else endline.length
           val j = out.write(endline, 0)(g)
           if j < g then
             if allowFullTarget then Is.break(n + (j max 0))
-            else Err.break(s"Output channelf ull with at least ${g - j} bytes remaining")
+            else Err ?# s"Output channelf ull with at least ${g - j} bytes remaining"
           n += g
       n
   }
@@ -299,21 +301,21 @@ object Send {
   final class IterStringToStream(endline: String = "\n")
   extends Send[Iterator[String], OutputStream] {
     private val actual = new IterBytesToStream(if endline.isEmpty then emptyByteArray else endline.bytes)
-    def limited(count: Long)(in: Iterator[String], out: OutputStream): Long Or Err =
+    def limited(count: Long)(in: Iterator[String], out: OutputStream): Ask[Long] =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
   final class IterStringToChannel(endline: String = "\n", maxRetries: Int = 7, msDelayRetry: UByte = UByte(0), allowFullTarget: Boolean = false)
   extends Send[Iterator[String], WritableByteChannel] {
     private val actual = new IterBytesToChannel(if endline.isEmpty then emptyByteArray else endline.bytes, maxRetries, msDelayRetry, allowFullTarget)
-    def limited(count: Long)(in: Iterator[String], out: WritableByteChannel): Long Or Err =
+    def limited(count: Long)(in: Iterator[String], out: WritableByteChannel): Ask[Long] =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
   final class IterStringToMulti(endline: String = "\n", allowFullTarget: Boolean = false)
   extends Send[Iterator[String], MultiArrayChannel] {
     private val actual = new IterBytesToMulti(if endline.isEmpty then emptyByteArray else endline.bytes, allowFullTarget)
-    def limited(count: Long)(in: Iterator[String], out: MultiArrayChannel): Long Or Err =
+    def limited(count: Long)(in: Iterator[String], out: MultiArrayChannel): Ask[Long] =
       actual.limited(count)(in.map(_.bytes), out)
   }
 
@@ -391,70 +393,70 @@ object Send {
 }
 
 extension (in: InputStream)
-  def sendTo[B](out: B)(using tr: Send[InputStream, B]): Long Or Err = tr(in, out)
+  def sendTo[B](out: B)(using tr: Send[InputStream, B]): Ask[Long] = tr(in, out)
 
 extension (rbc: ReadableByteChannel)
-  def sendTo[B](out: B)(using tr: Send[ReadableByteChannel, B]): Long Or Err = tr(rbc, out)
+  def sendTo[B](out: B)(using tr: Send[ReadableByteChannel, B]): Ask[Long] = tr(rbc, out)
 
 extension (mac: MultiArrayChannel)
-  def sendTo[B](out: B)(using tr: Send[MultiArrayChannel, B]): Long Or Err = tr(mac, out)
+  def sendTo[B](out: B)(using tr: Send[MultiArrayChannel, B]): Ask[Long] = tr(mac, out)
 
 extension (iter: IterableOnce[Array[Byte]]) {
   @targetName("ioArrayByteSendTo")
-  def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Long Or Err = tr(iter.iterator, out)
+  def sendTo[B](out: B)(using tr: Send[Iterator[Array[Byte]], B]): Ask[Long] = tr(iter.iterator, out)
 
   @targetName("ioArrayByteWriteAt")
-  def writeTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def writeTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openWrite())(_.close): out =>
       var m = 0L
       val n = iter.iterator
         .map{ a => m += a.length; a }
         .fn(it => tr(it, out)).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+      if m != n then Err ?# s"Tried to write $m bytes but wrote $n to $p"
 
   @targetName("ioArrayByteAppendTo")
-  def appendTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def appendTo(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openAppend())(_.close): out =>
       var m = 0L
       val n = iter.iterator
         .map{ a => m += a.length; a }
         .fn(it => tr(it, out)).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+      if m != n then Err ?# s"Tried to write $m bytes but wrote $n to $p"
 
   @targetName("ioArrayByteCreateAt")
-  def createAt(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Unit Or Err =
+  def createAt(p: Path)(using tr: Send[Iterator[Array[Byte]], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openCreate())(_.close): out =>
       var m = 0L
       val n = iter.iterator
         .map{ a => m += a.length; a }
         .fn(it => tr(it, out)).?
-      if m != n then Err.break(s"Tried to write $m bytes but wrote $n to $p")
+      if m != n then Err ?# s"Tried to write $m bytes but wrote $n to $p"
 }
 
 extension (iter: IterableOnce[String]) {
   @targetName("ioStringSendTo")
-  def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Long Or Err = tr(iter.iterator, out)
+  def sendTo[B](out: B)(using tr: Send[Iterator[String], B]): Ask[Long] = tr(iter.iterator, out)
 
   @targetName("ioStringWriteTo")
-  def writeTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
+  def writeTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openWrite())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
-      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+      if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 
   @targetName("ioStringAppendTo")
-  def appendTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
+  def appendTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openAppend())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
-      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+      if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 
   @targetName("ioStringCreateAt")
-  def createAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Unit Or Err =
+  def createAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openCreate())(_.close): out =>
       val it = iter.iterator
       tr(it, out)
-      if it.hasNext then Err.break(s"Tried to write to $p but some content was not consumed")
+      if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 }
 
 /*
