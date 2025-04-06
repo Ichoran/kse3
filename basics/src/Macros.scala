@@ -3,7 +3,7 @@
 
 package kse.basics.basicsMacroImpl
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.quoted.*
 

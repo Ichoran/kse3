@@ -863,14 +863,14 @@ extends SeekableByteChannel {
     private val limitAtCreation = limit
     def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
       if consumed >= limitAtCreation then
-        interval.value = Iv(0, 0)
-        buffer.value = Alt.unit
+        interval := Iv(0, 0)
+        buffer := Alt.unit
       else
         val a = storage(i)
         val iv = if limitAtCreation - consumed < a.length then Iv(0, (limitAtCreation - consumed).toInt) else Iv.of(a)
         consumed += iv.length
-        interval.value = iv
-        buffer.value = Is(a)
+        interval := iv
+        buffer := Is(a)
     override def recycling: Boolean = false
   }
 
@@ -1350,10 +1350,10 @@ final class SeekableByteChannelRotatingBuffer(val sbc: SeekableByteChannel, buff
   def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
     val remaining = totalSize - consumed
     if remaining <= 0 || !sbc.isOpen then
-      interval.value = Iv(0, 0)
-      buffer.value = Alt.unit
+      interval := Iv(0, 0)
+      buffer := Alt.unit
     else
-      val b = buffer.value.
+      val b = buffer().
         flatMap(buf => if buf.length >= 1024 || buf.length >= remaining then Is(buf) else Alt.unit).
         getOrElse{ _ =>
           var n = math.min(bufferSize, Int.MaxValue - 7)
@@ -1364,12 +1364,12 @@ final class SeekableByteChannelRotatingBuffer(val sbc: SeekableByteChannel, buff
       val k = sbc.read(ByteBuffer wrap b)
       if k < 0 then
         totalSize = consumed
-        interval.value = Iv(0, 0)
-        buffer.value = Alt.unit
+        interval := Iv(0, 0)
+        buffer := Alt.unit
       else
         consumed += k
-        interval.value = Iv(0, k)
-        buffer.value = Is(b)
+        interval := Iv(0, k)
+        buffer := Is(b)
 }
 
 extension (sbc: SeekableByteChannel)
@@ -1413,15 +1413,15 @@ final class InputStreamRotatingBuffer(input: InputStream, bufferSize: Int = 1638
   private var believeAvailable = true
   def rotate(buffer: Mu[Array[Byte] Or Unit], interval: Mu.T[Iv]): Unit =
     if completed then
-      interval.value = Iv(0, 0)
-      buffer.value = Alt.unit
+      interval := Iv(0, 0)
+      buffer := Alt.unit
     else
       val av =
         if believeAvailable then
           believeAvailable = false
           input.available()
         else 0
-      val b = buffer.value.
+      val b = buffer().
         flatMap(buf => if buf.length >= 1024 || (av > 0 && buf.length >= av) then Is(buf) else Alt.unit).
         getOrElse{ _ =>
           var n = math.min(bufferSize, Int.MaxValue - 7)
@@ -1431,11 +1431,11 @@ final class InputStreamRotatingBuffer(input: InputStream, bufferSize: Int = 1638
       val k = input.read(b)
       if k < 0 then
         completed = true
-        interval.value = Iv(0, 0)
-        buffer.value = Alt.unit
+        interval := Iv(0, 0)
+        buffer := Alt.unit
       else
-        interval.value = Iv(0, k)
-        buffer.value = Is(b)
+        interval := Iv(0, k)
+        buffer := Is(b)
 }
 
 extension (is: InputStream)

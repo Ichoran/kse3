@@ -22,6 +22,13 @@ object Tidy {
 
 
 object Resource {
+  // TODO: handle more thoughtfully the case where there is an exception during closing the resource
+  // in combination with nonlocal control flow--if we have normal control flow BUT an exception in
+  // closing, probably the nonlocal control should be overridden by the local exception UNLESS it
+  // too is nonlocal--and anyway, what about overriding the target of the nonlocal control in the
+  // close block?  Also, because of the complexity of the issue, we might want fewer than four options.
+  // Each different option has its own different choices and different complexity.
+
   def apply[R, A](rsc: Tidy[R] ?=> R)(done: Tidy[R])(f: R => A): A =
     val r = rsc(using done)
     try f(r)

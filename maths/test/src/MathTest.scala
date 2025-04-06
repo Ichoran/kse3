@@ -60,7 +60,9 @@ class MathTest {
     T(name) ~ rng.F ==== r2.F
     T(name) ~ rng.L ==== r2.L
     T(name) ~ rng.D ==== r2.D
-    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.D; 0 <= a && a <= 1 } ==== true }
+    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.D;  0 <= a && a <= 1 } ==== true }
+    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.W; -1 <= a && a <= 1 } ==== true }
+    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.uniform(-1e-322, 1e-323); -1e-322 <= a && a <= 1e-323 } ==== true }
     var hit0 = false
     var hit42 = false
     nFor(1000){ n =>
@@ -78,6 +80,25 @@ class MathTest {
     }
     T(name) ~ hit0  ==== true
     T(name) ~ hit42 ==== true
+
+    var oneneg = false
+    var onectr = false
+    var onepos = false
+    var bigneg = false
+    var bigpos = false
+    1000.visit: n =>
+      val a = rng.uniform(Double.MinValue, Double.MaxValue)
+      val b = r2.W
+      if a < 0.9*Double.MinValue then bigneg = true
+      if a > 0.9*Double.MaxValue then bigpos = true
+      if b < -0.9 then oneneg = true
+      if b >  0.9 then onepos = true
+      if b.abs < 0.05 then onectr = true
+    T(name) ~ oneneg ==== true
+    T(name) ~ onectr ==== true
+    T(name) ~ onepos ==== true
+    T(name) ~ bigneg ==== true
+    T(name) ~ bigpos ==== true
 
     // Expected number of extreme values is 23
     var nHi = 0

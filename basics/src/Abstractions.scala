@@ -4,7 +4,7 @@
 package kse.basics
 
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.util.{boundary, NotGiven}
 import scala.compiletime.summonFrom
@@ -65,24 +65,48 @@ trait NewType[A] {
 /** A stable identifier to disambiguate types by label */
 type LabelVal = String & Singleton
 
-/** A labelled type; create with `val x: Int \ "eel" = \(5)`; access with `x $ "eel"` or `x.unlabel` */
+/** A labelled type unrelated to the thing it is labelling; create with `val x: Int \ "eel" = \(5)`; access with `x ~ "eel"` or `x.unlabel` */
 opaque infix type \[+A, L <: LabelVal] = A
 object \ {
-  import scala.language.dynamics
-
   inline def apply[A, L <: LabelVal](a: A): (A \ L) = a
   extension [A, L <: LabelVal](la: A \ L)
     inline def ~(l: L): A = la
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \ L) = b
     inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
+    inline def labelTo[M <: LabelVal](m: M): (A \ M) = (la: A)
+    inline def subtyped: (A \< L) = (la: A)
+    inline def supertyped: (A \> L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
+}
 
-  class Accessor[A, L <: LabelVal](private val la: A \ L) extends AnyVal with Dynamic {
-    inline def selectDynamic(inline s: String): A =
-      inline if s == compiletime.constValue[L] then unlabel(la)
-      else compiletime.error("Label is " + compiletime.constValue[L] + " not " + s)
-  }
+/** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \< "eel"; use it directly. */
+opaque infix type \<[+A, L <: LabelVal] <: A = A
+object \< {
+  inline def apply[A, L <: LabelVal](a: A): (A \< L) = a
+  extension [A, L <: LabelVal](la: A \< L)
+    inline def unlabel: A = la
+    inline def valueTo[B](b: B): (B \< L) = b
+    inline def valueOp[B](f: A => B): (B \< L) = f((la: A))
+    inline def labelTo[M <: LabelVal](m: M): (A \< M) = (la: A)
+    inline def newtyped: (A \ L) = (la: A)
+    inline def supertyped: (A \> L) = (la: A)
+    transparent inline def label: L = compiletime.constValue[L]
+}
+
+/** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \> "eel"; access with `x ~ "eel"` or `x.unlabel` */
+opaque infix type \>[+A, L <: LabelVal] >: A = A
+object \> {
+  inline def apply[A, L <: LabelVal](a: A): (A \> L) = a
+  extension [A, L <: LabelVal](la: A \> L)
+    inline def ~(l: L): A = la
+    inline def unlabel: A = la
+    inline def valueTo[B](b: B): (B \> L) = b
+    inline def valueOp[B](f: A => B): (B \> L) = f((la: A))
+    inline def labelTo[M <: LabelVal](m: M): (A \> M) = (la: A)
+    inline def newtyped: (A \ L) = (la: A)
+    inline def subtyped: (A \< L) = (la: A)
+    transparent inline def label: L = compiletime.constValue[L]
 }
 
 

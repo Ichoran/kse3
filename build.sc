@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
-// Copyright 2021-2024 Rex Kerr and Calico Life Sciences, LLC
+// Copyright 2021-2025 Rex Kerr and Calico Life Sciences, LLC
 
 
 import mill._
@@ -8,7 +8,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.5.1"
+  def scalaVersion = "3.6.4"
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -102,6 +102,7 @@ object all extends Common {
     Agg(
       ivy"org.typelevel::cats-core:2.12.0",
       ivy"com.diffplug.matsim:matfilerw:3.1.1",
+      ivy"com.lihaoyi::upickle:4.1.0"
     )
   }
   def moduleDeps = Seq(basics, flow, maths, eio)

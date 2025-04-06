@@ -216,3 +216,153 @@ object TestUtilities {
     def apply(msg: String): GenLabeled = new GenLabeled { def message = msg }
   }
 }
+
+
+/** Thyme provides a way to run quick yet statistically robust microbenchmarks--even within a running application! */
+/*
+final class Thyme(val targetTime: Double = 50e-3, val rng: Thyme.Pcg32 = Thyme.Pcg32()) {
+  var t0: Long = -1L
+  var t1: Long = 0L
+  val playground: Array[Int] = new Array[Int](2048)
+  val timings: Array[Double] = new Array[Double](512)
+  val randoms: Array[Double] = new Array[Double](512)
+
+  def getAndReset: Double =
+    if t0 < t1 then Double.NaN
+    else
+      val delta = t1 - t0
+      t0 = t1 - 1
+      delta / 1e9
+
+  def time[A](f: => A): A =
+    t0 = System.nanoTime
+    val ans = f
+    t1 = System.nanoTime
+    ans
+
+  def timeTup[A](f: => A): (A, Double) =
+    (time(f), getAndReset)
+
+  def ptime[A](f: => A): A =
+    val ans = time(f)
+    val dt = getAndReset
+    if dt < 1e-5 then println(f"Elapsed: ${dt*1e6}%.3f us")
+    else if dt < 1e-3 then println(f"Elapsed: ${dt*1e3}%.4f ms")
+    else if dt < 1 then println(f"Elapsed: $dt%.5f s")
+    else println(f"Elapsed: $dt%.3f s")
+
+  def stability(n: Int, repeats: Int = 1000): Double
+    var m = if repeats > 0 then repeats else 1
+
+    var i = 0
+    var x = 0.0
+    var xx = 0.0
+    while i < repeats do
+      val t = timings(i)
+      randoms(i) = t
+      x += t
+      xx += t*t
+      i += 1
+    if repeats > 1 then x /= n
+    val v = if repeats > 1 then (xx/n) - x*x else Double.NaN
+    var score = 0.0
+    var score0 = Double.NaN
+    var nls = 0
+    var j = 0
+    while j < repeats do
+      i = 0
+      score = 0.0
+      while i < n do
+        val t = randoms(i)
+        if t > x then
+          val dx2 = (t - x)*(t - x)
+          if dx2 < v then score += i
+          else if dx2 < 2*v then score += 2*i
+          else 
+        i += 1
+
+  def bench(f: => Int): (Double, Int) =
+    var n = 0
+    var m = 10
+    var i = 0
+    var j = 0
+    var t = 0.0
+    var state = 3
+    while state > 0 do
+      if state == 3 then
+        if t < targetTime && n < playground.length then
+          n = 1 + 2*n
+        else
+          state = 2
+      t0 = System.nanoTime
+      var k = n
+      while k > 0 do
+        playground(i) = f
+        i += 1
+        if i >= playground.length then
+          playground(0) = playground(rng % playground.length)
+          i = 1
+        k -= 1
+      t1 = System.nanoTime
+      t = getAndReset
+      timings(j) = t
+      j += 1
+      if j >= timings.length then j = 0
+  ???
+}
+object Thyme {
+  final class Pcg32 private (private var state: Long) {
+    private inline val mult = 0x5851F42D4C957F2DL
+    private var incr = 0xDA3E39CB94B95BDBL
+    def seed(zero: Long, sequence: Long): Unit =
+      state = 0L
+      incr = (sequence << 1) | 1
+      I
+      state += zero
+      I
+    def I: Int =
+      val s = state
+      state = state * mult + incr
+      val a = (((s >>> 18) ^ s) >>> 27).toInt
+      val r = (s >>> 59).toInt
+      (a >>> r) | (a << ((~r + 1) & 31))
+    def %(m: Int): Int =
+      if m < 0 then -(this % (-m))
+      else
+        var x = I
+        if x < 0 && x + m > 0 then
+          // Might need to employ rejection sampling.  Compute exact threshold
+          val r = java.lang.Integer.remainderUnsigned(-1, m) + 1
+          if r < m then
+            // Reject top r values because they don't fill m
+            while java.lang.Integer.compareUnsigned(-r, x) <= 0 do x = I
+        java.lang.Integer.remainderUnsigned(x, m)
+    def shuffle(a: Array[Double], n: Int = Int.MaxValue): Unit =
+      var i = 0
+      val m = math.min(n, a.length)
+      while i + 1 < m do
+        val j = i + (this % (m - i))
+        if j > i then
+          val x = a(i)
+          a(i) = a(j)
+          a(j) = x
+        i += 1
+  }
+  object Pcg32 {
+    def default(): Pcg32 =
+      new Pcg32(0L)
+    def apply(): Pcg32 =
+      val p = new Pcg32(0L)
+      p.seed(1, System.nanoTime)
+      p
+    def apply(seed: Long): Pcg32 =
+      val p = new Pcg32(0L)
+      p.seed(1, seed)
+      p
+    def apply(zero: Long, sequence: Long): Pcg32 =
+      val p = new Pcg32(0L)
+      p.seed(zero, sequence)
+      p
+  }
+}
+*/

@@ -76,6 +76,14 @@ sealed abstract class Prng {
       while l >= n do l = L & mask
       l & mask
 
+  final def W: Double = Prng.signedSymmetricDoubleFromLong(L)
+
+  final def uniform(lo: Double, hi: Double): Double =
+    val l2 = lo*0.5
+    val h2 = hi*0.5
+    val c = l2 + h2
+    c + (h2 - l2) * W
+
   final def gaussian: Double =
     if bits < 0 then
       bits = 0
@@ -801,9 +809,19 @@ object Prng {
     val leadingZeros = java.lang.Long.numberOfLeadingZeros(l)
     if leadingZeros <= 52 then
       val exponent = 1022L - leadingZeros
-      val mantissa = ((l >>> 11) << leadingZeros) & 0x000FFFFFFFFFFFFFL
+      val mantissa = ((l >>> 11) << leadingZeros) & 0x000F_FFFF_FFFF_FFFFL
       java.lang.Double.longBitsToDouble( (exponent << 52) | mantissa )
     else 4.8828125E-4*l + 2.44140625E-4   // Subnormal values aren't symmetric, so we remap them equally spaced between 0 and 1
+
+  def signedSymmetricDoubleFromLong(l: Long): Double =
+    val s = l & 0x8000_0000_0000_0000L
+    val h = (l << 1)
+    val leadingZeros = java.lang.Long.numberOfLeadingZeros(h)
+    if leadingZeros <= 52 then
+      val exponent = 1022L - leadingZeros
+      val mantissa = ((h >>> 11) << leadingZeros) & 0x000F_FFFF_FFFF_FFFFL
+      java.lang.Double.longBitsToDouble(s | mantissa | (exponent << 52))
+    else 0.0
 
   def apply(): Prng = new Pcg64()
   def apply(seed: Long): Prng = new Pcg64(seed)

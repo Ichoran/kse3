@@ -24,6 +24,8 @@ import sourcecode.{Line, given}
 class BytecodeCheck {
   import kse.basics.{_, given}
 
+  def repeated(xs: Int*): Int = xs.sum
+
   def ordinary(s: String): Char = s(2)
 
   def inlined(s: String): Char =
@@ -74,14 +76,19 @@ class BytecodeCheck {
             1
           i -= j
         0.0
+
+  def useRepeated(): Int =
+    repeated(5, 6, 7, 8)
 }
 
 
 @RunWith(classOf[JUnit4])
 class BasicsTest() {
+  import compiletime.testing.{typeChecks => cc}
   import kse.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
   import kse.basics.intervals._
+  import kse.basics.labels.{_, given}
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
@@ -89,6 +96,12 @@ class BasicsTest() {
     assertTrue
   )
 
+  inline def subtyping[A, B](a: A, b: B) = compiletime.summonFrom {
+    case _: (A =:= B) => '='
+    case _: (A <:< B) => '<'
+    case _: (B <:< A) => '>'
+    case _            => 'X'
+  }
 
   @Test
   def exceptionsTest(): Unit =
@@ -212,27 +225,60 @@ class BasicsTest() {
 
   @Test
   def dataWrapperTest(): Unit =
+    val ent = "eel" \ "fish"
+    val esb = "eel" \< "fish"
+    val esp = "eel" \> "fish"
+    def eatstr(s: String): Unit = {}
+    T ~ subtyping(ent, "eel") ==== 'X'
+    T ~ subtyping(esb, "eel") ==== '<'
+    T ~ subtyping(esp, "eel") ==== '>'
+    T ~ cc("""eatstr(ent)""") ==== false
+    T ~ cc("""eatstr(esb)""") ==== true
+    T ~ cc("""eatstr(esp)""") ==== false
+    T ~ ent.label             ==== "fish"
+    T ~ esb.label             ==== "fish"
+    T ~ esp.label             ==== "fish"
+    T ~ ent.unlabel           ==== "eel"
+    T ~ esb.unlabel           ==== "eel"
+    T ~ esp.unlabel           ==== "eel"
+    T ~ (ent ~ "fish")        ==== "eel" --: typed[String]
+    T ~ (esp ~ "fish")        ==== "eel" --: typed[String]
+    T ~ ent.valueTo("cod")    ==== "cod" --: typed[String \ "fish"]
+    T ~ esb.valueTo("cod")    ==== "cod" --: typed[String \< "fish"]
+    T ~ esp.valueTo("cod")    ==== "cod" --: typed[String \> "fish"]
+    T ~ ent.valueOp(_.length) ==== 3     --: typed[Int \ "fish"]
+    T ~ esb.valueOp(_.length) ==== 3     --: typed[Int \< "fish"]
+    T ~ esp.valueOp(_.length) ==== 3     --: typed[Int \> "fish"]
+    T ~ ent.labelTo("thing")  ==== "eel" --: typed[String \ "thing"]
+    T ~ esb.labelTo("thing")  ==== "eel" --: typed[String \< "thing"]
+    T ~ esp.labelTo("thing")  ==== "eel" --: typed[String \> "thing"]
+    T ~ ent.subtyped          ==== "eel" --: typed[String \< "fish"]
+    T ~ ent.supertyped        ==== "eel" --: typed[String \> "fish"]
+    T ~ esb.newtyped          ==== "eel" --: typed[String \ "fish"]
+    T ~ esb.supertyped        ==== "eel" --: typed[String \> "fish"]
+    T ~ esp.newtyped          ==== "eel" --: typed[String \ "fish"]
+    T ~ esp.subtyped          ==== "eel" --: typed[String \< "fish"]
+
     val m = Mu(5)
-    T ~ m.value            ==== 5
-    T ~ { m set 4 }        ==== Mu(4)
-    T ~ { m.value = 3; m } ==== Mu(3)
+    T ~ m()                ==== 5
+    T ~ { m := 3; m }      ==== Mu(3)
     T ~ m.zap(_ - 1)       ==== Mu(2)
     T ~ m.toString         ==== "~2"
     T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
 
     object Meter extends NewType[Double] {}
 
-    T ~ Mu(())      .zap(_ => ())           .pipe(x => (x, x.copy.set(())))   .sameOp(_.value) ==== ((), ())
-    T ~ Mu(true)    .zap(z => !z)           .pipe(x => (x, x.copy.set(true))) .sameOp(_.value) ==== (false, true)
-    T ~ Mu(1: Byte ).zap(b => (b+1).toByte) .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
-    T ~ Mu(1: Short).zap(s => (s+1).toShort).pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2: Short, 4: Short) --: typed[(Short, Short)]
-    T ~ Mu('e')     .zap(_.toUpper)         .pipe(x => (x, x.copy.set('f')))  .sameOp(_.value) ==== ('E', 'f')           --: typed[(Char, Char)]
-    T ~ Mu(1)       .zap(_ + 1)             .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2, 4)               --: typed[(Int, Int)]
-    T ~ Mu(1L)      .zap(_ + 1)             .pipe(x => (x, x.copy.set(4)))    .sameOp(_.value) ==== (2L, 4L)             --: typed[(Long, Long)]
-    T ~ Mu(1f)      .zap(_ + 1f)            .pipe(x => (x, x.copy.set(4f)))   .sameOp(_.value) ==== (2f, 4f)             --: typed[(Float, Float)]
-    T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.set(4.0)))  .sameOp(_.value) ==== (2.0, 4.0)           --: typed[(Double, Double)]
-    T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.set("eel"))).sameOp(_.value) ==== ("cod!", "eel")      --: typed[(String, String)]
-    T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.set(Meter(3)))).sameOp(_.value) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
+    T ~ Mu(())      .zap(_ => ())           .pipe(x => (x, x.copy.tap(_ := ())))   .sameOp(_()) ==== ((), ())
+    T ~ Mu(true)    .zap(z => !z)           .pipe(x => (x, x.copy.tap(_ := true))) .sameOp(_()) ==== (false, true)
+    T ~ Mu(1: Byte ).zap(b => (b+1).toByte) .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
+    T ~ Mu(1: Short).zap(s => (s+1).toShort).pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Short, 4: Short) --: typed[(Short, Short)]
+    T ~ Mu('e')     .zap(_.toUpper)         .pipe(x => (x, x.copy.tap(_ := 'f')))  .sameOp(_()) ==== ('E', 'f')           --: typed[(Char, Char)]
+    T ~ Mu(1)       .zap(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2, 4)               --: typed[(Int, Int)]
+    T ~ Mu(1L)      .zap(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2L, 4L)             --: typed[(Long, Long)]
+    T ~ Mu(1f)      .zap(_ + 1f)            .pipe(x => (x, x.copy.tap(_ := 4f)))   .sameOp(_()) ==== (2f, 4f)             --: typed[(Float, Float)]
+    T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.tap(_ := 4.0)))  .sameOp(_()) ==== (2.0, 4.0)           --: typed[(Double, Double)]
+    T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.tap(_ := "eel"))).sameOp(_()) ==== ("cod!", "eel")      --: typed[(String, String)]
+    T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.tap(_ := Meter(3)))).sameOp(_()) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
     T ~ Mu.T(Meter(2.0)).getClass ==== Mu.MuDouble(2.0).getClass
 
     val ab = Atom(2: Byte)
@@ -265,24 +311,42 @@ class BasicsTest() {
     T ~ { ad := 0.4;   ad swap 0.3 }    ==== 0.4
     T ~ { aa := "cod"; aa swap "bass" } ==== "cod"
     T ~ { am := q(2);  am swap q(3) }   ==== 2.5
-    T ~ ab.swapOp(b => (b+1).toByte)  ==== (4: Byte)
-    T ~ as.swapOp(s => (s+1).toShort) ==== (4: Short)
-    T ~ ac.swapOp(c => (c+1).toChar)  ==== 'g'
-    T ~ ai.swapOp(_ + 1)              ==== 4
-    T ~ al.swapOp(_ + 1L)             ==== 4L
-    T ~ af.swapOp(_ - 0.1f)           ==== 0.3f
-    T ~ ad.swapOp(_ - 0.1)            ==== 0.3
-    T ~ aa.swapOp(_ + " cod")         ==== "bass"
-    T ~ am.swapOp(m => q(m.value))    ==== 3.5
-    T ~ ab(b => (b+2).toByte)  ==== (7: Byte)
-    T ~ as(s => (s+2).toShort) ==== (7: Short)
-    T ~ ac(c => (c+2).toChar)  ==== 'j'
-    T ~ ai(_ + 2)              ==== 7
-    T ~ al(_ + 2)              ==== 7L
-    T ~ af(_ / 2.0f)           =~~= 0.1f
-    T ~ ad(_ / 2.0)            =~~= 0.1
-    T ~ aa(_ + " perch")       ==== "bass cod perch"
-    T ~ am(m => q(m.value+1))  ==== 6.5
+    T ~ ab.oldOp(b => (b+1).toByte)  ==== (4: Byte)
+    T ~ as.oldOp(s => (s+1).toShort) ==== (4: Short)
+    T ~ ac.oldOp(c => (c+1).toChar)  ==== 'g'
+    T ~ ai.oldOp(_ + 1)              ==== 4
+    T ~ al.oldOp(_ + 1L)             ==== 4L
+    T ~ af.oldOp(_ - 0.1f)           ==== 0.3f
+    T ~ ad.oldOp(_ - 0.1)            ==== 0.3
+    T ~ aa.oldOp(_ + " cod")         ==== "bass"
+    T ~ am.oldOp(m => q(m.value))    ==== 3.5
+    T ~ ab.newOp(b => (b+2).toByte)  ==== (7: Byte)
+    T ~ as.newOp(s => (s+2).toShort) ==== (7: Short)
+    T ~ ac.newOp(c => (c+2).toChar)  ==== 'j'
+    T ~ ai.newOp(_ + 2)              ==== 7
+    T ~ al.newOp(_ + 2)              ==== 7L
+    T ~ af.newOp(_ / 2.0f)           =~~= 0.1f
+    T ~ ad.newOp(_ / 2.0)            =~~= 0.1
+    T ~ aa.newOp(_ + " perch")       ==== "bass cod perch"
+    T ~ am.newOp(m => q(m.value+1))  ==== 6.5
+    T ~ ab.zap(b => (b+2).toByte)()  ==== (9: Byte)
+    T ~ as.zap(s => (s+2).toShort)() ==== (9: Short)
+    T ~ ac.zap(c => (c+2).toChar)()  ==== 'l'
+    T ~ ai.zap(_ + 2)()              ==== 9
+    T ~ al.zap(_ + 2)()              ==== 9L
+    T ~ af.zap(_ / 2.0f)()           =~~= 0.05f
+    T ~ ad.zap(_ / 2.0)()            =~~= 0.05
+    T ~ aa.zap(_ + " eel")()         ==== "bass cod perch eel"
+    T ~ am.zap(m => q(m.value+1))()  ==== 8.5
+    T ~ ab.tap(_.op(b => (b+2).toByte))()  ==== (11: Byte)
+    T ~ as.tap(_.op(s => (s+2).toShort))() ==== (11: Short)
+    T ~ ac.tap(_.op(c => (c+2).toChar))()  ==== 'n'
+    T ~ ai.tap(_.op(_ + 2))()              ==== 11
+    T ~ al.tap(_.op(_ + 2))()              ==== 11L
+    T ~ af.tap(_.op(_ / 2.0f))()           =~~= 0.025f
+    T ~ ad.tap(_.op(_ / 2.0))()            =~~= 0.025
+    T ~ aa.tap(_.op(_ + " sole"))()        ==== "bass cod perch eel sole"
+    T ~ am.tap(_.op(m => q(m.value+1)))()  ==== 10.5
 
     val na = Atom.Count.from(1)
     T ~ na()              ==== 1 --: typed[Long]

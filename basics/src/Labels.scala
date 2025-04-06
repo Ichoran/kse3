@@ -9,7 +9,7 @@ package kse.basics.labels
 import scala.compiletime.{codeOf, summonInline, summonFrom}
 import scala.annotation.targetName
 
-import kse.basics.{LabelVal, \ => \^ }
+import kse.basics.{LabelVal, \ => \^, \< => \<^, \> => \>^ }
 
 
 object LabelConflicts {
@@ -702,7 +702,25 @@ extension [A](a: A) {
 
   /** Associate a compile-time name with this value by giving the other (Singular) value */
   inline def \[L <: LabelVal](l: L): A \^ L = \^(a)
+
+  /** Associate a compile-time name with this value where the labelled version is a subtype of the original */
+  inline def sublabelled[L <: LabelVal]: (A \<^ L) = \<^(a)
+
+  /** Associate a compile-time name with this value, where it is a subtype of its original type, by giving a name */
+  inline def \<[L <: LabelVal](l: L): A \<^ L = \<^(a)
+
+  /** Associate a compile-time name with this value where the labelled version is a supertype of the original */
+  inline def superlabelled[L <: LabelVal]: (A \>^ L) = \>^(a)
+
+  /** Associate a compile-time name with this value, where it is a supertype of its original type, by giving a name */
+  inline def \>[L <: LabelVal](l: L): A \>^ L = \>^(a)
 }
+
+inline def conjure[A, L <: LabelVal](l: L)(using inline nm: ((A \^ L) | (A \<^ L) | (A \>^ L))): A = inline nm match
+  case nt: (A \^ L)  => nt.unlabel
+  case sb: (A \<^ L) => sb
+  case sp: (A \>^ L) => sp.unlabel
+  case _ => nm.asInstanceOf[A \<^ L]   // Cheating, but they're all the same type anyway, so....
 
 extension [A, La <: LabelVal](q: A \^ La) {
   inline def updatedBy[Nz](source: Nz): A \^ La = summonFrom:

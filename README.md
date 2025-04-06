@@ -7,8 +7,8 @@ programming and general-purpose data analysis, but isn't in the Scala
 standard library (or is, but needs improvement).
 
 Kse3 has no pretenses of being an idiomatic toolchain.  It is designed for
-high-productivity programming for people who like direct style, good error
-handling, and care about performance.  There is no particular attempt to
+high-productivity programming for people who like direct style and good error
+handling, and who care about performance.  There is no particular attempt to
 take a monadic or other functional approach, except inasmuch as it helps
 productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
@@ -16,7 +16,7 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.4 and later due to its use of
 `scala.util.boundary` and same-named extensions from multiple namespaces.
-It also assumes at least Java 21.  (Java 17 for 0.2.x and before.)**
+It also assumes at least Java 21.**
 
 
 ## How do I get it?
@@ -42,11 +42,15 @@ to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
 //> using scala 3.5.0
-//> using dep com.github.ichoran::kse3-flow:0.4.0
+//> using dep com.github.ichoran::kse3-basics:0.4.0
 //> using dep com.github.ichoran::kse3-flow:0.4.0
 //> using dep com.github.ichoran::kse3-maths:0.4.0
-//> using dep com.github.ichoran::kse3-maths:0.4.0
+//> using dep com.github.ichoran::kse3-eio:0.4.0
 ```
+
+Because scala-cli does not by default use the default JVM and does not use Java 21 by default,
+you'll typically need to pass `--jvm=21`, or `--jvm=system` if you have 21 installed, when
+running scala-cli.
 
 If you use some other build system, you can probably figure out from the above what you need.
 
@@ -144,19 +148,19 @@ def nextEven(m: Mu[Int]): m.type =
 
 val count = Mu(1)
 for (i <- 1 to 5) nextEven(count)
-println(count.value)   // prints: 10
+println(count())   // prints: 10
 
 
 def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
   if s.isEmpty then 0
   else
     val tok = s.split("\\s+")
-    tokens.foreach(_.value = tok)
+    tokens.foreach(_ := tok)
     tok.length
 
 val tok = Mu(Array.empty[String])
 println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
-println(tok.value.mkString)                         // prints: minnowsalmonbasseel
+println(tok().mkString)                             // prints: minnowsalmonbasseel
 ```
 
 Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays with full hand-rolled speed by virtue of extensive use of inlines.
@@ -182,8 +186,8 @@ val person = ("John" \ "first", "Smith" \ "last")
 val nosrep = ("Smith" \ "last", "John" \ "first")
 println(person == nosrep)  // false
 println(person ~ "first" == nosrep ~ "first")  // true
-println(person ~ "first" == nosrep ~ "first")  // true
-println(person ~ "last" == nosrep ~ "last")    // true
+println(person ~ "last"  == nosrep ~ "last")   // true
+println(person(0) == nosrep(0))                // false
 
 def welcome(who: (String \ "first", String \ "last")): Unit =
   println(s"Hello, ${who ~ "first"}")
@@ -198,11 +202,11 @@ Use it whenever identity is really important, but types aren't specific enough.
 
 There's an extra-easy interface to atomic types, too (plus counters and toggles).  Use `val a = Atom(value)` to declare an atomic value,
 then get it with `a()`, set it with `a := newValue`, and update it atomically (using CAS operations, so the
-operation may be repeated when under contention) using `a(x => f(x))`:
+operation may be repeated when under contention) using `a.zap(x => f(x))`:
 
 ```scala
 val a = Atom("salmon eel")
-val eel = a(_.split(' ').head)  // Atomic!
+val eel = a.zap(_.split(' ').head)  // Atomic!
 println(eel == a())   // prints true
 ```
 
@@ -497,6 +501,8 @@ are allowed to return Option/Or types when appropriate.
 
 1. If an object contains a single unique value that is always available
 save in an error state (e.g. being "closed"), that value is called `value`.
+If the object is mutable, so the value is not necessarily stable, `apply()`
+is preferred to reflect the unstable nature of the value.
 
 2. If an object may contain a single unique value, or a value correspoding
 to some parameters, you get that value _unsafely_ by calling `get` (a new
@@ -515,14 +521,15 @@ routine.
 missing single value, then `ask` will give the value or an `Err`.
 
 5. To access a value, if present, returning the original object, use `use(f)`
-where `f` acts on the contents and returns `Unit`.  Generally a parameterized
-`use` is not encouraged, e.g. `use(3)(println)`: use `tap` instead.
+where `f` acts on the contents and returns `Unit`.
 
 6. To act on and update a modifiable value, if present, returning the original
-object, use `zap(f)` where `f` maps between the same types.  Again,
-parameterized `zap` is not encouraged, e.g. no `zap(3)(_.toUpperCase)`.
+object, use `zap(f)` where `f` maps between the same types.  To simply update without
+returning the orignal, use `op(f)`.
 
-7. If there is a unique modifiable value, `set` will set it.
+7. If there is a unique modifiable value, `:=` will set it if the setting is foolproof
+and the value is always there; otherwise, if more parameters are needed or error
+values are needed, `set` will set it.
 
 #### Accessors and Modification
 
@@ -569,8 +576,9 @@ already there.  `nice{ foo } || bar.nicely(f)` is a sensible fallback pattern.
 
 3. **Do not ever use `Try`.**  It catches control flow.  You need to
 understand threading, lazy evaluation, and other situations where control flow
-might escape.  The result will be wrong even if you catch control flow
-with `Try`.
+might escape.  The result will be wrong in those cases even if you catch
+control flow with `Try`, and `Try` will prevent use of `.?` and other
+efficient, low-syntactic-overhead control flow constructs that Kse provides.
 
 4. If you must catch control flow-style errors, use `threadsafe{ ... }`.
 `ControlThrowable` will be caught too.

@@ -62,6 +62,7 @@ object NumericConstants {
   inline val EpsDouble100x = 2.220446049250313e-14
 }
 
+
 object NumericFunctions {
   import NumericConstants._
 
@@ -694,11 +695,11 @@ extension (b: Byte) {
   @targetName("byte_loHex") inline def loHexString: String = ToHexString.lo(b)
   @targetName("byte_hex")   inline def hexString:   String = ToHexString.hi(b)
 
-  @targetName("byte_unsigned") inline def unsigned: kse.maths.UByte = UByte.wrap(b)
-  @targetName("byte_toUByte")  inline def toUByte: kse.maths.UByte  = UByte.wrap(b)
+  @targetName("byte_unsigned") inline def unsigned: kse.maths.UByte  = UByte.wrap(b)
+  @targetName("byte_toUByte")  inline def toUByte:  kse.maths.UByte  = UByte.wrap(b)
   @targetName("byte_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap((b & 0xFF).toShort)
-  @targetName("byte_toUInt")   inline def toUInt: kse.maths.UInt    = UInt.wrap(b & 0xFF)
-  @targetName("byte_toULong")  inline def toULong: kse.maths.ULong  = ULong.wrap(b & 0xFF)
+  @targetName("byte_toUInt")   inline def toUInt:   kse.maths.UInt   = UInt.wrap(b & 0xFF)
+  @targetName("byte_toULong")  inline def toULong:  kse.maths.ULong  = ULong.wrap(b & 0xFF)
 
   @targetName("byte_clampNeg")    inline def clampNeg: Byte = if b != (-128: Byte) then (-b).toByte else (127: Byte)
   @targetName("byte_clampUByte")  inline def clampToUByte: kse.maths.UByte   = UByte.clamp(b)
@@ -919,14 +920,14 @@ extension (l: Long) {
   @targetName("long_clampULong")  def clampToULong: kse.maths.ULong   = if l < 0 then ULong(0L) else ULong(l)
 
   @targetName("long_checkedNeg")    def checkedNeg: Long                  = if l != Long.MinValue then -l else throw new ArithmeticException("long overflow")
-  @targetName("long_checkedByte")   def checkedToByte: Byte               = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")  else l.toByte
-  @targetName("long_checkedUByte")  def checkedToUByte: kse.maths.UByte   = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow") else UByte(l.toByte)
-  @targetName("long_checkedShort")  def checkedToShort: Short             = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow") else l.toShort
-  @targetName("long_checkedUShort") def checkedToUShort: kse.maths.UShort = if l < 0      || l > 65535  then throw new ArithmeticException("UShort overflow")  else UShort(l.toShort)
-  @targetName("long_checkedChar")   def checkedToChar: Char               = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")  else l.toChar
+  @targetName("long_checkedByte")   def checkedToByte: Byte               = if l < -128   || l > 127    then throw new ArithmeticException("byte overflow")   else l.toByte
+  @targetName("long_checkedUByte")  def checkedToUByte: kse.maths.UByte   = if l < 0      || l > 255    then throw new ArithmeticException("UByte overflow")  else UByte(l.toByte)
+  @targetName("long_checkedShort")  def checkedToShort: Short             = if l < -32768 || l > 32767  then throw new ArithmeticException("short overflow")  else l.toShort
+  @targetName("long_checkedUShort") def checkedToUShort: kse.maths.UShort = if l < 0      || l > 65535  then throw new ArithmeticException("UShort overflow") else UShort(l.toShort)
+  @targetName("long_checkedChar")   def checkedToChar: Char               = if l < 0      || l > 65535  then throw new ArithmeticException("char overflow")   else l.toChar
   @targetName("long_checkedInt")    def checkedToInt: Int                 = jm.toIntExact(l)
-  @targetName("long_checkedUInt")   def checkedToUInt: kse.maths.UInt     = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")  else UInt(l.toInt)
-  @targetName("long_checkedULong")  def checkedToULong: kse.maths.ULong   = if l < 0                    then throw new ArithmeticException("negative ULong") else ULong(l)
+  @targetName("long_checkedUInt")   def checkedToUInt: kse.maths.UInt     = if l < 0 || l > 0xFFFFFFFFL then throw new ArithmeticException("UInt overflow")   else UInt(l.toInt)
+  @targetName("long_checkedULong")  def checkedToULong: kse.maths.ULong   = if l < 0                    then throw new ArithmeticException("negative ULong")  else ULong(l)
 }
 
 extension (inline x: Byte | Short | Int | Long) {
@@ -1230,11 +1231,11 @@ extension (inline x: Byte | Short | Int | Long | Float | Double) {
     case _ => compiletime.error("f32 is defined only on Double\nother primitive types are not promoted")
 
   inline def bf16: kse.maths.Bf16 = inline x match
-    case b: Byte => Bf16(b.toFloat)
-    case s: Short => Bf16(s.toFloat)
-    case i: Int => Bf16(i.toFloat)
-    case l: Long => Bf16(l.toFloat)
-    case f: Float => Bf16(f)
+    case b: Byte   => Bf16(b.toFloat)
+    case s: Short  => Bf16(s.toFloat)
+    case i: Int    => Bf16(i.toFloat)
+    case l: Long   => Bf16(l.toFloat)
+    case f: Float  => Bf16(f)
     case d: Double => Bf16(d.toFloat)
 
   transparent inline def sq = inline x match

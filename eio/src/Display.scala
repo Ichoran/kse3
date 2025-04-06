@@ -567,7 +567,7 @@ object Display {
   given defaultMuDisplay[A](using disp: Display[A]): Display[Mu[A]] with
     override protected def nesting = disp.nesting
     def appendImpl(target: StB, a: Mu[A], space: Int, flags: Flags): Display.Info =
-      disp.appendImpl(target, a.value, space, flags)
+      disp.appendImpl(target, a(), space, flags)
 
   given defaultAnonDisplay: Display[Anon[?]] with
     def appendImpl(target: StB, a: Anon[?], space: Int, flags: Flags): Display.Info =
