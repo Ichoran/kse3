@@ -265,6 +265,8 @@ class BasicsTest() {
     T ~ m.zap(_ - 1)       ==== Mu(2)
     T ~ m.toString         ==== "~2"
     T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
+    T ~ { m.++; m() }      ==== 3
+    T ~ { m.--; m }        ==== Mu(2)
 
     object Meter extends NewType[Double] {}
 
@@ -281,6 +283,10 @@ class BasicsTest() {
     T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.tap(_ := Meter(3)))).sameOp(_()) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
     T ~ Mu.T(Meter(2.0)).getClass ==== Mu.MuDouble(2.0).getClass
 
+    T ~ Mu(3L).tap(_.--)() ==== 2L
+    T ~ Mu(3L).tap(_.++)() ==== 4L
+
+    val az = Atom(true)
     val ab = Atom(2: Byte)
     val as = Atom(2: Short)
     val ac = Atom('e')
@@ -293,6 +299,7 @@ class BasicsTest() {
     inline def q(x: Int | Double) = inline x match
       case i: Int => Meter(0.5+i)
       case d: Double => Meter(1.0+d)
+    T ~ az() ==== true       --: typed[Boolean]
     T ~ ab() ==== (2: Byte)  --: typed[Byte]
     T ~ as() ==== (2: Short) --: typed[Short]
     T ~ ac() ==== 'e'        --: typed[Char]
@@ -302,6 +309,7 @@ class BasicsTest() {
     T ~ ad() ==== 0.5        --: typed[Double]
     T ~ aa() ==== "eel"      --: typed[String]
     T ~ am() ==== 1.5        --: typed[Meter.Type]
+    T ~ { az := false; az swap true}    ==== false
     T ~ { ab := 3;     ab swap 4 }      ==== (3: Byte)
     T ~ { as := 3;     as swap 4 }      ==== (3: Short)
     T ~ { ac := 'f';   ac swap 'g' }    ==== 'f'
@@ -311,6 +319,7 @@ class BasicsTest() {
     T ~ { ad := 0.4;   ad swap 0.3 }    ==== 0.4
     T ~ { aa := "cod"; aa swap "bass" } ==== "cod"
     T ~ { am := q(2);  am swap q(3) }   ==== 2.5
+    T ~ az.oldOp(z => !z)            ==== true
     T ~ ab.oldOp(b => (b+1).toByte)  ==== (4: Byte)
     T ~ as.oldOp(s => (s+1).toShort) ==== (4: Short)
     T ~ ac.oldOp(c => (c+1).toChar)  ==== 'g'
@@ -320,6 +329,7 @@ class BasicsTest() {
     T ~ ad.oldOp(_ - 0.1)            ==== 0.3
     T ~ aa.oldOp(_ + " cod")         ==== "bass"
     T ~ am.oldOp(m => q(m.value))    ==== 3.5
+    T ~ az.newOp(z => !z)            ==== true
     T ~ ab.newOp(b => (b+2).toByte)  ==== (7: Byte)
     T ~ as.newOp(s => (s+2).toShort) ==== (7: Short)
     T ~ ac.newOp(c => (c+2).toChar)  ==== 'j'
@@ -329,6 +339,7 @@ class BasicsTest() {
     T ~ ad.newOp(_ / 2.0)            =~~= 0.1
     T ~ aa.newOp(_ + " perch")       ==== "bass cod perch"
     T ~ am.newOp(m => q(m.value+1))  ==== 6.5
+    T ~ az.zap(z => !z)()            ==== false
     T ~ ab.zap(b => (b+2).toByte)()  ==== (9: Byte)
     T ~ as.zap(s => (s+2).toShort)() ==== (9: Short)
     T ~ ac.zap(c => (c+2).toChar)()  ==== 'l'
@@ -338,6 +349,7 @@ class BasicsTest() {
     T ~ ad.zap(_ / 2.0)()            =~~= 0.05
     T ~ aa.zap(_ + " eel")()         ==== "bass cod perch eel"
     T ~ am.zap(m => q(m.value+1))()  ==== 8.5
+    T ~ az.tap(_.op(z => !z))()            ==== true
     T ~ ab.tap(_.op(b => (b+2).toByte))()  ==== (11: Byte)
     T ~ as.tap(_.op(s => (s+2).toShort))() ==== (11: Short)
     T ~ ac.tap(_.op(c => (c+2).toChar))()  ==== 'n'
@@ -347,6 +359,11 @@ class BasicsTest() {
     T ~ ad.tap(_.op(_ / 2.0))()            =~~= 0.025
     T ~ aa.tap(_.op(_ + " sole"))()        ==== "bass cod perch eel sole"
     T ~ am.tap(_.op(m => q(m.value+1)))()  ==== 10.5
+
+    T ~ ai.tap(_.--)() ==== 10
+    T ~ ai.tap(_.++)() ==== 11
+    T ~ al.tap(_.--)() ==== 10
+    T ~ al.tap(_.++)() ==== 11
 
     val na = Atom.Count.from(1)
     T ~ na()              ==== 1 --: typed[Long]
