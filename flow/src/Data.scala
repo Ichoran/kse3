@@ -292,10 +292,10 @@ object RotatingBuffer {
 
 extension (ac: Array[Char])
   inline def lines(): RotatingBuffer.Lines = RotatingBuffer.Lines(ac)
-  inline def lines(iv: Iv | PIv): RotatingBuffer.Lines = RotatingBuffer.Lines(ac, Iv.of(iv, ac))
+  inline def lines(ivx: Iv.X): RotatingBuffer.Lines = RotatingBuffer.Lines(ac, ivx of ac)
   inline def lines(inline rg: collection.immutable.Range): RotatingBuffer.Lines = RotatingBuffer.Lines(ac, Iv.of(rg))
 
 extension (ab: Array[Byte])
   inline def textLines(): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab)
-  inline def textLines(iv: Iv | PIv): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, Iv.of(iv, ab))
+  inline def textLines(ivx: Iv.X): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, ivx of ab)
   inline def textLines(inline rg: collection.immutable.Range): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, Iv.of(rg))

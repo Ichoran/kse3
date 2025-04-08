@@ -12,7 +12,7 @@ import scala.compiletime.erasedValue
 import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}
-import kse.basics.intervals.{Iv, PIv}
+import kse.basics.intervals.Iv
 
 
 trait Est {
@@ -228,10 +228,10 @@ object Est {
     @targetName("raw_add_F_rg") inline def addRange(values: Array[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
     @targetName("raw_add_D_rg") inline def addRange(values: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
 
-    @targetName("raw_add_I_iv") inline def addRange(values: Array[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    @targetName("raw_add_L_iv") inline def addRange(values: Array[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    @targetName("raw_add_F_iv") inline def addRange(values: Array[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
-    @targetName("raw_add_D_iv") inline def addRange(values: Array[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values); addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_I_iv") inline def addRange(values: Array[Int   ])(inline v: Iv.X): Unit = { val iv = v of values; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_L_iv") inline def addRange(values: Array[Long  ])(inline v: Iv.X): Unit = { val iv = v of values; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_F_iv") inline def addRange(values: Array[Float ])(inline v: Iv.X): Unit = { val iv = v of values; addRange(values)(iv.i0, iv.iN) }
+    @targetName("raw_add_D_iv") inline def addRange(values: Array[Double])(inline v: Iv.X): Unit = { val iv = v of values; addRange(values)(iv.i0, iv.iN) }
 
     @targetName("clip_add_I") def addRange(values: ClippedArray[Int])(i0: Int, iN: Int): Unit =
       values.peek(i0, iN): j =>
@@ -268,10 +268,10 @@ object Est {
     @targetName("clip_add_F_rg") inline def addRange(values: ClippedArray[Float ])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
     @targetName("clip_add_D_rg") inline def addRange(values: ClippedArray[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; addRange(values)(iv.i0, iv.iN) }
 
-    @targetName("clip_add_I_iv") inline def addRange(values: ClippedArray[Int   ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
-    @targetName("clip_add_L_iv") inline def addRange(values: ClippedArray[Long  ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
-    @targetName("clip_add_F_iv") inline def addRange(values: ClippedArray[Float ])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
-    @targetName("clip_add_D_iv") inline def addRange(values: ClippedArray[Double])(inline v: Iv | PIv): Unit = { val iv = Iv.of(v, values.unwrap); addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_I_iv") inline def addRange(values: ClippedArray[Int   ])(inline v: Iv.X): Unit = { val iv = v of values.unwrap; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_L_iv") inline def addRange(values: ClippedArray[Long  ])(inline v: Iv.X): Unit = { val iv = v of values.unwrap; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_F_iv") inline def addRange(values: ClippedArray[Float ])(inline v: Iv.X): Unit = { val iv = v of values.unwrap; addRange(values)(iv.i0, iv.iN) }
+    @targetName("clip_add_D_iv") inline def addRange(values: ClippedArray[Double])(inline v: Iv.X): Unit = { val iv = v of values.unwrap; addRange(values)(iv.i0, iv.iN) }
 
 
     @targetName("raw_add_with") inline def addRangeWith[A](values: Array[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
@@ -283,7 +283,7 @@ object Est {
           sse += (v - mean)*(v - mold)
           n += 1
     @targetName("raw_add_with_rg") inline def addRangeWith[A](values: Array[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
-    @targetName("raw_add_with_iv") inline def addRangeWith[A](values: Array[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values); addRangeWith(values)(iv.i0, iv.iN)(f) }
+    @targetName("raw_add_with_iv") inline def addRangeWith[A](values: Array[A])(inline v: Iv.X)(inline f: A => Double): Unit = { val iv = v of values; addRangeWith(values)(iv.i0, iv.iN)(f) }
 
 
     @targetName("clip_add_with") inline def addRangeWith[A](values: ClippedArray[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
@@ -295,7 +295,7 @@ object Est {
           sse += (v - mean)*(v - mold)
           n += 1
     @targetName("clip_add_with_rg") inline def addRangeWith[A](values: ClippedArray[A])(inline rg: Rg)(inline f: A => Double): Unit = { val iv = Iv of rg; addRangeWith(values)(iv.i0, iv.iN)(f) }
-    @targetName("clip_add_with_iv") inline def addRangeWith[A](values: ClippedArray[A])(inline v: Iv | PIv)(inline f: A => Double): Unit = { val iv = Iv.of(v, values.unwrap); addRangeWith(values)(iv.i0, iv.iN)(f) }
+    @targetName("clip_add_with_iv") inline def addRangeWith[A](values: ClippedArray[A])(inline v: Iv.X)(inline f: A => Double): Unit = { val iv = v of values.unwrap; addRangeWith(values)(iv.i0, iv.iN)(f) }
   }
   object M {
     inline val smallestNonzeroWeight = 1e-9
@@ -386,8 +386,8 @@ extension (values: Array[Int])
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def est(inline v: Iv | PIv): Est =
-    val iv = Iv.of(v, values)
+  inline def est(inline v: Iv.X): Est =
+    val iv = v of values
     est(iv.i0, iv.iN)
   inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
@@ -399,8 +399,8 @@ extension (values: Array[Long])
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def est(inline v: Iv | PIv): Est =
-    val iv = Iv.of(v, values)
+  inline def est(inline v: Iv.X): Est =
+    val iv = v of values
     est(iv.i0, iv.iN)
   inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
@@ -412,8 +412,8 @@ extension (values: Array[Float])
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def est(inline v: Iv | PIv): Est =
-    val iv = Iv.of(v, values)
+  inline def est(inline v: Iv.X): Est =
+    val iv = v of values
     est(iv.i0, iv.iN)
   inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
@@ -425,8 +425,8 @@ extension (values: Array[Double])
     val e = Est.M.empty
     e.addRange(values)(i0, iN)
     e
-  inline def est(inline v: Iv | PIv): Est =
-    val iv = Iv.of(v, values)
+  inline def est(inline v: Iv.X): Est =
+    val iv = v of values
     est(iv.i0, iv.iN)
   inline def est(inline rg: Rg): Est =
     val iv = Iv of rg
@@ -441,8 +441,8 @@ extension [A](values: Array[A])
     val m = Est.M.empty
     m.addRangeWith(values)(i0, iN)(f)
     m
-  inline def estWith(inline v: Iv | PIv)(inline f: A => Double): Est =
-    val iv = Iv.of(v, values)
+  inline def estWith(inline v: Iv.X)(inline f: A => Double): Est =
+    val iv = v of values
     estWith(iv.i0, iv.iN)(f)
   inline def estWith(inline rg: Rg)(inline f: A => Double): Est =
     val iv = Iv of rg

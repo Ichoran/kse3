@@ -96,8 +96,12 @@ class ArraysTest() {
     T ~ End.of(car) ==== car.length - 1
     T ~ End.of(str) ==== str.length - 1
 
-    T ~ (End+1).asEndpointOf("salmon") ==== 7
-    T ~ (End+1).asEndpointOf(ix)       ==== 6
+    T ~ (End+1).of("salmon") ==== 6
+    T ~ (End+1).of(ix)       ==== 5
+    T ~ (End+1).of(civ)      ==== 5
+    T ~ (Start-1).of(civ)    ==== 2
+
+    T ~ (Start + 1 to End + 3).of(civ) ==== Iv(4, 8)
 
     T ~ (car.use( 2){ cuml += _.n } eq car) ==== true
     T ~ (car.use( 9){ cuml += _.n } eq car) ==== true
@@ -550,8 +554,6 @@ class ArraysTest() {
       cuml = 0
       f
       cuml
-
-    T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
 
     T ~ car.clip(2)(C('!'))          ==== car(2)
     T ~ car.clip(-2)(C('!'))         ==== C('!')
@@ -2531,8 +2533,6 @@ class ArraysTest() {
       cuml = 0
       f
       cuml
-
-    T ~ (0 to End + 2) ==== thrown[IllegalArgumentException]
 
     T ~ z{ str.clip.peek(3, 5)(cuml += _) }   ==== str
     T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum

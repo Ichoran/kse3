@@ -6,16 +6,65 @@ package kse.basics
 
 import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference, LongAdder}
-
 import scala.annotation.targetName
-import scala.compiletime.{erasedValue, summonFrom}
 import scala.reflect.ClassTag
 import scala.util.boundary
 
 import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.intervals._
+
+
+
+//////////////////////////////////
+/// Indexing numbers as arrays ///
+//////////////////////////////////
+
+extension (i: Int){
+  inline def times(f: => Unit): Unit =
+    var j = 0
+    while j < i do
+      f
+      j += 1
+
+  inline def visit(f: Int => Unit): Unit =
+    var j = 0
+    while j < i do
+      f(j)
+      j += 1
+
+  def where(): Array[Int] =
+    val a = new Array[Int](if i > 0 then i else 0)
+    var j = 0
+    while j < i do
+      a(j) = j
+      j += 1
+    a
+
+  inline def make[A](f: Int => A)(using ClassTag[A]): Array[A] =
+    val a = new Array[A](if i > 0 then i else 0)
+    var k = 0
+    while k < a.length do
+      a(k) = f(k)
+      k += 1
+    a
+  inline def makeBreak[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
+    val a = new Array[A](if i > 0 then i else 0)
+    var j = 0
+    shortcut.outer:
+      var k = 0
+      while k < a.length do
+        shortcut.inner:
+          a(j) = f(k)
+          j += 1
+        k += 1
+    if a.length == j then a
+    else
+      val aa = new Array[A](j)
+      System.arraycopy(a, 0, aa, 0, j)
+      aa
+}
+
 
 
 ////////////////////////////////////////////////
@@ -212,140 +261,12 @@ object ArrayReform {
 }
 
 
-opaque type FromLengthIdx = Int
-object FromLengthIdx {
-  inline def wrap(i: Int): kse.basics.FromLengthIdx = i
-
-  extension (idx: FromLengthIdx)
-    inline def unwrap: Int = idx
-
-    inline def +(i: Int): kse.basics.FromLengthIdx = (idx: Int) + i
-    inline def -(i: Int): kse.basics.FromLengthIdx = (idx: Int) - i
-    inline infix def of[A](a: Array[A]): Int =
-      val i: Int = idx
-      if i < 0 then a.length + i else i
-    inline infix def of(a: String): Int =
-      val i: Int = idx
-      if i < 0 then a.length + i else i
-    inline def asEndpointOf[A](a: Array[A]): Int =
-      val i: Int = idx
-      val n = a.length + i + 1
-      if i >= 0 && n < 0 then Int.MaxValue else n
-    inline def asEndpointOf(a: String): Int =
-      val i: Int = idx
-      val n = a.length + i + 1
-      if i >= 0 && n < 0 then Int.MaxValue else n
-
-    @targetName("toLiteral")
-    infix def to(j: Int): PIv =
-      val i = (idx: Int)
-      if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
-      if j < 0  then throw new IllegalArgumentException(s"Cannot index ending at $j")
-      PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
-
-    @targetName("toFromLengthIdx")
-    infix def to(e: kse.basics.FromLengthIdx): PIv =
-      val i = (idx: Int)
-      val j = (e: Int)
-      if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
-      if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
-      PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
-
-    @targetName("toEnd")
-    infix def to(end: End.type): PIv =
-      val i = (idx: Int)
-      if i >= 0 then throw new IllegalArgumentException(s"Cannot index starting at length + $i")
-      PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
-}
-
-object End {
-  inline def -(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1-i) 
-  inline def +(i: Int): kse.basics.FromLengthIdx = FromLengthIdx.wrap(-1+i)
-  inline infix def of[A](a: Array[A]): Int = a.length - 1
-  inline infix def of(s: String): Int = s.length - 1
-
-  @targetName("toLiteral")
-  inline infix def to(j: Int): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(j)
-
-  @targetName("toFromLengthIdx")
-  inline infix def to(e: kse.basics.FromLengthIdx): PIv = FromLengthIdx.to(FromLengthIdx.wrap(-1))(e)
-
-  @targetName("toEnd")
-  inline infix def to(end: End.type): PIv = PIv.wrap(-1L)
-}
-
-extension (i: Int){
-  @targetName("rangeTo")
-  inline infix def to(j: Int): collection.immutable.Range.Inclusive =
-    scala.runtime.RichInt(i).to(j)
-
-  @targetName("toEndIdx")
-  inline infix def to(end: End.type): PIv =
-    if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
-    PIv wrap ((i & 0xFFFFFFFFL) | 0xFFFFFFFF00000000L)
-
-  @targetName("toFromLengthIdx")
-  inline infix def to(e: FromLengthIdx): PIv =
-    val j = FromLengthIdx.unwrap(e)
-    if i < 0 then throw new IllegalArgumentException(s"Cannot index starting at $i")
-    if j >= 0 then throw new IllegalArgumentException(s"Cannot index ending at length + $j")
-    PIv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
-
-  inline def times(f: => Unit): Unit =
-    var j = 0
-    while j < i do
-      f
-      j += 1
-
-  inline def visit(f: Int => Unit): Unit =
-    var j = 0
-    while j < i do
-      f(j)
-      j += 1
-
-  def where(): Array[Int] =
-    val a = new Array[Int](if i > 0 then i else 0)
-    var j = 0
-    while j < i do
-      a(j) = j
-      j += 1
-    a
-
-  inline def arrayed[A]()(using ClassTag[A]): Array[A] =
-    new Array[A](if i > 0 then i else 0)
-  inline def arrayed[A](f: Int => A)(using ClassTag[A]): Array[A] =
-    val a = new Array[A](if i > 0 then i else 0)
-    var k = 0
-    while k < a.length do
-      a(k) = f(k)
-      k += 1
-    a
-  inline def arrayedBreakably[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
-    val a = new Array[A](if i > 0 then i else 0)
-    var j = 0
-    shortcut.outer:
-      var k = 0
-      while k < a.length do
-        shortcut.inner:
-          a(j) = f(k)
-          j += 1
-        k += 1
-    if a.length == j then a
-    else
-      val aa = new Array[A](j)
-      System.arraycopy(a, 0, aa, 0, j)
-      aa
-}
-
-
 /** Higher-level high-speed array access (inlined) */
 extension [A](a: Array[A]) {
-  @targetName("update_FromLength")
-  inline def update(i: kse.basics.FromLengthIdx, x: A): Unit =
-    a(i of a) = x
-  @targetName("update_End")
-  inline def update(e: End.type, x: A): Unit =
-    a(a.length - 1) = x
+  @targetName("update_End_At") inline def update(i: End.At, x: A): Unit = a(i of a) = x
+  @targetName("update_End_type") inline def update(e: End.type, x: A): Unit = a(a.length - 1) = x
+  @targetName("update_Start_At") inline def update(i: Start.At, x: A): Unit = a(i.unwrap) = x
+  @targetName("update_Start_type") inline def update(i: Start.type, x: A): Unit = a(0) = x
 
   inline def clip: kse.basics.ClippedArray[A] = ClippedArray wrap a
 
@@ -365,9 +286,8 @@ extension [A](a: Array[A]) {
       f(a(i))
       i += 1
     a
-  inline def peek(v: Iv | PIv)(inline f: A => Unit): a.type =
-    val iv = Iv.of(v, a)
-    peek(iv.i0, iv.iN)(f)
+  inline def peek(ivx: Iv.X)(inline f: A => Unit): a.type =
+    peek(ivx.index0(a), ivx.indexN(a))(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): a.type =
     val iv = Iv of rg
     peek(iv.i0, iv.iN)(f)
@@ -394,9 +314,8 @@ extension [A](a: Array[A]) {
       a(i) = f(a(i))
       i += 1
     a
-  inline def poke(v: Iv | PIv)(inline f: A => A): a.type =
-    val iv = Iv.of(v, a)
-    poke(iv.i0, iv.iN)(f)
+  inline def poke(ivx: Iv.X)(inline f: A => A): a.type =
+    poke(ivx.index0(a), ivx.indexN(a))(f)
   inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): a.type =
     val iv = Iv of rg
     poke(iv.i0, iv.iN)(f)
@@ -423,9 +342,8 @@ extension [A](a: Array[A]) {
     while i < iN do
       f(a(i), i)
       i += 1
-  inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
-    val iv = Iv.of(v, a)
-    visit(iv.i0, iv.iN)(f)
+  inline def visit(ivx: Iv.X)(inline f: (A, Int) => Unit): Unit =
+    visit(ivx.index0(a), ivx.indexN(a))(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
     val iv = Iv of rg
     visit(iv.i0, iv.iN)(f)
@@ -530,9 +448,8 @@ extension [A](a: Array[A]) {
       z = f(z, a(i), i)
       i += 1
     z
-  inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
-    val iv = Iv.of(v, a)
-    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: (Z, A, Int) => Z): Z =
+    gather(zero)(ivx.index0(a), ivx.indexN(a))(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
     val iv = Iv of rg
     gather(zero)(iv.i0, iv.iN)(f)
@@ -559,16 +476,16 @@ extension [A](a: Array[A]) {
     update(Iv(0, a.length), values)
 
   @targetName("update_Iv_constant")
-  inline def update(iv: Iv, value: A): Unit =
-    var i = iv.i0
-    val j = iv.iN
+  inline def update(ivx: Iv.X, value: A): Unit =
+    var i = ivx.index0(a)
+    val j = ivx.indexN(a)
     while i < j do
       a(i) = value
       i += 1
   @targetName("update_Iv_array")
-  inline def update(iv: Iv, values: Array[A]): Unit =
-    val i = iv.i0
-    java.lang.System.arraycopy(values, 0, a, i, iv.iN - i)
+  inline def update(ivx: Iv.X, values: Array[A]): Unit =
+    val i = ivx.index0(a)
+    java.lang.System.arraycopy(values, 0, a, i, ivx.indexN(a) - i)
 
   @targetName("update_Range_constant")
   inline def update(inline rg: collection.immutable.Range, value: A): Unit =
@@ -576,13 +493,6 @@ extension [A](a: Array[A]) {
   @targetName("update_Range_array")
   inline def update(inline rg: collection.immutable.Range, values: Array[A]): Unit =
     update(Iv of rg, values)
-
-  @targetName("update_Py_constant")
-  inline def update(piv: PIv, value: A): Unit =
-    update(piv of a, value)
-  @targetName("update_Py_array")
-  inline def update(piv: PIv, values: Array[A]): Unit =
-    update(piv of a, values)
 
   @targetName("update_Places_constant")
   inline def update(indices: Array[Int], value: A): Unit =
@@ -636,11 +546,11 @@ extension [A](a: Array[A]) {
       i += 1
 
   @targetName("set_Iv_generate")
-  inline def set(iv: Iv)(inline generator: () => A): Unit =
-    set(iv.i0, iv.iN)(generator)
+  inline def set(ivx: Iv.X)(inline generator: () => A): Unit =
+    set(ivx.index0(a), ivx.indexN(a))(generator)
   @targetName("set_Iv_index")
-  inline def set(iv: Iv)(inline indexer: Int => A): Unit =
-    set(iv.i0, iv.iN)(indexer)
+  inline def set(ivx: Iv.X)(inline indexer: Int => A): Unit =
+    set(ivx.index0(a), ivx.indexN(a))(indexer)
 
   @targetName("set_Range_generate")
   inline def set(inline rg: collection.immutable.Range)(inline generator: () => A): Unit =
@@ -649,15 +559,6 @@ extension [A](a: Array[A]) {
   @targetName("set_Range_index")
   inline def set(inline rg: collection.immutable.Range)(inline indexer: Int => A): Unit =
     val iv = Iv of rg
-    set(iv.i0, iv.iN)(indexer)
-
-  @targetName("set_Py_generate")
-  inline def set(piv: PIv)(inline generator: () => A): Unit =
-    val iv = piv of a
-    set(iv.i0, iv.iN)(generator)
-  @targetName("set_Py_index")
-  inline def set(piv: PIv)(inline indexer: Int => A): Unit =
-    val iv = piv of a
     set(iv.i0, iv.iN)(indexer)
 
   @targetName("set_Places_generate")
@@ -709,12 +610,8 @@ extension [A](a: Array[A]) {
       a(i) = function(a(i), i)
       i += 1
   @targetName("edit_Iv_function")
-  inline def edit(iv: Iv)(inline function: (A, Int) => A): Unit =
-    edit(iv.i0, iv.iN)(function)
-  @targetName("edit_Py_function")
-  inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
-    val iv = piv of a
-    edit(iv.i0, iv.iN)(function)
+  inline def edit(ivx: Iv.X)(inline function: (A, Int) => A): Unit =
+    edit(ivx.index0(a), ivx.indexN(a))(function)
   @targetName("edit_Range_function")
   inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
     val iv = Iv of rg
@@ -861,9 +758,8 @@ extension [A](a: Array[A]) {
         j += 1
       i += 1
     ix.shrinkTo(j)
-  inline def whereIn(v: Iv | PIv)(inline pick: A => Boolean): Array[Int] =
-    val iv = Iv.of(v, a)
-    whereIn(iv.i0, iv.iN)(pick)
+  inline def whereIn(ivx: Iv.X)(inline pick: A => Boolean): Array[Int] =
+    whereIn(ivx.index0(a), ivx.indexN(a))(pick)
   inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
     val iv = Iv of rg
     whereIn(iv.i0, iv.iN)(pick)
@@ -879,13 +775,11 @@ extension [A](a: Array[A]) {
         j += 1
       i += 1
     ix.shrinkTo(j)
-  inline def whereInOp(v: Iv | PIv)(inline pick: (A, Int) => Int): Array[Int] =
-    val iv = Iv.of(v, a)
-    whereInOp(iv.i0, iv.iN)(pick)
+  inline def whereInOp(ivx: Iv.X)(inline pick: (A, Int) => Int): Array[Int] =
+    whereInOp(ivx.index0(a), ivx.indexN(a))(pick)
   inline def whereInOp(inline rg: Range)(inline pick: (A, Int) => Int): Array[Int] =
     val iv = Iv of rg
     whereInOp(iv.i0, iv.iN)(pick)
-
 
   inline def whereFrom(indices: Array[Int])(inline pick: A => Boolean): Array[Int] =
     var ix = new Array[Int](if indices.length > 8 then 8 else indices.length)
@@ -926,12 +820,10 @@ extension [A](a: Array[A]) {
   inline def inject(that: Array[A], where: Int)(i0: Int, iN: Int): Int =
     java.lang.System.arraycopy(a, i0, that, where, iN-i0)
     iN - i0
-  inline def inject(that: Array[A])(v: Iv | PIv): Int =
-    val iv = Iv.of(v, a)
-    inject(that, 0)(iv.i0, iv.iN)
-  inline def inject(that: Array[A], where: Int)(v: Iv | PIv): Int =
-    val iv = Iv.of(v, a)
-    inject(that, where)(iv.i0, iv.iN)
+  inline def inject(that: Array[A])(ivx: Iv.X): Int =
+    inject(that, 0)(ivx.index0(a), ivx.indexN(a))
+  inline def inject(that: Array[A], where: Int)(ivx: Iv.X): Int =
+    inject(that, where)(ivx.index0(a), ivx.indexN(a))
   inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
     val iv = Iv of rg
     inject(that, 0)(iv.i0, iv.iN)
@@ -983,12 +875,10 @@ extension [A](a: Array[A]) {
       j += 1
       i += 1
     iN - i0
-  inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (A, Int) => B): Int =
-    val iv = Iv.of(v, a)
-    injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-  inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (A, Int) => B): Int =
-    val iv = Iv.of(v, a)
-    injectOp[B](that, where)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: (A, Int) => B): Int =
+    injectOp[B](that, 0)(ivx.index0(a), ivx.indexN(a))(f)
+  inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: (A, Int) => B): Int =
+    injectOp[B](that, where)(ivx.index0(a), ivx.indexN(a))(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
     val iv = Iv of rg
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
@@ -1032,11 +922,11 @@ extension [A](a: Array[A]) {
     val b = new Array[A](iN - i0)
     java.lang.System.arraycopy(a, i0, b, 0, b.length)
     b
-  inline def select(v: Iv | PIv)(using ClassTag[A]): Array[A] =
-    val iv = Iv.of(v, a)
-    select(Iv.i0(iv), Iv.iN(iv))
+  inline def select(ivx: Iv.X)(using ClassTag[A]): Array[A] =
+    select(ivx.index0(a), ivx.indexN(a))
   inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
-    select(Iv of rg)
+    val iv = Iv of rg
+    select(iv.i0, iv.iN)
   inline def select(indices: Array[Int])(using ClassTag[A]): Array[A] =
     val b = new Array[A](indices.length)
     var i = 0
@@ -1065,20 +955,19 @@ extension [A](a: Array[A]) {
       i += 1
     b.shrinkTo(j)
 
-  transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](iN - i0)
     var i = i0
     while i < iN do
       b(i - i0) = op(a(i), i)
       i += 1
     b
-  transparent inline def selectOp[B](v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
-    val iv = Iv.of(v, a)
-    selectOp(Iv.i0(iv), Iv.iN(iv))(op)
-  transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](ivx: Iv.X)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    selectOp(ivx.index0(a), ivx.indexN(a))(op)
+  inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv of rg
     selectOp(iv.i0, iv.iN)(op)
-  transparent inline def selectOp[B](indices: Array[Int])(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](indices: Array[Int])(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](indices.length)
     var i = 0
     while i < indices.length do
@@ -1086,7 +975,7 @@ extension [A](a: Array[A]) {
       b(i) = op(a(j), j)
       i += 1
     b
-  transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     var b = new Array[B](if a.length <= 8 then a.length else 8)
     var j = 0
     while indices.hasStep do
@@ -1095,7 +984,7 @@ extension [A](a: Array[A]) {
       b(j) = op(a(i), i)
       j += 1
     b.shrinkTo(j)
-  transparent inline def selectOp[B](inline pick: A => Boolean)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](inline pick: A => Boolean)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
     val indices = where(pick)
     selectOp(indices)(op)
 
@@ -1258,8 +1147,8 @@ object ClippedArray {
         f(a(i))
         i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: A => Unit): Array[A] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: A => Unit): Array[A] =
+      val iv = ivx of ca.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): Array[A] =
       val iv = Iv of rg
@@ -1288,8 +1177,8 @@ object ClippedArray {
         a(i) = f(a(i))
         i += 1
       a
-    inline def poke(v: Iv | PIv)(inline f: A => A): Array[A] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def poke(ivx: Iv.X)(inline f: A => A): Array[A] =
+      val iv = ivx of ca.unwrap
       poke(iv.i0, iv.iN)(f)
     inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): Array[A] =
       val iv = Iv of rg
@@ -1317,8 +1206,8 @@ object ClippedArray {
       while i < iM do
         f(a(i), i)
         i += 1
-    inline def visit(v: Iv | PIv)(inline f: (A, Int) => Unit): Unit =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def visit(ivx: Iv.X)(inline f: (A, Int) => Unit): Unit =
+      val iv = ivx of ca.unwrap
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (A, Int) => Unit): Unit =
       val iv = Iv of rg
@@ -1346,8 +1235,8 @@ object ClippedArray {
         z = f(z, a(i), i)
         i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, A, Int) => Z): Z =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: (Z, A, Int) => Z): Z =
+      val iv = ivx of ca.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -1374,21 +1263,21 @@ object ClippedArray {
       kse.basics.ClippedArray.update(ca)(Iv(0, ca.unwrap.length), values)
 
     @targetName("update_Iv_constant")
-    inline def update(iv: Iv, value: A): Unit =
+    inline def update(ivx: Iv.X, value: A): Unit =
       val a = ca.unwrap
-      var i = iv.i0
+      var i = ivx.index0(a)
       if i < 0 then i = 0
-      var j = iv.iN
+      var j = ivx.indexN(a)
       if j > a.length then j = a.length
       while i < j do
         a(i) = value
         i += 1
     @targetName("update_Iv_array")
-    inline def update(iv: Iv, values: Array[A]): Unit =
+    inline def update(ivx: Iv.X, values: Array[A]): Unit =
       val a = ca.unwrap
-      var i = iv.i0
+      var i = ivx.index0(a)
       if i < 0 then i = 0
-      var j = iv.iN
+      var j = ivx.indexN(a)
       if j > a.length then j = a.length
       if j >= 0 && j - i > values.length then j = i + values.length
       if j > i then java.lang.System.arraycopy(values, 0, a, i, j - i)
@@ -1399,13 +1288,6 @@ object ClippedArray {
     @targetName("update_Range_array")
     inline def update(inline rg: collection.immutable.Range, values: Array[A]): Unit =
       kse.basics.ClippedArray.update(ca)(Iv of rg, values)
-
-    @targetName("update_Py_constant")
-    inline def update(piv: PIv, value: A): Unit =
-      kse.basics.ClippedArray.update(ca)(piv of ca.unwrap, value)
-    @targetName("update_Py_array")
-    inline def update(piv: PIv, values: Array[A]): Unit =
-      kse.basics.ClippedArray.update(ca)(piv of ca.unwrap, values)
 
     @targetName("update_Places_constant")
     inline def update(indices: Array[Int], value: A): Unit =
@@ -1465,10 +1347,12 @@ object ClippedArray {
         i += 1
 
     @targetName("set_Iv_generate")
-    inline def set(iv: Iv)(inline generator: () => A): Unit =
+    inline def set(ivx: Iv.X)(inline generator: () => A): Unit =
+      val iv = ivx of ca.unwrap
       set(iv.i0, iv.iN)(generator)
     @targetName("set_Iv_index")
-    inline def set(iv: Iv)(inline indexer: Int => A): Unit =
+    inline def set(ivx: Iv.X)(inline indexer: Int => A): Unit =
+      val iv = ivx of ca.unwrap
       set(iv.i0, iv.iN)(indexer)
 
     @targetName("set_Range_generate")
@@ -1478,15 +1362,6 @@ object ClippedArray {
     @targetName("set_Range_index")
     inline def set(inline rg: collection.immutable.Range)(inline indexer: Int => A): Unit =
       val iv = Iv of rg
-      set(iv.i0, iv.iN)(indexer)
-
-    @targetName("set_Py_generate")
-    inline def set(piv: PIv)(inline generator: () => A): Unit =
-      val iv = piv of ca.unwrap
-      set(iv.i0, iv.iN)(generator)
-    @targetName("set_Py_index")
-    inline def set(piv: PIv)(inline indexer: Int => A): Unit =
-      val iv = piv of ca.unwrap
       set(iv.i0, iv.iN)(indexer)
 
     @targetName("set_Places_generate")
@@ -1530,11 +1405,8 @@ object ClippedArray {
         a(i) = function(a(i), i)
         i += 1
     @targetName("edit_Iv_function")
-    inline def edit(iv: Iv)(inline function: (A, Int) => A): Unit =
-      edit(iv.i0, iv.iN)(function)
-    @targetName("edit_Py_function")
-    inline def edit(piv: PIv)(inline function: (A, Int) => A): Unit =
-      val iv = piv of ca.unwrap
+    inline def edit(ivx: Iv.X)(inline function: (A, Int) => A): Unit =
+      val iv = ivx of ca.unwrap
       edit(iv.i0, iv.iN)(function)
     @targetName("edit_Range_function")
     inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
@@ -1569,8 +1441,8 @@ object ClippedArray {
           j += 1
         i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: A => Boolean): Array[Int] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: A => Boolean): Array[Int] =
+      val iv = ivx of ca.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: A => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -1590,8 +1462,8 @@ object ClippedArray {
           j += 1
         i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: (A, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: (A, Int) => Int): Array[Int] =
+      val iv = ivx of ca.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: (A, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -1646,11 +1518,11 @@ object ClippedArray {
         java.lang.System.arraycopy(a, i, that, w, n)
         n
       else 0
-    inline def inject(that: Array[A])(v: Iv | PIv): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def inject(that: Array[A])(ivx: Iv.X): Int =
+      val iv = ivx of ca.unwrap
       inject(that, 0)(iv.i0, iv.iN)
-    inline def inject(that: Array[A], where: Int)(v: Iv | PIv): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def inject(that: Array[A], where: Int)(ivx: Iv.X): Int =
+      val iv = ivx of ca.unwrap
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[A])(inline rg: collection.immutable.Range): Int =
       val iv = Iv of rg
@@ -1724,11 +1596,11 @@ object ClippedArray {
           n -= 1
         n0
       else 0
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (A, Int) => B): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: (A, Int) => B): Int =
+      val iv = ivx of ca.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (A, Int) => B): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: (A, Int) => B): Int =
+      val iv = ivx of ca.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (A, Int) => B): Int =
       val iv = Iv of rg
@@ -1786,8 +1658,8 @@ object ClippedArray {
       val b = new Array[A](if i < j then j - i else 0)
       if b.length > 0 then java.lang.System.arraycopy(a, i, b, 0, b.length)
       b
-    inline def select(v: Iv | PIv)(using ClassTag[A]): Array[A] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def select(ivx: Iv.X)(using ClassTag[A]): Array[A] =
+      val iv = ivx of ca.unwrap
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range)(using ClassTag[A]): Array[A] =
       select(Iv of rg)
@@ -1815,7 +1687,7 @@ object ClippedArray {
           j += 1
       b.shrinkTo(j)
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -1828,13 +1700,13 @@ object ClippedArray {
         b(i - offset) = op(a(i), i)
         i += 1
       b
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def selectOp[B](ivx: Iv.X)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of ca.unwrap
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -1846,7 +1718,7 @@ object ClippedArray {
           j += 1
         i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -1963,6 +1835,7 @@ object ClippedArray {
 }
 
 
+
 opaque type BreakableArray[A] = Array[A]
 object BreakableArray {
   inline def wrap[A](a: Array[A]): BreakableArray[A] = a
@@ -1989,8 +1862,8 @@ object BreakableArray {
           f(a(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = ivx of sa.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv of rg
@@ -2026,8 +1899,8 @@ object BreakableArray {
           a(i) = f(a(i))
           i += 1
       a
-    inline def poke(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def poke(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = ivx of sa.unwrap
       poke(iv.i0, iv.iN)(f)
     inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
       val iv = Iv of rg
@@ -2067,8 +1940,8 @@ object BreakableArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
+      val iv = ivx of sa.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -2158,8 +2031,8 @@ object BreakableArray {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = ivx of sa.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -2178,8 +2051,8 @@ object BreakableArray {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = ivx of sa.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -2247,11 +2120,11 @@ object BreakableArray {
             j += 1
           i += 1
       j - where
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = ivx of sa.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = ivx of sa.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv of rg
@@ -2301,7 +2174,7 @@ object BreakableArray {
           i += 1
       b.shrinkTo(j)
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](iN - i0)
       var i = i0
@@ -2313,13 +2186,13 @@ object BreakableArray {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def selectOp[B](ivx: Iv.X)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of sa.unwrap
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -2332,7 +2205,7 @@ object BreakableArray {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -2415,6 +2288,7 @@ object BreakableArray {
 }
 
 
+
 opaque type ClipBreakArray[A] = Array[A]
 object ClipBreakArray {
   inline def wrap[A](a: Array[A]): ClipBreakArray[A] = a
@@ -2433,8 +2307,8 @@ object ClipBreakArray {
           f(a(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      val iv = ivx of sc.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val iv = Iv of rg
@@ -2466,8 +2340,8 @@ object ClipBreakArray {
           a(i) = f(a(i))
           i += 1
       a
-    inline def poke(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def poke(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      val iv = ivx of sc.unwrap
       poke(iv.i0, iv.iN)(f)
     inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
       val iv = Iv of rg
@@ -2500,8 +2374,8 @@ object ClipBreakArray {
           z = f(z, a(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
+      val iv = ivx of sc.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val iv = Iv of rg
@@ -2540,8 +2414,8 @@ object ClipBreakArray {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
+      val iv = ivx of sc.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> A => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -2562,8 +2436,8 @@ object ClipBreakArray {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
+      val iv = ivx of sc.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -2637,11 +2511,11 @@ object ClipBreakArray {
             j += 1
           i += 1
       if where < 0 then j else j - where
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = ivx of sc.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
+      val iv = ivx of sc.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (A, Int) => B): Int =
       val iv = Iv of rg
@@ -2680,7 +2554,7 @@ object ClipBreakArray {
               j += 1
       if where < 0 then j else j - where
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -2696,13 +2570,13 @@ object ClipBreakArray {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def selectOp[B](ivx: Iv.X)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of sc.unwrap
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -2715,7 +2589,7 @@ object ClipBreakArray {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (A, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -2742,14 +2616,13 @@ extension (az: Array[Boolean]) {
   inline def copyToSize(size: Int): Array[Boolean] =
     java.util.Arrays.copyOf(az, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Boolean] =
-    java.util.Arrays.copyOf(az, FromLengthIdx.asEndpointOf(endpoint)(az))
+  inline def copyToSize(endpoint: End.At): Array[Boolean] =
+    java.util.Arrays.copyOf(az, 1 + (endpoint of az))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Boolean] =
     java.util.Arrays.copyOfRange(az, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Boolean] =
-    val iv = Iv.of(v, az)
-    java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Boolean] =
+    java.util.Arrays.copyOfRange(az, ivx.index0(az), ivx.indexN(az))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Boolean] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
@@ -2760,15 +2633,15 @@ extension (az: Array[Boolean]) {
   inline def fillRange(i0: Int, iN: Int)(x: Boolean): az.type = 
     java.util.Arrays.fill(az, i0, iN, x)
     az
-  inline def fillRange(v: Iv | PIv)(x: Boolean): az.type = 
-    val iv = Iv.of(v, az)
-    java.util.Arrays.fill(az, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Boolean): az.type = 
+    java.util.Arrays.fill(az, ivx.index0(az), ivx.indexN(az), x)
     az
   inline def fillRange(inline rg: collection.immutable.Range)(x: Boolean): az.type =
     val iv = Iv of rg
     java.util.Arrays.fill(az, iv.i0, iv.iN, x)
     az
 }
+
 
 /** Byte Array specific functionality from java.util.Arrays and java.lang.System */
 extension (ab: Array[Byte]) {
@@ -2782,14 +2655,13 @@ extension (ab: Array[Byte]) {
   inline def copyToSize(size: Int): Array[Byte] =
     java.util.Arrays.copyOf(ab, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Byte] =
-    java.util.Arrays.copyOf(ab, FromLengthIdx.asEndpointOf(endpoint)(ab))
+  inline def copyToSize(endpoint: End.At): Array[Byte] =
+    java.util.Arrays.copyOf(ab, 1 + (endpoint of ab))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Byte] =
     java.util.Arrays.copyOfRange(ab, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Byte] =
-    val iv = Iv.of(v, ab)
-    java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Byte] =
+    java.util.Arrays.copyOfRange(ab, ivx.index0(ab), ivx.indexN(ab))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Byte] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(ab, iv.i0, iv.iN)
@@ -2798,9 +2670,8 @@ extension (ab: Array[Byte]) {
     java.util.Arrays.binarySearch(ab, x)
   inline def searchRange(i0: Int, iN: Int)(x: Byte): Int =
     java.util.Arrays.binarySearch(ab, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Byte): Int =
-    val iv = Iv.of(v, ab)
-    java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Byte): Int =
+    java.util.Arrays.binarySearch(ab, ivx.index0(ab), ivx.indexN(ab), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Byte): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
@@ -2812,9 +2683,8 @@ extension (ab: Array[Byte]) {
   inline def fillRange(i0: Int, iN: Int)(x: Byte): ab.type = 
     java.util.Arrays.fill(ab, i0, iN, x)
     ab
-  inline def fillRange(v: Iv | PIv)(x: Byte): ab.type =
-    val iv = Iv.of(v, ab)
-    java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Byte): ab.type =
+    java.util.Arrays.fill(ab, ivx.index0(ab), ivx.indexN(ab), x)
     ab
   inline def fillRange(inline rg: collection.immutable.Range)(x: Byte): ab.type =
     val iv = Iv of rg
@@ -2827,9 +2697,8 @@ extension (ab: Array[Byte]) {
   inline def sortRange(i0: Int, iN: Int): ab.type =
     java.util.Arrays.sort(ab, i0, iN)
     ab
-  inline def sortRange(v: Iv | PIv): ab.type =
-    val iv = Iv.of(v, ab)
-    java.util.Arrays.sort(ab, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): ab.type =
+    java.util.Arrays.sort(ab, ivx.index0(ab), ivx.indexN(ab))
     ab
   inline def sortRange(inline rg: collection.immutable.Range): ab.type =
     val iv = Iv of rg
@@ -2844,9 +2713,8 @@ extension (ab: Array[Byte]) {
       var i = i0 + 1
       while i < iN && ab(i-1) <= ab(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, ab)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(ab), ivx.indexN(ab))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -2859,14 +2727,13 @@ extension (as: Array[Short]) {
   inline def copyToSize(size: Int): Array[Short] =
     java.util.Arrays.copyOf(as, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Short] =
-    java.util.Arrays.copyOf(as, FromLengthIdx.asEndpointOf(endpoint)(as))
+  inline def copyToSize(endpoint: End.At): Array[Short] =
+    java.util.Arrays.copyOf(as, 1 + (endpoint of as))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Short] =
     java.util.Arrays.copyOfRange(as, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Short] =
-    val iv = Iv.of(v, as)
-    java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Short] =
+    java.util.Arrays.copyOfRange(as, ivx.index0(as), ivx.indexN(as))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Short] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(as, iv.i0, iv.iN)
@@ -2875,9 +2742,8 @@ extension (as: Array[Short]) {
     java.util.Arrays.binarySearch(as, x)
   inline def searchRange(i0: Int, iN: Int)(x: Short): Int =
     java.util.Arrays.binarySearch(as, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Short): Int =
-    val iv = Iv.of(v, as)
-    java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Short): Int =
+    java.util.Arrays.binarySearch(as, ivx.index0(as), ivx.indexN(as), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Short): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
@@ -2889,9 +2755,8 @@ extension (as: Array[Short]) {
   inline def fillRange(i0: Int, iN: Int)(x: Short): as.type = 
     java.util.Arrays.fill(as, i0, iN, x)
     as
-  inline def fillRange(v: Iv | PIv)(x: Short): as.type =
-    val iv = Iv.of(v, as)
-    java.util.Arrays.fill(as, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Short): as.type =
+    java.util.Arrays.fill(as, ivx.index0(as), ivx.indexN(as), x)
     as
   inline def fillRange(inline rg: collection.immutable.Range)(x: Short): as.type =
     val iv = Iv of rg
@@ -2904,9 +2769,8 @@ extension (as: Array[Short]) {
   inline def sortRange(i0: Int, iN: Int): as.type =
     java.util.Arrays.sort(as, i0, iN)
     as
-  inline def sortRange(v: Iv | PIv): as.type =
-    val iv = Iv.of(v, as)
-    java.util.Arrays.sort(as, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): as.type =
+    java.util.Arrays.sort(as, ivx.index0(as), ivx.indexN(as))
     as
   inline def sortRange(inline rg: collection.immutable.Range): as.type =
     val iv = Iv of rg
@@ -2921,9 +2785,8 @@ extension (as: Array[Short]) {
       var i = i0 + 1
       while i < iN && as(i-1) <= as(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, as)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(as), ivx.indexN(as))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -2938,14 +2801,13 @@ extension (ac: Array[Char]) {
   inline def copyToSize(size: Int): Array[Char] =
     java.util.Arrays.copyOf(ac, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Char] =
-    java.util.Arrays.copyOf(ac, FromLengthIdx.asEndpointOf(endpoint)(ac))
+  inline def copyToSize(endpoint: End.At): Array[Char] =
+    java.util.Arrays.copyOf(ac, 1 + (endpoint of ac))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Char] =
     java.util.Arrays.copyOfRange(ac, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Char] =
-    val iv = Iv.of(v, ac)
-    java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Char] =
+    java.util.Arrays.copyOfRange(ac, ivx.index0(ac), ivx.indexN(ac))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Char] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(ac, iv.i0, iv.iN)
@@ -2954,9 +2816,8 @@ extension (ac: Array[Char]) {
     java.util.Arrays.binarySearch(ac, x)
   inline def searchRange(i0: Int, iN: Int)(x: Char): Int =
     java.util.Arrays.binarySearch(ac, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Char): Int =
-    val iv = Iv.of(v, ac)
-    java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Char): Int =
+    java.util.Arrays.binarySearch(ac, ivx.index0(ac), ivx.indexN(ac), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Char): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
@@ -2968,9 +2829,8 @@ extension (ac: Array[Char]) {
   inline def fillRange(i0: Int, iN: Int)(x: Char): ac.type = 
     java.util.Arrays.fill(ac, i0, iN, x)
     ac
-  inline def fillRange(v: Iv | PIv)(x: Char): ac.type =
-    val iv = Iv.of(v, ac)
-    java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Char): ac.type =
+    java.util.Arrays.fill(ac, ivx.index0(ac), ivx.indexN(ac), x)
     ac
   inline def fillRange(inline rg: collection.immutable.Range)(x: Char): ac.type =
     val iv = Iv of rg
@@ -2983,9 +2843,8 @@ extension (ac: Array[Char]) {
   inline def sortRange(i0: Int, iN: Int): ac.type =
     java.util.Arrays.sort(ac, i0, iN)
     ac
-  inline def sortRange(v: Iv | PIv): ac.type =
-    val iv = Iv.of(v, ac)
-    java.util.Arrays.sort(ac, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): ac.type =
+    java.util.Arrays.sort(ac, ivx.index0(ac), ivx.indexN(ac))
     ac
   inline def sortRange(inline rg: collection.immutable.Range): ac.type =
     val iv = Iv of rg
@@ -3000,9 +2859,8 @@ extension (ac: Array[Char]) {
       var i = i0 + 1
       while i < iN && ac(i-1) <= ac(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, ac)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(ac), ivx.indexN(ac))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3043,14 +2901,13 @@ extension (ai: Array[Int]) {
   inline def copyToSize(size: Int): Array[Int] =
     java.util.Arrays.copyOf(ai, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Int] =
-    java.util.Arrays.copyOf(ai, FromLengthIdx.asEndpointOf(endpoint)(ai))
+  inline def copyToSize(endpoint: End.At): Array[Int] =
+    java.util.Arrays.copyOf(ai, 1 + (endpoint of ai))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Int] =
     java.util.Arrays.copyOfRange(ai, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Int] =
-    val iv = Iv.of(v, ai)
-    java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Int] =
+    java.util.Arrays.copyOfRange(ai, ivx.index0(ai), ivx.indexN(ai))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Int] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(ai, iv.i0, iv.iN)
@@ -3059,9 +2916,8 @@ extension (ai: Array[Int]) {
     java.util.Arrays.binarySearch(ai, x)
   inline def searchRange(i0: Int, iN: Int)(x: Int): Int =
     java.util.Arrays.binarySearch(ai, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Int): Int =
-    val iv = Iv.of(v, ai)
-    java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Int): Int =
+    java.util.Arrays.binarySearch(ai, ivx.index0(ai), ivx.indexN(ai), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Int): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
@@ -3072,9 +2928,8 @@ extension (ai: Array[Int]) {
   inline def fillRange(i0: Int, iN: Int)(x: Int): ai.type = 
     java.util.Arrays.fill(ai, i0, iN, x)
     ai
-  inline def fillRange(v: Iv | PIv)(x: Int): ai.type =
-    val iv = Iv.of(v, ai)
-    java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Int): ai.type =
+    java.util.Arrays.fill(ai, ivx.index0(ai), ivx.indexN(ai), x)
     ai
   inline def fillRange(inline rg: collection.immutable.Range)(x: Int): ai.type =
     val iv = Iv of rg
@@ -3087,9 +2942,8 @@ extension (ai: Array[Int]) {
   inline def sortRange(i0: Int, iN: Int): ai.type =
     java.util.Arrays.sort(ai, i0, iN)
     ai
-  inline def sortRange(v: Iv | PIv): ai.type =
-    val iv = Iv.of(v, ai)
-    java.util.Arrays.sort(ai, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): ai.type =
+    java.util.Arrays.sort(ai, ivx.index0(ai), ivx.indexN(ai))
     ai
   inline def sortRange(inline rg: collection.immutable.Range): ai.type =
     val iv = Iv of rg
@@ -3104,9 +2958,8 @@ extension (ai: Array[Int]) {
       var i = i0 + 1
       while i < iN && ai(i-1) <= ai(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, ai)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(ai), ivx.indexN(ai))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3121,14 +2974,13 @@ extension (al: Array[Long]) {
   inline def copyToSize(size: Int): Array[Long] =
     java.util.Arrays.copyOf(al, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Long] =
-    java.util.Arrays.copyOf(al, FromLengthIdx.asEndpointOf(endpoint)(al))
+  inline def copyToSize(endpoint: End.At): Array[Long] =
+    java.util.Arrays.copyOf(al, 1 + (endpoint of al))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Long] =
     java.util.Arrays.copyOfRange(al, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Long] =
-    val iv = Iv.of(v, al)
-    java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Long] =
+    java.util.Arrays.copyOfRange(al, ivx.index0(al), ivx.indexN(al))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Long] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(al, iv.i0, iv.iN)
@@ -3137,9 +2989,8 @@ extension (al: Array[Long]) {
     java.util.Arrays.binarySearch(al, x)
   inline def searchRange(i0: Int, iN: Int)(x: Long): Int =
     java.util.Arrays.binarySearch(al, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Long): Int =
-    val iv = Iv.of(v, al)
-    java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Long): Int =
+    java.util.Arrays.binarySearch(al, ivx.index0(al), ivx.indexN(al), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Long): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
@@ -3151,9 +3002,8 @@ extension (al: Array[Long]) {
   inline def fillRange(i0: Int, iN: Int)(x: Long): al.type = 
     java.util.Arrays.fill(al, i0, iN, x)
     al
-  inline def fillRange(v: Iv | PIv)(x: Long): al.type =
-    val iv = Iv.of(v, al)
-    java.util.Arrays.fill(al, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Long): al.type =
+    java.util.Arrays.fill(al, ivx.index0(al), ivx.indexN(al), x)
     al
   inline def fillRange(inline rg: collection.immutable.Range)(x: Long): al.type =
     val iv = Iv of rg
@@ -3166,9 +3016,8 @@ extension (al: Array[Long]) {
   inline def sortRange(i0: Int, iN: Int): al.type =
     java.util.Arrays.sort(al, i0, iN)
     al
-  inline def sortRange(v: Iv | PIv): al.type =
-    val iv = Iv.of(v, al)
-    java.util.Arrays.sort(al, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): al.type =
+    java.util.Arrays.sort(al, ivx.index0(al), ivx.indexN(al))
     al
   inline def sortRange(inline rg: collection.immutable.Range): al.type =
     val iv = Iv of rg
@@ -3183,9 +3032,8 @@ extension (al: Array[Long]) {
       var i = i0 + 1
       while i < iN && al(i-1) <= al(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, al)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(al), ivx.indexN(al))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3200,14 +3048,13 @@ extension (af: Array[Float]) {
   inline def copyToSize(size: Int): Array[Float] =
     java.util.Arrays.copyOf(af, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Float] =
-    java.util.Arrays.copyOf(af, FromLengthIdx.asEndpointOf(endpoint)(af))
+  inline def copyToSize(endpoint: End.At): Array[Float] =
+    java.util.Arrays.copyOf(af, 1 + (endpoint of af))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Float] =
     java.util.Arrays.copyOfRange(af, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Float] =
-    val iv = Iv.of(v, af)
-    java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Float] =
+    java.util.Arrays.copyOfRange(af, ivx.index0(af), ivx.indexN(af))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Float] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(af, iv.i0, iv.iN)
@@ -3216,9 +3063,8 @@ extension (af: Array[Float]) {
     java.util.Arrays.binarySearch(af, x)
   inline def searchRange(i0: Int, iN: Int)(x: Float): Int =
     java.util.Arrays.binarySearch(af, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Float): Int =
-    val iv = Iv.of(v, af)
-    java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Float): Int =
+    java.util.Arrays.binarySearch(af, ivx.index0(af), ivx.indexN(af), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Float): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
@@ -3230,9 +3076,8 @@ extension (af: Array[Float]) {
   inline def fillRange(i0: Int, iN: Int)(x: Float): af.type = 
     java.util.Arrays.fill(af, i0, iN, x)
     af
-  inline def fillRange(v: Iv | PIv)(x: Float): af.type =
-    val iv = Iv.of(v, af)
-    java.util.Arrays.fill(af, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Float): af.type =
+    java.util.Arrays.fill(af, ivx.index0(af), ivx.indexN(af), x)
     af
   inline def fillRange(inline rg: collection.immutable.Range)(x: Float): af.type =
     val iv = Iv of rg
@@ -3245,9 +3090,8 @@ extension (af: Array[Float]) {
   inline def sortRange(i0: Int, iN: Int): af.type =
     java.util.Arrays.sort(af, i0, iN)
     af
-  inline def sortRange(v: Iv | PIv): af.type =
-    val iv = Iv.of(v, af)
-    java.util.Arrays.sort(af, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): af.type =
+    java.util.Arrays.sort(af, ivx.index0(af), ivx.indexN(af))
     af
   inline def sortRange(inline rg: collection.immutable.Range): af.type =
     val iv = Iv of rg
@@ -3262,9 +3106,8 @@ extension (af: Array[Float]) {
       var i = i0 + 1
       while i < iN && af(i-1) <= af(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, af)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(af), ivx.indexN(af))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3279,14 +3122,13 @@ extension (ad: Array[Double]) {
   inline def copyToSize(size: Int): Array[Double] =
     java.util.Arrays.copyOf(ad, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[Double] =
-    java.util.Arrays.copyOf(ad, FromLengthIdx.asEndpointOf(endpoint)(ad))
+  inline def copyToSize(endpoint: End.At): Array[Double] =
+    java.util.Arrays.copyOf(ad, 1 + (endpoint of ad))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[Double] =
     java.util.Arrays.copyOfRange(ad, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[Double] =
-    val iv = Iv.of(v, ad)
-    java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[Double] =
+    java.util.Arrays.copyOfRange(ad, ivx.index0(ad), ivx.indexN(ad))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[Double] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(ad, iv.i0, iv.iN)
@@ -3295,9 +3137,8 @@ extension (ad: Array[Double]) {
     java.util.Arrays.binarySearch(ad, x)
   inline def searchRange(i0: Int, iN: Int)(x: Double): Int =
     java.util.Arrays.binarySearch(ad, i0, iN, x)
-  inline def searchRange(v: Iv | PIv)(x: Double): Int =
-    val iv = Iv.of(v, ad)
-    java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
+  inline def searchRange(ivx: Iv.X)(x: Double): Int =
+    java.util.Arrays.binarySearch(ad, ivx.index0(ad), ivx.indexN(ad), x)
   inline def searchRange(inline rg: collection.immutable.Range)(x: Double): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
@@ -3309,9 +3150,8 @@ extension (ad: Array[Double]) {
   inline def fillRange(i0: Int, iN: Int)(x: Double): ad.type = 
     java.util.Arrays.fill(ad, i0, iN, x)
     ad
-  inline def fillRange(v: Iv | PIv)(x: Double): ad.type =
-    val iv = Iv.of(v, ad)
-    java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
+  inline def fillRange(ivx: Iv.X)(x: Double): ad.type =
+    java.util.Arrays.fill(ad, ivx.index0(ad), ivx.indexN(ad), x)
     ad
   inline def fillRange(inline rg: collection.immutable.Range)(x: Double): ad.type =
     val iv = Iv of rg
@@ -3324,9 +3164,8 @@ extension (ad: Array[Double]) {
   inline def sortRange(i0: Int, iN: Int): ad.type =
     java.util.Arrays.sort(ad, i0, iN)
     ad
-  inline def sortRange(v: Iv | PIv): ad.type =
-    val iv = Iv.of(v, ad)
-    java.util.Arrays.sort(ad, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X): ad.type =
+    java.util.Arrays.sort(ad, ivx.index0(ad), ivx.indexN(ad))
     ad
   inline def sortRange(inline rg: collection.immutable.Range): ad.type =
     val iv = Iv of rg
@@ -3341,9 +3180,8 @@ extension (ad: Array[Double]) {
       var i = i0 + 1
       while i < iN && ad(i-1) <= ad(i) do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv): Boolean =
-    val iv = Iv.of(v, ad)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X): Boolean =
+    isSortedRange(ivx.index0(ad), ivx.indexN(ad))
   inline def isSortedRange(inline rg: collection.immutable.Range): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3356,14 +3194,13 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def copyToSize(size: Int): Array[A] =
     java.util.Arrays.copyOf(aa, size)
   @targetName("copyToEndpointSize")
-  inline def copyToSize(endpoint: kse.basics.FromLengthIdx): Array[A] =
-    java.util.Arrays.copyOf(aa, FromLengthIdx.asEndpointOf(endpoint)(aa))
+  inline def copyToSize(endpoint: End.At): Array[A] =
+    java.util.Arrays.copyOf(aa, 1 + (endpoint of aa))
 
   inline def copyOfRange(i0: Int, iN: Int): Array[A] =
     java.util.Arrays.copyOfRange(aa, i0, iN)
-  inline def copyOfRange(v: Iv | PIv): Array[A] =
-    val iv = Iv.of(v, aa)
-    java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
+  inline def copyOfRange(ivx: Iv.X): Array[A] =
+    java.util.Arrays.copyOfRange(aa, ivx.index0(aa), ivx.indexN(aa))
   inline def copyOfRange(inline rg: collection.immutable.Range): Array[A] =
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(aa, iv.i0, iv.iN)
@@ -3372,9 +3209,8 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
     java.util.Arrays.binarySearch(aa, x, o)
   inline def searchRange(i0: Int, iN: Int)(x: A)(using o: scala.math.Ordering[A]): Int =
     java.util.Arrays.binarySearch(aa, i0, iN, x, o)
-  inline def searchRange(v: Iv | PIv)(x: A)(using o: scala.math.Ordering[A]): Int =
-    val iv = Iv.of(v, aa)
-    java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
+  inline def searchRange(ivx: Iv.X)(x: A)(using o: scala.math.Ordering[A]): Int =
+    java.util.Arrays.binarySearch(aa, ivx.index0(aa), ivx.indexN(aa), x, o)
   inline def searchRange(inline rg: collection.immutable.Range)(x: A)(using o: scala.math.Ordering[A]): Int =
     val iv = Iv of rg
     java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
@@ -3386,9 +3222,8 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def fillRange(i0: Int, iN: Int)(x: A): aa.type = 
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, x.asInstanceOf[AnyRef])
     aa
-  inline def fillRange(v: Iv | PIv)(x: A): aa.type =
-    val iv = Iv.of(v, aa)
-    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
+  inline def fillRange(ivx: Iv.X)(x: A): aa.type =
+    java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], ivx.index0(aa), ivx.indexN(aa), x.asInstanceOf[AnyRef])
     aa
   inline def fillRange(inline rg: collection.immutable.Range)(x: A): aa.type =
     val iv = Iv of rg
@@ -3401,9 +3236,8 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
   inline def sortRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): aa.type =
     scala.util.Sorting.stableSort(aa, i0, iN)
     aa
-  inline def sortRange(v: Iv | PIv)(using o: scala.math.Ordering[A]): aa.type =
-    val iv = Iv.of(v, aa)
-    scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
+  inline def sortRange(ivx: Iv.X)(using o: scala.math.Ordering[A]): aa.type =
+    scala.util.Sorting.stableSort(aa, ivx.index0(aa), ivx.indexN(aa))
     aa
   inline def sortRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): aa.type =
     val iv = Iv of rg
@@ -3418,9 +3252,8 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
       var i = i0 + 1
       while i < iN && o.compare(aa(i-1), aa(i)) <= 0 do i += 1
       i >= iN
-  inline def isSortedRange(v: Iv | PIv)(using o: scala.math.Ordering[A]): Boolean =
-    val iv = Iv.of(v, aa)
-    isSortedRange(iv.i0, iv.iN)
+  inline def isSortedRange(ivx: Iv.X)(using o: scala.math.Ordering[A]): Boolean =
+    isSortedRange(ivx.index0(aa), ivx.indexN(aa))
   inline def isSortedRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): Boolean =
     val iv = Iv of rg
     isSortedRange(iv.i0, iv.iN)
@@ -3448,9 +3281,8 @@ extension (a: String) {
       f(a.charAt(i))
       i += 1
     a
-  inline def peek(v: Iv | PIv)(inline f: Char => Unit): a.type =
-    val iv = Iv.of(v, a)
-    peek(iv.i0, iv.iN)(f)
+  inline def peek(ivx: Iv.X)(inline f: Char => Unit): a.type =
+    peek(ivx.index0(a), ivx.indexN(a))(f)
   inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): a.type =
     val iv = Iv of rg
     peek(iv.i0, iv.iN)(f)
@@ -3475,9 +3307,8 @@ extension (a: String) {
     while i < iN do
       f(a.charAt(i), i)
       i += 1
-  inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
-    val iv = Iv.of(v, a)
-    visit(iv.i0, iv.iN)(f)
+  inline def visit(ivx: Iv.X)(inline f: (Char, Int) => Unit): Unit =
+    visit(ivx.index0(a), ivx.indexN(a))(f)
   inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
     val iv = Iv of rg
     visit(iv.i0, iv.iN)(f)
@@ -3582,9 +3413,8 @@ extension (a: String) {
       z = f(z, a.charAt(i), i)
       i += 1
     z
-  inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
-    val iv = Iv.of(v, a)
-    gather(zero)(iv.i0, iv.iN)(f)
+  inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: (Z, Char, Int) => Z): Z =
+    gather(zero)(ivx.index0(a), ivx.indexN(a))(f)
   inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
     val iv = Iv of rg
     gather(zero)(iv.i0, iv.iN)(f)
@@ -3660,9 +3490,8 @@ extension (a: String) {
         j += 1
       i += 1
     ix.shrinkTo(j)
-  inline def whereIn(v: Iv | PIv)(inline pick: Char => Boolean): Array[Int] =
-    val iv = Iv.of(v, a)
-    whereIn(iv.i0, iv.iN)(pick)
+  inline def whereIn(ivx: Iv.X)(inline pick: Char => Boolean): Array[Int] =
+    whereIn(ivx.index0(a), ivx.indexN(a))(pick)
   inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
     val iv = Iv of rg
     whereIn(iv.i0, iv.iN)(pick)
@@ -3678,9 +3507,8 @@ extension (a: String) {
         j += 1
       i += 1
     ix.shrinkTo(j)
-  inline def whereInOp(v: Iv | PIv)(inline pick: (Char, Int) => Int): Array[Int] =
-    val iv = Iv.of(v, a)
-    whereInOp(iv.i0, iv.iN)(pick)
+  inline def whereInOp(ivx: Iv.X)(inline pick: (Char, Int) => Int): Array[Int] =
+    whereInOp(ivx.index0(a), ivx.indexN(a))(pick)
   inline def whereInOp(inline rg: Range)(inline pick: (Char, Int) => Int): Array[Int] =
     val iv = Iv of rg
     whereInOp(iv.i0, iv.iN)(pick)
@@ -3725,12 +3553,10 @@ extension (a: String) {
       i += 1
       j += 1
     iN - i0
-  inline def inject(that: Array[Char])(v: Iv | PIv): Int =
-    val iv = Iv.of(v, a)
-    inject(that, 0)(iv.i0, iv.iN)
-  inline def inject(that: Array[Char], where: Int)(v: Iv | PIv): Int =
-    val iv = Iv.of(v, a)
-    inject(that, where)(iv.i0, iv.iN)
+  inline def inject(that: Array[Char])(ivx: Iv.X): Int =
+    inject(that, 0)(ivx.index0(a), ivx.indexN(a))
+  inline def inject(that: Array[Char], where: Int)(ivx: Iv.X): Int =
+    inject(that, where)(ivx.index0(a), ivx.indexN(a))
   inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
     val iv = Iv of rg
     inject(that, 0)(iv.i0, iv.iN)
@@ -3782,12 +3608,10 @@ extension (a: String) {
       j += 1
       i += 1
     iN - i0
-  inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-    val iv = Iv.of(v, a)
-    injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-  inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-    val iv = Iv.of(v, a)
-    injectOp[B](that, where)(iv.i0, iv.iN)(f)
+  inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: (Char, Int) => B): Int =
+    injectOp[B](that, 0)(ivx.index0(a), ivx.indexN(a))(f)
+  inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: (Char, Int) => B): Int =
+    injectOp[B](that, where)(ivx.index0(a), ivx.indexN(a))(f)
   inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
     val iv = Iv of rg
     injectOp[B](that, 0)(iv.i0, iv.iN)(f)
@@ -3829,9 +3653,8 @@ extension (a: String) {
 
   inline def select(i0: Int, iN: Int): String =
     a.substring(i0, iN)
-  inline def select(v: Iv | PIv): String =
-    val iv = Iv.of(v, a)
-    select(Iv.i0(iv), Iv.iN(iv))
+  inline def select(ivx: Iv.X): String =
+    select(ivx.index0(a), ivx.indexN(a))
   inline def select(inline rg: collection.immutable.Range): String =
     select(Iv of rg)
   inline def select(indices: Array[Int]): String =
@@ -3858,20 +3681,19 @@ extension (a: String) {
       i += 1
     b.toString
 
-  transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](iN - i0)
     var i = i0
     while i < iN do
       b(i - i0) = op(a.charAt(i), i)
       i += 1
     b
-  transparent inline def selectOp[B](v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
-    val iv = Iv.of(v, a)
-    selectOp(Iv.i0(iv), Iv.iN(iv))(op)
-  transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](ivx: Iv.X)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    selectOp(ivx.index0(a), ivx.indexN(a))(op)
+  inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val iv = Iv of rg
     selectOp(iv.i0, iv.iN)(op)
-  transparent inline def selectOp[B](indices: Array[Int])(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](indices: Array[Int])(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val b = new Array[B](indices.length)
     var i = 0
     while i < indices.length do
@@ -3879,7 +3701,7 @@ extension (a: String) {
       b(i) = op(a.charAt(j), j)
       i += 1
     b
-  transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     var b = new Array[B](if a.length <= 8 then a.length else 8)
     var j = 0
     while indices.hasStep do
@@ -3888,7 +3710,7 @@ extension (a: String) {
       b(j) = op(a.charAt(i), i)
       j += 1
     b.shrinkTo(j)
-  transparent inline def selectOp[B](inline pick: Char => Boolean)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+  inline def selectOp[B](inline pick: Char => Boolean)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
     val indices = where(pick)
     selectOp(indices)(op)
 
@@ -4038,8 +3860,8 @@ object ClippedString {
         f(a.charAt(i))
         i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: Char => Unit): String =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: Char => Unit): String =
+      val iv = ivx of ca.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): String =
       val iv = Iv of rg
@@ -4067,8 +3889,8 @@ object ClippedString {
       while i < iM do
         f(a.charAt(i), i)
         i += 1
-    inline def visit(v: Iv | PIv)(inline f: (Char, Int) => Unit): Unit =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def visit(ivx: Iv.X)(inline f: (Char, Int) => Unit): Unit =
+      val iv = ivx of ca.unwrap
       visit(iv.i0, iv.iN)(f)
     inline def visit(inline rg: collection.immutable.Range)(inline f: (Char, Int) => Unit): Unit =
       val iv = Iv of rg
@@ -4096,8 +3918,8 @@ object ClippedString {
         z = f(z, a.charAt(i), i)
         i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: (Z, Char, Int) => Z): Z =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: (Z, Char, Int) => Z): Z =
+      val iv = ivx of ca.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -4133,8 +3955,8 @@ object ClippedString {
           j += 1
         i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: Char => Boolean): Array[Int] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: Char => Boolean): Array[Int] =
+      val iv = ivx of ca.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: Char => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -4154,8 +3976,8 @@ object ClippedString {
           j += 1
         i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: (Char, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: (Char, Int) => Int): Array[Int] =
+      val iv = ivx of ca.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: (Char, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -4215,11 +4037,11 @@ object ClippedString {
           n -= 1
         n0
       else 0
-    inline def inject(that: Array[Char])(v: Iv | PIv): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def inject(that: Array[Char])(ivx: Iv.X): Int =
+      val iv = ivx of ca.unwrap
       inject(that, 0)(iv.i0, iv.iN)
-    inline def inject(that: Array[Char], where: Int)(v: Iv | PIv): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def inject(that: Array[Char], where: Int)(ivx: Iv.X): Int =
+      val iv = ivx of ca.unwrap
       inject(that, where)(iv.i0, iv.iN)
     inline def inject(that: Array[Char])(inline rg: collection.immutable.Range): Int =
       val iv = Iv of rg
@@ -4293,11 +4115,11 @@ object ClippedString {
           n -= 1
         n0
       else 0
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: (Char, Int) => B): Int =
+      val iv = ivx of ca.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: (Char, Int) => B): Int =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: (Char, Int) => B): Int =
+      val iv = ivx of ca.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -4353,8 +4175,8 @@ object ClippedString {
       var j = iN
       if j >= a.length then j = a.length
       if i < j then a.substring(i, j) else ""
-    inline def select(v: Iv | PIv): String =
-      val iv = Iv.of(v, ca.unwrap)
+    inline def select(ivx: Iv.X): String =
+      val iv = ivx of ca.unwrap
       select(iv.i0, iv.iN)
     inline def select(inline rg: collection.immutable.Range): String =
       select(Iv of rg)
@@ -4377,7 +4199,7 @@ object ClippedString {
           b append a.charAt(i)
       b.toString
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -4390,13 +4212,13 @@ object ClippedString {
         b(i - offset) = op(a.charAt(i), i)
         i += 1
       b
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, ca.unwrap)
-      selectOp(Iv.i0(iv), Iv.iN(iv))(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](ivx: Iv.X)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of ca.unwrap
+      selectOp(iv.i0, iv.iN)(op)
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -4408,7 +4230,7 @@ object ClippedString {
           j += 1
         i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = ca.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -4547,8 +4369,8 @@ object BreakableString {
           f(a.charAt(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val iv = ivx of sa.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val iv = Iv of rg
@@ -4586,8 +4408,8 @@ object BreakableString {
           z = f(z, a.charAt(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      val iv = ivx of sa.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -4675,8 +4497,8 @@ object BreakableString {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv =ivx of sa.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -4695,8 +4517,8 @@ object BreakableString {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = ivx of sa.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -4764,11 +4586,11 @@ object BreakableString {
             j += 1
           i += 1
       j - where
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+      val iv = ivx of sa.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+      val iv = ivx of sa.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -4815,7 +4637,7 @@ object BreakableString {
           i += 1
       b.toString
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](iN - i0)
       var i = i0
@@ -4827,13 +4649,13 @@ object BreakableString {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, sa.unwrap)
+    inline def selectOp[B](ivx: Iv.X)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of sa.unwrap
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -4846,7 +4668,7 @@ object BreakableString {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sa.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -4940,8 +4762,8 @@ object ClipBreakString {
           f(a.charAt(i))
           i += 1
       a
-    inline def peek(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      val iv = ivx of sc.unwrap
       peek(iv.i0, iv.iN)(f)
     inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val iv = Iv of rg
@@ -4974,8 +4796,8 @@ object ClipBreakString {
           z = f(z, a.charAt(i), i)
           i += 1
       z
-    inline def gather[Z](zero: Z)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def gather[Z](zero: Z)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
+      val iv = ivx of sc.unwrap
       gather(zero)(iv.i0, iv.iN)(f)
     inline def gather[Z](zero: Z)(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val iv = Iv of rg
@@ -5014,8 +4836,8 @@ object ClipBreakString {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereIn(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def whereIn(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
+      val iv = ivx of sc.unwrap
       whereIn(iv.i0, iv.iN)(pick)
     inline def whereIn(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[Int] =
       val iv = Iv of rg
@@ -5036,8 +4858,8 @@ object ClipBreakString {
             j += 1
           i += 1
       ix.shrinkTo(j)
-    inline def whereInOp(v: Iv | PIv)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def whereInOp(ivx: Iv.X)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
+      val iv = ivx of sc.unwrap
       whereInOp(iv.i0, iv.iN)(pick)
     inline def whereInOp(inline rg: Range)(inline pick: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Int): Array[Int] =
       val iv = Iv of rg
@@ -5111,11 +4933,11 @@ object ClipBreakString {
             j += 1
           i += 1
       if where < 0 then j else j - where
-    inline def injectOp[B](that: Array[B])(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def injectOp[B](that: Array[B])(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+      val iv = ivx of sc.unwrap
       injectOp[B](that, 0)(iv.i0, iv.iN)(f)
-    inline def injectOp[B](that: Array[B], where: Int)(v: Iv | PIv)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def injectOp[B](that: Array[B], where: Int)(ivx: Iv.X)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
+      val iv = ivx of sc.unwrap
       injectOp[B](that, where)(iv.i0, iv.iN)(f)
     inline def injectOp[B](that: Array[B])(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Type] ?=> (Char, Int) => B): Int =
       val iv = Iv of rg
@@ -5154,7 +4976,7 @@ object ClipBreakString {
               j += 1
       if where < 0 then j else j - where
 
-    transparent inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](i0: Int, iN: Int)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -5170,13 +4992,13 @@ object ClipBreakString {
             k += 1
           i += 1
       b.shrinkTo(k)
-    transparent inline def selectOp[B](v: Iv | PIv)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
-      val iv = Iv.of(v, sc.unwrap)
+    inline def selectOp[B](ivx: Iv.X)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+      val iv = ivx of sc.unwrap
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](inline rg: collection.immutable.Range)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val iv = Iv of rg
       selectOp(iv.i0, iv.iN)(op)
-    transparent inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: Array[Int])(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       val b = new Array[B](indices.length)
       var i = 0
@@ -5189,7 +5011,7 @@ object ClipBreakString {
             j += 1
           i += 1
       b.shrinkTo(j)
-    transparent inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
+    inline def selectOp[B](indices: scala.collection.IntStepper)(inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
       val a = sc.unwrap
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
@@ -5205,5 +5027,4 @@ object ClipBreakString {
       b.shrinkTo(j)
   }
 }
-
 

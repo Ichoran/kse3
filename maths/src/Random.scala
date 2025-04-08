@@ -328,19 +328,19 @@ sealed abstract class Prng {
     val iv = Iv of rg
     fillRangeOp(target)(iv.i0, iv.iN)(f)
 
-  final inline def fillRangeZ(target: Array[Boolean])(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeZ(target)(iv.i0, iv.iN) }
-  final inline def fillRangeB(target: Array[Byte]   )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeB(target)(iv.i0, iv.iN) }
-  final inline def fillRangeS(target: Array[Short]  )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeS(target)(iv.i0, iv.iN) }
-  final inline def fillRangeC(target: Array[Char]   )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeC(target)(iv.i0, iv.iN) }
-  final inline def fillRangeI(target: Array[Int]    )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeI(target)(iv.i0, iv.iN) }
-  final inline def fillRangeL(target: Array[Long]   )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeL(target)(iv.i0, iv.iN) }
-  final inline def fillRangeF(target: Array[Float]  )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeF(target)(iv.i0, iv.iN) }
-  final inline def fillRangeD(target: Array[Double] )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeD(target)(iv.i0, iv.iN) }
-  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeModI(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeModL(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeGaussian(     target: Array[Double])(inline v: Iv | PIv): this.type = { val iv = Iv.of(v, target); fillRangeGaussian(target)(iv.i0, iv.iN) }
-  final inline def fillRangeOp[A](target: Array[A])(inline v: Iv | PIv)(inline f: Prng => A): this.type =
-    val iv = Iv.of(v, target)
+  final inline def fillRangeZ(target: Array[Boolean])(inline v: Iv.X): this.type = { val iv = v of target; fillRangeZ(target)(iv.i0, iv.iN) }
+  final inline def fillRangeB(target: Array[Byte]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeB(target)(iv.i0, iv.iN) }
+  final inline def fillRangeS(target: Array[Short]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeS(target)(iv.i0, iv.iN) }
+  final inline def fillRangeC(target: Array[Char]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeC(target)(iv.i0, iv.iN) }
+  final inline def fillRangeI(target: Array[Int]    )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeI(target)(iv.i0, iv.iN) }
+  final inline def fillRangeL(target: Array[Long]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeL(target)(iv.i0, iv.iN) }
+  final inline def fillRangeF(target: Array[Float]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeF(target)(iv.i0, iv.iN) }
+  final inline def fillRangeD(target: Array[Double] )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeD(target)(iv.i0, iv.iN) }
+  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeModI(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeModL(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeGaussian(     target: Array[Double])(inline v: Iv.X): this.type = { val iv = v of target; fillRangeGaussian(target)(iv.i0, iv.iN) }
+  final inline def fillRangeOp[A](target: Array[A])(inline v: Iv.X)(inline f: Prng => A): this.type =
+    val iv = v of target
     fillRangeOp(target)(iv.i0, iv.iN)(f)
 
   final inline def arrayZ(            n: Int): Array[Boolean] = { val a = new Array[Boolean](if n < 0 then 0 else n); fillZ(       a); a }
@@ -505,8 +505,8 @@ sealed abstract class Prng {
   final inline def shuffleRange[A](a: Array[A])(inline rg: Rg): Unit =
     val iv = Iv of rg
     shuffleRange(a)(iv.i0, iv.iN)
-  final inline def shuffleRange[A](a: Array[A])(inline v: Iv | PIv): Unit =
-    val iv = Iv.of(v, a)
+  final inline def shuffleRange[A](a: Array[A])(inline v: Iv.X): Unit =
+    val iv = v of a
     shuffleRange(a)(iv.i0, iv.iN)
 
   private def liAlgorithmL(n: Int, k: Int): Array[Int] =
@@ -591,8 +591,8 @@ sealed abstract class Prng {
   final inline def sampleRange[A](a: Array[A])(inline rg: Rg): A =
     val iv = Iv of rg
     sampleRange(a)(iv.i0, iv.iN)
-  final inline def sampleRange[A](a: Array[A])(inline v: Iv | PIv): A =
-    val iv = Iv.of(v, a)
+  final inline def sampleRange[A](a: Array[A])(inline v: Iv.X): A =
+    val iv = v of a
     sampleRange(a)(iv.i0, iv.iN)
 
   final inline def sampleRange[A](k: Int)(a: Array[A])(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
@@ -622,8 +622,8 @@ sealed abstract class Prng {
   final inline def sampleRange[A](k: Int)(a: Array[A])(inline rg: Rg)(using ClassTag[A]): Array[A] =
     val iv = Iv of rg
     sampleRange(k)(a)(iv.i0, iv.iN)
-  final inline def sampleRange[A](k: Int)(a: Array[A])(inline v: Iv | PIv)(using ClassTag[A]): Array[A] =
-    val iv = Iv.of(v, a)
+  final inline def sampleRange[A](k: Int)(a: Array[A])(inline v: Iv.X)(using ClassTag[A]): Array[A] =
+    val iv = v of a
     sampleRange(k)(a)(iv.i0, iv.iN)
 
   final inline def sample(a: String): Char = a.charAt(this % a.length)
@@ -635,8 +635,8 @@ sealed abstract class Prng {
   final inline def sampleRange(a: String)(inline rg: Rg): Char =
     val iv = Iv of rg
     sampleRange(a)(iv.i0, iv.iN)
-  final inline def sampleRange(a: String)(inline v: Iv | PIv): Char =
-    val iv = Iv.of(v, a)
+  final inline def sampleRange(a: String)(inline v: Iv.X): Char =
+    val iv = v of a
     sampleRange(a)(iv.i0, iv.iN)
 
   final inline def sampleRange(k: Int)(a: String)(i0: Int, iN: Int): String =
@@ -666,8 +666,8 @@ sealed abstract class Prng {
   final inline def sampleRange(k: Int)(a: String)(inline rg: Rg): String =
     val iv = Iv of rg
     sampleRange(k)(a)(iv.i0, iv.iN)
-  final inline def sampleRange(k: Int)(a: String)(inline v: Iv | PIv): String =
-    val iv = Iv.of(v, a)
+  final inline def sampleRange(k: Int)(a: String)(inline v: Iv.X): String =
+    val iv = v of a
     sampleRange(k)(a)(iv.i0, iv.iN)
 
   final def sampleIndexedSeq[A, CC <: IndexedSeq[A]](k: Int)(coll: CC)(using factory: scala.collection.Factory[A, CC]): CC =
@@ -902,16 +902,16 @@ extension [A](a: Array[A])
   @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a)(i0, iN); a }
   @targetName("that_shuffle") inline def shuffle(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.shuffleRange(a)(iv.i0, iv.iN); a }
   @targetName("auto_shuffle") inline def shuffle(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN); a }
-  @targetName("that_shuffle") inline def shuffle(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.shuffleRange(a)(iv.i0, iv.iN); a }
-  @targetName("auto_shuffle") inline def shuffle(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN); a }
+  @targetName("that_shuffle") inline def shuffle(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.shuffleRange(a)(iv.i0, iv.iN); a }
+  @targetName("auto_shuffle") inline def shuffle(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN); a }
   inline def randomFillOp()(r: Prng)(f: Prng => A): a.type = { r.fillRangeOp(a)(0, a.length)(f); a }
   inline def randomFillOp()(f: Prng => A)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeOp(a)(0, a.length)(f); a }
   inline def randomFillOp(i0: Int, iN: Int)(r: Prng)(f: Prng => A): a.type = { r.fillRangeOp(a)(i0, iN)(f); a }
   inline def randomFillOp(i0: Int, iN: Int)(f: Prng => A)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeOp(a)(i0, iN)(f); a }
   inline def randomFillOp(inline rg: Rg)(r: Prng)(f: Prng => A): a.type = { val iv = Iv of rg; r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
   inline def randomFillOp(inline rg: Rg)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
-  inline def randomFillOp(inline v: Iv | PIv)(r: Prng)(f: Prng => A): a.type = { val iv = Iv.of(v, a); r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
-  inline def randomFillOp(inline v: Iv | PIv)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
+  inline def randomFillOp(inline v: Iv.X)(r: Prng)(f: Prng => A): a.type = { val iv = v of a; r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
+  inline def randomFillOp(inline v: Iv.X)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
   // inline def %(r: Prng): A = r.sample(a)    ===>   In OverloadedExtensions
   @targetName("that_sample") inline def sample()(r: Prng): A = r.sample(a)
   @targetName("auto_sample") inline def sample()(using ar: AutoPrng): A = AutoPrng.get(ar).sample(a)
@@ -919,16 +919,16 @@ extension [A](a: Array[A])
   @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(i0, iN)
   @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): A = r.sampleRange(a)(rg)
   @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(rg)
-  @targetName("that_sample") inline def sample(inline v: Iv | PIv)(r: Prng): A = r.sampleRange(a)(v)
-  @targetName("auto_sample") inline def sample(inline v: Iv | PIv)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample(inline v: Iv.X)(r: Prng): A = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample(inline v: Iv.X)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(v)
   @targetName("that_sample") inline def sample(k: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sample(k)(a)
   @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sample(k)(a)
   @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(i0, iN)
   @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
   @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(rg)
   @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(rg)
-  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
-  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
+  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv.X)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv.X)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension (a: Array[Boolean])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }
@@ -937,8 +937,8 @@ extension (a: Array[Boolean])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeZ(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeZ(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeZ(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeZ(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Byte])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillB(a); a }
@@ -947,8 +947,8 @@ extension (a: Array[Byte])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeB(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeB(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeB(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeB(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Short])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillS(a); a }
@@ -957,8 +957,8 @@ extension (a: Array[Short])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeS(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeS(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeS(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeS(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Char])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillC(a); a }
@@ -967,8 +967,8 @@ extension (a: Array[Char])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeC(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeC(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeC(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeC(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Int])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillI(a); a }
@@ -977,16 +977,16 @@ extension (a: Array[Int])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeI(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeI(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeI(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN); a }
   @targetName("that_randMod") inline def randomMod(m: Int)(r: Prng): a.type = { r.fillModI(m)(a); a }
   @targetName("auto_randMod") inline def randomMod(m: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModI(m)(a); a }
   @targetName("that_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModI(m)(a)(i0, iN); a }
   @targetName("auto_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModI(m)(a)(i0, iN); a }
   @targetName("that_randMod") inline def randomMod(m: Int)(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeModI(m)(a)(iv.i0, iv.iN); a }
   @targetName("auto_randMod") inline def randomMod(m: Int)(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Int)(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeModI(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN); a }
+  @targetName("that_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeModI(m)(a)(iv.i0, iv.iN); a }
+  @targetName("auto_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Long])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillL(a); a }
@@ -995,16 +995,16 @@ extension (a: Array[Long])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeL(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeL(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeL(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN); a }
   @targetName("that_randMod") inline def randomMod(m: Long)(r: Prng): a.type = { r.fillModL(m)(a); a }
   @targetName("auto_randMod") inline def randomMod(m: Long)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModL(m)(a); a }
   @targetName("that_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModL(m)(a)(i0, iN); a }
   @targetName("auto_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModL(m)(a)(i0, iN); a }
   @targetName("that_randMod") inline def randomMod(m: Long)(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeModL(m)(a)(iv.i0, iv.iN); a }
   @targetName("auto_randMod") inline def randomMod(m: Long)(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Long)(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeModL(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN); a }
+  @targetName("that_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeModL(m)(a)(iv.i0, iv.iN); a }
+  @targetName("auto_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Float])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillF(a); a }
@@ -1013,8 +1013,8 @@ extension (a: Array[Float])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeF(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeF(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeF(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeF(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN); a }
 
 extension (a: Array[Double])
   @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillD(a); a }
@@ -1023,16 +1023,16 @@ extension (a: Array[Double])
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeD(a)(i0, iN); a }
   @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeD(a)(iv.i0, iv.iN); a }
   @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeD(a)(iv.i0, iv.iN); a }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN); a }
   @targetName("that_randGau") inline def randomGaussian(r: Prng): a.type = { r.fillGaussian(a); a }
   @targetName("auto_randGau") inline def randomGaussian(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillGaussian(a); a }
   @targetName("that_randGau") inline def randomGaussian(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeGaussian(a)(i0, iN); a }
   @targetName("auto_randGau") inline def randomGaussian(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeGaussian(a)(i0, iN); a }
   @targetName("that_randGau") inline def randomGaussian(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
   @targetName("auto_randGau") inline def randomGaussian(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
-  @targetName("that_randGau") inline def randomGaussian(inline v: Iv | PIv)(r: Prng): a.type = { val iv = Iv.of(v, a); r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randGau") inline def randomGaussian(inline v: Iv | PIv)(using ar: AutoPrng): a.type = { val iv = Iv.of(v, a); AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
+  @targetName("that_randGau") inline def randomGaussian(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
+  @targetName("auto_randGau") inline def randomGaussian(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
 
 extension (a: String)
   // inline def %(r: Prng): Char = r.sample(a)    ===>   In OverloadedExtensions
@@ -1042,16 +1042,16 @@ extension (a: String)
   @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(i0, iN)
   @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): Char = r.sampleRange(a)(rg)
   @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(rg)
-  @targetName("that_sample") inline def sample(inline v: Iv | PIv)(r: Prng): Char = r.sampleRange(a)(v)
-  @targetName("auto_sample") inline def sample(inline v: Iv | PIv)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample(inline v: Iv.X)(r: Prng): Char = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample(inline v: Iv.X)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
   @targetName("that_sample") inline def sample(k: Int)(r: Prng): String = r.sample(k)(a)
   @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sample(k)(a)
   @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng): String = r.sampleRange(k)(a)(i0, iN)
   @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
   @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng): String = r.sampleRange(k)(a)(rg)
   @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(rg)
-  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv | PIv)(r: Prng): String = r.sampleRange(k)(a)(v)
-  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv | PIv)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
+  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv.X)(r: Prng): String = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv.X)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
   @targetName("that_coll_sample") inline def sample()(r: Prng): A = inline coll match

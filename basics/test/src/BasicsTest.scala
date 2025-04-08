@@ -40,6 +40,19 @@ class BytecodeCheck {
 
   def apply3test(s: String) =
     s |-> (strcut, 3, 7)
+
+  def unpeekTest(a: Array[String]) =
+    var i = 0
+    var j = 2
+    while j <= 5 do
+      i += a(j).length
+      j += 1
+    i
+
+  def peekTest(a: Array[String]) =
+    var i = 0
+    a.peek(2 to 5)(i += _.length)
+    i
   
   def boundaryTest(d: Double): Double =
     boundary[Double]:
@@ -490,20 +503,27 @@ class BasicsTest() {
       f
       cuml
 
-    T ~ 3.where()                                                 =**= Array(0, 1, 2)
-    T ~ -2.where()                                                =**= Array[Int]()
-    T ~ 3.arrayed[Int]()                                          =**= Array(0, 0, 0)
-    T ~ 3.arrayed[Int]()                                          ==== typed[Array[Int]]
-    T ~ 3.arrayed(i => i+1)                                       =**= Array(1, 2, 3)
-    T ~ 3.arrayed(i => i+1)                                       ==== typed[Array[Int]]
-    T ~ 3.arrayedBreakably{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
-    T ~ 3.arrayedBreakably{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
-    T ~ 3.arrayedBreakably(i => i+1)                              ==== typed[Array[Int]]
-    T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                         ==== 7
-    T ~ n{ 5.visit(cuml += _) }                                   ==== 10
-    T ~ n{ -2.visit(cuml += _) }                                  ==== 0
+    T ~ 3.where()                                          =**= Array(0, 1, 2)
+    T ~ -2.where()                                         =**= Array[Int]()
+    T ~ 3.of[Int]                                          =**= Array(0, 0, 0)
+    T ~ 3.of[Int]                                          ==== typed[Array[Int]]
+    T ~ 3.make(i => i+1)                                   =**= Array(1, 2, 3)
+    T ~ 3.make(i => i+1)                                   ==== typed[Array[Int]]
+    T ~ 3.makeBreak{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
+    T ~ 3.makeBreak{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
+    T ~ 3.makeBreak(i => i+1)                              ==== typed[Array[Int]]
+    T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                  ==== 7
+    T ~ n{ 5.visit(cuml += _) }                            ==== 10
+    T ~ n{ -2.visit(cuml += _) }                           ==== 0
 
-    T ~ (1 to End)                                 ==== typed[PIv]
+    T ~ (1 to End)                                 ==== typed[Iv.Rae]
+    T ~ (1 to Start+3)                             ==== typed[Iv.Ras]
+    T ~ (Start to 5)                               ==== typed[Iv.Rsa]
+    T ~ (Start + 1 to End - 1)                     ==== typed[Iv.Rse]
+    T ~ (Start + 1 to Start + 3)                   ==== typed[Iv.Rss]
+    T ~ (End - 5 to 9)                             ==== typed[Iv.Rea]
+    T ~ (End - 5 to End - 3)                       ==== typed[Iv.Ree]
+    T ~ (End - 5 to Start + 5)                     ==== typed[Iv.Res]
     T ~ Iv.of(3 to 4)                              ==== Iv(3, 5)
     T ~ Iv.of("salmon")                            ==== Iv(0, 6)
     T ~ Iv.of(Array(1, 2, 3, 4))                   ==== Iv(0, 4)

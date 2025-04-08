@@ -18,10 +18,86 @@ import scala.collection.immutable.{Range => Rg}
 import kse.basics.intervals._
 
 
+extension (ivx: Iv.X) {
+  inline def of(inline target: Int | String | Array[?] | Iv): Iv = inline ivx match
+    case iv:  Iv     => iv
+    case raa: Iv.Raa => raa.iv
+    case rae: Iv.Rae => rae.iv(target)
+    case ras: Iv.Ras => ras.iv(target)
+    case rea: Iv.Rea => rea.iv(target)
+    case ree: Iv.Ree => ree.iv(target)
+    case res: Iv.Res => res.iv(target)
+    case rsa: Iv.Rsa => rsa.iv(target)
+    case rse: Iv.Rse => rse.iv(target)
+    case rss: Iv.Rss => rss.iv(target)
+  inline def index0(inline target: Int | String | Array[?] | Iv): Int = inline ivx match
+    case iv:  Iv     => iv.i0
+    case raa: Iv.Raa => raa.i0
+    case rae: Iv.Rae => rae.i0
+    case ras: Iv.Ras => ras.i0
+    case rea: Iv.Rea => rea.i0(target)
+    case ree: Iv.Ree => ree.i0(target)
+    case res: Iv.Res => res.i0(target)
+    case rsa: Iv.Rsa => rsa.i0(target)
+    case rse: Iv.Rse => rse.i0(target)
+    case rss: Iv.Rss => rss.i0(target)
+  inline def indexN(inline target: Int | String | Array[?] | Iv): Int = inline ivx match
+    case iv:  Iv     => iv.iN
+    case raa: Iv.Raa => Iv.up(raa.i1)
+    case rae: Iv.Rae => Iv.up(rae.i1(target))
+    case ras: Iv.Ras => Iv.up(ras.i1(target))
+    case rea: Iv.Rea => Iv.up(rea.i1)
+    case ree: Iv.Ree => Iv.up(ree.i1(target))
+    case res: Iv.Res => Iv.up(res.i1(target))
+    case rsa: Iv.Rsa => Iv.up(rsa.i1)
+    case rse: Iv.Rse => Iv.up(rse.i1(target))
+    case rss: Iv.Rss => Iv.up(rss.i1(target))
+  transparent inline def zero = inline ivx match
+    case iv:  Iv     => iv.i0
+    case raa: Iv.Raa => raa.i0
+    case rae: Iv.Rae => rae.i0
+    case ras: Iv.Ras => ras.i0
+    case rea: Iv.Rea => rea.first
+    case ree: Iv.Ree => ree.first
+    case res: Iv.Res => res.first
+    case rsa: Iv.Rsa => rsa.first
+    case rse: Iv.Rse => rse.first
+    case rss: Iv.Rss => rss.first
+  transparent inline def one = inline ivx match
+    case iv:  Iv     => Iv.dn(iv.iN)
+    case raa: Iv.Raa => raa.i1
+    case rae: Iv.Rae => rae.last
+    case ras: Iv.Ras => ras.last
+    case rea: Iv.Rea => rea.i1
+    case ree: Iv.Ree => ree.last
+    case res: Iv.Res => res.last
+    case rsa: Iv.Rsa => rsa.i1
+    case rse: Iv.Rse => rse.last
+    case rss: Iv.Rss => rss.last
+}
+
+
+extension (i: Int) {
+  @targetName("to_Range") inline infix def to(j: Int): collection.immutable.Range.Inclusive = scala.runtime.RichInt(i).to(j)
+
+  @targetName("to_End_type") inline infix def to(end: End.type): Iv.Rae = Iv.Rae.fromValues(i, 0)
+
+  @targetName("to_End_At") inline infix def to(end: End.At): Iv.Rae = Iv.Rae.fromValues(i, end.unwrap)
+
+  @targetName("to_Start_type") inline infix def to(end: Start.type): Iv.Ras = Iv.Ras.fromValues(i, 0)
+
+  @targetName("to_Start_At") inline infix def to(end: Start.At): Iv.Ras = Iv.Ras.fromValues(i, end.unwrap)
+
+  inline def of[A](using ClassTag[A]): Array[A] =
+    new Array[A](if i > 0 then i else 0)
+}
+
 
 extension [A](a: Array[A]) {
-  inline def apply(i: kse.basics.FromLengthIdx): A = a(i of a)
-  inline def apply(e: End.type): A = a(a.length - 1)
+  @targetName("apply_End_At") inline def apply(i: End.At): A = a(i of a)
+  @targetName("apply_End_type") inline def apply(e: End.type): A = a(a.length - 1)
+  @targetName("apply_Start_At") inline def apply(i: Start.At): A = a(i.unwrap)
+  @targetName("apply_Start_type") inline def apply(i: Start.type): A = a(0)
 
   inline def use(i: Int)(inline f: A => Unit): a.type =
     if i >= 0 && i < a.length then f(a(i))
@@ -33,12 +109,11 @@ extension [A](a: Array[A]) {
 
 
 extension (a: String) {
-  inline def apply(i: Int) = a.charAt(i)
-
-  @targetName("applyFromLengthIdx")
-  inline def apply(i: kse.basics.FromLengthIdx): Char = a.charAt(i of a)
-
-  inline def apply(e: End.type): Char = a.charAt(a.length - 1)
+  @targetName("str_apply") inline def apply(i: Int): Char = a.charAt(i)
+  @targetName("str_apply_End_At") inline def apply(i: End.At): Char = a.charAt(i of a)
+  @targetName("str_apply_End_type") inline def apply(e: End.type): Char = a.charAt(a.length - 1)
+  @targetName("str_apply_Start_At") inline def apply(i: Start.At): Char = a.charAt(i.unwrap)
+  @targetName("str_apply_Start_type") inline def apply(i: Start.type): Char = a.charAt(0)
 
   inline def use(i: Int)(inline f: Char => Unit): a.type =
     if i >= 0 && i < a.length then f(a.charAt(i))

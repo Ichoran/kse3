@@ -11,6 +11,7 @@ import java.lang.{Math => jm}
 import scala.annotation.targetName
 
 import kse.basics._
+import kse.basics.intervals._
 
 
 object NumericConstants {

@@ -28,7 +28,7 @@ class MathTest {
 
   import kse.testutilities.TestUtilities.{_, given}
   import kse.basics.{given, _}
-  import kse.basics.intervals.{Iv, PIv}
+  import kse.basics.intervals.{Iv, End}
   import kse.flow.{_, given}
   import kse.maths.{_, given}
   import kse.maths.packed.{_, given}
@@ -714,16 +714,16 @@ class MathTest {
         if ans == 0 then 10*i*uniqueSubset(full, part, n, part.length)
         else ans
 
-      var five: Array[Float] = 5.arrayed(_ => r3.F)
-      while five.toSet.size != 5 do five = 5.arrayed(_ => r3.F)
+      var five: Array[Float] = 5.make(_ => r3.F)
+      while five.toSet.size != 5 do five = 5.make(_ => r3.F)
       val fiveSet = five.toSet
 
-      var hund: Array[Float] = 100.arrayed(_ => r3.F)
-      while hund.toSet.size != 100 do hund = 100.arrayed(_ => r3.F)
+      var hund: Array[Float] = 100.make(_ => r3.F)
+      while hund.toSet.size != 100 do hund = 100.make(_ => r3.F)
       val hundSet = hund.toSet
 
-      var tenk: Array[Float] = 10000.arrayed(_ => r3.F)
-      while tenk.toSet.size != 10000 do tenk = 10000.arrayed(_ => r3.F)
+      var tenk: Array[Float] = 10000.make(_ => r3.F)
+      while tenk.toSet.size != 10000 do tenk = 10000.make(_ => r3.F)
       val tenkSet = tenk.toSet
 
       val text = "anchovies"

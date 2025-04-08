@@ -303,8 +303,8 @@ sealed abstract class Fit2D() {
   inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yrg: Rg): Unit =
     val jv = Iv of yrg
     addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yv: Iv | PIv): Unit =
-    val jv = Iv.of(yv, ys)
+  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yv: Iv.X): Unit =
+    val jv = yv of ys
     addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
   inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], j0: Int, jN: Int): Unit =
     val iv = Iv of xrg
@@ -313,20 +313,20 @@ sealed abstract class Fit2D() {
     val iv = Iv of xrg
     val jv = Iv of yrg
     addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yv: Iv | PIv): Unit =
+  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yv: Iv.X): Unit =
     val iv = Iv of xrg
-    val jv = Iv.of(yv, ys)
+    val jv = yv of ys
     addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], j0: Int, jN: Int): Unit =
-    val iv = Iv.of(xv, xs)
+  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], j0: Int, jN: Int): Unit =
+    val iv = xv of xs
     addRange(xs, iv.i0, iv.iN)(ys, j0, jN)
-  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], inline yrg: Rg): Unit =
-    val iv = Iv.of(xv, xs)
+  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], inline yrg: Rg): Unit =
+    val iv = xv of xs
     val jv = Iv of yrg
     addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xv: Iv | PIv)(ys: Array[Double], inline yv: Iv | PIv): Unit =
-    val iv = Iv.of(xv, xs)
-    val jv = Iv.of(yv, ys)
+  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], inline yv: Iv.X): Unit =
+    val iv = xv of xs
+    val jv = yv of ys
     addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
 
   def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit
@@ -334,8 +334,8 @@ sealed abstract class Fit2D() {
   inline def addRange(vs: Array[Vc], inline rg: Rg): Unit =
     val iv = Iv of rg
     addRange(vs, iv.i0, iv.iN)
-  inline def addRange(vs: Array[Vc], inline v: Iv | PIv): Unit =
-    val iv = Iv.of(v, vs)
+  inline def addRange(vs: Array[Vc], inline v: Iv.X): Unit =
+    val iv = v of vs
     addRange(vs, iv.i0, iv.iN)
 
   inline def addRangeWith[A](a: Array[A], i0: Int, iN: Int)(inline fx: A => Double, inline fy: A => Double): Unit =
@@ -349,8 +349,8 @@ sealed abstract class Fit2D() {
   inline def addRangeWith[A](a: Array[A], inline rg: Rg)(inline fx: A => Double, inline fy: A => Double): Unit =
     val iv = Iv of rg
     addRangeWith(a, iv.i0, iv.iN)(fx, fy)
-  inline def addRangeWith[A](a: Array[A], inline v: Iv | PIv)(inline fx: A => Double, inline fy: A => Double): Unit =
-    val iv = Iv.of(v, a)
+  inline def addRangeWith[A](a: Array[A], inline v: Iv.X)(inline fx: A => Double, inline fy: A => Double): Unit =
+    val iv = v of a
     addRangeWith(a, iv.i0, iv.iN)(fx, fy)
 
   def reset(): Unit

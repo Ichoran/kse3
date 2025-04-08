@@ -5,7 +5,94 @@ package kse.basics.basicsMacroImpl
 
 import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
+import scala.reflect.ClassTag
 import scala.quoted.*
+
+
+object TreePrettyPrinter {
+  inline def report[A](inline expr: A): A =
+    ${ reportImpl('{ expr }) }
+
+  def reportImpl[A: Type](expr: Expr[A])(using Quotes): expr.type =
+    import quotes.reflect.*
+    println(formatTerm(expr.asTerm, 0))
+    expr
+
+  inline def prettyPrint[A](inline expr: A): String =
+    ${ prettyPrintImpl('{ expr }) }
+
+  def prettyPrintImpl[A: Type](expr: Expr[A])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val formatted = formatTree(expr.asTerm, 0)
+    Expr(formatted)
+  
+  def formatTree(using q: Quotes)(tree: q.reflect.Tree, level: Int): String =
+    import q.reflect.*
+    
+    val indent = "  " * level
+    
+    tree match
+      case t: Term => formatTerm(t, level)
+      case t: TypeTree => s"$indent${t.show(using Printer.TreeStructure)}"
+      case t => s"$indent${t.show(using Printer.TreeStructure)}"
+  
+  def formatTerm(using q: Quotes)(term: q.reflect.Term, level: Int): String =
+    import q.reflect.*
+    
+    val indent = "  " * level
+    val nextLevel = level + 1
+    val nextIndent = "  " * nextLevel
+    
+    term match
+      case Apply(fun, args) =>
+        val funStr = formatTerm(fun, nextLevel) // No indent for function part
+        val argsStr = args.map(arg => formatTree(arg, nextLevel)).mkString(s",\n")
+        s"${indent}Apply(\n$funStr,\n$nextIndent[${if (args.isEmpty) "" else s"\n$argsStr\n$nextIndent"}]\n$indent)"
+        
+      case Select(qual, name) =>
+        val qualStr = formatTerm(qual, nextLevel)
+        s"${indent}Select(\n$qualStr,\n$nextIndent$name\n$indent)"
+      
+      case Literal(const) =>
+        s"${indent}Literal(${const.show})"
+        
+      case Ident(name) =>
+        s"${indent}Ident(\"$name\")"
+      
+      case New(tpt) =>
+        val tptStr = formatTree(tpt, nextLevel)
+        s"${indent}New(\n$tptStr\n$indent)"
+        
+      case Typed(expr, tpt) =>
+        val exprStr = formatTerm(expr, nextLevel)
+        val tptStr = formatTree(tpt, nextLevel)
+        s"${indent}Typed(\n$exprStr,\n$tptStr\n$indent)"
+        
+      case If(cond, thenPart, elsePart) =>
+        val condStr = formatTerm(cond, nextLevel)
+        val thenStr = formatTerm(thenPart, nextLevel)
+        val elseStr = formatTerm(elsePart, nextLevel)
+        s"${indent}If(\n$condStr,\n$thenStr,\n$elseStr\n$indent)"
+        
+      case Block(stats, expr) =>
+        val statsStr = stats.map(stat => formatTree(stat, nextLevel)).mkString(",\n")
+        val exprStr = formatTerm(expr, nextLevel)
+        val statsFormatted = if (stats.isEmpty) s"$nextIndent[]" else s"$nextIndent[\n$statsStr\n$nextIndent]"
+        s"${indent}Block(\n$statsFormatted,\n$exprStr\n$indent)"
+        
+      case Inlined(call, bindings, expansion) =>
+        val callStr = if (call.isEmpty) s"${nextIndent}None" else s"${nextIndent}Some(\n${formatTree(call.get, nextLevel + 1)}\n$nextIndent)"
+        val bindingsStr = bindings.map(b => formatTree(b, nextLevel + 1)).mkString(",\n")
+        val bindingsFormatted = if (bindings.isEmpty) s"$nextIndent[]" else s"$nextIndent[\n$bindingsStr\n$nextIndent]"
+        val expansionStr = formatTree(expansion, nextLevel)
+        
+        s"${indent}Inlined(\n$callStr,\n$bindingsFormatted,\n$expansionStr\n$indent)"
+      
+      case other =>
+        // For other term types, fallback to the standard printer but add indentation
+        s"$indent${other.show(using Printer.TreeStructure)}"
+}
+
 
 def deinliner(expr: Expr[Any])(using qt: Quotes): Expr[Any] =
   import qt.reflect.*
@@ -41,6 +128,9 @@ def rangePackedInLongExpr(range: Expr[Any])(using qt: Quotes): Expr[Long] =
         case _ => report.errorAndAbort("Iv-interval literal must be `x to y` or `x until z`")
 
 inline def rangePackedInLong(inline range: scala.collection.immutable.Range): Long =
+  ${ rangePackedInLongExpr('range) }
+
+inline def untypedRangePackedInLong(inline range: Any): Long =
   ${ rangePackedInLongExpr('range) }
 
 def applyWithoutBoxingExpr2[A: Type, B: Type, Z: Type](a: Expr[A], e: Expr[((A, B) => Z, B)])(using qt: Quotes): Expr[Z] =

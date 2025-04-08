@@ -25,6 +25,7 @@ import sourcecode.{Line, given}
 class FlowTest {
   import kse.testutilities.TestUtilities.{_, given}
   import kse.basics.{given, _}
+  import kse.basics.intervals.*
   import kse.flow.{_, given}
 
   given Asserter(
@@ -2238,111 +2239,111 @@ class FlowTest {
   def resourceTest: Unit =
     def oops(): Nothing = throw new Exception("oops")
     val m = Mu(0)
-    T ~ Resource(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4
-    T ~ m.value                                                 ==== 3
-    T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }            ==== thrown[Exception]
-    T ~ m.value                                                 ==== 6
+    T ~ Resource(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4
+    T ~ m()                                               ==== 3
+    T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }      ==== thrown[Exception]
+    T ~ m()                                               ==== 6
     T ~ Ask[Int]{ Resource(m)(_.zap(- _)){ x => 
-          if x.value > 0 then Is.break(x.value)
-          else if x.value < 0 then Err.break("negative")
+          if x() > 0 then Is.break(x())
+          else if x() < 0 then Err.break("negative")
           else 0
-        } }                                                     ==== 6 --: typed[Ask[Int]]
-    T ~ m.value                                                 ==== -6
+        } }                                               ==== 6 --: typed[Ask[Int]]
+    T ~ m()                                               ==== -6
 
-    T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Throwable]
-    T ~ m.value                                                      ==== 3
+    T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Throwable]
+    T ~ m()                                                    ==== 3
     T ~ Resource.safe(m)(_.zap(_ * 2)){ x => 
           throw new Exception("oops"); ()
-        }.existsAlt(_.isInstanceOf[Exception])                       ==== true
-    T ~ m.value                                                      ==== 6
+        }.existsAlt(_.isInstanceOf[Exception])                 ==== true
+    T ~ m()                                                    ==== 6
     T ~ Or.FlatRet{
           Resource.safe(m)(_.zap(- _)){ x => 
-            if x.value > 0 then Is.break(x.value)
-            else if x.value < 0 then Err.break("negative")
+            if x() > 0 then Is.break(x())
+            else if x() < 0 then Err.break("negative")
             else 0
           }.mapAlt(Err apply _)
-        }                                                            ==== 6 --: typed[Int Or Err]
-    T ~ m.value                                                      ==== -6
+        }                                                      ==== 6 --: typed[Int Or Err]
+    T ~ m()                                                    ==== -6
     T ~ Resource.safe(m){ x =>
           throw new Exception("oops"); x.zap(_ * 2)
         }{ x => 
-          x.zap(_ * 3); x.value
-        }.existsAlt(_.isInstanceOf[Exception])                             ==== true
-    T ~ m.value                                                            ==== -18
+          x.zap(_ * 3); x()
+        }.existsAlt(_.isInstanceOf[Exception])                 ==== true
+    T ~ m()                                                    ==== -18
 
-    T ~ Resource.nice(m.orErr)(_.zap(_ + 1)){ x => x.set(2); x.value + 2 } ==== 4  --: typed[Int Or Err]
-    T ~ m.value                                                            ==== 3
+    T ~ Resource.nice(m.orErr)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ m()                                                          ==== 3
     T ~ Resource.nice(m.orErr)(_.zap(_ * 2)){ x => 
           oops(); ()
-        }.existsAlt(_.toString contains "oops")                            ==== true
-    T ~ m.value                                                            ==== 6
+        }.existsAlt(_.toString contains "oops")                      ==== true
+    T ~ m()                                                          ==== 6
     T ~ Or.FlatRet{
           Resource.nice(m.orErr)(_.zap(- _)){ x => 
-            if x.value > 0 then Is.break(x.value)
-            else if x.value < 0 then Err.break("negative")
+            if x() > 0 then Is.break(x())
+            else if x() < 0 then Err.break("negative")
             else 0
           }
-        }                                                                  ==== 6
-    T ~ m.value                                                            ==== -6
+        }                                                            ==== 6
+    T ~ m()                                                          ==== -6
     T ~ Resource.nice(m.orErr){ x =>
           oops(); x.zap(_ * 2)
         }{ x => 
-          x.zap(_ * 3); x.value
+          x.zap(_ * 3); x()
         }.existsAlt(_.toString contains "closing resource")          ==== true
     T ~ Resource.nice(m.orErr){ x =>
           oops(); x.zap(_ * 3)
         }{ x => 
-          x.zap(_ / 2); x.value
+          x.zap(_ / 2); x()
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained => ete.context match
             case Some(i: Int) => ete.withContext(i+1).context
             case _ => None
           case _ => None
         ).altOrElse(_ => None)                                       ==== Some(-8)
-    T ~ m.value                                                      ==== -9
+    T ~ m()                                                          ==== -9
     T ~ Resource.nice{ oops(); m.orErr }(_.zap(- _)) {
-          x => x.zap(_ * 3); x.value
+          x => x.zap(_ * 3); x()
         }                                                            ==== runtype[Alt[?]]
-    T ~ m.value                                                      ==== -9
+    T ~ m()                                                          ==== -9
     T ~ Resource.nice{
-          m.errCase{ case x if x.value < 0 => Err("bad") }
+          m.errCase{ case x if x() < 0 => Err("bad") }
         }(_.zap(- _)) {
-          x => x.zap(_ * 3); x.value
+          x => x.zap(_ * 3); x()
         }                                                            ==== Err.or("bad")
-    T ~ m.value                                                      ==== -9
+    T ~ m()                                                          ==== -9
     T ~ Resource.Nice(m.orErr)(_.zap(_ + 3)){ x =>
-          x.zap(_ * 2); x.value
+          x.zap(_ * 2); x()
         }                                                            ==== -18
-    T ~ m.value                                                      ==== -15
+    T ~ m()                                                          ==== -15
     T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           oops()
-          x.set(7); x.value
+          x := 7; x()
         }                                                            ==== runtype[Alt[?]]
-    T ~ m.value                                                      ==== 15
+    T ~ m()                                                          ==== 15
     T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           x.zap(_ - 8)
-          Err.break(x.value.toString)
-          x.set(4); x.value
+          Err.break(x().toString)
+          x := 4; x()
         }                                                            ==== Alt(Err("7"))
-    T ~ m.value                                                      ==== -7
+    T ~ m()                                                          ==== -7
     T ~ Resource.Nice(m.orErr){ x =>
           oops(); x.zap(_ * 3)
         }{ x => 
-          x.zap(_ + 2); x.value
+          x.zap(_ + 2); x()
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained =>
             ete.mapContext(x => x.map(_.toString)).context
           case _ => None
         ).altOrElse(_ => None)                                       ==== Some("-5")
-    T ~ m.value                                                      ==== -5
+    T ~ m()                                                          ==== -5
     T ~ Resource.Nice{
-          m.errCase{ case x if x.value < 0 => Err("bad") }
+          m.errCase{ case x if x() < 0 => Err("bad") }
         }(_.zap(- _)){ x =>
           x.zap(_ - 8)
-          Err.break(x.value.toString)
-          x.set(4); x.value
+          Err.break(x().toString)
+          x := 4; x()
         }                                                            ==== Err.or("bad")
-    T ~ m.value                                                      ==== -5
+    T ~ m()                                                          ==== -5
 }
 object FlowTest {
   // @BeforeClass

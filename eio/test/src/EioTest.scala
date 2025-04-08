@@ -477,56 +477,56 @@ class EioTest {
     def nraf = new RandomAccessFile(f, "rw")
     val mos = Mu[OutputStream](null)
     val mis = Mu[InputStream](null)
-    T ~ { mos.set(nraf.output); mos.value } ==== runtype[OutputStream]
-    T ~ mos.value.write('e')                ==== ()
-    T ~ mos.value.write("el".bytes)         ==== ()
-    T ~ mos.value.write("bass".bytes, 2, 1) ==== ()
-    T ~ mos.value.close                     ==== ()
-    T ~ mos.value.write('x')                ==== thrown[IOException]
-    T ~ f.exists                            ==== true
-    T ~ Files.readAllBytes(f.toPath).utf8   ==== "eels"
-    T ~ { mis.set(nraf.input); mis.value }  ==== runtype[InputStream]
-    T ~ mis.value.skip(1)                   ==== 1   --: typed[Long]
-    T ~ mis.value.read()                    ==== 'e' --: typed[Int]
-    T ~ mis.value.markSupported             ==== true
-    T ~ mis.value.mark(1)                   ==== ()
-    T ~ mis.value.available()               ==== 2
-    T ~ mis.value.read(ab2)                 ==== 2
-    T ~ ab2.utf8                            ==== "ls"
-    T ~ mis.value.skip(2)                   ==== 0
-    T ~ mis.value.reset                     ==== ()
-    T ~ mis.value.read(ab2, 1, 1)           ==== 1
-    T ~ ab2.utf8                            ==== "ll"
-    T ~ mis.value.read(ab2)                 ==== 1
-    T ~ ab2.utf8                            ==== "sl"
-    T ~ mis.value.close()                   ==== ()
-    T ~ mis.value.read()                    ==== thrown[IOException]
+    T ~ { mos := nraf.output; mos() }     ==== runtype[OutputStream]
+    T ~ mos().write('e')                  ==== ()
+    T ~ mos().write("el".bytes)           ==== ()
+    T ~ mos().write("bass".bytes, 2, 1)   ==== ()
+    T ~ mos().close                       ==== ()
+    T ~ mos().write('x')                  ==== thrown[IOException]
+    T ~ f.exists                          ==== true
+    T ~ Files.readAllBytes(f.toPath).utf8 ==== "eels"
+    T ~ { mis := nraf.input; mis() }      ==== runtype[InputStream]
+    T ~ mis().skip(1)                     ==== 1   --: typed[Long]
+    T ~ mis().read()                      ==== 'e' --: typed[Int]
+    T ~ mis().markSupported               ==== true
+    T ~ mis().mark(1)                     ==== ()
+    T ~ mis().available()                 ==== 2
+    T ~ mis().read(ab2)                   ==== 2
+    T ~ ab2.utf8                          ==== "ls"
+    T ~ mis().skip(2)                     ==== 0
+    T ~ mis().reset                       ==== ()
+    T ~ mis().read(ab2, 1, 1)             ==== 1
+    T ~ ab2.utf8                          ==== "ll"
+    T ~ mis().read(ab2)                   ==== 1
+    T ~ ab2.utf8                          ==== "sl"
+    T ~ mis().close()                     ==== ()
+    T ~ mis().read()                      ==== thrown[IOException]
 
     def nsbc = {
       val sbc = Files.newByteChannel(f.toPath, StandardOpenOption.WRITE, StandardOpenOption.READ)
       sbc.position(1)
     }
-    T ~ { mos.set(nsbc.output); mos.value }    ==== runtype[OutputStream]
-    T ~ mos.value.write("beagles".bytes, 2, 4) ==== ()
-    T ~ mos.value.close                        ==== ()
-    T ~ Files.readAllBytes(f.toPath).utf8      ==== "eagle"
-    T ~ { mis.set(nsbc.input); mis.value }     ==== runtype[InputStream]
-    T ~ mis.value.skip(1)                      ==== 1   --: typed[Long]
-    T ~ mis.value.read()                       ==== 'g' --: typed[Int]
-    T ~ mis.value.markSupported                ==== true
-    T ~ mis.value.mark(1)                      ==== ()
-    T ~ mis.value.available()                  ==== 2
-    T ~ mis.value.read(ab2)                    ==== 2
-    T ~ ab2.utf8                               ==== "le"
-    T ~ mis.value.skip(2)                      ==== 0
-    T ~ mis.value.reset                        ==== ()
-    T ~ mis.value.read(ab2, 1, 1)              ==== 1
-    T ~ ab2.utf8                               ==== "ll"
-    T ~ mis.value.read(ab2)                    ==== 1
-    T ~ ab2.utf8                               ==== "el"
-    T ~ mis.value.close()                      ==== ()
-    T ~ mis.value.read()                       ==== thrown[IOException]
-    T ~ f.delete()                             ==== true
+    T ~ { mos := nsbc.output; mos() }      ==== runtype[OutputStream]
+    T ~ mos().write("beagles".bytes, 2, 4) ==== ()
+    T ~ mos().close                        ==== ()
+    T ~ Files.readAllBytes(f.toPath).utf8  ==== "eagle"
+    T ~ { mis := nsbc.input; mis() }       ==== runtype[InputStream]
+    T ~ mis().skip(1)                      ==== 1   --: typed[Long]
+    T ~ mis().read()                       ==== 'g' --: typed[Int]
+    T ~ mis().markSupported                ==== true
+    T ~ mis().mark(1)                      ==== ()
+    T ~ mis().available()                  ==== 2
+    T ~ mis().read(ab2)                    ==== 2
+    T ~ ab2.utf8                           ==== "le"
+    T ~ mis().skip(2)                      ==== 0
+    T ~ mis().reset                        ==== ()
+    T ~ mis().read(ab2, 1, 1)              ==== 1
+    T ~ ab2.utf8                           ==== "ll"
+    T ~ mis().read(ab2)                    ==== 1
+    T ~ ab2.utf8                           ==== "el"
+    T ~ mis().close()                      ==== ()
+    T ~ mis().read()                       ==== thrown[IOException]
+    T ~ f.delete()                         ==== true
 
 
    @Test

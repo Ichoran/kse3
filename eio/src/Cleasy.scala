@@ -14,6 +14,7 @@ import java.nio.file.Path
 import scala.util.boundary
 
 import kse.basics.*
+import kse.basics.intervals.{Iv, End}
 import kse.flow.*
 import kse.maths.*
 import kse.eio.*

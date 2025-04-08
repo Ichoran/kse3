@@ -80,7 +80,7 @@ object \ {
     transparent inline def label: L = compiletime.constValue[L]
 }
 
-/** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \< "eel"; use it directly. */
+/** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \< "eel"`; use it directly. */
 opaque infix type \<[+A, L <: LabelVal] <: A = A
 object \< {
   inline def apply[A, L <: LabelVal](a: A): (A \< L) = a
@@ -94,7 +94,7 @@ object \< {
     transparent inline def label: L = compiletime.constValue[L]
 }
 
-/** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \> "eel"; access with `x ~ "eel"` or `x.unlabel` */
+/** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \> "eel"`; access with `x ~ "eel"` or `x.unlabel` */
 opaque infix type \>[+A, L <: LabelVal] >: A = A
 object \> {
   inline def apply[A, L <: LabelVal](a: A): (A \> L) = a
@@ -232,6 +232,7 @@ object shortcut {
 
   inline def breakAndQuit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
+  /** Jumps within pre-specified corrals, but presently these aren't fully optimized so only use when it's essential. */
   object hopped {
     inline def quittable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Quits.type], Hop[Quits.type, c.type]) ?=> Unit): Unit =
       Hop(using c):

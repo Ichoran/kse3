@@ -14,7 +14,69 @@ import kse.basics._
 
 
 
-type IvType = Iv | PIv | scala.collection.immutable.Range
+object Start {
+  opaque type At = Int
+  object At extends Translucent.Companion[At, Int] {
+    inline def wrap(i: Int): At = i
+    extension (at: At) {
+      inline def unwrap: Int = at
+      inline infix def of(iv: Iv): Int = Iv.i0(iv) + (at: Int)
+
+      @targetName("to_a") inline infix def to(last: Int       ): Iv.Rsa = Iv.Rsa.fromValues(at: Int, last)
+      @targetName("to_e") inline infix def to(last: End.At    ): Iv.Rse = Iv.Rse.fromValues(at: Int, last.unwrap)
+      @targetName("to_E") inline infix def to(last: End.type  ): Iv.Rse = Iv.Rse.fromValues(at: Int, 0)
+      @targetName("to_s") inline infix def to(last: Start.At  ): Iv.Rss = Iv.Rss.fromValues(at: Int, last: Int)
+      @targetName("to_S") inline infix def to(last: Start.type): Iv.Rss = Iv.Rss.fromValues(at: Int, 0)
+    }
+  }
+
+  def +(i: Int): At = i
+  def -(i: Int): At = -i
+
+  inline infix def of(iv: Iv): Int = Iv.i0(iv)
+
+  @targetName("to_a") inline infix def to(last: Int       ): Iv.Rsa = Iv.Rsa.fromValues(0, last)
+  @targetName("to_e") inline infix def to(last: End.At    ): Iv.Rse = Iv.Rse.fromValues(0, last.unwrap)
+  @targetName("to_E") inline infix def to(last: End.type  ): Iv.Rse = Iv.Rse.fromValues(0, 0)
+  @targetName("to_s") inline infix def to(last: Start.At  ): Iv.Rss = Iv.Rss.fromValues(0, last: Int)
+  @targetName("to_S") inline infix def to(last: Start.type): Iv.Rss = Iv.Rss.fromValues(0, 0)
+}
+
+
+object End {
+  opaque type At = Int
+  object At extends Translucent.Companion[At, Int] {
+    inline def wrap(i: Int): At = i
+    extension (at: At) {
+      inline def unwrap: Int = at
+      inline infix def of[A](a: Array[A]): Int = a.length - 1 + (at: Int)
+      inline infix def of(s: String): Int = s.length - 1 + (at: Int)
+      inline infix def of(size: Int): Int = size - 1 + (at: Int)
+      inline infix def of(iv: Iv): Int = Iv.iN(iv) - 1 + (at: Int)
+
+      @targetName("to_a") inline infix def to(last: Int       ): Iv.Rea = Iv.Rea.fromValues(at: Int, last)
+      @targetName("to_e") inline infix def to(last: End.At    ): Iv.Ree = Iv.Ree.fromValues(at: Int, last: Int)
+      @targetName("to_E") inline infix def to(last: End.type  ): Iv.Ree = Iv.Ree.fromValues(at: Int, 0)
+      @targetName("to_s") inline infix def to(last: Start.At  ): Iv.Res = Iv.Res.fromValues(at: Int, last.unwrap)
+      @targetName("to_S") inline infix def to(last: Start.type): Iv.Res = Iv.Res.fromValues(at: Int, 0)
+    }
+  }
+
+  inline def +(i: Int): At = i
+  inline def -(i: Int): At = -i
+
+  inline infix def of[A](a: Array[A]): Int = a.length - 1
+  inline infix def of(s: String): Int = s.length - 1
+  inline infix def of(size: Int): Int = size - 1
+  inline infix def of(iv: Iv): Int = Iv.iN(iv) - 1
+
+  @targetName("to_a") inline infix def to(last: Int       ): Iv.Rea = Iv.Rea.fromValues(0, last)
+  @targetName("to_e") inline infix def to(last: End.At    ): Iv.Ree = Iv.Ree.fromValues(0, last: Int)
+  @targetName("to_E") inline infix def to(last: End.type  ): Iv.Ree = Iv.Ree.fromValues(0, 0)
+  @targetName("to_s") inline infix def to(last: Start.At  ): Iv.Res = Iv.Res.fromValues(0, last.unwrap)
+  @targetName("to_S") inline infix def to(last: Start.type): Iv.Res = Iv.Res.fromValues(0, 0)
+}
+
 
 
 opaque type Iv = Long
@@ -29,21 +91,6 @@ object Iv extends Translucent.Companion[Iv, Long] {
   inline infix def of(s: String): Iv = apply(0, s.length)
 
   inline infix def of[A](a: Array[A]): Iv = apply(0, a.length)
-
-  inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, a: Array[A]): Iv =
-    inline v match
-      case piv: kse.basics.intervals.PIv => piv of a
-      case siv: kse.basics.intervals.Iv  => siv  
-
-  inline infix def of[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, s: String): Iv =
-    inline v match
-      case piv: kse.basics.intervals.PIv => piv of s
-      case siv: kse.basics.intervals.Iv  => siv
-
-  inline infix def ofSize[A](inline v: kse.basics.intervals.Iv | kse.basics.intervals.PIv, n: Int): Iv =
-    inline v match
-      case piv: kse.basics.intervals.PIv => piv sized n
-      case siv: kse.basics.intervals.Iv  => siv
 
   extension (iv: Iv)
     inline def unwrap: Long = iv
@@ -169,48 +216,137 @@ object Iv extends Translucent.Companion[Iv, Long] {
         h += 1
       a
 
-  val empty: Iv = 0L
-}
+  inline def zero(target: Int | String | Array[?] | Iv): Int = inline target match
+    case iv: Iv => Iv.i0(iv)
+    case _ => 0
 
+  inline def one(target: Int | String | Array[?] | Iv): Int = inline target match
+    case n: Int => n - 1
+    case s: String => s.length - 1
+    case a: Array[?] => a.length - 1
+    case iv: Iv => Iv.iN(iv) - 1
 
-opaque type PIv = Long
-object PIv {
-  inline def wrap(l: Long): PIv = l
+  inline def up(i: Int) = if i == Int.MaxValue then Int.MaxValue else i+1
+  inline def dn(i: Int) = if i == Int.MinValue then Int.MinValue else i-1
 
-  extension (piv: PIv)
-    inline def unwrap: Long = piv
+  final val empty: Iv = 0L
 
-    def sized(n: Int): Iv =
-      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
-      var j = ((piv: Long) >>> 32).toInt
-      if i < 0 then i = n + i
-      if j < 0 then
-        if j > Int.MinValue then j = n + j + 1
-      else if j < Int.MaxValue then j += 1
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+  opaque type Raa = Long
+  object Raa extends Translucent.Companion[Raa, Long] {
+    inline def fromValues(first: Int, last: Int): Raa = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Raa = value
+    extension (raa: Raa)
+      inline def unwrap: Long = raa
+      inline def i0: Int = ((raa: Long) & 0xFFFFFFFFL).toInt
+      inline def i1: Int = ((raa: Long) >>> 32).toInt
+      inline def iv: Iv = if ((raa: Long) & 0xFFFFFFFF00000000L) == 0x7FFFFFFF00000000L then Iv.wrap(raa: Long) else Iv.wrap((raa: Long) + 0x100000000L)
+      def len: Long = java.lang.Math.max(1 + ((raa: Long) >>> 32) - ((raa: Long) & 0xFFFFFFFFL), 0L)
+  }
 
-    inline def of[A](a: Array[A]): Iv = sized(a.length)
+  opaque type Rae = Long
+  object Rae extends Translucent.Companion[Rae, Long] {
+    inline def fromValues(first: Int, last: Int): Rae = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rae = value
+    extension (rae: Rae)
+      inline def unwrap: Long = rae
+      inline def i0: Int = ((rae: Long) & 0xFFFFFFFFL).toInt
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rae: Long) >>> 32).toInt + one(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0, Iv.up(i1(target)))
+      inline def last: End.At = End.At.wrap(((rae: Long) >>> 32).toInt)
+  }
 
-    inline def of(a: String): Iv = sized(a.length)
+  opaque type Ras = Long
+  object Ras extends Translucent.Companion[Ras, Long] {
+    inline def fromValues(first: Int, last: Int): Ras = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Ras = value
+    extension (ras: Ras)
+      inline def unwrap: Long = ras
+      inline def i0: Int = ((ras: Long) & 0xFFFFFFFFL).toInt
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((ras: Long) >>> 32).toInt + zero(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0, Iv.up(i1(target)))
+      inline def last: Start.At = Start.At.wrap(((ras: Long) >>> 32).toInt)
+  }
 
-    def clippedToSize(n: Int): Iv =
-      var i = ((piv: Long) & 0xFFFFFFFFL).toInt
-      var j = ((piv: Long) >>> 32).toInt
-      if i < 0 then
-        i = n+i
-        if i < 0 then i = 0
-      if j < 0 then
-        if j > Int.MinValue then j = n + j + 1
-        if j < 0 then j = 0
-      else if j < Int.MaxValue then j += 1
-      if i > n then i = n
-      if j > n then j = n
-      Iv wrap ((i & 0xFFFFFFFFL) | (j.toLong << 32))
+  opaque type Rea = Long
+  object Rea extends Translucent.Companion[Rea, Long] {
+    inline def fromValues(first: Int, last: Int): Rea = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rea = value
+    extension (rea: Rea)
+      inline def unwrap: Long = rea
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rea: Long) & 0xFFFFFFFFL).toInt + one(target)
+      inline def i1: Int = ((rea: Long) >>> 32).toInt
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1))
+      inline def first: End.At = End.At.wrap(((rea: Long) & 0xFFFFFFFFL).toInt)
+  }
 
-    inline def clippedTo[A](a: Array[A]): Iv = clippedToSize(a.length)
+  opaque type Ree = Long
+  object Ree extends Translucent.Companion[Ree, Long] {
+    inline def fromValues(first: Int, last: Int): Ree = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Ree = value
+    extension (ree: Ree)
+      inline def unwrap: Long = ree
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((ree: Long) & 0xFFFFFFFFL).toInt + one(target)
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((ree: Long) >>> 32).toInt + one(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def first: End.At = End.At.wrap(((ree: Long) & 0xFFFFFFFFL).toInt)
+      inline def last: End.At = End.At.wrap(((ree: Long) >>> 32).toInt)
+      def len: Long = java.lang.Math.max(1 + ((ree: Long) >>> 32) - ((ree: Long) & 0xFFFFFFFFL), 0L)
+  }
 
-    def clippedTo(a: String): Iv = clippedToSize(a.length)
+  opaque type Res = Long
+  object Res extends Translucent.Companion[Res, Long] {
+    inline def fromValues(first: Int, last: Int): Res = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Res = value
+    extension (res: Res)
+      inline def unwrap: Long = res
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((res: Long) & 0xFFFFFFFFL).toInt + one(target)
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((res: Long) >>> 32).toInt + zero(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def first: End.At = End.At.wrap(((res: Long) & 0xFFFFFFFFL).toInt)
+      inline def last: Start.At = Start.At.wrap(((res: Long) >>> 32).toInt)
+  }
 
-  val all: PIv = 0xFFFFFFFF00000000L
+  opaque type Rsa = Long
+  object Rsa extends Translucent.Companion[Rsa, Long] {
+    inline def fromValues(first: Int, last: Int): Rsa = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rsa = value
+    extension (rsa: Rsa)
+      inline def unwrap: Long = rsa
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rsa: Long) & 0xFFFFFFFFL).toInt + zero(target)
+      inline def i1: Int = ((rsa: Long) >>> 32).toInt
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1))
+      inline def first: Start.At = Start.At.wrap(((rsa: Long) & 0xFFFFFFFFL).toInt)
+  }
+
+  opaque type Rse = Long
+  object Rse extends Translucent.Companion[Rse, Long] {
+    inline def fromValues(first: Int, last: Int): Rse = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rse = value
+    extension (rse: Rse)
+      inline def unwrap: Long = rse
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rse: Long) & 0xFFFFFFFFL).toInt + zero(target)
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rse: Long) >>> 32).toInt + one(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def first: Start.At = Start.At.wrap(((rse: Long) & 0xFFFFFFFFL).toInt)
+      inline def last: End.At = End.At.wrap(((rse: Long) >>> 32).toInt)
+  }
+
+  opaque type Rss = Long
+  object Rss extends Translucent.Companion[Rss, Long] {
+    inline def fromValues(first: Int, last: Int): Rss = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rss = value
+    extension (rss: Rss)
+      inline def unwrap: Long = rss
+      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rss: Long) & 0xFFFFFFFFL).toInt + zero(target)
+      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rss: Long) >>> 32).toInt + zero(target)
+      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def first: Start.At = Start.At.wrap(((rss: Long) & 0xFFFFFFFFL).toInt)
+      inline def last: Start.At = Start.At.wrap(((rss: Long) >>> 32).toInt)
+      def len: Long = java.lang.Math.max(1 + ((rss: Long) >>> 32) - ((rss: Long) & 0xFFFFFFFFL), 0L)
+  }
+
+  type R = Raa | Rae | Ras | Rea | Ree | Res | Rsa | Rse | Rss
+
+  type X = Iv | R
 }
 
