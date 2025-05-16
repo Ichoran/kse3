@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
-// Copyright 2021-2025 Rex Kerr and Calico Life Sciences, LLC
+// Copyright 2021-2025 Rex Kerr, Calico Life Sciences, LLC, and UCSF (Kato Lab)
 
 
 import mill._
@@ -8,10 +8,12 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.6.4"
+  def scalaVersion = "3.7.0"
 
   def scalacOptions = Seq(
     "-deprecation",
+    "-Wnonunit-statement",
+    "-Wvalue-discard",
     "-Wconf:msg=is not declared infix:s"
   )
 }

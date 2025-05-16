@@ -11,14 +11,15 @@ import scala.reflect.ClassTag
 import scala.util.boundary
 
 import scala.collection.immutable.{Range => Rg}
+import scala.collection.IntStepper
 
 import kse.basics.intervals._
 
 
 
-//////////////////////////////////
-/// Indexing numbers as arrays ///
-//////////////////////////////////
+/////////////////////////////////////////////
+/// Collection-like operations on numbers ///
+/////////////////////////////////////////////
 
 extension (i: Int){
   inline def times(f: => Unit): Unit =
@@ -33,6 +34,13 @@ extension (i: Int){
       f(j)
       j += 1
 
+  inline def visitBy(step: Int)(f: Int => Unit): Unit =
+    if step != 0 then
+      var j = if step < 0 then i - 1 else 0
+      while j < i && j >= 0 do
+        f(j)
+        j += step
+
   def where(): Array[Int] =
     val a = new Array[Int](if i > 0 then i else 0)
     var j = 0
@@ -41,14 +49,42 @@ extension (i: Int){
       j += 1
     a
 
-  inline def make[A](f: Int => A)(using ClassTag[A]): Array[A] =
+  def whereBy(step: Int): Array[Int] =
+    if i <= 0 || step == 0 then Array.empty[Int]
+    else
+      val sabs = if step < 0 then -step else step
+      var n = i/sabs
+      if n*sabs != i then n += 1
+      var j = if step < 0 then i - 1 else 0
+      val a = new Array[Int](n)
+      n = 0
+      while n < a.length do
+        a(n) = j
+        j += step
+        n += 1
+      a
+
+  def steps(): IntStepper =
+    if i > 0 then new Iv.AffineIntStepper(i, 0, 1)
+    else Iv.AffineIntStepper.empty
+
+  def stepsBy(step: Int): IntStepper =
+    if i <= 0 || step == 0 then Iv.AffineIntStepper.empty
+    else
+      val sabs = if step > 0 then step else -step
+      val first = if step > 0 then 0 else i - 1
+      val n = i / sabs
+      val extra = if n*sabs == i then 0 else 1
+      new Iv.AffineIntStepper(n + extra, first, step)
+
+  inline def mkArray[A](f: Int => A)(using ClassTag[A]): Array[A] =
     val a = new Array[A](if i > 0 then i else 0)
     var k = 0
     while k < a.length do
       a(k) = f(k)
       k += 1
     a
-  inline def makeBreak[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
+  inline def partArray[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
     val a = new Array[A](if i > 0 then i else 0)
     var j = 0
     shortcut.outer:
@@ -162,7 +198,7 @@ object ArrayReform {
 
 
   def rangeIntoBytes(ai: Array[Int], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
-    checkBounds(ai.length, i0, iN, target.length, where, -2)
+    checkBounds(ai.length, i0, iN, target.length, where, -2): Unit
     var i = i0
     var j = where
     while i < iN do
@@ -184,7 +220,7 @@ object ArrayReform {
 
 
   def rangeIntoBytes(af: Array[Float], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
-    checkBounds(af.length, i0, iN, target.length, where, -2)
+    checkBounds(af.length, i0, iN, target.length, where, -2): Unit
     var i = i0
     var j = where
     while i < iN do
@@ -206,7 +242,7 @@ object ArrayReform {
 
 
   def rangeIntoBytes(al: Array[Long], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
-    checkBounds(al.length, i0, iN, target.length, where, -3)
+    checkBounds(al.length, i0, iN, target.length, where, -3): Unit
     var i = i0
     var j = where
     while i < iN do
@@ -233,7 +269,7 @@ object ArrayReform {
 
 
   def rangeIntoBytes(ad: Array[Double], i0: Int, iN: Int)(target: Array[Byte], where: Int): target.type =
-    checkBounds(ad.length, i0, iN, target.length, where, -3)
+    checkBounds(ad.length, i0, iN, target.length, where, -3): Unit
     var i = i0
     var j = where
     while i < iN do
@@ -2627,19 +2663,15 @@ extension (az: Array[Boolean]) {
     val iv = Iv of rg
     java.util.Arrays.copyOfRange(az, iv.i0, iv.iN)
 
-  inline def fill(x: Boolean): az.type =
+  inline def fill(x: Boolean): Unit =
     java.util.Arrays.fill(az, x)
-    az
-  inline def fillRange(i0: Int, iN: Int)(x: Boolean): az.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Boolean): Unit = 
     java.util.Arrays.fill(az, i0, iN, x)
-    az
-  inline def fillRange(ivx: Iv.X)(x: Boolean): az.type = 
+  inline def fillRange(ivx: Iv.X)(x: Boolean): Unit = 
     java.util.Arrays.fill(az, ivx.index0(az), ivx.indexN(az), x)
-    az
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Boolean): az.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Boolean): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(az, iv.i0, iv.iN, x)
-    az
 }
 
 
@@ -2677,33 +2709,25 @@ extension (ab: Array[Byte]) {
     java.util.Arrays.binarySearch(ab, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Byte): ab.type =
+  inline def fill(x: Byte): Unit =
     java.util.Arrays.fill(ab, x)
-    ab
-  inline def fillRange(i0: Int, iN: Int)(x: Byte): ab.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Byte): Unit = 
     java.util.Arrays.fill(ab, i0, iN, x)
-    ab
-  inline def fillRange(ivx: Iv.X)(x: Byte): ab.type =
+  inline def fillRange(ivx: Iv.X)(x: Byte): Unit =
     java.util.Arrays.fill(ab, ivx.index0(ab), ivx.indexN(ab), x)
-    ab
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Byte): ab.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Byte): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(ab, iv.i0, iv.iN, x)
-    ab
 
-  inline def sort(): ab.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(ab)
-    ab
-  inline def sortRange(i0: Int, iN: Int): ab.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(ab, i0, iN)
-    ab
-  inline def sortRange(ivx: Iv.X): ab.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(ab, ivx.index0(ab), ivx.indexN(ab))
-    ab
-  inline def sortRange(inline rg: collection.immutable.Range): ab.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(ab, iv.i0, iv.iN)
-    ab
 
   inline def isSorted: Boolean =
     isSortedRange(0, ab.length)
@@ -2749,33 +2773,25 @@ extension (as: Array[Short]) {
     java.util.Arrays.binarySearch(as, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Short): as.type =
+  inline def fill(x: Short): Unit =
     java.util.Arrays.fill(as, x)
-    as
-  inline def fillRange(i0: Int, iN: Int)(x: Short): as.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Short): Unit = 
     java.util.Arrays.fill(as, i0, iN, x)
-    as
-  inline def fillRange(ivx: Iv.X)(x: Short): as.type =
+  inline def fillRange(ivx: Iv.X)(x: Short): Unit =
     java.util.Arrays.fill(as, ivx.index0(as), ivx.indexN(as), x)
-    as
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Short): as.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Short): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(as, iv.i0, iv.iN, x)
-    as
 
-  inline def sort(): as.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(as)
-    as
-  inline def sortRange(i0: Int, iN: Int): as.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(as, i0, iN)
-    as
-  inline def sortRange(ivx: Iv.X): as.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(as, ivx.index0(as), ivx.indexN(as))
-    as
-  inline def sortRange(inline rg: collection.immutable.Range): as.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(as, iv.i0, iv.iN)
-    as
 
   inline def isSorted: Boolean =
     isSortedRange(0, as.length)
@@ -2823,33 +2839,25 @@ extension (ac: Array[Char]) {
     java.util.Arrays.binarySearch(ac, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Char): ac.type =
+  inline def fill(x: Char): Unit =
     java.util.Arrays.fill(ac, x)
-    ac
-  inline def fillRange(i0: Int, iN: Int)(x: Char): ac.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Char): Unit = 
     java.util.Arrays.fill(ac, i0, iN, x)
-    ac
-  inline def fillRange(ivx: Iv.X)(x: Char): ac.type =
+  inline def fillRange(ivx: Iv.X)(x: Char): Unit =
     java.util.Arrays.fill(ac, ivx.index0(ac), ivx.indexN(ac), x)
-    ac
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Char): ac.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Char): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(ac, iv.i0, iv.iN, x)
-    ac
 
-  inline def sort(): ac.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(ac)
-    ac
-  inline def sortRange(i0: Int, iN: Int): ac.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(ac, i0, iN)
-    ac
-  inline def sortRange(ivx: Iv.X): ac.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(ac, ivx.index0(ac), ivx.indexN(ac))
-    ac
-  inline def sortRange(inline rg: collection.immutable.Range): ac.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(ac, iv.i0, iv.iN)
-    ac
 
   inline def isSorted: Boolean =
     isSortedRange(0, ac.length)
@@ -2922,33 +2930,25 @@ extension (ai: Array[Int]) {
     val iv = Iv of rg
     java.util.Arrays.binarySearch(ai, iv.i0, iv.iN, x)
 
-  inline def fill(x: Int): ai.type =
+  inline def fill(x: Int): Unit =
     java.util.Arrays.fill(ai, x)
-    ai
-  inline def fillRange(i0: Int, iN: Int)(x: Int): ai.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Int): Unit = 
     java.util.Arrays.fill(ai, i0, iN, x)
-    ai
-  inline def fillRange(ivx: Iv.X)(x: Int): ai.type =
+  inline def fillRange(ivx: Iv.X)(x: Int): Unit =
     java.util.Arrays.fill(ai, ivx.index0(ai), ivx.indexN(ai), x)
-    ai
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Int): ai.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Int): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(ai, iv.i0, iv.iN, x)
-    ai
 
-  inline def sort(): ai.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(ai)
-    ai
-  inline def sortRange(i0: Int, iN: Int): ai.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(ai, i0, iN)
-    ai
-  inline def sortRange(ivx: Iv.X): ai.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(ai, ivx.index0(ai), ivx.indexN(ai))
-    ai
-  inline def sortRange(inline rg: collection.immutable.Range): ai.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(ai, iv.i0, iv.iN)
-    ai
 
   inline def isSorted: Boolean =
     isSortedRange(0, ai.length)
@@ -2996,33 +2996,25 @@ extension (al: Array[Long]) {
     java.util.Arrays.binarySearch(al, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Long): al.type =
+  inline def fill(x: Long): Unit =
     java.util.Arrays.fill(al, x)
-    al
-  inline def fillRange(i0: Int, iN: Int)(x: Long): al.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Long): Unit = 
     java.util.Arrays.fill(al, i0, iN, x)
-    al
-  inline def fillRange(ivx: Iv.X)(x: Long): al.type =
+  inline def fillRange(ivx: Iv.X)(x: Long): Unit =
     java.util.Arrays.fill(al, ivx.index0(al), ivx.indexN(al), x)
-    al
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Long): al.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Long): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(al, iv.i0, iv.iN, x)
-    al
 
-  inline def sort(): al.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(al)
-    al
-  inline def sortRange(i0: Int, iN: Int): al.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(al, i0, iN)
-    al
-  inline def sortRange(ivx: Iv.X): al.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(al, ivx.index0(al), ivx.indexN(al))
-    al
-  inline def sortRange(inline rg: collection.immutable.Range): al.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(al, iv.i0, iv.iN)
-    al
 
   inline def isSorted: Boolean =
     isSortedRange(0, al.length)
@@ -3070,33 +3062,25 @@ extension (af: Array[Float]) {
     java.util.Arrays.binarySearch(af, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Float): af.type =
+  inline def fill(x: Float): Unit =
     java.util.Arrays.fill(af, x)
-    af
-  inline def fillRange(i0: Int, iN: Int)(x: Float): af.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Float): Unit = 
     java.util.Arrays.fill(af, i0, iN, x)
-    af
-  inline def fillRange(ivx: Iv.X)(x: Float): af.type =
+  inline def fillRange(ivx: Iv.X)(x: Float): Unit =
     java.util.Arrays.fill(af, ivx.index0(af), ivx.indexN(af), x)
-    af
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Float): af.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Float): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(af, iv.i0, iv.iN, x)
-    af
 
-  inline def sort(): af.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(af)
-    af
-  inline def sortRange(i0: Int, iN: Int): af.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(af, i0, iN)
-    af
-  inline def sortRange(ivx: Iv.X): af.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(af, ivx.index0(af), ivx.indexN(af))
-    af
-  inline def sortRange(inline rg: collection.immutable.Range): af.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(af, iv.i0, iv.iN)
-    af
 
   inline def isSorted: Boolean =
     isSortedRange(0, af.length)
@@ -3144,33 +3128,25 @@ extension (ad: Array[Double]) {
     java.util.Arrays.binarySearch(ad, iv.i0, iv.iN, x)
 
 
-  inline def fill(x: Double): ad.type =
+  inline def fill(x: Double): Unit =
     java.util.Arrays.fill(ad, x)
-    ad
-  inline def fillRange(i0: Int, iN: Int)(x: Double): ad.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: Double): Unit = 
     java.util.Arrays.fill(ad, i0, iN, x)
-    ad
-  inline def fillRange(ivx: Iv.X)(x: Double): ad.type =
+  inline def fillRange(ivx: Iv.X)(x: Double): Unit =
     java.util.Arrays.fill(ad, ivx.index0(ad), ivx.indexN(ad), x)
-    ad
-  inline def fillRange(inline rg: collection.immutable.Range)(x: Double): ad.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: Double): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(ad, iv.i0, iv.iN, x)
-    ad
 
-  inline def sort(): ad.type =
+  inline def sort(): Unit =
     java.util.Arrays.sort(ad)
-    ad
-  inline def sortRange(i0: Int, iN: Int): ad.type =
+  inline def sortRange(i0: Int, iN: Int): Unit =
     java.util.Arrays.sort(ad, i0, iN)
-    ad
-  inline def sortRange(ivx: Iv.X): ad.type =
+  inline def sortRange(ivx: Iv.X): Unit =
     java.util.Arrays.sort(ad, ivx.index0(ad), ivx.indexN(ad))
-    ad
-  inline def sortRange(inline rg: collection.immutable.Range): ad.type =
+  inline def sortRange(inline rg: collection.immutable.Range): Unit =
     val iv = Iv of rg
     java.util.Arrays.sort(ad, iv.i0, iv.iN)
-    ad
 
   inline def isSorted: Boolean =
     isSortedRange(0, ad.length)
@@ -3216,33 +3192,25 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
     java.util.Arrays.binarySearch(aa, iv.i0, iv.iN, x, o)
 
 
-  inline def fill(x: A): aa.type =
+  inline def fill(x: A): Unit =
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], x.asInstanceOf[AnyRef])
-    aa
-  inline def fillRange(i0: Int, iN: Int)(x: A): aa.type = 
+  inline def fillRange(i0: Int, iN: Int)(x: A): Unit = 
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], i0, iN, x.asInstanceOf[AnyRef])
-    aa
-  inline def fillRange(ivx: Iv.X)(x: A): aa.type =
+  inline def fillRange(ivx: Iv.X)(x: A): Unit =
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], ivx.index0(aa), ivx.indexN(aa), x.asInstanceOf[AnyRef])
-    aa
-  inline def fillRange(inline rg: collection.immutable.Range)(x: A): aa.type =
+  inline def fillRange(inline rg: collection.immutable.Range)(x: A): Unit =
     val iv = Iv of rg
     java.util.Arrays.fill(aa.asInstanceOf[Array[AnyRef]], iv.i0, iv.iN, x.asInstanceOf[AnyRef])
-    aa
 
-  inline def sort()(using o: scala.math.Ordering[A]): aa.type =
+  inline def sort()(using o: scala.math.Ordering[A]): Unit =
     scala.util.Sorting.stableSort(aa)
-    aa
-  inline def sortRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): aa.type =
+  inline def sortRange(i0: Int, iN: Int)(using o: scala.math.Ordering[A]): Unit =
     scala.util.Sorting.stableSort(aa, i0, iN)
-    aa
-  inline def sortRange(ivx: Iv.X)(using o: scala.math.Ordering[A]): aa.type =
+  inline def sortRange(ivx: Iv.X)(using o: scala.math.Ordering[A]): Unit =
     scala.util.Sorting.stableSort(aa, ivx.index0(aa), ivx.indexN(aa))
-    aa
-  inline def sortRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): aa.type =
+  inline def sortRange(inline rg: collection.immutable.Range)(using o: scala.math.Ordering[A]): Unit =
     val iv = Iv of rg
     scala.util.Sorting.stableSort(aa, iv.i0, iv.iN)
-    aa
 
   inline def isSorted(using o: scala.math.Ordering[A]): Boolean =
     isSortedRange(0, aa.length)
@@ -3677,7 +3645,7 @@ extension (a: String) {
     while i < a.length do
       val x = a.charAt(i)
       if pick(x) then
-        b append x
+        b.append(x): Unit
       i += 1
     b.toString
 
@@ -4187,7 +4155,7 @@ object ClippedString {
       while i < indices.length do
         val k = indices(i)
         if k >= 0 && k < a.length then
-          b append a.charAt(k)
+          b.append(a.charAt(k)): Unit
         i += 1
       b.toString
     inline def select(indices: scala.collection.IntStepper): String =
@@ -4196,7 +4164,7 @@ object ClippedString {
       while indices.hasStep do
         val i = indices.nextStep
         if i >= 0 && i < a.length then
-          b append a.charAt(i)
+          b.append(a.charAt(i)): Unit
       b.toString
 
     inline def selectOp[B](i0: Int, iN: Int)(inline op: (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -4440,7 +4408,7 @@ object BreakableString {
       shortcut.outer:
         while i < a.length do
           shortcut.inner:
-            b append f(a.charAt(i))
+            b.append(f(a.charAt(i))): Unit
           i += 1
       b.toString
     transparent inline def copyOp[B](inline op: boundary.Label[shortcut.Type] ?=> (Char, Int) => B)(using ClassTag[B]): Array[B] =
@@ -4633,7 +4601,7 @@ object BreakableString {
         while i < a.length do
           val x = a.charAt(i)
           if pick(x) then
-            b append x
+            b.append(x): Unit
           i += 1
       b.toString
 

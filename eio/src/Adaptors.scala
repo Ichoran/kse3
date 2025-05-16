@@ -264,7 +264,7 @@ object EioBase85 {
       encoder.peek(){ b =>
         if b < bmin then bmin = b
         if b > bmax then bmax = b
-      }
+      } __ Unit
       if bmin < '\t' then throw new Exception(s"Tried to decode a table with indices smaller than tab: $bmin")
       val decoder: Array[Byte] = Array.fill[Byte](1 + bmax - 9)(-1)
       encoder.visit(){ (b, i) =>
@@ -748,20 +748,20 @@ final class MultiArrayChannel private (val growthLimit: Long, val maxChunkSize: 
 extends SeekableByteChannel {
   private val initialLimit =
     var n = 0L
-    existing.peek(){ ai => n += ai.length }
+    existing.peek(){ ai => n += ai.length } __ Unit
     n
   private var limit = initialLimit
   private var storage: Array[Array[Byte]] =
     if initialLimit > 0 then
       var emptyCount = 0
-      existing.peek(){ ai => if ai.length == 0 then emptyCount += 1 }
+      existing.peek(){ ai => if ai.length == 0 then emptyCount += 1 } __ Unit
       val a = new Array[Array[Byte]](existing.length - emptyCount)
       var j = 0
       existing.peek(){ ai => 
         if ai.length > 0 then
           a(j) = ai
           j += 1
-      }
+      } __ Unit
       a
     else Array(new Array[Byte](256))
   private var active: Array[Byte] = storage(0)
@@ -1152,13 +1152,13 @@ final class ByteBufferOutputStream(val buffer: ByteBuffer) extends OutputStream 
     isNowOpen = false
   def write(b: Int): Unit =
     checkOpen()
-    buffer put (b & 0xFF).toByte
+    buffer put (b & 0xFF).toByte __ Unit
   override def write(b: Array[Byte]): Unit =
     checkOpen()
-    buffer put b
+    buffer put b __ Unit
   override def write(b: Array[Byte], off: Int, len: Int): Unit =
     checkOpen()
-    buffer.put(b, off, len)
+    buffer.put(b, off, len) __ Unit
 }
 
 final class ByteBufferInputStream(val buffer: ByteBuffer) extends InputStream {
@@ -1172,7 +1172,7 @@ final class ByteBufferInputStream(val buffer: ByteBuffer) extends InputStream {
     isNowOpen = false
   override def mark(readlimit: Int): Unit =
     checkOpen()
-    buffer.mark()
+    buffer.mark() __ Unit
   override def markSupported = true
   def read(): Int =
     checkOpen()
@@ -1193,7 +1193,7 @@ final class ByteBufferInputStream(val buffer: ByteBuffer) extends InputStream {
         len
   override def reset: Unit =
     checkOpen()
-    buffer.reset
+    buffer.reset __ Unit
   override def skip(n: Long): Long =
     if n < 0 then 0L
     else
@@ -1311,7 +1311,7 @@ final class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends
   override def markSupported = true
   def read(): Int =
     oneByte.clear
-    checkReadSize( sbc.read(oneByte) )
+    checkReadSize( sbc.read(oneByte) ) __ Unit
     oneByte.flip
     oneByte.get & 0xFF
   override def read(b: Array[Byte]): Int =
@@ -1330,7 +1330,7 @@ final class SeekableByteChannelInputStream(val sbc: SeekableByteChannel) extends
     if markedPosition >= 0 then
       val l = sbc.size
       if sbc.position > l then throw new IOException(s"Reset to $markedPosition in SeekableByteChannel shortened to $l")
-      else sbc.position(markedPosition)
+      else sbc.position(markedPosition) __ Unit
     else throw new IOException("Reset on unmarked stream")
   override def skip(n: Long): Long =
     if n < 0 then 0L
@@ -1394,7 +1394,7 @@ final class InputStreamByteChannel(input: InputStream) extends ReadableByteChann
         val pos = bb.position
         val avail = bb.remaining
         val n = input.read(a, pos, avail)
-        if n > 0 then bb.position(pos + n)
+        if n > 0 then bb.position(pos + n) __ Unit
         if n < 0 then certainlyClosed.set(true)
         n
       else
@@ -1403,7 +1403,7 @@ final class InputStreamByteChannel(input: InputStream) extends ReadableByteChann
           a = new Array[Byte](bb.remaining max 16)
           backingBuffer.set(a)
         val n = input.read(a, 0, bb.remaining)
-        if n > 0 then bb.put(a, 0, n)
+        if n > 0 then bb.put(a, 0, n) __ Unit
         if n < 0 then certainlyClosed.set(true)
         n
 }

@@ -143,6 +143,7 @@ extension (value: Int) {
       else lo
     else lo
   inline def in(lo: Int, hi: Int) = lo <= value && value <= hi
+  inline def in(iv: kse.basics.intervals.Iv) = iv.contains(value)
   inline def checkIn(lo: Int, hi: Int) =
     if value < lo || value > hi then throw new ArithmeticException("int out of range")
     else value

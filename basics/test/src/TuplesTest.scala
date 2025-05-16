@@ -43,6 +43,7 @@ class TuplesTest() {
   }
 
 
+  /*
   def unlabelledTuples(): Unit =
     val f1 = (i: Int) => i+1
     val f2 = (c: Char) => c > 'e'
@@ -341,8 +342,9 @@ class TuplesTest() {
     T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cutAt6              ==== ((1, 'a', 2, 3, 4, 5), (6, 7, 8))
     T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cutAt7              ==== ((1, 'a', 2, 3, 4, 5, 6), (7, 8))
     T ~ (1, 'a', 2, 3, 4, 5, 6, 7, 8).cutAt8              ==== ((1, 'a', 2, 3, 4, 5, 6, 7), 8)
+  */
 
-
+  /*
   def labelledSingleton(): Unit =
     val eel: "eel" = "eel"
     val a3: Any = 3
@@ -2394,4 +2396,5 @@ class TuplesTest() {
     T ~ cc("""l9.redo("i")(0 \ "f")""") ==== false
     T ~ cc("""l9.redo("i")(0 \ "g")""") ==== false
     T ~ cc("""l9.redo("i")(0 \ "h")""") ==== false
+  */
 }

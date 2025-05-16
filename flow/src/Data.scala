@@ -35,28 +35,28 @@ extension [X, Y, CC[_]](coll: CC[X Or Y])(using iter: scala.collection.generic.I
 extension [X, Y](a: Array[X Or Y]) {
   def collectIs(using ClassTag[X]): Array[X] =
     var n = 0
-    a.peek()(xy => if xy.isIs then n += 1)
+    a.peek()(xy => if xy.isIs then n += 1): Unit
     val xs = new Array[X](n)
     n = 0
-    a.peek(){ xy => xy.foreach{ x => xs(n) = x; n += 1 } }
+    a.peek(){ xy => xy.foreach{ x => xs(n) = x; n += 1 } }: Unit
     xs
 
   def collectAlt(using ClassTag[Y]): Array[Y] =
     var n = 0
-    a.peek()(xy => if xy.isAlt then n += 1)
+    a.peek()(xy => if xy.isAlt then n += 1): Unit
     val ys = new Array[Y](n)
     n = 0
-    a.peek(){ xy => xy.foreachAlt{ y => ys(n) = y; n += 1 } }
+    a.peek(){ xy => xy.foreachAlt{ y => ys(n) = y; n += 1 } }: Unit
     ys
 
   def collectThem(using ClassTag[X], ClassTag[Y]): (Array[X], Array[Y]) =
     var n = 0
-    a.peek()(xy => if xy.isIs then n += 1)
+    a.peek()(xy => if xy.isIs then n += 1): Unit
     val xs = new Array[X](n)
     val ys = new Array[Y](a.length - n)
     n = 0
     var m = 0
-    a.peek()(xy => xy.foreachThem{ x => xs(n) = x; n += 1 }{ y => ys(m) = y; m += 1 })
+    a.peek()(xy => xy.foreachThem{ x => xs(n) = x; n += 1 }{ y => ys(m) = y; m += 1 }): Unit
     (xs, ys)
 }
 
@@ -140,7 +140,7 @@ extension [A](a: Array[A Or Err]) {
           if xs eq null then
             xs = new Array[A](16 min a.length)
           else
-            if xi == xs.length then xs.enlargeTo(if (xs.length >> 1) + (xs.length >> 2) >= xi then xs.length else 2*xi)
+            if xi == xs.length then xs = xs.enlargeTo(if (xs.length >> 1) + (xs.length >> 2) >= xi then xs.length else 2*xi)
           xs(xi) = x
         xi += 1
       }{ e =>
@@ -148,11 +148,11 @@ extension [A](a: Array[A Or Err]) {
           es = new Array[Err](8 min (a.length - xi))
           xs = null
         else if ei == es.length then
-          es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
+          es = es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
         es(ei) = e
         ei += 1
       }
-    }
+    } __ Unit
     if es ne null then Alt(es.shrinkTo(ei))
     else if xs ne null then Is(xs)
     else Is(new Array[A](0))
@@ -168,14 +168,14 @@ extension [A](a: Array[A Or Err]) {
           xs = new Array[A](16 min (a.length - ei))
         else if xi == xs.length then
           val biggest = xs.length - ei
-          xs.enlargeTo(if (biggest >> 1) + (biggest >> 2) >= xi then biggest else 2*xi)
+          xs = xs.enlargeTo(if (biggest >> 1) + (biggest >> 2) >= xi then biggest else 2*xi)
         xs(xi) = x
         xi += 1
       }{ e =>
         if es eq null then
           es = new Array[(Int, Err)](8 min (a.length - xi))
         else if ei == es.length then
-          es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
+          es = es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
         es(ei) = (i, e)
         ei += 1
       }

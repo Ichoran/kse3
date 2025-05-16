@@ -132,7 +132,7 @@ sealed abstract class Prng {
   final inline def useModL(m: Long)(inline f: Long    => Unit): this.type = { f(this % m); this }
   final inline def useGaussian(     inline f: Double  => Unit): this.type = { f(gaussian); this }
 
-  final def fillRangeZ(target: Array[Boolean])(i0: Int, iN: Int): this.type =
+  final def fillRangeZ(target: Array[Boolean])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 0 do
@@ -149,9 +149,8 @@ sealed abstract class Prng {
       while i < k do
         target(i) = Z
         i += 1
-    this
 
-  final def fillRangeB(target: Array[Byte])(i0: Int, iN: Int): this.type =
+  final def fillRangeB(target: Array[Byte])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 7 do
@@ -173,9 +172,8 @@ sealed abstract class Prng {
       while i < k do
         target(i) = B
         i += 1
-    this
 
-  final def fillRangeS(target: Array[Short])(i0: Int, iN: Int): this.type =
+  final def fillRangeS(target: Array[Short])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 15 do
@@ -193,9 +191,8 @@ sealed abstract class Prng {
       while i < k do
         target(i) = S
         i += 1
-    this
 
-  final def fillRangeC(target: Array[Char])(i0: Int, iN: Int): this.type =
+  final def fillRangeC(target: Array[Char])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 15 do
@@ -213,9 +210,8 @@ sealed abstract class Prng {
       while i < k do
         target(i) = C
         i += 1
-    this
 
-  final def fillRangeI(target: Array[Int])(i0: Int, iN: Int): this.type =
+  final def fillRangeI(target: Array[Int])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 31 do
@@ -231,17 +227,15 @@ sealed abstract class Prng {
       while i < k do
         target(i) = I
         i += 1
-    this
 
-  final def fillRangeL(target: Array[Long])(i0: Int, iN: Int): this.type =
+  final def fillRangeL(target: Array[Long])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = L
       i += 1
-    this
 
-  final def fillRangeF(target: Array[Float])(i0: Int, iN: Int): this.type =
+  final def fillRangeF(target: Array[Float])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k && bits > 31 do
@@ -257,89 +251,83 @@ sealed abstract class Prng {
       while i < k do
         target(i) = F
         i += 1
-    this
 
-  final def fillRangeD(target: Array[Double])(i0: Int, iN: Int): this.type =
+  final def fillRangeD(target: Array[Double])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = D
       i += 1
-    this
 
-  inline final def fillRangeOp[A](target: Array[A])(i0: Int, iN: Int)(inline f: Prng => A): this.type =
+  inline final def fillRangeOp[A](target: Array[A])(i0: Int, iN: Int)(inline f: Prng => A): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = f(this)
       i += 1
-    this
 
-  final def fillRangeModI(m: Int)( target: Array[Int])(i0: Int, iN: Int): this.type =
+  final def fillRangeModI(m: Int)( target: Array[Int])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = this % m
       i += 1
-    this
 
-  final def fillRangeModL(m: Long)(target: Array[Long])(i0: Int, iN: Int): this.type =
+  final def fillRangeModL(m: Long)(target: Array[Long])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = this % m
       i += 1
-    this
 
-  final def fillRangeGaussian(     target: Array[Double])(i0: Int, iN: Int): this.type =
+  final def fillRangeGaussian(     target: Array[Double])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
     val k = if iN > target.length then target.length else iN
     while i < k do
       target(i) = gaussian
       i += 1
-    this
 
-  final inline def fillZ(            target: Array[Boolean]): this.type = fillRangeZ(            target)(0, target.length)
-  final inline def fillB(            target: Array[Byte]   ): this.type = fillRangeB(            target)(0, target.length)
-  final inline def fillS(            target: Array[Short]  ): this.type = fillRangeS(            target)(0, target.length)
-  final inline def fillC(            target: Array[Char]   ): this.type = fillRangeC(            target)(0, target.length)
-  final inline def fillI(            target: Array[Int]    ): this.type = fillRangeI(            target)(0, target.length)
-  final inline def fillL(            target: Array[Long]   ): this.type = fillRangeL(            target)(0, target.length)
-  final inline def fillF(            target: Array[Float]  ): this.type = fillRangeF(            target)(0, target.length)
-  final inline def fillD(            target: Array[Double] ): this.type = fillRangeD(            target)(0, target.length)
-  final inline def fillModI(m: Int)( target: Array[Int]    ): this.type = fillRangeModI(m: Int)( target)(0, target.length)
-  final inline def fillModL(m: Long)(target: Array[Long]   ): this.type = fillRangeModL(m: Long)(target)(0, target.length)
-  final inline def fillGaussian(     target: Array[Double] ): this.type = fillRangeGaussian(     target)(0, target.length)
-  final inline def fillOp[A](target: Array[A])(inline f: Prng => A): this.type =
+  final inline def fillZ(            target: Array[Boolean]): Unit = fillRangeZ(            target)(0, target.length)
+  final inline def fillB(            target: Array[Byte]   ): Unit = fillRangeB(            target)(0, target.length)
+  final inline def fillS(            target: Array[Short]  ): Unit = fillRangeS(            target)(0, target.length)
+  final inline def fillC(            target: Array[Char]   ): Unit = fillRangeC(            target)(0, target.length)
+  final inline def fillI(            target: Array[Int]    ): Unit = fillRangeI(            target)(0, target.length)
+  final inline def fillL(            target: Array[Long]   ): Unit = fillRangeL(            target)(0, target.length)
+  final inline def fillF(            target: Array[Float]  ): Unit = fillRangeF(            target)(0, target.length)
+  final inline def fillD(            target: Array[Double] ): Unit = fillRangeD(            target)(0, target.length)
+  final inline def fillModI(m: Int)( target: Array[Int]    ): Unit = fillRangeModI(m: Int)( target)(0, target.length)
+  final inline def fillModL(m: Long)(target: Array[Long]   ): Unit = fillRangeModL(m: Long)(target)(0, target.length)
+  final inline def fillGaussian(     target: Array[Double] ): Unit = fillRangeGaussian(     target)(0, target.length)
+  final inline def fillOp[A](target: Array[A])(inline f: Prng => A): Unit =
     fillRangeOp(target)(0, target.length)(f)
 
-  final inline def fillRangeZ(target: Array[Boolean])(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeZ(target)(iv.i0, iv.iN) }
-  final inline def fillRangeB(target: Array[Byte]   )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeB(target)(iv.i0, iv.iN) }
-  final inline def fillRangeS(target: Array[Short]  )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeS(target)(iv.i0, iv.iN) }
-  final inline def fillRangeC(target: Array[Char]   )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeC(target)(iv.i0, iv.iN) }
-  final inline def fillRangeI(target: Array[Int]    )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeI(target)(iv.i0, iv.iN) }
-  final inline def fillRangeL(target: Array[Long]   )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeL(target)(iv.i0, iv.iN) }
-  final inline def fillRangeF(target: Array[Float]  )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeF(target)(iv.i0, iv.iN) }
-  final inline def fillRangeD(target: Array[Double] )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeD(target)(iv.i0, iv.iN) }
-  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeModI(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeModL(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeGaussian(     target: Array[Double])(inline rg: Rg): this.type = { val iv = Iv of rg; fillRangeGaussian(target)(iv.i0, iv.iN) }
-  final inline def fillRangeOp[A](target: Array[A])(inline rg: Rg)(inline f: Prng => A): this.type =
+  final inline def fillRangeZ(target: Array[Boolean])(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeZ(target)(iv.i0, iv.iN) }
+  final inline def fillRangeB(target: Array[Byte]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeB(target)(iv.i0, iv.iN) }
+  final inline def fillRangeS(target: Array[Short]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeS(target)(iv.i0, iv.iN) }
+  final inline def fillRangeC(target: Array[Char]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeC(target)(iv.i0, iv.iN) }
+  final inline def fillRangeI(target: Array[Int]    )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeI(target)(iv.i0, iv.iN) }
+  final inline def fillRangeL(target: Array[Long]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeL(target)(iv.i0, iv.iN) }
+  final inline def fillRangeF(target: Array[Float]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeF(target)(iv.i0, iv.iN) }
+  final inline def fillRangeD(target: Array[Double] )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeD(target)(iv.i0, iv.iN) }
+  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeModI(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeModL(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeGaussian(     target: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeGaussian(target)(iv.i0, iv.iN) }
+  final inline def fillRangeOp[A](target: Array[A])(inline rg: Rg)(inline f: Prng => A): Unit =
     val iv = Iv of rg
     fillRangeOp(target)(iv.i0, iv.iN)(f)
 
-  final inline def fillRangeZ(target: Array[Boolean])(inline v: Iv.X): this.type = { val iv = v of target; fillRangeZ(target)(iv.i0, iv.iN) }
-  final inline def fillRangeB(target: Array[Byte]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeB(target)(iv.i0, iv.iN) }
-  final inline def fillRangeS(target: Array[Short]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeS(target)(iv.i0, iv.iN) }
-  final inline def fillRangeC(target: Array[Char]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeC(target)(iv.i0, iv.iN) }
-  final inline def fillRangeI(target: Array[Int]    )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeI(target)(iv.i0, iv.iN) }
-  final inline def fillRangeL(target: Array[Long]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeL(target)(iv.i0, iv.iN) }
-  final inline def fillRangeF(target: Array[Float]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeF(target)(iv.i0, iv.iN) }
-  final inline def fillRangeD(target: Array[Double] )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeD(target)(iv.i0, iv.iN) }
-  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeModI(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline v: Iv.X): this.type = { val iv = v of target; fillRangeModL(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeGaussian(     target: Array[Double])(inline v: Iv.X): this.type = { val iv = v of target; fillRangeGaussian(target)(iv.i0, iv.iN) }
-  final inline def fillRangeOp[A](target: Array[A])(inline v: Iv.X)(inline f: Prng => A): this.type =
+  final inline def fillRangeZ(target: Array[Boolean])(inline v: Iv.X): Unit = { val iv = v of target; fillRangeZ(target)(iv.i0, iv.iN) }
+  final inline def fillRangeB(target: Array[Byte]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeB(target)(iv.i0, iv.iN) }
+  final inline def fillRangeS(target: Array[Short]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeS(target)(iv.i0, iv.iN) }
+  final inline def fillRangeC(target: Array[Char]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeC(target)(iv.i0, iv.iN) }
+  final inline def fillRangeI(target: Array[Int]    )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeI(target)(iv.i0, iv.iN) }
+  final inline def fillRangeL(target: Array[Long]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeL(target)(iv.i0, iv.iN) }
+  final inline def fillRangeF(target: Array[Float]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeF(target)(iv.i0, iv.iN) }
+  final inline def fillRangeD(target: Array[Double] )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeD(target)(iv.i0, iv.iN) }
+  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeModI(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeModL(m)( target)(iv.i0, iv.iN) }
+  final inline def fillRangeGaussian(     target: Array[Double])(inline v: Iv.X): Unit = { val iv = v of target; fillRangeGaussian(target)(iv.i0, iv.iN) }
+  final inline def fillRangeOp[A](target: Array[A])(inline v: Iv.X)(inline f: Prng => A): Unit =
     val iv = v of target
     fillRangeOp(target)(iv.i0, iv.iN)(f)
 
@@ -643,25 +631,23 @@ sealed abstract class Prng {
     if k <= 0 then ""
     else if i0 >= iN then throw new IllegalArgumentException("sample of empty range")
     else if k < iN - i0 then
-      val ans = new java.lang.StringBuilder(k)
-      val indices = chooseIndices(iN - i0, k)
-      var i = 0
-      while i < k do
-        ans append a.charAt(indices(i) + i0)
-        i += 1
-      ans.toString
-    else
-      val ans = new java.lang.StringBuilder(k)
-      val indices = Iv(i0, iN).where()
-      var h = 0
-      while h < k do
-        shuffleRangeI(indices)(0, indices.length)
+      MkStr(k): sb =>
+        val indices = chooseIndices(iN - i0, k)
         var i = 0
-        while i < indices.length && h < k do
-          ans append a.charAt(indices(i) + i0)
+        while i < k do
+          sb += a.charAt(indices(i) + i0)
           i += 1
-          h += 1
-      ans.toString
+    else
+      MkStr(k): sb =>
+        val indices = Iv(i0, iN).where()
+        var h = 0
+        while h < k do
+          shuffleRangeI(indices)(0, indices.length)
+          var i = 0
+          while i < indices.length && h < k do
+            sb += a.charAt(indices(i) + i0)
+            i += 1
+            h += 1
 
   final inline def sampleRange(k: Int)(a: String)(inline rg: Rg): String =
     val iv = Iv of rg
@@ -709,13 +695,13 @@ sealed abstract class Prng {
         while i.hasNext do
           var h = math.floor(math.log(D)/math.log(1-w)).toInt
           while h > 0 && i.hasNext do
-            i.next
+            i.next __ Unit
             h -= 1
           if i.hasNext then
             a(this % a.length) = i.next.asInstanceOf[AnyRef]
             w *= math.exp(math.log(D)/k)
         shuffle(a)
-        a.peek()(x => b += x.asInstanceOf[A])
+        a.peek()(x => b += x.asInstanceOf[A]) __ Unit
       else
         var m = 0
         while m < k do
@@ -734,27 +720,26 @@ sealed abstract class Prng {
     else
       val m = letters.length
       var i = n
-      val sb = new java.lang.StringBuilder(m)
-      if m == 1 then
-        val c = letters charAt 0
-        while i > 0 do
-          sb append c
-          i -= 1
-      else
-        val mask = 0xFFFFFFFF >>> java.lang.Integer.numberOfLeadingZeros(m)
-        if m <= 256 then
+      MkStr(math.max(0, n)): sb =>
+        if m == 1 then
+          val c = letters charAt 0
           while i > 0 do
-            val k = B & mask
-            if k < m then
-              sb append letters.charAt(k)
-              i -= 1
+            sb += c
+            i -= 1
         else
-          while i > 0 do
-            val k = C & mask
-            if k < m then
-              sb append letters.charAt(k)
-              i -= 1
-      sb.toString
+          val mask = 0xFFFFFFFF >>> java.lang.Integer.numberOfLeadingZeros(m)
+          if m <= 256 then
+            while i > 0 do
+              val k = B & mask
+              if k < m then
+                sb += letters.charAt(k)
+                i -= 1
+          else
+            while i > 0 do
+              val k = C & mask
+              if k < m then
+                sb += letters.charAt(k)
+                i -= 1
 
 
   final def webString(n: Int): String =
@@ -764,26 +749,24 @@ sealed abstract class Prng {
     stringFrom(Prng.TextCharacters, n)
 
   final def asciiString(n: Int): String =
-    val sb = new java.lang.StringBuilder(math.max(0, n))
-    var i = n
-    while i > 0 do
-      sb append (B & 0x7F).toChar
-      i -= 1
-    sb.toString
-  final def validString(n: Int): String =
-    val sb = new java.lang.StringBuilder(math.max(0, n))
-    var i = n
-    while i > 0 do
-      val c = C
-      if java.lang.Character.isSurrogate(c) then
-        if i > 1 && java.lang.Character.isHighSurrogate(c) then
-          sb append c
-          sb append ((C & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
-          i -= 2
-      else
-        sb append c
+    MkStr(math.max(0, n)): sb =>
+      var i = n
+      while i > 0 do
+        sb += (B & 0x7F).toChar
         i -= 1
-    sb.toString
+  final def validString(n: Int): String =
+    MkStr(math.max(0, n)): sb =>
+      var i = n
+      while i > 0 do
+        val c = C
+        if java.lang.Character.isSurrogate(c) then
+          if i > 1 && java.lang.Character.isHighSurrogate(c) then
+            sb += c
+            sb += ((C & 0x3FF) + java.lang.Character.MIN_LOW_SURROGATE).toChar
+            i -= 2
+        else
+          sb += c
+          i -= 1
 
   def getState(i: Int): Long
   def stateLength: Int
@@ -791,10 +774,9 @@ sealed abstract class Prng {
 
   final def getCacheBits: Int = bits
   final def getCache: Long = cache
-  final def setCacheAndBits(c: Long, b: Int): this.type =
+  final def setCacheAndBits(c: Long, b: Int): Unit =
     cache = c
     bits = if b > 63 then 63 else b
-    this
 }
 object Prng {
   def symmetricFloatFromInt(i: Int): Float =
@@ -1070,7 +1052,7 @@ extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
       while i.hasNext do
         var h = math.floor(math.log(rng.D)/math.log(1-w)).toInt
         while h > 0 && i.hasNext do
-          i.next
+          i.next __ Unit
           h -= 1
         if i.hasNext then
           a = i.next

@@ -153,7 +153,7 @@ extension (the_path: Path) {
 
   def time_=(ft: FileTime): Ask[Unit] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
-    else Files.setLastModifiedTime(the_path, ft)
+    else Files.setLastModifiedTime(the_path, ft) __ Unit
 
 
   def mkdir(): Ask[Boolean] = Ask:
@@ -183,7 +183,7 @@ extension (the_path: Path) {
         Err ?# s"$the_path exists so can't create it as a symbolic link"
     else
       if Files.isSymbolicLink(the_path) then Files.delete(the_path)
-      Files.createSymbolicLink(the_path, target)
+      Files.createSymbolicLink(the_path, target) __ Unit
 
   def symlinkTo(p: Path): Ask[Unit] = Ask:
     if Files.exists(the_path) then
@@ -191,10 +191,10 @@ extension (the_path: Path) {
         Err ?# s"$the_path exists so can't create it as a symbolic link"
     else
       if Files.isSymbolicLink(the_path) then Files.delete(the_path)
-      if p.isAbsolute then Files.createSymbolicLink(the_path, p)
+      if p.isAbsolute then Files.createSymbolicLink(the_path, p) __ Unit
       else the_path.getParent match
-        case null => Files.createSymbolicLink(the_path, p)
-        case q    => Files.createSymbolicLink(the_path, q relativize p)
+        case null => Files.createSymbolicLink(the_path, p) __ Unit
+        case q    => Files.createSymbolicLink(the_path, q relativize p) __ Unit
 
   def symlink: Ask[String] = Ask:
     if !Files.isSymbolicLink(the_path) then Err ?# s"$the_path is not a symbolic link"
@@ -209,8 +209,8 @@ extension (the_path: Path) {
       case p    => (p resolve q).normalize
 
   def touch(): Ask[Unit] = Ask:
-    if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now)
-    else Files.write(the_path, new Array[Byte](0))
+    if Files exists the_path then Files.setLastModifiedTime(the_path, FileTime from Instant.now) __ Unit
+    else Files.write(the_path, new Array[Byte](0)) __ Unit
 
   def paths =
     if !(Files exists the_path) || !(Files isDirectory the_path) then PathsHelper.emptyPathArray
@@ -227,35 +227,35 @@ extension (the_path: Path) {
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
     Files readAllBytes the_path
 
-  def write(data: Array[Byte]): Ask[Unit] = nice{ Files.write(the_path, data) }
+  def write(data: Array[Byte]): Ask[Unit] = nice{ Files.write(the_path, data) __ Unit }
 
   def append(data: Array[Byte]): Ask[Unit] =
-    nice{ Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
+    nice{ Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) __ Unit }
 
   def create(data: Array[Byte]): Ask[Unit] = Ask:
     if Files exists the_path then Err ?# s"$the_path already exists"
-    Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
+    Files.write(the_path, data, StandardOpenOption.CREATE_NEW) __ Unit
 
   def createIfAbsent(data: Array[Byte]): Ask[Boolean] = Ask:
     if Files.exists(the_path) then false
     else
-      Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
+      Files.write(the_path, data, StandardOpenOption.CREATE_NEW) __ Unit
       true
 
   def writeLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] =
-    nice{ Files.write(the_path, PathsHelper.javaIterable(coll)) }
+    nice{ Files.write(the_path, PathsHelper.javaIterable(coll)) __ Unit }
 
   def appendLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] =
-    nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) }
+    nice{ Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) __ Unit }
 
   def createLines(coll: scala.collection.IterableOnce[String]): Ask[Unit] = Ask:
     if Files exists the_path then Err ?# s"$the_path already exists"
-    Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
+    Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) __ Unit
 
   def createLinesIfAbsent(coll: scala.collection.IterableOnce[String]): Ask[Boolean] = Ask:
     if Files.exists(the_path) then false
     else
-      Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
+      Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) __ Unit
       true
 
 
@@ -303,28 +303,28 @@ extension (the_path: Path) {
 
   def copyTo(to: Path): Ask[Unit] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
-    Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING)
+    Files.copy(the_path, to, StandardCopyOption.REPLACE_EXISTING) __ Unit
 
   def copyInto(that: Path): Ask[Path] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
     if !Files.exists(that) then Err ?# s"Target directory $that not found"
     if !Files.isDirectory(that) then Err ?# s"Target $that is not a directory"
     val target = that resolve the_path.getFileName
-    Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING)
+    Files.copy(the_path, target, StandardCopyOption.REPLACE_EXISTING) __ Unit
     target
 
   def copyCreate(to: Path): Ask[Unit] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
     if Files.exists(to) then Err ?# s"$to already exists"
-    Files.copy(the_path, to)
+    Files.copy(the_path, to) __ Unit
 
   def moveTo(to: Path): Ask[Unit] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
-    Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING)
+    Files.move(the_path, to, StandardCopyOption.REPLACE_EXISTING) __ Unit
 
   def moveCreate(to: Path): Ask[Unit] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
-    Files.move(the_path, to)
+    Files.move(the_path, to) __ Unit
 
   def moveInto(that: Path): Ask[Path] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
@@ -630,26 +630,26 @@ object PathsHelper {
 
       def copyTo(to: Path): Unit =
         val temp = apply(to).tempPath
-        to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+        to.getParent.fn{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) __ Unit } }
         Files.copy(the_path.underlying, temp, StandardCopyOption.REPLACE_EXISTING)
-        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) __ Unit
 
       def moveTo(to: Path): Unit =
         val up = to.getParent
         if up != null then
-          if !Files.exists(up) then Files.createDirectories(up)
+          if !Files.exists(up) then Files.createDirectories(up) __ Unit
         if up != null && Files.getFileStore(the_path) == Files.getFileStore(up) then
-          Files.move(the_path.underlying, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+          Files.move(the_path.underlying, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) __ Unit
         else       
           val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-          to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+          to.getParent.fn{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) __ Unit } }
           Files.copy(the_path.underlying, temp, StandardCopyOption.REPLACE_EXISTING)
-          Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+          Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) __ Unit
           Files.delete(the_path.underlying)
 
       def zipTo(to: Path, compression: Int Or Unit = Alt.unit, maxDirectoryDepth: Int = 10): Unit =
         val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-        to.getParent.tap{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) } }
+        to.getParent.fn{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) __ Unit } }
         val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
         compression.foreach(zos.setLevel)
         if Files.isDirectory(the_path.underlying) then
@@ -674,7 +674,7 @@ object PathsHelper {
           Files.copy(the_path, zos)
           zos.closeEntry
         zos.close
-        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) __ Unit
     }
   }
 
@@ -730,19 +730,19 @@ object PathsHelper {
 
       inline def time: FileTime = Files getLastModifiedTime the_path.path
 
-      inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path.path, ft)
+      inline def time_=(ft: FileTime): Unit = Files.setLastModifiedTime(the_path.path, ft) __ Unit
 
 
-      inline def mkdir(): Unit = Files createDirectory the_path.path
+      inline def mkdir(): Unit = Files createDirectory the_path.path __ Unit
 
-      inline def mkdirs(): Unit = Files createDirectories the_path.path
+      inline def mkdirs(): Unit = Files createDirectories the_path.path __ Unit
 
       def mkParents(): Unit =
         val p = the_path.path.getParent
         if (p ne null) && !Files.exists(p) then
           if Files.isSymbolicLink(p) then
-            Files.createDirectories(PathsHelper.symlinkToReal(the_path.path.toAbsolutePath().normalize()))
-          else Files.createDirectories(p)
+            Files.createDirectories(PathsHelper.symlinkToReal(the_path.path.toAbsolutePath().normalize())) __ Unit
+          else Files.createDirectories(p) __ Unit
 
       inline def delete() = Files delete the_path.path
 
@@ -767,8 +767,8 @@ object PathsHelper {
           case p    => (p resolve q).normalize
 
       def touch(): Unit =
-        if Files exists the_path.path then Files.setLastModifiedTime(the_path.path, FileTime from Instant.now)
-        else Files.write(the_path.path, new Array[Byte](0))
+        if Files exists the_path.path then Files.setLastModifiedTime(the_path.path, FileTime from Instant.now) __ Unit
+        else Files.write(the_path.path, new Array[Byte](0)) __ Unit
 
       def slurp: Array[String] =
         Resource(Files lines the_path.path)(_.close)(_.toArray(i => new Array[String](i)))
@@ -779,22 +779,22 @@ object PathsHelper {
         new BufferedInputStream(Files newInputStream the_path, 8192)
 
       inline def write(data: Array[Byte]): Unit =
-        Files.write(the_path, data)
+        Files.write(the_path, data) __ Unit
 
       inline def append(data: Array[Byte]): Unit =
-        Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+        Files.write(the_path, data, StandardOpenOption.APPEND, StandardOpenOption.CREATE) __ Unit
 
-      inline def create(data: Array[Byte]): Unit =
-        Files.write(the_path, data, StandardOpenOption.CREATE_NEW)
+      inline def create(data: Array[Byte]): Unit = 
+        Files.write(the_path, data, StandardOpenOption.CREATE_NEW) __ Unit
 
       def writeLines(coll: scala.collection.IterableOnce[String]): Unit =
-        Files.write(the_path, PathsHelper.javaIterable(coll))
+        Files.write(the_path, PathsHelper.javaIterable(coll)) __ Unit
 
       def appendLines(coll: scala.collection.IterableOnce[String]): Unit =
-        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE)
+        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.APPEND, StandardOpenOption.CREATE) __ Unit
 
       def createLines(coll: scala.collection.IterableOnce[String]): Unit =
-        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW)
+        Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) __ Unit
 
       inline def openWrite(): java.io.BufferedOutputStream =
         new BufferedOutputStream(Files newOutputStream the_path, 8192)
@@ -815,9 +815,9 @@ object PathsHelper {
         Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
 
 
-      inline def copyTo(to: Path): Unit = Files.copy(the_path.path, to, StandardCopyOption.REPLACE_EXISTING)
+      inline def copyTo(to: Path): Unit = Files.copy(the_path.path, to, StandardCopyOption.REPLACE_EXISTING) __ Unit
 
-      inline def moveTo(to: Path): Unit = Files.move(the_path.path, to, StandardCopyOption.REPLACE_EXISTING)
+      inline def moveTo(to: Path): Unit = Files.move(the_path.path, to, StandardCopyOption.REPLACE_EXISTING) __ Unit
     }  
   }
 }

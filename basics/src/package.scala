@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2023 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2023-25 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
 
 package kse
 

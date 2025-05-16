@@ -42,22 +42,22 @@ object Parse {
       case 2 => xs.mkString("Choose ", " or ", "")
       case 1 => s"Use ${xs.head}"
       case x if x < 1 => s"Do not supply a value."
-      case _ => "Choose ".build: sb =>
+      case _ => "Choose ".make: sb =>
         xs.visit(): (x, i) =>
-          if i == xs.length - 1 then sb append ", or "
-          else if i > 0 then sb append ", "
-          sb append x
+          if i == xs.length - 1 then sb += ", or "
+          else if i > 0 then sb += ", "
+          sb += x
 
   def listy(xs: Seq[String]): String = listy(xs.toArray)
   def listy(xs: Array[String]): String =
-    "".build: sb =>
+    MkStr: sb =>
       xs.visit(): (x, i) =>
         if i > 0 then
           if i+1 == xs.length then
-            if i > 1 then sb append ", and "
-            else sb append " and "
-          else sb append ", "
-        sb append x
+            if i > 1 then sb += ", and "
+            else sb += " and "
+          else sb += ", "
+        sb += x
 
   final class Optional[A](p: Parse[A]) extends Parse[Option[A]] {
     def apply(s: String) =
@@ -148,7 +148,7 @@ object Parse {
     shortcut.quittable:
       args.visit(): (test, i) =>
         shortMatch(key)(test) match
-          case Some(js) => js.peek()(j => iib += ((i, j)))
+          case Some(js) => js.peek()(j => iib += ((i, j))) __ Unit
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     iib.result
 
@@ -159,7 +159,7 @@ object Parse {
         val j = keyMatch(key)(test)
         if j >= 0 then izib += ((i, true, j))
         else shortMatch(short)(test) match
-          case Some(js) => js.peek()(j => izib += ((i, false, j)))
+          case Some(js) => js.peek()(j => izib += ((i, false, j))) __ Unit
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     izib.result
 }
@@ -317,20 +317,20 @@ final case class Opt[A, C <: CharVal, L <: LabelVal] private[cleasy] (label: L, 
   inline def parse_?[E >: Alt[Err]](args: Array[String], consumed: Int => Unit = _ => {})(using boundary.Label[E]): (Option[(A, Int)] \ L) =
     if short == '\u002D' then
       Parse.whereKey(label)(args) match
-        case Array() => \[Option[(A, Int)], L](None)
+        case Array() => \.wrap[Option[(A, Int)]](None)[L]
         case Array(ij) =>
           val (i, j) = ij
           val arg = args(i)
           val v = arg.select(j to End)
           val a = parse(v).fold(__){ e => boundary.break(Alt(e +# s"Error parsing option at argument ${i + 1}, $arg")) }
           consumed(i)
-          \[Option[(A, Int)], L](Some(a, i))
+          \.wrap[Option[(A, Int)]](Some(a, i))[L]
         case idxs => 
           val msg = s"--$label may only be given once but was found ${idxs.length} times\n  at arguments ${Parse.listy(idxs.map{ case (i, _) => s"#${i+1}" })}"
           boundary.break(Err.or(msg))
     else
       Parse.whereEither(label, short)(args) match
-        case Array() => \[Option[(A, Int)], L](None)
+        case Array() => \.wrap[Option[(A, Int)]](None)[L]
         case Array(izj) =>
           val (i, isLabel, j) = izj
           val arg = args(i)
@@ -350,7 +350,7 @@ final case class Opt[A, C <: CharVal, L <: LabelVal] private[cleasy] (label: L, 
             boundary.break(Alt(e +# s"Error parsing option at argument ${i + 1}, $argmsg"))
           }
           consumed(i)
-          \[Option[(A, Int)], L](Some(a, i))
+          \.wrap[Option[(A, Int)]](Some(a, i))[L]
         case idxs =>
           boundary.break(Err.or(Opt.moreThanOneOptionError(label, short, args, idxs)))
 
@@ -386,17 +386,17 @@ object Opt {
   private[cleasy] def moreThanOneOptionError(label: String, short: Char, args: Array[String], idxs: Array[(Int, Boolean, Int)]): String =
     val lbb = Array.newBuilder[Int]
     val shb = Array.newBuilder[Int]
-    idxs.peek(): ixj =>
+    idxs.visit(): (ixj, _) =>
       if ixj._2 then lbb += ixj._1 else shb += ixj._1
     val labelIdx = lbb.result
     val shortIdx = shb.result
-    "".build: sb =>
-      if shortIdx.length == 0 then sb append s"--$label may only be given once but was found ${labelIdx.length} times\n"
-      else if labelIdx.length == 0 then sb append s"-$short (--$label) may only be given once but was found ${shortIdx.length} times\n"
-      else sb append s"--$label (-$short) may only be given once but were found ${idxs.length} times\n"
+    MkStr: sb =>
+      if shortIdx.length == 0 then sb += s"--$label may only be given once but was found ${labelIdx.length} times\n"
+      else if labelIdx.length == 0 then sb += s"-$short (--$label) may only be given once but was found ${shortIdx.length} times\n"
+      else sb += s"--$label (-$short) may only be given once but were found ${idxs.length} times\n"
       if labelIdx.length > 0 then
         val msgIfShort = if shortIdx.length > 0 then s"as --$label " else ""
-        sb append s"  ${msgIfShort}at arguments ${Parse.listy(labelIdx.map(i => s"#${i+1}"))}"
+        sb += s"  ${msgIfShort}at arguments ${Parse.listy(labelIdx.map(i => s"#${i+1}"))}"
       if shortIdx.length > 0 then
         val shortArgs = shortIdx.diced(shortIdx.breakable.copyOp{ (ix, j) => shortcut.skip(j == 0 || shortIdx(j-1) == ix).?; j } , "[)")
         val argsMsg = shortArgs.copyWith: ixs =>
@@ -405,48 +405,47 @@ object Opt {
             else s"#${ixs(0)+1} (in ${args(ixs(0))})"
           else s"#${ixs(0)+1} (${ixs.length}x in ${args(ixs(0))})"
         val msgIfLong = if labelIdx.length > 0 then s"as -$short " else ""
-        sb append s"  ${msgIfLong}at argument${if shortArgs.length == 1 then "" else "s"} ${Parse.listy(argsMsg)}"
+        sb += s"  ${msgIfLong}at argument${if shortArgs.length == 1 then "" else "s"} ${Parse.listy(argsMsg)}"
 
   private[cleasy] def customToString[A](label: String, short: String, parse: String, about: String)(indent: Int = 2, labelW: Int = -1, shortW: Int = -1, parseW: Int = -1, aboutW: Int = -1, margin: Int = 80, clip: Boolean = false, wrap: Int = 0, sep: String = " ") =
-    "".build: sb =>
+    MkStr: sb =>
       val start = sb.length
-      indent.times:
-        sb append ' '
+      sb.repeat(' ', indent)
       var overage = 0
       var useOverage = labelW >= 0
       inline def pad(n: Int)(f: => Unit): Unit =
         val i0 = sb.length
         f
         if clip && n >= 0 && (sb.length - i0) > (n max 1) then
-          sb.setLength(i0 + n - 1)
-          sb append '\u2026'
+          sb.length = i0 + n - 1
+          sb += '\u2026'
         val iN = sb.length
         if useOverage then
           if n > iN - i0 then
             (n - (iN - i0)).times:
               if overage > 0 then overage -= 1
-              else sb append ' '
+              else sb += ' '
           else if n > 0 then overage += (iN - i0) - n
           else useOverage = n == 0
       pad(labelW):
-        sb append "--"
-        sb append label
+        sb += "--"
+        sb += label
       pad(shortW + sep.length - 1):
         if short.nonEmpty then
-          sb append sep
-          sb append '-'
-          sb append short
+          sb += sep
+          sb += '-'
+          sb += short
       pad(parseW + sep.length - 1):
         if parse.nonEmpty then
-          sb append sep
-          sb append parse
+          sb += sep
+          sb += parse
       if about.length == 1 || margin <= 0 || margin - sb.length > sep.length + about.length then
-        sb append sep
-        sb append about
+        sb += sep
+        sb += about
       else if about.length > 0 then
-        sb append sep
+        sb += sep
         val in = sb.length - start
-        if margin - in < 3 then sb append '\u2026'
+        if margin - in < 3 then sb += '\u2026'
         else
           var w = wrap
           val idxs = about.where(_.isWhitespace)
@@ -455,28 +454,26 @@ object Opt {
           while i < about.length && w > 0 && about.length - i >= (margin - in) do
             while ii+1 < idxs.length && idxs(ii+1) - i < (margin - in) do ii += 1
             if ii < idxs.length && idxs(ii) > i then
-              sb.append(about, i, idxs(ii))
+              sb.add(about, i, idxs(ii))
               i = idxs(ii) + 1
               while ii+1 < idxs.length && i == idxs(ii+1) do
                 i += 1
                 ii += 1
               if i < about.length then
-              sb append '\n'
-              in.times:
-                sb append ' '
+              sb += '\n'
+              sb.repeat(' ', in)
             else
-              sb.append(about, i, i + (margin - in - 2))
-              sb append '\u21b5'
-              sb append '\n'
-              in.times:
-                sb append ' '
+              sb.add(about, i, i + (margin - in - 2))
+              sb += '\u21b5'
+              sb += '\n'
+              sb.repeat(' ', in)
               i += (margin - in - 2)
             w -= 1
-          if about.length - i < margin - in then sb.append(about, i, about.length)
+          if about.length - i < margin - in then sb.add(about, i, about.length)
           else
-            sb.append(about, i, i + (margin - in - 2))
-            sb append '\u2026'
-      if sb.charAt(sb.length - 1) != '\n' then sb append '\n'
+            sb.add(about, i, i + (margin - in - 2))
+            sb += '\u2026'
+      if sb(End) != '\n' then sb += '\n'
 }
 
 final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label: L, short: C, parse: Parse[A], default: Option[() => A], about: String) {
@@ -486,7 +483,7 @@ final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
       val idxs = Parse.whereKey(label)(args)
       if idxs.isEmpty then
         default match
-          case Some(a) => lb += ((a(), -1))
+          case Some(a) => (lb += ((a(), -1))) __ Unit
           case _ =>
       else
         idxs.peek(): ij =>
@@ -495,10 +492,10 @@ final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
           val v = arg.select(j to End)
           val a = parse(v).fold(__){ e => boundary.break(Alt(e +# s"Error parsing option at argument ${i+1}, $arg")) }
           consumed(i)
-          lb += ((a, i))
+          (lb += ((a, i))) __ Unit
     else
       val idxs = Parse.whereEither(label, short)(args)
-      idxs.peek(): izj =>
+      idxs.visit(): (izj, _) =>
         val (i, isLabel, j) = izj
         val arg = args(i)
           val v =
@@ -517,8 +514,8 @@ final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
           boundary.break(Alt(e +# s"Error parsing option at argument ${i + 1}, $argmsg"))
         }
         consumed(i)
-        lb += ((a, i))
-    \[List[(A, Int)], L](lb.result)
+        (lb += ((a, i))) __ Unit
+    \.wrap[List[(A, Int)]](lb.result)[L]
 
   inline def getDefault: Option[A] = default.map(_())
 
@@ -548,20 +545,20 @@ final case class OptD[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
   inline def parse_?[E >: Alt[Err]](args: Array[String], consumed: Int => Unit = _ => {})(using boundary.Label[E]): ((A, Option[Int]) \ L) =
     if short == '\u002D' then
       Parse.whereKey(label)(args) match
-        case Array() => \[(A, Option[Int]), L]((default(), None))
+        case Array() => \.wrap[(A, Option[Int])]((default(), None))[L]
         case Array(ij) =>
           val (i, j) = ij
           val arg = args(i)
           val v = arg.select(j to End)
           val a = parse(v).fold(__){ e => boundary.break(Alt(e +# s"Error parsing option at argument ${i + 1}, $arg")) }
           consumed(i)
-          \[(A, Option[Int]), L]((a, Some(i)))
+          \.wrap[(A, Option[Int])]((a, Some(i)))[L]
         case idxs => 
           val msg = s"--$label may only be given once but was found ${idxs.length} times\n  at arguments ${Parse.listy(idxs.map{ case (i, _) => s"#${i+1}" })}"
           boundary.break(Err.or(msg))
     else
       Parse.whereEither(label, short)(args) match
-        case Array() => \[(A, Option[Int]), L]((default(), None))
+        case Array() => \.wrap[(A, Option[Int])]((default(), None))[L]
         case Array(izj) =>
           val (i, isLabel, j) = izj
           val arg = args(i)
@@ -581,7 +578,7 @@ final case class OptD[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
             boundary.break(Alt(e +# s"Error parsing option at argument ${i + 1}, $argmsg"))
           }
           consumed(i)
-          \[(A, Option[Int]), L]((a, Some(i)))
+          \.wrap[(A, Option[Int])]((a, Some(i)))[L]
         case idxs =>
           boundary.break(Err.or(Opt.moreThanOneOptionError(label, short, args, idxs)))
 
@@ -733,8 +730,8 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
     Args(args, used, labels, Cleasy.parse_?(options, args, i => used(i) += 1))
 
   def userString(margin: Int = 80, debug: Boolean = false, paramMax: Int = 16) =
-    title.build: sb =>
-      if sb.length > 0 && sb.charAt(sb.length - 1) != '\n' then sb append '\n'
+    title.make: sb =>
+      if sb.length > 0 && sb(End) != '\n' then sb += '\n'
       var ops: Tuple = options
       var labelW = 0
       var shortW = 0
@@ -777,52 +774,52 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
                   if o.short != '-' then shortW = shortW max 3 + (if o.parse.argument == Parse.ArgStyle.Always then n else 0)
                 aboutW = aboutW max o.about.length
       if !debug then
-        if sb.length > 1 && sb.charAt(sb.length - 2) != '\n' then sb append '\n'
+        if sb.length > 1 && sb(End-1) != '\n' then sb += '\n'
         if labelW < 4 then labelW = 4
         if aboutW < 4 then aboutW = 4
-        val lower = "".build: s2 =>
+        val lower = MkStr: s2 =>
           if labelW < 6 then
-            sb append "Name"
-            s2 append "----"
+            sb += "Name"
+            s2 += "----"
             if labelW == 5 then
-              sb append ' '
-              s2 append '-'
+              sb += ' '
+              s2 += '-'
           else
-            sb append "Option"
-            s2 append "------"
+            sb += "Option"
+            s2 += "------"
             (labelW - 6).times:
-              sb append ' '
-              s2 append '-'
+              sb += ' '
+              s2 += '-'
           if shortW > 0 then
             if shortW < 6 then
-              sb append "  ch"
-              s2 append "  --"
+              sb += "  ch"
+              s2 += "  --"
               (6 - shortW).times:
-                sb append ' '
-                s2 append '-'
+                sb += ' '
+                s2 += '-'
             else
-              sb append "  Short"
-              s2 append "  -----"
+              sb += "  Short"
+              s2 += "  -----"
               (shortW - 6).times:
-                sb append ' '
-                s2 append '-'
+                sb += ' '
+                s2 += '-'
           if aboutW > 0 then
             if aboutW < 5 then aboutW = 5
             if aboutW < 15 then
-              sb append "  Desc"
-              s2 append "  ----"
+              sb += "  Desc"
+              s2 += "  ----"
               aboutW -= 5
             else
-              sb append "  Description"
-              s2 append "  -----------"
+              sb += "  Description"
+              s2 += "  -----------"
               aboutW -= 12
             if aboutW > margin - 1 - s2.length then aboutW = margin - 1 - s2.length
             aboutW.times:
-              sb append ' '
-              s2 append '-'
-          sb append '\n'
-          s2 append '\n'
-        sb append lower
+              sb += ' '
+              s2 += '-'
+          sb += '\n'
+          s2 += '\n'
+        sb += lower
       ops = options
       loop:
         ops match
@@ -838,7 +835,7 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
                   val ps = if debug then "?" + o.parse.toString else ""
                   val in = if debug then 2 else 0
                   val wr = if debug then 0 else 5
-                  sb append Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
+                  sb += Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
                 case o: OptN[?, ?, ?] =>
                   val usr = o.parse.userString.fixIf(_.length >= paramMax - 1)(_.take(paramMax - 2) + "\u2026")
                   val lb = if debug || o.parse.userString.isEmpty then o.label else if usr.startsWith("[") then s"${o.label}[=${usr.select(1 to End)}" else s"${o.label}=$usr"
@@ -846,7 +843,7 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
                   val ps = if debug then "*" + o.parse.toString else ""
                   val in = if debug then 2 else 0
                   val wr = if debug then 0 else 5
-                  sb append Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
+                  sb += Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
                 case o: OptD[?, ?, ?] =>
                   val usr = o.parse.userString.fixIf(_.length >= paramMax - 1)(_.take(paramMax - 2) + "\u2026")
                   val lb = if debug || o.parse.userString.isEmpty then o.label else if usr.startsWith("[") then s"${o.label}[=${usr.select(1 to End)}" else s"${o.label}=$usr"
@@ -854,11 +851,11 @@ final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postf
                   val ps = if debug then o.parse.toString else ""
                   val in = if debug then 2 else 0
                   val wr = if debug then 0 else 5
-                  sb append Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
-                case _ => sb append t.toString                  
-            if sb.length > 0 && sb.charAt(sb.length - 1) != '\n' then sb append '\n'
-      sb append postfix
-      if sb.charAt(sb.length-1) != '\n' then sb append '\n'
+                  sb += Opt.customToString(lb, sh, ps, o.about)(indent = in, labelW = labelW, shortW = shortW, parseW = parseW, wrap = wr, sep = "  ")
+                case _ => sb += t.toString
+            if sb.length > 0 && sb(End) != '\n' then sb += '\n'
+      sb += postfix
+      if sb(End) != '\n' then sb += '\n'
 
   override lazy val toString = userString(debug = true)
 }

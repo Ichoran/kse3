@@ -4,14 +4,14 @@
 package kse.basics.intervals
 
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.annotation.targetName
 
 import scala.collection.immutable.{Range => Rg}
+import scala.collection.IntStepper
 
 import kse.basics._
-
 
 
 object Start {
@@ -95,6 +95,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
   extension (iv: Iv)
     inline def unwrap: Long = iv
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
+    inline def i1: Int = { val x = (iv >> 32).toInt; if x == Int.MinValue then x else x-1 }
     inline def iN: Int = (iv >>> 32).toInt
     inline def i0To(i: Int): Iv =
       (i & 0xFFFFFFFFL) | ((iv: Long) & 0xFFFFFFFF00000000L)
@@ -175,27 +176,6 @@ object Iv extends Translucent.Companion[Iv, Long] {
       else iv
     inline def clippedTo[A](a: Array[A]): Iv = clippedToSize(a.length)
     inline def clippedTo(a: String): Iv = clippedToSize(a.length)
-    def shiftIntoSize(n: Int): Iv =
-      if n <= 0 then 0L
-      else
-        var i = i0
-        var j = iN
-        if j <= i then
-          if i < 0 then 0L
-          else
-            if i >= n then i = n
-            (i & 0xFFFFFFFFL) | (i.toLong << 32)
-        else if i < 0 then
-          j -= i
-          if j < 0 || j > n then j = n
-          j.toLong << 32
-        else if j > n then
-          i -= j - n
-          if i < 0 || i > j then i = 0
-          (i & 0xFFFFFFFFL) | (n.toLong << 32)
-        else iv
-    inline def shiftInto[A](a: Array[A]): Iv = shiftIntoSize(a.length)
-    inline def shiftInto(a: String): Iv = shiftIntoSize(a.length)
 
     inline def visit(inline f: Int => Unit): Unit =
       var i = (iv & 0xFFFFFFFFL).toInt
@@ -216,6 +196,81 @@ object Iv extends Translucent.Companion[Iv, Long] {
         h += 1
       a
 
+    def whereBy(step: Int): Array[Int] =
+      val i = (iv & 0xFFFFFFFFL).toInt
+      val j = (iv >>> 32).toInt
+      if step == 0 || i >= j then Array.empty[Int]
+      else
+        var start = if step < 0 then j-1 else i
+        val sabs = if step < 0 then -step else step
+        var n = java.lang.Integer.divideUnsigned(j-i, sabs)
+        if j != i + n*sabs then n += 1
+        val a = new Array[Int](n)
+        n = 0
+        while n < a.length do
+          a(n) = start
+          n += 1
+          start += step
+        a
+
+    def steps(): IntStepper =
+      val i = iv.i0
+      val j = iv.iN
+      if i < j then new AffineIntStepper(j - i, i, 1) else AffineIntStepper.empty
+
+    def stepsBy(step: Int): IntStepper =
+      val i = iv.i0
+      val j = iv.iN
+      if step == 0 || i >= j then AffineIntStepper.empty
+      else
+        val start = if step < 0 then j-1 else i
+        val sabs = if step < 0 then -step else step
+        val n = java.lang.Integer.divideUnsigned(j-i, sabs)
+        val extra = if j == i + n*sabs then 0 else 1
+        new AffineIntStepper(n + extra, start, step)
+
+
+  final class AffineIntStepper(count: Int, offset: Int, scale: Int) extends IntStepper {
+    private var remaining = count
+    private var i = offset
+    def characteristics =
+      import java.util.Spliterator.*
+      ORDERED | SIZED | SUBSIZED | NONNULL | IMMUTABLE
+    def hasStep = remaining != 0
+    def nextStep =
+      if remaining == 0 then throw new NoSuchElementException("Empty Stepper")
+      else
+        val ans = i
+        i += scale
+        remaining -= 1
+        ans
+    def trySplit() =
+      if remaining < 2 then null
+      else
+        val r = remaining >>> 2
+        val j = i
+        i += r * scale
+        remaining -= r
+        new AffineIntStepper(r, j, scale)
+    def estimateSize = remaining & 0xFFFFFFFFL
+  }
+  object AffineIntStepper {
+    val empty = new AffineIntStepper(0, 0, 1)
+    def forever(value: Int): IntStepper = new IntStepper {
+      def characteristics =
+        import java.util.Spliterator.*
+        NONNULL | IMMUTABLE
+      def hasStep = true
+      def nextStep = value
+      def trySplit() = forever(value)
+      def estimateSize = Long.MaxValue
+    }
+  }
+
+  type Pt = Int | End.At | End.type | Start.At | Start.type
+
+  type In = Int | String | Array[?] | Iv
+
   inline def zero(target: Int | String | Array[?] | Iv): Int = inline target match
     case iv: Iv => Iv.i0(iv)
     case _ => 0
@@ -226,6 +281,21 @@ object Iv extends Translucent.Companion[Iv, Long] {
     case a: Array[?] => a.length - 1
     case iv: Iv => Iv.iN(iv) - 1
 
+  inline def point(where: Pt, in: In) = inline where match
+    case x: Int => x
+    case e: End.At => inline in match
+      case i: Int => i - 1
+      case s: String => e of s
+      case a: Array[?] => e of a
+      case iv: Iv => e of iv
+    case e: End.type => one(in)
+    case s: Start.At => inline in match
+      case iv: Iv => s of iv
+      case _      => s.unwrap
+    case s: Start.type => inline in match
+      case iv: Iv => iv.i0
+      case _      => 0
+        
   inline def up(i: Int) = if i == Int.MaxValue then Int.MaxValue else i+1
   inline def dn(i: Int) = if i == Int.MinValue then Int.MinValue else i-1
 
@@ -250,8 +320,8 @@ object Iv extends Translucent.Companion[Iv, Long] {
     extension (rae: Rae)
       inline def unwrap: Long = rae
       inline def i0: Int = ((rae: Long) & 0xFFFFFFFFL).toInt
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rae: Long) >>> 32).toInt + one(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0, Iv.up(i1(target)))
+      inline def i1(in: In): Int = ((rae: Long) >>> 32).toInt + one(in)
+      inline def iv(in: In): Iv = Iv(i0, Iv.up(i1(in)))
       inline def last: End.At = End.At.wrap(((rae: Long) >>> 32).toInt)
   }
 
@@ -262,8 +332,8 @@ object Iv extends Translucent.Companion[Iv, Long] {
     extension (ras: Ras)
       inline def unwrap: Long = ras
       inline def i0: Int = ((ras: Long) & 0xFFFFFFFFL).toInt
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((ras: Long) >>> 32).toInt + zero(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0, Iv.up(i1(target)))
+      inline def i1(in: In): Int = ((ras: Long) >>> 32).toInt + zero(in)
+      inline def iv(in: In): Iv = Iv(i0, Iv.up(i1(in)))
       inline def last: Start.At = Start.At.wrap(((ras: Long) >>> 32).toInt)
   }
 
@@ -273,9 +343,9 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Rea = value
     extension (rea: Rea)
       inline def unwrap: Long = rea
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rea: Long) & 0xFFFFFFFFL).toInt + one(target)
+      inline def i0(in: In): Int = ((rea: Long) & 0xFFFFFFFFL).toInt + one(in)
       inline def i1: Int = ((rea: Long) >>> 32).toInt
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1))
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1))
       inline def first: End.At = End.At.wrap(((rea: Long) & 0xFFFFFFFFL).toInt)
   }
 
@@ -285,9 +355,9 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Ree = value
     extension (ree: Ree)
       inline def unwrap: Long = ree
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((ree: Long) & 0xFFFFFFFFL).toInt + one(target)
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((ree: Long) >>> 32).toInt + one(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def i0(in: In): Int = ((ree: Long) & 0xFFFFFFFFL).toInt + one(in)
+      inline def i1(in: In): Int = ((ree: Long) >>> 32).toInt + one(in)
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: End.At = End.At.wrap(((ree: Long) & 0xFFFFFFFFL).toInt)
       inline def last: End.At = End.At.wrap(((ree: Long) >>> 32).toInt)
       def len: Long = java.lang.Math.max(1 + ((ree: Long) >>> 32) - ((ree: Long) & 0xFFFFFFFFL), 0L)
@@ -299,9 +369,9 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Res = value
     extension (res: Res)
       inline def unwrap: Long = res
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((res: Long) & 0xFFFFFFFFL).toInt + one(target)
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((res: Long) >>> 32).toInt + zero(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def i0(in: In): Int = ((res: Long) & 0xFFFFFFFFL).toInt + one(in)
+      inline def i1(in: In): Int = ((res: Long) >>> 32).toInt + zero(in)
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: End.At = End.At.wrap(((res: Long) & 0xFFFFFFFFL).toInt)
       inline def last: Start.At = Start.At.wrap(((res: Long) >>> 32).toInt)
   }
@@ -312,9 +382,9 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Rsa = value
     extension (rsa: Rsa)
       inline def unwrap: Long = rsa
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rsa: Long) & 0xFFFFFFFFL).toInt + zero(target)
+      inline def i0(in: In): Int = ((rsa: Long) & 0xFFFFFFFFL).toInt + zero(in)
       inline def i1: Int = ((rsa: Long) >>> 32).toInt
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1))
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1))
       inline def first: Start.At = Start.At.wrap(((rsa: Long) & 0xFFFFFFFFL).toInt)
   }
 
@@ -324,9 +394,9 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Rse = value
     extension (rse: Rse)
       inline def unwrap: Long = rse
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rse: Long) & 0xFFFFFFFFL).toInt + zero(target)
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rse: Long) >>> 32).toInt + one(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def i0(in: In): Int = ((rse: Long) & 0xFFFFFFFFL).toInt + zero(in)
+      inline def i1(in: In): Int = ((rse: Long) >>> 32).toInt + one(in)
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: Start.At = Start.At.wrap(((rse: Long) & 0xFFFFFFFFL).toInt)
       inline def last: End.At = End.At.wrap(((rse: Long) >>> 32).toInt)
   }
@@ -337,16 +407,42 @@ object Iv extends Translucent.Companion[Iv, Long] {
     inline def wrap(value: Long): Rss = value
     extension (rss: Rss)
       inline def unwrap: Long = rss
-      inline def i0(target: Int | String | Array[?] | Iv): Int = ((rss: Long) & 0xFFFFFFFFL).toInt + zero(target)
-      inline def i1(target: Int | String | Array[?] | Iv): Int = ((rss: Long) >>> 32).toInt + zero(target)
-      inline def iv(target: Int | String | Array[?] | Iv): Iv = Iv(i0(target), Iv.up(i1(target)))
+      inline def i0(in: In): Int = ((rss: Long) & 0xFFFFFFFFL).toInt + zero(in)
+      inline def i1(in: In): Int = ((rss: Long) >>> 32).toInt + zero(in)
+      inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: Start.At = Start.At.wrap(((rss: Long) & 0xFFFFFFFFL).toInt)
       inline def last: Start.At = Start.At.wrap(((rss: Long) >>> 32).toInt)
       def len: Long = java.lang.Math.max(1 + ((rss: Long) >>> 32) - ((rss: Long) & 0xFFFFFFFFL), 0L)
   }
 
-  type R = Raa | Rae | Ras | Rea | Ree | Res | Rsa | Rse | Rss
+  opaque type Rxy = Long
+  object Rxy extends Translucent.Companion[Rxy, Long] {
+    inline def fromValues(first: Int, last: Int): Rxy = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
+    inline def wrap(value: Long): Rxy = value
+    extension (rxy: Rxy)
+      inline def unwrap: Long = rxy
+      inline def i0(in: In): Int =
+        val x = ((rxy: Long) & 0xFFFFFFFFL).toInt
+        inline in match
+          case n: Int      => if x < 0 then x + n        else x
+          case s: String   => if x < 0 then x + s.length else x
+          case a: Array[?] => if x < 0 then x + a.length else x
+          case iv: Iv      => if x < 0 then x + ((iv: Long) >>> 32).toInt else ((iv: Long) & 0xFFFFFFFFL).toInt + x
+      inline def i1(in: In): Int =
+        val y = ((rxy: Long) >>> 32).toInt
+        inline in match
+          case n: Int      => if y < 0 then y + n        else y
+          case s: String   => if y < 0 then y + s.length else y
+          case a: Array[?] => if y < 0 then y + a.length else y
+          case iv: Iv      => if y < 0 then y + ((iv: Long) >>> 32).toInt else ((iv: Long) & 0xFFFFFFFFL).toInt + y
+      inline def iv(in: In) = Iv(Rxy.i0(rxy)(in), Iv.up(Rxy.i1(rxy)(in)))
+  }
+
+  type R = Raa | Rae | Ras | Rea | Ree | Res | Rsa | Rse | Rss | Rxy
+
+  type R2 = Raa | Rae | Ras | Rea | Ree | Res | Rsa | Rse | Rss
 
   type X = Iv | R
-}
 
+  type Y = Iv | R2
+}

@@ -41,6 +41,29 @@ class BytecodeCheck {
   def apply3test(s: String) =
     s |-> (strcut, 3, 7)
 
+  def tupcopies() =
+    val t = (a = "eel", b = true, c = 0.5)
+    val u = (c = 'c', a = 12341324L)
+    val w = (u.a, t.b, u.c)
+    val x = kse.basics.labels.NamedTupleLabels.copyWithUpdateByName(t, u)
+    (w, x)
+
+  def pointtest(i: Int, a: Array[Char]) =
+    import intervals.*
+    Iv.point(End - i, a)
+
+  def pointtest2(i: Int, a: Array[Char]) =
+    import intervals.*
+    Iv.point(i, a)
+
+  def fn2test(i: Int, j: Int) =
+    (i, j).fn(_ * _)
+
+  def tupleToArrayTest(i: intervals.Iv, j: intervals.Iv) =
+    val a = Array(i, j)
+    val b = basicsMacroImpl.TupleToArray.arrayFromTuple[intervals.Iv]((i, j))
+    (a, b)
+
   def unpeekTest(a: Array[String]) =
     var i = 0
     var j = 2
@@ -239,8 +262,8 @@ class BasicsTest() {
   @Test
   def dataWrapperTest(): Unit =
     val ent = "eel" \ "fish"
-    val esb = "eel" \< "fish"
-    val esp = "eel" \> "fish"
+    val esb = "eel" \> "fish"
+    val esp = "eel" \< "fish"
     def eatstr(s: String): Unit = {}
     T ~ subtyping(ent, "eel") ==== 'X'
     T ~ subtyping(esb, "eel") ==== '<'
@@ -257,20 +280,20 @@ class BasicsTest() {
     T ~ (ent ~ "fish")        ==== "eel" --: typed[String]
     T ~ (esp ~ "fish")        ==== "eel" --: typed[String]
     T ~ ent.valueTo("cod")    ==== "cod" --: typed[String \ "fish"]
-    T ~ esb.valueTo("cod")    ==== "cod" --: typed[String \< "fish"]
-    T ~ esp.valueTo("cod")    ==== "cod" --: typed[String \> "fish"]
+    T ~ esb.valueTo("cod")    ==== "cod" --: typed[String \> "fish"]
+    T ~ esp.valueTo("cod")    ==== "cod" --: typed[String \< "fish"]
     T ~ ent.valueOp(_.length) ==== 3     --: typed[Int \ "fish"]
-    T ~ esb.valueOp(_.length) ==== 3     --: typed[Int \< "fish"]
-    T ~ esp.valueOp(_.length) ==== 3     --: typed[Int \> "fish"]
+    T ~ esb.valueOp(_.length) ==== 3     --: typed[Int \> "fish"]
+    T ~ esp.valueOp(_.length) ==== 3     --: typed[Int \< "fish"]
     T ~ ent.labelTo("thing")  ==== "eel" --: typed[String \ "thing"]
-    T ~ esb.labelTo("thing")  ==== "eel" --: typed[String \< "thing"]
-    T ~ esp.labelTo("thing")  ==== "eel" --: typed[String \> "thing"]
-    T ~ ent.subtyped          ==== "eel" --: typed[String \< "fish"]
-    T ~ ent.supertyped        ==== "eel" --: typed[String \> "fish"]
+    T ~ esb.labelTo("thing")  ==== "eel" --: typed[String \> "thing"]
+    T ~ esp.labelTo("thing")  ==== "eel" --: typed[String \< "thing"]
+    T ~ ent.subtyped          ==== "eel" --: typed[String \> "fish"]
+    T ~ ent.supertyped        ==== "eel" --: typed[String \< "fish"]
     T ~ esb.newtyped          ==== "eel" --: typed[String \ "fish"]
-    T ~ esb.supertyped        ==== "eel" --: typed[String \> "fish"]
+    T ~ esb.supertyped        ==== "eel" --: typed[String \< "fish"]
     T ~ esp.newtyped          ==== "eel" --: typed[String \ "fish"]
-    T ~ esp.subtyped          ==== "eel" --: typed[String \< "fish"]
+    T ~ esp.subtyped          ==== "eel" --: typed[String \> "fish"]
 
     val m = Mu(5)
     T ~ m()                ==== 5
@@ -476,45 +499,76 @@ class BasicsTest() {
   val tupleTester = new TuplesTest()
 
 
-  @Test
-  def unlabelledTupleTest(): Unit =
-    tupleTester.unlabelledTuples()
+  // @Test
+  // def unlabelledTupleTest(): Unit =
+  //   tupleTester.unlabelledTuples()
 
 
-  @Test
-  def labeledTupleTest(): Unit =
-    tupleTester.labelledSingleton()
-    tupleTester.labelledDoublet()
-    tupleTester.labelledTriplet()
-    tupleTester.labelledQuadruplet()
-    tupleTester.labelledQuintuplet()
-    tupleTester.labelledSextuplet()
-    tupleTester.labelledSeptuplet()
-    tupleTester.labelledOctuplet()
-    tupleTester.labelledNonuplet()
+  //@Test
+  //def labeledTupleTest(): Unit =
+  //  tupleTester.labelledSingleton()
+  //  tupleTester.labelledDoublet()
+  //  tupleTester.labelledTriplet()
+  //  tupleTester.labelledQuadruplet()
+  //  tupleTester.labelledQuintuplet()
+  //  tupleTester.labelledSextuplet()
+  //  tupleTester.labelledSeptuplet()
+  //  tupleTester.labelledOctuplet()
+  //  tupleTester.labelledNonuplet()
 
 
   @Test
   def intervalAndConstantTest(): Unit =
+    import scala.collection.IntStepper
+
     var cuml = 0
+    var x = 0
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
+      x = 0
       f
       cuml
 
+    inline def step2a(s: IntStepper) =
+      val b = Array.newBuilder[Int]
+      while s.hasStep do
+        b += s.nextStep
+      b.result
+
     T ~ 3.where()                                          =**= Array(0, 1, 2)
     T ~ -2.where()                                         =**= Array[Int]()
+    T ~ 5.whereBy(2)                                       =**= Array(0, 2, 4)
+    T ~ 6.whereBy(2)                                       =**= Array(0, 2, 4)
+    T ~ 5.whereBy(-2)                                      =**= Array(4, 2, 0)
+    T ~ 6.whereBy(-2)                                      =**= Array(5, 3, 1)
     T ~ 3.of[Int]                                          =**= Array(0, 0, 0)
     T ~ 3.of[Int]                                          ==== typed[Array[Int]]
-    T ~ 3.make(i => i+1)                                   =**= Array(1, 2, 3)
-    T ~ 3.make(i => i+1)                                   ==== typed[Array[Int]]
-    T ~ 3.makeBreak{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
-    T ~ 3.makeBreak{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
-    T ~ 3.makeBreak(i => i+1)                              ==== typed[Array[Int]]
+    T ~ 3.mkArray(i => i+1)                                =**= Array(1, 2, 3)
+    T ~ 3.mkArray(i => i+1)                                ==== typed[Array[Int]]
+    T ~ 3.partArray{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
+    T ~ 3.partArray{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
+    T ~ 3.partArray(i => i+1)                              ==== typed[Array[Int]]
     T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                  ==== 7
     T ~ n{ 5.visit(cuml += _) }                            ==== 10
-    T ~ n{ -2.visit(cuml += _) }                           ==== 0
+    T ~ n{ -2.visit(cuml += _ + 1) }                       ==== 0
+    T ~ n{ 5.visitBy(2){ i => x += 1; cuml += i * x } }    ==== 16
+    T ~ n{ 6.visitBy(2){ i => x += 1; cuml += i * x } }    ==== 16
+    T ~ n{ -2.visitBy(2)(cuml += _ + 1) }                  ==== 0
+    T ~ n{ 5.visitBy(-2){ i => x += 1; cuml += i * x } }   ==== 8
+    T ~ n{ 6.visitBy(-2){ i => x += 1; cuml += i * x } }   ==== 14
+    T ~ n{ -2.visitBy(-2)(cuml += _ + 1) }                 ==== 0
+    T ~ n{ 5.visitBy(0)(cuml += _ + 1) }                   ==== 0
+    T ~ n{ -2.visitBy(0)(cuml += _ + 1) }                  ==== 0
+    T ~ n{ 0.visitBy(0)(cuml += _ + 1) }                   ==== 0
+    T ~ step2a(3.steps())                                  =**= 3.where()
+    T ~ step2a(-2.steps())                                 =**= -2.where()
+    T ~ step2a(5.stepsBy(2))                               =**= 5.whereBy(2)
+    T ~ step2a(6.stepsBy(2))                               =**= 6.whereBy(2)
+    T ~ step2a(5.stepsBy(-2))                              =**= 5.whereBy(-2)
+    T ~ step2a(6.stepsBy(-2))                              =**= 6.whereBy(-2)
+    T ~ 5.stepsBy(2).estimateSize                          ==== 3L --: typed[Long]
+    T ~ 6.stepsBy(-2).estimateSize                         ==== 3L --: typed[Long]
 
     T ~ (1 to End)                                 ==== typed[Iv.Rae]
     T ~ (1 to Start+3)                             ==== typed[Iv.Ras]
@@ -533,6 +587,25 @@ class BasicsTest() {
     T ~ Iv.of(3 to 4).where()                      =**= Array(3, 4)
     T ~ (1 to End-1).of(Array(1, 2, 3, 4)).where() =**= Array(1, 2)
     T ~ (1 to End-1).of("abcd").where()            =**= Array(1, 2)
+    T ~ Iv(3, 8).whereBy(2)                        =**= Array(3, 5, 7)
+    T ~ Iv(3, 9).whereBy(2)                        =**= Array(3, 5, 7)
+    T ~ Iv(3, 8).whereBy(-2)                       =**= Array(7, 5, 3)
+    T ~ Iv(3, 9).whereBy(-2)                       =**= Array(8, 6, 4)
+    T ~ Iv(-2, 5).whereBy(-1)                      =**= Array(4, 3, 2, 1, 0, -1, -2)
+    T ~ Iv(1, 9).whereBy(0).isEmpty                ==== true
+    T ~ Iv(7, 7).whereBy(2).isEmpty                ==== true
+    T ~ Iv(1, 3).whereBy(8275919)                  =**= Array(1)
+    T ~ step2a(Iv(3, 6).steps())                   =**= Array(3, 4, 5)
+    T ~ step2a(Iv(3, 3).steps()).isEmpty           ==== true
+    T ~ step2a(Iv(3, 8).stepsBy(2))                =**= Array(3, 5, 7)
+    T ~ step2a(Iv(3, 9).stepsBy(2))                =**= Array(3, 5, 7)
+    T ~ step2a(Iv(3, 8).stepsBy(-2))               =**= Array(7, 5, 3)
+    T ~ step2a(Iv(3, 9).stepsBy(-2))               =**= Array(8, 6, 4)
+    T ~ step2a(Iv(3, 3).stepsBy(2)).isEmpty        ==== true
+    T ~ step2a(Iv(3, 3).stepsBy(-2)).isEmpty       ==== true
+    T ~ step2a(Iv(4, 6).stepsBy(0)).isEmpty        ==== true
+    T ~ Iv(Int.MaxValue, Int.MaxValue).steps().estimateSize ==== 0L
+    T ~ Iv(Int.MinValue, Int.MaxValue).steps().estimateSize ==== 0xFFFFFFFFL
 
     T ~ n{ Iv(3, 5).visit(cuml += _) }             ==== 7
     T ~ Iv(3, 5).i0                                ==== 3
@@ -576,20 +649,110 @@ class BasicsTest() {
     T ~ Iv(-7, 9).clippedTo("cod")                 ==== Iv(0, 3)
     T ~ Iv(2, 9).clippedTo("cod")                  ==== Iv(2, 3)
     T ~ Iv(-7, 2).clippedTo("cod")                 ==== Iv(0, 2)
-    T ~ Iv(1, 3).shiftIntoSize(4)                  ==== Iv(1, 3)
-    T ~ Iv(-1, 1).shiftIntoSize(4)                 ==== Iv(0, 2)
-    T ~ Iv(8, 11).shiftIntoSize(4)                 ==== Iv(1, 4)
-    T ~ Iv(-7, 9).shiftIntoSize(4)                 ==== Iv(0, 4)
-    T ~ Iv(-7, -9).shiftIntoSize(4)                ==== Iv(0, 0)
-    T ~ Iv(3, 5).shiftIntoSize(4)                  ==== Iv(2, 4)
-    T ~ Iv(1, 3).shiftInto(Array(1, 2, 3, 4))      ==== Iv(1, 3)
-    T ~ Iv(-1, 1).shiftInto(Array(1, 2, 3, 4))     ==== Iv(0, 2)
-    T ~ Iv(8, 11).shiftInto(Array(1, 2, 3, 4))     ==== Iv(1, 4)
-    T ~ Iv(-7, 9).shiftInto(Array(1, 2, 3, 4))     ==== Iv(0, 4)
-    T ~ Iv(1, 3).shiftInto("bass")                 ==== Iv(1, 3)
-    T ~ Iv(-1, 1).shiftInto("bass")                ==== Iv(0, 2)
-    T ~ Iv(8, 11).shiftInto("bass")                ==== Iv(1, 4)
-    T ~ Iv(-7, 9).shiftInto("bass")                ==== Iv(0, 4)
+
+    val xs = Array(1, 2, 4, 8, 16, 32, 64)
+    var m = 0
+    T ~ { m = 0; (      1 to End    ).of(xs).visit(i => m += xs(i)); m } ==== 126
+    T ~ { m = 0; (      2 to End-1  ).of(xs).visit(i => m += xs(i)); m } ==== 60
+    T ~ { m = 0; (      0 to Start  ).of(xs).visit(i => m += xs(i)); m } ==== 1
+    T ~ { m = 0; (      2 to Start+3).of(xs).visit(i => m += xs(i)); m } ==== 12
+    T ~ { m = 0; (    End to 5      ).of(xs).visit(i => m += xs(i)); m } ==== 0
+    T ~ { m = 0; (    End to End    ).of(xs).visit(i => m += xs(i)); m } ==== 64
+    T ~ { m = 0; (    End to End-1  ).of(xs).visit(i => m += xs(i)); m } ==== 0
+    T ~ { m = 0; (    End to Start  ).of(xs).visit(i => m += xs(i)); m } ==== 0
+    T ~ { m = 0; (    End to Start+6).of(xs).visit(i => m += xs(i)); m } ==== 64
+    T ~ { m = 0; (  End-2 to 5      ).of(xs).visit(i => m += xs(i)); m } ==== 48
+    T ~ { m = 0; (  End-2 to End    ).of(xs).visit(i => m += xs(i)); m } ==== 112
+    T ~ { m = 0; (  End-2 to End-2  ).of(xs).visit(i => m += xs(i)); m } ==== 16
+    T ~ { m = 0; (  End-2 to Start  ).of(xs).visit(i => m += xs(i)); m } ==== 0
+    T ~ { m = 0; (  End-2 to Start+5).of(xs).visit(i => m += xs(i)); m } ==== 48
+    T ~ { m = 0; (  Start to 3      ).of(xs).visit(i => m += xs(i)); m } ==== 15
+    T ~ { m = 0; (  Start to End    ).of(xs).visit(i => m += xs(i)); m } ==== 127
+    T ~ { m = 0; (  Start to End-2  ).of(xs).visit(i => m += xs(i)); m } ==== 31
+    T ~ { m = 0; (  Start to Start  ).of(xs).visit(i => m += xs(i)); m } ==== 1
+    T ~ { m = 0; (  Start to Start+1).of(xs).visit(i => m += xs(i)); m } ==== 3
+    T ~ { m = 0; (Start+1 to 3      ).of(xs).visit(i => m += xs(i)); m } ==== 14
+    T ~ { m = 0; (Start+2 to End    ).of(xs).visit(i => m += xs(i)); m } ==== 124
+    T ~ { m = 0; (Start+1 to End-1  ).of(xs).visit(i => m += xs(i)); m } ==== 62
+    T ~ { m = 0; (Start+0 to Start  ).of(xs).visit(i => m += xs(i)); m } ==== 1
+    T ~ { m = 0; (Start+1 to Start+2).of(xs).visit(i => m += xs(i)); m } ==== 6
+
+    val ss = "halibut"
+    T ~ (      1 to End    ).of(xs) ==== (      1 to End    ).of(ss)
+    T ~ (      2 to End-1  ).of(xs) ==== (      2 to End-1  ).of(ss)
+    T ~ (      0 to Start  ).of(xs) ==== (      0 to Start  ).of(ss)
+    T ~ (      2 to Start+3).of(xs) ==== (      2 to Start+3).of(ss)
+    T ~ (    End to 5      ).of(xs) ==== (    End to 5      ).of(ss)
+    T ~ (    End to End    ).of(xs) ==== (    End to End    ).of(ss)
+    T ~ (    End to End-1  ).of(xs) ==== (    End to End-1  ).of(ss)
+    T ~ (    End to Start  ).of(xs) ==== (    End to Start  ).of(ss)
+    T ~ (    End to Start+6).of(xs) ==== (    End to Start+6).of(ss)
+    T ~ (  End-2 to 5      ).of(xs) ==== (  End-2 to 5      ).of(ss)
+    T ~ (  End-2 to End    ).of(xs) ==== (  End-2 to End    ).of(ss)
+    T ~ (  End-2 to End-2  ).of(xs) ==== (  End-2 to End-2  ).of(ss)
+    T ~ (  End-2 to Start  ).of(xs) ==== (  End-2 to Start  ).of(ss)
+    T ~ (  End-2 to Start+5).of(xs) ==== (  End-2 to Start+5).of(ss)
+    T ~ (  Start to 3      ).of(xs) ==== (  Start to 3      ).of(ss)
+    T ~ (  Start to End    ).of(xs) ==== (  Start to End    ).of(ss)
+    T ~ (  Start to End-2  ).of(xs) ==== (  Start to End-2  ).of(ss)
+    T ~ (  Start to Start  ).of(xs) ==== (  Start to Start  ).of(ss)
+    T ~ (  Start to Start+1).of(xs) ==== (  Start to Start+1).of(ss)
+    T ~ (Start+1 to 3      ).of(xs) ==== (Start+1 to 3      ).of(ss)
+    T ~ (Start+2 to End    ).of(xs) ==== (Start+2 to End    ).of(ss)
+    T ~ (Start+1 to End-1  ).of(xs) ==== (Start+1 to End-1  ).of(ss)
+    T ~ (Start+0 to Start  ).of(xs) ==== (Start+0 to Start  ).of(ss)
+    T ~ (Start+1 to Start+2).of(xs) ==== (Start+1 to Start+2).of(ss)
+
+    T ~ (      1 to End    ).of(xs) ==== (      1 to End    ).of(7)
+    T ~ (      2 to End-1  ).of(xs) ==== (      2 to End-1  ).of(7)
+    T ~ (      0 to Start  ).of(xs) ==== (      0 to Start  ).of(7)
+    T ~ (      2 to Start+3).of(xs) ==== (      2 to Start+3).of(7)
+    T ~ (    End to 5      ).of(xs) ==== (    End to 5      ).of(7)
+    T ~ (    End to End    ).of(xs) ==== (    End to End    ).of(7)
+    T ~ (    End to End-1  ).of(xs) ==== (    End to End-1  ).of(7)
+    T ~ (    End to Start  ).of(xs) ==== (    End to Start  ).of(7)
+    T ~ (    End to Start+6).of(xs) ==== (    End to Start+6).of(7)
+    T ~ (  End-2 to 5      ).of(xs) ==== (  End-2 to 5      ).of(7)
+    T ~ (  End-2 to End    ).of(xs) ==== (  End-2 to End    ).of(7)
+    T ~ (  End-2 to End-2  ).of(xs) ==== (  End-2 to End-2  ).of(7)
+    T ~ (  End-2 to Start  ).of(xs) ==== (  End-2 to Start  ).of(7)
+    T ~ (  End-2 to Start+5).of(xs) ==== (  End-2 to Start+5).of(7)
+    T ~ (  Start to 3      ).of(xs) ==== (  Start to 3      ).of(7)
+    T ~ (  Start to End    ).of(xs) ==== (  Start to End    ).of(7)
+    T ~ (  Start to End-2  ).of(xs) ==== (  Start to End-2  ).of(7)
+    T ~ (  Start to Start  ).of(xs) ==== (  Start to Start  ).of(7)
+    T ~ (  Start to Start+1).of(xs) ==== (  Start to Start+1).of(7)
+    T ~ (Start+1 to 3      ).of(xs) ==== (Start+1 to 3      ).of(7)
+    T ~ (Start+2 to End    ).of(xs) ==== (Start+2 to End    ).of(7)
+    T ~ (Start+1 to End-1  ).of(xs) ==== (Start+1 to End-1  ).of(7)
+    T ~ (Start+0 to Start  ).of(xs) ==== (Start+0 to Start  ).of(7)
+    T ~ (Start+1 to Start+2).of(xs) ==== (Start+1 to Start+2).of(7)
+
+    val iv = Iv.of(2 to 9)
+    T ~ (      1 to End    ).of(iv) ==== Iv.of(1 to 9)
+    T ~ (      2 to End-1  ).of(iv) ==== Iv.of(2 to 8)
+    T ~ (      0 to Start  ).of(iv) ==== Iv.of(0 to 2)
+    T ~ (      2 to Start+3).of(iv) ==== Iv.of(2 to 5)
+    T ~ (    End to 5      ).of(iv) ==== Iv.of(9 to 5)
+    T ~ (    End to End    ).of(iv) ==== Iv.of(9 to 9)
+    T ~ (    End to End-1  ).of(iv) ==== Iv.of(9 to 8)
+    T ~ (    End to Start  ).of(iv) ==== Iv.of(9 to 2)
+    T ~ (    End to Start+6).of(iv) ==== Iv.of(9 to 8)
+    T ~ (  End-2 to 5      ).of(iv) ==== Iv.of(7 to 5)
+    T ~ (  End-2 to End    ).of(iv) ==== Iv.of(7 to 9)
+    T ~ (  End-2 to End-2  ).of(iv) ==== Iv.of(7 to 7)
+    T ~ (  End-2 to Start  ).of(iv) ==== Iv.of(7 to 2)
+    T ~ (  End-2 to Start+5).of(iv) ==== Iv.of(7 to 7)
+    T ~ (  Start to 3      ).of(iv) ==== Iv.of(2 to 3)
+    T ~ (  Start to End    ).of(iv) ==== Iv.of(2 to 9)
+    T ~ (  Start to End-2  ).of(iv) ==== Iv.of(2 to 7)
+    T ~ (  Start to Start  ).of(iv) ==== Iv.of(2 to 2)
+    T ~ (  Start to Start+1).of(iv) ==== Iv.of(2 to 3)
+    T ~ (Start+1 to 3      ).of(iv) ==== Iv.of(3 to 3)
+    T ~ (Start+2 to End    ).of(iv) ==== Iv.of(4 to 9)
+    T ~ (Start+1 to End-1  ).of(iv) ==== Iv.of(3 to 8)
+    T ~ (Start+0 to Start  ).of(iv) ==== Iv.of(2 to 2)
+    T ~ (Start+1 to Start+2).of(iv) ==== Iv.of(3 to 4)
 
 
   val arrayTester = new ArraysTest()

@@ -456,10 +456,10 @@ object Display {
         attempt:
           a.peek(){ b =>
             target append ' '
-            (target.length < m-1).!
+            (target.length < m-1).true_!
             spaci = target.length
             disp.appendImpl(target, b, if disp.nesting then space - (spaci - l) - 3 max 1 else space, flags)
-            (target.length <= m-1).!
+            (target.length <= m-1).true_!
           }
           target append ']'
         .default:

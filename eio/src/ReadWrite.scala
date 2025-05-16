@@ -20,6 +20,7 @@ import kse.maths.{given, _}
 
 trait Send[A, -B] {
   inline final def apply(in: A, out: B): Ask[Long] = limited(Long.MaxValue)(in, out)
+  inline final def uncounted(in: A, out: B): Ask[Unit] = limited(Long.MaxValue)(in, out).map(_ => ())
   def limited(count: Long)(in: A, out: B): Ask[Long]
 }
 object Send {
@@ -104,7 +105,7 @@ object Send {
       var m = 0L max count
       var nz = 0
       while m - n > 0L do
-        if m - n < data.length then buffer.limit((m - n).toInt)
+        if m - n < data.length then buffer.limit((m - n).toInt) __ Unit
         val k = in.read(buffer)
         if k < 0 then m = 0L
         else if k == 0 then
@@ -120,7 +121,7 @@ object Send {
             if (maxb - bigger).in(1, maxb >>> 3) then bigger = maxb
             data = new Array[Byte](bigger)
             buffer = data.buffer()
-          else buffer.clear
+          else buffer.clear() __ Unit
       n
   }
 
@@ -141,7 +142,7 @@ object Send {
       var r = 0
       while m - n > 0L do
         if k == 0 then
-          if m - n < buffer.capacity then buffer.limit((m - n).toInt)
+          if m - n < buffer.capacity then buffer.limit((m - n).toInt) __ Unit
           k = in.read(buffer)
           if k > 0 then
             buffer.flip
@@ -258,7 +259,7 @@ object Send {
         while i < passes do
           val bb = if i == 0 then ab.buffer() else { ebuf.clear; ebuf }
           i += 1
-          if m - n < bb.limit then bb.limit((m - n).toInt)
+          if m - n < bb.limit then bb.limit((m - n).toInt) __ Unit
           var nr = 0
           while bb.remaining > 0 && nr <= maxr do
             val w = out.write(bb)
@@ -441,21 +442,21 @@ extension (iter: IterableOnce[String]) {
   def writeTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openWrite())(_.close): out =>
       val it = iter.iterator
-      tr(it, out)
+      tr.uncounted(it, out).?
       if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 
   @targetName("ioStringAppendTo")
   def appendTo(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openAppend())(_.close): out =>
       val it = iter.iterator
-      tr(it, out)
+      tr.uncounted(it, out).?
       if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 
   @targetName("ioStringCreateAt")
   def createAt(p: Path)(using tr: Send[Iterator[String], OutputStream]): Ask[Unit] =
     Resource.Nice(p.openCreate())(_.close): out =>
       val it = iter.iterator
-      tr(it, out)
+      tr.uncounted(it, out).?
       if it.hasNext then Err ?# s"Tried to write to $p but some content was not consumed"
 }
 

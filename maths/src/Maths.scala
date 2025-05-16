@@ -4,7 +4,7 @@
 package kse.maths
 
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import java.lang.{Math => jm}
 
@@ -47,9 +47,10 @@ object NumericConstants {
   inline val OverE = 0.36787944117144233
 
   // Constants for statistical distributions; bidirectional conversions chosen so they multiply to 1.
-  inline val GaussianFWHMToSigma = 0.7413011092528010        // Conversion constant from Mathematica 8: 1/(2*InverseErf[1/2]*Sqrt[2])
-  inline val GaussianSigmaToFWHM = 1.3489795003921635        // Conversion constant from Mathematica 8: 2*InverseErf[1/2]*Sqrt[2]
-  inline val Gaussian90PctToSigma = 0.30397841595588447291   // One sigma is this fraction of the central 90% of a Gaussian distribution.    
+  // (Elided)
+  // Conversion constant from Mathematica 8: 1/(2*InverseErf[1/2]*Sqrt[2])
+  // Conversion constant from Mathematica 8: 2*InverseErf[1/2]*Sqrt[2]
+  // One sigma is this fraction of the central 90% of a Gaussian distribution.    
 
   // Constants for numeric approximation
   inline val GammaTwentyTwo = 5.109094217170944e19
@@ -2302,22 +2303,20 @@ object Vc {
       v.x == u.x && v.y == u.y
 
     def pr: String =
-      val sb = new java.lang.StringBuilder
-      sb append '['
-      sb append v.x
-      sb append ' '
-      sb append v.y
-      sb append ']'
-      sb.toString
+      MkStr: sb =>
+        sb += '['
+        sb += v.x
+        sb += ' '
+        sb += v.y
+        sb += ']'
 
     def prf(fmt: String): String =
-      val sb = new java.lang.StringBuilder
-      sb append '['
-      sb append fmt.format(v.x)
-      sb append ' '
-      sb append fmt.format(v.y)
-      sb append ']'
-      sb.toString
+      MkStr: sb =>
+        sb += '['
+        sb += fmt.format(v.x)
+        sb += ' '
+        sb += fmt.format(v.y)
+        sb += ']'
   }
 }
 extension (value: Float) {
@@ -2440,18 +2439,16 @@ object PlusMinus {
       pm.value == qm.value && pm.error == qm.error
 
     def pr: String =
-      val sb = new java.lang.StringBuilder
-      sb append pm.value
-      sb append " +- "
-      sb append pm.error
-      sb.toString
+      MkStr: sb =>
+        sb += pm.value
+        sb += " +- "
+        sb += pm.error
 
     def prf(fmt: String): String =
-      val sb = new java.lang.StringBuilder
-      sb append fmt.format(pm.value)
-      sb append " +- "
-      sb append fmt.format(pm.error)
-      sb.toString
+      MkStr: sb =>
+        sb += fmt.format(pm.value)
+        sb += " +- "
+        sb += fmt.format(pm.error)
   }
 }
 extension (value: Float | Double) {
@@ -2578,7 +2575,6 @@ object Frac {
     inline def denomL: Long = (f: Long) & 0x7FFFFFFFL
 
     inline def isExact: Boolean = ((f: Long) & 0x80000000L) == 0
-    inline def inchecked: Boolean = ((f: Long) & 0x80000000L) != 0
     inline def overflowBit: Long = (f: Long) & 0x80000000L
 
     inline def overflowed: Frac = (f: Long) | 0x80000000L
@@ -2843,7 +2839,7 @@ object Frac {
       (vq *# n) +# ((vr * n)/d)
 
   def scaleExactly(value: Long, factor: Frac): Long =
-    if factor.inchecked then throw new ArithmeticException("inchecked fraction")
+    if !factor.isExact then throw new ArithmeticException("inexact fraction")
     val n = factor.numer
     val d = factor.denom
     if n == 0 then 0L

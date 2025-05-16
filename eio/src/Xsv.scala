@@ -98,7 +98,6 @@ class Xsv private (
             visitor.breakWithError(Err(sayWhere("Non-space cell content after quote")))
       pos += i - i0
       index = i
-      Is.unit
 
   private def skipSpace[U](data: Array[Byte], i0: Int, iN: Int, visitor: Xsv.Visitor[Array[Byte], ?]): Ask[Unit] =
     skipSpaceImpl[Array[Byte], U, Byte](data, (a, i) => a(i), i0, iN, visitor)
@@ -137,7 +136,8 @@ class Xsv private (
               pos = 0
               index = i + 1
               state = if c == '\n' then Tn else Tr
-              (visitor.endquote() && visitor.newline(line)).?*
+              visitor.endquote().?*
+              visitor.newline(line).?*
               Is.unit.break()
             else if c == separator then
               // The quote is over and we've reached the end of a cell
@@ -261,7 +261,7 @@ class Xsv private (
             sspace(data, i, iN, visitor).?
             i = index
           case _ =>
-            boundary:  // Exit on quote
+            boundary[Unit]:  // Exit on quote
               while i < iN do
                 lookup(data, i) match
                   case '"' =>
@@ -371,7 +371,7 @@ class Xsv private (
         index = 0
         if k > 0 then
           var n = (128 min a.length) min (buffer.length - k)
-          a.inject(buffer, k)(0, n)
+          a.inject(buffer, k)(0, n) __ Unit
           var moreExtra = n > 0 || !more
           while index < k && moreExtra do
             visitRange(buffer, index, k + n, visitor, if !more && n == a.length then EoF else EoI).?
@@ -383,7 +383,7 @@ class Xsv private (
                 buffer = buffer.copyToSize(h)
                 if m > buffer.length - k then m = buffer.length - k
               moreExtra = m > n
-              a.inject(buffer, k + n)(n, m)
+              a.inject(buffer, k + n)(n, m) __ Unit
               n = m
           if index >= k then
             index -= k
@@ -397,7 +397,7 @@ class Xsv private (
               val h = (((k + 128L) max (2L * g)) min (Int.MaxValue - 7L)).toInt
               if k >= h then visitor.breakWithError(Err(sayWhere(s"Buffer overflow")))
               buffer = new Array[Byte](h)
-            a.inject(buffer)(index to End)
+            a.inject(buffer)(index to End) __ Unit
           else k = 0
       visitor.complete(line)
 
@@ -431,7 +431,7 @@ class Xsv private (
       while more do
         index = 0
         val s = it.next
-        visitRange(s, 0, s.length, visitor, { more = it.hasNext; if more then EoL else EoF })
+        visitRange(s, 0, s.length, visitor, { more = it.hasNext; if more then EoL else EoF }).?
         if index < s.length then visitor.breakWithError(Err(sayWhere(s"Only consumed $index of ${s.length} characters")))
       visitor.complete(line)
 
@@ -604,7 +604,6 @@ object Xsv {
         row = null
         colIdx = 0
         rowIdx += 1
-        Is.unit
 
       def complete(line: UInt): Ask[Array[Array[String]]] = Or.Ret:
         if q ne null then Err ?# "End of table in middle of quote"
@@ -626,17 +625,16 @@ object Xsv {
     extends ToStringTable[String](strictRect) {
       def unquoted(data: String, start: Int, end: Int): Ask[Unit] =
         if q ne null then Err.or(s"New token in middle of quote")
-        addToRow(data.substring(start, end))
+        else addToRow(data.substring(start, end))
 
       def quoted(data: String, start: Int, end: Int): Unit = q match
         case null => q = data.substring(start, end)
         case s: String =>
-          val sb = new java.lang.StringBuilder
-          sb append s
-          sb append data.substring(start, end)
-          q = sb
+          val sb = s.maker()
+          sb.add(data, start, end)
+          q = sb.unwrap
         case sb: java.lang.StringBuilder =>
-          sb append data.substring(start, end)
+          MkStr.wrap(sb).add(data, start, end)
     }
 
 
@@ -644,19 +642,18 @@ object Xsv {
     extends ToStringTable[Array[Byte]](strictRect) {
       def unquoted(data: Array[Byte], start: Int, end: Int): Ask[Unit] =
         if q ne null then Err.or("New token in middle of quote")
-        addToRow(new String(data, start, end-start))
+        else addToRow(new String(data, start, end-start))
 
       def quoted(data: Array[Byte], start: Int, end: Int): Unit =
         val x = if start == 0 && end == 1 && data(0) == '\n' then "\n" else new String(data, start, end-start)
         q match
           case null => q = x
           case s: String =>
-            val sb = new java.lang.StringBuilder
-            sb append s
-            sb append x
-            q = sb
+            val sb = s.maker()
+            sb += x
+            q = sb.unwrap
           case sb: java.lang.StringBuilder =>
-            sb append x
+            MkStr.wrap(sb) += x
     }
 
     def onString(strictRect: Boolean = false) = new TableFromString(strictRect)
@@ -664,16 +661,16 @@ object Xsv {
     def onBytes( strictRect: Boolean = false) = new TableFromBytes( strictRect)
   }
 
-  def encodeCell(cell: String, separator: Char)(sb: java.lang.StringBuilder): Unit =
+  def encodeCell(cell: String, separator: Char)(sb: MkStr): Unit =
     var n = -1
     escape:
       cell.visit(){ (c, i) =>
         escape.unless(c != '\r' && c != '\n' && c != '"' && c != separator).?
         n = i
       }
-    if n == cell.length-1 then sb append cell
+    if n == cell.length-1 then sb += cell
     else
-      sb append '"'
+      sb += '"'
       var m = 0
       escape:
         cell.visit(n+1 to End){ (c, i) =>
@@ -681,8 +678,8 @@ object Xsv {
           n = i
         }
       while n != cell.length-1 do
-        sb.append(cell, m, n+1)
-        sb append "\"\""
+        sb.add(cell, m, n+1)
+        sb += "\"\""
         m = n+2
         if m < cell.length then
           n = m
@@ -692,13 +689,13 @@ object Xsv {
               n = i
             }
         else n = cell.length -1
-      if m <= n then sb.append(cell, m, n+1)
-      sb append '"'
+      if m <= n then sb.add(cell, m, n+1)
+      sb += '"'
 
-  def encodeRow(cells: Array[String], separator: Char)(sb: java.lang.StringBuilder): Unit =
+  def encodeRow(cells: Array[String], separator: Char)(sb: MkStr): Unit =
     cells.visit(){ (cell, i) =>
       encodeCell(cell, separator)(sb)
-      if i+1 == cells.length then sb append "\r\n" else sb append separator
+      if i+1 == cells.length then sb += "\r\n" else sb += separator
     }
 
   def encodeTable(table: Array[Array[String]], separator: Char): Iterator[Array[Byte]] =
@@ -709,9 +706,9 @@ object Xsv {
     def hasNext = row >= 0
     def next: Array[Byte] =
       if row < 0 then Iterator.empty.next
-      val sb = "".builder()
+      val sb = MkStr.empty()
       encodeRow(table(row), separator)(sb)
-      val b = sb.toString.bytes
+      val b = sb.str().bytes
       row += 1
       if row >= table.length then
         row = -1

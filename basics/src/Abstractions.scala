@@ -10,6 +10,7 @@ import scala.util.{boundary, NotGiven}
 import scala.compiletime.summonFrom
 
 
+
 /** Typeclass that witnesses that O is actually opaquely implemented by I */
 trait Translucent[O, I] {
   final def fromOpaque(o: O): I = o.asInstanceOf[I]
@@ -68,44 +69,54 @@ type LabelVal = String & Singleton
 /** A labelled type unrelated to the thing it is labelling; create with `val x: Int \ "eel" = \(5)`; access with `x ~ "eel"` or `x.unlabel` */
 opaque infix type \[+A, L <: LabelVal] = A
 object \ {
-  inline def apply[A, L <: LabelVal](a: A): (A \ L) = a
+  opaque type Assumed[L <: LabelVal] = Unit
+  object Assumed {
+    def label[L <: LabelVal]: Assumed[L] = ()
+  }
+
+  inline def wrap[A](a: A)[L <: LabelVal]: (A \ L) = a
   extension [A, L <: LabelVal](la: A \ L)
+    inline def apply[K <: LabelVal]: A =
+      inline if compiletime.constValue[K] == compiletime.constValue[L] then la
+      else compiletime.error("Incorrect label")
+    inline def ~(using Assumed[L]): A = la
     inline def ~(l: L): A = la
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \ L) = b
     inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
     inline def labelTo[M <: LabelVal](m: M): (A \ M) = (la: A)
-    inline def subtyped: (A \< L) = (la: A)
-    inline def supertyped: (A \> L) = (la: A)
+    inline def subtyped: (A \> L) = (la: A)
+    inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
 }
 
-/** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \< "eel"`; use it directly. */
-opaque infix type \<[+A, L <: LabelVal] <: A = A
-object \< {
-  inline def apply[A, L <: LabelVal](a: A): (A \< L) = a
-  extension [A, L <: LabelVal](la: A \< L)
-    inline def unlabel: A = la
-    inline def valueTo[B](b: B): (B \< L) = b
-    inline def valueOp[B](f: A => B): (B \< L) = f((la: A))
-    inline def labelTo[M <: LabelVal](m: M): (A \< M) = (la: A)
-    inline def newtyped: (A \ L) = (la: A)
-    inline def supertyped: (A \> L) = (la: A)
-    transparent inline def label: L = compiletime.constValue[L]
-}
-
-/** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \> "eel"`; access with `x ~ "eel"` or `x.unlabel` */
-opaque infix type \>[+A, L <: LabelVal] >: A = A
+/** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \> "eel"`; use it directly. */
+opaque infix type \>[+A, L <: LabelVal] <: A = A
 object \> {
-  inline def apply[A, L <: LabelVal](a: A): (A \> L) = a
+  inline def wrap[A](a: A)[L <: LabelVal]: (A \> L) = a
   extension [A, L <: LabelVal](la: A \> L)
-    inline def ~(l: L): A = la
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \> L) = b
     inline def valueOp[B](f: A => B): (B \> L) = f((la: A))
     inline def labelTo[M <: LabelVal](m: M): (A \> M) = (la: A)
     inline def newtyped: (A \ L) = (la: A)
-    inline def subtyped: (A \< L) = (la: A)
+    inline def supertyped: (A \< L) = (la: A)
+    transparent inline def label: L = compiletime.constValue[L]
+}
+
+/** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \< "eel"`; access with `x ~ "eel"` or `x.unlabel` */
+opaque infix type \<[+A, L <: LabelVal] >: A = A
+object \< {
+  inline def wrap[A](a: A)[L <: LabelVal]: (A \< L) = a
+  extension [A, L <: LabelVal](la: A \< L)
+    inline def ~(l: L): A = la
+    inline def unlabel: A = la
+    inline def valueTo[B](b: B): (B \< L) = b
+    inline def valueOp[B](f: A => B): (B \< L) = f((la: A))
+    inline def labelTo[M <: LabelVal](m: M): (A \< M) = (la: A)
+    inline def newtyped: (A \ L) = (la: A)
+    inline def subtyped: (A \> L) = (la: A)
+    inline def tuple1: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]] = Tuple1((la: A))
     transparent inline def label: L = compiletime.constValue[L]
 }
 

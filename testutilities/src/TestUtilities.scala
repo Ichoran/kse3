@@ -1,9 +1,9 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-24 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-25 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
 
 package kse.testutilities
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}

@@ -24,6 +24,7 @@ import kse.basics.{given, _}
 /** Trait for automatic mapping of disfavored branches using `?*` returns and `autobreak` */
 infix trait AutoMap[Y, YY] extends Function1[Y, YY] {}
 
+
 extension [X, Y](or: X Or Y)
   /** Delivers the favored branch or returns, perhaps nonlocally the disfavored branch. */
   inline def ?[L >: Alt[Y]](using Label[L]): X = (or: @unchecked) match
@@ -38,11 +39,27 @@ extension [X, Y](or: X Or Y)
   inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY): X =
     or.mapAlt(m).?
 
+  /** Delivers the favored branch or jumps to a skip boundary if not. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): X = (or: @unchecked) match
+    case y: Alt[?] => boundary.break(shortcut.Skips: S)
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
+  /** Delivers the favored branch or jumps to a quit boundary if not. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): X = (or: @unchecked) match
+    case y: Alt[?] => boundary.break(shortcut.Quits: Q)
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
+  /** Delivers the favored branch or jumps to a loop/escape boundary if not. */
+  inline def escape_?(using lb: Label[escape.Token]): X = (or: @unchecked) match
+    case y: Alt[?] => boundary.break(escape.Token())
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
 extension [A](or: A Or Err)
   /** Adds an explanation for an error (independent of error content) */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A = (or: @unchecked) match
     case e: Alt[Err] => boundary.break(Alt(e.alt explainBy msg))
     case _ => Is unwrap or.asInstanceOf[Is[A]]
+
 
 extension [L, R](either: Either[L, R])
   /** Delivers the value in Right if it exists, or does a perhaps nonlocal return of the Left branch. */
@@ -55,57 +72,141 @@ extension [L, R](either: Either[L, R])
     case Right(r) => r
     case Left(l) => boundary.break(Left[LL, Nothing](f(l)))
 
+  /** Delivers the favored branch or jumps to a skip boundary if not. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): R = either match
+    case Right(r) => r
+    case _ => boundary.break(shortcut.Skips: S)
+
+  /** Delivers the favored branch or jumps to a quit boundary if not. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): R = either match
+    case Right(r) => r
+    case _ => boundary.break(shortcut.Quits: Q)
+
+  /** Delivers the favored branch or jumps to a loop/escape boundary if not. */
+  inline def escape_?(using lb: Label[escape.Token]): R = either match
+    case Right(r) => r
+    case _ => boundary.break(escape.Token())
+
+
 extension [A](option: Option[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `None` or `()`. */
   inline def ? : A = option match
     case Some(a) => a
     case _ => compiletime.summonFrom {
-      case ln: Label[None.type] => boundary.break(None)(using ln)
-      case lo: Label[Option[?]] => boundary.break(None)(using lo)
-      case lu: Label[Unit]      => boundary.break()(using lu)
-      case _                => compiletime.error("No Label found with Unit or None target")
+      case ln: Label[None.type]    => boundary.break(None)(using ln)
+      case lo: Label[Option[?]]    => boundary.break(None)(using lo)
+      case le: Label[escape.Token] => boundary.break(escape.Token())(using le)
+      case _                       => compiletime.error("No Label found with Unit or None target")
     }
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
+  inline def ?+[L](inline l: L)(using Label[L]): A = option match
+    case Some(a) => a
+    case _ => boundary.break(l)
+
+  /** Gets the value or jumps to a skip boundary. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A = option match
+    case Some(a) => a
+    case _ => boundary.break(shortcut.Skips: S)
+
+  /** Gets the value or jumps to a quit boundary. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A = option match
+    case Some(a) => a
+    case _ => boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A = option match
     case Some(a) => a
     case _ => boundary.break(Alt(Err(msg)))
 
+
 extension [A](iterator: Iterator[A])
-  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
-  inline def ?(using Label[Unit]): A =
-    if iterator.hasNext then iterator.next else boundary.break()
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to an escape/loop boundary. */
+  inline def ?(using Label[escape.Token]): A =
+    if iterator.hasNext then iterator.next else boundary.break(escape.Token())
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
+  inline def ?+[L](inline l: L)(using Label[L]): A =
+    if iterator.hasNext then iterator.next else boundary.break(l)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
+    if iterator.hasNext then iterator.next else boundary.break(shortcut.Skips: S)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
+    if iterator.hasNext then iterator.next else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
 
+
 extension [A](stepper: scala.collection.Stepper[A])
-  /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
-  inline def ?(using Label[Unit]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break()
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to an escape/loop boundary. */
+  inline def ?(using Label[escape.Token]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break(escape.Token())
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
+  inline def ?+[L](inline l: L)(using Label[L]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break(l)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break(shortcut.Skips: S)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
+    if stepper.hasStep then stepper.nextStep else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if stepper.hasStep then stepper.nextStep else boundary.break(Alt(Err(msg)))
 
+
 extension [A](iterator: java.util.Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
-  inline def ?(using Label[Unit]): A =
-    if iterator.hasNext then iterator.next else boundary.break()
+  inline def ?(using Label[escape.Token]): A =
+    if iterator.hasNext then iterator.next else boundary.break(escape.Token())
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
+  inline def ?+[L](inline l: L)(using Label[L]): A =
+    if iterator.hasNext then iterator.next else boundary.break(l)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
+    if iterator.hasNext then iterator.next else boundary.break(shortcut.Skips: S)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
+    if iterator.hasNext then iterator.next else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
 
+
 extension [A](enumerator: java.util.Enumeration[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
-  inline def ?(using Label[Unit]): A =
-    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break()
+  inline def ?(using Label[escape.Token]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(escape.Token())
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
+  inline def ?+[L](inline l: L)(using Label[L]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(l)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(shortcut.Skips: S)
+
+  /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(Alt(Err(msg)))
+
 
 extension (double: Double)
   /** Delivers the value if it is not NaN, or does a perhaps nonlocal return of NaN if the value is NaN */
@@ -120,7 +221,7 @@ extension (float: Float)
     case y => y
 
 
-/** Enables early returns in side-effecting code.  Returns true if completed normally.
+/** Enables early returns in side-effecting code.
   *
   * Usage:
   * {{{
@@ -131,25 +232,37 @@ extension (float: Float)
   * }}}
   */
 object escape {
-  inline def apply(inline f: Label[Unit] ?=> Unit): Boolean =
+  opaque type Token = Unit
+  object Token:
+    inline def apply(): Token = ()
+
+  /** Returns true if completed normally; false if not */
+  inline def completed(inline f: Label[escape.Token] ?=> Unit): Boolean =
     var executionComplete = false
-    boundary:
+    val _ = boundary[escape.Token]:
       f
       executionComplete = true
+      (): escape.Token
     executionComplete
+
+  /** Just supports early return. */
+  inline def apply(inline f: Label[escape.Token] ?=> Unit): Unit =
+    val _ = boundary[escape.Token]:
+      f
+      (): escape.Token
 
   opaque type Test = Boolean
   object Test {
     extension (p: Test)
-      inline def ?(using Label[Unit]): Unit =
-        if p then boundary.break()
+      inline def ?(using Label[escape.Token]): Unit =
+        if p then boundary.break(Token())
   }
   
   /** Exit early if test condition is true */
-  inline def when(test: Boolean): Test = test
+  inline def when(test: Boolean)(using Label[escape.Token]): Test = test
 
   /** Exit early if test condition is false */
-  inline def unless(test: Boolean)(using Label[Unit]): Test = !test
+  inline def unless(test: Boolean)(using Label[escape.Token]): Test = !test
 }
 
 
@@ -168,21 +281,21 @@ inline def calculate(inline a: Label[Double] ?=> Double): Double = boundary{ a }
 
 /** Loops until broken */
 object loop {
-  opaque type LoopToken = Unit
-
-  inline def apply(inline f: Label[LoopToken] ?=> Unit): Unit =
-    boundary[LoopToken]:
+  inline def apply(inline f: Label[escape.Token] ?=> Unit): Unit =
+    boundary[escape.Token] {
       while true do
         f
+      escape.Token()
+    }: Unit
 
-  inline def break()(using Label[LoopToken]): Nothing =
-    boundary.break((): LoopToken)
+  inline def break()(using Label[escape.Token]): Nothing =
+    boundary.break(escape.Token())
 
   opaque type Test = Boolean
   object Test {
     extension (p: Test)
-      inline def ?(using Label[LoopToken]): Unit =
-        if p then boundary.break((): LoopToken)
+      inline def ?(using Label[escape.Token]): Unit =
+        if p then boundary.break(escape.Token())
   }
 
   inline def stop(p: Boolean): Test = p
@@ -531,9 +644,19 @@ extension [A, B](pf: PartialFunction[A, B]) {
       case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => None
       case b => Some(b.asInstanceOf[B])
 
-  inline def applyOrBreak(a: A)(using lb: Label[Unit]): B =
+  inline def apply_?(a: A)(using lb: Label[escape.Token]): B =
     pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
-      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break()
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break(escape.Token())
+      case b => b.asInstanceOf[B]
+
+  inline def apply_![Z](a: A)(using lb: Label[Attempt[Z]]): B =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break(Attempt.failed)
+      case b => b.asInstanceOf[B]
+
+  inline def applyOrBreak(a: A)(using lb: Label[A]): B =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => boundary.break(a)
       case b => b.asInstanceOf[B]
 
   inline def liftToOr: A => B Or Unit =
@@ -726,98 +849,58 @@ object attempt {
 extension [X, Y](or: X Or Y)
   inline def ![A](using Label[kse.flow.Attempt[A]]): X =
     or.getOrElse(_ => boundary.break(kse.flow.Attempt.failed))
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): X =
-    or.getOrElse(_ => boundary.break(shortcut.Quits: T))
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): X =
-    or.getOrElse(_ => boundary.break(shortcut.Skips: T))
 
 extension [L, R](either: Either[L, R])
   inline def ![A](using Label[kse.flow.Attempt[A]]): R = either match
     case Right(r) => r
     case _        => boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): R = either match
-    case Right(r) => r
-    case _        => boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): R = either match
-    case Right(r) => r
-    case _        => boundary.break(shortcut.Skips: T)
 
 extension [O](option: Option[O])
   inline def ![A](using Label[kse.flow.Attempt[A]]): O = option match
     case Some(o) => o
     case _       => boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): O = option match
-    case Some(o) => o
-    case _       => boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): O = option match
-    case Some(o) => o
-    case _       => boundary.break(shortcut.Skips: T)
 
 extension [T](`try`: Try[T])
   inline def ![A](using Label[kse.flow.Attempt[A]]): T = `try` match
     case Success(t) => t
     case _          => boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[S >: shortcut.Quits.type](using Label[S]): T = `try` match
+  inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using Label[Q]): T = `try` match
     case Success(t) => t
-    case _          => boundary.break(shortcut.Quits: S)
-  inline def orSkip[S >: shortcut.Skips.type](using Label[S]): T = `try` match
+    case _          => boundary.break(kse.basics.shortcut.Quits: Q)
+  inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using Label[S]): T = `try` match
     case Success(t) => t
-    case _          => boundary.break(shortcut.Skips: S)
+    case _          => boundary.break(kse.basics.shortcut.Skips: S)
 
 extension [I](iterator: Iterator[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
-    if iterator.hasNext then iterator.next
-    else boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
-    if iterator.hasNext then iterator.next
-    else boundary.break(shortcut.Skips: T)
 
 extension [I](stepper: scala.collection.Stepper[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if stepper.hasStep then stepper.nextStep
     else boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
-    if stepper.hasStep then stepper.nextStep
-    else boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
-    if stepper.hasStep then stepper.nextStep
-    else boundary.break(shortcut.Skips: T)
 
 extension [I](iterator: java.util.Iterator[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if iterator.hasNext then iterator.next
     else boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
-    if iterator.hasNext then iterator.next
-    else boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
-    if iterator.hasNext then iterator.next
-    else boundary.break(shortcut.Skips: T)
 
 extension [I](enumerator: java.util.Enumeration[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
     if enumerator.hasMoreElements then enumerator.nextElement
     else boundary.break(kse.flow.Attempt.failed)
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): I =
-    if enumerator.hasMoreElements then enumerator.nextElement
-    else boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): I =
-    if enumerator.hasMoreElements then enumerator.nextElement
-    else boundary.break(shortcut.Skips: T)
 
 extension (z: Boolean)
-  inline def ![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+  inline def true_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
     if z then kse.flow.Attempt.Passed.value
     else boundary.break(kse.flow.Attempt.failed)
-  inline def not_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+  inline def false_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
     if z then boundary.break(kse.flow.Attempt.failed)
     else kse.flow.Attempt.Passed.value
-  inline def orQuit[T >: shortcut.Quits.type](using Label[T]): Unit =
+  inline def quit_?[T >: shortcut.Quits.type](using Label[T]): Unit =
     if !z then boundary.break(shortcut.Quits: T)
-  inline def orSkip[T >: shortcut.Skips.type](using Label[T]): Unit =
+  inline def skip_?[T >: shortcut.Skips.type](using Label[T]): Unit =
     if !z then boundary.break(shortcut.Skips: T)
 
 extension [A](a: A)
@@ -827,4 +910,7 @@ extension [A](a: A)
       case y => y.asInstanceOf[B]
   inline def attemptCase[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
     attempt:
+      a.case_!(pf)
+  inline def attemptCaseSafe[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
+    attempt.safe:
       a.case_!(pf)

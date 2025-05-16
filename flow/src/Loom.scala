@@ -22,7 +22,7 @@ object Fu {
     val failure: AtomicReference[Err Or Unit] = new AtomicReference(Alt.unit)
     def fail(err: Err): Unit =
       if failure.compareAndSet(Alt.unit, Is(err)) then
-        service.shutdownNow()
+        service.shutdownNow() __ Unit
   }
 
   opaque type Executor = ExecutorService | GroupExecutor
@@ -34,7 +34,7 @@ object Fu {
         case es: ExecutorService => es
         case GroupExecutor(es)   => es
       def stopIfGroup(): Unit = e match
-        case GroupExecutor(es) => es.shutdownNow()
+        case GroupExecutor(es) => es.shutdownNow() __ Unit
         case _ =>
       def swapError(old: Err): Err = e match
         case g: GroupExecutor => g.failure.get.getOrElse(_ => old)
@@ -114,7 +114,7 @@ extension [A](a: Array[kse.flow.Fu[A]]) {
     a.visit(){ (x, i) =>
       Fu.ask(x)().fold(v(i) = _){ e =>
         if b eq null then b = scala.collection.mutable.ArrayBuffer.empty[Err]
-        b += e
+        val _ = b += e
       }
     }
     if b ne null then

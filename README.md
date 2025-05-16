@@ -14,9 +14,8 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.4 and later due to its use of
-`scala.util.boundary` and same-named extensions from multiple namespaces.
-It also assumes at least Java 21.**
+**Warning: kse3 only works on Scala 3.7 and later due to its use of
+`scala.util.boundary` and named tuples.  It also assumes at least Java 21.**
 
 
 ## How do I get it?
@@ -26,7 +25,7 @@ Make sure your module has a sufficiently recent 3.4 or later (at least 3.4.2).  
 so that is probably the best version to use.  For example, in mill:
 
 ```scala
-def scalaVersion = "3.5.0"
+def scalaVersion = "3.7.0"
 ```
 
 And add at least one of
@@ -176,8 +175,12 @@ a.peek()(n += _)
 println(n)      // Prints 10
 ```
 
-There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`,
-and if you have a tuple which is entirely labelled, you can refer to the values by name by using `~` if you `import kse.basics.labels._`
+There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`.  If
+you have a tuple that is entirely labeled, you can convert it into a named tuple with `.named`; if you have a named tuple, you can
+convert it to a tuple of labeled values with `.labeled`.
+
+The tags enforce identity by requiring you to give the name (string) after `~` in order to recover the value.  If you tag types with unique
+names, you can use `conjure("name")` instead of `summon[Type \ "name"]`!
 
 ```scala
 import kse.basics.labels._
@@ -198,7 +201,10 @@ welcome(("Jane", "Doe")) // Compile-time error; labels are needed
 welcome(("Jane", "Doe").label)  // Works, .label means infer labels
 ```
 
-Use it whenever identity is really important, but types aren't specific enough.
+Use it whenever identity is really important, but types aren't specific enough.  If you want your tagged type
+to be a subtype or supertype of the original type--less secure, but there are cases where it is convenient--then
+use `\>` or `\<` respectively (the mnemonic being `x \> "label"` means that `x` itself is bigger than with the label).
+You can also convert between the three types by using `newtyped`, `subtyped`, and `supertyped`.
 
 There's an extra-easy interface to atomic types, too (plus counters and toggles).  Use `val a = Atom(value)` to declare an atomic value,
 then get it with `a()`, set it with `a := newValue`, and update it atomically (using CAS operations, so the

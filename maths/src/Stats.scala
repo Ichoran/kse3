@@ -141,21 +141,21 @@ object Est {
     def -=(est: Est): Unit = incorporate(-est.n, est.mean, est.sse)
 
     def ++=(values: Array[Int]): Unit =
-      values.peek(): i =>
+      values.visit(): (i, _) =>
         val x = i.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     def ++=(values: Array[Long]): Unit =
-      values.peek(): l =>
+      values.visit(): (l, _) =>
         val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     def ++=(values: Array[Float]): Unit =
-      values.peek(): v =>
+      values.visit(): (v, _) =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
@@ -163,7 +163,7 @@ object Est {
           sse += (u - mean)*(u - mold)
           n += 1
     def ++=(values: Array[Double]): Unit =
-      values.peek(): v =>
+      values.visit(): (v, _) =>
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
@@ -194,21 +194,21 @@ object Est {
         this += f(values.next)
 
     @targetName("raw_add_I") def addRange(values: Array[Int])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): j =>
+      values.visit(i0, iN): (j, _) =>
         val x = j.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     @targetName("raw_add_L") def addRange(values: Array[Long])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): l =>
+      values.visit(i0, iN): (l, _) =>
         val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     @targetName("raw_add_F") def addRange(values: Array[Float])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): v =>
+      values.visit(i0, iN): (v, _) =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
@@ -216,7 +216,7 @@ object Est {
           sse += (u - mean)*(u - mold)
           n += 1
     @targetName("raw_add_D") def addRange(values: Array[Double])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): v =>
+      values.visit(i0, iN): (v, _) =>
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
@@ -234,21 +234,21 @@ object Est {
     @targetName("raw_add_D_iv") inline def addRange(values: Array[Double])(inline v: Iv.X): Unit = { val iv = v of values; addRange(values)(iv.i0, iv.iN) }
 
     @targetName("clip_add_I") def addRange(values: ClippedArray[Int])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): j =>
+      values.visit(i0, iN): (j, _) =>
         val x = j.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     @targetName("clip_add_L") def addRange(values: ClippedArray[Long])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): l =>
+      values.visit(i0, iN): (l, _) =>
         val x = l.toDouble
         val mold = mean
         mean = (n*mean + x)/(n+1)
         sse += (x - mean)*(x - mold)
         n += 1
     @targetName("clip_add_F") def addRange(values: ClippedArray[Float])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): v =>
+      values.visit(i0, iN): (v, _) =>
         if !v.nan then
           val u = v.toDouble
           val mold = mean
@@ -256,7 +256,7 @@ object Est {
           sse += (u - mean)*(u - mold)
           n += 1
     @targetName("clip_add_D") def addRange(values: ClippedArray[Double])(i0: Int, iN: Int): Unit =
-      values.peek(i0, iN): v =>
+      values.visit(i0, iN): (v, _) =>
         if !v.nan then
           val mold = mean
           mean = (n*mean + v)/(n+1)
@@ -275,7 +275,7 @@ object Est {
 
 
     @targetName("raw_add_with") inline def addRangeWith[A](values: Array[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
-      values.peek(i0, iN): x =>
+      values.visit(i0, iN): (x, _) =>
         val v = f(x)
         if !v.nan then
           val mold = mean
@@ -287,7 +287,7 @@ object Est {
 
 
     @targetName("clip_add_with") inline def addRangeWith[A](values: ClippedArray[A])(i0: Int, iN: Int)(inline f: A => Double): Unit =
-      values.peek(i0, iN): x =>
+      values.visit(i0, iN): (x, _) =>
         val v = f(x)
         if !v.nan then
           val mold = mean

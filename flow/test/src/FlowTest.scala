@@ -1304,64 +1304,65 @@ class FlowTest {
 
     {
       var k = 0
-      T ~ escape{ k += 1; escape.when(k > 1).?;    k += 1 } ==== true
-      T ~ escape{ k += 1; escape.unless(k <= 1).?; k += 1 } ==== false
+      T ~ escape.completed{ k += 1; escape.when(k > 1).?;    k += 1 } ==== true
+      T ~ escape.completed{ k += 1; escape.unless(k <= 1).?; k += 1 } ==== false
       T ~ k ==== 3
-      T ~ { loop{ k += 1; if k > 4 then loop.break() }; k } ==== 5
-      T ~ { loop{ k += 1; loop.stop(k > 7).? }; k }         ==== 8
-      T ~ { loop{ k += 1; loop.proceed(k < 10).? }; k }     ==== 10
+      T ~ { escape{ k += 1; escape.when(k > 1).?; k += 1 }; val kk = k; escape{ k += 1; escape.unless(k <= 10).?; k += 1 }; k*kk } ==== 24
+      T ~ { loop{ k += 1; if k > 7 then loop.break() }; k } ==== 8
+      T ~ { loop{ k += 1; loop.stop(k > 10).? }; k }         ==== 11
+      T ~ { loop{ k += 1; loop.proceed(k < 13).? }; k }     ==== 13
     }
 
-    T ~ attempt( optionQ1("eel").! ).default(0)                               ==== 0
-    T ~ attempt( optionQ1("888").! ).default(0)                               ==== 888
-    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).!; n - 1 }.default(0)     ==== 0
-    T ~ attempt{ val n = optionQ1("888").!; (n > 9).!; n - 1 }.default(0)     ==== 887
-    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).!; n - 1 }.default(0)     ==== 0
-    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).not_!; n - 1 }.default(0) ==== 0
-    T ~ attempt{ val n = optionQ1("888").!; (n > 9).not_!; n - 1 }.default(0) ==== 0
-    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).not_!; n - 1 }.default(0) ==== 4
-    T ~ attempt( eitherQ1("eel").! ).default(0)                               ==== 0
-    T ~ attempt( eitherQ1("888").! ).default(0)                               ==== 889
-    T ~ attempt( Try("eel".toInt).! ).default(0)                              ==== 0
-    T ~ attempt( Try("888".toInt).! ).default(0)                              ==== 888
-    T ~ attempt( orQ1("eel").! ).default(0)                                   ==== 0
-    T ~ attempt( orQ1("888").! ).default(0)                                   ==== 888
+    T ~ attempt( optionQ1("eel").! ).default(0)                                 ==== 0
+    T ~ attempt( optionQ1("888").! ).default(0)                                 ==== 888
+    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).true_!; n - 1 }.default(0)  ==== 0
+    T ~ attempt{ val n = optionQ1("888").!; (n > 9).true_!; n - 1 }.default(0)  ==== 887
+    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).true_!; n - 1 }.default(0)  ==== 0
+    T ~ attempt{ val n = optionQ1("eel").!; (n > 9).false_!; n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1("888").!; (n > 9).false_!; n - 1 }.default(0) ==== 0
+    T ~ attempt{ val n = optionQ1(  "5").!; (n > 9).false_!; n - 1 }.default(0) ==== 4
+    T ~ attempt( eitherQ1("eel").! ).default(0)                                 ==== 0
+    T ~ attempt( eitherQ1("888").! ).default(0)                                 ==== 889
+    T ~ attempt( Try("eel".toInt).! ).default(0)                                ==== 0
+    T ~ attempt( Try("888".toInt).! ).default(0)                                ==== 888
+    T ~ attempt( orQ1("eel").! ).default(0)                                     ==== 0
+    T ~ attempt( orQ1("888").! ).default(0)                                     ==== 888
     val itn = Iterator(5)
-    T ~ attempt( itn.! ).default(0)                                           ==== 5
-    T ~ attempt( itn.! ).default(0)                                           ==== 0
+    T ~ attempt( itn.! ).default(0)                                             ==== 5
+    T ~ attempt( itn.! ).default(0)                                             ==== 0
     val stn = Array(5).stepper
-    T ~ attempt( stn.! ).default(0)                                           ==== 5
-    T ~ attempt( stn.! ).default(0)                                           ==== 0
+    T ~ attempt( stn.! ).default(0)                                             ==== 5
+    T ~ attempt( stn.! ).default(0)                                             ==== 0
     val jtn = java.util.Arrays.stream(Array(5)).iterator
-    T ~ attempt( jtn.! ).default(0)                                           ==== 5
-    T ~ attempt( jtn.! ).default(0)                                           ==== 0
+    T ~ attempt( jtn.! ).default(0)                                             ==== 5
+    T ~ attempt( jtn.! ).default(0)                                             ==== 0
     val enn = new java.util.Enumeration[Int]() { 
       private var i = 5
       def hasMoreElements = i > 0
       def nextElement = { val ans = i; i = 0; ans } 
     }
-    T ~ attempt( enn.! ).default(0)                                           ==== 5
-    T ~ attempt( enn.! ).default(0)                                           ==== 0
-    T ~ attempt.safe{ "eel".toInt }.default(0)                                ==== 0
-    T ~ attempt.safe{ "888".toInt }.default(0)                                ==== 888
-    T ~ threadsafe{ attempt.safe{ toss(); 5 }.default(0) }.grab               ==== thrown[ErrType.CatchableException]
-    T ~ attempt.threadsafe{ "eel".toInt }.default(0)                          ==== 0
-    T ~ attempt.threadsafe{ "888".toInt }.default(0)                          ==== 888
-    T ~ attempt.threadsafe{ toss(); 5   }.default(0)                          ==== 0
-    T ~ "eel".attemptCase{ case s if s.length > 3 => s.length }.default(0)    ==== 0
-    T ~ "bass".attemptCase{ case s if s.length > 3 => s.length }.default(0)   ==== 4
-    T ~ attempt(enn.!).safe("eel".toInt).default(0)                           ==== 0
-    T ~ attempt(enn.!).safe("888".toInt).default(0)                           ==== 888
-    T ~ attempt(enn.!).threadsafe("eel".toInt).default(0)                     ==== 0
-    T ~ attempt(enn.!).threadsafe("888".toInt).default(0)                     ==== 888
-    T ~ attempt(enn.!).orCase("eel"){ case "bass" => 1 }.default(0)           ==== 0
-    T ~ attempt(enn.!).orCase("bass"){ case "bass" => 1 }.default(0)          ==== 1
-    T ~ attempt{ "eel".case_!{ case "bass" => 1 } }.default(0)                ==== 0
-    T ~ attempt{ "bass".case_!{ case "bass" => 1 } }.default(0)               ==== 1
-    T ~ attempt(enn.!).safeCase("eel"(3)){ case 's' => 1 }.default(0)         ==== 0
-    T ~ attempt(enn.!).safeCase("bass"(3)){ case 's' => 1 }.default(0)        ==== 1
-    T ~ attempt(enn.!).threadsafeCase("eel"(3)){ case 's' => 1 }.default(0)   ==== 0
-    T ~ attempt(enn.!).threadsafeCase("bass"(3)){ case 's' => 1 }.default(0)  ==== 1
+    T ~ attempt( enn.! ).default(0)                                             ==== 5
+    T ~ attempt( enn.! ).default(0)                                             ==== 0
+    T ~ attempt.safe{ "eel".toInt }.default(0)                                  ==== 0
+    T ~ attempt.safe{ "888".toInt }.default(0)                                  ==== 888
+    T ~ threadsafe{ attempt.safe{ toss(); 5 }.default(0) }.grab                 ==== thrown[ErrType.CatchableException]
+    T ~ attempt.threadsafe{ "eel".toInt }.default(0)                            ==== 0
+    T ~ attempt.threadsafe{ "888".toInt }.default(0)                            ==== 888
+    T ~ attempt.threadsafe{ toss(); 5   }.default(0)                            ==== 0
+    T ~ "eel".attemptCase{ case s if s.length > 3 => s.length }.default(0)      ==== 0
+    T ~ "bass".attemptCase{ case s if s.length > 3 => s.length }.default(0)     ==== 4
+    T ~ attempt(enn.!).safe("eel".toInt).default(0)                             ==== 0
+    T ~ attempt(enn.!).safe("888".toInt).default(0)                             ==== 888
+    T ~ attempt(enn.!).threadsafe("eel".toInt).default(0)                       ==== 0
+    T ~ attempt(enn.!).threadsafe("888".toInt).default(0)                       ==== 888
+    T ~ attempt(enn.!).orCase("eel"){ case "bass" => 1 }.default(0)             ==== 0
+    T ~ attempt(enn.!).orCase("bass"){ case "bass" => 1 }.default(0)            ==== 1
+    T ~ attempt{ "eel".case_!{ case "bass" => 1 } }.default(0)                  ==== 0
+    T ~ attempt{ "bass".case_!{ case "bass" => 1 } }.default(0)                 ==== 1
+    T ~ attempt(enn.!).safeCase("eel"(3)){ case 's' => 1 }.default(0)           ==== 0
+    T ~ attempt(enn.!).safeCase("bass"(3)){ case 's' => 1 }.default(0)          ==== 1
+    T ~ attempt(enn.!).threadsafeCase("eel"(3)){ case 's' => 1 }.default(0)     ==== 0
+    T ~ attempt(enn.!).threadsafeCase("bass"(3)){ case 's' => 1 }.default(0)    ==== 1
 
     def jasi(s: String): java.util.Iterator[String] =
       java.util.Arrays.stream(s.copyOp( (c, _) => c.toString)).iterator
@@ -1370,24 +1371,24 @@ class FlowTest {
       def hasMoreElements = i > 0
       def nextElement = { val ans = i; i -= 1; ans } 
     }
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).orQuit } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, i) =>  eitherQ1(s).orSkip } =**= Array(9, 10)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  eitherQ1(s).orQuit } =**= Array(9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).orQuit } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).orSkip } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).orQuit } =**= Array(8)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.orSkip        }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.orQuit        }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .orSkip.toChar }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .orQuit.toChar }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).orSkip.head   }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).orQuit.head   }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orSkip }                              =**= Array(3, 2)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).orQuit }                              =**= Array(3)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).orSkip; n + 1 }                       =**= Array(3, 4)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).orQuit; n + 1 }                       =**= Array(3)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).quit_? } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, i) =>  eitherQ1(s).skip_? } =**= Array(9, 10)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  eitherQ1(s).quit_? } =**= Array(9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).quit_? } =**= Array(8)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).quit_? } =**= Array(8)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.skip_?        }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.quit_?        }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .skip_?.toChar }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .quit_?.toChar }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).skip_?.head   }.str ==== "lm"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).quit_?.head   }.str ==== "l"
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).skip_? }                              =**= Array(3, 2)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).quit_? }                              =**= Array(3)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).skip_?; n + 1 }                       =**= Array(3, 4)
+    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).quit_?; n + 1 }                       =**= Array(3)
 
     val l = Left("herring")
     val r = Right(15)
@@ -1710,10 +1711,10 @@ class FlowTest {
     }
 
     T ~ n{ escape{ val xs = o2; cuml += xs(0).?; cuml += xs(1).?; cuml += xs(2).?; cuml += 9 } } ==== 8
-    T ~ n{ escape{ val xs = i2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
-    T ~ n{ escape{ val xs = s2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
-    T ~ n{ escape{ val xs = j2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
-    T ~ n{ escape{ val xs = e2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9} }           ==== 8
+    T ~ n{ escape{ val xs = i2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9 } }          ==== 8
+    T ~ n{ escape{ val xs = s2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9 } }          ==== 8
+    T ~ n{ escape{ val xs = j2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9 } }          ==== 8
+    T ~ n{ escape{ val xs = e2; cuml += xs.?; cuml += xs.?; cuml += xs.?; cuml += 9 } }          ==== 8
 
     T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no";                        "yes" }          ==== (Is("yes"), 8)
     T ~ e{ val xs = o2; cuml += xs(0) ?# "no"; cuml += xs(1) ?# "no"; cuml += xs(2) ?# "no"; "yes" }          ==== (Err.or("no"), 8)

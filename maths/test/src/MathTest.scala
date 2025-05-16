@@ -714,16 +714,16 @@ class MathTest {
         if ans == 0 then 10*i*uniqueSubset(full, part, n, part.length)
         else ans
 
-      var five: Array[Float] = 5.make(_ => r3.F)
-      while five.toSet.size != 5 do five = 5.make(_ => r3.F)
+      var five: Array[Float] = 5.mkArray(_ => r3.F)
+      while five.toSet.size != 5 do five = 5.mkArray(_ => r3.F)
       val fiveSet = five.toSet
 
-      var hund: Array[Float] = 100.make(_ => r3.F)
-      while hund.toSet.size != 100 do hund = 100.make(_ => r3.F)
+      var hund: Array[Float] = 100.mkArray(_ => r3.F)
+      while hund.toSet.size != 100 do hund = 100.mkArray(_ => r3.F)
       val hundSet = hund.toSet
 
-      var tenk: Array[Float] = 10000.make(_ => r3.F)
-      while tenk.toSet.size != 10000 do tenk = 10000.make(_ => r3.F)
+      var tenk: Array[Float] = 10000.mkArray(_ => r3.F)
+      while tenk.toSet.size != 10000 do tenk = 10000.mkArray(_ => r3.F)
       val tenkSet = tenk.toSet
 
       val text = "anchovies"
@@ -913,7 +913,7 @@ class MathTest {
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = if z then 1: Byte else 0: Byte
       index + 1
-    def hashInto(h: SimpleIncrementalHash): h.type = h += z
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += z; h }
   }
   case class HB(b: Byte) extends H {
     def bytes = 1
@@ -921,7 +921,7 @@ class MathTest {
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = b
       index + 1
-    def hashInto(h: SimpleIncrementalHash): h.type = h += b
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += b; h }
   }
   case class HS(s: Short) extends H {
     def bytes = 2
@@ -930,7 +930,7 @@ class MathTest {
       ab(index) = (s & 0xFF).toByte
       ab(index + 1) = ((s & 0xFF00) >> 8).toByte
       index + 2
-    def hashInto(h: SimpleIncrementalHash): h.type = h += s
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += s; h }
   }
   case class HC(c: Char) extends H {
     def bytes = 2
@@ -939,7 +939,7 @@ class MathTest {
       ab(index) = (c & 0xFF).toByte
       ab(index + 1) = ((c & 0xFF00) >> 8).toByte
       index + 2
-    def hashInto(h: SimpleIncrementalHash): h.type = h += c
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += c; h }
   }
   case class HI(i: Int) extends H {
     def bytes = 4
@@ -950,7 +950,7 @@ class MathTest {
       ab(index + 2) = ((i & 0xFF0000) >> 16).toByte
       ab(index + 3) = ((i & 0xFF000000) >> 24).toByte
       index + 4
-    def hashInto(h: SimpleIncrementalHash): h.type = h += i
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += i; h }
   }
   case class HL(l: Long) extends H {
     def bytes = 8
@@ -965,7 +965,7 @@ class MathTest {
       ab(index + 6) = ((l & 0xFF000000000000L) >> 48).toByte
       ab(index + 7) = ((l & 0xFF00000000000000L) >> 56).toByte
       index + 8
-    def hashInto(h: SimpleIncrementalHash): h.type = h += l
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += l; h }
   }
   class Hp(val proxy: H) extends H {
     def bytes = proxy.bytes
@@ -984,7 +984,7 @@ class MathTest {
       System.arraycopy(this.ab, j0, ab, index, bytes)
       index + bytes
     def hashInto(h: SimpleIncrementalHash): h.type =
-      if i0 == 0 && iN == ab.length then h += ab
+      if i0 == 0 && iN == ab.length then { h += ab; h }
       else
         h.append(ab, i0, iN)
         h
@@ -1027,7 +1027,7 @@ class MathTest {
         j += 1
         i += 2
       i
-    def hashInto(h: SimpleIncrementalHash): h.type = h += s
+    def hashInto(h: SimpleIncrementalHash): h.type = { h += s; h }
   }
   case class Hiter(i: scala.collection.Iterable[H]) extends H {
     def bytes = i.foldLeft(0)(_ + _.bytes)
@@ -3002,8 +3002,6 @@ class MathTest {
     T ~ badf.denom     ==== 1
     T ~ fr.isExact               ==== true
     T ~ badf.isExact             ==== false
-    T ~ fr.inchecked               ==== false
-    T ~ badf.inchecked             ==== true
     T ~ fr.overflowBit           ==== 0L
     T ~ badf.overflowBit         ==== 0x80000000L
     T ~ fr.overflowed.numer      ==== 20
@@ -3021,14 +3019,14 @@ class MathTest {
     T ~ f2.abs.numer     ==== -f2.numer
     T ~ f2.abs.denom     ==== f2.denom
     T ~ badf.abs.numer   ==== -badf.numer
-    T ~ badf.abs.inchecked ==== true
-    T ~ ovrf.abs.inchecked ==== true
+    T ~ badf.abs.isExact ==== false
+    T ~ ovrf.abs.isExact ==== false
     T ~ (-fr).numer      ==== -fr.numer
     T ~ (-fr).denom      ==== fr.denom
     T ~ (-f2)            ==== (18 over 35)
     T ~ (-badf).numer    ==== -badf.numer
-    T ~ (-badf).inchecked  ==== true
-    T ~ (-ovrf).inchecked  ==== true
+    T ~ (-badf).isExact  ==== false
+    T ~ (-ovrf).isExact  ==== false
     T ~ fr.toInt         ==== 6
     T ~ f2.toInt         ==== 0
     T ~ fr.floor         ==== 6
@@ -3042,70 +3040,70 @@ class MathTest {
     T ~ (fr + f2)           ==== (646 over 105)
     T ~ ((9 over 20) + f2)  ==== (-9 over 140)
     T ~ (badf + f2)         ==== badf
-    T ~ (fr + ovrf).inchecked ==== true
-    T ~ (ovrf + fr).inchecked ==== true
-    T ~ (ovrf + 2).inchecked  ==== true
-    T ~ (2 + ovrf).inchecked  ==== true
+    T ~ (fr + ovrf).isExact ==== false
+    T ~ (ovrf + fr).isExact ==== false
+    T ~ (ovrf + 2).isExact  ==== false
+    T ~ (2 + ovrf).isExact  ==== false
     val bigplus = (2000000000 over 1) + (2000000001 over 2)
-    T ~ bigplus.inchecked  ==== true
+    T ~ bigplus.isExact  ==== false
     T ~ bigplus.numer    ==== Int.MaxValue
     val largeplus = (2000000000 over 3) + (2000000001 over 4)
     T ~ (largeplus.numer < Int.MaxValue) ==== true
     T ~ largeplus.denom                  ==== 1
-    T ~ largeplus.inchecked                ==== true
+    T ~ largeplus.isExact                ==== false
     val impreciseplus = (1293815714 over 318571605) + (781517561 over 2018675117)
-    T ~ impreciseplus.inchecked        ==== true
+    T ~ impreciseplus.isExact        ==== false
     T ~ impreciseplus.denom          ==== 299463314
-    T ~ (impreciseplus + fr).inchecked ==== true
-    T ~ (fr + impreciseplus).inchecked ==== true
+    T ~ (impreciseplus + fr).isExact ==== false
+    T ~ (fr + impreciseplus).isExact ==== false
     val bittyplus = (3 over 2000000000) + (2 over 2000000001)
     T ~ (bittyplus.denom < Int.MaxValue) ==== true
     T ~ bittyplus.numer                  ==== 1
-    T ~ bittyplus.inchecked                ==== true
+    T ~ bittyplus.isExact                ==== false
     val zeroplus = (1 over 2000000000) + (-1 over 2000000001)
     T ~ zeroplus ==== (0 over 1).overflowed
     val bigplusinrange = (2000000000 over 1) + Int.MinValue
     T ~ bigplusinrange         ==== (-147483648 over 1)
-    T ~ bigplusinrange.inchecked ==== false
+    T ~ bigplusinrange.isExact ==== true
     T ~ (fr - 2)            ==== (14 over 3)
     T ~ (2 - fr)            ==== (-14 over 3)
     T ~ ((9 over 20) - f2)  ==== (27 over 28)
     T ~ (badf - f2)         ==== badf
-    T ~ (fr - ovrf).inchecked ==== true
-    T ~ (ovrf - fr).inchecked ==== true
-    T ~ (ovrf - 2).inchecked  ==== true
-    T ~ (2 - ovrf).inchecked  ==== true
+    T ~ (fr - ovrf).isExact ==== false
+    T ~ (ovrf - fr).isExact ==== false
+    T ~ (ovrf - 2).isExact  ==== false
+    T ~ (2 - ovrf).isExact  ==== false
     val bigminus = (2000000000 over 1) - (-2000000001 over 2)
-    T ~ bigminus.inchecked  ==== true
+    T ~ bigminus.isExact  ==== false
     T ~ bigminus.numer    ==== Int.MaxValue
     val largeminus = (-2000000000 over 3) - (2000000001 over 4)
     T ~ (largeminus.numer > -Int.MaxValue) ==== true
     T ~ largeminus.denom                   ==== 1
-    T ~ largeminus.inchecked                 ==== true
+    T ~ largeminus.isExact                 ==== false
     T ~ (largeplus + largeminus)           ==== 0x80000001L
     val impreciseminus = (1293815714 over 318571605) - (781517561 over 2018675117)
-    T ~ impreciseminus.inchecked        ==== true
+    T ~ impreciseminus.isExact        ==== false
     T ~ impreciseminus.denom          ==== 299463314
-    T ~ (impreciseminus - fr).inchecked ==== true
-    T ~ (fr - impreciseminus).inchecked ==== true
+    T ~ (impreciseminus - fr).isExact ==== false
+    T ~ (fr - impreciseminus).isExact ==== false
     val bittyminus = (3 over 2000000000) - (-2 over 2000000001)
     T ~ (bittyminus.denom < Int.MaxValue) ==== true
     T ~ bittyminus.numer                  ==== 1
-    T ~ bittyminus.inchecked                ==== true
+    T ~ bittyminus.isExact                ==== false
     val zerominus = (1 over 2000000000) - (1 over 2000000001)
     T ~ zerominus ==== (0 over 1).overflowed
     val bigminusinrange = (-2000000000 over 1) - Int.MinValue
     T ~ bigminusinrange         ==== (147483648 over 1)
-    T ~ bigminusinrange.inchecked ==== false
+    T ~ bigminusinrange.isExact ==== true
     T ~ (fr * 2)            ==== (40 over 3)
     T ~ (f2 * 5)            ==== (-18 over 7)
     T ~ (5 * fr)            ==== (fr * 5)
     T ~ (fr * f2)           ==== (-24 over 7)
     T ~ (badf * fr)         ==== badf
-    T ~ (fr * ovrf).inchecked ==== true
-    T ~ (ovrf * fr).inchecked ==== true
-    T ~ (ovrf * 2).inchecked  ==== true
-    T ~ (2 * ovrf).inchecked  ==== true
+    T ~ (fr * ovrf).isExact ==== false
+    T ~ (ovrf * fr).isExact ==== false
+    T ~ (ovrf * 2).isExact  ==== false
+    T ~ (2 * ovrf).isExact  ==== false
     val bigmuli = fr * 1000000000
     T ~ bigmuli ==== (Int.MaxValue over 1).overflowed
     val bigmulf = fr * (2000000001 over 2)
@@ -3113,16 +3111,16 @@ class MathTest {
     val largemul = fr * (400000000 over 3)
     T ~ (largemul.numer < Int.MaxValue) ==== true
     T ~ largemul.denom                  ==== 1
-    T ~ largemul.inchecked                ==== true
+    T ~ largemul.isExact                ==== false
     val imprecisemul = (1293815714 over 318571605) * (781517561 over 2018675117)
-    T ~ imprecisemul.inchecked        ==== true
+    T ~ imprecisemul.isExact        ==== false
     T ~ imprecisemul.denom          ==== 871166007
-    T ~ (imprecisemul * fr).inchecked ==== true
-    T ~ (fr * imprecisemul).inchecked ==== true
+    T ~ (imprecisemul * fr).isExact ==== false
+    T ~ (fr * imprecisemul).isExact ==== false
     val bittymul = f2 * (2 over 1917918581)
     T ~ (bittymul.denom < Int.MaxValue) ==== true
     T ~ bittymul.numer                  ==== -1
-    T ~ bittymul.inchecked                ==== true
+    T ~ bittymul.isExact                ==== false
     val zeromul = (1 over 10100101) * (-1 over 10101001)
     T ~ zeromul ==== (0 over 1).overflowed
     T ~ (fr / 2)            ==== (10 over 3)
@@ -3130,10 +3128,10 @@ class MathTest {
     T ~ (2 / fr)            ==== (3 over 10)
     T ~ (fr / f2)           ==== (-350 over 27)
     T ~ (badf / -f2)        ==== badf
-    T ~ (fr / ovrf).inchecked ==== true
-    T ~ (ovrf / fr).inchecked ==== true
-    T ~ (ovrf / 2).inchecked  ==== true
-    T ~ (2 / ovrf).inchecked  ==== true
+    T ~ (fr / ovrf).isExact ==== false
+    T ~ (ovrf / fr).isExact ==== false
+    T ~ (ovrf / 2).isExact  ==== false
+    T ~ (2 / ovrf).isExact  ==== false
     val tinydivi = f2 / -2000000000
     T ~ tinydivi ==== (0 over 1).overflowed
     val bigdivf = (1000000 over 3) / (3 over 2000000)
@@ -3141,7 +3139,7 @@ class MathTest {
     val largediv = fr / (3 over 200000000)
     T ~ (largediv.numer < Int.MaxValue) ==== true
     T ~ largediv.denom                  ==== 1
-    T ~ largediv.inchecked                ==== true
+    T ~ largediv.isExact                ==== false
     val imprecisediv = (1293815714 over 318571605) / (2018675117 over 781517561)
     T ~ imprecisediv ==== imprecisemul
     val bittydiv = f2 / (1917918581 over 2)
@@ -3152,8 +3150,8 @@ class MathTest {
     val f4 = 91956397 over 20006152
     T ~ fr.reciprocal            ==== (3 over 20)
     T ~ f2.reciprocal            ==== (-35 over 18)
-    T ~ badf.reciprocal.inchecked  ==== true
-    T ~ ovrf.reciprocal.inchecked  ==== true
+    T ~ badf.reciprocal.isExact  ==== false
+    T ~ ovrf.reciprocal.isExact  ==== false
     T ~ f2.reciprocal.reciprocal ==== f2
     T ~ (0 over 1).reciprocal    ==== (1 over 0)
     T ~ (fr =~= fr)           ==== true

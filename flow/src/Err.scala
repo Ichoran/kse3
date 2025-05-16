@@ -29,7 +29,7 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
     def toOr: String Or ErrType = e.underlying match
       case s: String => Is(s)
       case t: ErrType => Alt(t)
-    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit = e.underlying match
+    def buildLines(sb: MkStr, prefix: String): Unit = e.underlying match
       case s: String  => ErrType.buildLinesFromString(sb, s, prefix)
       case t: ErrType => t.buildLines(sb, prefix)
 
@@ -59,33 +59,31 @@ trait ErrType {
   /** Converts this into a `Throwable`.  This `Throwable` should be `catchable`--wrap in `ErrType.CatchableException` if necessary. */
   def toThrowable: Throwable
 
-  /** Adds a description of this error, indented as requested, to a `StringBuilder` */
-  def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit
+  /** Adds a description of this error, indented as requested, to a `StringBuilder` wrapped as a `MkStr` */
+  def buildLines(sb: MkStr, prefix: String): Unit
 }
 object ErrType {
-  def buildLinesFromString(sb: java.lang.StringBuilder, s: String, prefix: String): Unit =
+  def buildLinesFromString(sb: MkStr, s: String, prefix: String): Unit =
     var i = 0
     var j = s.indexOf('\n')
     while j >= 0 do
-      sb append prefix
+      sb += prefix
       if j > i then
         if s.charAt(j-1) == '\r' then
-          if j-1 > i then sb.append(s, i, j-1)
-        else sb.append(s, i, j)
-      sb append '\n'
+          if j-1 > i then sb.add(s, i, j-1)
+        else sb.add(s, i, j)
+      sb.addln()
       i = j + 1
       j = if i < s.length then s.indexOf('\n', i) else -1
     if i < s.length then
-      sb append prefix
-      sb.append(s, i, s.length)
-      if s.charAt(s.length-1) != '\n' then sb append '\n'
+      sb += prefix
+      sb.add(s, i, s.length)
+      if s.charAt(s.length-1) != '\n' then sb.addln()
   
   private def indentString(string: String, indent: String = "  ", header: String = ""): String =
-    val sb = new java.lang.StringBuilder
-    if header.nonEmpty then buildLinesFromString(sb, header, "")
-    buildLinesFromString(sb, string, indent)
-    sb.toString
-
+    MkStr: sb =>
+      if header.nonEmpty then buildLinesFromString(sb, header, "")
+      buildLinesFromString(sb, string, indent)
 
   final class StringErrException(msg: String) extends RuntimeException(msg, null, true, false) {
     override def toString = 
@@ -108,7 +106,7 @@ object ErrType {
 
     override lazy val toString = explainer(error)
 
-    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+    def buildLines(sb: MkStr, prefix: String): Unit =
       buildLinesFromString(sb, this.toString, prefix)
 
     def toThrowable = if error.catchable then error else new CatchableException("", error)
@@ -136,7 +134,7 @@ object ErrType {
 
     override lazy val toString = indentString(error.toString, indent = indent, header = explanation)
 
-    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+    def buildLines(sb: MkStr, prefix: String): Unit =
       if explanation.nonEmpty then buildLinesFromString(sb, explanation, prefix)
       Err.buildLines(error)(sb, prefix + indent)
 
@@ -171,12 +169,11 @@ object ErrType {
 
     override def hashCode = errs.##
 
-    override lazy val toString = 
-      val sb = new java.lang.StringBuilder()
-      buildLines(sb, "")
-      sb.toString
+    override lazy val toString =
+      MkStr: sb =>
+        buildLines(sb, "")
 
-    def buildLines(sb: java.lang.StringBuilder, prefix: String): Unit =
+    def buildLines(sb: MkStr, prefix: String): Unit =
       buildLinesFromString(sb, if desc.isEmpty then s"Multiple errors found (${errs.length})" else desc, prefix)
       val fmt = s"%0${errs.length.toString.length}d: "
       var i = 0

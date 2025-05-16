@@ -18,6 +18,7 @@ import scala.collection.immutable.{Range => Rg}
 import kse.basics.intervals._
 
 
+
 extension (ivx: Iv.X) {
   inline def of(inline target: Int | String | Array[?] | Iv): Iv = inline ivx match
     case iv:  Iv     => iv
@@ -30,6 +31,7 @@ extension (ivx: Iv.X) {
     case rsa: Iv.Rsa => rsa.iv(target)
     case rse: Iv.Rse => rse.iv(target)
     case rss: Iv.Rss => rss.iv(target)
+    case rxy: Iv.Rxy => rxy.iv(target)
   inline def index0(inline target: Int | String | Array[?] | Iv): Int = inline ivx match
     case iv:  Iv     => iv.i0
     case raa: Iv.Raa => raa.i0
@@ -41,6 +43,7 @@ extension (ivx: Iv.X) {
     case rsa: Iv.Rsa => rsa.i0(target)
     case rse: Iv.Rse => rse.i0(target)
     case rss: Iv.Rss => rss.i0(target)
+    case rxy: Iv.Rxy => rxy.i0(target)
   inline def indexN(inline target: Int | String | Array[?] | Iv): Int = inline ivx match
     case iv:  Iv     => iv.iN
     case raa: Iv.Raa => Iv.up(raa.i1)
@@ -52,7 +55,11 @@ extension (ivx: Iv.X) {
     case rsa: Iv.Rsa => Iv.up(rsa.i1)
     case rse: Iv.Rse => Iv.up(rse.i1(target))
     case rss: Iv.Rss => Iv.up(rss.i1(target))
-  transparent inline def zero = inline ivx match
+    case rxy: Iv.Rxy => Iv.up(rxy.i1(target))
+}
+
+extension(ivy: Iv.Y) {
+  transparent inline def zero = inline ivy match
     case iv:  Iv     => iv.i0
     case raa: Iv.Raa => raa.i0
     case rae: Iv.Rae => rae.i0
@@ -63,7 +70,7 @@ extension (ivx: Iv.X) {
     case rsa: Iv.Rsa => rsa.first
     case rse: Iv.Rse => rse.first
     case rss: Iv.Rss => rss.first
-  transparent inline def one = inline ivx match
+  transparent inline def one = inline ivy match
     case iv:  Iv     => Iv.dn(iv.iN)
     case raa: Iv.Raa => raa.i1
     case rae: Iv.Rae => rae.last
@@ -88,9 +95,25 @@ extension (i: Int) {
 
   @targetName("to_Start_At") inline infix def to(end: Start.At): Iv.Ras = Iv.Ras.fromValues(i, end.unwrap)
 
+  inline def ꓺ    = Iv.Rxy.fromValues(i, -1)
+  inline def `..` = Iv.Rxy.fromValues(i, -1)
+
+  inline infix def ꓺ(   j: Int) = Iv.Rxy.fromValues(i, if (j & 0x7FFFFFFF) == 0 then j else j-1)
+  inline infix def `..`(j: Int) = Iv.Rxy.fromValues(i, if (j & 0x7FFFFFFF) == 0 then j else j-1)
+
+  inline infix def ꓺꘌ(   j: Int) = Iv.Rxy.fromValues(i, j)
+  inline infix def `..=`(j: Int) = Iv.Rxy.fromValues(i, j)
+
+  inline infix def ꓺ(   end: End.type) = Iv.Rxy.fromValues(i, -1)
+  inline infix def `..`(end: End.type) = Iv.Rxy.fromValues(i, -1)
+
   inline def of[A](using ClassTag[A]): Array[A] =
     new Array[A](if i > 0 then i else 0)
 }
+
+inline def ꓺ:    Iv.Rxy = Iv.Rxy.wrap(0xFFFF_FFFF_0000_0000L)
+inline def `..`: Iv.Rxy = Iv.Rxy.wrap(0xFFFF_FFFF_0000_0000L)
+
 
 
 extension [A](a: Array[A]) {
@@ -120,14 +143,6 @@ extension (a: String) {
     a
 
   inline def arr: Array[Char] = a.toCharArray
-
-  inline def builder(): java.lang.StringBuilder =
-    if a.length == 0 then new java.lang.StringBuilder() else new java.lang.StringBuilder(a)
-
-  inline def build(inline f: java.lang.StringBuilder => Unit): String =
-    val b = new java.lang.StringBuilder(a)
-    f(b)
-    b.toString
 }
 
 
@@ -907,12 +922,12 @@ object Atom {
 
   extension [A <: Int | Long](a: Atom[A]) {
     inline def ++ : Unit = inline erasedValue[A] match
-      case _: Int  => a.asInstanceOf[AtomicInteger].incrementAndGet()
-      case _: Long => a.asInstanceOf[AtomicLong].incrementAndGet()
+      case _: Int  => a.asInstanceOf[AtomicInteger].incrementAndGet(): Unit
+      case _: Long => a.asInstanceOf[AtomicLong].incrementAndGet(): Unit
     
     inline def -- : Unit = inline erasedValue[A] match
-      case _: Int  => a.asInstanceOf[AtomicInteger].decrementAndGet()
-      case _: Long => a.asInstanceOf[AtomicLong].decrementAndGet()
+      case _: Int  => a.asInstanceOf[AtomicInteger].decrementAndGet(): Unit
+      case _: Long => a.asInstanceOf[AtomicLong].decrementAndGet(): Unit
   }
 
   opaque type Count = LongAdder
@@ -1008,25 +1023,138 @@ inline def __[A](a: A): A = a
 
 
 extension [A](a: A) {
-  /** Apply a function to this value and return the result.  Same as `pipe`. */
-  inline def fn[B](inline f: A => B): B = f(a)
+  /** Apply a function to this value and return the result.  Same as `pipe`, except it can be tupled. */
+  inline infix def fn[B](inline op: A => B): B = op(a)
 
-  /** Apply a function to this value and return the result.  Same as `pipe`. */
-  inline def pipe[B](inline f: A => B): B = f(a)
+  /** Apply a function to this value and return the result.  Same as `fn`, except tuple inputs are always treated whole. */
+  inline infix def pipe[B](inline f: A => B): B = f(a)
 
   /** Apply a side-effecting function to this value; return the original value */
   inline def tap(inline f: A => Unit): A = { f(a); a }
+
+  /** Apply a side-effecting function to this value; discard the value. */
+  inline def consume(inline f: A => Unit): Unit = f(a)
+
+  /** Discard the value in an observable way. Use as __ Unit */
+  inline infix def __(nothing: Unit.type): Unit = inline compiletime.erasedValue[A] match
+    case _: Unit => compiletime.error("Cannot discard a value that is already Unit")
+    case _       => ()
 
   /** Apply a test and alter the value if it passes */
   inline def fixIf(inline p: A => Boolean)(inline f: A => A): A = if p(a) then f(a) else a
 
   inline def |->[Z](inline op: A => Z): Z = op(a)
   inline def |->[B, Z](inline opb: ((A, B) => Z, B)) = basicsMacroImpl.applyWithoutBoxing2(a, opb)
-  inline def |->[B, C, Z](inline opbc: ((A, B, C) => Z, B, C)) = basicsMacroImpl.applyWithoutBoxing3(a, opbc)
-  inline def |->[B, C, D, Z](inline opbcd: ((A, B, C, D) => Z, B, C, D)) = basicsMacroImpl.applyWithoutBoxing4(a, opbcd) 
-  inline def |->[B, C, D, E, Z](inline opbcde: ((A, B, C, D, E) => Z, B, C, D, E)) = basicsMacroImpl.applyWithoutBoxing5(a, opbcde) 
-  inline def |->[B, C, D, E, F, Z](inline opbcdef: ((A, B, C, D, E, F) => Z, B, C, D, E, F)) = basicsMacroImpl.applyWithoutBoxing6(a, opbcdef) 
-  inline def |->[B, C, D, E, F, G, Z](inline opbcdefg: ((A, B, C, D, E, F, G) => Z, B, C, D, E, F, G)) = basicsMacroImpl.applyWithoutBoxing7(a, opbcdefg) 
-  inline def |->[B, C, D, E, F, G, H, Z](inline opbcdefgh: ((A, B, C, D, E, F, G, H) => Z, B, C, D, E, F, G, H)) = basicsMacroImpl.applyWithoutBoxing8(a, opbcdefgh) 
-  inline def |->[B, C, D, E, F, G, H, I, Z](inline opbcdefghi: ((A, B, C, D, E, F, G, H, I) => Z, B, C, D, E, F, G, H, I)) = basicsMacroImpl.applyWithoutBoxing9(a, opbcdefghi) 
+  inline def |->[B, C, Z](inline op3: ((A, B, C) => Z, B, C)) = basicsMacroImpl.applyWithoutBoxing3(a, op3)
+  inline def |->[B, C, D, Z](inline op4: ((A, B, C, D) => Z, B, C, D)) = basicsMacroImpl.applyWithoutBoxing4(a, op4)
+  inline def |->[B, C, D, E, Z](inline op5: ((A, B, C, D, E) => Z, B, C, D, E)) = basicsMacroImpl.applyWithoutBoxing5(a, op5)
+  inline def |->[B, C, D, E, F, Z](inline op6: ((A, B, C, D, E, F) => Z, B, C, D, E, F)) = basicsMacroImpl.applyWithoutBoxing6(a, op6)
+  inline def |->[B, C, D, E, F, G, Z](inline op7: ((A, B, C, D, E, F, G) => Z, B, C, D, E, F, G)) = basicsMacroImpl.applyWithoutBoxing7(a, op7)
+  inline def |->[B, C, D, E, F, G, H, Z](inline op8: ((A, B, C, D, E, F, G, H) => Z, B, C, D, E, F, G, H)) = basicsMacroImpl.applyWithoutBoxing8(a, op8)
+  inline def |->[B, C, D, E, F, G, H, I, Z](inline op9: ((A, B, C, D, E, F, G, H, I) => Z, B, C, D, E, F, G, H, I)) = basicsMacroImpl.applyWithoutBoxing9(a, op9)
+  inline def |->[B, C, D, E, F, G, H, I, J, Z](inline op10: ((A, B, C, D, E, F, G, H, I, J) => Z, B, C, D, E, F, G, H, I, J)) = basicsMacroImpl.applyWithoutBoxing10(a, op10)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, Z](inline op11: ((A, B, C, D, E, F, G, H, I, J, K) => Z, B, C, D, E, F, G, H, I, J, K)) = basicsMacroImpl.applyWithoutBoxing11(a, op11)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, Z](inline op12: ((A, B, C, D, E, F, G, H, I, J, K, L) => Z, B, C, D, E, F, G, H, I, J, K, L)) = basicsMacroImpl.applyWithoutBoxing12(a, op12)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, Z](inline op13: ((A, B, C, D, E, F, G, H, I, J, K, L, M) => Z, B, C, D, E, F, G, H, I, J, K, L, M)) = basicsMacroImpl.applyWithoutBoxing13(a, op13)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, Z](inline op14: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N)) = basicsMacroImpl.applyWithoutBoxing14(a, op14)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, Z](inline op15: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O)) = basicsMacroImpl.applyWithoutBoxing15(a, op15)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Z](inline op16: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)) = basicsMacroImpl.applyWithoutBoxing16(a, op16)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Z](inline op17: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)) = basicsMacroImpl.applyWithoutBoxing17(a, op17)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Z](inline op18: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)) = basicsMacroImpl.applyWithoutBoxing18(a, op18)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Z](inline op19: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)) = basicsMacroImpl.applyWithoutBoxing19(a, op19)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Z](inline op20: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)) = basicsMacroImpl.applyWithoutBoxing20(a, op20)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Z](inline op21: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)) = basicsMacroImpl.applyWithoutBoxing21(a, op21)
+  inline def |->[B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Z](inline op22: ((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V) => Z, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)) = basicsMacroImpl.applyWithoutBoxing22(a, op22)
 }
+
+
+extension [A, B](inline tup2: (A, B))
+  inline def fn[Z](inline op2: (A, B) => Z): Z = basicsMacroImpl.fnWithoutBoxing2(tup2, op2)
+
+extension [A, B, C](inline tup3: (A, B, C))
+  inline def fn[Z](inline op3: (A, B, C) => Z): Z = basicsMacroImpl.fnWithoutBoxing3(tup3, op3)
+
+extension [A, B, C, D](inline tup4: (A, B, C, D))
+  inline def fn[Z](inline op4: (A, B, C, D) => Z): Z = basicsMacroImpl.fnWithoutBoxing4(tup4, op4)
+
+extension [A, B, C, D, E](inline tup5: (A, B, C, D, E))
+  inline def fn[Z](inline op5: (A, B, C, D, E) => Z): Z = basicsMacroImpl.fnWithoutBoxing5(tup5, op5)
+
+extension [A, B, C, D, E, F](inline tup6: (A, B, C, D, E, F))
+  inline def fn[Z](inline op6: (A, B, C, D, E, F) => Z): Z = basicsMacroImpl.fnWithoutBoxing6(tup6, op6)
+
+extension [A, B, C, D, E, F, G](inline tup7: (A, B, C, D, E, F, G))
+  inline def fn[Z](inline op7: (A, B, C, D, E, F, G) => Z): Z = basicsMacroImpl.fnWithoutBoxing7(tup7, op7)
+
+extension [A, B, C, D, E, F, G, H](inline tup8: (A, B, C, D, E, F, G, H))
+  inline def fn[Z](inline op8: (A, B, C, D, E, F, G, H) => Z): Z = basicsMacroImpl.fnWithoutBoxing8(tup8, op8)
+
+extension [A, B, C, D, E, F, G, H, I](inline tup9: (A, B, C, D, E, F, G, H, I))
+  inline def fn[Z](inline op9: (A, B, C, D, E, F, G, H, I) => Z): Z = basicsMacroImpl.fnWithoutBoxing9(tup9, op9)
+
+extension [A, B, C, D, E, F, G, H, I, J](inline tup10: (A, B, C, D, E, F, G, H, I, J))
+  inline def fn[Z](inline op10: (A, B, C, D, E, F, G, H, I, J) => Z): Z = basicsMacroImpl.fnWithoutBoxing10(tup10, op10)
+
+extension [A, B, C, D, E, F, G, H, I, J, K](inline tup11: (A, B, C, D, E, F, G, H, I, J, K))
+  inline def fn[Z](inline op11: (A, B, C, D, E, F, G, H, I, J, K) => Z): Z = basicsMacroImpl.fnWithoutBoxing11(tup11, op11)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L](inline tup12: (A, B, C, D, E, F, G, H, I, J, K, L))
+  inline def fn[Z](inline op12: (A, B, C, D, E, F, G, H, I, J, K, L) => Z): Z = basicsMacroImpl.fnWithoutBoxing12(tup12, op12)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M](inline tup13: (A, B, C, D, E, F, G, H, I, J, K, L, M))
+  inline def fn[Z](inline op13: (A, B, C, D, E, F, G, H, I, J, K, L, M) => Z): Z = basicsMacroImpl.fnWithoutBoxing13(tup13, op13)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N](inline tup14: (A, B, C, D, E, F, G, H, I, J, K, L, M, N))
+  inline def fn[Z](inline op14: (A, B, C, D, E, F, G, H, I, J, K, L, M, N) => Z): Z = basicsMacroImpl.fnWithoutBoxing14(tup14, op14)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O](inline tup15: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O))
+  inline def fn[Z](inline op15: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) => Z): Z = basicsMacroImpl.fnWithoutBoxing15(tup15, op15)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P](inline tup16: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P))
+  inline def fn[Z](inline op16: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P) => Z): Z = basicsMacroImpl.fnWithoutBoxing16(tup16, op16)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q](inline tup17: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q))
+  inline def fn[Z](inline op17: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q) => Z): Z = basicsMacroImpl.fnWithoutBoxing17(tup17, op17)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R](inline tup18: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R))
+  inline def fn[Z](inline op18: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R) => Z): Z = basicsMacroImpl.fnWithoutBoxing18(tup18, op18)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S](inline tup19: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S))
+  inline def fn[Z](inline op19: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S) => Z): Z = basicsMacroImpl.fnWithoutBoxing19(tup19, op19)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T](inline tup20: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T))
+  inline def fn[Z](inline op20: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T) => Z): Z = basicsMacroImpl.fnWithoutBoxing20(tup20, op20)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U](inline tup21: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U))
+  inline def fn[Z](inline op21: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U) => Z): Z = basicsMacroImpl.fnWithoutBoxing21(tup21, op21)
+
+extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V](inline tup22: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V))
+  inline def fn[Z](inline op22: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V) => Z): Z = basicsMacroImpl.fnWithoutBoxing22(tup22, op22)
+/*
+
+################
+## GENERATORS ##
+################
+
+def mkArrowPipe(n: Int) =
+  assert(n > 1 && n < 26)
+  val args = "ABCDEFGHIJKLMNOPQRSTUVWXY".take(n).map(_.toString)
+  val arga = args.mkString(", ")
+  val argb = args.drop(1).mkString(", ")
+  println(s"inline def |->[$argb, Z](inline op$n: (($arga) => Z, $argb)) = basicsMacroImpl.applyWithoutBoxing$n(a, op$n)")
+
+for n <- 3 to 22 do
+  mkArrowPipe(n)
+
+def mkFnTup(n: Int) =
+  assert(n > 1 && n < 26)
+  val args = "ABCDEFGHIJKLMNOPQRSTUVWXY".take(n).map(_.toString)
+  val arga = args.mkString(", ")
+  println(s"extension [$arga](inline tup$n: ($arga))")
+  println(s"  inline def fn[Z](inline op$n: ($arga) => Z): Z = basicsMacroImpl.fnWithoutBoxing$n(tup$n, op$n)")
+  println()
+
+for n <- 3 to 22 do
+  mkFnTup(n)
+
+*/
