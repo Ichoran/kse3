@@ -808,65 +808,6 @@ object NamedTupleLabels {
 }
 
 
-object NamedTupleOperations {
-  import compiletime.ops.any.*
-  import compiletime.ops.boolean.*
-  import compiletime.ops.int.*
-  import NamedTuple.{NamedTuple => NTup}
-
-  type FilterName0[N, Ns1 <: Tuple, Vs1 <: Tuple] <: Option[Any] =
-    (Ns1, Vs1) match
-      case (N *: ns, v *: vs) => Some[v]
-      case (_ *: ns, _ *: vs) => FilterName0[N, ns, vs]
-      case (EmptyTuple, EmptyTuple) => None.type
-
-  /*
-
-  type OptIndexOf[N, N2 <: Tuple, Acc <: Int] <: Option[Int] = N2 match
-    case N *: _ => Some[Acc]
-    case _ *: ns => OptIndexOf[N, ns, S[Acc]]
-    case EmptyTuple => None.type
-
-  type Copy0[N <: Tuple, N1 <: Tuple, V1 <: Tuple, N2 <: Tuple, V2 <: Tuple, Acc <: Tuple] <: AnyNamedTuple = (N1, V1) match
-    case (n1 *: ns1, v1 *: vs1) => FilterName0[n1, N2, V2] match
-      case Some[v2] => Copy0[N, ns1, vs1, N2, V2, v2 *: Acc]
-      case _ => Copy0[N, ns1, vs1, N2, V2, v1 *: Acc]
-    case (EmptyTuple, EmptyTuple) => NamedTuple[N, Tuple.Reverse[Acc]]
-
-  type Indices0[Idx <: Int, N1 <: Tuple, N2 <: Tuple, Acc <: Tuple] <: Tuple = N1 match
-    case n1 *: ns1 => OptIndexOf[n1, N2, 0] match
-      case Some[i] => Indices0[S[Idx], ns1, N2, i *: Acc]
-      case _ => Indices0[S[Idx], ns1, N2, (-1 * (Idx + 1)) *: Acc]
-    case EmptyTuple => Tuple.Reverse[Acc]
-
-  type Copy[T <: AnyNamedTuple, U <: AnyNamedTuple] <: AnyNamedTuple = (T, U) match
-    case (NamedTuple[ns1, vs1], NamedTuple[ns2, vs2]) => Copy0[ns1, ns1, vs1, ns2, vs2, EmptyTuple]
-
-  type Indices[T <: AnyNamedTuple, U <: AnyNamedTuple] <: Tuple = (T, U) match
-    case (NamedTuple[ns1, _], NamedTuple[ns2, _]) => Indices0[0, ns1, ns2, EmptyTuple]
-
-  @scala.annotation.implicitNotFound("Can not copy fields from named tuple of type ${U}, it has fields not present in type ${T}.")
-  final class IndicesOf[T <: AnyNamedTuple, U <: AnyNamedTuple](is: Indices[T, U]):
-    val values: Iterator[Int] = is.productIterator.asInstanceOf[Iterator[Int]]
-
-  object IndicesOf:
-    inline given [N <: Tuple, V <: Tuple, N1 <: Tuple, V1 <: Tuple]
-      => (ContainsAll[N1, N] =:= true)
-      => IndicesOf[NamedTuple[N,V], NamedTuple[N1,V1]] =
-        IndicesOf[NamedTuple[N,V], NamedTuple[N1,V1]](compiletime.constValueTuple[Indices[NamedTuple[N,V], NamedTuple[N1,V1]]])
-
-  extension [T <: AnyNamedTuple](t: T)
-    def copy[U <: AnyNamedTuple](u: U)(using is: IndicesOf[T, U]): Copy[T, U] = {
-      val t0 = t.asInstanceOf[Tuple]
-      val u0 = u.asInstanceOf[Tuple]
-      val arr = IArray.from(
-        is.values.map(i => if i < 0 then t0.productElement(Math.abs(i) - 1) else u0.productElement(i))
-      )
-      Tuple.fromIArray(arr).asInstanceOf[Copy[T, U]]
-    }
-  */
-}
-
 
 extension [A](a: A) {
   /** Associate a compile-time name with this value by giving the other (Singular) value */

@@ -59,11 +59,6 @@ class BytecodeCheck {
   def fn2test(i: Int, j: Int) =
     (i, j).fn(_ * _)
 
-  def tupleToArrayTest(i: intervals.Iv, j: intervals.Iv) =
-    val a = Array(i, j)
-    val b = basicsMacroImpl.TupleToArray.arrayFromTuple[intervals.Iv]((i, j))
-    (a, b)
-
   def unpeekTest(a: Array[String]) =
     var i = 0
     var j = 2
