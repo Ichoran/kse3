@@ -820,6 +820,9 @@ extension [A](a: A) {
 
   /** Associate a compile-time name with this value, where it is a supertype of its original type, by giving a name */
   inline def \>[L <: LabelVal](l: L): A \>^ L = \>^.wrap(a)
+
+  /** Label something by type */
+  inline def labelled[L <: LabelVal]: A \^ L = \^.wrap(a)
 }
 
 

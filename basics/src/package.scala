@@ -62,11 +62,11 @@ package kse
   * shortcut.quittable:
   *   while i < 100 do
   *     shortcut.skippable:
-  *       if i % 2 == 0 then shortcut.breakToSkip()
+  *       if i % 2 == 0 then shortcut.skip()
   *       println(i)
-  *     shortcut.test(i.toString.length > 1).quit_?
+  *     shortcut.quit(i.toString.length > 1).?
   *     i += 1
-  * // This prints numbers from 0 to 9
+  * // This prints odd numbers from 1 to 9
   * }}}
   * 
   * If you want to abstract the functionality, use a context function argument `inline f: boundary.Label[shortcut.Type] ?=> ...`
@@ -145,51 +145,47 @@ package kse
   * 
   * == Tag Your Tuple Elements ==
   * 
-  * Want labelled tuples, where you have names as well as types?  Put tagged types into tuples (up to length 9)
-  * and get them out again by name with `~`!
+  * If you use named tuples, you can get individual fields as (safely) tagged types by using a lightweight lens facility.
+  * And you can use tagged types to make changes to the tuple.
   * 
   * {{{
-  * val args = (5 \ "start", 3 \ "count")
-  * unambiguous(args._1, args._2)  // Works
-  * val start = args ~ "start"
-  * val count = args ~ "count"
-  * val cheat = args ~ "cheat"  // Compile error
+  * val things = (a = "eel", b = true, c = 5.5)
+  * val eel = things.lens["a"].pluck   // String \ "a"
+  * val cod = eel.valueTo("cod")
+  * val thingz = things.replace(cod)  // (a = "cod", b = true, c = 5.5)
   * }}}
   * 
-  * Use `.label` on a regular tuple to pick up labels from type inference, or `(4, 2) \\ ("start", "count")` to label
-  * explicitly.
-  * 
-  * You can also use `relabel` to change labels, `revalue` to change values, or `redo` to change both, by name.
-  * 
-  * If you try to create duplicate labels, it will give you an error.  Everything in the tuple must be labelled; otherwise
-  * you can't access by name.
-  * 
-  * To read a subset of fields out by name, use `pick`.  To create an updated version of a labelled tuple by using another
-  * (at least partially) labelled tuple, use `updatedBy`.
+  * You can also create copies of named tuples by specifying a smaller named tuple of updates, using `copyFrom`, and various
+  * other things.
   * 
   * == Simple Intervals ==
   * 
-  * The `kse.basics.intervals` packages contains two simple intervals: `Iv` which is an absolute interval, and `PIv` which is
-  * a position-relative interval.  Create `Iv` itervals with `Iv(i0, iN)` where the interval is normally interpreted as exclusive
-  * at the endpoint (`i0` is the first element, `iN` is one after the last element).  You can traverse these values using `iv.visit`,
-  * get a string representation using `iv.pr`, and get the start and stop indices with `iv.i0` and `iv.iN`.  `PIv`-style intervals
-  * are only relative to the end of an `Array` or `String`, and are created with the syntax `1 to End` or `1 to End-3` and such.
-  * These can be converted into specific `Iv` intervals using `piv of a` where `a` is an `Array` or `String`.
+  * The `kse.basics.intervals` packages contains a simple absolute interval, `Iv`, which is packed in a long.  It also offers a
+  * variety of position-specific intervals which together are `Iv.X`.
   * 
-  * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`.
-  * `Iv` can also convert type unions of `Iv | PIv` to definitively `Iv` using `Iv.of(v, a)` where `v: Iv | PIv` and `a` is an
-  * `Array` or `String`.
+  * Create `Iv` intervals with `Iv(i0, iN)` where the interval is interpreted as exclusive
+  * at the endpoint (`i0` is the first element, `iN` is one after the last element).  You can traverse these values using `iv.visit`,
+  * get a string representation using `iv.pr`, and get the start and stop indices with `iv.i0` and `iv.iN`.
+  * 
+  * Relative intervals can be created with `Start` and `End` markers, e.g. `1 to End - 1` or `Start + 3 to 25`.  These adopt different
+  * types which can be converted to `Iv`-style intervals with `ivx.of(a)` where `a` is an `Array`, `String`, length (`Int`), or a
+  * an absolute interval.
+  * 
+  * Finally, the unicode character ꓺ or the quoted dot equivalent {{{`..`}}} can be used for Python-style negative-index ranges
+  * such as `1ꓺ-2`.  (These are also a type of `Iv.x` so they can be converted to an absolute range by giving the thing they're relative to.)
+  * 
+  * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`;
+  * if you want to use these as an argument, it must be inline, e.g. `inline foo(inline rg: Range) = Iv.of(rg)`.
   * 
   * This enables easy length-relative creation of intervals.  For instance, `1 to End-1` is the interval that leaves off the first
   * and last elements of an `Array` or `String`.
   * 
   * Absolute (Iv) intervals can be shifted around with `+#` and `-#` (the `#`
-  * warns you that you cannot wrap: the interval endpoints must stay within Int values), and can be clipped or shifted into a desired
-  * 0..n range with `clippedToSize` and `shiftIntoSize`, or into a target (string or array) range with `clippedTo` and `shiftInto`.
-  * You can find interval intersections and unions (filling in gaps) with `&` and `|`.  Difference is not supported since it might
-  * leave an inexpressible hole.
+  * warns you that you cannot wrap: the interval endpoints must stay within Int values).
+  * You can find interval intersections and unions (filling in gaps) with `&` and `|`.
+  * Difference is not supported since it might leave an inexpressible hole.
   * 
-  * (Math on relative (PIv) intervals can be error-prone and not supplied.)
+  * (Math on relative (Iv.X) intervals can be error-prone and not supplied.)
   * 
   * == Full-Powered Arrays ==
   * 
@@ -266,7 +262,8 @@ package kse
   * order.  But if you want to sort "in place", the recommendation is to reassign the new sorted bit.  For instance, `a() = a.select(ix)`
   * if you are sorting the whole thing, or `a(iv) = a.select(ix)` to just rearrange the interval `iv`.  Of course you have
   * to have selected the indices correctly to begin with (e.g. all with `a.where()`, or `iv.where()`, or
-  * with something like `(3 to End).of(a).where()`).
+  * with something like `(3 to End).of(a).where()`).  Copying algorithms (e.g. `inject`) do not ensure copy order is compatible
+  * with copying-to-self, so making a duplicate with `select` is the safe alternative.
   * 
   * If you use Scala, and you use `Array`s, `kse.basics` is what you want.
   * 

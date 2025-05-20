@@ -205,40 +205,40 @@ class BasicsTest() {
   @Test
   def shortcutTest(): Unit =
     var x = 0
-    T ~ { shortcut.quittable{ x += 1; shortcut.breakAndQuit(); x += 1 }; x } ==== 1
+    T ~ { shortcut.quittable{ x += 1; shortcut.quit(); x += 1 }; x } ==== 1
     T ~ { shortcut.quittable{ x += 1; shortcut.quit(x > 1).?;  x += 1 }; x } ==== 2
     T ~ { shortcut.quittable{ x += 1; shortcut.quit(x > 3).?;  x += 1 }; x } ==== 4
-    T ~ { shortcut.skippable{ x += 1; shortcut.breakAndSkip(); x += 1 }; x } ==== 5
+    T ~ { shortcut.skippable{ x += 1; shortcut.skip(); x += 1 }; x } ==== 5
     T ~ { shortcut.skippable{ x += 1; shortcut.skip(x > 5).?;  x += 1 }; x } ==== 6
     T ~ { shortcut.skippable{ x += 1; shortcut.skip(x > 7).?;  x += 1 }; x } ==== 8
-    T ~ { shortcut.outer{ x += 2; shortcut.breakAndQuit(); x += 1 }; x } ==== 10
-    T ~ { shortcut.outer{ x += 2; shortcut.breakAndSkip(); x += 1 }; x } ==== 12
-    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.breakAndSkip(); x += 1 }; x += 3 }; x } ==== 18
-    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.breakAndQuit(); x += 1 }; x += 3 }; x } ==== 21
+    T ~ { shortcut.outer{ x += 2; shortcut.quit(); x += 1 }; x } ==== 10
+    T ~ { shortcut.outer{ x += 2; shortcut.skip(); x += 1 }; x } ==== 12
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.skip(); x += 1 }; x += 3 }; x } ==== 18
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.quit(); x += 1 }; x += 3 }; x } ==== 21
 
     var y = 0
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.breakAndQuit();        y += 1 }; y } ==== 1
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.breakAndQuitIf(y > 1); y += 1 }; y } ==== 2
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.breakAndQuitIf(y > 3); y += 1 }; y } ==== 4
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.breakAndSkip();        y += 1 }; y } ==== 5
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.breakAndSkipIf(y > 5); y += 1 }; y } ==== 6
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.breakAndSkipIf(y > 7); y += 1 }; y } ==== 8
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.breakAndQuit(); y += 1 }; y } ==== 10
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.breakAndSkip(); y += 1 }; y } ==== 12
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.breakAndSkip(); y += 1 }; y += 3 }; y } ==== 18
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.breakAndQuit(); y += 1 }; y += 3 }; y } ==== 21
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit();        y += 1 }; y } ==== 1
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 1); y += 1 }; y } ==== 2
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 3); y += 1 }; y } ==== 4
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip();        y += 1 }; y } ==== 5
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 5); y += 1 }; y } ==== 6
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 7); y += 1 }; y } ==== 8
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.quit(); y += 1 }; y } ==== 10
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.skip(); y += 1 }; y } ==== 12
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.skip(); y += 1 }; y += 3 }; y } ==== 18
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.quit(); y += 1 }; y += 3 }; y } ==== 21
 
     var z = 0
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.breakAndQuit();        z += 1 }; z } ==== 1
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.breakAndQuitIf(z > 1); z += 1 }; z } ==== 2
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.breakAndQuitIf(z > 3); z += 1 }; z } ==== 4
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.breakAndSkip();        z += 1 }; z } ==== 5
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.breakAndSkipIf(z > 5); z += 1 }; z } ==== 6
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.breakAndSkipIf(z > 7); z += 1 }; z } ==== 8
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.breakAndQuit(); z += 1 }; z } ==== 10
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.breakAndSkip(); z += 1 }; z } ==== 12
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.breakAndSkip(); z += 1 }; z += 3 }; z } ==== 18
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.breakAndQuit(); z += 1 }; z += 3 }; z } ==== 21
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit();        z += 1 }; z } ==== 1
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 1); z += 1 }; z } ==== 2
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 3); z += 1 }; z } ==== 4
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip();        z += 1 }; z } ==== 5
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 5); z += 1 }; z } ==== 6
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 7); z += 1 }; z } ==== 8
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.quit(); z += 1 }; z } ==== 10
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.skip(); z += 1 }; z } ==== 12
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.skip(); z += 1 }; z += 3 }; z } ==== 18
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.quit(); z += 1 }; z += 3 }; z } ==== 21
 
     T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?();      z += 1 } }; z }"""
     T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 1); z += 1 } }; z }"""

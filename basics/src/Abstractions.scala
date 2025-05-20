@@ -278,9 +278,9 @@ object shortcut {
   inline def quit(p: Boolean): QuitTest = p
   inline def skip(p: Boolean): SkipTest = p
 
-  inline def breakAndSkip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
+  inline def skip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
 
-  inline def breakAndQuit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
+  inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   /** Jumps within pre-specified corrals, but presently these aren't fully optimized so only use when it's essential. */
   object hopped {
@@ -308,13 +308,13 @@ object shortcut {
         Skips
       if what eq Quits then Hop.jump(Quits)
 
-    inline def breakAndSkip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
+    inline def skip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
 
-    inline def breakAndSkipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
+    inline def skipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
 
-    inline def breakAndQuit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
+    inline def quit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
 
-    inline def breakAndQuitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
+    inline def quitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
   }
 }
 
