@@ -135,7 +135,7 @@ package kse
   * def unambiguous(i: Int \ "start", n: Int \ "count") = ???
   * unambiguous(3, 5)  // Doesn't compile
   * unambiguous(3 \ "start", 5 \ "count")  // Now we're sure
-  * unambiguous(3.labelled, 5.labelled)    // Type inferred
+  * unambiguous(\.wrap(3), \.wrap(5))    // Type inferred
   * 
   * val i = 3 \ "start"
   * val j = i + 1 // Can't do this
@@ -171,8 +171,8 @@ package kse
   * types which can be converted to `Iv`-style intervals with `ivx.of(a)` where `a` is an `Array`, `String`, length (`Int`), or a
   * an absolute interval.
   * 
-  * Finally, the unicode character ꓺ or the quoted dot equivalent {{{`..`}}} can be used for Python-style negative-index ranges
-  * such as `1ꓺ-2`.  (These are also a type of `Iv.x` so they can be converted to an absolute range by giving the thing they're relative to.)
+  * Finally, the unicode character `ꓺ` or the back-quoted dot equivalent {{{`..`}}} can be used for Python-style negative-index ranges
+  * such as `1ꓺ-2`.  (These are also a type of `Iv.X` so they can be converted to an absolute range by giving the thing they're relative to.)
   * 
   * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`;
   * if you want to use these as an argument, it must be inline, e.g. `inline foo(inline rg: Range) = Iv.of(rg)`.

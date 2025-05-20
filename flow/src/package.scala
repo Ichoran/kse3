@@ -34,7 +34,7 @@ package kse
   * Here are a few highlights:
   * 
   * {{{
-  * import kse.flow.{given, _}
+  * import kse.flow.*
   * 
   * val x = Is(5)            // typed as Int Or Nothing
   * val y = 5.orAlt[String]  // typed as Int Or String
@@ -63,7 +63,7 @@ package kse
   * a.fold{ i => println(i) }{ a => println("Oops") }  // prints: true
   * b.fold{ i => println(i) }{ a => println("Oops") }  // prints: Oops
   *
-  * val c = z.discard {
+  * val c = z.reject {
   *   case s if s.length > 5 => s.length
   * }
   * println(c)    // prints: Alt(6)
@@ -107,7 +107,7 @@ package kse
   *   for
   *     x <- small(i)
   *     y <- small(j)
-  *    yield
+  *   yield
   *     x + y
   * }}}
   * 
@@ -233,7 +233,7 @@ package kse
   * }}}
   * 
   * 
-  * **Early Return (explicit and Ask/Err.Or/Err.FlatOr)**
+  * **Early Return (explicit and Ask/Or.Ret/Or.FlatRet)**
   * 
   * Error results are modeled using the `Err` type in `kse.flow`.  Typically this will be represented as
   * a disfavored value, `A Or Err`, where `A` is the favored type.  Because this is a common pattern, the
@@ -300,6 +300,9 @@ package kse
   *     escape.unless(i < a.length).?
   *     a(i) = i
   * }}}
+  * 
+  * If you want to know whether or not you escaped, use `escape.completed` which returns `true` if execution completed
+  * or `false` if it escaped.
   * 
   * If it's a calculation and you want to bail out with `NaN` if you hit a `NaN`, use `calculate:` and `.?` on the values.
   * 
@@ -376,7 +379,7 @@ package kse
   *   cheeser().map(_.?)
   * }}}
   * 
-  * `Fu` has no capabilities that other futures do not (at least if you add `Err.Or:` blocks liberally inside them).
+  * `Fu` has no capabilities that other futures do not (at least if you add `Ask:` blocks liberally inside them).
   * Their purpose is to be simple, leveraging the extremely low overhead of JVM 21 futures, and with syntactic overhead
   * that is as good or better than the best-case for for-comprehensions on monadic futures.
   * 
