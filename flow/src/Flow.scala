@@ -892,12 +892,10 @@ extension [I](enumerator: java.util.Enumeration[I])
     else boundary.break(kse.flow.Attempt.failed)
 
 extension (z: Boolean)
-  inline def true_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
-    if z then kse.flow.Attempt.Passed.value
-    else boundary.break(kse.flow.Attempt.failed)
-  inline def false_![A](using Label[kse.flow.Attempt[A]]): kse.flow.Attempt.Passed =
+  inline def true_![A](using Label[kse.flow.Attempt[A]]): Unit =
+    if !z then boundary.break(kse.flow.Attempt.failed)
+  inline def false_![A](using Label[kse.flow.Attempt[A]]): Unit =
     if z then boundary.break(kse.flow.Attempt.failed)
-    else kse.flow.Attempt.Passed.value
   inline def quit_?[T >: shortcut.Quits.type](using Label[T]): Unit =
     if !z then boundary.break(shortcut.Quits: T)
   inline def skip_?[T >: shortcut.Skips.type](using Label[T]): Unit =

@@ -609,7 +609,8 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
 
   val args = indexedArgs.copyWith(_._1)
 
-  lazy val options: Args.AsNamedTuple[T] = Args.asNamedTuple(parsed)
+  lazy val options: NamedTuple.NamedTuple[Args.TupleNames[T], Args.TupleTypes[T]] = Args.asNamedTuple(parsed)
+  lazy val labeled = Args.asLabeledTuple(parsed)
 
   transparent inline def indexed[L <: LabelVal](label: L): Args.Extract[L, T] = summonFrom {
     case have: (L <:< N) => Args.extract[L, T](label, parsed)
@@ -645,17 +646,33 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
   }
 }
 object Args {
-  final class Elt[L <: LabelVal, A](val value: A) {} // = kse.basics.\[A, L]
+  final class Elt[L <: LabelVal, A](val value: A, val isDoneMarker: Boolean = false) {}
   inline def elt[L <: LabelVal, A](x: \[A, L]): Elt[L, A] = new Elt[L, A](x.unlabel)
+  inline def elt[L <: LabelVal, A](x: \[A, L], m: Boolean): Elt[L, A] = new Elt[L, A](x.unlabel, isDoneMarker = m)
 
   type Extract[L <: LabelVal, T <: Tuple] = T match
     case EmptyTuple => Nothing
     case Elt[L, a] *: ts => a
     case t *: ts => Extract[L, ts]
 
-  type AsNamedTuple[T <: Tuple] = T match
+  type AsLabeledTuple[T <: Tuple] = T match
     case EmptyTuple => EmptyTuple
-    case Elt[l, a] *: ts => \[a, l] *: AsNamedTuple[ts]
+    case Elt[l, a] *: ts => \[a, l] *: AsLabeledTuple[ts]
+
+  type TupleTypes[T <: Tuple] <: Tuple = T match
+    case EmptyTuple => EmptyTuple
+    case Elt[l, a] *: ts => l match
+      case "" => TupleTypes[ts]
+      case _ => a match
+        case (b, _) => b *: TupleTypes[ts]
+        case Option[(b, _)] => Option[b] *: TupleTypes[ts]
+        case List[(b, _)] => List[b] *: TupleTypes[ts]
+
+  type TupleNames[T <: Tuple] <: Tuple = T match
+    case EmptyTuple => EmptyTuple
+    case Elt[l, _] *: ts => l match
+      case "" => TupleNames[ts]
+      case _ => l *: TupleNames[ts]
 
   transparent inline def extractUncertainTypeByLabel[L <: LabelVal, T <: Tuple](label: L, tuple: T): Any =
     inline compiletime.erasedValue[T] match
@@ -666,7 +683,33 @@ object Args {
   inline def extract[L <: LabelVal, T <: Tuple](label: L, tuple: T): Extract[L, T] = 
     extractUncertainTypeByLabel[L, T](label, tuple).asInstanceOf[Extract[L, T]]
 
-  inline def asNamedTuple[T <: Tuple](tuple: T): AsNamedTuple[T] =
+  inline def asNamedTuple[T <: Tuple](tuple: T): NamedTuple.NamedTuple[TupleNames[T], TupleTypes[T]] =
+    var work: Tuple = tuple
+    var result: Tuple = EmptyTuple
+    loop:
+      work match
+        case t *: rest => t match
+          case e: Elt[?, ?] =>
+            if !e.isDoneMarker then
+              val value = e.value match
+                case ao: (?, ?) => ao._1
+                case oa: Option[?] => oa match
+                  case Some(soa) => soa match
+                    case ai: (?, ?) => Some(ai._1)
+                    case _ => Err("Internal error: unknown option data packed in Option").toss
+                  case _ => None
+                case os: List[?] => os.map(_ match {
+                  case ai: (?, ?) => ai._1
+                  case _ =>  Err("Internal error: unknown option data packed in List").toss
+                })
+                case _ => Err("Internal error: trying to read options but unknown type").toss
+              result = result :* value
+            work = rest
+          case _ => Err("Internal error: trying to read options but did not put them in Elt").toss
+        case _ => loop.break()
+    result.asInstanceOf[NamedTuple.NamedTuple[TupleNames[T], TupleTypes[T]]]
+
+  inline def asLabeledTuple[T <: Tuple](tuple: T): AsLabeledTuple[T] =
     var work: Tuple = tuple
     var result: Tuple = EmptyTuple
     loop:
@@ -677,7 +720,7 @@ object Args {
             work = rest
           case _ => Err("Internal error: trying to read options but did not put them in Elt").toss
         case _ => loop.break()
-    result.asInstanceOf[AsNamedTuple[T]]
+    result.asInstanceOf[AsLabeledTuple[T]]
 }
 
 
@@ -874,7 +917,7 @@ object Cleasy {
       work match
         case t *: rest => t match
           case o: Opt[?, ?, ?] =>
-            result = result :* Args.elt(o.parse_?(arguments, consumed))
+            result = result :* Args.elt(o.parse_?(arguments, consumed), o eq Opt.done)
             work = rest
           case o: OptN[?, ?, ?] =>
             result = result :* Args.elt(o.parse_?(arguments, consumed))

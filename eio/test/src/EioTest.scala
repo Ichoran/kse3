@@ -34,6 +34,7 @@ class EioTest {
   import kse.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.basics.intervals._
+  import kse.basics.labels._
   import kse.flow.{given, _}
   import kse.maths.{given, _}
   import kse.maths.packed.{given, _}
@@ -211,43 +212,43 @@ class EioTest {
     def clq(ab: Array[Byte]): Array[Byte] = ab.reverse.dropWhile(_ == '=').reverse
     T ~ EioBase64.encodeUrlRange(b, 15, 22) =**= clq(b.slice(15, 22).encode64url)
     T ~ EioBase64.decodeRangeInto(b.encode64url, 24, 48)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
-    T ~ { EioBase64.decodeInto(b.encode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64, 88)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeInto(b.encode64url)(target, 8): Unit; target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24, 48)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64, 88)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
-    T ~ { EioBase64.decodeInto(b.stringEncode64url)(target, 8); target.slice(0, 272) } =**= (z8 ++ b ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64, 88)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeInto(b.stringEncode64url)(target, 8): Unit; target.slice(0, 272) } =**= (z8 ++ b ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, 12, 24).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
 
     T ~ EioBase64.encodeUrlRange(b, Iv(15, 22)) =**= clq(b.slice(15, 22).encode64url)
     T ~ EioBase64.decodeRangeInto(b.encode64url, Iv(24, 48))(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.encode64url, Iv(64, 88))(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, Iv(64, 88))(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, Iv(12, 24)).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, Iv(24, 48))(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, Iv(64, 88))(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, Iv(64, 88))(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, Iv(12, 24)).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
 
     T ~ EioBase64.encodeUrlRange(b, 15 to 21) =**= clq(b.slice(15, 22).encode64url)
     T ~ EioBase64.decodeRangeInto(b.encode64url, 24 to 47)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to 87)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to 87)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, 12 to 23).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24 to 47)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to 87)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to 87)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, 12 to 23).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
 
     T ~ EioBase64.encodeUrlRange(b, 15 to End-234) =**= clq(b.slice(15, 22).encode64url)
     T ~ EioBase64.decodeRangeInto(b.encode64url, 24 to End-296)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to End-256)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.encode64url, 64 to End-256)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.encode64url, 12 to End-320).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
     T ~ EioBase64.decodeRangeInto(b.stringEncode64url, 24 to End-296)(target, 16) ==== 18 --: typed[Int Or Err]
-    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to End-256)(target, 60); target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
+    T ~ { EioBase64.decodeRangeInto(b.stringEncode64url, 64 to End-256)(target, 60): Unit; target.slice(52, 86) } =**= (z8 ++ b.encode64url.slice(64, 88).decode64.get ++ z8)
     T ~ EioBase64.decodeRange(b.stringEncode64url, 12 to End-320).get =**= b.encode64url.slice(12, 24).decode64.get
     target() = 0
 
@@ -370,11 +371,11 @@ class EioTest {
     T ~ wsbc.write("everyone".bytes.buffer()) ==== 5
     T ~ wsbc.write("here".bytes.buffer())     ==== -1
     T ~ wsbc.position(0)                      ==== wsbc
-    T ~ { wsbc.read(ab2.buffer()); ab2 }      =**= Array[Byte](0, 'h'.toByte)
+    T ~ {wsbc.read(ab2.buffer()): Unit; ab2}  =**= Array[Byte](0, 'h'.toByte)
     T ~ wsbc.position(0)                      ==== wsbc
     T ~ wsbc.write("e".bytes.input())         ==== 1
     T ~ wsbc.position(0)                      ==== wsbc
-    T ~ { wsbc.read(ab2.buffer()); ab2 }      =**= "eh".bytes
+    T ~ {wsbc.read(ab2.buffer()): Unit; ab2}  =**= "eh".bytes
     T ~ wsbc.position(0)                      ==== wsbc
     T ~ wsbc.write("YETI".bytes, 2)(1)        ==== 1
     T ~ wsbc.close                            ==== ()
@@ -393,13 +394,13 @@ class EioTest {
     T ~ rsbc.read(bc)                            ==== 8
     T ~ rsbc.read(bc)                            ==== -1
     T ~ rsbc.read(ab3)                           ==== -1
-    T ~ rsbc.write(bc.tap(_.flip))               ==== -1
+    T ~ rsbc.write(bc.tap(_.flip __ Unit))       ==== -1
     T ~ bc.getBytes.utf8                         ==== "Thievery"
     T ~ rsbc.position(3)                         ==== rsbc
     T ~ { bc.clear; bc.limit(3); rsbc.read(bc) } ==== 3
     T ~ rsbc.availableToRead                     ==== 2
     T ~ rsbc.read(ab3)                           ==== 2
-    T ~ bc.tap(_.flip).getBytes.utf8             ==== "eve"
+    T ~ bc.tap(_.flip __ Unit).getBytes.utf8     ==== "eve"
     T ~ ab3                                      =**= Array('r'.toByte, 'y'.toByte, 0: Byte)
     T ~ rsbc.position(1)                         ==== rsbc
     T ~ rsbc.read(ab2.writeChannel())            ==== 2
@@ -439,15 +440,15 @@ class EioTest {
       sbc.position(ptarg)
       val bx = ByteBuffer.allocate(pickn())
       val readable = sbc.availableToRead.toInt
-      T ~ sbc.read(bx)            ==== (bx.capacity min readable)
-      T ~ bx.tap(_.flip).getBytes =**= big.copyOfRange(ptarg, ptarg + (bx.capacity min readable))
+      T ~ sbc.read(bx)                    ==== (bx.capacity min readable)
+      T ~ bx.tap(_.flip __ Unit).getBytes =**= big.copyOfRange(ptarg, ptarg + (bx.capacity min readable))
       sbc.position(p)
     val bx = ByteBuffer.allocate(big.length)
     val abx = new Array[Byte](big.length)
-    T ~ sbc.position(0).read(bx)             ==== big.length
-    T ~ bx.tap(_.flip).getBytes              =**= big
-    T ~ sbc.position(0).read(abx)            ==== big.length
-    T ~ abx                                  =**= big
+    T ~ sbc.position(0).read(bx)        ==== big.length
+    T ~ bx.tap(_.flip __ Unit).getBytes =**= big
+    T ~ sbc.position(0).read(abx)       ==== big.length
+    T ~ abx                             =**= big
     val weird = new Array[Byte](1917)
     val sbc2 = Array.empty[Byte].growCopyBy(337)
     val sbc3 = Array.empty[Byte].growCopyBy(294)
@@ -597,7 +598,7 @@ class EioTest {
 
     T ~ q.size                       ==== -1L
     T ~ q.raw.size                   ==== thrown[IOException]
-    T ~ { q.touch(); q.exists }      ==== true
+    T ~ {q.touch(): Unit; q.exists}  ==== true
     T ~ q.size                       ==== 0L
     T ~ p.isDirectory                ==== true
     T ~ q.isDirectory                ==== false
@@ -615,12 +616,12 @@ class EioTest {
     T ~ (p / "eel").exists           ==== true
 
     val ft1 = ft - 1.s
-    (p / "rw").mkdir()   // Might be race with readWriteTest, but it shouldn't matter!
+    (p / "rw").mkdir(): Unit   // Might be race with readWriteTest, but it shouldn't matter!
     T ~ (q.raw.time - ft).in(0.s, 10.s)       ==== true
     T ~ (q.time.get - ft).in(0.s, 10.s)       ==== true
     T ~ { q.raw.time = ft; q.raw.time }       ==== ft
     T ~ { ((q.time = ft1).isIs, q.time.get) } ==== ((true, ft1))
-    T ~ { q.touch(); q.time.get == ft }       ==== false
+    T ~ { q.touch(): Unit; q.time.get == ft } ==== false
     T ~ p.paths.sorted                        =**= Array(p / "a", p / "dir", p / "eel", p / "quartz.txt", p / "rw")
     T ~ q.raw.delete()                        ==== ()
     T ~ q.raw.delete()                        ==== thrown[IOException]
@@ -713,7 +714,7 @@ class EioTest {
     T ~ correctly ==== ()
 
     val ab2 = "ft".bytes
-    q.delete()
+    q.delete(): Unit
     Resource(q.raw.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
     T ~ q.exists                                     ==== true
     T ~ q.size                                       ==== 0L
@@ -726,35 +727,35 @@ class EioTest {
     T ~ Resource(q.raw.openIO())(_.close)(_.position(1).write(ab2.buffer()))   ==== 2
     T ~ Resource(q.raw.openIO())(_.close){o => o.read(ab2.buffer()); ab2.utf8} ==== "ef"
 
-    "ft".bytes.inject(ab2)
-    q.delete()
-    Resource.nice(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream])
+    "ft".bytes.inject(ab2): Unit
+    q.delete(): Unit
+    Resource.nice(q.openCreate())(_.close)(x => T ~ x ==== runtype[BufferedOutputStream]): Unit
     T ~ q.exists                                      ==== true
     T ~ q.size                                        ==== 0L
-    Resource.nice(q.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }
+    Resource.nice(q.openAppend())(_.close){ x => x.write('e'); T ~ x ==== runtype[BufferedOutputStream] }: Unit
     T ~ q.size                                                       ==== 1L
-    Resource.nice(q.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream])
+    Resource.nice(q.openRead())(_.close)(x =>       T ~ x ==== runtype[BufferedInputStream]): Unit
     T ~ Resource.nice(q.openRead())(_.close)(_.available) ==== 1
     T ~ Resource.nice(q.openRead())(_.close)(_.read)      ==== 'e'
-    Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o   ==== runtype[BufferedOutputStream] }
+    Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o   ==== runtype[BufferedOutputStream] }: Unit
     T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer()))   ==== 2
     T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer()); ab2.utf8} ==== "ef"
 
     val ps = "temp/eio/sym".path
-    T ~ (p / "x" / "y").mkdirs().isIs       ==== true
-    T ~ (p / "sym").isSymlink               ==== false
-    T ~ ps.raw.symlink                      ==== thrown[IOException]
-    T ~ ps.symlink.alt                      ==== runtype[String]
-    T ~ { ps.makeSymlink("x"); ps.symlink } ==== "x"       --: typed[String Or Err]
-    T ~ ps.followSymlink                    ==== (p / "x") --: typed[Path Or Err]
-    T ~ ps.exists                           ==== true
-    T ~ (ps / "y").exists                   ==== true
-    T ~ (p / "x").isSymlink                 ==== false
-    T ~ ps.isSymlink                        ==== true
-    T ~ ps.real                             ==== (p.real / "x")
-    T ~ (ps / "y").real                     ==== (p.real / "x/y")
-    (p / "x" / "y").delete()
-    (p / "x").delete()
+    T ~ (p / "x" / "y").mkdirs().isIs             ==== true
+    T ~ (p / "sym").isSymlink                     ==== false
+    T ~ ps.raw.symlink                            ==== thrown[IOException]
+    T ~ ps.symlink.alt                            ==== runtype[String]
+    T ~ { ps.makeSymlink("x"): Unit; ps.symlink } ==== "x"       --: typed[String Or Err]
+    T ~ ps.followSymlink                          ==== (p / "x") --: typed[Path Or Err]
+    T ~ ps.exists                                 ==== true
+    T ~ (ps / "y").exists                         ==== true
+    T ~ (p / "x").isSymlink                       ==== false
+    T ~ ps.isSymlink                              ==== true
+    T ~ ps.real                                   ==== (p.real / "x")
+    T ~ (ps / "y").real                           ==== (p.real / "x/y")
+    (p / "x" / "y").delete(): Unit
+    (p / "x").delete(): Unit
     T ~ (p / "x").exists                    ==== false
     T ~ ps.exists                           ==== false
     T ~ ps.isSymlink                        ==== true
@@ -764,8 +765,8 @@ class EioTest {
     T ~ ps.exists                           ==== true
     val a2b = "temp/eio/ab".path
     val b2a = "temp/eio/ba".path
-    a2b.symlinkTo(b2a)
-    b2a.symlinkTo(a2b)
+    a2b.symlinkTo(b2a): Unit
+    b2a.symlinkTo(a2b): Unit
     T ~ (a2b.exists || b2a.exists)          ==== false
     T ~ (a2b.isSymlink && b2a.isSymlink)    ==== true
     T ~ a2b.followSymlink                   ==== b2a
@@ -791,9 +792,9 @@ class EioTest {
     T ~ _u("")  ==== Is(()) --: typed[Unit Or Err]
     T ~ _u("x") ==== runtype[Alt[?]]
 
-    Array("t", "T", "true", "y", "Y", "yes", "on").peek(): x =>
+    Array("t", "T", "true", "y", "Y", "yes", "on").visit(): (x, _) =>
       T ~ _tf(x) ==== Is(true) --: typed[Boolean Or Err]
-    Array("f", "F", "false", "n", "N", "no", "off").peek(): x =>
+    Array("f", "F", "false", "n", "N", "no", "off").visit(): (x, _) =>
       T ~ _tf(x) ==== Is(false) --: typed[Boolean Or Err]
     T ~ _tf("eel") ==== runtype[Alt[?]]
 
@@ -1215,15 +1216,22 @@ class EioTest {
     T ~ a4.indexed("z")      ==== None
 
     val t4 = a4.options
+    val w4 = a4.labeled
 
     {
       import kse.basics.labels.*
-      T ~ (t4 ~ "salmon")   ==== Some(("raw", 7))
-      T ~ (t4 ~ "n")        ==== List((5, 1), (7, 3), (3, 4))
-      T ~ (t4 ~ "eel")      ==== (1.0, None)
-      T ~ (t4 ~ "x")        ==== Some(((), 7))
-      T ~ (t4 ~ "y")        ==== List(((), 4), ((), 7), ((), 7))
-      T ~ (t4 ~ "z")        ==== None
+      T ~ { w4(1) ~ "salmon" } ==== Some(("raw", 7))
+      T ~ { w4(2) ~ "n" }      ==== List((5, 1), (7, 3), (3, 4))
+      T ~ { w4(3) ~ "eel" }    ==== (1.0, None)
+      T ~ { w4(4) ~ "x" }      ==== Some(((), 7))
+      T ~ { w4(5) ~ "y" }      ==== List(((), 4), ((), 7), ((), 7))
+      T ~ { w4(6) ~ "z" }      ==== None
+      T ~ t4.salmon ==== Some("raw")
+      T ~ t4.n      ==== List(5, 7, 3)
+      T ~ t4.eel    ==== 1.0
+      T ~ t4.x      ==== Some(())
+      T ~ t4.y      ==== List((), (), ())
+      T ~ t4.z      ==== None
     }
 
     val u4 = c4.userString().linesIterator.toArray
@@ -1380,7 +1388,7 @@ class EioTest {
     val p = "temp/eio".path
     val q = p / "rw"
     val r = p / "wr"
-    q.mkdirs()   // Might be race with pathsTest, but it shouldn't matter!
+    q.mkdirs(): Unit  // Might be race with pathsTest, but it shouldn't matter!
     T ~ List("bass", "salmon", "cod").map(_.bytes).writeTo(r / "fish.bin") ==== runtype[Alt[?]]
     T ~ List("bass", "salmon", "cod").map(_.bytes).writeTo(q / "fish.bin") ==== ()  --: typed[Unit Or Err]
     T ~ (q / "fish.bin").gulp.get                                          =**= "basssalmoncod".bytes
@@ -1409,7 +1417,7 @@ class EioTest {
     T ~ (q / "birds.txt").gulp.get                            =**= "heron\npelican\n".bytes
 
     z9999.fill(0)
-    b9999.input().channel.sendTo(zwc)
+    b9999.input().channel.sendTo(zwc) __ Unit
     T ~ b9999 =**= z9999
 
     T ~ Send.IterateInputStream("hi".bytes.input()).map(_.utf8).toList.map(_.toString)                                  =**= List("hi")
@@ -1595,17 +1603,17 @@ object EioTest {
         Resource(Files list t)(_.close): fs =>
           targets = ((t, true)) :: targets
           iFor(fs.iterator){ (q, _) => targets = ((q, false)) :: targets }
-      else Files deleteIfExists t
+      else Files deleteIfExists t __ Unit
 
   def createTempEio(): Unit Or Err = nice:
-    Files.createDirectories(testPath)
+    Files.createDirectories(testPath): Unit
 
   @BeforeClass
   def before(): Unit =
-    cleanTempEio().foreachAlt(e => e.explainBy(s"Error pre-cleaning test arena at $testPath").tap(println))
-    createTempEio().foreachAlt(e => e.explainBy(s"Error creating test arena at $testPath").tap(println))
+    cleanTempEio().foreachAlt(e => e.explainBy(s"Error pre-cleaning test arena at $testPath").effect(println))
+    createTempEio().foreachAlt(e => e.explainBy(s"Error creating test arena at $testPath").effect(println))
 
   @AfterClass
   def after(): Unit =
-    cleanTempEio().foreachAlt(e => e.explainBy(s"Error cleaning test arena at $testPath"))
+    cleanTempEio().foreachAlt(e => e.explainBy(s"Error cleaning test arena at $testPath").effect(println))
 }

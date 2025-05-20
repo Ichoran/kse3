@@ -4,7 +4,7 @@
 package kse.basics.labels
 
 
-import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+//import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.util.NotGiven
 import scala.compiletime.{codeOf, summonInline, summonFrom, erasedValue, constValue, constValueOpt, constValueTuple}
@@ -337,7 +337,7 @@ object ExplicitTypeIndices {
 
 
 
-object NamedTupleLabels {
+object NamesAndLabels {
   import compiletime.ops.any.*
   import compiletime.ops.boolean.*
   import compiletime.ops.int.*
@@ -353,15 +353,16 @@ object NamedTupleLabels {
     case L *: _     => N
     case _ *: tail  => IndexOfType[tail, L, N+1]
 
-  transparent inline def byLabel[Ns <: Tuple, Vs <: Tuple, L <: LabelVal](tup: NTup[Ns, Vs], lb: L): LabeledValue[Ns, Vs, L] =
+  transparent inline def byLabel[Ns <: Tuple, Vs <: Tuple, L <: LabelVal](tup: NTup[Ns, Vs], inline lb: L): LabeledValue[Ns, Vs, L] =
     inline constValue[IndexOfType[Ns, L, 0]] match
       case -1 => compiletime.error("No tuple fields by the name of " + constValue[L])
       case i => tup(i).asInstanceOf[LabeledValue[Ns, Vs, L]]
 
-  transparent inline def byLabelType[Ns <: Tuple, Vs <: Tuple](tup: NTup[Ns, Vs])[L <: LabelVal](): LabeledValue[Ns, Vs, L] =
-    inline constValue[IndexOfType[Ns, L, 0]] match
-      case -1 => compiletime.error("No tuple fields by the name of " + constValue[L])
-      case i => tup(i).asInstanceOf[LabeledValue[Ns, Vs, L]]
+  transparent inline def indexByLabel[Ts <: Tuple](tup: Ts)[L <: LabelVal, N <: Int]: Int =
+    inline if constValue[Tuple.Size[Ts]] <= constValue[N] then -1
+    else summonFrom:
+      case _: (Tuple.Elem[Ts, N] <:< (Any \^ L)) => constValue[N]
+      case _ => indexByLabel[Ts](tup)[L, N+1]
 
   type NamesToLabels[Ns <: Tuple, Vs <: Tuple] <: Tuple = Ns match
     case EmptyTuple => EmptyTuple
@@ -404,11 +405,6 @@ object NamedTupleLabels {
   transparent inline def toNamed[Ts <: Tuple](tup: Ts): NTup[LabeledAsNames[Ts], LabeledAsValues[Ts]] =
     inline constValue[NameOfDuplicate[LabeledAsNames[Ts]]] match
       case "" => NamedTuple[LabeledAsNames[Ts], LabeledAsValues[Ts]](tup.asInstanceOf[LabeledAsValues[Ts]])
-      case s => compiletime.error("Duplicate or missing names: " + s)
-
-  transparent inline def attachNames[Ts <: Tuple](tup: Ts)[Ns <: Tuple] =
-    inline constValue[NameOfDuplicate[Ns]] match
-      case "" => NamedTuple[Ns, Ts](tup)
       case s => compiletime.error("Duplicate or missing names: " + s)
 
   type AllStringEntries[Ts <: Tuple] <: Boolean = Ts match
@@ -777,6 +773,12 @@ object NamedTupleLabels {
       case N => V
       case _ => Tuple.Elem[Ts, K-1]
 
+  type TupleWithSwap[Ts <: Tuple, V, K <: Int, N <: Int] <: Tuple = Ts match
+    case EmptyTuple => EmptyTuple
+    case t *: rest => K < N match
+      case true => t *: TupleWithSwap[rest, V, K+1, N]
+      case _ => V *: rest
+
   type TupleWithSkip[Ts <: Tuple, K <: Int, N <: Int] <: Tuple = Ts match
     case EmptyTuple => EmptyTuple
     case t *: rest => K < N match
@@ -822,26 +824,21 @@ extension [A](a: A) {
 
 
 extension [Ts <: Tuple](tup: Ts) {
-  transparent inline def labelsToNames: NamedTuple.NamedTuple[NamedTupleLabels.LabeledAsNames[Ts], NamedTupleLabels.LabeledAsValues[Ts]] =
-    NamedTupleLabels.toNamed[Ts](tup)
+  transparent inline def labelsToNames: NamedTuple.NamedTuple[NamesAndLabels.LabeledAsNames[Ts], NamesAndLabels.LabeledAsValues[Ts]] =
+    NamesAndLabels.toNamed[Ts](tup)
 }
 
 extension [Ns <: Tuple, Ts <: Tuple](tup: NamedTuple.NamedTuple[Ns, Ts]) {
-  transparent inline def toNames = constValueTuple[Ns]
+  transparent inline def namesToLabels: NamesAndLabels.NamesToLabels[Ns,Ts] =
+    NamesAndLabels.toLabeled[Ns, Ts](tup)
 
-  transparent inline def name(i: Int) = constValueTuple[Ns](i)
+  transparent inline infix def pluck[L <: LabelVal](lb: L): NamesAndLabels.LabeledValue[Ns, Ts, L] =
+    NamesAndLabels.byLabel(tup, lb)
+}
 
-  transparent inline def namesToLabels: NamedTupleLabels.NamesToLabels[Ns,Ts] =
-    NamedTupleLabels.toLabeled[Ns, Ts](tup)
 
-  transparent inline infix def pluck[L <: LabelVal](lb: L): NamedTupleLabels.LabeledValue[Ns, Ts, L] =
-    NamedTupleLabels.byLabel(tup, lb)
-
-  transparent inline def indexOf[L <: LabelVal](l: L) =
-    constValue[NamedTupleLabels.IndexOfType[Ns, L, 0]]
-
-  transparent inline def copyFrom[Nz <: Tuple, Tz <: Tuple](zup: NamedTuple.NamedTuple[Nz, Tz]) =
-    NamedTupleLabels.copyWithUpdateByName[Ns, Ts, Nz, Tz](tup, zup)
+extension [L <: LabelVal, A](inline tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
+  transparent inline def lb: A \^ L = \^.wrap(kse.basics.basicsMacroImpl.extractNamedTuple1Literal(tup))
 }
 
 

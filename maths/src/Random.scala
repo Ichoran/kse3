@@ -878,22 +878,22 @@ object AutoPrng {
 
 
 extension [A](a: Array[A])
-  @targetName("that_shuffle") inline def shuffle()(r: Prng): a.type = { r.shuffleRange(a)(0, a.length); a }
-  @targetName("auto_shuffle") inline def shuffle()(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a)(0, a.length); a }
-  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): a.type = { r.shuffleRange(a)(i0, iN); a }
-  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).shuffleRange(a)(i0, iN); a }
-  @targetName("that_shuffle") inline def shuffle(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.shuffleRange(a)(iv.i0, iv.iN); a }
-  @targetName("auto_shuffle") inline def shuffle(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN); a }
-  @targetName("that_shuffle") inline def shuffle(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.shuffleRange(a)(iv.i0, iv.iN); a }
-  @targetName("auto_shuffle") inline def shuffle(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN); a }
-  inline def randomFillOp()(r: Prng)(f: Prng => A): a.type = { r.fillRangeOp(a)(0, a.length)(f); a }
-  inline def randomFillOp()(f: Prng => A)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeOp(a)(0, a.length)(f); a }
-  inline def randomFillOp(i0: Int, iN: Int)(r: Prng)(f: Prng => A): a.type = { r.fillRangeOp(a)(i0, iN)(f); a }
-  inline def randomFillOp(i0: Int, iN: Int)(f: Prng => A)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeOp(a)(i0, iN)(f); a }
-  inline def randomFillOp(inline rg: Rg)(r: Prng)(f: Prng => A): a.type = { val iv = Iv of rg; r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
-  inline def randomFillOp(inline rg: Rg)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
-  inline def randomFillOp(inline v: Iv.X)(r: Prng)(f: Prng => A): a.type = { val iv = v of a; r.fillRangeOp(a)(iv.i0, iv.iN)(f); a }
-  inline def randomFillOp(inline v: Iv.X)(f: Prng => A)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f); a }
+  @targetName("that_shuffle") inline def shuffle()(r: Prng): Unit = r.shuffleRange(a)(0, a.length)
+  @targetName("auto_shuffle") inline def shuffle()(using ar: AutoPrng): Unit = AutoPrng.get(ar).shuffleRange(a)(0, a.length)
+  @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): Unit = r.shuffleRange(a)(i0, iN)
+  @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).shuffleRange(a)(i0, iN)
+  @targetName("that_shuffle") inline def shuffle(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.shuffleRange(a)(iv.i0, iv.iN) }
+  @targetName("auto_shuffle") inline def shuffle(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN) }
+  @targetName("that_shuffle") inline def shuffle(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.shuffleRange(a)(iv.i0, iv.iN) }
+  @targetName("auto_shuffle") inline def shuffle(inline v: Iv.X)(using ar: AutoPrng):  Unit= { val iv = v of a; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN) }
+  inline def randomFillOp()(r: Prng)(f: Prng => A): Unit = r.fillRangeOp(a)(0, a.length)(f)
+  inline def randomFillOp()(f: Prng => A)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeOp(a)(0, a.length)(f)
+  inline def randomFillOp(i0: Int, iN: Int)(r: Prng)(f: Prng => A): Unit = r.fillRangeOp(a)(i0, iN)(f)
+  inline def randomFillOp(i0: Int, iN: Int)(f: Prng => A)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeOp(a)(i0, iN)(f)
+  inline def randomFillOp(inline rg: Rg)(r: Prng)(f: Prng => A): Unit = { val iv = Iv of rg; r.fillRangeOp(a)(iv.i0, iv.iN)(f) }
+  inline def randomFillOp(inline rg: Rg)(f: Prng => A)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f) }
+  inline def randomFillOp(inline v: Iv.X)(r: Prng)(f: Prng => A): Unit = { val iv = v of a; r.fillRangeOp(a)(iv.i0, iv.iN)(f) }
+  inline def randomFillOp(inline v: Iv.X)(f: Prng => A)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f) }
   // inline def %(r: Prng): A = r.sample(a)    ===>   In OverloadedExtensions
   @targetName("that_sample") inline def sample()(r: Prng): A = r.sample(a)
   @targetName("auto_sample") inline def sample()(using ar: AutoPrng): A = AutoPrng.get(ar).sample(a)
@@ -913,108 +913,108 @@ extension [A](a: Array[A])
   @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv.X)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension (a: Array[Boolean])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillZ(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillZ(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeZ(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeZ(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeZ(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeZ(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillZ(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillZ(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeZ(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeZ(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeZ(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeZ(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Byte])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillB(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillB(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeB(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeB(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeB(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeB(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillB(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillB(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeB(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeB(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeB(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeB(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Short])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillS(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillS(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeS(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeS(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeS(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeS(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillS(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillS(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeS(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeS(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeS(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeS(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Char])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillC(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillC(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeC(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeC(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeC(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeC(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillC(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillC(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeC(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeC(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeC(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeC(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Int])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillI(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillI(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeI(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeI(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Int)(r: Prng): a.type = { r.fillModI(m)(a); a }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModI(m)(a); a }
-  @targetName("that_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModI(m)(a)(i0, iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModI(m)(a)(i0, iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Int)(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeModI(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeModI(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillI(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillI(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeI(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeI(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeI(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeI(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod(m: Int)(r: Prng): Unit = r.fillModI(m)(a)
+  @targetName("auto_randMod") inline def randomMod(m: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillModI(m)(a)
+  @targetName("that_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeModI(m)(a)(i0, iN)
+  @targetName("auto_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeModI(m)(a)(i0, iN)
+  @targetName("that_randMod") inline def randomMod(m: Int)(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeModI(m)(a)(iv.i0, iv.iN) }
+  @targetName("auto_randMod") inline def randomMod(m: Int)(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeModI(m)(a)(iv.i0, iv.iN) }
+  @targetName("auto_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Long])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillL(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillL(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeL(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeL(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Long)(r: Prng): a.type = { r.fillModL(m)(a); a }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillModL(m)(a); a }
-  @targetName("that_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeModL(m)(a)(i0, iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeModL(m)(a)(i0, iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Long)(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeModL(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN); a }
-  @targetName("that_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeModL(m)(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillL(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillL(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeL(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeL(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeL(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeL(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod(m: Long)(r: Prng): Unit = r.fillModL(m)(a)
+  @targetName("auto_randMod") inline def randomMod(m: Long)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillModL(m)(a)
+  @targetName("that_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeModL(m)(a)(i0, iN)
+  @targetName("auto_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeModL(m)(a)(i0, iN)
+  @targetName("that_randMod") inline def randomMod(m: Long)(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeModL(m)(a)(iv.i0, iv.iN) }
+  @targetName("auto_randMod") inline def randomMod(m: Long)(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeModL(m)(a)(iv.i0, iv.iN) }
+  @targetName("auto_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Float])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillF(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillF(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeF(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeF(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeF(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeF(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillF(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillF(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeF(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeF(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeF(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeF(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN) }
 
 extension (a: Array[Double])
-  @targetName("that_ranFill") inline def randomFill(r: Prng): a.type = { r.fillD(a); a }
-  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillD(a); a }
-  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeD(a)(i0, iN); a }
-  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeD(a)(i0, iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN); a }
-  @targetName("that_randGau") inline def randomGaussian(r: Prng): a.type = { r.fillGaussian(a); a }
-  @targetName("auto_randGau") inline def randomGaussian(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillGaussian(a); a }
-  @targetName("that_randGau") inline def randomGaussian(i0: Int, iN: Int)(r: Prng): a.type = { r.fillRangeGaussian(a)(i0, iN); a }
-  @targetName("auto_randGau") inline def randomGaussian(i0: Int, iN: Int)(using ar: AutoPrng): a.type = { AutoPrng.get(ar).fillRangeGaussian(a)(i0, iN); a }
-  @targetName("that_randGau") inline def randomGaussian(inline rg: Rg)(r: Prng): a.type = { val iv = Iv of rg; r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randGau") inline def randomGaussian(inline rg: Rg)(using ar: AutoPrng): a.type = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
-  @targetName("that_randGau") inline def randomGaussian(inline v: Iv.X)(r: Prng): a.type = { val iv = v of a; r.fillRangeGaussian(a)(iv.i0, iv.iN); a }
-  @targetName("auto_randGau") inline def randomGaussian(inline v: Iv.X)(using ar: AutoPrng): a.type = { val iv = v of a; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN); a }
+  @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillD(a)
+  @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillD(a)
+  @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeD(a)(i0, iN)
+  @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeD(a)(i0, iN)
+  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeD(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeD(a)(iv.i0, iv.iN) }
+  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN) }
+  @targetName("that_randGau") inline def randomGaussian(r: Prng): Unit = r.fillGaussian(a)
+  @targetName("auto_randGau") inline def randomGaussian(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillGaussian(a)
+  @targetName("that_randGau") inline def randomGaussian(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeGaussian(a)(i0, iN)
+  @targetName("auto_randGau") inline def randomGaussian(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeGaussian(a)(i0, iN)
+  @targetName("that_randGau") inline def randomGaussian(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeGaussian(a)(iv.i0, iv.iN) }
+  @targetName("auto_randGau") inline def randomGaussian(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN) }
+  @targetName("that_randGau") inline def randomGaussian(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeGaussian(a)(iv.i0, iv.iN) }
+  @targetName("auto_randGau") inline def randomGaussian(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN) }
 
 extension (a: String)
   // inline def %(r: Prng): Char = r.sample(a)    ===>   In OverloadedExtensions

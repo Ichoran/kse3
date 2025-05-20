@@ -68,7 +68,7 @@ object Est {
     def ssq = sse + n * mean.sq
     def snapshot: Est = new M(n, mean, sse)
 
-    def reset: this.type = { n = 0; mean = 0; sse = 0; this }
+    def reset(): Unit = { n = 0; mean = 0; sse = 0 }
 
     def +=(value: Long): Unit =
       val mold = mean

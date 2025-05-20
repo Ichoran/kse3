@@ -4,28 +4,49 @@
 package kse.basics
 
 
-import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+//import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.util.{boundary, NotGiven}
-import scala.compiletime.summonFrom
+import scala.compiletime.{erasedValue, summonFrom, summonInline}
 
 
 
 /** Typeclass that witnesses that O is actually opaquely implemented by I */
 trait Translucent[O, I] {
-  final def fromOpaque(o: O): I = o.asInstanceOf[I]
-  final def uncheckedIntoOpaque(i: I): O = i.asInstanceOf[O]
-  transparent inline final def inlineFromOpaque(inline o: O) = o.asInstanceOf[I]
-  transparent inline final def inlineUncheckedIntoOpaque(inline i: I) = i.asInstanceOf[O]
-  transparent inline final def inlineArrayFromOpaque(inline oa: Array[O]) = oa.asInstanceOf[Array[I]]
-  transparent inline final def inlineUncheckedArrayIntoOpaque(inline ia: Array[I]) = ia.asInstanceOf[Array[O]]
+  inline final def reveal(o: O): I = o.asInstanceOf[I]
+  inline final def conceal(i: I): O = i.asInstanceOf[O]
+  inline final def array: Translucent[Array[O], Array[I]] = Translucent.instance[Array[O], Array[I]]
 }
 object Translucent {
+  private val impl: Translucent[Any, Any] = new Translucent[Any, Any] {}
+
+  final def instance[O, I]: Translucent[O, I] = impl.asInstanceOf[Translucent[O, I]]
+
   trait Companion[O, I] {
-    given translucency: Translucent[O, I] with {}
+    given translucency: Translucent[O, I] = instance
   }
 
-  given [O, I](using Translucent[O, I]): Translucent[Array[O], Array[I]] with {}
+  inline def isEventually[A, Z]: Boolean = inline erasedValue[A] match
+    case _: Z => true
+    case _ => summonFrom:
+        case _: Translucent[A, b] => isEventually[b, Z]
+        case _ => false
+
+  inline given [O, I](using Translucent[O, I]): Translucent[Array[O], Array[I]] = instance
+
+  inline given [Ns <: Tuple, Ts <: Tuple] => Translucent[NamedTuple.NamedTuple[Ns, Ts], Ts] = instance
+
+  trait Chain[A, Z] {
+    inline final def witness: Translucent[A, Z] = Translucent.instance
+  }
+  object Chain {
+    private val impl: Chain[Any, Any] = new Chain[Any, Any] {}
+
+    final def instance[A, Z]: Chain[A, Z] = impl.asInstanceOf[Chain[A, Z]]
+
+    inline given [O, I](using Translucent[O, I]): Chain[O, I] = instance
+    inline given [A, M, Z](using Translucent[A, M], Chain[M, Z]): Chain[A, Z] = instance
+  }
 }
 
 
@@ -59,14 +80,14 @@ trait NewType[A] {
   given (using CanEqual[A, A]): CanEqual[Type, Type] = CanEqual.derived
 
   /** Enable array copying etc. via translucency */
-  given translucency: Translucent[Type, A] with {}
+  given translucency: Translucent[Type, A] = Translucent.instance
 }
 
 
 /** A stable identifier to disambiguate types by label */
 type LabelVal = String & Singleton
 
-/** A labelled type unrelated to the thing it is labelling; create with `val x: Int \ "eel" = \(5)`; access with `x ~ "eel"` or `x.unlabel` */
+/** A labelled type unrelated to the thing it is labelling; create with `val x: Int \ "eel" = \.wrap(5)`; access with `x ~ "eel"` or `x.unlabel` */
 opaque infix type \[+A, L <: LabelVal] = A
 object \ {
   opaque type Assumed[L <: LabelVal] = Unit
@@ -88,6 +109,11 @@ object \ {
     inline def subtyped: (A \> L) = (la: A)
     inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
+    transparent inline def nt =
+      inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
+      else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
+
+  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 /** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \> "eel"`; use it directly. */
@@ -102,6 +128,11 @@ object \> {
     inline def newtyped: (A \ L) = (la: A)
     inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
+    transparent inline def nt =
+      inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
+      else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
+
+  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 /** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \< "eel"`; access with `x ~ "eel"` or `x.unlabel` */
@@ -118,6 +149,11 @@ object \< {
     inline def subtyped: (A \> L) = (la: A)
     inline def tuple1: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]] = Tuple1((la: A))
     transparent inline def label: L = compiletime.constValue[L]
+    transparent inline def nt =
+      inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
+      else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
+
+  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 
@@ -154,8 +190,8 @@ object Copies {
   given copiesArrayGeneric[A <: AnyRef]: Copies[Array[A]] with
     def copy(a: Array[A]) = java.util.Arrays.copyOf[A & AnyRef](a, a.length)
 
-  given copiesArrayOpaque[O, A](using translucency: Translucent[O, A], copier: Copies[Array[A]]): Copies[Array[O]] with
-    def copy(a: Array[O]) = translucency.inlineUncheckedArrayIntoOpaque( copier.copy( translucency.inlineArrayFromOpaque(a) ) )
+  given copiesArrayOpaque[O, A](using chain: Translucent.Chain[O, A], copier: Copies[Array[A]]): Copies[Array[O]] with
+    def copy(a: Array[O]) = chain.witness.array.conceal( copier.copy( chain.witness.array.reveal(a) ) )
 }
 
 /** Use copier typeclasses, if available, to copy a (presumably mutable) object. */
@@ -205,19 +241,22 @@ object shortcut {
   object Quits extends Type {}
 
   inline def quittable(inline f: boundary.Label[Quits.type] ?=> Unit): Unit =
-    boundary[Quits.type]:
+    boundary[Quits.type] {
       f
       Quits
+    }: Unit
 
   inline def skippable(inline f: boundary.Label[Skips.type] ?=> Unit): Unit =
-    boundary[Skips.type]:
+    boundary[Skips.type] {
       f
       Skips
+    }: Unit
 
   inline def outer(inline f: boundary.Label[Type] ?=> Unit): Unit =
-    boundary[Type]:
+    boundary[Type] {
       f
       Quits
+    }: Unit
 
   inline def inner(inline f: boundary.Label[Type] ?=> Unit)(using boundary.Label[Type]): Unit =
     val what = boundary[Type]:
@@ -246,19 +285,22 @@ object shortcut {
   /** Jumps within pre-specified corrals, but presently these aren't fully optimized so only use when it's essential. */
   object hopped {
     inline def quittable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Quits.type], Hop[Quits.type, c.type]) ?=> Unit): Unit =
-      Hop(using c):
+      Hop(using c) {
         f
         Quits
+      }: Unit
 
     inline def skippable[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Skips.type], Hop[Skips.type, c.type]) ?=> Unit): Unit =
-      Hop(using c):
+      Hop(using c) {
         f
         Skips
+      }: Unit
 
     inline def outer[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Type], Hop[Type, c.type]) ?=> Unit): Unit =
-      Hop(using c):
+      Hop(using c) {
         f
         Quits
+      }: Unit
 
     inline def inner[C <: Singleton](using c: Corral[C])(inline f: (boundary.Label[Type], Hop[Type, c.type]) ?=> Unit)(using l: boundary.Label[Type], h: Hop[Type, c.type]): Unit =
       val what = Hop(using c):

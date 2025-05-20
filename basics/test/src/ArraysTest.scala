@@ -41,9 +41,8 @@ class ArraysTest() {
   }
   extension (ac: Array[C.Type])
     def cs: String =
-      val sb = new java.lang.StringBuilder()
-      ac.peek()(sb append _.value)
-      sb.toString
+      MkStr: sb =>
+        ac.peek()(sb += _.value): Unit
 
   object O extends NewType[Option[String]] {
     extension (o: O.Type)
@@ -53,10 +52,9 @@ class ArraysTest() {
   }
   extension (ao: Array[O.Type])
     def os: String =
-      val sb = new java.lang.StringBuilder()
-      ao.peek()(o => sb append (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#")))
-      sb.toString
-
+      MkStr: sb =>
+        ao.peek()(o => sb += (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#"))): Unit
+  
   extension (s: String)
     def c: Array[C.Type] = s.toCharArray.copyWith(c => C(c))
 
@@ -82,7 +80,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ car.cs ==== str
@@ -552,7 +550,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ car.clip(2)(C('!'))          ==== car(2)
@@ -1301,7 +1299,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ z{ car.breakable.peek()(cuml += _.n) }.cs       ==== str
@@ -1550,7 +1548,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ car.clip.breakable ==== typed[ClipBreakArray[C.Type]]
@@ -2331,7 +2329,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ str.arr                             =**= arr
@@ -2547,7 +2545,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ z{ str.clip.peek(3, 5)(cuml += _) }   ==== str
@@ -3016,7 +3014,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ z{ str.breakable.peek(){ c => qIf(!c.isLetter); cuml += c } }      ==== str
@@ -3198,7 +3196,7 @@ class ArraysTest() {
 
     inline def n[A](inline f: => A): Int =
       cuml = 0
-      f
+      f: Unit
       cuml
 
     T ~ str.clip.breakable ==== typed[ClipBreakString]

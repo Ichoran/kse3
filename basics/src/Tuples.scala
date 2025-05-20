@@ -4,7 +4,7 @@
 package kse.basics
 
 
-import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+//import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.compiletime.{constValue, summonFrom}
 
@@ -604,9 +604,13 @@ extension [La <: LabelVal, A](nup1: NTup[Tuple1[La], Tuple1[A]]) {
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <:( La | "")] = OpaqueTupleLenses.Nup1.wrap[La, A, Lz](nup1)[labels.ExplicitTypeIndices.UpTo1[La, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: La](z: Z \ Lz) =
+    NamedTuple.withNames(Tuple1(z.unlabel))[Tuple1[La]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lz), (A, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, Tuple1[La]]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, Tuple1[La]]] match
       case "" => NamedTuple[(La, Lz), (A, Z)]((nup1.asInstanceOf[Tuple1[A]]._1, z))
       case e => compiletime.error("Duplicate or missing names: " + e)
 }
@@ -616,9 +620,13 @@ extension[La <: LabelVal, Lb <: LabelVal, A, B](nup2: NTup[(La, Lb), (A, B)]) {
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | "")] = OpaqueTupleLenses.Nup2.wrap[La, Lb, A, B, Lz](nup2)[labels.ExplicitTypeIndices.UpTo2[La, Lb, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb)](z: Z \ Lz) =
+    NamedTuple.withNames(nup2.asInstanceOf[OpaqueTupleLenses.Tup2[A, B, labels.ExplicitTypeIndices.UpTo1[La, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb), Lz, 0, labels.ExplicitTypeIndices.UpTo1[La, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lz), (A, B, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb)]] match
       case"" =>
         val tup2 = nup2.asInstanceOf[(A, B)]
         NamedTuple[(La, Lb, Lz), (A, B, Z)]((tup2._1, tup2._2, z))
@@ -626,13 +634,18 @@ extension[La <: LabelVal, Lb <: LabelVal, A, B](nup2: NTup[(La, Lb), (A, B)]) {
 }
 
 
+
 extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, A, B, C](nup3: NTup[(La, Lb, Lc), (A, B, C)]) {
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | "")] = OpaqueTupleLenses.Nup3.wrap[La, Lb, Lc, A, B, C, Lz](nup3)[labels.ExplicitTypeIndices.UpTo3[La, Lb, Lc, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc)](z: Z \ Lz) =
+    NamedTuple.withNames(nup3.asInstanceOf[OpaqueTupleLenses.Tup3[A, B, C, labels.ExplicitTypeIndices.UpTo2[La, Lb, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc), Lz, 0, labels.ExplicitTypeIndices.UpTo2[La, Lb, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Lz), (A, B, C, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc)]] match
       case"" =>
         val tup3 = nup3.asInstanceOf[(A, B, C)]
         NamedTuple[(La, Lb, Lc, Lz), (A, B, C, Z)]((tup3._1, tup3._2, tup3._3, z))
@@ -644,9 +657,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, A, B, 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | "")] = OpaqueTupleLenses.Nup4.wrap[La, Lb, Lc, Ld, A, B, C, D, Lz](nup4)[labels.ExplicitTypeIndices.UpTo4[La, Lb, Lc, Ld, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld)](z: Z \ Lz) =
+    NamedTuple.withNames(nup4.asInstanceOf[OpaqueTupleLenses.Tup4[A, B, C, D, labels.ExplicitTypeIndices.UpTo3[La, Lb, Lc, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld), Lz, 0, labels.ExplicitTypeIndices.UpTo3[La, Lb, Lc, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Lz), (A, B, C, D, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld)]] match
       case"" =>
         val tup4 = nup4.asInstanceOf[(A, B, C, D)]
         NamedTuple[(La, Lb, Lc, Ld, Lz), (A, B, C, D, Z)]((tup4._1, tup4._2, tup4._3, tup4._4, z))
@@ -658,9 +675,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | "")] = OpaqueTupleLenses.Nup5.wrap[La, Lb, Lc, Ld, Le, A, B, C, D, E, Lz](nup5)[labels.ExplicitTypeIndices.UpTo5[La, Lb, Lc, Ld, Le, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le)](z: Z \ Lz) =
+    NamedTuple.withNames(nup5.asInstanceOf[OpaqueTupleLenses.Tup5[A, B, C, D, E, labels.ExplicitTypeIndices.UpTo4[La, Lb, Lc, Ld, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le), Lz, 0, labels.ExplicitTypeIndices.UpTo4[La, Lb, Lc, Ld, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lz), (A, B, C, D, E, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le)]] match
       case"" =>
         val tup5 = nup5.asInstanceOf[(A, B, C, D, E)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lz), (A, B, C, D, E, Z)]((tup5._1, tup5._2, tup5._3, tup5._4, tup5._5, z))
@@ -672,9 +693,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | "")] = OpaqueTupleLenses.Nup6.wrap[La, Lb, Lc, Ld, Le, Lf, A, B, C, D, E, F, Lz](nup6)[labels.ExplicitTypeIndices.UpTo6[La, Lb, Lc, Ld, Le, Lf, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf)](z: Z \ Lz) =
+    NamedTuple.withNames(nup6.asInstanceOf[OpaqueTupleLenses.Tup6[A, B, C, D, E, F, labels.ExplicitTypeIndices.UpTo5[La, Lb, Lc, Ld, Le, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf), Lz, 0, labels.ExplicitTypeIndices.UpTo5[La, Lb, Lc, Ld, Le, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lz), (A, B, C, D, E, F, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf)]] match
       case"" =>
         val tup6 = nup6.asInstanceOf[(A, B, C, D, E, F)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lz), (A, B, C, D, E, F, Z)]((tup6._1, tup6._2, tup6._3, tup6._4, tup6._5, tup6._6, z))
@@ -686,9 +711,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | "")] = OpaqueTupleLenses.Nup7.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, A, B, C, D, E, F, G, Lz](nup7)[labels.ExplicitTypeIndices.UpTo7[La, Lb, Lc, Ld, Le, Lf, Lg, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg)](z: Z \ Lz) =
+    NamedTuple.withNames(nup7.asInstanceOf[OpaqueTupleLenses.Tup7[A, B, C, D, E, F, G, labels.ExplicitTypeIndices.UpTo6[La, Lb, Lc, Ld, Le, Lf, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg), Lz, 0, labels.ExplicitTypeIndices.UpTo6[La, Lb, Lc, Ld, Le, Lf, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lz), (A, B, C, D, E, F, G, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg)]] match
       case"" =>
         val tup7 = nup7.asInstanceOf[(A, B, C, D, E, F, G)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lz), (A, B, C, D, E, F, G, Z)]((tup7._1, tup7._2, tup7._3, tup7._4, tup7._5, tup7._6, tup7._7, z))
@@ -700,9 +729,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | "")] = OpaqueTupleLenses.Nup8.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, A, B, C, D, E, F, G, H, Lz](nup8)[labels.ExplicitTypeIndices.UpTo8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh)](z: Z \ Lz) =
+    NamedTuple.withNames(nup8.asInstanceOf[OpaqueTupleLenses.Tup8[A, B, C, D, E, F, G, H, labels.ExplicitTypeIndices.UpTo7[La, Lb, Lc, Ld, Le, Lf, Lg, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), Lz, 0, labels.ExplicitTypeIndices.UpTo7[La, Lb, Lc, Ld, Le, Lf, Lg, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Lz), (A, B, C, D, E, F, G, H, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]] match
       case"" =>
         val tup8 = nup8.asInstanceOf[(A, B, C, D, E, F, G, H)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Lz), (A, B, C, D, E, F, G, H, Z)]((tup8._1, tup8._2, tup8._3, tup8._4, tup8._5, tup8._6, tup8._7, tup8._8, z))
@@ -714,9 +747,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | "")] = OpaqueTupleLenses.Nup9.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, A, B, C, D, E, F, G, H, I, Lz](nup9)[labels.ExplicitTypeIndices.UpTo9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li)](z: Z \ Lz) =
+    NamedTuple.withNames(nup9.asInstanceOf[OpaqueTupleLenses.Tup9[A, B, C, D, E, F, G, H, I, labels.ExplicitTypeIndices.UpTo8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), Lz, 0, labels.ExplicitTypeIndices.UpTo8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lz), (A, B, C, D, E, F, G, H, I, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]] match
       case"" =>
         val tup9 = nup9.asInstanceOf[(A, B, C, D, E, F, G, H, I)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lz), (A, B, C, D, E, F, G, H, I, Z)]((tup9._1, tup9._2, tup9._3, tup9._4, tup9._5, tup9._6, tup9._7, tup9._8, tup9._9, z))
@@ -728,9 +765,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | "")] = OpaqueTupleLenses.Nup10.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, A, B, C, D, E, F, G, H, I, J, Lz](nup10)[labels.ExplicitTypeIndices.UpTo10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj)](z: Z \ Lz) =
+    NamedTuple.withNames(nup10.asInstanceOf[OpaqueTupleLenses.Tup10[A, B, C, D, E, F, G, H, I, J, labels.ExplicitTypeIndices.UpTo9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), Lz, 0, labels.ExplicitTypeIndices.UpTo9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lz), (A, B, C, D, E, F, G, H, I, J, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]] match
       case"" =>
         val tup10 = nup10.asInstanceOf[(A, B, C, D, E, F, G, H, I, J)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lz), (A, B, C, D, E, F, G, H, I, J, Z)]((tup10._1, tup10._2, tup10._3, tup10._4, tup10._5, tup10._6, tup10._7, tup10._8, tup10._9, tup10._10, z))
@@ -742,9 +783,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | "")] = OpaqueTupleLenses.Nup11.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, A, B, C, D, E, F, G, H, I, J, K, Lz](nup11)[labels.ExplicitTypeIndices.UpTo11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk)](z: Z \ Lz) =
+    NamedTuple.withNames(nup11.asInstanceOf[OpaqueTupleLenses.Tup11[A, B, C, D, E, F, G, H, I, J, K, labels.ExplicitTypeIndices.UpTo10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), Lz, 0, labels.ExplicitTypeIndices.UpTo10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Lz), (A, B, C, D, E, F, G, H, I, J, K, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]] match
       case"" =>
         val tup11 = nup11.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Lz), (A, B, C, D, E, F, G, H, I, J, K, Z)]((tup11._1, tup11._2, tup11._3, tup11._4, tup11._5, tup11._6, tup11._7, tup11._8, tup11._9, tup11._10, tup11._11, z))
@@ -756,9 +801,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | "")] = OpaqueTupleLenses.Nup12.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, A, B, C, D, E, F, G, H, I, J, K, L, Lz](nup12)[labels.ExplicitTypeIndices.UpTo12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll)](z: Z \ Lz) =
+    NamedTuple.withNames(nup12.asInstanceOf[OpaqueTupleLenses.Tup12[A, B, C, D, E, F, G, H, I, J, K, L, labels.ExplicitTypeIndices.UpTo11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), Lz, 0, labels.ExplicitTypeIndices.UpTo11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]] match
       case"" =>
         val tup12 = nup12.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, Z)]((tup12._1, tup12._2, tup12._3, tup12._4, tup12._5, tup12._6, tup12._7, tup12._8, tup12._9, tup12._10, tup12._11, tup12._12, z))
@@ -770,9 +819,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | "")] = OpaqueTupleLenses.Nup13.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, A, B, C, D, E, F, G, H, I, J, K, L, M, Lz](nup13)[labels.ExplicitTypeIndices.UpTo13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm)](z: Z \ Lz) =
+    NamedTuple.withNames(nup13.asInstanceOf[OpaqueTupleLenses.Tup13[A, B, C, D, E, F, G, H, I, J, K, L, M, labels.ExplicitTypeIndices.UpTo12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), Lz, 0, labels.ExplicitTypeIndices.UpTo12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]] match
       case"" =>
         val tup13 = nup13.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, Z)]((tup13._1, tup13._2, tup13._3, tup13._4, tup13._5, tup13._6, tup13._7, tup13._8, tup13._9, tup13._10, tup13._11, tup13._12, tup13._13, z))
@@ -784,9 +837,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | "")] = OpaqueTupleLenses.Nup14.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Lz](nup14)[labels.ExplicitTypeIndices.UpTo14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln)](z: Z \ Lz) =
+    NamedTuple.withNames(nup14.asInstanceOf[OpaqueTupleLenses.Tup14[A, B, C, D, E, F, G, H, I, J, K, L, M, N, labels.ExplicitTypeIndices.UpTo13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), Lz, 0, labels.ExplicitTypeIndices.UpTo13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]] match
       case"" =>
         val tup14 = nup14.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, Z)]((tup14._1, tup14._2, tup14._3, tup14._4, tup14._5, tup14._6, tup14._7, tup14._8, tup14._9, tup14._10, tup14._11, tup14._12, tup14._13, tup14._14, z))
@@ -798,9 +855,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | "")] = OpaqueTupleLenses.Nup15.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Lz](nup15)[labels.ExplicitTypeIndices.UpTo15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo)](z: Z \ Lz) =
+    NamedTuple.withNames(nup15.asInstanceOf[OpaqueTupleLenses.Tup15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, labels.ExplicitTypeIndices.UpTo14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), Lz, 0, labels.ExplicitTypeIndices.UpTo14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]] match
       case"" =>
         val tup15 = nup15.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Z)]((tup15._1, tup15._2, tup15._3, tup15._4, tup15._5, tup15._6, tup15._7, tup15._8, tup15._9, tup15._10, tup15._11, tup15._12, tup15._13, tup15._14, tup15._15, z))
@@ -812,9 +873,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | "")] = OpaqueTupleLenses.Nup16.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Lz](nup16)[labels.ExplicitTypeIndices.UpTo16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp)](z: Z \ Lz) =
+    NamedTuple.withNames(nup16.asInstanceOf[OpaqueTupleLenses.Tup16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, labels.ExplicitTypeIndices.UpTo15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), Lz, 0, labels.ExplicitTypeIndices.UpTo15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]] match
       case"" =>
         val tup16 = nup16.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Z)]((tup16._1, tup16._2, tup16._3, tup16._4, tup16._5, tup16._6, tup16._7, tup16._8, tup16._9, tup16._10, tup16._11, tup16._12, tup16._13, tup16._14, tup16._15, tup16._16, z))
@@ -826,9 +891,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | "")] = OpaqueTupleLenses.Nup17.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Lz](nup17)[labels.ExplicitTypeIndices.UpTo17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq)](z: Z \ Lz) =
+    NamedTuple.withNames(nup17.asInstanceOf[OpaqueTupleLenses.Tup17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, labels.ExplicitTypeIndices.UpTo16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), Lz, 0, labels.ExplicitTypeIndices.UpTo16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]] match
       case"" =>
         val tup17 = nup17.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Z)]((tup17._1, tup17._2, tup17._3, tup17._4, tup17._5, tup17._6, tup17._7, tup17._8, tup17._9, tup17._10, tup17._11, tup17._12, tup17._13, tup17._14, tup17._15, tup17._16, tup17._17, z))
@@ -840,9 +909,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | "")] = OpaqueTupleLenses.Nup18.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Lz](nup18)[labels.ExplicitTypeIndices.UpTo18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr)](z: Z \ Lz) =
+    NamedTuple.withNames(nup18.asInstanceOf[OpaqueTupleLenses.Tup18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, labels.ExplicitTypeIndices.UpTo17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), Lz, 0, labels.ExplicitTypeIndices.UpTo17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]] match
       case"" =>
         val tup18 = nup18.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Z)]((tup18._1, tup18._2, tup18._3, tup18._4, tup18._5, tup18._6, tup18._7, tup18._8, tup18._9, tup18._10, tup18._11, tup18._12, tup18._13, tup18._14, tup18._15, tup18._16, tup18._17, tup18._18, z))
@@ -854,9 +927,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | "")] = OpaqueTupleLenses.Nup19.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Lz](nup19)[labels.ExplicitTypeIndices.UpTo19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls)](z: Z \ Lz) =
+    NamedTuple.withNames(nup19.asInstanceOf[OpaqueTupleLenses.Tup19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, labels.ExplicitTypeIndices.UpTo18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), Lz, 0, labels.ExplicitTypeIndices.UpTo18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]] match
       case"" =>
         val tup19 = nup19.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Z)]((tup19._1, tup19._2, tup19._3, tup19._4, tup19._5, tup19._6, tup19._7, tup19._8, tup19._9, tup19._10, tup19._11, tup19._12, tup19._13, tup19._14, tup19._15, tup19._16, tup19._17, tup19._18, tup19._19, z))
@@ -868,9 +945,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt | "")] = OpaqueTupleLenses.Nup20.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Lz](nup20)[labels.ExplicitTypeIndices.UpTo20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt)](z: Z \ Lz) =
+    NamedTuple.withNames(nup20.asInstanceOf[OpaqueTupleLenses.Tup20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, labels.ExplicitTypeIndices.UpTo19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), Lz, 0, labels.ExplicitTypeIndices.UpTo19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]] match
       case"" =>
         val tup20 = nup20.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Z)]((tup20._1, tup20._2, tup20._3, tup20._4, tup20._5, tup20._6, tup20._7, tup20._8, tup20._9, tup20._10, tup20._11, tup20._12, tup20._13, tup20._14, tup20._15, tup20._16, tup20._17, tup20._18, tup20._19, tup20._20, z))
@@ -882,9 +963,13 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt | Lu | "")] = OpaqueTupleLenses.Nup21.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Lz](nup21)[labels.ExplicitTypeIndices.UpTo21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt | Lu)](z: Z \ Lz) =
+    NamedTuple.withNames(nup21.asInstanceOf[OpaqueTupleLenses.Tup21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, labels.ExplicitTypeIndices.UpTo20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), Lz, 0, labels.ExplicitTypeIndices.UpTo20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]] match
       case"" =>
         val tup21 = nup21.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Z)]((tup21._1, tup21._2, tup21._3, tup21._4, tup21._5, tup21._6, tup21._7, tup21._8, tup21._9, tup21._10, tup21._11, tup21._12, tup21._13, tup21._14, tup21._15, tup21._16, tup21._17, tup21._18, tup21._19, tup21._20, tup21._21, z))
@@ -896,13 +981,30 @@ extension[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: 
   /** Operations focused on an individual element of this tuple. */
   transparent inline def lens[Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt | Lu | Lv | "")] = OpaqueTupleLenses.Nup22.wrap[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Lz](nup22)[labels.ExplicitTypeIndices.UpTo22[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, Lz]]
 
+  /** Swaps a value corresponding to an existing name. */
+  transparent inline infix def replace[Z, Lz <: (La | Lb | Lc | Ld | Le | Lf | Lg | Lh | Li | Lj | Lk | Ll | Lm | Ln | Lo | Lp | Lq | Lr | Ls | Lt | Lu | Lv)](z: Z \ Lz) =
+    NamedTuple.withNames(nup22.asInstanceOf[OpaqueTupleLenses.Tup22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, labels.ExplicitTypeIndices.UpTo21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), Lz, 0, labels.ExplicitTypeIndices.UpTo21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lz]]]
+
   /** Make into a larger named tuple by appending one named element. */
   inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Z)] =
-    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]] match
+    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]] match
       case"" =>
         val tup22 = nup22.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]
         NamedTuple[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, Lz), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Z)]((tup22._1, tup22._2, tup22._3, tup22._4, tup22._5, tup22._6, tup22._7, tup22._8, tup22._9, tup22._10, tup22._11, tup22._12, tup22._13, tup22._14, tup22._15, tup22._16, tup22._17, tup22._18, tup22._19, tup22._20, tup22._21, tup22._22, z))
       case e => compiletime.error("Duplicate or missing names: " + e)
+}
+
+
+extension [Ns <: Tuple, Ts <: Tuple](tup: NamedTuple.NamedTuple[Ns, Ts]) {
+  transparent inline def toNames = compiletime.constValueTuple[Ns]
+
+  transparent inline def name(i: Int) = compiletime.constValueTuple[Ns](i)
+
+  transparent inline def indexOf[L <: LabelVal](inline l: L) =
+    compiletime.constValue[labels.NamesAndLabels.IndexOfType[Ns, L, 0]]
+
+  transparent inline def copyFrom[Nz <: Tuple, Tz <: Tuple](zup: NamedTuple.NamedTuple[Nz, Tz]) =
+    labels.NamesAndLabels.copyWithUpdateByName[Ns, Ts, Nz, Tz](tup, zup)
 }
 
 
@@ -960,6 +1062,7 @@ def mkNupExt(n: Int) =
   val args = "ABCDEFGHIJKLMNOPQRSTUVWX".take(n).map(_.toString)
   val targ = args.mkString(", ")
   val larg = args.map(a => s"L${a.toLowerCase}").mkString(", ")
+  val largdr1 = args.dropRight(1).map(a => s"L${a.toLowerCase}").mkString(", ")
   val lorg = args.map(a => s"L${a.toLowerCase}").mkString(" | ")
   val tlarg = args.map(a => s"L${a.toLowerCase} <: LabelVal").mkString(", ")
   val varg = (1 to n).map(i => s"tup$n._$i").mkString(", ")
@@ -967,9 +1070,13 @@ def mkNupExt(n: Int) =
   println(s"  /** Operations focused on an individual element of this tuple. */")
   println(s"  transparent inline def lens[Lz <: ($lorg | \"\")] = OpaqueTupleLenses.Nup$n.wrap[$larg, $targ, Lz](nup$n)[labels.ExplicitTypeIndices.UpTo$n[$larg, Lz]]")
   println()
+  println(s"  /** Swaps a value corresponding to an existing name. */")
+  println(s"  transparent inline infix def replace[Z, Lz <: ($lorg)](z: Z \\ Lz) =")
+  println(s"    NamedTuple.withNames(nup$n.asInstanceOf[OpaqueTupleLenses.Tup$n[$targ, labels.ExplicitTypeIndices.UpTo${n-1}[$largdr1, Lz]]].to[Z](z.unlabel))[labels.NamesAndLabels.TupleWithSwap[($larg), Lz, 0, labels.ExplicitTypeIndices.UpTo${n-1}[$largdr1, Lz]]]")
+  println()
   println(s"  /** Make into a larger named tuple by appending one named element. */")
   println(s"  inline def tup[Lz <: LabelVal](lz: Lz)[Z](z: Z): NTup[($larg, Lz), ($targ, Z)] =")
-  println(s"    inline compiletime.constValue[labels.NamedTupleLabels.NameIfPresent[Lz, ($larg)]] match")
+  println(s"    inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, ($larg)]] match")
   println(s"      case\"\" =>")
   println(s"        val tup$n = nup$n.asInstanceOf[($targ)]")
   println(s"        NamedTuple[($larg, Lz), ($targ, Z)](($varg, z))")

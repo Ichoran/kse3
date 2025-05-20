@@ -45,7 +45,7 @@ class BytecodeCheck {
     val t = (a = "eel", b = true, c = 0.5)
     val u = (c = 'c', a = 12341324L)
     val w = (u.a, t.b, u.c)
-    val x = kse.basics.labels.NamedTupleLabels.copyWithUpdateByName(t, u)
+    val x = kse.basics.labels.NamesAndLabels.copyWithUpdateByName(t, u)
     (w, x)
 
   def pointtest(i: Int, a: Array[Char]) =
@@ -69,7 +69,7 @@ class BytecodeCheck {
 
   def peekTest(a: Array[String]) =
     var i = 0
-    a.peek(2 to 5)(i += _.length)
+    a.peek(2 to 5)(i += _.length): Unit
     i
   
   def boundaryTest(d: Double): Double =
@@ -179,7 +179,7 @@ class BasicsTest() {
             Hop.jump("cod")
             Corral:
               "eel"
-          2
+          .length
     } ==== 5
     T ~ { compiletime.testing.typeChecks("""
       hop[Int].here:
@@ -298,6 +298,7 @@ class BasicsTest() {
     T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
     T ~ { m.++; m() }      ==== 3
     T ~ { m.--; m }        ==== Mu(2)
+    T ~ { m.op(_ + 1); m } ==== Mu(3)
 
     object Meter extends NewType[Double] {}
 
@@ -350,36 +351,36 @@ class BasicsTest() {
     T ~ { ad := 0.4;   ad swap 0.3 }    ==== 0.4
     T ~ { aa := "cod"; aa swap "bass" } ==== "cod"
     T ~ { am := q(2);  am swap q(3) }   ==== 2.5
-    T ~ az.oldOp(z => !z)            ==== true
-    T ~ ab.oldOp(b => (b+1).toByte)  ==== (4: Byte)
-    T ~ as.oldOp(s => (s+1).toShort) ==== (4: Short)
-    T ~ ac.oldOp(c => (c+1).toChar)  ==== 'g'
-    T ~ ai.oldOp(_ + 1)              ==== 4
-    T ~ al.oldOp(_ + 1L)             ==== 4L
-    T ~ af.oldOp(_ - 0.1f)           ==== 0.3f
-    T ~ ad.oldOp(_ - 0.1)            ==== 0.3
-    T ~ aa.oldOp(_ + " cod")         ==== "bass"
-    T ~ am.oldOp(m => q(m.value))    ==== 3.5
-    T ~ az.newOp(z => !z)            ==== true
-    T ~ ab.newOp(b => (b+2).toByte)  ==== (7: Byte)
-    T ~ as.newOp(s => (s+2).toShort) ==== (7: Short)
-    T ~ ac.newOp(c => (c+2).toChar)  ==== 'j'
-    T ~ ai.newOp(_ + 2)              ==== 7
-    T ~ al.newOp(_ + 2)              ==== 7L
-    T ~ af.newOp(_ / 2.0f)           =~~= 0.1f
-    T ~ ad.newOp(_ / 2.0)            =~~= 0.1
-    T ~ aa.newOp(_ + " perch")       ==== "bass cod perch"
-    T ~ am.newOp(m => q(m.value+1))  ==== 6.5
-    T ~ az.zap(z => !z)()            ==== false
-    T ~ ab.zap(b => (b+2).toByte)()  ==== (9: Byte)
-    T ~ as.zap(s => (s+2).toShort)() ==== (9: Short)
-    T ~ ac.zap(c => (c+2).toChar)()  ==== 'l'
-    T ~ ai.zap(_ + 2)()              ==== 9
-    T ~ al.zap(_ + 2)()              ==== 9L
-    T ~ af.zap(_ / 2.0f)()           =~~= 0.05f
-    T ~ ad.zap(_ / 2.0)()            =~~= 0.05
-    T ~ aa.zap(_ + " eel")()         ==== "bass cod perch eel"
-    T ~ am.zap(m => q(m.value+1))()  ==== 8.5
+    T ~ az.getAndOp(z => !z)            ==== true
+    T ~ ab.getAndOp(b => (b+1).toByte)  ==== (4: Byte)
+    T ~ as.getAndOp(s => (s+1).toShort) ==== (4: Short)
+    T ~ ac.getAndOp(c => (c+1).toChar)  ==== 'g'
+    T ~ ai.getAndOp(_ + 1)              ==== 4
+    T ~ al.getAndOp(_ + 1L)             ==== 4L
+    T ~ af.getAndOp(_ - 0.1f)           ==== 0.3f
+    T ~ ad.getAndOp(_ - 0.1)            ==== 0.3
+    T ~ aa.getAndOp(_ + " cod")         ==== "bass"
+    T ~ am.getAndOp(m => q(m.value))    ==== 3.5
+    T ~ az.opAndGet(z => !z)            ==== true
+    T ~ ab.opAndGet(b => (b+2).toByte)  ==== (7: Byte)
+    T ~ as.opAndGet(s => (s+2).toShort) ==== (7: Short)
+    T ~ ac.opAndGet(c => (c+2).toChar)  ==== 'j'
+    T ~ ai.opAndGet(_ + 2)              ==== 7
+    T ~ al.opAndGet(_ + 2)              ==== 7L
+    T ~ af.opAndGet(_ / 2.0f)           =~~= 0.1f
+    T ~ ad.opAndGet(_ / 2.0)            =~~= 0.1
+    T ~ aa.opAndGet(_ + " perch")       ==== "bass cod perch"
+    T ~ am.opAndGet(m => q(m.value+1))  ==== 6.5
+    T ~ az.zap(z => !z)()               ==== false
+    T ~ ab.zap(b => (b+2).toByte)()     ==== (9: Byte)
+    T ~ as.zap(s => (s+2).toShort)()    ==== (9: Short)
+    T ~ ac.zap(c => (c+2).toChar)()     ==== 'l'
+    T ~ ai.zap(_ + 2)()                 ==== 9
+    T ~ al.zap(_ + 2)()                 ==== 9L
+    T ~ af.zap(_ / 2.0f)()              =~~= 0.05f
+    T ~ ad.zap(_ / 2.0)()               =~~= 0.05
+    T ~ aa.zap(_ + " eel")()            ==== "bass cod perch eel"
+    T ~ am.zap(m => q(m.value+1))()     ==== 8.5
     T ~ az.tap(_.op(z => !z))()            ==== true
     T ~ ab.tap(_.op(b => (b+2).toByte))()  ==== (11: Byte)
     T ~ as.tap(_.op(s => (s+2).toShort))() ==== (11: Short)
@@ -522,7 +523,7 @@ class BasicsTest() {
     inline def n[A](inline f: => A): Int =
       cuml = 0
       x = 0
-      f
+      f: Unit
       cuml
 
     inline def step2a(s: IntStepper) =

@@ -4,7 +4,7 @@
 package kse.basics
 
 
-import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+//import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference, LongAdder}
 
@@ -176,15 +176,15 @@ object Mu {
       case d: Double  => (new MuDouble(d)).asInstanceOf[T[X]]
 
     inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): T[A] = summonFrom {
-      case t: Translucent[A, Unit]    => MuUnit.asInstanceOf[T[A]]
-      case t: Translucent[A, Boolean] => MuBoolean(t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Byte]    => MuByte(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Short]   => MuShort(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Char]    => MuChar(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Int]     => MuInt(    t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Long]    => MuLong(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Float]   => MuFloat(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-      case t: Translucent[A, Double]  => MuDouble( t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Unit]    => MuUnit.asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Boolean] => MuBoolean(t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Byte]    => MuByte(   t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Short]   => MuShort(  t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Char]    => MuChar(   t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Int]     => MuInt(    t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Long]    => MuLong(   t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Float]   => MuFloat(  t.witness.reveal(a)).asInstanceOf[T[A]]
+      case t: Translucent.Chain[A, Double]  => MuDouble( t.witness.reveal(a)).asInstanceOf[T[A]]
     }
 
     given [A]: Copies[T[A]] with
@@ -225,15 +225,15 @@ object Mu {
     case d: Double  => new MuDouble(d)
 
   transparent inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): Mu[A] = summonFrom {
-    case t: Translucent[A, Unit]    => MuUnit.asInstanceOf[T[A]]
-    case t: Translucent[A, Boolean] => MuBoolean(t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Byte]    => MuByte(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Short]   => MuShort(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Char]    => MuChar(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Int]     => MuInt(    t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Long]    => MuLong(   t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Float]   => MuFloat(  t.inlineFromOpaque(a)).asInstanceOf[T[A]]
-    case t: Translucent[A, Double]  => MuDouble( t.inlineFromOpaque(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Unit]    => MuUnit.asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Boolean] => MuBoolean(t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Byte]    => MuByte(   t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Short]   => MuShort(  t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Char]    => MuChar(   t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Int]     => MuInt(    t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Long]    => MuLong(   t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Float]   => MuFloat(  t.witness.reveal(a)).asInstanceOf[T[A]]
+    case t: Translucent.Chain[A, Double]  => MuDouble( t.witness.reveal(a)).asInstanceOf[T[A]]
     case _                          => new MuAny(a)
   }
 
@@ -263,15 +263,15 @@ extension [A, M <: Mu[A]](mu: M) {
       case d: Mu.MuDouble    => d.myValue
       case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue
       case _                 => summonFrom {
-        case t: Translucent[A, Unit]    => t.inlineUncheckedIntoOpaque(())
-        case t: Translucent[A, Boolean] => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuBoolean].myValue)
-        case t: Translucent[A, Byte]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuByte   ].myValue)
-        case t: Translucent[A, Short]   => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuShort  ].myValue)
-        case t: Translucent[A, Char]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuChar   ].myValue)
-        case t: Translucent[A, Int]     => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuInt    ].myValue)
-        case t: Translucent[A, Long]    => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuLong   ].myValue)
-        case t: Translucent[A, Float]   => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuFloat  ].myValue)
-        case t: Translucent[A, Double]  => t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuDouble ].myValue)
+        case t: Translucent.Chain[A, Unit]    => t.witness.conceal(())
+        case t: Translucent.Chain[A, Boolean] => t.witness.conceal(mut.asInstanceOf[Mu.MuBoolean].myValue)
+        case t: Translucent.Chain[A, Byte]    => t.witness.conceal(mut.asInstanceOf[Mu.MuByte   ].myValue)
+        case t: Translucent.Chain[A, Short]   => t.witness.conceal(mut.asInstanceOf[Mu.MuShort  ].myValue)
+        case t: Translucent.Chain[A, Char]    => t.witness.conceal(mut.asInstanceOf[Mu.MuChar   ].myValue)
+        case t: Translucent.Chain[A, Int]     => t.witness.conceal(mut.asInstanceOf[Mu.MuInt    ].myValue)
+        case t: Translucent.Chain[A, Long]    => t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)
+        case t: Translucent.Chain[A, Float]   => t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)
+        case t: Translucent.Chain[A, Double]  => t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)
       }
     case _ => inline erasedValue[A] match
       case _: Unit    => ().asInstanceOf[A]
@@ -300,31 +300,31 @@ extension [A, M <: Mu[A]](mu: M) {
         case d: Mu.MuDouble  => d.myValue
         case _               => mu.getValue
       case _ => summonFrom {
-        case t: Translucent[A, Unit]    => t.inlineUncheckedIntoOpaque(())
-        case t: Translucent[A, Boolean] => mu match
-          case z: Mu.MuBoolean => t.inlineUncheckedIntoOpaque(z.myValue)
+        case t: Translucent.Chain[A, Unit] => t.witness.conceal(())
+        case t: Translucent.Chain[A, Boolean] => mu match
+          case z: Mu.MuBoolean => t.witness.conceal(z.myValue)
           case _               => mu.getValue
-        case t: Translucent[A, Byte]    => mu match
-          case b: Mu.MuByte    => t.inlineUncheckedIntoOpaque(b.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Short]   => mu match
-          case s: Mu.MuShort   => t.inlineUncheckedIntoOpaque(s.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Char]    => mu match
-          case c: Mu.MuChar    => t.inlineUncheckedIntoOpaque(c.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Int]     => mu match
-          case i: Mu.MuInt     => t.inlineUncheckedIntoOpaque(i.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Long]    => mu match
-          case l: Mu.MuLong    => t.inlineUncheckedIntoOpaque(l.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Float]   => mu match
-          case f: Mu.MuFloat   => t.inlineUncheckedIntoOpaque(f.myValue)
-          case _               => mu.getValue
-        case t: Translucent[A, Double]  => mu match
-          case d: Mu.MuDouble  => t.inlineUncheckedIntoOpaque(d.myValue)
-          case _               => mu.getValue
+        case t: Translucent.Chain[A, Byte] => mu match
+          case b: Mu.MuByte => t.witness.conceal(b.myValue)
+          case _            => mu.getValue
+        case t: Translucent.Chain[A, Short] => mu match
+          case s: Mu.MuShort => t.witness.conceal(s.myValue)
+          case _             => mu.getValue
+        case t: Translucent.Chain[A, Char] => mu match
+          case c: Mu.MuChar => t.witness.conceal(c.myValue)
+          case _            => mu.getValue
+        case t: Translucent.Chain[A, Int] => mu match
+          case i: Mu.MuInt => t.witness.conceal(i.myValue)
+          case _           => mu.getValue
+        case t: Translucent.Chain[A, Long] => mu match
+          case l: Mu.MuLong => t.witness.conceal(l.myValue)
+          case _            => mu.getValue
+        case t: Translucent.Chain[A, Float] => mu match
+          case f: Mu.MuFloat => t.witness.conceal(f.myValue)
+          case _             => mu.getValue
+        case t: Translucent.Chain[A, Double] => mu match
+          case d: Mu.MuDouble => t.witness.conceal(d.myValue)
+          case _              => mu.getValue
         case _ => mu.getValue
       }
 
@@ -349,15 +349,15 @@ extension [A, M <: Mu[A]](mu: M) {
       case d: Mu.MuDouble    => d.myValue = a
       case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue = a
       case _                 => summonFrom {
-        case t: Translucent[A, Unit]    => ()
-        case t: Translucent[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.inlineFromOpaque(a)
-        case t: Translucent[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.inlineFromOpaque(a)
+        case t: Translucent.Chain[A, Unit]    => ()
+        case t: Translucent.Chain[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(a)
+        case t: Translucent.Chain[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(a)
       }
     case _ => inline erasedValue[A] match
       case _: Unit    => ()
@@ -386,31 +386,31 @@ extension [A, M <: Mu[A]](mu: M) {
         case d: Mu.MuDouble  => d.myValue = a
         case _               => mu.setValue(a)
       case _ => summonFrom {
-        case t: Translucent[A, Unit]    => ()
-        case t: Translucent[A, Boolean] => mu match
-          case z: Mu.MuBoolean => z.myValue = t.inlineFromOpaque(a)
+        case t: Translucent.Chain[A, Unit] => ()
+        case t: Translucent.Chain[A, Boolean] => mu match
+          case z: Mu.MuBoolean => z.myValue = t.witness.reveal(a)
           case _               => mu.setValue(a)
-        case t: Translucent[A, Byte]    => mu match
-          case b: Mu.MuByte    => b.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Short]   => mu match
-          case s: Mu.MuShort   => s.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Char]    => mu match
-          case c: Mu.MuChar    => c.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Int]     => mu match
-          case i: Mu.MuInt     => i.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Long]    => mu match
-          case l: Mu.MuLong    => l.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Float]   => mu match
-          case f: Mu.MuFloat   => f.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
-        case t: Translucent[A, Double]  => mu match
-          case d: Mu.MuDouble  => d.myValue = t.inlineFromOpaque(a)
-          case _               => mu.setValue(a)
+        case t: Translucent.Chain[A, Byte] => mu match
+          case b: Mu.MuByte => b.myValue = t.witness.reveal(a)
+          case _            => mu.setValue(a)
+        case t: Translucent.Chain[A, Short] => mu match
+          case s: Mu.MuShort => s.myValue = t.witness.reveal(a)
+          case _             => mu.setValue(a)
+        case t: Translucent.Chain[A, Char] => mu match
+          case c: Mu.MuChar => c.myValue = t.witness.reveal(a)
+          case _            => mu.setValue(a)
+        case t: Translucent.Chain[A, Int] => mu match
+          case i: Mu.MuInt => i.myValue = t.witness.reveal(a)
+          case _           => mu.setValue(a)
+        case t: Translucent.Chain[A, Long] => mu match
+          case l: Mu.MuLong => l.myValue = t.witness.reveal(a)
+          case _            => mu.setValue(a)
+        case t: Translucent.Chain[A, Float] => mu match
+          case f: Mu.MuFloat => f.myValue = t.witness.reveal(a)
+          case _             => mu.setValue(a)
+        case t: Translucent.Chain[A, Double] => mu match
+          case d: Mu.MuDouble => d.myValue = t.witness.reveal(a)
+          case _              => mu.setValue(a)
         case _ => mu.setValue(a)
       }
 
@@ -418,7 +418,7 @@ extension [A, M <: Mu[A]](mu: M) {
     f(mu())
     mu
 
-  inline def zap(inline f: A => A): mu.type = 
+  inline def op(inline f: A => A): Unit = 
     inline mu match
       case mut: Mu.T[A] => inline mut match
         case u: Mu.MuUnit.type => ()
@@ -440,15 +440,15 @@ extension [A, M <: Mu[A]](mu: M) {
         case d: Mu.MuDouble    => d.myValue = f(d.myValue)
         case d: Mu.T[Double]   => d.asInstanceOf[Mu.MuDouble].myValue = f(d.asInstanceOf[Mu.MuDouble].myValue)
         case _                 => summonFrom {
-          case t: Translucent[A, Unit]    => ()
-          case t: Translucent[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuBoolean].myValue)))
-          case t: Translucent[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuByte   ].myValue)))
-          case t: Translucent[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuShort  ].myValue)))
-          case t: Translucent[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuChar   ].myValue)))
-          case t: Translucent[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuInt    ].myValue)))
-          case t: Translucent[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuLong   ].myValue)))
-          case t: Translucent[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuFloat  ].myValue)))
-          case t: Translucent[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(mut.asInstanceOf[Mu.MuDouble ].myValue)))
+          case t: Translucent.Chain[A, Unit]    => ()
+          case t: Translucent.Chain[A, Boolean] => mut.asInstanceOf[Mu.MuBoolean].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuBoolean].myValue)))
+          case t: Translucent.Chain[A, Byte]    => mut.asInstanceOf[Mu.MuByte   ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuByte   ].myValue)))
+          case t: Translucent.Chain[A, Short]   => mut.asInstanceOf[Mu.MuShort  ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuShort  ].myValue)))
+          case t: Translucent.Chain[A, Char]    => mut.asInstanceOf[Mu.MuChar   ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuChar   ].myValue)))
+          case t: Translucent.Chain[A, Int]     => mut.asInstanceOf[Mu.MuInt    ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuInt    ].myValue)))
+          case t: Translucent.Chain[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)))
+          case t: Translucent.Chain[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)))
+          case t: Translucent.Chain[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)))
         }
       case _ => inline erasedValue[A] match
         case _: Unit    => ()
@@ -477,34 +477,211 @@ extension [A, M <: Mu[A]](mu: M) {
           case d: Mu.MuDouble  => d.myValue = f(d.myValue)
           case _               => mu.setValue(f(mu.getValue))
         case _ => summonFrom {
-          case t: Translucent[A, Unit]    => ()
-          case t: Translucent[A, Boolean] => mu match
-            case z: Mu.MuBoolean => z.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(z.myValue)))
+          case t: Translucent.Chain[A, Unit]    => ()
+          case t: Translucent.Chain[A, Boolean] => mu match
+            case z: Mu.MuBoolean => z.myValue = t.witness.reveal(f(t.witness.conceal(z.myValue)))
             case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Byte]    => mu match
-            case b: Mu.MuByte    => b.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(b.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Short]   => mu match
-            case s: Mu.MuShort   => s.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(s.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Char]    => mu match
-            case c: Mu.MuChar    => c.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(c.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Int]     => mu match
-            case i: Mu.MuInt     => i.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(i.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Long]    => mu match
-            case l: Mu.MuLong    => l.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(l.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Float]   => mu match
-            case x: Mu.MuFloat   => x.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(x.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
-          case t: Translucent[A, Double]  => mu match
-            case d: Mu.MuDouble  => d.myValue = t.inlineFromOpaque(f(t.inlineUncheckedIntoOpaque(d.myValue)))
-            case _               => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Byte]    => mu match
+            case b: Mu.MuByte => b.myValue = t.witness.reveal(f(t.witness.conceal(b.myValue)))
+            case _            => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Short]   => mu match
+            case s: Mu.MuShort => s.myValue = t.witness.reveal(f(t.witness.conceal(s.myValue)))
+            case _             => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Char]    => mu match
+            case c: Mu.MuChar => c.myValue = t.witness.reveal(f(t.witness.conceal(c.myValue)))
+            case _            => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Int]     => mu match
+            case i: Mu.MuInt => i.myValue = t.witness.reveal(f(t.witness.conceal(i.myValue)))
+            case _           => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Long]    => mu match
+            case l: Mu.MuLong => l.myValue = t.witness.reveal(f(t.witness.conceal(l.myValue)))
+            case _            => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Float]   => mu match
+            case x: Mu.MuFloat => x.myValue = t.witness.reveal(f(t.witness.conceal(x.myValue)))
+            case _             => mu.setValue(f(mu.getValue))
+          case t: Translucent.Chain[A, Double]  => mu match
+            case d: Mu.MuDouble => d.myValue = t.witness.reveal(f(t.witness.conceal(d.myValue)))
+            case _              => mu.setValue(f(mu.getValue))
           case _ => mu.setValue(f(mu.getValue))
         }
-      mu
+
+  inline def zap(inline f: A => A): mu.type =
+    op(f)
+    mu
+
+  inline def opAndGet(inline f: A => A): A =
+    inline mu match
+      case mut: Mu.T[A] => inline mut match
+        case u: Mu.MuUnit.type => ()
+        case u: Mu.T[Unit]     => ()
+        case z: Mu.MuBoolean   => { val v = f(z.myValue); z.myValue = v; v }
+        case z: Mu.T[Boolean]  => { val v = f(z.asInstanceOf[Mu.MuBoolean].myValue); z.asInstanceOf[Mu.MuBoolean].myValue = v; v }
+        case b: Mu.MuByte      => { val v = f(b.myValue); b.myValue = v; v }
+        case b: Mu.T[Byte]     => { val v = f(b.asInstanceOf[Mu.MuByte].myValue); b.asInstanceOf[Mu.MuByte].myValue = v; v }
+        case s: Mu.MuShort     => { val v = f(s.myValue); s.myValue = v; v }
+        case s: Mu.T[Short]    => { val v = f(s.asInstanceOf[Mu.MuShort].myValue); s.asInstanceOf[Mu.MuShort].myValue = v; v }
+        case c: Mu.MuChar      => { val v = f(c.myValue); c.myValue = v; v }
+        case c: Mu.T[Char]     => { val v = f(c.asInstanceOf[Mu.MuChar].myValue); c.asInstanceOf[Mu.MuChar].myValue = v; v }
+        case i: Mu.MuInt       => { val v = f(i.myValue); i.myValue = v; v }
+        case i: Mu.T[Int]      => { val v = f(i.asInstanceOf[Mu.MuInt].myValue); i.asInstanceOf[Mu.MuInt].myValue = v; v }
+        case l: Mu.MuLong      => { val v = f(l.myValue); l.myValue = v; v }
+        case l: Mu.T[Long]     => { val v = f(l.asInstanceOf[Mu.MuLong].myValue); l.asInstanceOf[Mu.MuLong].myValue = v; v }
+        case x: Mu.MuFloat     => { val v = f(x.myValue); x.myValue = v; v }
+        case x: Mu.T[Float]    => { val v = f(x.asInstanceOf[Mu.MuFloat].myValue); x.asInstanceOf[Mu.MuFloat].myValue = v; v }
+        case d: Mu.MuDouble    => { val v = f(d.myValue); d.myValue = v; v }
+        case d: Mu.T[Double]   => { val v = f(d.asInstanceOf[Mu.MuDouble].myValue); d.asInstanceOf[Mu.MuDouble].myValue = v; v }
+        case _                 => summonFrom {
+          case t: Translucent.Chain[A, Unit] => t.witness.conceal(())
+          case t: Translucent.Chain[A, Boolean] => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuBoolean].myValue)); mut.asInstanceOf[Mu.MuBoolean].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Byte]    => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuByte   ].myValue)); mut.asInstanceOf[Mu.MuByte   ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Short]   => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuShort  ].myValue)); mut.asInstanceOf[Mu.MuShort  ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Char]    => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuChar   ].myValue)); mut.asInstanceOf[Mu.MuChar   ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Int]     => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuInt    ].myValue)); mut.asInstanceOf[Mu.MuInt    ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Long]    => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)); mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Float]   => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)); mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(v); v }
+          case t: Translucent.Chain[A, Double]  => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)); mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(v); v }
+        }
+      case _ => inline erasedValue[A] match
+        case _: Unit    => ().asInstanceOf[A]
+        case _: Boolean => mu match
+          case z: Mu.MuBoolean => { val v = f(z.myValue);   z.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Byte    => mu match
+          case b: Mu.MuByte    => { val v = f(b.myValue);   b.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Short   => mu match
+          case s: Mu.MuShort   => { val v = f(s.myValue);   s.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Char    => mu match
+          case c: Mu.MuChar    => { val v = f(c.myValue);   c.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Int     => mu match
+          case i: Mu.MuInt     => { val v = f(i.myValue);   i.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Long    => mu match
+          case l: Mu.MuLong    => { val v = f(l.myValue);   l.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Float   => mu match
+          case x: Mu.MuFloat   => { val v = f(x.myValue);   x.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _: Double  => mu match
+          case d: Mu.MuDouble  => { val v = f(d.myValue);   d.myValue = v;  v }
+          case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+        case _ => summonFrom {
+          case t: Translucent.Chain[A, Unit] => t.witness.conceal(())
+          case t: Translucent.Chain[A, Boolean] => mu match
+            case z: Mu.MuBoolean => { val v = f(t.witness.conceal(z.myValue)); z.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Byte] => mu match
+            case b: Mu.MuByte    => { val v = f(t.witness.conceal(b.myValue)); b.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Short] => mu match
+            case s: Mu.MuShort   => { val v = f(t.witness.conceal(s.myValue)); s.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Char] => mu match
+            case c: Mu.MuChar    => { val v = f(t.witness.conceal(c.myValue)); c.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Int] => mu match
+            case i: Mu.MuInt     => { val v = f(t.witness.conceal(i.myValue)); i.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Long] => mu match
+            case l: Mu.MuLong    => { val v = f(t.witness.conceal(l.myValue)); l.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Float]   => mu match
+            case x: Mu.MuFloat   => { val v = f(t.witness.conceal(x.myValue)); x.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case t: Translucent.Chain[A, Double]  => mu match
+            case d: Mu.MuDouble  => { val v = f(t.witness.conceal(d.myValue)); d.myValue = t.witness.reveal(v); v }
+            case _               => { val v = f(mu.getValue); mu.setValue(v); v }
+          case _ => { val v = f(mu.getValue); mu.setValue(v); v }
+        }
+
+  inline def getAndOp(inline f: A => A): A =
+    inline mu match
+      case mut: Mu.T[A] => inline mut match
+        case u: Mu.MuUnit.type => ()
+        case u: Mu.T[Unit]     => ()
+        case z: Mu.MuBoolean   => { val v = z.myValue; z.myValue = f(v); v }
+        case z: Mu.T[Boolean]  => { val v = z.asInstanceOf[Mu.MuBoolean].myValue; z.asInstanceOf[Mu.MuBoolean].myValue = f(v); v }
+        case b: Mu.MuByte      => { val v = b.myValue; b.myValue = f(v); v }
+        case b: Mu.T[Byte]     => { val v = b.asInstanceOf[Mu.MuByte].myValue; b.asInstanceOf[Mu.MuByte].myValue = f(v); v }
+        case s: Mu.MuShort     => { val v = s.myValue; s.myValue = f(v); v }
+        case s: Mu.T[Short]    => { val v = s.asInstanceOf[Mu.MuShort].myValue; s.asInstanceOf[Mu.MuShort].myValue = f(v); v }
+        case c: Mu.MuChar      => { val v = c.myValue; c.myValue = f(v); v }
+        case c: Mu.T[Char]     => { val v = c.asInstanceOf[Mu.MuChar].myValue; c.asInstanceOf[Mu.MuChar].myValue = f(v); v }
+        case i: Mu.MuInt       => { val v = i.myValue; i.myValue = f(v); v }
+        case i: Mu.T[Int]      => { val v = i.asInstanceOf[Mu.MuInt].myValue; i.asInstanceOf[Mu.MuInt].myValue = f(v); v }
+        case l: Mu.MuLong      => { val v = l.myValue; l.myValue = f(v); v }
+        case l: Mu.T[Long]     => { val v = l.asInstanceOf[Mu.MuLong].myValue; l.asInstanceOf[Mu.MuLong].myValue = f(v); v }
+        case x: Mu.MuFloat     => { val v = x.myValue; x.myValue = f(v); v }
+        case x: Mu.T[Float]    => { val v = x.asInstanceOf[Mu.MuFloat].myValue; x.asInstanceOf[Mu.MuFloat].myValue = f(v); v }
+        case d: Mu.MuDouble    => { val v = d.myValue; d.myValue = f(v); v }
+        case d: Mu.T[Double]   => { val v = d.asInstanceOf[Mu.MuDouble].myValue; d.asInstanceOf[Mu.MuDouble].myValue = f(v); v }
+        case _                 => summonFrom {
+          case t: Translucent.Chain[A, Unit] => t.witness.conceal(())
+          case t: Translucent.Chain[A, Boolean] => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuBoolean].myValue); mut.asInstanceOf[Mu.MuBoolean].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Byte]    => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuByte   ].myValue); mut.asInstanceOf[Mu.MuByte   ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Short]   => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuShort  ].myValue); mut.asInstanceOf[Mu.MuShort  ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Char]    => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuChar   ].myValue); mut.asInstanceOf[Mu.MuChar   ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Int]     => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuInt    ].myValue); mut.asInstanceOf[Mu.MuInt    ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Long]    => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue); mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Float]   => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue); mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(f(v)); v }
+          case t: Translucent.Chain[A, Double]  => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue); mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(f(v)); v }
+        }
+      case _ => inline erasedValue[A] match
+        case _: Unit    => ().asInstanceOf[A]
+        case _: Boolean => mu match
+          case z: Mu.MuBoolean => { val v = z.myValue;   z.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Byte    => mu match
+          case b: Mu.MuByte    => { val v = b.myValue;   b.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Short   => mu match
+          case s: Mu.MuShort   => { val v = s.myValue;   s.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Char    => mu match
+          case c: Mu.MuChar    => { val v = c.myValue;   c.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Int     => mu match
+          case i: Mu.MuInt     => { val v = i.myValue;   i.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Long    => mu match
+          case l: Mu.MuLong    => { val v = l.myValue;   l.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Float   => mu match
+          case x: Mu.MuFloat   => { val v = x.myValue;   x.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _: Double  => mu match
+          case d: Mu.MuDouble  => { val v = d.myValue;   d.myValue = f(v);  v }
+          case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+        case _ => summonFrom {
+          case t: Translucent.Chain[A, Unit] => t.witness.conceal(())
+          case t: Translucent.Chain[A, Boolean] => mu match
+            case z: Mu.MuBoolean => { val v = t.witness.conceal(z.myValue); z.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Byte] => mu match
+            case b: Mu.MuByte    => { val v = t.witness.conceal(b.myValue); b.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Short] => mu match
+            case s: Mu.MuShort   => { val v = t.witness.conceal(s.myValue); s.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Char] => mu match
+            case c: Mu.MuChar    => { val v = t.witness.conceal(c.myValue); c.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Int] => mu match
+            case i: Mu.MuInt     => { val v = t.witness.conceal(i.myValue); i.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Long] => mu match
+            case l: Mu.MuLong    => { val v = t.witness.conceal(l.myValue); l.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Float]   => mu match
+            case x: Mu.MuFloat   => { val v = t.witness.conceal(x.myValue); x.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case t: Translucent.Chain[A, Double]  => mu match
+            case d: Mu.MuDouble  => { val v = t.witness.conceal(d.myValue); d.myValue = t.witness.reveal(f(v)); v }
+            case _               => { val v = mu.getValue; mu.setValue(f(v)); v }
+          case _ => { val v = mu.getValue; mu.setValue(f(v)); v }
+        }
 }
 
 extension [A <: Mu.Primitive, M <: Mu[A]](mu: M) {
@@ -558,10 +735,10 @@ extension [A <: Int | Long, M <: Mu[A]](mu: M) {
 /** Simplifies the interface to atomics
   *
   * You still need to be careful not to pull data out, modify it, and put it back in without realizing that you've missed an update.
-  * Use op, zap, oldOp, or newOp depending on whether you just need to compute the new value, or whether you need the Atom, the value
+  * Use op, zap, getAndOp, or opAndGet depending on whether you just need to compute the new value, or whether you need the Atom, the value
   * you computed on, or the value you computed.
   */
-opaque type Atom[A] <: AnyRef = AtomicInteger | AtomicLong | AtomicBoolean | AtomicReference[A]
+opaque type Atom[A] <: AnyRef = AtomicInteger | AtomicLong | AtomicBoolean | AtomicReference[AnyRef]
 object Atom {
   import java.lang.Double.{doubleToRawLongBits => d2l, longBitsToDouble => l2d}
   import java.lang.Float.{floatToRawIntBits => f2i, intBitsToFloat => i2f}
@@ -577,15 +754,17 @@ object Atom {
     case z: Boolean => new AtomicBoolean(z)
     case x: AnyRef  => new AtomicReference(x)
     case _ => summonFrom{
-      case _: Translucent[A, Int]     => new AtomicInteger(a.asInstanceOf[Int])
-      case _: Translucent[A, Long]    => new AtomicLong(a.asInstanceOf[Long])
-      case _: Translucent[A, Byte]    => new AtomicInteger(a.asInstanceOf[Byte].toInt) 
-      case _: Translucent[A, Short]   => new AtomicInteger(a.asInstanceOf[Short].toInt)
-      case _: Translucent[A, Char]    => new AtomicInteger(a.asInstanceOf[Char].toInt)
-      case _: Translucent[A, Float]   => new AtomicInteger(f2i(a.asInstanceOf[Float]))
-      case _: Translucent[A, Double]  => new AtomicLong(d2l(a.asInstanceOf[Double]))
-      case _: Translucent[A, Boolean] => new AtomicBoolean(a.asInstanceOf[Boolean])
-      case _ => compiletime.error("No Atomic support for values of this type")
+      case _: Translucent.Chain[A, Int]     => new AtomicInteger(a.asInstanceOf[Int])
+      case _: Translucent.Chain[A, Long]    => new AtomicLong(a.asInstanceOf[Long])
+      case _: Translucent.Chain[A, Byte]    => new AtomicInteger(a.asInstanceOf[Byte].toInt) 
+      case _: Translucent.Chain[A, Short]   => new AtomicInteger(a.asInstanceOf[Short].toInt)
+      case _: Translucent.Chain[A, Char]    => new AtomicInteger(a.asInstanceOf[Char].toInt)
+      case _: Translucent.Chain[A, Float]   => new AtomicInteger(f2i(a.asInstanceOf[Float]))
+      case _: Translucent.Chain[A, Double]  => new AtomicLong(d2l(a.asInstanceOf[Double]))
+      case _: Translucent.Chain[A, Boolean] => new AtomicBoolean(a.asInstanceOf[Boolean])
+      case _ =>
+        inline if Translucent.isEventually[A, AnyRef] then new AtomicReference(a.asInstanceOf[AnyRef])
+        else compiletime.error("No Atomic support for values of this type")
     }
 
   extension [A](a: Atom[A]) {
@@ -605,17 +784,19 @@ object Atom {
       case _: Float   => i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
       case _: Double  => l2d(a.asInstanceOf[AtomicLong   ].get()).asInstanceOf[A]
       case _: Boolean => a.asInstanceOf[AtomicBoolean  ].get().asInstanceOf[A]
-      case _: AnyRef  => a.asInstanceOf[AtomicReference[A]].get()
+      case _: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
       case _ => summonFrom{
-        case _: Translucent[A, Int]     => a.asInstanceOf[AtomicInteger].get().asInstanceOf[A] 
-        case _: Translucent[A, Long]    => a.asInstanceOf[AtomicLong   ].get().asInstanceOf[A]
-        case _: Translucent[A, Byte]    => a.asInstanceOf[AtomicInteger].get().toByte .asInstanceOf[A]
-        case _: Translucent[A, Short]   => a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
-        case _: Translucent[A, Char]    => a.asInstanceOf[AtomicInteger].get().toChar .asInstanceOf[A]
-        case _: Translucent[A, Float]   => i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
-        case _: Translucent[A, Double]  => l2d(a.asInstanceOf[AtomicLong   ].get()).asInstanceOf[A]
-        case _: Translucent[A, Boolean] => a.asInstanceOf[AtomicBoolean  ].get().asInstanceOf[A]
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _: Translucent.Chain[A, Int]     => a.asInstanceOf[AtomicInteger].get().asInstanceOf[A] 
+        case _: Translucent.Chain[A, Long]    => a.asInstanceOf[AtomicLong   ].get().asInstanceOf[A]
+        case _: Translucent.Chain[A, Byte]    => a.asInstanceOf[AtomicInteger].get().toByte .asInstanceOf[A]
+        case _: Translucent.Chain[A, Short]   => a.asInstanceOf[AtomicInteger].get().toShort.asInstanceOf[A]
+        case _: Translucent.Chain[A, Char]    => a.asInstanceOf[AtomicInteger].get().toChar .asInstanceOf[A]
+        case _: Translucent.Chain[A, Float]   => i2f(a.asInstanceOf[AtomicInteger].get()).asInstanceOf[A]
+        case _: Translucent.Chain[A, Double]  => l2d(a.asInstanceOf[AtomicLong   ].get()).asInstanceOf[A]
+        case _: Translucent.Chain[A, Boolean] => a.asInstanceOf[AtomicBoolean  ].get().asInstanceOf[A]
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
     inline def :=(x: A): Unit = inline x match
@@ -629,15 +810,17 @@ object Atom {
       case z: Boolean => a.asInstanceOf[AtomicBoolean ].set(z)
       case _: AnyRef  => a.asInstanceOf[AtomicReference[A]].set(x)
       case _ => summonFrom{
-        case _: Translucent[A, Int]     => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Int])
-        case _: Translucent[A, Long]    => a.asInstanceOf[AtomicLong   ].set(x.asInstanceOf[Long])
-        case _: Translucent[A, Byte]    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Byte].toInt)
-        case _: Translucent[A, Short]   => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Short].toInt)
-        case _: Translucent[A, Char]    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Char].toInt)
-        case _: Translucent[A, Float]   => a.asInstanceOf[AtomicInteger].set(f2i(x.asInstanceOf[Float]))
-        case _: Translucent[A, Double]  => a.asInstanceOf[AtomicLong   ].set(d2l(x.asInstanceOf[Double]))
-        case _: Translucent[A, Boolean] => a.asInstanceOf[AtomicBoolean].set(x.asInstanceOf[Boolean])
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _: Translucent.Chain[A, Int]     => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Int])
+        case _: Translucent.Chain[A, Long]    => a.asInstanceOf[AtomicLong   ].set(x.asInstanceOf[Long])
+        case _: Translucent.Chain[A, Byte]    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Byte].toInt)
+        case _: Translucent.Chain[A, Short]   => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Short].toInt)
+        case _: Translucent.Chain[A, Char]    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Char].toInt)
+        case _: Translucent.Chain[A, Float]   => a.asInstanceOf[AtomicInteger].set(f2i(x.asInstanceOf[Float]))
+        case _: Translucent.Chain[A, Double]  => a.asInstanceOf[AtomicLong   ].set(d2l(x.asInstanceOf[Double]))
+        case _: Translucent.Chain[A, Boolean] => a.asInstanceOf[AtomicBoolean].set(x.asInstanceOf[Boolean])
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]].set(a.asInstanceOf[AnyRef])
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
     inline infix def swap(x: A): A = inline x match
@@ -649,7 +832,7 @@ object Atom {
       case f: Float   => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(f))).asInstanceOf[A]
       case d: Double  => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(d))).asInstanceOf[A]
       case z: Boolean => a.asInstanceOf[AtomicBoolean  ].getAndSet(z).asInstanceOf[A]
-      case _: AnyRef  => a.asInstanceOf[AtomicReference[A]].getAndSet(x)
+      case _: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].getAndSet(x.asInstanceOf[AnyRef]).asInstanceOf[A]
       case _ => summonFrom{
         case _: Translucent[A, Int]     => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Int ]).asInstanceOf[A]
         case _: Translucent[A, Long]    => a.asInstanceOf[AtomicLong   ].getAndSet(x.asInstanceOf[Long]).asInstanceOf[A]
@@ -658,11 +841,13 @@ object Atom {
         case _: Translucent[A, Char]    => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Char ].toInt).toChar .asInstanceOf[A]
         case _: Translucent[A, Float]   => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(x.asInstanceOf[Float ]))).asInstanceOf[A]
         case _: Translucent[A, Double]  => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(x.asInstanceOf[Double]))).asInstanceOf[A]
-        case _: Translucent[A, Boolean] => a.asInstanceOf[AtomicBoolean  ].getAndSet(x.asInstanceOf[Boolean]).asInstanceOf[A]
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _: Translucent[A, Boolean] => a.asInstanceOf[AtomicBoolean].getAndSet(x.asInstanceOf[Boolean]).asInstanceOf[A]
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]].getAndSet(x.asInstanceOf[AnyRef]).asInstanceOf[A]
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def oldOp(inline f: A => A): A = inline erasedValue[A] match
+    inline def getAndOp(inline f: A => A): A = inline erasedValue[A] match
       case _: Int =>
         var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
         while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], f(x).asInstanceOf[Int]) do
@@ -704,9 +889,9 @@ object Atom {
           x = a.asInstanceOf[AtomicBoolean].get().asInstanceOf[A]
         x
       case _: AnyRef =>
-        var x = a.asInstanceOf[AtomicReference[A]].get()
-        while !a.asInstanceOf[AtomicReference[A]].compareAndSet(x, f(x)) do
-          x = a.asInstanceOf[AtomicReference[A]].get()
+        var x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+        while !a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(x.asInstanceOf[AnyRef], f(x).asInstanceOf[AnyRef]) do
+          x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
         x
       case _ => summonFrom{
         case _: Translucent[A, Int] =>
@@ -749,10 +934,16 @@ object Atom {
           while !a.asInstanceOf[AtomicBoolean].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Boolean]) do
             x = a.asInstanceOf[AtomicBoolean].get()
           x.asInstanceOf[A]
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then
+            var x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+            while !a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(x.asInstanceOf[AnyRef], f(x).asInstanceOf[AnyRef]) do
+              x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+            x
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def newOp(inline f: A => A): A = inline erasedValue[A] match
+    inline def opAndGet(inline f: A => A): A = inline erasedValue[A] match
       case _: Int =>
         var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
         while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], y.asInstanceOf[Int]); if done then x = y; !done } do
@@ -839,7 +1030,13 @@ object Atom {
           while { val y = f(x.asInstanceOf[A]).asInstanceOf[Boolean]; val done = a.asInstanceOf[AtomicBoolean].compareAndSet(x, y); if done then x = y; !done } do
             x = a.asInstanceOf[AtomicBoolean].get()
           x.asInstanceOf[A]
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then
+            var x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+            while { val y = f(x); val done = a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(x.asInstanceOf[AnyRef], y.asInstanceOf[AnyRef]); if done then x = y; !done } do
+              x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+            x
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
     inline def op(inline f: A => A): Unit = inline erasedValue[A] match
@@ -912,7 +1109,12 @@ object Atom {
           var x = a.asInstanceOf[AtomicBoolean].get()
           while !a.asInstanceOf[AtomicBoolean].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Boolean]) do
             x = a.asInstanceOf[AtomicBoolean].get()
-        case _ => compiletime.error("Context missing to support atomic operations on values of this type")
+        case _ =>
+          inline if Translucent.isEventually[A, AnyRef] then
+            var x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+            while !a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(x.asInstanceOf[AnyRef], f(x).asInstanceOf[AnyRef]) do
+              x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
+          else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
     inline def zap(inline f: A => A): a.type =
@@ -1033,7 +1235,7 @@ extension [A](a: A) {
   inline def tap(inline f: A => Unit): A = { f(a); a }
 
   /** Apply a side-effecting function to this value; discard the value. */
-  inline def consume(inline f: A => Unit): Unit = f(a)
+  inline def effect(inline f: A => Unit): Unit = f(a)
 
   /** Discard the value in an observable way. Use as __ Unit */
   inline infix def __(nothing: Unit.type): Unit = inline compiletime.erasedValue[A] match

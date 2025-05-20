@@ -571,8 +571,8 @@ class FlowTest {
     T ~ { var x = 0; a.use(_ => x = 1)             :==: typedLike(a)  ; x } ==== 0
     T ~ { var x = 0; oi.use(x = _)                 :==: typedLike(oi) ; x } ==== 5
     T ~ { var x = 0; oa.use(x = _)                 :==: typedLike(oa) ; x } ==== 0
-    T ~ { var x = 0; oii.use(_.use(x = _))         :==: typedLike(oii); x } ==== 5
-    T ~ { var x = 0; oia.use(_.use(x = _))         :==: typedLike(oia); x } ==== 0
+    T ~ { var x = 0; oii.use(_.foreach(x = _))     :==: typedLike(oii); x } ==== 5
+    T ~ { var x = 0; oia.use(_.foreach(x = _))     :==: typedLike(oia); x } ==== 0
     T ~ { var x = 0; oai.use(c => x = c.toInt)     :==: typedLike(oai); x } ==== 0
     T ~ { var x = 0; oaa.use(c => x = c.toInt)     :==: typedLike(oaa); x } ==== 0
     T ~ { var x = 0; n.use(y => x = nullone(y))    :==: typedLike(n)  ; x } ==== 1
@@ -1489,11 +1489,12 @@ class FlowTest {
 
     T ~ {
       var x = ""
-      boundary:
+      val z = boundary:
         fish.foreach{ y =>
           x += pf.applyOrBreak(y.length)
         }
-      x
+        -1
+      x + (if z < 0 then "?" else "")
     } ==== "!!!!!!"
 
     T ~ {
@@ -1565,40 +1566,32 @@ class FlowTest {
 
     T("breakIf broke") ~ {
       val s = "salmon"
-      boundary[String] {
-        s.breakIf(_.length > 4)
-        s.toUpperCase
-      }
+      boundary[String]:
+        s.breakIf(_.length > 4).toUpperCase
     } ==== "salmon"
 
     T("breakIf didn't break") ~ {
       val s = "cod"
-      boundary[String] {
-        s.breakIf(_.length > 4)
-        s.toUpperCase
-      }
+      boundary[String]:
+        s.breakIf(_.length > 4).toUpperCase
     } ==== "COD"
 
     T("breakIfNot broke") ~ {
       val s = "cod"
-      boundary[String] {
-        s.breakIfNot(_.length > 4)
-        s.toUpperCase
-      }
+      boundary[String]:
+        s.breakIfNot(_.length > 4).toUpperCase
     } ==== "cod"
 
     T("breakIfNot didn't break") ~ {
       val s = "salmon"
-      boundary[String] {
-        s.breakIfNot(_.length > 4)
-        s.toUpperCase
-      }
+      boundary[String]:
+        s.breakIfNot(_.length > 4).toUpperCase
     } ==== "SALMON"
 
     T("breakCase broke") ~ {
       val s = Option("salmon")
       boundary[String] {
-        s.breakCase{ case Some(x) => x }
+        s.breakCase{ case Some(x) => x } __ Unit
         ""
       }
     } ==== "salmon"
@@ -1606,7 +1599,7 @@ class FlowTest {
     T("breakCase didn't break") ~ {
       val s: Option[String] = None
       boundary[String] {
-        s.breakCase{ case Some(x) => x }
+        s.breakCase{ case Some(x) => x } __ Unit
         ""
       }
     } ==== ""
@@ -1628,28 +1621,28 @@ class FlowTest {
     T("breakOnIs didn't break") ~ {
       val or = "cod".orAlt[Boolean]
       boundary[String Or Int]:
-        or.breakOnIs
+        or.breakOnIs __ Unit
         Alt(5)
     } ==== "cod" --: typed[String Or Int]
 
     T("breakOnIs broke") ~ {
       val or = true.orIs[String]
       boundary[String Or Int]:
-        or.breakOnIs
+        or.breakOnIs __ Unit
         Alt(5)
     } ==== Alt(5) --: typed[String Or Int]
 
     T("breakOnAlt broke") ~ {
       val or = "cod".orAlt[Boolean]
       boundary[Int Or Boolean]:
-        or.breakOnAlt
+        or.breakOnAlt __ Unit
         Is(5)
     } ==== 5 --: typed[Int Or Boolean]
 
     T("breakOnAlt didn't break") ~ {
       val or = true.orIs[String]
       boundary[Int Or Boolean]:
-        or.breakOnAlt
+        or.breakOnAlt __ Unit
         Is(5)
     } ==== Alt(true) --: typed[Int Or Boolean]
 
@@ -1825,8 +1818,8 @@ class FlowTest {
   def loomTest(): Unit =
     import java.util.concurrent.atomic.{AtomicLong, AtomicInteger}
     extension (ai: AtomicInteger)
-      def ++ : Unit = ai.getAndIncrement
-      def :=(i: Integer): Unit = ai.getAndSet(i)
+      def ++ : Unit = ai.getAndIncrement __ Unit
+      def :=(i: Integer): Unit = ai.getAndSet(i) __ Unit
     val dt = new AtomicLong(0L)
     def time[A](t: => A): A =
       val t0 = System.nanoTime
@@ -1855,7 +1848,7 @@ class FlowTest {
     T ~ n.get          ==== 3
     fex.unwrap.close()
     val sluggish = Fu{ zzzz(100, 1); 100 }
-    T ~ time{ zzzz(1); sluggish.cancel(); sluggish.ask() } ==== runtype[Alt[?]]
+    T ~ time{ zzzz(1); sluggish.cancel(): Unit; sluggish.ask() } ==== runtype[Alt[?]]
     T ~ { dt.get() < 50000000L } ==== true
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
     val fs = alnum.arr.map(c => Fu{ zzzz(100); n.++; c })
@@ -2078,7 +2071,7 @@ class FlowTest {
     T ~ m2.get         ==== (6, 4)
     T ~ t5.get         ==== (((), "cod", "albacore", "minnow", 6), 0)
     T ~ t5.recompute() ==== (((), "cod", "albacore", "minnow", 6), 1)
-    m2.recompute()
+    m2.recompute(): Unit
     T ~ t5.get         ==== (((), "cod", "albacore", "minnow", 6), 2)
     T ~ m.get          ==== ("minnow", 4)
     m.set("mackarel")
@@ -2240,25 +2233,25 @@ class FlowTest {
   def resourceTest: Unit =
     def oops(): Nothing = throw new Exception("oops")
     val m = Mu(0)
-    T ~ Resource(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4
+    T ~ Resource(m)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4
     T ~ m()                                               ==== 3
-    T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }      ==== thrown[Exception]
+    T ~ Resource(m)(_.op(_ * 2)){ x => oops(); () }      ==== thrown[Exception]
     T ~ m()                                               ==== 6
-    T ~ Ask[Int]{ Resource(m)(_.zap(- _)){ x => 
+    T ~ Ask[Int]{ Resource(m)(_.op(- _)){ x => 
           if x() > 0 then Is.break(x())
           else if x() < 0 then Err.break("negative")
           else 0
         } }                                               ==== 6 --: typed[Ask[Int]]
     T ~ m()                                               ==== -6
 
-    T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Throwable]
+    T ~ Resource.safe(m)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Throwable]
     T ~ m()                                                    ==== 3
-    T ~ Resource.safe(m)(_.zap(_ * 2)){ x => 
+    T ~ Resource.safe(m)(_.op(_ * 2)){ x => 
           throw new Exception("oops"); ()
         }.existsAlt(_.isInstanceOf[Exception])                 ==== true
     T ~ m()                                                    ==== 6
     T ~ Or.FlatRet{
-          Resource.safe(m)(_.zap(- _)){ x => 
+          Resource.safe(m)(_.op(- _)){ x => 
             if x() > 0 then Is.break(x())
             else if x() < 0 then Err.break("negative")
             else 0
@@ -2266,20 +2259,20 @@ class FlowTest {
         }                                                      ==== 6 --: typed[Int Or Err]
     T ~ m()                                                    ==== -6
     T ~ Resource.safe(m){ x =>
-          throw new Exception("oops"); x.zap(_ * 2)
+          throw new Exception("oops"); x.op(_ * 2)
         }{ x => 
-          x.zap(_ * 3); x()
+          x.opAndGet(_ * 3)
         }.existsAlt(_.isInstanceOf[Exception])                 ==== true
     T ~ m()                                                    ==== -18
 
-    T ~ Resource.nice(m.orErr)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ Resource.nice(m.orErr)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
     T ~ m()                                                          ==== 3
-    T ~ Resource.nice(m.orErr)(_.zap(_ * 2)){ x => 
+    T ~ Resource.nice(m.orErr)(_.op(_ * 2)){ x => 
           oops(); ()
         }.existsAlt(_.toString contains "oops")                      ==== true
     T ~ m()                                                          ==== 6
     T ~ Or.FlatRet{
-          Resource.nice(m.orErr)(_.zap(- _)){ x => 
+          Resource.nice(m.orErr)(_.op(- _)){ x => 
             if x() > 0 then Is.break(x())
             else if x() < 0 then Err.break("negative")
             else 0
@@ -2287,14 +2280,14 @@ class FlowTest {
         }                                                            ==== 6
     T ~ m()                                                          ==== -6
     T ~ Resource.nice(m.orErr){ x =>
-          oops(); x.zap(_ * 2)
+          oops(); x.op(_ * 2)
         }{ x => 
-          x.zap(_ * 3); x()
+          x.opAndGet(_ * 3)
         }.existsAlt(_.toString contains "closing resource")          ==== true
     T ~ Resource.nice(m.orErr){ x =>
-          oops(); x.zap(_ * 3)
+          oops(); x.op(_ * 3)
         }{ x => 
-          x.zap(_ / 2); x()
+          x.opAndGet(_ / 2)
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained => ete.context match
             case Some(i: Int) => ete.withContext(i+1).context
@@ -2302,35 +2295,35 @@ class FlowTest {
           case _ => None
         ).altOrElse(_ => None)                                       ==== Some(-8)
     T ~ m()                                                          ==== -9
-    T ~ Resource.nice{ oops(); m.orErr }(_.zap(- _)) {
-          x => x.zap(_ * 3); x()
+    T ~ Resource.nice{ oops(); m.orErr }(_.op(- _)) {
+          x => x.opAndGet(_ * 3)
         }                                                            ==== runtype[Alt[?]]
     T ~ m()                                                          ==== -9
     T ~ Resource.nice{
           m.errCase{ case x if x() < 0 => Err("bad") }
-        }(_.zap(- _)) {
-          x => x.zap(_ * 3); x()
+        }(_.op(- _)) {
+          x => x.opAndGet(_ * 3)
         }                                                            ==== Err.or("bad")
     T ~ m()                                                          ==== -9
-    T ~ Resource.Nice(m.orErr)(_.zap(_ + 3)){ x =>
-          x.zap(_ * 2); x()
+    T ~ Resource.Nice(m.orErr)(_.op(_ + 3)){ x =>
+          x.opAndGet(_ * 2)
         }                                                            ==== -18
     T ~ m()                                                          ==== -15
-    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
+    T ~ Resource.Nice(m.orErr)(_.op(- _)){ x =>
           oops()
           x := 7; x()
         }                                                            ==== runtype[Alt[?]]
     T ~ m()                                                          ==== 15
-    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
-          x.zap(_ - 8)
+    T ~ Resource.Nice(m.orErr)(_.op(- _)){ x =>
+          x.op(_ - 8)
           Err.break(x().toString)
           x := 4; x()
         }                                                            ==== Alt(Err("7"))
     T ~ m()                                                          ==== -7
     T ~ Resource.Nice(m.orErr){ x =>
-          oops(); x.zap(_ * 3)
+          oops(); x.op(_ * 3)
         }{ x => 
-          x.zap(_ + 2); x()
+          x.opAndGet(_ + 2)
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained =>
             ete.mapContext(x => x.map(_.toString)).context
@@ -2339,8 +2332,8 @@ class FlowTest {
     T ~ m()                                                          ==== -5
     T ~ Resource.Nice{
           m.errCase{ case x if x() < 0 => Err("bad") }
-        }(_.zap(- _)){ x =>
-          x.zap(_ - 8)
+        }(_.op(- _)){ x =>
+          x.op(_ - 8)
           Err.break(x().toString)
           x := 4; x()
         }                                                            ==== Err.or("bad")

@@ -3,7 +3,7 @@
 
 package kse.basics.basicsMacroImpl
 
-import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
+//import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.reflect.ClassTag
 import scala.quoted.*
@@ -94,6 +94,16 @@ object TreePrettyPrinter {
 }
 
 
+def extractNamedTuple1LiteralExpr[L: Type, A: Type](a: Expr[NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]])(using qt: Quotes): Expr[A] =
+  import qt.reflect.*
+  deinliner(a).asTerm match
+    case Apply(TypeApply(Apply(TypeApply(Select(Ident("NamedTuple"), "build"), _), _), _), ea :: Nil) => ea match
+      case Apply(TypeApply(Select(Ident("Tuple1"), "apply"), _), lit :: Nil) => lit.asExprOf[A]
+      case _ => qt.reflect.report.errorAndAbort("Only named Tuple1 literals are supported")
+    case _ => qt.reflect.report.errorAndAbort("Only named Tuple1 literals are supported")
+
+inline def extractNamedTuple1Literal[L <: String, A](inline nt1: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]): A =
+  ${ extractNamedTuple1LiteralExpr('nt1) }
 
 
 def deinliner(expr: Expr[Any])(using qt: Quotes): Expr[Any] =

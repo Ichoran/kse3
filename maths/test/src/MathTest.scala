@@ -393,12 +393,12 @@ class MathTest {
       r2.setState(i)(rng.getState(i))
     r2.setCacheAndBits(rng.getCache, rng.getCacheBits)
     T(name) ~ rng.L ==== r2.L
-    rng.Z
+    rng.Z: Unit
     for i <- 0 until rng.stateLength do
       r2.setState(i)(rng.getState(i))
     r2.setCacheAndBits(rng.getCache, rng.getCacheBits)
     T(name) ~ rng.I ==== r2.I
-    rng.L
+    rng.L: Unit
     for i <- 0 until rng.stateLength do
       r2.setState(i)(rng.getState(i))
     r2.setCacheAndBits(rng.getCache, rng.getCacheBits)
@@ -569,125 +569,125 @@ class MathTest {
 
       val k = End - (zs2.length - 9)
 
-      T(name) ~ zs1.shuffle()            =**= zs2.shuffle()(r2)
-      T(name) ~ zs1.shuffle(1, 9)        =**= zs2.shuffle(1, 9)(r2)
-      T(name) ~ zs1.randomFill           =**= zs2.randomFill(r2)
-      T(name) ~ zs1.randomFill(1, 9)     =**= zs2.randomFill(1, 9)(r2)
-      T(name) ~ zs1.shuffle(1 to 8)      =**= zs2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ zs1.shuffle(Iv(1, 9))    =**= zs2.shuffle(1 to k)(r2)
-      T(name) ~ zs1.shuffle(1 to k)      =**= zs2.shuffle(1 to 8)(r2)
-      T(name) ~ zs1.randomFill(1 to 8)   =**= zs2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ zs1.randomFill(Iv(1, 9)) =**= zs2.randomFill(1 to k)(r2)
-      T(name) ~ zs1.randomFill(1 to k)   =**= zs2.randomFill(1 to 8)(r2)
+      T(name) ~ zs1.tap(_.shuffle())            =**= zs2.tap(_.shuffle()(r2))
+      T(name) ~ zs1.tap(_.shuffle(1, 9))        =**= zs2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ zs1.tap(_.randomFill)           =**= zs2.tap(_.randomFill(r2))
+      T(name) ~ zs1.tap(_.randomFill(1, 9))     =**= zs2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ zs1.tap(_.shuffle(1 to 8))      =**= zs2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ zs1.tap(_.shuffle(Iv(1, 9)))    =**= zs2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ zs1.tap(_.shuffle(1 to k))      =**= zs2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ zs1.tap(_.randomFill(1 to 8))   =**= zs2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ zs1.tap(_.randomFill(Iv(1, 9))) =**= zs2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ zs1.tap(_.randomFill(1 to k))   =**= zs2.tap(_.randomFill(1 to 8)(r2))
 
-      T(name) ~ bs1.shuffle()            =**= bs2.shuffle()(r2)
-      T(name) ~ bs1.shuffle(1, 9)        =**= bs2.shuffle(1, 9)(r2)
-      T(name) ~ bs1.randomFill           =**= bs2.randomFill(r2)
-      T(name) ~ bs1.randomFill(1, 9)     =**= bs2.randomFill(1, 9)(r2)
-      T(name) ~ bs1.shuffle(1 to 8)      =**= bs2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ bs1.shuffle(Iv(1, 9))    =**= bs2.shuffle(1 to k)(r2)
-      T(name) ~ bs1.shuffle(1 to k)      =**= bs2.shuffle(1 to 8)(r2)
-      T(name) ~ bs1.randomFill(1 to 8)   =**= bs2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ bs1.randomFill(Iv(1, 9)) =**= bs2.randomFill(1 to k)(r2)
-      T(name) ~ bs1.randomFill(1 to k)   =**= bs2.randomFill(1 to 8)(r2)
+      T(name) ~ bs1.tap(_.shuffle())            =**= bs2.tap(_.shuffle()(r2))
+      T(name) ~ bs1.tap(_.shuffle(1, 9))        =**= bs2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ bs1.tap(_.randomFill)           =**= bs2.tap(_.randomFill(r2))
+      T(name) ~ bs1.tap(_.randomFill(1, 9))     =**= bs2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ bs1.tap(_.shuffle(1 to 8))      =**= bs2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ bs1.tap(_.shuffle(Iv(1, 9)))    =**= bs2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ bs1.tap(_.shuffle(1 to k))      =**= bs2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ bs1.tap(_.randomFill(1 to 8))   =**= bs2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ bs1.tap(_.randomFill(Iv(1, 9))) =**= bs2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ bs1.tap(_.randomFill(1 to k))   =**= bs2.tap(_.randomFill(1 to 8)(r2))
 
-      T(name) ~ ss1.shuffle()            =**= ss2.shuffle()(r2)
-      T(name) ~ ss1.shuffle(1, 9)        =**= ss2.shuffle(1, 9)(r2)
-      T(name) ~ ss1.randomFill           =**= ss2.randomFill(r2)
-      T(name) ~ ss1.randomFill(1, 9)     =**= ss2.randomFill(1, 9)(r2)
-      T(name) ~ ss1.shuffle(1 to 8)      =**= ss2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ ss1.shuffle(Iv(1, 9))    =**= ss2.shuffle(1 to k)(r2)
-      T(name) ~ ss1.shuffle(1 to k)      =**= ss2.shuffle(1 to 8)(r2)
-      T(name) ~ ss1.randomFill(1 to 8)   =**= ss2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ ss1.randomFill(Iv(1, 9)) =**= ss2.randomFill(1 to k)(r2)
-      T(name) ~ ss1.randomFill(1 to k)   =**= ss2.randomFill(1 to 8)(r2)
+      T(name) ~ ss1.tap(_.shuffle())            =**= ss2.tap(_.shuffle()(r2))
+      T(name) ~ ss1.tap(_.shuffle(1, 9))        =**= ss2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ ss1.tap(_.randomFill)           =**= ss2.tap(_.randomFill(r2))
+      T(name) ~ ss1.tap(_.randomFill(1, 9))     =**= ss2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ ss1.tap(_.shuffle(1 to 8))      =**= ss2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ ss1.tap(_.shuffle(Iv(1, 9)))    =**= ss2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ ss1.tap(_.shuffle(1 to k))      =**= ss2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ ss1.tap(_.randomFill(1 to 8))   =**= ss2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ ss1.tap(_.randomFill(Iv(1, 9))) =**= ss2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ ss1.tap(_.randomFill(1 to k))   =**= ss2.tap(_.randomFill(1 to 8)(r2))
 
-      T(name) ~ cs1.shuffle()            =**= cs2.shuffle()(r2)
-      T(name) ~ cs1.shuffle(1, 9)        =**= cs2.shuffle(1, 9)(r2)
-      T(name) ~ cs1.randomFill           =**= cs2.randomFill(r2)
-      T(name) ~ cs1.randomFill(1, 9)     =**= cs2.randomFill(1, 9)(r2)
-      T(name) ~ cs1.shuffle(1 to 8)      =**= cs2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ cs1.shuffle(Iv(1, 9))    =**= cs2.shuffle(1 to k)(r2)
-      T(name) ~ cs1.shuffle(1 to k)      =**= cs2.shuffle(1 to 8)(r2)
-      T(name) ~ cs1.randomFill(1 to 8)   =**= cs2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ cs1.randomFill(Iv(1, 9)) =**= cs2.randomFill(1 to k)(r2)
-      T(name) ~ cs1.randomFill(1 to k)   =**= cs2.randomFill(1 to 8)(r2)
+      T(name) ~ cs1.tap(_.shuffle())            =**= cs2.tap(_.shuffle()(r2))
+      T(name) ~ cs1.tap(_.shuffle(1, 9))        =**= cs2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ cs1.tap(_.randomFill)           =**= cs2.tap(_.randomFill(r2))
+      T(name) ~ cs1.tap(_.randomFill(1, 9))     =**= cs2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ cs1.tap(_.shuffle(1 to 8))      =**= cs2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ cs1.tap(_.shuffle(Iv(1, 9)))    =**= cs2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ cs1.tap(_.shuffle(1 to k))      =**= cs2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ cs1.tap(_.randomFill(1 to 8))   =**= cs2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ cs1.tap(_.randomFill(Iv(1, 9))) =**= cs2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ cs1.tap(_.randomFill(1 to k))   =**= cs2.tap(_.randomFill(1 to 8)(r2))
 
-      T(name) ~ is1.shuffle()              =**= is2.shuffle()(r2)
-      T(name) ~ is1.shuffle(1, 9)          =**= is2.shuffle(1, 9)(r2)
-      T(name) ~ is1.randomFill             =**= is2.randomFill(r2)
-      T(name) ~ is1.randomFill(1, 9)       =**= is2.randomFill(1, 9)(r2)
-      T(name) ~ is1.randomMod(99)          =**= is2.randomMod(99)(r2)
-      T(name) ~ is1.randomMod(99)(2, 8)    =**= is2.randomMod(99)(2, 8)(r2)
-      T(name) ~ is1.shuffle(1 to 8)        =**= is2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ is1.shuffle(Iv(1, 9))      =**= is2.shuffle(1 to k)(r2)
-      T(name) ~ is1.shuffle(1 to k)        =**= is2.shuffle(1 to 8)(r2)
-      T(name) ~ is1.randomFill(1 to 8)     =**= is2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ is1.randomFill(Iv(1, 9))   =**= is2.randomFill(1 to k)(r2)
-      T(name) ~ is1.randomFill(1 to k)     =**= is2.randomFill(1 to 8)(r2)
-      T(name) ~ is1.randomMod(9)(1 to 8)   =**= is2.randomMod(9)(Iv(1, 9))(r2)
-      T(name) ~ is1.randomMod(9)(Iv(1, 9)) =**= is2.randomMod(9)(1 to k)(r2)
-      T(name) ~ is1.randomMod(9)(1 to k)   =**= is2.randomMod(9)(1 to 8)(r2)
+      T(name) ~ is1.tap(_.shuffle())              =**= is2.tap(_.shuffle()(r2))
+      T(name) ~ is1.tap(_.shuffle(1, 9))          =**= is2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ is1.tap(_.randomFill)             =**= is2.tap(_.randomFill(r2))
+      T(name) ~ is1.tap(_.randomFill(1, 9))       =**= is2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ is1.tap(_.randomMod(99))          =**= is2.tap(_.randomMod(99)(r2))
+      T(name) ~ is1.tap(_.randomMod(99)(2, 8))    =**= is2.tap(_.randomMod(99)(2, 8)(r2))
+      T(name) ~ is1.tap(_.shuffle(1 to 8))        =**= is2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ is1.tap(_.shuffle(Iv(1, 9)))      =**= is2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ is1.tap(_.shuffle(1 to k))        =**= is2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ is1.tap(_.randomFill(1 to 8))     =**= is2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ is1.tap(_.randomFill(Iv(1, 9)))   =**= is2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ is1.tap(_.randomFill(1 to k))     =**= is2.tap(_.randomFill(1 to 8)(r2))
+      T(name) ~ is1.tap(_.randomMod(9)(1 to 8))   =**= is2.tap(_.randomMod(9)(Iv(1, 9))(r2))
+      T(name) ~ is1.tap(_.randomMod(9)(Iv(1, 9))) =**= is2.tap(_.randomMod(9)(1 to k)(r2))
+      T(name) ~ is1.tap(_.randomMod(9)(1 to k))   =**= is2.tap(_.randomMod(9)(1 to 8)(r2))
 
-      T(name) ~ ls1.shuffle()              =**= ls2.shuffle()(r2)
-      T(name) ~ ls1.shuffle(1, 9)          =**= ls2.shuffle(1, 9)(r2)
-      T(name) ~ ls1.randomFill             =**= ls2.randomFill(r2)
-      T(name) ~ ls1.randomFill(1, 9)       =**= ls2.randomFill(1, 9)(r2)
-      T(name) ~ ls1.randomMod(99)          =**= ls2.randomMod(99)(r2)
-      T(name) ~ ls1.randomMod(99)(2, 8)    =**= ls2.randomMod(99)(2, 8)(r2)
-      T(name) ~ ls1.shuffle(1 to 8)        =**= ls2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ ls1.shuffle(Iv(1, 9))      =**= ls2.shuffle(1 to k)(r2)
-      T(name) ~ ls1.shuffle(1 to k)        =**= ls2.shuffle(1 to 8)(r2)
-      T(name) ~ ls1.randomFill(1 to 8)     =**= ls2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ ls1.randomFill(Iv(1, 9))   =**= ls2.randomFill(1 to k)(r2)
-      T(name) ~ ls1.randomFill(1 to k)     =**= ls2.randomFill(1 to 8)(r2)
-      T(name) ~ ls1.randomMod(9)(1 to 8)   =**= ls2.randomMod(9)(Iv(1, 9))(r2)
-      T(name) ~ ls1.randomMod(9)(Iv(1, 9)) =**= ls2.randomMod(9)(1 to k)(r2)
-      T(name) ~ ls1.randomMod(9)(1 to k)   =**= ls2.randomMod(9)(1 to 8)(r2)
+      T(name) ~ ls1.tap(_.shuffle())              =**= ls2.tap(_.shuffle()(r2))
+      T(name) ~ ls1.tap(_.shuffle(1, 9))          =**= ls2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ ls1.tap(_.randomFill)             =**= ls2.tap(_.randomFill(r2))
+      T(name) ~ ls1.tap(_.randomFill(1, 9))       =**= ls2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ ls1.tap(_.randomMod(99))          =**= ls2.tap(_.randomMod(99)(r2))
+      T(name) ~ ls1.tap(_.randomMod(99)(2, 8))    =**= ls2.tap(_.randomMod(99)(2, 8)(r2))
+      T(name) ~ ls1.tap(_.shuffle(1 to 8))        =**= ls2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ ls1.tap(_.shuffle(Iv(1, 9)))      =**= ls2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ ls1.tap(_.shuffle(1 to k))        =**= ls2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ ls1.tap(_.randomFill(1 to 8))     =**= ls2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ ls1.tap(_.randomFill(Iv(1, 9)))   =**= ls2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ ls1.tap(_.randomFill(1 to k))     =**= ls2.tap(_.randomFill(1 to 8)(r2))
+      T(name) ~ ls1.tap(_.randomMod(9)(1 to 8))   =**= ls2.tap(_.randomMod(9)(Iv(1, 9))(r2))
+      T(name) ~ ls1.tap(_.randomMod(9)(Iv(1, 9))) =**= ls2.tap(_.randomMod(9)(1 to k)(r2))
+      T(name) ~ ls1.tap(_.randomMod(9)(1 to k))   =**= ls2.tap(_.randomMod(9)(1 to 8)(r2))
 
-      T(name) ~ fs1.shuffle()            =**= fs2.shuffle()(r2)
-      T(name) ~ fs1.shuffle(1, 9)        =**= fs2.shuffle(1, 9)(r2)
-      T(name) ~ fs1.randomFill           =**= fs2.randomFill(r2)
-      T(name) ~ fs1.randomFill(1, 9)     =**= fs2.randomFill(1, 9)(r2)
-      T(name) ~ fs1.shuffle(1 to 8)      =**= fs2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ fs1.shuffle(Iv(1, 9))    =**= fs2.shuffle(1 to k)(r2)
-      T(name) ~ fs1.shuffle(1 to k)      =**= fs2.shuffle(1 to 8)(r2)
-      T(name) ~ fs1.randomFill(1 to 8)   =**= fs2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ fs1.randomFill(Iv(1, 9)) =**= fs2.randomFill(1 to k)(r2)
-      T(name) ~ fs1.randomFill(1 to k)   =**= fs2.randomFill(1 to 8)(r2)
+      T(name) ~ fs1.tap(_.shuffle())            =**= fs2.tap(_.shuffle()(r2))
+      T(name) ~ fs1.tap(_.shuffle(1, 9))        =**= fs2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ fs1.tap(_.randomFill)           =**= fs2.tap(_.randomFill(r2))
+      T(name) ~ fs1.tap(_.randomFill(1, 9))     =**= fs2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ fs1.tap(_.shuffle(1 to 8))      =**= fs2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ fs1.tap(_.shuffle(Iv(1, 9)))    =**= fs2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ fs1.tap(_.shuffle(1 to k))      =**= fs2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ fs1.tap(_.randomFill(1 to 8))   =**= fs2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ fs1.tap(_.randomFill(Iv(1, 9))) =**= fs2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ fs1.tap(_.randomFill(1 to k))   =**= fs2.tap(_.randomFill(1 to 8)(r2))
 
-      T(name) ~ ds1.shuffle()                =**= ds2.shuffle()(r2)
-      T(name) ~ ds1.shuffle(1, 9)            =**= ds2.shuffle(1, 9)(r2)
-      T(name) ~ ds1.randomFill               =**= ds2.randomFill(r2)
-      T(name) ~ ds1.randomFill(1, 9)         =**= ds2.randomFill(1, 9)(r2)
-      T(name) ~ ds1.randomGaussian           =**= ds2.randomGaussian(r2)
-      T(name) ~ ds1.randomGaussian(2, 8)     =**= ds2.randomGaussian(2, 8)(r2)
-      T(name) ~ ds1.shuffle(1 to 8)          =**= ds2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ ds1.shuffle(Iv(1, 9))        =**= ds2.shuffle(1 to k)(r2)
-      T(name) ~ ds1.shuffle(1 to k)          =**= ds2.shuffle(1 to 8)(r2)
-      T(name) ~ ds1.randomFill(1 to 8)       =**= ds2.randomFill(Iv(1, 9))(r2)
-      T(name) ~ ds1.randomFill(Iv(1, 9))     =**= ds2.randomFill(1 to k)(r2)
-      T(name) ~ ds1.randomFill(1 to k)       =**= ds2.randomFill(1 to 8)(r2)
-      T(name) ~ ds1.randomGaussian(1 to 8)   =**= ds2.randomGaussian(Iv(1, 9))(r2)
-      T(name) ~ ds1.randomGaussian(Iv(1, 9)) =**= ds2.randomGaussian(1 to k)(r2)
-      T(name) ~ ds1.randomGaussian(1 to k)   =**= ds2.randomGaussian(1 to 8)(r2)
+      T(name) ~ ds1.tap(_.shuffle())                =**= ds2.tap(_.shuffle()(r2))
+      T(name) ~ ds1.tap(_.shuffle(1, 9))            =**= ds2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ ds1.tap(_.randomFill)               =**= ds2.tap(_.randomFill(r2))
+      T(name) ~ ds1.tap(_.randomFill(1, 9))         =**= ds2.tap(_.randomFill(1, 9)(r2))
+      T(name) ~ ds1.tap(_.randomGaussian)           =**= ds2.tap(_.randomGaussian(r2))
+      T(name) ~ ds1.tap(_.randomGaussian(2, 8))     =**= ds2.tap(_.randomGaussian(2, 8)(r2))
+      T(name) ~ ds1.tap(_.shuffle(1 to 8))          =**= ds2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ ds1.tap(_.shuffle(Iv(1, 9)))        =**= ds2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ ds1.tap(_.shuffle(1 to k))          =**= ds2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ ds1.tap(_.randomFill(1 to 8))       =**= ds2.tap(_.randomFill(Iv(1, 9))(r2))
+      T(name) ~ ds1.tap(_.randomFill(Iv(1, 9)))     =**= ds2.tap(_.randomFill(1 to k)(r2))
+      T(name) ~ ds1.tap(_.randomFill(1 to k))       =**= ds2.tap(_.randomFill(1 to 8)(r2))
+      T(name) ~ ds1.tap(_.randomGaussian(1 to 8))   =**= ds2.tap(_.randomGaussian(Iv(1, 9))(r2))
+      T(name) ~ ds1.tap(_.randomGaussian(Iv(1, 9))) =**= ds2.tap(_.randomGaussian(1 to k)(r2))
+      T(name) ~ ds1.tap(_.randomGaussian(1 to k))   =**= ds2.tap(_.randomGaussian(1 to 8)(r2))
 
-      T(name) ~ as1.shuffle()         =**= as2.shuffle()(r2)
-      T(name) ~ as1.shuffle(1, 9)     =**= as2.shuffle(1, 9)(r2)
-      T(name) ~ as1.shuffle(1 to 8)   =**= as2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ as1.shuffle(Iv(1, 9)) =**= as2.shuffle(1 to k)(r2)
-      T(name) ~ as1.shuffle(1 to k)   =**= as2.shuffle(1 to 8)(r2)
+      T(name) ~ as1.tap(_.shuffle())         =**= as2.tap(_.shuffle()(r2))
+      T(name) ~ as1.tap(_.shuffle(1, 9))     =**= as2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ as1.tap(_.shuffle(1 to 8))   =**= as2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ as1.tap(_.shuffle(Iv(1, 9))) =**= as2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ as1.tap(_.shuffle(1 to k))   =**= as2.tap(_.shuffle(1 to 8)(r2))
 
-      T(name) ~ us1.shuffle()         =**= us2.shuffle()(r2)
-      T(name) ~ us1.shuffle(1, 9)     =**= us2.shuffle(1, 9)(r2)
-      T(name) ~ us1.shuffle(1 to 8)   =**= us2.shuffle(Iv(1, 9))(r2)
-      T(name) ~ us1.shuffle(Iv(1, 9)) =**= us2.shuffle(1 to k)(r2)
-      T(name) ~ us1.shuffle(1 to k)   =**= us2.shuffle(1 to 8)(r2)
-      T(name) ~ us1.randomFillOp()(p => (p%9).u)         =**= us2.randomFillOp()(r2)(p => (p%9).u)
-      T(name) ~ us1.randomFillOp(1, 9)(p => (p%9).u)     =**= us2.randomFillOp(1, 9)(r2)(p => (p%9).u)
-      T(name) ~ us1.randomFillOp(1 to 8)(p => (p%9).u)   =**= us2.randomFillOp(Iv(1, 9))(r2)(p => (p%9).u)
-      T(name) ~ us1.randomFillOp(Iv(1, 9))(p => (p%9).u) =**= us2.randomFillOp(1 to k)(r2)(p => (p%9).u)
-      T(name) ~ us1.randomFillOp(1 to k)(p => (p%9).u)   =**= us2.randomFillOp(1 to 8)(r2)(p => (p%9).u)
+      T(name) ~ us1.tap(_.shuffle())         =**= us2.tap(_.shuffle()(r2))
+      T(name) ~ us1.tap(_.shuffle(1, 9))     =**= us2.tap(_.shuffle(1, 9)(r2))
+      T(name) ~ us1.tap(_.shuffle(1 to 8))   =**= us2.tap(_.shuffle(Iv(1, 9))(r2))
+      T(name) ~ us1.tap(_.shuffle(Iv(1, 9))) =**= us2.tap(_.shuffle(1 to k)(r2))
+      T(name) ~ us1.tap(_.shuffle(1 to k))   =**= us2.tap(_.shuffle(1 to 8)(r2))
+      T(name) ~ us1.tap(_.randomFillOp()(p => (p%9).u))         =**= us2.tap(_.randomFillOp()(r2)(p => (p%9).u))
+      T(name) ~ us1.tap(_.randomFillOp(1, 9)(p => (p%9).u))     =**= us2.tap(_.randomFillOp(1, 9)(r2)(p => (p%9).u))
+      T(name) ~ us1.tap(_.randomFillOp(1 to 8)(p => (p%9).u))   =**= us2.tap(_.randomFillOp(Iv(1, 9))(r2)(p => (p%9).u))
+      T(name) ~ us1.tap(_.randomFillOp(Iv(1, 9))(p => (p%9).u)) =**= us2.tap(_.randomFillOp(1 to k)(r2)(p => (p%9).u))
+      T(name) ~ us1.tap(_.randomFillOp(1 to k)(p => (p%9).u))   =**= us2.tap(_.randomFillOp(1 to 8)(r2)(p => (p%9).u))
     }
 
     nFor(20){ n =>
@@ -903,13 +903,13 @@ class MathTest {
       bb
     final def inArray: Array[Byte] =
       val ab = new Array[Byte](bytes)
-      addToArray(ab, 0)
+      addToArray(ab, 0): Unit
       ab
     def hashInto(h: SimpleIncrementalHash): h.type
   }
   case class HZ(z: Boolean) extends H {
     def bytes = 1
-    def addToBuffer(bb: ByteBuffer): Unit = bb put (if z then 1: Byte else 0: Byte)
+    def addToBuffer(bb: ByteBuffer): Unit = bb put (if z then 1: Byte else 0: Byte) __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = if z then 1: Byte else 0: Byte
       index + 1
@@ -917,7 +917,7 @@ class MathTest {
   }
   case class HB(b: Byte) extends H {
     def bytes = 1
-    def addToBuffer(bb: ByteBuffer): Unit = bb put b
+    def addToBuffer(bb: ByteBuffer): Unit = bb put b __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = b
       index + 1
@@ -925,7 +925,7 @@ class MathTest {
   }
   case class HS(s: Short) extends H {
     def bytes = 2
-    def addToBuffer(bb: ByteBuffer): Unit = bb putShort s
+    def addToBuffer(bb: ByteBuffer): Unit = bb putShort s __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = (s & 0xFF).toByte
       ab(index + 1) = ((s & 0xFF00) >> 8).toByte
@@ -934,7 +934,7 @@ class MathTest {
   }
   case class HC(c: Char) extends H {
     def bytes = 2
-    def addToBuffer(bb: ByteBuffer): Unit = bb putChar c
+    def addToBuffer(bb: ByteBuffer): Unit = bb putChar c __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = (c & 0xFF).toByte
       ab(index + 1) = ((c & 0xFF00) >> 8).toByte
@@ -943,7 +943,7 @@ class MathTest {
   }
   case class HI(i: Int) extends H {
     def bytes = 4
-    def addToBuffer(bb: ByteBuffer): Unit = bb putInt i
+    def addToBuffer(bb: ByteBuffer): Unit = bb putInt i __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = (i & 0xFF).toByte
       ab(index + 1) = ((i & 0xFF00) >> 8).toByte
@@ -954,7 +954,7 @@ class MathTest {
   }
   case class HL(l: Long) extends H {
     def bytes = 8
-    def addToBuffer(bb: ByteBuffer): Unit = bb putLong l
+    def addToBuffer(bb: ByteBuffer): Unit = bb putLong l __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       ab(index) = (l & 0xFFL).toByte
       ab(index + 1) = ((l & 0xFF00L) >> 8).toByte
@@ -979,7 +979,7 @@ class MathTest {
     private val j0 = math.max(i0, 0)
     private val jN = math.min(iN, ab.length)
     val bytes = math.max(0, jN - j0)
-    def addToBuffer(bb: ByteBuffer): Unit = bb.put(ab, j0, bytes)
+    def addToBuffer(bb: ByteBuffer): Unit = bb.put(ab, j0, bytes): Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       System.arraycopy(this.ab, j0, ab, index, bytes)
       index + bytes
@@ -995,7 +995,7 @@ class MathTest {
     def addToBuffer(bbb: ByteBuffer): Unit =
       val b = bb.asReadOnlyBuffer
       b order ByteOrder.LITTLE_ENDIAN
-      bbb put b
+      bbb put b __ Unit
     def addToArray(ab: Array[Byte], index: Int): Int =
       var i = index
       val b = bb.asReadOnlyBuffer
@@ -1143,7 +1143,7 @@ class MathTest {
     T(title) ~ i32a.begin().result(hx.inBuffer) ==== f32.hash32(hx.inArray)
     T(title) ~ i32a.begin().result(hx.inArray, 0, hx.bytes) ==== f32.hash32(hx.inBuffer)
 
-    hx.hashInto(i32a.begin())
+    hx.hashInto(i32a.begin()): Unit
     T(title) ~ hx.hashInto(i32a.copy).result() ==== hx.hashInto(i32a).result()
 
 
@@ -1224,7 +1224,7 @@ class MathTest {
     T(title) ~ i64a.begin().result(hx.inBuffer) ==== f64.hash64(hx.inArray)
     T(title) ~ i64a.begin().result(hx.inArray, 0, hx.bytes) ==== f64.hash64(hx.inBuffer)
 
-    hx.hashInto(i64a.begin())
+    hx.hashInto(i64a.begin()): Unit
     T(title) ~ hx.hashInto(i64a.copy).result() ==== hx.hashInto(i64a).result()
 
 
@@ -1305,7 +1305,7 @@ class MathTest {
     T(title) ~ i128a.begin().result(hx.inBuffer) ==== f128.hash128(hx.inArray)
     T(title) ~ i128a.begin().result(hx.inArray, 0, hx.bytes) ==== f128.hash128(hx.inBuffer)
 
-    hx.hashInto(i128a.begin())
+    hx.hashInto(i128a.begin()): Unit
     T(title) ~ hx.hashInto(i128a.copy).result() ==== hx.hashInto(i128a).result()
 
 
@@ -3338,7 +3338,7 @@ class MathTest {
     T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).sse.toFloat  =~~= m2.sse.toFloat
 
     val m3 = m.snapshot
-    T ~ m.tap(_.reset)                                 ==== Est.mut
+    T ~ m.tap(_.reset())                               ==== Est.mut
     T ~ m2.mutableCopy.tap(_ += 400L).n                ==== m2.n + 1
     T ~ m2.mutableCopy.tap(_ += 400L).mean             =~~= (al :+ 400L).est().mean
     T ~ m2.mutableCopy.tap(_ += 400L).sse              =~~= (al :+ 400L).est().sse
@@ -3618,7 +3618,7 @@ class MathTest {
     fit.addRange(vs, Iv(1, 4))
     T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
     val zs = xs.copyToSize(xs.length + ys.length)
-    ys.inject(zs, xs.length - 1)
+    ys.inject(zs, xs.length - 1): Unit
     fit.reset()
     fit.addRange(xs, 1, 4)(zs, 5, 8)
     T ~ fit.x2y.pm(1.5)   =~~= fyt.x2y.pm(1.5)
@@ -3811,7 +3811,7 @@ class MathTest {
         Approximation.defaultFloatApprox.approx(pma.value, pmb.value) && Approximation.defaultFloatApprox.approx(pma.error, pmb.error)
     }
     val N = 64
-    val a = (new Array[Double](N)).randomGaussian(Pcg64(897158911235L)).sorted
+    val a = (new Array[Double](N)).tap(_.randomGaussian(Pcg64(897158911235L))).sorted
     val e = a.est()
     val b = Bootstrap(1024)(                       0, N)(Est.M.empty)((m, i) => m += a(i))
     val c = Bootstrap(1024)(Pcg64(1789157893427L))(0, N)(Est.M.empty)((m, i) => m += a(i))
