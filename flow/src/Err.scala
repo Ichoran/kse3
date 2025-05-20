@@ -218,7 +218,7 @@ object Ask {
   }
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
-    * something `Or Err`.
+    * something `Or Err` (i.e. an `Ask`).
     * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
     * Strings and ErrTypes are allowed to jump out too.
     *
@@ -231,6 +231,38 @@ object Ask {
   inline def flat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] = boundary[X Or Err] { label ?=>
     try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
     catch case t if t.catchable => Alt(Err(t))
+  }
+
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
+    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
+    * Strings and ErrTypes are allowed to jump out too.  This variant catches exceptions used for control flow.
+    *
+    * Usage:
+    * {{{
+    * def parseTwice(s: String): Ask[Int] = Ask.threadsafe:
+    *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
+    * }}}
+    */
+  inline def threadsafe[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] = boundary[X Or Err] { label ?=>
+    try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
+    catch case t if t.threadCatchable => Alt(Err(t))
+  }
+
+
+  /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
+    * something `Or Err` (i.e. an `Ask`).
+    * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
+    * Strings and ErrTypes are allowed to jump out too.  This variant catches exceptions used for control flow.
+    *
+    * Usage:
+    * {{{
+    * def parseTwice(s: String): Ask[Int] = Ask.flat:
+    *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
+    * }}}
+    */
+  inline def threadsafeFlat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] = boundary[X Or Err] { label ?=>
+    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
+    catch case t if t.threadCatchable => Alt(Err(t))
   }
 }
 

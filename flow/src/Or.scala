@@ -532,7 +532,7 @@ extension [X, Y](or: Or[X, Y]) {
     * 
     * Usage example:
     * {{{
-    * -5.or[String].discard{ case x if x < 0 => "Negative value" }
+    * -5.or[String].reject{ case x if x < 0 => "Negative value" }
     * }}}
     */
   inline def reject[YY >: Y](pf: PartialFunction[X, YY]): X Or YY = (or: X Or Y) match

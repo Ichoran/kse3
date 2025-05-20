@@ -45,24 +45,24 @@ object Fu {
   given Executor = defaultExecutor
 
   inline def flat[A](using exec: Executor)(inline work: Label[A Or Err] ?=> A Or Err): kse.flow.Fu[A] = exec match
-    case service: ExecutorService => service.submit(() => boundary{ work })
-    case g: GroupExecutor => g.service.submit(() => boundary{ work }.useAlt(g.fail))
+    case service: ExecutorService => service.submit(() => Ask.threadsafeFlat{ work })
+    case g: GroupExecutor => g.service.submit(() => Ask.threadsafeFlat{ work }.useAlt(g.fail))
 
   inline def apply[A](using exec: Executor)(inline work: Label[A Or Err] ?=> A): kse.flow.Fu[A] = exec match
-    case service: ExecutorService => service.submit(() => Ask{ work })
-    case g: GroupExecutor => g.service.submit(() => Ask{ work }.useAlt(g.fail))
+    case service: ExecutorService => service.submit(() => Ask.threadsafe{ work })
+    case g: GroupExecutor => g.service.submit(() => Ask.threadsafe{ work }.useAlt(g.fail))
 
   inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[A Or Err] ?=> A Or Err): kse.flow.Fu[A] = exec match
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
-        try boundary{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
+        try Ask.threadsafeFlat{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
         finally Executor.stopIfGroup(ex)()
       })
     case g: GroupExecutor =>
       g.service.submit(() => {
         val ex: Executor = Executor.group()
-        try boundary{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
+        try Ask.threadsafeFlat{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
         finally Executor.stopIfGroup(ex)()
       })
 
@@ -70,13 +70,13 @@ object Fu {
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
-        try Ask{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
+        try Ask.threadsafe{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e))
         finally Executor.stopIfGroup(ex)()
       })
     case g: GroupExecutor =>
       g.service.submit(() => {
         val ex: Executor = Executor.group()
-        try Ask{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
+        try Ask.threadsafe{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
         finally Executor.stopIfGroup(ex)()
       })
 

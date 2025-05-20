@@ -51,6 +51,26 @@ Because scala-cli does not by default use the default JVM and does not use Java 
 you'll typically need to pass `--jvm=21`, or `--jvm=system` if you have 21 installed, when
 running scala-cli.
 
+kse3 expects that you will use compiler options to warn against discarding values.  This is
+an important safety mechanism when handling errors as values: even if there is no meaningful
+return value in case of success, failing to propagate an error in case of failure is rarely
+a good idea!  In mill, use
+
+```scala
+  def scalacOptions = Seq(
+    // Add other options as needed
+    "-Wnonunit-statement",
+    "-Wvalue-discard",
+  )
+```
+
+and in scala-cli
+
+```scala
+//> using options -Wvalue-discard -Wnonunit-statement
+// Add other options as needed
+```
+
 If you use some other build system, you can probably figure out from the above what you need.
 
 Then in your code,
@@ -124,7 +144,7 @@ ivy"com.github.ichoran::kse3-basics:0.4.0"
 and in your code,
 
 ```scala
-import kse.basics.{given, _}
+import kse.basics.*
 ```
 
 You have access to full-speed inlined pipe (to transform values) and tap (to act on them but pass forward the original):
@@ -137,20 +157,21 @@ println(m)                         // prints: 49
 ```
 
 Unlike the equivalents in the Scala standard library, these are inlined and thus can be used without a loss in speed.
+(You also get `x.effect(f)` if you just want to cause some side-effect not pass along any value.)
 
 
 There are standard mutable containers for primitive and object types for counting, callbacks, and other such use:
 
 ```scala
-def nextEven(m: Mu[Int]): m.type =
-  m.zap(i => if i % 2 == 0 then i + 2 else i + 1)
+def nextEven(m: Mu[Int]): Unit =
+  m.op(i => if i % 2 == 0 then i + 2 else i + 1)
 
 val count = Mu(1)
 for (i <- 1 to 5) nextEven(count)
 println(count())   // prints: 10
 
 
-def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
+def tokenCount(s: String, tokens: Option[Mu[Array[String]]]): Int =
   if s.isEmpty then 0
   else
     val tok = s.split("\\s+")
@@ -158,48 +179,44 @@ def tokenCount(s: String, tokens: Mu[Array[String]] Or Unit): Int =
     tok.length
 
 val tok = Mu(Array.empty[String])
-println(tokenCount("minnow salmon bass eel", tok))  // prints: 4
-println(tok().mkString)                             // prints: minnowsalmonbasseel
+println(tokenCount("minnow salmon bass eel", Some(tok)))  // prints: 4
+println(tok().mkString)                                   // prints: minnowsalmonbasseel
 ```
 
-Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays with full hand-rolled speed by virtue of extensive use of inlines.
+Plus there are handy methods provided on tuples, wrappers to suppress printing or use identity hash codes, and a bunch of methods that add basic ranged functionality to arrays with full hand-rolled speed by virtue of extensive use of inlines and custom interval and endpoint handling.
 
 ```scala
+import kse.basics.intervals.*
 val a = Array(1, 2, 3, 4, 5)
 val b = a.select(_ % 2 == 1)  // Array(1, 3, 5)
 b(1 to End) = a  // b is now Array(1, 1, 2)
 b(End - 1) = 4   // b is now Array(1, 4, 2)
-b.inject(a, 2)() // a is now Array(1, 2, 1, 4, 2)
+b.inject(a, 2)   // a is now Array(1, 2, 1, 4, 2)
 var n = 0
 a.peek()(n += _)
 println(n)      // Prints 10
 ```
 
 There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`.  If
-you have a tuple that is entirely labeled, you can convert it into a named tuple with `.named`; if you have a named tuple, you can
-convert it to a tuple of labeled values with `.labeled`.
+you have a tuple that is entirely labeled, you can convert it into a named tuple with `.labelsToNames`; if you have a named tuple, you can
+convert it to a tuple of labeled values with `.namesToLabels`.  Even easier, if you have a named 1-tuple literal, `.lb` produces the
+label-tagged version, and if you have a tagged type. `.nt` is the corresponding named 1-tuple.
 
-The tags enforce identity by requiring you to give the name (string) after `~` in order to recover the value.  If you tag types with unique
-names, you can use `conjure("name")` instead of `summon[Type \ "name"]`!
+There are a variety of helper functions for named and regular tuples; all work at least up to 22 entries, and some work for arbitrary sizes.
+This includes a tiny lens facility that allows focus on named tuples by field name.
 
 ```scala
-import kse.basics.labels._
+import kse.basics.labels.*
 
-val person = ("John" \ "first", "Smith" \ "last")
-val nosrep = ("Smith" \ "last", "John" \ "first")
-println(person == nosrep)  // false
-println(person ~ "first" == nosrep ~ "first")  // true
-println(person ~ "last"  == nosrep ~ "last")   // true
-println(person(0) == nosrep(0))                // false
-
-def welcome(who: (String \ "first", String \ "last")): Unit =
-  println(s"Hello, ${who ~ "first"}")
-
-welcome(person)          // Prints Hello, John
-welcome(nosrep)          // Compile-time error; order matters
-welcome(("Jane", "Doe")) // Compile-time error; labels are needed
-welcome(("Jane", "Doe").label)  // Works, .label means infer labels
+val nup = (a = "eel", b = true, c = 5.5)
+var v = nup.lens["c"].pluck      // Double \ "c"
+v = (c = 25.0).lb
+val np2 = nup replace 'e' \ "a"  // Or replace (a = 'e').lb
 ```
+
+Named tuples stress convenience.  However, the label-tagged version is meant for safety: they enforce identity by requiring you
+to give the name (string) after `~` in order to recover the value.  However, if you tag types with unique names, you can
+use `conjure("name")` instead of `summon[Type \ "name"]`!
 
 Use it whenever identity is really important, but types aren't specific enough.  If you want your tagged type
 to be a subtype or supertype of the original type--less secure, but there are cases where it is convenient--then
@@ -208,13 +225,15 @@ You can also convert between the three types by using `newtyped`, `subtyped`, an
 
 There's an extra-easy interface to atomic types, too (plus counters and toggles).  Use `val a = Atom(value)` to declare an atomic value,
 then get it with `a()`, set it with `a := newValue`, and update it atomically (using CAS operations, so the
-operation may be repeated when under contention) using `a.zap(x => f(x))`:
+operation may be repeated when under contention) using `a.opAndGet(x => f(x))` and other variants.
 
 ```scala
 val a = Atom("salmon eel")
-val eel = a.zap(_.split(' ').head)  // Atomic!
+val eel = a.opAndGet(_.split(' ').head)  // Atomic!
 println(eel == a())   // prints true
 ```
+
+The interface to `Atom` is nearly identical to the interface to `Mu`, in order to aid refactoring from single-threaded to multi-threaded computations.
 
 See the test suite, or package Scaladoc, for more examples of what you could do with `kse.basics`!
 
@@ -230,7 +249,7 @@ ivy"com.github.ichoran::kse3-flow:0.4.0"
 and in your code,
 
 ```scala
-import kse.flow.{given, _}
+import kse.flow.*
 ```
 
 Then you have access to the left-biased unboxed sum type `Or`:
@@ -243,17 +262,17 @@ def little(i: Int): Int Or String =
 val x = little(12)
 val y = little(999)
 
-println(x)             // prints: 10
+println(x)             // prints: 12
 println(y)             // prints: Alt(999 is not little)
 y.foreachAlt(println)  // prints: 999 is not little
 x.foreachAlt(println)  // does not print anything
 
 val z = x.map(_ * -3)
-val w = z.discard{
+val w = z.reject{
   case i if i < 0 => "No negatives please"
 }
 
-println(z)             // prints: -30
+println(z)             // prints: -36
 println(w)             // prints: Alt("No negatives please")
 ```
 
@@ -277,19 +296,19 @@ println(b)   // prints: Alt(999 is not little)
 println(c)   // prints: Alt(-3 is not a number in reverse)
 ```
 
-If you don't care about what the bad values are (usually you should!), you also have `.!` that can be used inside a single or chained attempt block, but otherwise works like `.?`:
+If you don't care about what the bad values are (usually you should!), you also have `.!` that can be used inside a single or chained attempt block, but otherwise works like `.?`--you can use `true_!` to declare that something must be true (or the attempt fails), or `false_!`:
 
 ```scala
 val opt = Option(42)
 val number =
   attempt:
     val a = favorite(999).!  // fails here
-    (a < 30).!               // this would fail too
+    (a < 30).true_!          // this would fail too
     2 * a
   .attempt:
     val a = favorite(12).!   // succeeds, giving 21
     val b = opt.!            // gets 42 from option
-    (a >= b).!               // test passes
+    (a >= b).true_!          // test passes
     a * b
   .default:
     -1                       // If everything failed, would give this
@@ -301,18 +320,19 @@ There are inlined index-based loops, as fast as `while` but without risk of an i
 
 ```scala
 val list = List("salmon", "herring", "perch")
-iFor(list.iterator){ (i, s) => println(s*i) }  // prints newline, then "herring", then "perchperch"
+iFor(list.iterator){ (s, i) => println(s*i) }  // prints newline, then "herring", then "perchperch"
 ```
 
 Error handling is greatly simplified and streamlined by using an `Err` type that is either a simple string message, or is
 a wrapped exception.  (Custom `Err` types can also be defined by extending `ErrType`.)  Any operation that may fail should
-return `A Or Err`, where `A` is the success type.  If you use `Err.Or:` instead of `Or.Ret:` any exceptions that occur
-within the block will also be caught and packaged.  Use `Err.break("message")` or `Err ?# "message"` to exit with a lightweight
+return `A Or Err`, where `A` is the success type.  Use `Err.break("message")` or `Err ?# "message"` to exit with a lightweight
 error message.  Use `foo().?` to propagate errors from an error-prone method that you call.  Use `foo() ?# "message"` to
 propagate the error with an explanation about the context.  To catch exceptions and pack them as an `Err`, use `nice{ baz() }`.
+Because `A Or Err` is a very common pattern, the type `Ask[A]` is aliased to it.  If you use `Ask:` instead of `Or.Ret:` any
+exceptions that occur within the block will also be caught and packaged.  
 
 ```scala
-def positiveInt(s: String): Int Or Err = Err.Or:
+def positiveInt(s: String): Ask[Int] = Ask:
   var ndigits = 0
   s.peek(){ c => if c.isDigit then ndigits += 1 }
   if ndigits < s.length then Err ?# s"${s.length - ndigits} characters are not digits"
@@ -335,40 +355,56 @@ with an ultra-lightweight futures system based around virtual threads, where blo
 Offload any computation to a virtual thread by using `Fu`:
 
 ```scala
-def readFileUnsafe(p: Path): Array[String] = ???  // Live dangerously!
+object Concurrent:
+  import java.nio.file.{Files, Path}
 
-val p = getMyPath()
-val lines = Fu:
-  readFileUnsafe(p)   // Immediately queues for execution on a virtual thread
+  def readFileUnsafe(p: Path): Array[String] =
+    // Live dangerously, using Java methods!
+    Files.readAllLines(p).toArray(new Array[String](0))
 
-doSlowStuff()  // Presumably concurrent
+  val p = Path.of("README.md")
+  val lines = Fu:
+    readFileUnsafe(p)   // Immediately queues for execution on a virtual thread
 
-val answer = Err.Or:
-  lines.ask().?.find(_ startsWith "import ").toOrElse(Err ?# "No imports")
+  val done = lines.isComplete  // Probably false at this point!
+
+  Thread.sleep(50)  // Concurrent with reading
+
+  // Lazy so we won't block unless we want the result before the file's been read
+  // Initializers don't always interact well with blocking on multithreaded computations
+  lazy val answer = Ask:
+    lines.ask().?.find(_ startsWith "import ") ?# "No imports"  // Blocks until reading is complete
+
+println(Concurrent.done)    // Does not block
+println(Concurrent.answer)  // Blocks 
 ```
 
-In the above example, `lines` loads in the background while `doSlowStuff()` is running; if there is any work left to do,
+In the above example, `lines` loads in the background while `Thread.sleep` is running; if there is any work left to do,
 the current thread blocks on the call to `ask()`, and any errors during execution cause an early exit to the
-`Err.Or:` block.
+`Ask:` block.
 
 But what if you don't want to block the current thread?  You can `map` and `flatMap` `Fu`.  But, even better, you can
 just keep `Fu:`-ing, because `Fu:` itself (and `Fu.flat:`, which takes an `A => (B Or Err)`) provides a boundary point
 enabling `.?`.  **However, you must be careful not to have control flow jump out of a Fu**
 
 ```scala
-def readFile(p: Path): Array[String] Or Err = ???
+object Concurrent2:
+  import java.nio.file.{Files, Path}
 
-val lines = Fu.flat:
-  readFile(p)
+  def readFile(p: Path): Array[String] Or Err =
+    nice{ Files.readAllLines(p).toArray(new Array[String](0)) }
 
-val slow = Fu:
-  doSlowStuff()
+  val lines = Fu.flat:
+    readFile(Concurrent.p)
 
-val answer = Fu:
-  slow.?  // Make sure it's done
-  lines.?.find(_ startsWith "import ").getOrElse(Err ?# "No imports")
+  val slow = Fu:
+    Thread.sleep(50)
 
-// Now it's all in virtual-thread futures!  answer.ask() will get you the result when you need it
+  val answer = Fu:
+    slow.?  // Make sure it's done
+    lines.?.find(_ startsWith "import ") ?# "No imports"
+
+  // Now it's all in virtual-thread futures!  answer.ask() will get you the result when you need it
 ```
 
 If you want subcomputations to be cancelled, if possible, by using Java's executor services, then use
@@ -418,7 +454,7 @@ Then you can parse like so:
 
 ```scala
 val args = Array("foo", "-qn", "99", "--axis=y")
-val oarg = parser.parse(args).?   // You're inside an `Err.Or:` block, right?
+val oarg = parser.parse(args).?   // You're inside an `Ask:` block, right?
 val axis = oarg("axis")           // Some("y")
 val shhh = oarg.found("quiet")    // true
 val rots = oarg("n")              // List(99)
@@ -434,7 +470,6 @@ To print all the options, get a description string using `parser.userString()`:
 
 ```text
 My Nifty Title
-
 Option         Short     Description                                           
 -------------  --------  ------------------------------------------------------
 --axis=x/y/z              Pick which axis to rotate
@@ -445,6 +480,8 @@ Option         Short     Description
 Use -- to end option parsing. Short options may be combined as -abc.
 
 ```
+
+And if you just want the options collected into a named tuple, and the arguments in an array, use `oarg.options` and `oarg.args` respectively.
 
 ### kse.testing
 
