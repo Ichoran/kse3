@@ -22,19 +22,19 @@ import kse.basics.intervals._
 /////////////////////////////////////////////
 
 extension (i: Int){
-  inline def times(f: => Unit): Unit =
+  inline def times(inline f: => Unit): Unit =
     var j = 0
     while j < i do
       f
       j += 1
 
-  inline def visit(f: Int => Unit): Unit =
+  inline def visit(inline f: Int => Unit): Unit =
     var j = 0
     while j < i do
       f(j)
       j += 1
 
-  inline def visitBy(step: Int)(f: Int => Unit): Unit =
+  inline def visitBy(step: Int)(inline f: Int => Unit): Unit =
     if step != 0 then
       var j = if step < 0 then i - 1 else 0
       while j < i && j >= 0 do
@@ -77,14 +77,15 @@ extension (i: Int){
       val extra = if n*sabs == i then 0 else 1
       new Iv.AffineIntStepper(n + extra, first, step)
 
-  inline def mkArray[A](f: Int => A)(using ClassTag[A]): Array[A] =
+  inline def unfold[A](inline f: Int => A)(using ClassTag[A]): Array[A] =
     val a = new Array[A](if i > 0 then i else 0)
     var k = 0
     while k < a.length do
       a(k) = f(k)
       k += 1
     a
-  inline def partArray[A](f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
+
+  inline def unfoldFlex[A](inline f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
     val a = new Array[A](if i > 0 then i else 0)
     var j = 0
     shortcut.outer:
@@ -306,9 +307,9 @@ extension [A](a: Array[A]) {
 
   inline def clip: kse.basics.ClippedArray[A] = ClippedArray wrap a
 
-  inline def breakable: kse.basics.BreakableArray[A] = BreakableArray wrap a
+  inline def flex: kse.basics.FlexArray[A] = FlexArray wrap a
 
-  inline def clipBreak: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap a
+  inline def fancy: kse.basics.FancyArray[A] = FancyArray wrap a
 
   inline def peek()(inline f: A => Unit): a.type =
     var i = 0
@@ -1167,7 +1168,7 @@ object ClippedArray {
     inline def unwrap: Array[A] = ca
 
   extension [A](ca: kse.basics.ClippedArray[A]) {
-    inline def breakable: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap ca.unwrap
+    inline def flex: kse.basics.FancyArray[A] = FancyArray wrap ca.unwrap
 
     inline def apply(i: Int)(inline x0: => A): A =
       val a = ca.unwrap
@@ -1872,15 +1873,15 @@ object ClippedArray {
 
 
 
-opaque type BreakableArray[A] = Array[A]
-object BreakableArray {
-  inline def wrap[A](a: Array[A]): BreakableArray[A] = a
+opaque type FlexArray[A] = Array[A]
+object FlexArray {
+  inline def wrap[A](a: Array[A]): FlexArray[A] = a
 
-  extension [A](sa: BreakableArray[A])
+  extension [A](sa: FlexArray[A])
     inline def unwrap: Array[A] = sa
 
-  extension [A](sa: kse.basics.BreakableArray[A]) {
-    inline def clip: kse.basics.ClipBreakArray[A] = ClipBreakArray wrap sa.unwrap
+  extension [A](sa: kse.basics.FlexArray[A]) {
+    inline def clip: kse.basics.FancyArray[A] = FancyArray wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sa.unwrap
@@ -2325,14 +2326,14 @@ object BreakableArray {
 
 
 
-opaque type ClipBreakArray[A] = Array[A]
-object ClipBreakArray {
-  inline def wrap[A](a: Array[A]): ClipBreakArray[A] = a
+opaque type FancyArray[A] = Array[A]
+object FancyArray {
+  inline def wrap[A](a: Array[A]): FancyArray[A] = a
 
-  extension [A](sc: ClipBreakArray[A])
+  extension [A](sc: FancyArray[A])
     inline def unwrap: Array[A] = sc
 
-  extension [A](sc: kse.basics.ClipBreakArray[A]) {
+  extension [A](sc: kse.basics.FancyArray[A]) {
     inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
       val a = sc.unwrap
       var i = i0
@@ -3233,9 +3234,9 @@ extension [A >: Null <: AnyRef](aa: Array[A]) {
 extension (a: String) {
   inline def clip: kse.basics.ClippedString = ClippedString wrap a
 
-  inline def breakable: kse.basics.BreakableString = BreakableString wrap a
+  inline def flex: kse.basics.FlexString = FlexString wrap a
 
-  inline def clipBreak: kse.basics.ClipBreakString = ClipBreakString wrap a
+  inline def fancy: kse.basics.FancyString = FancyString wrap a
 
   inline def peek()(inline f: Char => Unit): a.type =
     var i = 0
@@ -3812,7 +3813,7 @@ object ClippedString {
     inline def unwrap: String = ca
 
   extension (ca: kse.basics.ClippedString) {
-    inline def breakable: kse.basics.ClipBreakString = ClipBreakString wrap ca.unwrap
+    inline def flex: kse.basics.FancyString = FancyString wrap ca.unwrap
 
     inline def apply(i: Int)(inline c: => Char): Char =
       val a = ca.unwrap
@@ -4311,15 +4312,15 @@ object ClippedString {
 }
 
 
-opaque type BreakableString = String
-object BreakableString {
-  inline def wrap(a: String): BreakableString = a
+opaque type FlexString = String
+object FlexString {
+  inline def wrap(a: String): FlexString = a
 
-  extension (sa: BreakableString)
+  extension (sa: FlexString)
     inline def unwrap: String = sa
 
-  extension (sa: kse.basics.BreakableString) {
-    inline def clip: kse.basics.ClipBreakString = ClipBreakString wrap sa.unwrap
+  extension (sa: kse.basics.FlexString) {
+    inline def clip: kse.basics.FancyString = FancyString wrap sa.unwrap
 
     inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val a = sa.unwrap
@@ -4712,14 +4713,14 @@ object BreakableString {
 }
 
 
-opaque type ClipBreakString = String
-object ClipBreakString {
-  inline def wrap(a: String): ClipBreakString = a
+opaque type FancyString = String
+object FancyString {
+  inline def wrap(a: String): FancyString = a
 
-  extension (sc: ClipBreakString)
+  extension (sc: FancyString)
     inline def unwrap: String = sc
 
-  extension (sc: kse.basics.ClipBreakString) {
+  extension (sc: kse.basics.FancyString) {
     inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
       val a = sc.unwrap
       var i = i0

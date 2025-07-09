@@ -71,3 +71,11 @@ inline def iFor[A](e: java.util.Enumeration[A])(inline f: (A, Int) => Unit): Uni
 inline def iFor[A](s: java.util.Spliterator[A])(inline f: (A, Int) => Unit): Unit =
   var n = 0
   while s.tryAdvance(a => f(a, n)) do n += 1
+
+
+/** Applies an operation to everything that we can pull out of a java.util.Queue (e.g. a concurrent.LinkedTransferQueue) */
+extension [A, Q[X] <: java.util.Queue[X]](q: Q[A])
+  inline def drainWith(f: A => Unit): Unit =
+    var a: AnyRef = null
+    while { a = q.asInstanceOf[Q[AnyRef]].poll(); a ne null } do
+      f(a.asInstanceOf[A])

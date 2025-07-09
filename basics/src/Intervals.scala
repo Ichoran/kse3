@@ -7,6 +7,8 @@ package kse.basics.intervals
 //import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import scala.annotation.targetName
+import scala.reflect.ClassTag
+import scala.util.boundary
 
 import scala.collection.immutable.{Range => Rg}
 import scala.collection.IntStepper
@@ -92,7 +94,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
 
   inline infix def of[A](a: Array[A]): Iv = apply(0, a.length)
 
-  extension (iv: Iv)
+  extension (iv: Iv) {
     inline def unwrap: Long = iv
     inline def i0: Int = (iv & 0xFFFFFFFFL).toInt
     inline def i1: Int = { val x = (iv >> 32).toInt; if x == Int.MinValue then x else x-1 }
@@ -228,6 +230,35 @@ object Iv extends Translucent.Companion[Iv, Long] {
         val n = java.lang.Integer.divideUnsigned(j-i, sabs)
         val extra = if j == i + n*sabs then 0 else 1
         new AffineIntStepper(n + extra, start, step)
+
+    inline def unfold[A](inline f: Int => A)(using ClassTag[A]): Array[A] =
+      var i = iv.i0
+      val j = iv.iN
+      val a = new Array[A](if i < j then j - i else 0)
+      var k = 0
+      while k < a.length do
+        a(k) = f(i)
+        i += 1
+        k += 1
+      a
+
+    inline def unfoldFlex[A](inline f: boundary.Label[shortcut.Type] ?=> Int => A)(using ClassTag[A]): Array[A] =
+      var i = iv.i0
+      val j = iv.iN
+      val a = new Array[A](if i < j then j - i else 0)
+      var k = 0
+      shortcut.outer:
+        while i < j do
+          shortcut.inner:
+            a(k) = f(i)
+            k += 1
+          i += 1
+      if a.length == k then a
+      else
+        val aa = new Array[A](k)
+        System.arraycopy(a, 0, aa, 0, k)
+        aa
+  }
 
 
   final class AffineIntStepper(count: Int, offset: Int, scale: Int) extends IntStepper {

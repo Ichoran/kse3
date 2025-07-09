@@ -1371,24 +1371,24 @@ class FlowTest {
       def hasMoreElements = i > 0
       def nextElement = { val ans = i; i -= 1; ans } 
     }
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).skip_? } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  optionQ1(s).quit_? } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, i) =>  eitherQ1(s).skip_? } =**= Array(9, 10)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>  eitherQ1(s).quit_? } =**= Array(9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).skip_? } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) =>      orQ1(s).quit_? } =**= Array(8)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).skip_? } =**= Array(8, 9)
-    T ~ Array("8", "x", "9").breakable.copyOp{ (s, _) => Try(s.toInt).quit_? } =**= Array(8)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.skip_?        }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).iterator.quit_?        }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .skip_?.toChar }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).stepper .quit_?.toChar }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).skip_?.head   }.str ==== "lm"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).quit_?.head   }.str ==== "l"
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).skip_? }                              =**= Array(3, 2)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => jemn(n).quit_? }                              =**= Array(3)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).skip_?; n + 1 }                       =**= Array(3, 4)
-    T ~ Array(2, 8, 3).breakable.copyOp{ (n, _) => (n < 5).quit_?; n + 1 }                       =**= Array(3)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) =>  optionQ1(s).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) =>  optionQ1(s).quit_? } =**= Array(8)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, i) =>  eitherQ1(s).skip_? } =**= Array(9, 10)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) =>  eitherQ1(s).quit_? } =**= Array(9)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) =>      orQ1(s).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) =>      orQ1(s).quit_? } =**= Array(8)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) => Try(s.toInt).skip_? } =**= Array(8, 9)
+    T ~ Array("8", "x", "9").flex.copyOp{ (s, _) => Try(s.toInt).quit_? } =**= Array(8)
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).iterator.skip_?        }.str ==== "lm"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).iterator.quit_?        }.str ==== "l"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).stepper .skip_?.toChar }.str ==== "lm"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).stepper .quit_?.toChar }.str ==== "l"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).skip_?.head   }.str ==== "lm"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => "salmon".drop(n).fn(jasi).quit_?.head   }.str ==== "l"
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => jemn(n).skip_? }                              =**= Array(3, 2)
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => jemn(n).quit_? }                              =**= Array(3)
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => (n < 5).skip_?; n + 1 }                       =**= Array(3, 4)
+    T ~ Array(2, 8, 3).flex.copyOp{ (n, _) => (n < 5).quit_?; n + 1 }                       =**= Array(3)
 
     val l = Left("herring")
     val r = Right(15)
@@ -1812,6 +1812,28 @@ class FlowTest {
     T ~ linedB.textLines().asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== linedV
     T ~ linedC.lines(13 to End-3).asCopyingIterator.map(_.str).toVector ==== Vector("erring", "bass", "per")
     T ~ linedB.textLines(13 to End-3).asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== Vector("erring", "bass", "per")
+
+  @Test
+  def sequentialCSDTest(): Unit =
+    val csd = ConcurrentSplitDeque.empty[String]
+    val adq = collection.mutable.ArrayDeque.empty[String]
+    var i = 0
+    def elt = { i += 1; i.toString }
+    def adr: Unit =
+      val e = elt
+      csd += e
+      adq += e
+    def adl: Unit =
+      val e = elt
+      csd push e
+      e +=: adq
+    adr; adl; adr
+    T ~ csd.length         ==== adq.length
+    T ~ csd.get().toOption ==== adq.removeHeadOption()
+    T ~ csd.get().toOption ==== adq.removeHeadOption()
+    T ~ csd.get().toOption ==== adq.removeHeadOption()
+    T ~ csd.length         ==== adq.length
+
 
 
   @Test

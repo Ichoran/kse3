@@ -109,9 +109,6 @@ object \ {
     inline def subtyped: (A \> L) = (la: A)
     inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
-    transparent inline def nt =
-      inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
-      else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
 
   inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
 }

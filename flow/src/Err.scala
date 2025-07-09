@@ -243,10 +243,12 @@ object Ask {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }}}
     */
-  inline def threadsafe[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] = boundary[X Or Err] { label ?=>
-    try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
+  inline def threadsafe[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] =
+    try
+      boundary[X Or Err]{ label ?=>
+        Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
+      }
     catch case t if t.threadCatchable => Alt(Err(t))
-  }
 
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
@@ -260,10 +262,12 @@ object Ask {
     *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
     * }}}
     */
-  inline def threadsafeFlat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] = boundary[X Or Err] { label ?=>
-    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
+  inline def threadsafeFlat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] =
+    try
+      boundary[X Or Err]{ label ?=>
+        x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
+      }
     catch case t if t.threadCatchable => Alt(Err(t))
-  }
 }
 
 

@@ -8,8 +8,13 @@ package kse.flow
 
 import scala.reflect.ClassTag
 
+import scala.collection.mutable
+import scala.collection.{IterableFactory, IterableFactoryDefaults, SeqOps}
+import scala.collection.generic.DefaultSerializable
+
 import kse.basics._
 import kse.basics.intervals._
+
 
 
 //////////////////////////////////////////////////////////////
@@ -203,7 +208,7 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
 
 extension [A](a: Array[A])
   inline def validMap[B](f: A => B Or Err)(using ClassTag[B]): Ask[Array[B]] = Or.Ret:
-    a.breakable.copyWith(x => f(x).?)
+    a.copyWith(x => f(x).?)
 
 
 
@@ -299,3 +304,197 @@ extension (ab: Array[Byte])
   inline def textLines(): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab)
   inline def textLines(ivx: Iv.X): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, ivx of ab)
   inline def textLines(inline rg: collection.immutable.Range): RotatingBuffer.TextLines = RotatingBuffer.TextLines(ab, Iv.of(rg))
+
+
+/*
+//////////////////////////////////////////////////////////////////
+/// Mutable queue with the ability to rapidly cut at any point ///
+//////////////////////////////////////////////////////////////////
+
+/** Provides a `Deqeue` interface.
+  * The underlying data structure is a wide B-tree of indices, somewhat like `immutable.Vector`, to enable rapid
+  * `splitAt` and retain decent enqueue/dequeue/push/pop performance.
+  */
+final class SplittableDeque[A] private (initialContents: SplittableQueue.Content[A])
+extends mutable.AbstractSeq[A]
+with SeqOps[A, CustomQueue, CustomQueue[A]]
+with mutable.Growable[A]
+with IterableFactoryDefaults[A, CustomQueue]
+with DefaultSerializable {
+  private var contents: SplittableQueue.Content[A] = initialContents
+
+  override def length: Int = contents.size
+  override def lengthCompare(len: Int) = if contents.size < len then -1 else if contents.size > len then 1 else 0
+  override def isEmpty: Boolean = contents.size == 0
+
+  override def apply(i: Int): A = contents(i)
+
+  override def update(i: Int, elem: A): Unit = contents.update(i, elem)
+
+  override def iterator: Iterator[A] = contents.iterator()
+
+  override def iterableFactory: IterableFactory[SplittableQueue] = SplittableQueue
+
+  override protected[this] def className: String = "SplittableQueue"
+
+  def enqueue(elem: A): Unit =
+
+
+  def push(elem: A): Unit = ???
+
+  def dequeue(): A = ???
+
+  def dequeueOption(): Option[A] =
+    if contents.size == 0 then None else Some(dequeue())
+
+  def pop(): A = ???
+
+  def popOption(): Option[A] =
+    if contents.size == 0 then None else Some(pop())
+
+  override def splitAt(n: Int): (SplittableQueue[A], SplittableQueue[A]) = ???
+
+  // Required by Growable
+  override def addOne(elem: A): this.type = { enqueue(elem); this }
+
+  override def clear(): Unit =
+    if contents.size > 0 then
+      while contents.chunk != 1 do
+        contents = contents.buffer(contents.i0).asInstanceOf[SplittableQueue.Content[A]]
+      content.size = 0
+      content.n0 = 0
+      content.n1 = 0
+      content.buffer() = null
+}
+object SplittableQueue
+extends IterableFactory[SplittableQueue] {
+  private[SplittableQueue] final class Content(val buffer: Array[AnyRef], var i0: Int, var i1: Int, chunk: Int, var size: Int, var n0: Int, var n1: Int) {
+    def apply(i: Int): A =
+      if i < 0 || i >= size then throw new
+      if chunk == 1 then buffer(i - i0).asInstanceOf[A]
+      else if i < n0 then buffer(i0).asInstanceOf[SplittableQueue[A]](i)
+      else
+        val ii = i - n0
+        val j = ii/chunk
+        val ij = ii - j*chunk
+        buffer(j).asInstanceOf[SplittableQueue[A]](ij)
+
+    def expand(): Content[A] =
+      if size < chunk*buffer.length then this
+      else if size > 0x7FFFFFF8 then throw new IllegalArgumentException("Overfull SplittableQueue")
+      else
+        val c2 = Content.ofCapacity(size+1)
+        c2.i0 = c2.size/2
+        c2.i1 = c2.i0
+        c2.n0 = size
+        c2.n1 = size
+        c2.buffer(c2.i0) = this
+        c2
+
+    def shrink(): Content[A] =
+      if chunk == 1 || size > chunk - (chunk >> 2) then this
+      else if i0 == i1 then buffer(i0).asInstanceOf[Content[A]]
+      else
+        val a = buffer(i0).asInstanceOf[Content[A]]
+        val b = buffer(i1).asInstanceOf[Content[A]]
+        var arf = a.buffer.length - a.i1 - 1
+        val blf = b.i0 - 1
+        if blf >= 1 + a.i1 - a.i0 then
+          var i = a.i0
+          while i <= a.a1 do
+            b.i0 -= 1
+            b.buffer(b.i0) = a.buffer(i)
+            i += 1
+          b.n0 = a.n0
+          b.size += a.size
+          b
+        else
+          if alf < 1 + b.i1 - b.i0 then
+            var i = 0
+            var j = a.i0
+            while j <= a.i1 do
+              a.buffer(i) = a.buffer(j)
+              i += 1
+              j += 1
+            a.i0 = 0
+            a.i1 = i - 1
+          var k = b.i0
+          while k <= b.i1 do
+            a.i1 += 1
+            a.buffer(a.i1) = b.buffer(k)
+            k += 1
+          a.n1 = b.n1
+          a.size += b.size
+          a
+
+    def push(a: A): Unit =
+      if i0 == 0 && n0 == chunk then mkSpaceL()
+      if chunk == 1 then
+        if size == 0 then
+          i1 = buffer.length-1
+          i0 = buffer-1
+        else
+          i0 -= 1
+        buffer(i0) = a.asInstanceOf[AnyRef]
+        n0 = 1
+        n1 = 1
+        size += 1
+      else
+        if n0 == chunk then
+          i0 -= 1
+          if buffer(i0) eq null then
+            if i1+1 < buffer.length && buffer(i1+1) != null then
+              buffer(i0) = buffer(i1+1)
+              buffer(i1+1) = null
+            else
+              buffer(i0) = Content.ofCapacity[A](chunk)
+          n0 = 0
+        else if size == 0 then
+          i0 = buffer.length - 1
+          i1 = i0
+          buffer(i0) = Content.ofCapacity[A](chunk)
+        buffer(i0).asInstanceOf[Content[A]].push(a)
+        n0 += 1
+        size += 1
+
+    def pop(): A =
+      if size == 0 then throw new NoSuchElementException("Pop in empty SplittableQueue")
+      else if chunk == 1 then
+        val ans = buffer(i0).asIsntanceOf[A]
+        i0 += 1
+        size -= 1
+        if size == 0 then
+          n0 = 0
+          n1 = 0
+        ans
+      else
+        val ans = buffer(i0).asInstanceOf[SplittableQueue[A]].pop()
+        n0 -= 1
+        if n0 == 0 then
+          if i0 < i1 then
+            i0 += 1
+            n0 = buffer(i0).asInstanceOf[SplittableQueue[A]].size
+
+  }
+  private[SplittableQueue] object Content {
+    def ofCapacity[A](n: Int): SplittableQueue.Content[A] =
+      if n <= 32 then new Content(new Array[AnyRef](32), 0, 0, 1, 0, 0, 0)
+      else if n <= 32*128 then new Content(new Array[AnyRef](128), 0, 0, 32, 0, 0, 0)
+      else if n <= 32*128*512 then new Content(new Array[AnyRef](512), 0, 0, 32*128, 0, 0, 0)
+      else new Content(new Array[AnyRef](2048), 0, 0, 32*128*512, 0, 0, 0)
+  }
+  
+  def empty[A]: CustomQueue[A] = new SplittableQueue[A](SplittableQueue.Content.ofCapacity[A](0))
+  
+  def from[A](source: IterableOnce[A]): SplittableQueue[A] = {
+    val queue = empty[A]
+    queue ++= source
+  }
+
+  def newBuilder[A]: mutable.Builder[A, SplittableQueue[A]] = 
+    new mutable.GrowableBuilder[A, SplittableQueue[A]](empty[A])
+
+  // Convenient factory methods
+  def apply[A](elems: A*): SplittableQueue[A] = from(elems)
+}
+*/

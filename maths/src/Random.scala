@@ -17,7 +17,7 @@ import kse.basics.{given, _}
 import kse.basics.intervals._
 
 
-/** Random number generator intended to be fast, low-state, but reasonably well-distributed.
+/** Random number generator intended to be fast and low-state but reasonably well-distributed.
  *  You can serialize this into a few Longs--in many cases only one Long!--when the cache is
  *  empty.  You can also create copies including the cache.
  */

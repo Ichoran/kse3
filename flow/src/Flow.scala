@@ -478,9 +478,34 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
   catch case e if e.catchable => default
 
 
-extension [A](or: A Or Err)
+/** Run something, catching specific exceptions, and then map or match the success case.
+  *
+  * This matches the features of the draft exception matching JEP https://openjdk.org/jeps/8323658
+  * albeit with different (clearer) syntax: all the exception handling is in the first block.
+  * 
+  * Usage:
+  * {{{
+  * catchmatch("eel".charAt(4)) {
+  *   case _: StringIndexOutOfBoundsException => "out of bounds"
+  * }{
+  *   case 'e' => "eel has lots of e's!"
+  *   case c   => s"the letter was '$c'" 
+  * }
+  * }}}
+  */
+inline def catchmatch[A](inline a: => A)[Z](inline handler: PartialFunction[Throwable, Z])(inline f: A => Z) =
+  boundary[Z]: outer ?=>
+    f(
+      boundary[A]: inner ?=>
+        boundary.break(
+          try boundary.break(a)(using inner)
+          catch handler
+        )(using outer)
+    )
+
+extension [A](ask: Ask[A])
   inline def niceMap[B](f: A => B): Ask[B] = Ask.flat:
-    or.map(a => f(a))
+    ask.map(a => f(a))
 
 extension [A, E](or: A Or E)
   def copeMap[B](f: A => B)(using cope: Cope[E]): B Or E =
@@ -588,9 +613,9 @@ extension [X, Y](or: X Or Y) {
 }
 
 
-extension [X](or: X Or Err)
+extension [X](ask: Ask[X])
   @targetName("grabXOrErr")
-  inline def grab: X = or.getOrElse(_.toss)
+  inline def grab: X = ask.getOrElse(_.toss)
 
 
 extension [L, R](either: Either[L, R]) {

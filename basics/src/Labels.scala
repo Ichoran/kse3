@@ -810,7 +810,6 @@ object NamesAndLabels {
 }
 
 
-
 extension [A](a: A) {
   /** Associate a compile-time name with this value by giving the other (Singular) value */
   inline def \[L <: LabelVal](l: L): A \^ L = \^.wrap(a)
@@ -837,8 +836,20 @@ extension [Ns <: Tuple, Ts <: Tuple](tup: NamedTuple.NamedTuple[Ns, Ts]) {
 }
 
 
+extension [L <: LabelVal, A](la: A \^ L) {
+  inline def nt =
+    inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
+    else NamedTuple.withNames(Tuple1(la.unlabel))[Tuple1[L]]
+  inline def kv: (L, A) = (compiletime.constValue[L], la.unlabel)
+}
+
+
 extension [L <: LabelVal, A](inline tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
   transparent inline def lb: A \^ L = \^.wrap(kse.basics.basicsMacroImpl.extractNamedTuple1Literal(tup))
+}
+
+extension [L <: LabelVal, A](tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
+  inline def kv: (L, A) = (compiletime.constValue[L], tup.asInstanceOf[Tuple1[A]]._1)
 }
 
 
@@ -852,6 +863,8 @@ inline def conjure[L <: LabelVal](l: L)[A](using inline nm: ((A \^ L) | (A \>^ L
   case nt: (A \^ L)  => nt.unlabel
   case sp: (A \>^ L) => sp
   case _ => nm.asInstanceOf[A]   // Cheating, but they're all the same type anyway, so....
+
+
 
 
 

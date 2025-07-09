@@ -337,19 +337,19 @@ object Hold {
   def them[U, V](hu: Hold[U], hv: Hold[V]): Hold[(U, V)] =
     new Tuple2(hu, hv)
 
-  /** Store three `Hold`s.  Updates whenever either of the two change. */
+  /** Store three `Hold`s.  Updates whenever any of them change. */
   def them[T, U, V](ht: Hold[T], hu: Hold[U], hv: Hold[V]): Hold[(T, U, V)] =
     new Tuple3(ht, hu, hv)
 
-  /** Store four `Hold`s.  Updates whenever either of the two change. */
+  /** Store four `Hold`s.  Updates whenever any of them change. */
   def them[S, T, U, V](hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V]): Hold[(S, T, U, V)] =
     new Tuple4(hs, ht, hu, hv)
 
-  /** Store five `Hold`s.  Updates whenever either of the two change. */
+  /** Store five `Hold`s.  Updates whenever any of them change. */
   def them[R, S, T, U, V](hr: Hold[R], hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V]): Hold[(R, S, T, U, V)] =
     new Tuple5(hr, hs, ht, hu, hv)
 
-  /** Store six `Hold`s.  Updates whenever either of the two change. */
+  /** Store six `Hold`s.  Updates whenever any of them change. */
   def them[Q, R, S, T, U, V](hq: Hold[Q], hr: Hold[R], hs: Hold[S], ht: Hold[T], hu: Hold[U], hv: Hold[V]): Hold[(Q, R, S, T, U, V)] =
     new Tuple6(hq, hr, hs, ht, hu, hv)
 

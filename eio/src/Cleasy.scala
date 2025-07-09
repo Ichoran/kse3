@@ -132,7 +132,7 @@ object Parse {
 
   def whereKey(key: String)(args: Array[String]): Array[(Int, Int)] =
     var stop = false
-    args.breakable.copyOp: (test, i) =>
+    args.flex.copyOp: (test, i) =>
       shortcut.quit(stop).?
       stop = test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))
       val j = keyMatch(key)(test)
@@ -398,14 +398,15 @@ object Opt {
         val msgIfShort = if shortIdx.length > 0 then s"as --$label " else ""
         sb += s"  ${msgIfShort}at arguments ${Parse.listy(labelIdx.map(i => s"#${i+1}"))}"
       if shortIdx.length > 0 then
-        val shortArgs = shortIdx.diced(shortIdx.breakable.copyOp{ (ix, j) => shortcut.skip(j == 0 || shortIdx(j-1) == ix).?; j } , "[)")
+        val shortArgs = shortIdx.diced(shortIdx.flex.copyOp{ (ix, j) => shortcut.skip(j == 0 || shortIdx(j-1) == ix).?; j } , "[)")
         val argsMsg = shortArgs.copyWith: ixs =>
           if ixs.length == 1 then
             if args(ixs(0)).length == 2 then "#" + (ixs(0)+1)
             else s"#${ixs(0)+1} (in ${args(ixs(0))})"
           else s"#${ixs(0)+1} (${ixs.length}x in ${args(ixs(0))})"
         val msgIfLong = if labelIdx.length > 0 then s"as -$short " else ""
-        sb += s"  ${msgIfLong}at argument${if shortArgs.length == 1 then "" else "s"} ${Parse.listy(argsMsg)}"
+        val plural = if shortArgs.length == 1 then "" else "s"
+        sb += s"  ${msgIfLong}at argument$plural ${Parse.listy(argsMsg)}"
 
   private[cleasy] def customToString[A](label: String, short: String, parse: String, about: String)(indent: Int = 2, labelW: Int = -1, shortW: Int = -1, parseW: Int = -1, aboutW: Int = -1, margin: Int = 80, clip: Boolean = false, wrap: Int = 0, sep: String = " ") =
     MkStr: sb =>
@@ -603,7 +604,7 @@ object OptD {
 final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: Array[Int], labels: Vector[N], parsed: T) {
   val indexedArgs =
     var stopped = false
-    original.breakable.copyOp: (arg, i) =>
+    original.flex.copyOp: (arg, i) =>
       shortcut.skip(used(i) > 0).?
       (arg, i)
 

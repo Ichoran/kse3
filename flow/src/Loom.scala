@@ -128,3 +128,21 @@ extension [A](a: Array[kse.flow.Fu[A]]) {
   inline def fuFlatMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => Ask[B])): Array[kse.flow.Fu[B]] =
     a.copyWith(_ flatMap f)
 }
+
+
+
+class Threaded[A] private (f: () => A) extends Thread {
+  private val result = new java.util.concurrent.CompletableFuture[Ask[A]]()
+  override def run(): Unit =
+    result.complete(threadnice(f())): Unit
+  def ask(): Ask[A] =
+    try result.get()
+    catch case e if e.catchable => Alt(Err(e))
+  def isComplete: Boolean = result.isDone
+}
+object Threaded {
+  def apply[A](a: => A): Threaded[A] =
+    val th = new Threaded(() => a)
+    th.start()
+    th
+}

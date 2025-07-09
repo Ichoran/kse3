@@ -1302,43 +1302,43 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ z{ car.breakable.peek()(cuml += _.n) }.cs       ==== str
-    T ~ cuml                                            ==== str.map(_.toInt).sum
-    T ~ z{ car.breakable.peek(3, 5)(cuml += _.n) }.cs   ==== str
-    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.peek(3 to 4)(cuml += _.n) }.cs ==== str
-    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.peek(civ)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.peek(cpv)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                            ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.peek(ix)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                            ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ car.breakable.peek(st)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                            ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.flex.peek()(cuml += _.n) }.cs       ==== str
+    T ~ cuml                                       ==== str.map(_.toInt).sum
+    T ~ z{ car.flex.peek(3, 5)(cuml += _.n) }.cs   ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.flex.peek(3 to 4)(cuml += _.n) }.cs ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.flex.peek(civ)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.flex.peek(cpv)(cuml += _.n) }.cs    ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.flex.peek(ix)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.flex.peek(st)(cuml += _.n) }.cs     ==== str
+    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
 
-    T ~ z{ car.breakable.peek(){ c => qIf(!c.l); cuml += c.n } }.cs      ==== str
-    T ~ cuml                                                             ==== str.take(2).map(_.toInt).sum
-    T ~ z{ car.breakable.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
-    T ~ cuml                                                             ==== str(3).toInt
-    T ~ z{ car.breakable.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
-    T ~ cuml                                                             ==== str(3).toInt
-    T ~ z{ car.breakable.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                             ==== str(3).toInt
-    T ~ z{ car.breakable.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                             ==== str(3).toInt
-    T ~ z{ car.breakable.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                             ==== ".#".map(_.toInt).sum
-    T ~ z{ car.breakable.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                             ==== ".#".map(_.toInt).sum
+    T ~ z{ car.flex.peek(){ c => qIf(!c.l); cuml += c.n } }.cs      ==== str
+    T ~ cuml                                                        ==== str.take(2).map(_.toInt).sum
+    T ~ z{ car.flex.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
+    T ~ cuml                                                        ==== str(3).toInt
+    T ~ z{ car.flex.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
+    T ~ cuml                                                        ==== str(3).toInt
+    T ~ z{ car.flex.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ cuml                                                        ==== str(3).toInt
+    T ~ z{ car.flex.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ cuml                                                        ==== str(3).toInt
+    T ~ z{ car.flex.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ cuml                                                        ==== ".#".map(_.toInt).sum
+    T ~ z{ car.flex.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ cuml                                                        ==== ".#".map(_.toInt).sum
 
-    T ~ car.dup().breakable.poke(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs       ==== "CH-#ik."
-    T ~ car.dup().breakable.poke(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs   ==== "ch.-ik."
-    T ~ car.dup().breakable.poke(3 to 4){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs ==== "ch.-ik."
-    T ~ car.dup().breakable.poke(civ){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
-    T ~ car.dup().breakable.poke(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
-    T ~ car.dup().breakable.poke(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
-    T ~ car.dup().breakable.poke(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
+    T ~ car.dup().flex.poke(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs       ==== "CH-#ik."
+    T ~ car.dup().flex.poke(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs   ==== "ch.-ik."
+    T ~ car.dup().flex.poke(3 to 4){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs ==== "ch.-ik."
+    T ~ car.dup().flex.poke(civ){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
+    T ~ car.dup().flex.poke(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
+    T ~ car.dup().flex.poke(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
+    T ~ car.dup().flex.poke(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
 
     T ~ n{ qt{ car.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } } }      ==== str.take(2).map(_.toInt).sum + 1
     T ~ n{ qt{ car.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
@@ -1348,58 +1348,58 @@ class ArraysTest() {
     T ~ n{ qt{ car.visit(ix){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
     T ~ n{ qt{ car.visit(st){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ car.breakable.gather(0)()(_ + _.n + _)       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
-    T ~ car.breakable.gather(0)(3, 5)(_ + _.n + _)   ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.breakable.gather(0)(civ)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.breakable.gather(0)(3 to 4)(_ + _.n + _) ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.breakable.gather(0)(cpv)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.breakable.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
-    T ~ car.breakable.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ car.flex.gather(0)()(_ + _.n + _)       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
+    T ~ car.flex.gather(0)(3, 5)(_ + _.n + _)   ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.flex.gather(0)(civ)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.flex.gather(0)(3 to 4)(_ + _.n + _) ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.flex.gather(0)(cpv)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.flex.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ car.flex.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
 
-    T ~ car.breakable.gather(0)(){ (a, c, i) => qIf(!c.l); a + c.n + i }      ==== str.take(2).map(_.toInt).sum + 1
-    T ~ car.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
-    T ~ car.breakable.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
-    T ~ car.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.breakable.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
-    T ~ car.breakable.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.flex.gather(0)(){ (a, c, i) => qIf(!c.l); a + c.n + i }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ car.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.flex.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ car.breakable.copyWith{ c => sIf(!c.l); c.n }                              =**= car.filter(_.l).map(_.n)
-    T ~ car.breakable.copyWith{ c => qIf(!c.l); c.n }                              =**= car.take(2).map(_.n)
-    T ~ car.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-h-#-k-"
-    T ~ car.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c.value)          ==== typed[Array[Char]]
-    T ~ car.breakable.copyOp{(c, i) => sIf(i%2 == 0); c.value }.mkString           ==== "h#k"
-    T ~ car.breakable.copyOp{(c, i) => qIf(i == 1 || i == 4); c.value }.mkString   ==== "c"
+    T ~ car.flex.copyWith{ c => sIf(!c.l); c.n }                              =**= car.filter(_.l).map(_.n)
+    T ~ car.flex.copyWith{ c => qIf(!c.l); c.n }                              =**= car.take(2).map(_.n)
+    T ~ car.flex.copyOp((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-h-#-k-"
+    T ~ car.flex.copyOp((c, i) => if i%2 == 0 then '-' else c.value)          ==== typed[Array[Char]]
+    T ~ car.flex.copyOp{(c, i) => sIf(i%2 == 0); c.value }.mkString           ==== "h#k"
+    T ~ car.flex.copyOp{(c, i) => qIf(i == 1 || i == 4); c.value }.mkString   ==== "c"
 
-    T ~ car.breakable.where(_.l)                          =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
-    T ~ car.breakable.where{ c => qIf(c.value>'i'); c.l } =**= car.zipWithIndex.takeWhile(_._1.value <= 'i').collect{ case (c, i) if c.l => i }
+    T ~ car.flex.where(_.l)                          =**= car.zipWithIndex.collect{ case (c, i) if c.l => i }
+    T ~ car.flex.where{ c => qIf(c.value>'i'); c.l } =**= car.zipWithIndex.takeWhile(_._1.value <= 'i').collect{ case (c, i) if c.l => i }
 
-    T ~ car.breakable.whereIn(1, 5  ){ c =>                    !c.l } =**= Array(2, 3)
-    T ~ car.breakable.whereIn(1 to 4){ c =>                    !c.l } =**= Array(2, 3)
-    T ~ car.breakable.whereIn(div   ){ c =>                    !c.l } =**= Array(2, 3)
-    T ~ car.breakable.whereIn(dpv   ){ c =>                    !c.l } =**= Array(2, 3)
-    T ~ car.breakable.whereIn(1, 5  ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
-    T ~ car.breakable.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
-    T ~ car.breakable.whereIn(div   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
-    T ~ car.breakable.whereIn(dpv   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.flex.whereIn(1, 5  ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.flex.whereIn(1 to 4){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.flex.whereIn(div   ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.flex.whereIn(dpv   ){ c =>                    !c.l } =**= Array(2, 3)
+    T ~ car.flex.whereIn(1, 5  ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.flex.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.flex.whereIn(div   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.flex.whereIn(dpv   ){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
 
-    T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>                    !c.l } =**= Array(2, 3, 6)
-    T ~ car.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
+    T ~ car.flex.whereFrom(Array(2, 0, 3, 6)){ c =>                    !c.l } =**= Array(2, 3, 6)
+    T ~ car.flex.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l } =**= Array(2)
 
     def ninc(c: C.Type, i: Int) = if c.l then -1 else i+7
     def nxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
       qIf(c.value == '#')
       if c.l then -1 else i+7
-    T ~ car.breakable.whereInOp(1, 5)(ninc)                =**= car.breakable.whereIn(1, 5)(! _.l).copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(Iv(1, 5))(ninc)            =**= car.breakable.whereIn(Iv(1, 5))(! _.l).copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(1 to End-2)(ninc)          =**= car.breakable.whereIn(1 to End-2)(! _.l).copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(1 to 4)(ninc)              =**= car.breakable.whereIn(1 to 4)(! _.l).copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(1, 5)(nxnc)                =**= car.breakable.whereIn(1, 5){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(Iv(1, 5))(nxnc)            =**= car.breakable.whereIn(Iv(1, 5)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(1 to End-2)(nxnc)          =**= car.breakable.whereIn(1 to End-2){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
-    T ~ car.breakable.whereInOp(1 to 4)(nxnc)              =**= car.breakable.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
-    T ~ car.breakable.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= car.breakable.whereFrom(Array(2, 0, 3, 6))(! _.l).copyWith(_ + 7)
-    T ~ car.breakable.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= car.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1, 5)(ninc)                =**= car.flex.whereIn(1, 5)(! _.l).copyWith(_ + 7)
+    T ~ car.flex.whereInOp(Iv(1, 5))(ninc)            =**= car.flex.whereIn(Iv(1, 5))(! _.l).copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1 to End-2)(ninc)          =**= car.flex.whereIn(1 to End-2)(! _.l).copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1 to 4)(ninc)              =**= car.flex.whereIn(1 to 4)(! _.l).copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1, 5)(nxnc)                =**= car.flex.whereIn(1, 5){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.flex.whereInOp(Iv(1, 5))(nxnc)            =**= car.flex.whereIn(Iv(1, 5)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1 to End-2)(nxnc)          =**= car.flex.whereIn(1 to End-2){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.flex.whereInOp(1 to 4)(nxnc)              =**= car.flex.whereIn(1 to 4){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
+    T ~ car.flex.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= car.flex.whereFrom(Array(2, 0, 3, 6))(! _.l).copyWith(_ + 7)
+    T ~ car.flex.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= car.flex.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c.value=='#'); !c.l }.copyWith(_ + 7)
 
     T ~ car.dup{ a => qt{ var x = '0'; a.set(){ () => x = (x+1).toChar; qIf(x > '1'); C(x) } } }.cs       ==== "1h.#ik."
     T ~ car.dup{ a => qt{ a.set(){ i => qIf(i == 1 || i == 4); C(('0'+i).toChar) } } }.cs                 ==== "0h.#ik."
@@ -1428,94 +1428,94 @@ class ArraysTest() {
 
     val cx = "_________".c
     var ninja = 0
-    T ~ cx.dup(a => ninja = car.breakable.inject(a)(_.l)).cs                              ==== "chik_____"
+    T ~ cx.dup(a => ninja = car.flex.inject(a)(_.l)).cs                              ==== "chik_____"
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.count(_.l)
-    T ~ cx.dup(a => ninja = car.breakable.inject(a, 2)(_.l)).cs                           ==== "__chik___"
+    T ~ cx.dup(a => ninja = car.flex.inject(a, 2)(_.l)).cs                           ==== "__chik___"
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.count(_.l)
-    T ~ cx.dup(a => ninja = car.breakable.inject(a){ c => qIf(c.value=='#'); c.l }).cs    ==== "ch_______"
+    T ~ cx.dup(a => ninja = car.flex.inject(a){ c => qIf(c.value=='#'); c.l }).cs    ==== "ch_______"
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
-    T ~ cx.dup(a => ninja = car.breakable.inject(a, 2){ c => qIf(c.value=='#'); c.l }).cs ==== "__ch_____"
+    T ~ cx.dup(a => ninja = car.flex.inject(a, 2){ c => qIf(c.value=='#'); c.l }).cs ==== "__ch_____"
     T ~ { val x = ninja; ninja = 0; x }                                                   ==== car.takeWhile(_.value != '#').count(_.l)
 
     val ax = "_________".arr
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cim______"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "___cim___"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
-    T ~ ax.dup(a => ninja += car.breakable.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cim______"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(      ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "___cim___"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "i________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "___i_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "im_______"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "___im____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "&________"
+    T ~ ax.dup(a => ninja += car.flex.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.l); c ^ i }).str ==== "___&_____"
     T ~ { val x = ninja; ninja = 0; x } ==== 2*3 + 2*4*(1+2) + 2*(1+1)
 
-    T ~ car.breakable.select(_.l).cs                              ==== "chik"
-    T ~ car.breakable.select{ c => qIf(c.value=='#'); c.l }.cs    ==== "ch"
+    T ~ car.flex.select(_.l).cs                              ==== "chik"
+    T ~ car.flex.select{ c => qIf(c.value=='#'); c.l }.cs    ==== "ch"
 
-    T ~ car.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
-    T ~ car.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
-    T ~ car.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
-    T ~ car.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
-    T ~ car.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
-    T ~ car.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
-    T ~ car.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
-    T ~ car.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
-    T ~ car.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
-    T ~ car.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
-    T ~ car.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
-    T ~ car.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.flex.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.flex.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.flex.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "#-"
+    T ~ car.flex.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
+    T ~ car.flex.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value).mkString ==== "-#hh#"
+    T ~ car.flex.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
+    T ~ car.flex.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c.value) ==== typed[Array[Char]]
 
-    T ~ car.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
-    T ~ car.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
+    T ~ car.flex.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(civ){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(ix){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
+    T ~ car.flex.selectOp(st){    (c, i) => sIf(i%2 == 0); c.value }.mkString ==== "#hh#"
 
-    T ~ car.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
-    T ~ car.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+    T ~ car.flex.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.flex.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+    T ~ car.flex.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
 
     val lar = "ch.ix.#n.".c
-    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
-    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+    T ~ lar.flex.fuse[Int]((c, i, add) => if !c.l then add(i) else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5, 6, 110, 46, 8)
+    T ~ lar.flex.fuse[Int]((c, i, add) => if !c.l then { qIf(i>5); add(i) } else Array(c.o).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
     val test = "cheesefactories".arr
-    T ~ test.breakable.diced(_ == 'e').map(_.str)                               =**= Array("ch", "s", "factori", "s")
-    T ~ test.breakable.diced(_ == 'e', "").map(_.str)                           =**= Array("ch", "s", "factori", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s")
-    T ~ test.breakable.diced(_ == 'e', "()").map(_.str)                         =**= Array("ch", "", "s", "factori", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "")
-    T ~ test.breakable.diced(_ == 'e', "(]").map(_.str)                         =**= Array("che", "e", "se", "factorie", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "")
-    T ~ test.breakable.diced(_ == 'e', "[)").map(_.str)                         =**= Array("ch", "e", "es", "efactori", "es")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "efacto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "e")
-    T ~ test.breakable.diced(_ == 'e', "[]").map(_.str)                         =**= Array("che", "ee", "ese", "efactorie", "es")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "efacto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "e")
+    T ~ test.flex.diced(_ == 'e').map(_.str)                               =**= Array("ch", "s", "factori", "s")
+    T ~ test.flex.diced(_ == 'e', "").map(_.str)                           =**= Array("ch", "s", "factori", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "").map(_.str)   =**= Array("ch", "s")
+    T ~ test.flex.diced(_ == 'e', "()").map(_.str)                         =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "()").map(_.str) =**= Array("ch", "", "s", "")
+    T ~ test.flex.diced(_ == 'e', "(]").map(_.str)                         =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "(]").map(_.str) =**= Array("che", "e", "se", "")
+    T ~ test.flex.diced(_ == 'e', "[)").map(_.str)                         =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "efacto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "[)").map(_.str) =**= Array("ch", "e", "es", "e")
+    T ~ test.flex.diced(_ == 'e', "[]").map(_.str)                         =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "efacto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "[]").map(_.str) =**= Array("che", "ee", "ese", "e")
 
 
-  def arrayClipBreakIntervalTest(): Unit =
+  def arrayFancyIntervalTest(): Unit =
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
@@ -1551,166 +1551,166 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ car.clip.breakable ==== typed[ClipBreakArray[C.Type]]
-    T ~ car.breakable.clip ==== typed[ClipBreakArray[C.Type]]
-    T ~ car.clipBreak      ==== typed[ClipBreakArray[C.Type]]
+    T ~ car.clip.flex ==== typed[FancyArray[C.Type]]
+    T ~ car.flex.clip ==== typed[FancyArray[C.Type]]
+    T ~ car.fancy      ==== typed[FancyArray[C.Type]]
 
-    T ~ z{ car.breakable.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
+    T ~ z{ car.flex.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
     T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str
+    T ~ z{ car.flex.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str
     T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(civ)(cuml += _.n) }.cs    ==== str
+    T ~ z{ car.flex.clip.peek(civ)(cuml += _.n) }.cs    ==== str
     T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(cpv)(cuml += _.n) }.cs    ==== str
+    T ~ z{ car.flex.clip.peek(cpv)(cuml += _.n) }.cs    ==== str
     T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(ix)(cuml += _.n) }.cs     ==== str
+    T ~ z{ car.flex.clip.peek(ix)(cuml += _.n) }.cs     ==== str
     T ~ cuml                                                 ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(st)(cuml += _.n) }.cs     ==== str
+    T ~ z{ car.flex.clip.peek(st)(cuml += _.n) }.cs     ==== str
     T ~ cuml                                                 ==== ".#hh#".map(_.toInt).sum
 
-    T ~ z{ car.breakable.clip.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
+    T ~ z{ car.flex.clip.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
     T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.breakable.clip.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
+    T ~ z{ car.flex.clip.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
     T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.breakable.clip.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ z{ car.flex.clip.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
     T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.breakable.clip.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
+    T ~ z{ car.flex.clip.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
     T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.breakable.clip.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ z{ car.flex.clip.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
     T ~ cuml                                                                  ==== ".#".map(_.toInt).sum
-    T ~ z{ car.breakable.clip.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
+    T ~ z{ car.flex.clip.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
     T ~ cuml                                                                  ==== ".#".map(_.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(3, 9)(cuml += _.n) }    ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(3 to 8)(cuml += _.n) }  ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(eiv)(cuml += _.n) }     ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(3, 9)(cuml += _.n) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(3 to 8)(cuml += _.n) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(eiv)(cuml += _.n) }     ==== str.substring(3).map(_.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(3, 9){ c => qIf(c.l); cuml += c.n } }    ==== str(3).toInt
-    T ~ n{ car.breakable.clip.peek(3 to 8){ c => qIf(c.l); cuml += c.n } }  ==== str(3).toInt
-    T ~ n{ car.breakable.clip.peek(eiv){ c => qIf(c.l); cuml += c.n } }     ==== str(3).toInt
+    T ~ n{ car.flex.clip.peek(3, 9){ c => qIf(c.l); cuml += c.n } }    ==== str(3).toInt
+    T ~ n{ car.flex.clip.peek(3 to 8){ c => qIf(c.l); cuml += c.n } }  ==== str(3).toInt
+    T ~ n{ car.flex.clip.peek(eiv){ c => qIf(c.l); cuml += c.n } }     ==== str(3).toInt
 
-    T ~ n{ car.breakable.clip.peek(-2, 5)(cuml += _.n) }   ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(-2 to 4)(cuml += _.n) } ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(fiv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(fpv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2, 5)(cuml += _.n) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2 to 4)(cuml += _.n) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(fiv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(fpv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(-2, 5){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.breakable.clip.peek(-2 to 4){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.breakable.clip.peek(fiv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.breakable.clip.peek(fpv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2, 5){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2 to 4){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(fiv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(fpv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(-2, 9)(cuml += _.n) }   ==== str.map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(-2 to 9)(cuml += _.n) } ==== str.map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(biv)(cuml += _.n) }     ==== str.map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2, 9)(cuml += _.n) }   ==== str.map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2 to 9)(cuml += _.n) } ==== str.map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(biv)(cuml += _.n) }     ==== str.map(_.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(-2, 9){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.breakable.clip.peek(-2 to 9){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.breakable.clip.peek(biv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2, 9){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(-2 to 9){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.flex.clip.peek(biv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(8, 9)(cuml += _.n) }   ==== 0
-    T ~ n{ car.breakable.clip.peek(8 to 9)(cuml += _.n) } ==== 0
-    T ~ n{ car.breakable.clip.peek(niv)(cuml += _.n) }    ==== 0
-    T ~ n{ car.breakable.clip.peek(npv)(cuml += _.n) }    ==== 0
+    T ~ n{ car.flex.clip.peek(8, 9)(cuml += _.n) }   ==== 0
+    T ~ n{ car.flex.clip.peek(8 to 9)(cuml += _.n) } ==== 0
+    T ~ n{ car.flex.clip.peek(niv)(cuml += _.n) }    ==== 0
+    T ~ n{ car.flex.clip.peek(npv)(cuml += _.n) }    ==== 0
 
-    T ~ n{ car.breakable.clip.peek(8, 9){ c => qIf(c.l); cuml += c.n } }    ==== 0
-    T ~ n{ car.breakable.clip.peek(8 to 9){ c => qIf(c.l); cuml += c.n } }  ==== 0
-    T ~ n{ car.breakable.clip.peek(niv){ c => qIf(c.l); cuml += c.n } }     ==== 0
-    T ~ n{ car.breakable.clip.peek(npv){ c => qIf(c.l); cuml += c.n } }     ==== 0
+    T ~ n{ car.flex.clip.peek(8, 9){ c => qIf(c.l); cuml += c.n } }    ==== 0
+    T ~ n{ car.flex.clip.peek(8 to 9){ c => qIf(c.l); cuml += c.n } }  ==== 0
+    T ~ n{ car.flex.clip.peek(niv){ c => qIf(c.l); cuml += c.n } }     ==== 0
+    T ~ n{ car.flex.clip.peek(npv){ c => qIf(c.l); cuml += c.n } }     ==== 0
 
-    T ~ n{ car.breakable.clip.peek(ex)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(et)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(ex)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(et)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
 
-    T ~ n{ car.breakable.clip.peek(ex){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
-    T ~ n{ car.breakable.clip.peek(et){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(ex){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
+    T ~ n{ car.flex.clip.peek(et){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
 
-    T ~ car.dup().clip.breakable.poke(3, 9   ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.breakable.poke(3 to 8 ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.breakable.poke(eiv    ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.breakable.poke(-2, 5  ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.breakable.poke(-2 to 4){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.breakable.poke(fiv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.breakable.poke(fpv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.breakable.poke(8, 10  ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.breakable.poke(8 to 9 ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.breakable.poke(niv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.breakable.poke(npv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.breakable.poke(ex     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.breakable.poke(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(3, 9   ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.flex.poke(3 to 8 ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.flex.poke(eiv    ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
+    T ~ car.dup().clip.flex.poke(-2, 5  ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(-2 to 4){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(fiv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(fpv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(8, 10  ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.flex.poke(8 to 9 ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.flex.poke(niv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.flex.poke(npv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
+    T ~ car.dup().clip.flex.poke(ex     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().clip.flex.poke(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
-    T ~ car.clip.breakable.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.clip.breakable.gather(0)(3 to 4)(_ + _.n + _)  ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.clip.breakable.gather(0)(civ)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.clip.breakable.gather(0)(cpv)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ car.clip.breakable.gather(0)(ix)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
-    T ~ car.clip.breakable.gather(0)(st)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ car.clip.flex.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.flex.gather(0)(3 to 4)(_ + _.n + _)  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.flex.gather(0)(civ)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.flex.gather(0)(cpv)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ car.clip.flex.gather(0)(ix)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ car.clip.flex.gather(0)(st)(_ + _.n + _)      ==== ".#hh#".map(_.toInt).sum + 10
 
-    T ~ car.clip.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
-    T ~ car.clip.breakable.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.clip.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.clip.flex.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ car.clip.breakable.gather(0)(3, 9)(_ + _.n + _)   ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
-    T ~ car.clip.breakable.gather(0)(3 to 8)(_ + _.n + _) ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
-    T ~ car.clip.breakable.gather(0)(eiv)(_ + _.n + _)    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.clip.flex.gather(0)(3, 9)(_ + _.n + _)   ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.clip.flex.gather(0)(3 to 8)(_ + _.n + _) ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ car.clip.flex.gather(0)(eiv)(_ + _.n + _)    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
 
-    T ~ car.clip.breakable.gather(0)(3, 9){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(3 to 8){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
-    T ~ car.clip.breakable.gather(0)(eiv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(3, 9){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(3 to 8){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
+    T ~ car.clip.flex.gather(0)(eiv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
 
-    T ~ car.clip.breakable.gather(0)(-2, 5)(_ + _.n + _)   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
-    T ~ car.clip.breakable.gather(0)(-2 to 4)(_ + _.n + _) ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
-    T ~ car.clip.breakable.gather(0)(fiv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
-    T ~ car.clip.breakable.gather(0)(fpv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.flex.gather(0)(-2, 5)(_ + _.n + _)   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.flex.gather(0)(-2 to 4)(_ + _.n + _) ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.flex.gather(0)(fiv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ car.clip.flex.gather(0)(fpv)(_ + _.n + _)     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
 
-    T ~ car.clip.breakable.gather(0)(-2, 5){ (a, c, i) => qIf(!c.l); a + c.n + i }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ car.clip.breakable.gather(0)(-2 to 4){ (a, c, i) => qIf(!c.l); a + c.n + i } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ car.clip.breakable.gather(0)(fiv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ car.clip.breakable.gather(0)(fpv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(-2, 5){ (a, c, i) => qIf(!c.l); a + c.n + i }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(-2 to 4){ (a, c, i) => qIf(!c.l); a + c.n + i } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(fiv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(fpv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
 
-    T ~ car.clip.breakable.gather(0)(-2, 9)(_ + _.n + _)   ==== str.map(_.toInt).sum + sm(0, 6)
-    T ~ car.clip.breakable.gather(0)(-2 to 9)(_ + _.n + _) ==== str.map(_.toInt).sum + sm(0, 6)
-    T ~ car.clip.breakable.gather(0)(biv)(_ + _.n + _)     ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.clip.flex.gather(0)(-2, 9)(_ + _.n + _)   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.clip.flex.gather(0)(-2 to 9)(_ + _.n + _) ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ car.clip.flex.gather(0)(biv)(_ + _.n + _)     ==== str.map(_.toInt).sum + sm(0, 6)
 
-    T ~ car.clip.breakable.gather(0)(-2, 9){ (a, c, i) => qIf(!c.l); a + c.n + i }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
-    T ~ car.clip.breakable.gather(0)(-2 to 9){ (a, c, i) => qIf(!c.l); a + c.n + i } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
-    T ~ car.clip.breakable.gather(0)(biv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(-2, 9){ (a, c, i) => qIf(!c.l); a + c.n + i }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(-2 to 9){ (a, c, i) => qIf(!c.l); a + c.n + i } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ car.clip.flex.gather(0)(biv){ (a, c, i) => qIf(!c.l); a + c.n + i }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
 
-    T ~ car.clip.breakable.gather(0)(8, 9)(_ + _.n + _)   ==== 0
-    T ~ car.clip.breakable.gather(0)(8 to 9)(_ + _.n + _) ==== 0
-    T ~ car.clip.breakable.gather(0)(niv)(_ + _.n + _)    ==== 0
-    T ~ car.clip.breakable.gather(0)(npv)(_ + _.n + _)    ==== 0
+    T ~ car.clip.flex.gather(0)(8, 9)(_ + _.n + _)   ==== 0
+    T ~ car.clip.flex.gather(0)(8 to 9)(_ + _.n + _) ==== 0
+    T ~ car.clip.flex.gather(0)(niv)(_ + _.n + _)    ==== 0
+    T ~ car.clip.flex.gather(0)(npv)(_ + _.n + _)    ==== 0
 
-    T ~ car.clip.breakable.gather(0)(8, 9){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== 0
-    T ~ car.clip.breakable.gather(0)(8 to 9){ (a, c, i) => qIf(c.l); a + c.n + i } ==== 0
-    T ~ car.clip.breakable.gather(0)(niv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== 0
-    T ~ car.clip.breakable.gather(0)(npv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== 0
+    T ~ car.clip.flex.gather(0)(8, 9){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== 0
+    T ~ car.clip.flex.gather(0)(8 to 9){ (a, c, i) => qIf(c.l); a + c.n + i } ==== 0
+    T ~ car.clip.flex.gather(0)(niv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== 0
+    T ~ car.clip.flex.gather(0)(npv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== 0
 
-    T ~ car.clip.breakable.gather(0)(ex)(_ + _.n + _) ==== ".c#.".map(_.toInt).sum + 11
-    T ~ car.clip.breakable.gather(0)(et)(_ + _.n + _) ==== ".c#.".map(_.toInt).sum + 11
+    T ~ car.clip.flex.gather(0)(ex)(_ + _.n + _) ==== ".c#.".map(_.toInt).sum + 11
+    T ~ car.clip.flex.gather(0)(et)(_ + _.n + _) ==== ".c#.".map(_.toInt).sum + 11
 
-    T ~ car.clip.breakable.gather(0)(ex){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
-    T ~ car.clip.breakable.gather(0)(et){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
+    T ~ car.clip.flex.gather(0)(ex){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
+    T ~ car.clip.flex.gather(0)(et){ (a, c, i) => qIf(c.value == '#'); a + c.n + i } ==== ".c".map(_.toInt).sum + 2
 
-    T ~ car.clip.breakable.whereIn(3, 9   ){ c =>                    c.l } =**= Array(4, 5)
-    T ~ car.clip.breakable.whereIn(3 to 8 ){ c =>                    c.l } =**= Array(4, 5)
-    T ~ car.clip.breakable.whereIn(eiv    ){ c =>                    c.l } =**= Array(4, 5)
-    T ~ car.clip.breakable.whereIn(-2, 5  ){ c =>                    c.l } =**= Array(0, 1, 4)
-    T ~ car.clip.breakable.whereIn(-2 to 4){ c =>                    c.l } =**= Array(0, 1, 4)
-    T ~ car.clip.breakable.whereIn(fiv    ){ c =>                    c.l } =**= Array(0, 1, 4)
-    T ~ car.clip.breakable.whereIn(fpv    ){ c =>                    c.l } =**= Array(0, 1, 4)
-    T ~ car.clip.breakable.whereIn(3, 9   ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
-    T ~ car.clip.breakable.whereIn(3 to 8 ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
-    T ~ car.clip.breakable.whereIn(eiv    ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
-    T ~ car.clip.breakable.whereIn(-2, 5  ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
-    T ~ car.clip.breakable.whereIn(-2 to 4){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
-    T ~ car.clip.breakable.whereIn(fiv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
-    T ~ car.clip.breakable.whereIn(fpv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.flex.whereIn(3, 9   ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.flex.whereIn(3 to 8 ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.flex.whereIn(eiv    ){ c =>                    c.l } =**= Array(4, 5)
+    T ~ car.clip.flex.whereIn(-2, 5  ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.flex.whereIn(-2 to 4){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.flex.whereIn(fiv    ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.flex.whereIn(fpv    ){ c =>                    c.l } =**= Array(0, 1, 4)
+    T ~ car.clip.flex.whereIn(3, 9   ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.flex.whereIn(3 to 8 ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.flex.whereIn(eiv    ){ c => qIf(c.value=='k'); c.l } =**= Array(4)
+    T ~ car.clip.flex.whereIn(-2, 5  ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.flex.whereIn(-2 to 4){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.flex.whereIn(fiv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
+    T ~ car.clip.flex.whereIn(fpv    ){ c => qIf(c.value=='#'); c.l } =**= Array(0, 1)
 
-    T ~ car.clip.breakable.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l } =**= Array(5, 4)
-    T ~ car.clip.breakable.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l } =**= Array(5)
+    T ~ car.clip.flex.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l } =**= Array(5, 4)
+    T ~ car.clip.flex.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l } =**= Array(5)
 
     def linc(c: C.Type, i: Int) = if c.l then i+7 else -1
     def li_#[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
@@ -1719,190 +1719,190 @@ class ArraysTest() {
     def li_k[Q >: shortcut.Quits.type <: shortcut.Type](c: C.Type, i: Int)(using lb: boundary.Label[Q]) =
       qIf(c.value == 'k')
       if c.l then i+7 else -1
-    T ~ car.clipBreak.whereInOp(3, 9)(linc)           =**= car.clipBreak.whereIn(3, 9)(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(Iv(3, 9))(linc)       =**= car.clipBreak.whereIn(Iv(3, 9))(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(3 to 8)(linc)         =**= car.clipBreak.whereIn(3 to 8)(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(-2, 5)(linc)          =**= car.clipBreak.whereIn(-2, 5)(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(Iv(-2, 5))(linc)      =**= car.clipBreak.whereIn(Iv(-2, 5))(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(End-9 to End-2)(linc) =**= car.clipBreak.whereIn(End-9 to End-2)(_.l).copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(3, 9)(li_k)           =**= car.clipBreak.whereIn(3, 9){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(Iv(3, 9))(li_k)       =**= car.clipBreak.whereIn(Iv(3, 9)){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(3 to 8)(li_k)         =**= car.clipBreak.whereIn(3 to 8){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(-2, 5)(li_#)          =**= car.clipBreak.whereIn(-2, 5){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(Iv(-2, 5))(li_#)      =**= car.clipBreak.whereIn(Iv(-2, 5)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereInOp(End-9 to End-2)(li_#) =**= car.clipBreak.whereIn(End-9 to End-2){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(3, 9)(linc)           =**= car.fancy.whereIn(3, 9)(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(Iv(3, 9))(linc)       =**= car.fancy.whereIn(Iv(3, 9))(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(3 to 8)(linc)         =**= car.fancy.whereIn(3 to 8)(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(-2, 5)(linc)          =**= car.fancy.whereIn(-2, 5)(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(Iv(-2, 5))(linc)      =**= car.fancy.whereIn(Iv(-2, 5))(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(End-9 to End-2)(linc) =**= car.fancy.whereIn(End-9 to End-2)(_.l).copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(3, 9)(li_k)           =**= car.fancy.whereIn(3, 9){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(Iv(3, 9))(li_k)       =**= car.fancy.whereIn(Iv(3, 9)){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(3 to 8)(li_k)         =**= car.fancy.whereIn(3 to 8){ c => qIf(c.value=='k'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(-2, 5)(li_#)          =**= car.fancy.whereIn(-2, 5){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(Iv(-2, 5))(li_#)      =**= car.fancy.whereIn(Iv(-2, 5)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereInOp(End-9 to End-2)(li_#) =**= car.fancy.whereIn(End-9 to End-2){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
 
-    T ~ car.clipBreak.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(linc) =**= car.clipBreak.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l }.copyWith(_ + 7)
-    T ~ car.clipBreak.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(li_#) =**= car.clipBreak.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(linc) =**= car.fancy.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c =>                    c.l }.copyWith(_ + 7)
+    T ~ car.fancy.whereFromOp(Array(2, -3, 9, 7, 5, 3, 4))(li_#) =**= car.fancy.whereFrom(Array(2, -3, 9, 7, 5, 3, 4)){ c => qIf(c.value=='#'); c.l }.copyWith(_ + 7)
 
     val ca7 = "1234567".c
     val ca3 = "890".c
     var ninja = 0
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs     ==== "chik567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs  ==== "12chik7"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, -2)(_.l)).cs ==== "chik567"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a)(_.l)).cs     ==== "chi"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2)(_.l)).cs  ==== "89c"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 8)(_.l)).cs  ==== "890"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a)(_.l)).cs     ==== "chik567"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a, 2)(_.l)).cs  ==== "12chik7"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a, -2)(_.l)).cs ==== "chik567"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a)(_.l)).cs     ==== "chi"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a, 2)(_.l)).cs  ==== "89c"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a, 8)(_.l)).cs  ==== "890"
     T ~ { val x = ninja; ninja = 0; x }                                 ==== 4 + 4 + 4 + 3 + 1 + 0
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch34567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "12ch567"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, 6){ c => qIf(c.value == 'i'); c.l }).cs  ==== "123456c"
-    T ~ ca7.dup(a => ninja += car.breakable.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch34567"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch0"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "89c"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch0"
-    T ~ ca3.dup(a => ninja += car.breakable.clip.inject(a, 8){ c => qIf(c.value == 'i'); c.l }).cs  ==== "890"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch34567"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "12ch567"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a, 6){ c => qIf(c.value == 'i'); c.l }).cs  ==== "123456c"
+    T ~ ca7.dup(a => ninja += car.flex.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch34567"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a){ c => qIf(c.value == 'i'); c.l }).cs     ==== "ch0"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a, 2){ c => qIf(c.value == 'i'); c.l }).cs  ==== "89c"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a, -3){ c => qIf(c.value == 'i'); c.l }).cs ==== "ch0"
+    T ~ ca3.dup(a => ninja += car.flex.clip.inject(a, 8){ c => qIf(c.value == 'i'); c.l }).cs  ==== "890"
     T ~ { val x = ninja; ninja = 0; x }                                                             ==== 2+2+1+2+2+1+2+0
 
     val aa7 = "ABCDEFG".arr
     val aa1 = "H".arr
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==9); c ^ i }).str ==== "cimpEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cimDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 5 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEci"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(){ (c, i) => sIf(!c.l); qIf(i==9); c ^ i }).str ==== "cimpEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 5 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEci"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 9 )(){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFG"
     T ~ { val x = ninja; ninja = 0; x } ==== 2+4+3+2+0
     val ejv = Iv(1, 9)
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==7); c ^ i }).str ==== "impDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "ABCDEFi"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "imCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.l); qIf(i==5); c ^ i }).str ==== "i"
     T ~ { val x = ninja; ninja = 0; x } ==== 3*(2+3+1+2+1)
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
-    T ~ aa1.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==6); c ^ i }).str ==== "cimDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFc"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ciCDEFG"
+    T ~ aa1.dup(a => ninja += car.clip.flex.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "c"
     T ~ { val x = ninja; ninja = 0; x } ==== 4*(2+3+1+2+1)
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.l); qIf(i==4); c ^ i }).str ==== "ABCDEFG"
     T ~ { val x = ninja; ninja = 0; x } ==== 0
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, -2)(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 6 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
-    T ~ aa7.dup(a => ninja += car.clip.breakable.injectOp(a, 9 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(ex){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 9 )(ex){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a    )(et){ (c, i) => sIf(c.l); qIf(i==8); c ^ i }).str ==== "0&4DEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, -2)(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "0&CDEFG"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 6 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEF0"
+    T ~ aa7.dup(a => ninja += car.clip.flex.injectOp(a, 9 )(et){ (c, i) => sIf(c.l); qIf(i==6); c ^ i }).str ==== "ABCDEFG"
     T ~ { val x = ninja; ninja = 0; x } ==== 2*(2+3+2+1+0)
 
-    T ~ car.clip.breakable.selectOp(3, 5  )((c, i) => c.value + i) =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(3 to 4)((c, i) => c.value + i) =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(civ   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(cpv   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(ix    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(st    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(3, 5  )((c, i) => c.value + i) ==== typed[Array[Int]]
-    T ~ car.clip.breakable.selectOp(3 to 4)((c, i) => c.value + i) ==== typed[Array[Int]]
-    T ~ car.clip.breakable.selectOp(civ   )((c, i) => c.value + i) ==== typed[Array[Int]]
-    T ~ car.clip.breakable.selectOp(cpv   )((c, i) => c.value + i) ==== typed[Array[Int]]
-    T ~ car.clip.breakable.selectOp(ix    )((c, i) => c.value + i) ==== typed[Array[Int]]
-    T ~ car.clip.breakable.selectOp(st    )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(3, 5  )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3 to 4)((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(civ   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(cpv   )((c, i) => c.value + i) =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(ix    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
+    T ~ car.clip.flex.selectOp(st    )((c, i) => c.value + i) =**= "0&ii&".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3, 5  )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(3 to 4)((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(civ   )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(cpv   )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(ix    )((c, i) => c.value + i) ==== typed[Array[Int]]
+    T ~ car.clip.flex.selectOp(st    )((c, i) => c.value + i) ==== typed[Array[Int]]
 
-    T ~ car.clip.breakable.selectOp(3, 9  )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(3 to 8)((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(eiv   )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3, 9  )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3 to 8)((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(eiv   )((c, i) => c.value + i) =**= "&mp4".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 5  )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 4)((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fiv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fpv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 5  )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 4)((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fiv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fpv    )((c, i) => c.value + i) =**= "ci0&m".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 9  )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 8)((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(biv    )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 9  )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 8)((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(biv    )((c, i) => c.value + i) =**= "ci0&mp4".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(8, 10 )((c, i) => c.value + i) =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(8 to 9)((c, i) => c.value + i) =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(niv   )((c, i) => c.value + i) =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(npv   )((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(8, 10 )((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(8 to 9)((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(niv   )((c, i) => c.value + i) =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(npv   )((c, i) => c.value + i) =**= "".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(ex)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(et)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(ex)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(et)((c, i) => c.value + i) =**= "0c&4".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.clip.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.clip.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.clip.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
-    T ~ car.clip.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
-    T ~ car.clip.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+    T ~ car.clip.flex.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.clip.flex.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.clip.flex.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.clip.flex.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== "#"
+    T ~ car.clip.flex.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
+    T ~ car.clip.flex.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c.value }.mkString ==== ".#"
 
-    T ~ car.clip.breakable.selectOp(3, 9  ){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(3 to 8){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(eiv   ){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3, 9  ){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3 to 8){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(eiv   ){ (c, i) => qIf(c.value == 'k'); c.value + i } =**= "&m".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(3, 9  ){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(3 to 8){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(eiv   ){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3, 9  ){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(3 to 8){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(eiv   ){ (c, i) => sIf(c.value == 'k'); c.value + i } =**= "&m4".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 5  ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 4){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fiv    ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fpv    ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 5  ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 4){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fiv    ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fpv    ){ (c, i) => qIf(c.value == '#'); c.value + i } =**= "ci0".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 5  ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 4){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fiv    ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(fpv    ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 5  ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 4){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fiv    ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
+    T ~ car.clip.flex.selectOp(fpv    ){ (c, i) => sIf(c.value == '#'); c.value + i } =**= "ci0m".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 9  ){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 8){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(biv    ){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 9  ){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 8){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
+    T ~ car.clip.flex.selectOp(biv    ){ (c, i) => qIf(c.value == 'i'); c.value + i } =**= "ci0&".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(-2, 9  ){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(-2 to 8){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(biv    ){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2, 9  ){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(-2 to 8){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(biv    ){ (c, i) => sIf(c.value == 'i'); c.value + i } =**= "ci0&p4".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(8, 10 ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(8 to 9){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(niv   ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(npv   ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(8, 10 ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(8 to 9){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(niv   ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
+    T ~ car.clip.flex.selectOp(npv   ){ (c, i) => sIf(!c.l); qIf(c.n > 99); c.value + i } =**= "".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(ex){ (c, i) => qIf(i == 3); c.value + i } =**= "0c".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(et){ (c, i) => qIf(i == 3); c.value + i } =**= "0c".map(_.toInt)
+    T ~ car.clip.flex.selectOp(ex){ (c, i) => qIf(i == 3); c.value + i } =**= "0c".map(_.toInt)
+    T ~ car.clip.flex.selectOp(et){ (c, i) => qIf(i == 3); c.value + i } =**= "0c".map(_.toInt)
 
-    T ~ car.clip.breakable.selectOp(ex){ (c, i) => sIf(i == 3); c.value + i } =**= "0c4".map(_.toInt)
-    T ~ car.clip.breakable.selectOp(et){ (c, i) => sIf(i == 3); c.value + i } =**= "0c4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(ex){ (c, i) => sIf(i == 3); c.value + i } =**= "0c4".map(_.toInt)
+    T ~ car.clip.flex.selectOp(et){ (c, i) => sIf(i == 3); c.value + i } =**= "0c4".map(_.toInt)
 
 
   def arrayPrimitiveDataTest(): Unit =
@@ -3017,154 +3017,154 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ z{ str.breakable.peek(){ c => qIf(!c.isLetter); cuml += c } }      ==== str
+    T ~ z{ str.flex.peek(){ c => qIf(!c.isLetter); cuml += c } }      ==== str
     T ~ cuml                                                               ==== str.take(2).map(_.toInt).sum
-    T ~ z{ str.breakable.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
+    T ~ z{ str.flex.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.breakable.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
+    T ~ z{ str.flex.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.breakable.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.flex.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.breakable.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.flex.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.breakable.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.flex.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
     T ~ cuml                                                               ==== ".#".map(_.toInt).sum
-    T ~ z{ str.breakable.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.flex.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
     T ~ cuml                                                               ==== ".#".map(_.toInt).sum
 
-    T ~ str.breakable.gather(0)(){ (a, c, i) => qIf(!c.isLetter); a + c + i }      ==== str.take(2).map(_.toInt).sum + 1
-    T ~ str.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
-    T ~ str.breakable.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
-    T ~ str.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
-    T ~ str.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
-    T ~ str.breakable.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
-    T ~ str.breakable.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.flex.gather(0)(){ (a, c, i) => qIf(!c.isLetter); a + c + i }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ str.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.flex.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.flex.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.flex.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.flex.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ str.breakable.copyWith{ c => qIf(!c.isLetter); c }          ==== str.take(2)
-    T ~ str.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
-    T ~ str.breakable.copyOp((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.copyOp{ (c, i) => sIf(i%2 == 0); c }          =**= "h#k".arr
-    T ~ str.breakable.copyOp{ (c, i) => qIf(i == 1 || i == 4); c }  =**= "c".arr
+    T ~ str.flex.copyWith{ c => qIf(!c.isLetter); c }          ==== str.take(2)
+    T ~ str.flex.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
+    T ~ str.flex.copyOp((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.copyOp{ (c, i) => sIf(i%2 == 0); c }          =**= "h#k".arr
+    T ~ str.flex.copyOp{ (c, i) => qIf(i == 1 || i == 4); c }  =**= "c".arr
 
-    T ~ str.breakable.where{ c => qIf(c > 'i'); c.isLetter } =**= str.zipWithIndex.takeWhile(_._1 <= 'i').collect{ case (c, i) if c.isLetter => i }
+    T ~ str.flex.where{ c => qIf(c > 'i'); c.isLetter } =**= str.zipWithIndex.takeWhile(_._1 <= 'i').collect{ case (c, i) if c.isLetter => i }
 
-    T ~ str.breakable.whereIn(1, 5  ){ c =>              !c.isLetter } =**= Array(2, 3)
-    T ~ str.breakable.whereIn(1 to 4){ c =>              !c.isLetter } =**= Array(2, 3)
-    T ~ str.breakable.whereIn(div   ){ c =>              !c.isLetter } =**= Array(2, 3)
-    T ~ str.breakable.whereIn(dpv   ){ c =>              !c.isLetter } =**= Array(2, 3)
-    T ~ str.breakable.whereIn(1, 5  ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
-    T ~ str.breakable.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
-    T ~ str.breakable.whereIn(div   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
-    T ~ str.breakable.whereIn(dpv   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.flex.whereIn(1, 5  ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.flex.whereIn(1 to 4){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.flex.whereIn(div   ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.flex.whereIn(dpv   ){ c =>              !c.isLetter } =**= Array(2, 3)
+    T ~ str.flex.whereIn(1, 5  ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.flex.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.flex.whereIn(div   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.flex.whereIn(dpv   ){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
 
-    T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c =>              !c.isLetter } =**= Array(2, 3, 6)
-    T ~ str.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
+    T ~ str.flex.whereFrom(Array(2, 0, 3, 6)){ c =>              !c.isLetter } =**= Array(2, 3, 6)
+    T ~ str.flex.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter } =**= Array(2)
 
     def ninc(c: Char, i: Int) = if c.isLetter then -1 else i+7
     def nxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: Char, i: Int)(using lb: boundary.Label[Q]) =
       qIf(c == '#')
       if c.isLetter then -1 else i+7
-    T ~ str.breakable.whereInOp(1, 5)(ninc)       =**= str.breakable.whereIn(1, 5)(! _.isLetter).copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(Iv(1, 5))(ninc)   =**= str.breakable.whereIn(Iv(1, 5))(! _.isLetter).copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(1 to End-2)(ninc) =**= str.breakable.whereIn(1 to End-2)(! _.isLetter).copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(1 to 4)(ninc)     =**= str.breakable.whereIn(1 to 4)(! _.isLetter).copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(1, 5)(nxnc)       =**= str.breakable.whereIn(1, 5){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(Iv(1, 5))(nxnc)   =**= str.breakable.whereIn(Iv(1, 5)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(1 to End-2)(nxnc) =**= str.breakable.whereIn(1 to End-2){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
-    T ~ str.breakable.whereInOp(1 to 4)(nxnc)     =**= str.breakable.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1, 5)(ninc)       =**= str.flex.whereIn(1, 5)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.flex.whereInOp(Iv(1, 5))(ninc)   =**= str.flex.whereIn(Iv(1, 5))(! _.isLetter).copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1 to End-2)(ninc) =**= str.flex.whereIn(1 to End-2)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1 to 4)(ninc)     =**= str.flex.whereIn(1 to 4)(! _.isLetter).copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1, 5)(nxnc)       =**= str.flex.whereIn(1, 5){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.flex.whereInOp(Iv(1, 5))(nxnc)   =**= str.flex.whereIn(Iv(1, 5)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1 to End-2)(nxnc) =**= str.flex.whereIn(1 to End-2){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.flex.whereInOp(1 to 4)(nxnc)     =**= str.flex.whereIn(1 to 4){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
 
-    T ~ str.breakable.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= str.breakable.whereFrom(Array(2, 0, 3, 6))(! _.isLetter).copyWith(_ + 7)
-    T ~ str.breakable.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= str.breakable.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
+    T ~ str.flex.whereFromOp(Array(2, 0, 3, 6))(ninc) =**= str.flex.whereFrom(Array(2, 0, 3, 6))(! _.isLetter).copyWith(_ + 7)
+    T ~ str.flex.whereFromOp(Array(2, 0, 3, 6))(nxnc) =**= str.flex.whereFrom(Array(2, 0, 3, 6)){ c => qIf(c=='#'); !c.isLetter }.copyWith(_ + 7)
 
     val cx = "_________".arr
     var ninja = 0
-    T ~ cx.dup(a => ninja = str.breakable.inject(a)(_.isLetter)).str                          ==== "chik_____"
+    T ~ cx.dup(a => ninja = str.flex.inject(a)(_.isLetter)).str                          ==== "chik_____"
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.count(_.isLetter)
-    T ~ cx.dup(a => ninja = str.breakable.inject(a, 2)(_.isLetter)) .str                      ==== "__chik___"
+    T ~ cx.dup(a => ninja = str.flex.inject(a, 2)(_.isLetter)) .str                      ==== "__chik___"
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.count(_.isLetter)
-    T ~ cx.dup(a => ninja = str.breakable.inject(a){ c => qIf(c == '#'); c.isLetter }).str    ==== "ch_______"
+    T ~ cx.dup(a => ninja = str.flex.inject(a){ c => qIf(c == '#'); c.isLetter }).str    ==== "ch_______"
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
-    T ~ cx.dup(a => ninja = str.breakable.inject(a, 2){ c => qIf(c == '#'); c.isLetter }).str ==== "__ch_____"
+    T ~ cx.dup(a => ninja = str.flex.inject(a, 2){ c => qIf(c == '#'); c.isLetter }).str ==== "__ch_____"
     T ~ { val x = ninja; ninja = 0; x }                                                       ==== str.takeWhile(_ != '#').count(_.isLetter)
 
     val ax = "_________".arr.map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cim______".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "___cim___".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
-    T ~ ax.dup(a => ninja += str.breakable.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cim______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(      ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "___cim___".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(1, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(1 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(div   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "i________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "___i_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "im_______".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(dpv   ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "___im____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(ix    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a   )(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "&________".map(_.toInt)
+    T ~ ax.dup(a => ninja += str.flex.injectOp(a, 3)(st    ){ (c, i) => sIf(i==2); qIf( c.isLetter); c + i }) =**= "___&_____".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 2*3 + 2*4*(1+2) + 2*(1+1)
 
-    T ~ str.breakable.select(_.isLetter)                       ==== "chik"
-    T ~ str.breakable.select{ c => qIf(c == '#'); c.isLetter } ==== "ch"
+    T ~ str.flex.select(_.isLetter)                       ==== "chik"
+    T ~ str.flex.select{ c => qIf(c == '#'); c.isLetter } ==== "ch"
 
-    T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
-    T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
-    T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
-    T ~ str.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
-    T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
-    T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
-    T ~ str.breakable.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
-    T ~ str.breakable.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.flex.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.flex.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.flex.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) =**= "#-".arr
+    T ~ str.flex.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
+    T ~ str.flex.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) =**= "-#hh#".arr
+    T ~ str.flex.selectOp(3, 5)(  (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(3 to 4)((c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(civ)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(cpv)(   (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(ix)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
+    T ~ str.flex.selectOp(st)(    (c, i) => if i%2 == 0 then '-' else c) ==== typed[Array[Char]]
 
-    T ~ str.breakable.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c } =**= "#".arr
-    T ~ str.breakable.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c } =**= "#".arr
-    T ~ str.breakable.selectOp(civ){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
-    T ~ str.breakable.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
-    T ~ str.breakable.selectOp(ix){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
-    T ~ str.breakable.selectOp(st){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
+    T ~ str.flex.selectOp(3, 5){  (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.flex.selectOp(3 to 4){(c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.flex.selectOp(civ){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.flex.selectOp(cpv){   (c, i) => sIf(i%2 == 0); c } =**= "#".arr
+    T ~ str.flex.selectOp(ix){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
+    T ~ str.flex.selectOp(st){    (c, i) => sIf(i%2 == 0); c } =**= "#hh#".arr
 
-    T ~ str.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
-    T ~ str.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.flex.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.flex.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.flex.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.flex.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.flex.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.flex.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
 
     val lar = "ch.ix.#n."
-    T ~ lar.breakable.fuse[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
+    T ~ lar.flex.fuse[Int]((c, i, add) => if !c.isLetter then { qIf(i>5); add(i) } else Array(O(Some(c.toString))).os.foreach(c => add(c.toInt))) =**= Array(99, 46, 104, 46, 2, 105, 46, 120, 46, 5)
 
     val test = "cheesefactories"
-    T ~ test.breakable.diced(_ == 'e')                               =**= Array("ch", "s", "factori", "s")
-    T ~ test.breakable.diced(_ == 'e', "")                           =**= Array("ch", "s", "factori", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "")   =**= Array("ch", "s", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "")   =**= Array("ch", "s")
-    T ~ test.breakable.diced(_ == 'e', "()")                         =**= Array("ch", "", "s", "factori", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "()") =**= Array("ch", "", "s", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "()") =**= Array("ch", "", "s", "")
-    T ~ test.breakable.diced(_ == 'e', "(]")                         =**= Array("che", "e", "se", "factorie", "s")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "(]") =**= Array("che", "e", "se", "facto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "(]") =**= Array("che", "e", "se", "")
-    T ~ test.breakable.diced(_ == 'e', "[)")                         =**= Array("ch", "e", "es", "efactori", "es")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "efacto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "e")
-    T ~ test.breakable.diced(_ == 'e', "[]")                         =**= Array("che", "ee", "ese", "efactorie", "es")
-    T ~ test.breakable.diced(c => { qIf(c == 'r'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "efacto")
-    T ~ test.breakable.diced(c => { qIf(c == 'f'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "e")
+    T ~ test.flex.diced(_ == 'e')                               =**= Array("ch", "s", "factori", "s")
+    T ~ test.flex.diced(_ == 'e', "")                           =**= Array("ch", "s", "factori", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "")   =**= Array("ch", "s", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "")   =**= Array("ch", "s")
+    T ~ test.flex.diced(_ == 'e', "()")                         =**= Array("ch", "", "s", "factori", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "()") =**= Array("ch", "", "s", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "()") =**= Array("ch", "", "s", "")
+    T ~ test.flex.diced(_ == 'e', "(]")                         =**= Array("che", "e", "se", "factorie", "s")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "(]") =**= Array("che", "e", "se", "facto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "(]") =**= Array("che", "e", "se", "")
+    T ~ test.flex.diced(_ == 'e', "[)")                         =**= Array("ch", "e", "es", "efactori", "es")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "efacto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "[)") =**= Array("ch", "e", "es", "e")
+    T ~ test.flex.diced(_ == 'e', "[]")                         =**= Array("che", "ee", "ese", "efactorie", "es")
+    T ~ test.flex.diced(c => { qIf(c == 'r'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "efacto")
+    T ~ test.flex.diced(c => { qIf(c == 'f'); c == 'e' }, "[]") =**= Array("che", "ee", "ese", "e")
 
 
-  def stringClipBreakIntervalTest(): Unit =
+  def stringFancyIntervalTest(): Unit =
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
@@ -3199,230 +3199,230 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ str.clip.breakable ==== typed[ClipBreakString]
-    T ~ str.breakable.clip ==== typed[ClipBreakString]
-    T ~ str.clipBreak      ==== typed[ClipBreakString]
+    T ~ str.clip.flex ==== typed[FancyString]
+    T ~ str.flex.clip ==== typed[FancyString]
+    T ~ str.fancy      ==== typed[FancyString]
 
-    T ~ z{ str.breakable.clip.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
+    T ~ z{ str.flex.clip.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
     T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.breakable.clip.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
+    T ~ z{ str.flex.clip.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
     T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.breakable.clip.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.flex.clip.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
     T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.breakable.clip.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.flex.clip.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
     T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.breakable.clip.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.flex.clip.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
     T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
-    T ~ z{ str.breakable.clip.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.flex.clip.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
     T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
 
-    T ~ n{ str.breakable.clip.peek(3, 9){ c => qIf(c.isLetter); cuml += c } }   ==== str(3).toInt
-    T ~ n{ str.breakable.clip.peek(3 to 8){ c => qIf(c.isLetter); cuml += c } } ==== str(3).toInt
-    T ~ n{ str.breakable.clip.peek(eiv){ c => qIf(c.isLetter); cuml += c } }    ==== str(3).toInt
+    T ~ n{ str.flex.clip.peek(3, 9){ c => qIf(c.isLetter); cuml += c } }   ==== str(3).toInt
+    T ~ n{ str.flex.clip.peek(3 to 8){ c => qIf(c.isLetter); cuml += c } } ==== str(3).toInt
+    T ~ n{ str.flex.clip.peek(eiv){ c => qIf(c.isLetter); cuml += c } }    ==== str(3).toInt
 
-    T ~ n{ str.breakable.clip.peek(-2, 5){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(-2 to 4){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(fiv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(fpv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(-2, 5){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(-2 to 4){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(fiv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(fpv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
 
-    T ~ n{ str.breakable.clip.peek(-2, 9){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(-2 to 9){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(biv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(-2, 9){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(-2 to 9){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(biv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
 
-    T ~ n{ str.breakable.clip.peek(8, 9){ c => qIf(c.isLetter); cuml += c } }    ==== 0
-    T ~ n{ str.breakable.clip.peek(8 to 9){ c => qIf(c.isLetter); cuml += c } }  ==== 0
-    T ~ n{ str.breakable.clip.peek(niv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
-    T ~ n{ str.breakable.clip.peek(npv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
+    T ~ n{ str.flex.clip.peek(8, 9){ c => qIf(c.isLetter); cuml += c } }    ==== 0
+    T ~ n{ str.flex.clip.peek(8 to 9){ c => qIf(c.isLetter); cuml += c } }  ==== 0
+    T ~ n{ str.flex.clip.peek(niv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
+    T ~ n{ str.flex.clip.peek(npv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
 
-    T ~ n{ str.breakable.clip.peek(ex){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
-    T ~ n{ str.breakable.clip.peek(et){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(ex){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
+    T ~ n{ str.flex.clip.peek(et){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
-    T ~ str.clip.breakable.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
-    T ~ str.clip.breakable.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.clip.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.clip.flex.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
 
-    T ~ str.clip.breakable.gather(0)(3, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(3 to 8){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
-    T ~ str.clip.breakable.gather(0)(eiv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(3, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(3 to 8){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3
+    T ~ str.clip.flex.gather(0)(eiv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
 
-    T ~ str.clip.breakable.gather(0)(-2, 5){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ str.clip.breakable.gather(0)(-2 to 4){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ str.clip.breakable.gather(0)(fiv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
-    T ~ str.clip.breakable.gather(0)(fpv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(-2, 5){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(-2 to 4){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(fiv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(fpv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
 
-    T ~ str.clip.breakable.gather(0)(-2, 9){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
-    T ~ str.clip.breakable.gather(0)(-2 to 9){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
-    T ~ str.clip.breakable.gather(0)(biv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(-2, 9){ (a, c, i) => qIf(!c.isLetter); a + c + i }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(-2 to 9){ (a, c, i) => qIf(!c.isLetter); a + c + i } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ str.clip.flex.gather(0)(biv){ (a, c, i) => qIf(!c.isLetter); a + c + i }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
 
-    T ~ str.clip.breakable.gather(0)(8, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== 0
-    T ~ str.clip.breakable.gather(0)(8 to 9){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== 0
-    T ~ str.clip.breakable.gather(0)(niv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
-    T ~ str.clip.breakable.gather(0)(npv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
+    T ~ str.clip.flex.gather(0)(8, 9){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== 0
+    T ~ str.clip.flex.gather(0)(8 to 9){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== 0
+    T ~ str.clip.flex.gather(0)(niv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
+    T ~ str.clip.flex.gather(0)(npv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== 0
 
-    T ~ str.clip.breakable.gather(0)(ex){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
-    T ~ str.clip.breakable.gather(0)(et){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
+    T ~ str.clip.flex.gather(0)(ex){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
+    T ~ str.clip.flex.gather(0)(et){ (a, c, i) => qIf(c == '#'); a + c + i } ==== ".c".map(_.toInt).sum + 2
 
-    T ~ str.clip.breakable.whereIn(3, 9   ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
-    T ~ str.clip.breakable.whereIn(3 to 8 ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
-    T ~ str.clip.breakable.whereIn(eiv    ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
-    T ~ str.clip.breakable.whereIn(-2, 5  ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
-    T ~ str.clip.breakable.whereIn(-2 to 4){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
-    T ~ str.clip.breakable.whereIn(fiv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
-    T ~ str.clip.breakable.whereIn(fpv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.flex.whereIn(3, 9   ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.flex.whereIn(3 to 8 ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.flex.whereIn(eiv    ){ c => qIf(c=='k'); c.isLetter } =**= Array(4)
+    T ~ str.clip.flex.whereIn(-2, 5  ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.flex.whereIn(-2 to 4){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.flex.whereIn(fiv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
+    T ~ str.clip.flex.whereIn(fpv    ){ c => qIf(c=='#'); c.isLetter } =**= Array(0, 1)
 
-    T ~ str.clipBreak.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter } =**= Array(1, 5)
+    T ~ str.fancy.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter } =**= Array(1, 5)
 
     def lxnc[Q >: shortcut.Quits.type <: shortcut.Type](c: Char, i: Int)(using lb: boundary.Label[Q]) =
       qIf(c == '#')
       if c.isLetter then i+7 else -1
-    T ~ str.clipBreak.whereInOp(3, 9)(lxnc)           =**= str.clipBreak.whereIn(3, 9){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
-    T ~ str.clipBreak.whereInOp(Iv(3, 9))(lxnc)       =**= str.clipBreak.whereIn(Iv(3, 9)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
-    T ~ str.clipBreak.whereInOp(3 to 8)(lxnc)         =**= str.clipBreak.whereIn(3 to 8){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
-    T ~ str.clipBreak.whereInOp(-2, 5)(lxnc)          =**= str.clipBreak.whereIn(-2, 5){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
-    T ~ str.clipBreak.whereInOp(Iv(-2, 5))(lxnc)      =**= str.clipBreak.whereIn(Iv(-2, 5)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
-    T ~ str.clipBreak.whereInOp(End-9 to End-2)(lxnc) =**= str.clipBreak.whereIn(End-9 to End-2){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(3, 9)(lxnc)           =**= str.fancy.whereIn(3, 9){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(Iv(3, 9))(lxnc)       =**= str.fancy.whereIn(Iv(3, 9)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(3 to 8)(lxnc)         =**= str.fancy.whereIn(3 to 8){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(-2, 5)(lxnc)          =**= str.fancy.whereIn(-2, 5){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(Iv(-2, 5))(lxnc)      =**= str.fancy.whereIn(Iv(-2, 5)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereInOp(End-9 to End-2)(lxnc) =**= str.fancy.whereIn(End-9 to End-2){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
 
-    T ~ str.clipBreak.whereFromOp(Array(2, 1, -3, 9, 5, 3, 4))(lxnc) =**= str.clipBreak.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
+    T ~ str.fancy.whereFromOp(Array(2, 1, -3, 9, 5, 3, 4))(lxnc) =**= str.fancy.whereFrom(Array(2, 1, -3, 9, 5, 3, 4)){ c => qIf(c=='#'); c.isLetter }.copyWith(_ + 7)
 
     val ca7 = "1234567".arr
     val ca3 = "890".arr
     var ninja = 0
-    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch34567".arr
-    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "12ch567".arr
-    T ~ ca7.dup(a => ninja += str.breakable.clip.inject(a, 6){ c => qIf(c == 'i'); c.isLetter }) =**= "123456c".arr
-    T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch0".arr
-    T ~ ca3.dup(a => ninja += str.breakable.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "89c".arr
+    T ~ ca7.dup(a => ninja += str.flex.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch34567".arr
+    T ~ ca7.dup(a => ninja += str.flex.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "12ch567".arr
+    T ~ ca7.dup(a => ninja += str.flex.clip.inject(a, 6){ c => qIf(c == 'i'); c.isLetter }) =**= "123456c".arr
+    T ~ ca3.dup(a => ninja += str.flex.clip.inject(a){ c => qIf(c == 'i'); c.isLetter })    =**= "ch0".arr
+    T ~ ca3.dup(a => ninja += str.flex.clip.inject(a, 2){ c => qIf(c == 'i'); c.isLetter }) =**= "89c".arr
     T ~ { val x = ninja; ninja = 0; x }                                                          ==== 2+2+1+2+1
 
     val aa7 = "ABCDEFG".arr.map(_.toInt)
     val aa1 = "H".arr.map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==9); c + i }) =**= "cimpEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cimDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 5 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEci".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(){ (c, i) => sIf(!c.isLetter); qIf(i==9); c + i }) =**= "cimpEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 5 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEci".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 9 )(){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFG".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 2+4+3+2+0
     val ejv = Iv(1, 9)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(1, 9  ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(1 to 8){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==7); c + i }) =**= "impDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "ABCDEFi".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "imCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(ejv   ){ (c, i) => sIf(!c.isLetter); qIf(i==5); c + i }) =**= "i".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 3*(2+3+1+2+1)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
-    T ~ aa1.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(-2, 5  ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(-2 to 4){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(fiv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==6); c + i }) =**= "cimDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFc".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ciCDEFG".map(_.toInt)
+    T ~ aa1.dup(a => ninja += str.clip.flex.injectOp(a, -2)(fpv    ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "c".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 4*(2+3+1+2+1)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -7)(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 8 )(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -7)(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 8 )(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -7)(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 8 )(niv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -7)(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 8 )(npv   ){ (c, i) => sIf(!c.isLetter); qIf(i==4); c + i }) =**= "ABCDEFG".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 0
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, -2)(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 6 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
-    T ~ aa7.dup(a => ninja += str.clip.breakable.injectOp(a, 9 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(ex){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 9 )(ex){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a    )(et){ (c, i) => sIf(c.isLetter); qIf(i==8); c + i }) =**= "0&4DEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, -2)(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "0&CDEFG".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 6 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEF0".map(_.toInt)
+    T ~ aa7.dup(a => ninja += str.clip.flex.injectOp(a, 9 )(et){ (c, i) => sIf(c.isLetter); qIf(i==6); c + i }) =**= "ABCDEFG".map(_.toInt)
     T ~ { val x = ninja; ninja = 0; x } ==== 2*(2+3+2+1+0)
 
-    T ~ str.clip.breakable.selectOp(3, 5  )((c, i) => c + i) =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(3 to 4)((c, i) => c + i) =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(civ   )((c, i) => c + i) =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(cpv   )((c, i) => c + i) =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(ix    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(st    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(3, 5  )((c, i) => c + i) ==== typed[Array[Int]]
-    T ~ str.clip.breakable.selectOp(3 to 4)((c, i) => c + i) ==== typed[Array[Int]]
-    T ~ str.clip.breakable.selectOp(civ   )((c, i) => c + i) ==== typed[Array[Int]]
-    T ~ str.clip.breakable.selectOp(cpv   )((c, i) => c + i) ==== typed[Array[Int]]
-    T ~ str.clip.breakable.selectOp(ix    )((c, i) => c + i) ==== typed[Array[Int]]
-    T ~ str.clip.breakable.selectOp(st    )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(3, 5  )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3 to 4)((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(civ   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(cpv   )((c, i) => c + i) =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(ix    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.flex.selectOp(st    )((c, i) => c + i) =**= "0&ii&".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3, 5  )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(3 to 4)((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(civ   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(cpv   )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(ix    )((c, i) => c + i) ==== typed[Array[Int]]
+    T ~ str.clip.flex.selectOp(st    )((c, i) => c + i) ==== typed[Array[Int]]
 
-    T ~ str.clip.breakable.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.clip.breakable.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.clip.breakable.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.clip.breakable.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
-    T ~ str.clip.breakable.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
-    T ~ str.clip.breakable.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.clip.flex.selectOp(3, 5){  (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.flex.selectOp(3 to 4){(c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.flex.selectOp(civ){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.flex.selectOp(cpv){   (c, i) => qIf(i == 1 || i == 4); c } =**= "#".arr
+    T ~ str.clip.flex.selectOp(ix){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
+    T ~ str.clip.flex.selectOp(st){    (c, i) => qIf(i == 1 || i == 4); c } =**= ".#".arr
 
-    T ~ str.clip.breakable.selectOp(3, 9  ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(3 to 8){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(eiv   ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3, 9  ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3 to 8){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(eiv   ){ (c, i) => qIf(c == 'k'); c + i } =**= "&m".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(3, 9  ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(3 to 8){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(eiv   ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3, 9  ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(3 to 8){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(eiv   ){ (c, i) => sIf(c == 'k'); c + i } =**= "&m4".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(-2, 5  ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(-2 to 4){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(fiv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(fpv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2, 5  ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2 to 4){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.flex.selectOp(fiv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
+    T ~ str.clip.flex.selectOp(fpv    ){ (c, i) => qIf(c == '#'); c + i } =**= "ci0".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(-2, 5  ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(-2 to 4){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(fiv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(fpv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2, 5  ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2 to 4){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(fiv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
+    T ~ str.clip.flex.selectOp(fpv    ){ (c, i) => sIf(c == '#'); c + i } =**= "ci0m".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(-2, 9  ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(-2 to 8){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(biv    ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2, 9  ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2 to 8){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
+    T ~ str.clip.flex.selectOp(biv    ){ (c, i) => qIf(c == 'i'); c + i } =**= "ci0&".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(-2, 9  ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(-2 to 8){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(biv    ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2, 9  ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(-2 to 8){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(biv    ){ (c, i) => sIf(c == 'i'); c + i } =**= "ci0&p4".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(niv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(npv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.flex.selectOp(8, 10 ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.flex.selectOp(8 to 9){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.flex.selectOp(niv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
+    T ~ str.clip.flex.selectOp(npv   ){ (c, i) => sIf(!c.isLetter); qIf(c > 99); c + i } =**= "".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(ex){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(et){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
+    T ~ str.clip.flex.selectOp(ex){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
+    T ~ str.clip.flex.selectOp(et){ (c, i) => qIf(i == 3); c + i } =**= "0c".map(_.toInt)
 
-    T ~ str.clip.breakable.selectOp(ex){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
-    T ~ str.clip.breakable.selectOp(et){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(ex){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
+    T ~ str.clip.flex.selectOp(et){ (c, i) => sIf(i == 3); c + i } =**= "0c4".map(_.toInt)
 }

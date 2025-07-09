@@ -40,7 +40,7 @@ ivy"com.github.ichoran::kse3-eio:0.4.0"
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
-//> using scala 3.5.0
+//> using scala 3.7.0
 //> using dep com.github.ichoran::kse3-basics:0.4.0
 //> using dep com.github.ichoran::kse3-flow:0.4.0
 //> using dep com.github.ichoran::kse3-maths:0.4.0
@@ -117,9 +117,14 @@ If you use scala-cli headers, where spaces don't parse as part of the message, y
 
 #### Is Kse3 stable?  Binary compatible?
 
-Not yet and no.  Eventually it will be stable.  Binary compatibility is not likely to ever be an explicit goal,
-because Kse3 makes very heavy use of inlining.  Because you have to recompile all the time anyway, there is
-no reason to try to maintain binary compatibility.
+Kse3 is intended as something of an **incubator for good ideas**, so stability is not a primary goal for
+any part of the library that is under active development.  Nonetheless, eventually the well-designed parts
+will be stable.
+
+Binary compatibility is not likely to ever be an explicit goal, because Kse3 makes very heavy use of inlining.
+Because you have to recompile all the time anyway, there is no reason to try to maintain binary compatibility.
+
+
 
 #### How do I pronounce it?
 
@@ -385,7 +390,8 @@ the current thread blocks on the call to `ask()`, and any errors during executio
 
 But what if you don't want to block the current thread?  You can `map` and `flatMap` `Fu`.  But, even better, you can
 just keep `Fu:`-ing, because `Fu:` itself (and `Fu.flat:`, which takes an `A => (B Or Err)`) provides a boundary point
-enabling `.?`.  **However, you must be careful not to have control flow jump out of a Fu**
+enabling `.?`.  **However, you must be careful not to have control flow jump out of a Fu**  The control flow will be
+caught and the block will terminate with an `Err`, but the logic will still be wrong.
 
 ```scala
 object Concurrent2:
@@ -552,7 +558,7 @@ to some parameters, you get that value _unsafely_ by calling `get` (a new
 exception will be thrown on failure).  If there is a stored error to
 propagate, `grab` instead of `get` will try to propagate the error as a
 catchable exception, without a new stack trace, if possible.  Safe
-alternatives are named `getSping`, where `Sping` specifies an alterative
+alternatives are named `getQuux`, where `Quux` specifies an alterative
 strategy.  For instance, `getOrElse(bippy)` should do `bippy` when the
 value is not there (perhaps `bippy` is a default value).
 
@@ -561,7 +567,8 @@ method used is `apply`.  It may return an Option/Or type if errors are
 routine.
 
 4. If there is a way to return an `Or Err` type instead of failing on a
-missing single value, then `ask` will give the value or an `Err`.
+missing single value, then `ask` will give the value or an `Err` (i.e. it
+will be an `Ask` type).
 
 5. To access a value, if present, returning the original object, use `use(f)`
 where `f` acts on the contents and returns `Unit`.
@@ -601,7 +608,8 @@ the object that you've modified, so it should only be provided if errors are
 rare.
 
 8. If there are both self-mutating and new-object-creating variants of the
-same method, the last one should have `Me` appended, e.g. `reverseMe()`.
+same method, the former should have `Me` appended, e.g. `reverseMe()` and
+the latter should be in past tense, e.g. `reversed`.
 The `Me` notation is generally considered good form regardless for
 self-modifying methods, unless the naming is clunky.
 

@@ -24,6 +24,11 @@ import sourcecode.{Line, given}
 class BytecodeCheck {
   import kse.basics.{_, given}
 
+  var myField: Int = 0
+
+  def byVarHandleAccess(): Int =
+    BytecodeCheck.vhField.getVolatile(this).asInstanceOf[Int]
+
   def repeated(xs: Int*): Int = xs.sum
 
   def ordinary(s: String): Char = s(2)
@@ -110,6 +115,11 @@ class BytecodeCheck {
 
   def useRepeated(): Int =
     repeated(5, 6, 7, 8)
+}
+object BytecodeCheck {
+  val vhField =
+    java.lang.invoke.MethodHandles.privateLookupIn(classOf[BytecodeCheck], java.lang.invoke.MethodHandles.lookup()).
+      findVarHandle(classOf[BytecodeCheck], "myField", classOf[Int])
 }
 
 
@@ -484,8 +494,10 @@ class BasicsTest() {
 
     T ~ "herring".fn( s => s.length + s.head)                ==== (7 + 'h')
     T ~ "salmon".pipe(s => s.length + s.head)                ==== (6 + 's')
+    T ~ 5.cycle(3)(x => 4*x)                                 ==== 320
     T ~ "eel".fixIf(_.length > 3)(_ => "cod")                ==== "eel"
     T ~ "salmon".fixIf(_.length > 3)(_ => "cod")             ==== "cod"
+    T ~ "eel".fixWhile(_(0) == 'e')(_.substring(1))          ==== "l"
     T ~ { var x = 0; "cod".tap(s => x = s.head).length + x } ==== (3 + 'c')
     T ~ "herring".tup(5)                                     ==== ("herring", 5)
     T ~ "herring".tupWith(_.length)                          ==== ("herring", 7)
@@ -532,39 +544,39 @@ class BasicsTest() {
         b += s.nextStep
       b.result
 
-    T ~ 3.where()                                          =**= Array(0, 1, 2)
-    T ~ -2.where()                                         =**= Array[Int]()
-    T ~ 5.whereBy(2)                                       =**= Array(0, 2, 4)
-    T ~ 6.whereBy(2)                                       =**= Array(0, 2, 4)
-    T ~ 5.whereBy(-2)                                      =**= Array(4, 2, 0)
-    T ~ 6.whereBy(-2)                                      =**= Array(5, 3, 1)
-    T ~ 3.of[Int]                                          =**= Array(0, 0, 0)
-    T ~ 3.of[Int]                                          ==== typed[Array[Int]]
-    T ~ 3.mkArray(i => i+1)                                =**= Array(1, 2, 3)
-    T ~ 3.mkArray(i => i+1)                                ==== typed[Array[Int]]
-    T ~ 3.partArray{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
-    T ~ 3.partArray{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
-    T ~ 3.partArray(i => i+1)                              ==== typed[Array[Int]]
-    T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                  ==== 7
-    T ~ n{ 5.visit(cuml += _) }                            ==== 10
-    T ~ n{ -2.visit(cuml += _ + 1) }                       ==== 0
-    T ~ n{ 5.visitBy(2){ i => x += 1; cuml += i * x } }    ==== 16
-    T ~ n{ 6.visitBy(2){ i => x += 1; cuml += i * x } }    ==== 16
-    T ~ n{ -2.visitBy(2)(cuml += _ + 1) }                  ==== 0
-    T ~ n{ 5.visitBy(-2){ i => x += 1; cuml += i * x } }   ==== 8
-    T ~ n{ 6.visitBy(-2){ i => x += 1; cuml += i * x } }   ==== 14
-    T ~ n{ -2.visitBy(-2)(cuml += _ + 1) }                 ==== 0
-    T ~ n{ 5.visitBy(0)(cuml += _ + 1) }                   ==== 0
-    T ~ n{ -2.visitBy(0)(cuml += _ + 1) }                  ==== 0
-    T ~ n{ 0.visitBy(0)(cuml += _ + 1) }                   ==== 0
-    T ~ step2a(3.steps())                                  =**= 3.where()
-    T ~ step2a(-2.steps())                                 =**= -2.where()
-    T ~ step2a(5.stepsBy(2))                               =**= 5.whereBy(2)
-    T ~ step2a(6.stepsBy(2))                               =**= 6.whereBy(2)
-    T ~ step2a(5.stepsBy(-2))                              =**= 5.whereBy(-2)
-    T ~ step2a(6.stepsBy(-2))                              =**= 6.whereBy(-2)
-    T ~ 5.stepsBy(2).estimateSize                          ==== 3L --: typed[Long]
-    T ~ 6.stepsBy(-2).estimateSize                         ==== 3L --: typed[Long]
+    T ~ 3.where()                                           =**= Array(0, 1, 2)
+    T ~ -2.where()                                          =**= Array[Int]()
+    T ~ 5.whereBy(2)                                        =**= Array(0, 2, 4)
+    T ~ 6.whereBy(2)                                        =**= Array(0, 2, 4)
+    T ~ 5.whereBy(-2)                                       =**= Array(4, 2, 0)
+    T ~ 6.whereBy(-2)                                       =**= Array(5, 3, 1)
+    T ~ 3.of[Int]                                           =**= Array(0, 0, 0)
+    T ~ 3.of[Int]                                           ==== typed[Array[Int]]
+    T ~ 3.unfold(i => i+1)                                  =**= Array(1, 2, 3)
+    T ~ 3.unfold(i => i+1)                                  ==== typed[Array[Int]]
+    T ~ 3.unfoldFlex{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
+    T ~ 3.unfoldFlex{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
+    T ~ 3.unfoldFlex(i => i+1)                              ==== typed[Array[Int]]
+    T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                   ==== 7
+    T ~ n{ 5.visit(cuml += _) }                             ==== 10
+    T ~ n{ -2.visit(cuml += _ + 1) }                        ==== 0
+    T ~ n{ 5.visitBy(2){ i => x += 1; cuml += i * x } }     ==== 16
+    T ~ n{ 6.visitBy(2){ i => x += 1; cuml += i * x } }     ==== 16
+    T ~ n{ -2.visitBy(2)(cuml += _ + 1) }                   ==== 0
+    T ~ n{ 5.visitBy(-2){ i => x += 1; cuml += i * x } }    ==== 8
+    T ~ n{ 6.visitBy(-2){ i => x += 1; cuml += i * x } }    ==== 14
+    T ~ n{ -2.visitBy(-2)(cuml += _ + 1) }                  ==== 0
+    T ~ n{ 5.visitBy(0)(cuml += _ + 1) }                    ==== 0
+    T ~ n{ -2.visitBy(0)(cuml += _ + 1) }                   ==== 0
+    T ~ n{ 0.visitBy(0)(cuml += _ + 1) }                    ==== 0
+    T ~ step2a(3.steps())                                   =**= 3.where()
+    T ~ step2a(-2.steps())                                  =**= -2.where()
+    T ~ step2a(5.stepsBy(2))                                =**= 5.whereBy(2)
+    T ~ step2a(6.stepsBy(2))                                =**= 6.whereBy(2)
+    T ~ step2a(5.stepsBy(-2))                               =**= 5.whereBy(-2)
+    T ~ step2a(6.stepsBy(-2))                               =**= 6.whereBy(-2)
+    T ~ 5.stepsBy(2).estimateSize                           ==== 3L --: typed[Long]
+    T ~ 6.stepsBy(-2).estimateSize                          ==== 3L --: typed[Long]
 
     T ~ (1 to End)                                 ==== typed[Iv.Rae]
     T ~ (1 to Start+3)                             ==== typed[Iv.Ras]
@@ -600,8 +612,12 @@ class BasicsTest() {
     T ~ step2a(Iv(3, 3).stepsBy(2)).isEmpty        ==== true
     T ~ step2a(Iv(3, 3).stepsBy(-2)).isEmpty       ==== true
     T ~ step2a(Iv(4, 6).stepsBy(0)).isEmpty        ==== true
-    T ~ Iv(Int.MaxValue, Int.MaxValue).steps().estimateSize ==== 0L
-    T ~ Iv(Int.MinValue, Int.MaxValue).steps().estimateSize ==== 0xFFFFFFFFL
+    T ~ Iv(Int.MaxValue, Int.MaxValue).steps().estimateSize   ==== 0L
+    T ~ Iv(Int.MinValue, Int.MaxValue).steps().estimateSize   ==== 0xFFFFFFFFL
+    T ~ Iv(1, 3).unfold(_ + 1)                                =**= Array(2, 3)
+    T ~ Iv(7, 7).unfold(_ + 1)                                =**= Array.empty[Int]
+    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.skip(i < 6).?; i } =**= Array(6, 7, 8)
+    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.quit(i > 7).?; i } =**= Array(5, 6, 7)
 
     T ~ n{ Iv(3, 5).visit(cuml += _) }             ==== 7
     T ~ Iv(3, 5).i0                                ==== 3
@@ -759,7 +775,7 @@ class BasicsTest() {
 
   @Test def arrayBreakInlinedDataTest: Unit = arrayTester.arrayBreakInlinedDataTest()
 
-  @Test def arrayClipBreakIntervalTest: Unit = arrayTester.arrayClipBreakIntervalTest()
+  @Test def arrayFancyIntervalTest: Unit = arrayTester.arrayFancyIntervalTest()
 
   @Test def arrayPrimitiveDataTest: Unit = arrayTester.arrayPrimitiveDataTest()
 
@@ -769,7 +785,7 @@ class BasicsTest() {
 
   @Test def stringBreakInlinedDataTest: Unit = arrayTester.stringBreakInlinedDataTest()
 
-  @Test def stringClipBreakIntervalTest: Unit = arrayTester.stringClipBreakIntervalTest()
+  @Test def stringFancyIntervalTest: Unit = arrayTester.stringFancyIntervalTest()
 }
 object BasicsTest {
   // @BeforeClass
