@@ -85,19 +85,19 @@ trait NewType[A] {
 
 
 /** A stable identifier to disambiguate types by label */
-type LabelVal = String & Singleton
+type LabelStr = String & Singleton
 
 /** A labelled type unrelated to the thing it is labelling; create with `val x: Int \ "eel" = \.wrap(5)`; access with `x ~ "eel"` or `x.unlabel` */
-opaque infix type \[+A, L <: LabelVal] = A
+opaque infix type \[+A, L <: LabelStr] = A
 object \ {
-  opaque type Assumed[L <: LabelVal] = Unit
+  opaque type Assumed[L <: LabelStr] = Unit
   object Assumed {
-    def label[L <: LabelVal]: Assumed[L] = ()
+    def label[L <: LabelStr]: Assumed[L] = ()
   }
 
-  inline def wrap[A](a: A)[L <: LabelVal]: (A \ L) = a
-  extension [A, L <: LabelVal](la: A \ L)
-    inline def apply[K <: LabelVal]: A =
+  inline def wrap[A](a: A)[L <: LabelStr]: (A \ L) = a
+  extension [A, L <: LabelStr](la: A \ L)
+    inline def apply[K <: LabelStr]: A =
       inline if compiletime.constValue[K] == compiletime.constValue[L] then la
       else compiletime.error("Incorrect label")
     inline def ~(using Assumed[L]): A = la
@@ -105,23 +105,23 @@ object \ {
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \ L) = b
     inline def valueOp[B](f: A => B): (B \ L) = f((la: A))
-    inline def labelTo[M <: LabelVal](m: M): (A \ M) = (la: A)
+    inline def labelTo[M <: LabelStr](m: M): (A \ M) = (la: A)
     inline def subtyped: (A \> L) = (la: A)
     inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
 
-  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
+  inline given [A, L <: LabelStr] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 /** A labelled type that is a subtype of the thing it is labeling.  Create with `val x: Int \> "eel"`; use it directly. */
-opaque infix type \>[+A, L <: LabelVal] <: A = A
+opaque infix type \>[+A, L <: LabelStr] <: A = A
 object \> {
-  inline def wrap[A](a: A)[L <: LabelVal]: (A \> L) = a
-  extension [A, L <: LabelVal](la: A \> L)
+  inline def wrap[A](a: A)[L <: LabelStr]: (A \> L) = a
+  extension [A, L <: LabelStr](la: A \> L)
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \> L) = b
     inline def valueOp[B](f: A => B): (B \> L) = f((la: A))
-    inline def labelTo[M <: LabelVal](m: M): (A \> M) = (la: A)
+    inline def labelTo[M <: LabelStr](m: M): (A \> M) = (la: A)
     inline def newtyped: (A \ L) = (la: A)
     inline def supertyped: (A \< L) = (la: A)
     transparent inline def label: L = compiletime.constValue[L]
@@ -129,19 +129,19 @@ object \> {
       inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
       else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
 
-  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
+  inline given [A, L <: LabelStr] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 /** A labelled type that is a supertype of the thing it is labeling.  Create with `val x: Int \< "eel"`; access with `x ~ "eel"` or `x.unlabel` */
-opaque infix type \<[+A, L <: LabelVal] >: A = A
+opaque infix type \<[+A, L <: LabelStr] >: A = A
 object \< {
-  inline def wrap[A](a: A)[L <: LabelVal]: (A \< L) = a
-  extension [A, L <: LabelVal](la: A \< L)
+  inline def wrap[A](a: A)[L <: LabelStr]: (A \< L) = a
+  extension [A, L <: LabelStr](la: A \< L)
     inline def ~(l: L): A = la
     inline def unlabel: A = la
     inline def valueTo[B](b: B): (B \< L) = b
     inline def valueOp[B](f: A => B): (B \< L) = f((la: A))
-    inline def labelTo[M <: LabelVal](m: M): (A \< M) = (la: A)
+    inline def labelTo[M <: LabelStr](m: M): (A \< M) = (la: A)
     inline def newtyped: (A \ L) = (la: A)
     inline def subtyped: (A \> L) = (la: A)
     inline def tuple1: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]] = Tuple1((la: A))
@@ -150,7 +150,7 @@ object \< {
       inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
       else NamedTuple.withNames(Tuple1(la: A))[Tuple1[L]]
 
-  inline given [A, L <: LabelVal] => Translucent[\[A, L], A] = Translucent.instance
+  inline given [A, L <: LabelStr] => Translucent[\[A, L], A] = Translucent.instance
 }
 
 

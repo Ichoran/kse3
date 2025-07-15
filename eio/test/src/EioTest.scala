@@ -832,11 +832,14 @@ class EioTest {
 
     T ~ _path("eel/cod") ==== Is("eel/cod".path) --: typed[Path Or Err]
 
+    if !"eio/test".path.exists then "eio/test".path.mkdirs() __ Unit
+    if !"eio/test/hello.txt".path.exists then Vector("Hello, eio!").writeTo("eio/test/hello.txt".path) __ Unit
+
     T ~ _dir("eio/test")  ==== Is("eio/test".path) --: typed[Path Or Err]
     T ~ _dir("not/found") ==== runtype[Alt[?]]
 
-    T ~ _file("eio/test/src/EioTest.scala") ==== Is("eio/test/src/EioTest.scala".path) --: typed[Path Or Err]
-    T ~ _file("not/found")                  ==== runtype[Alt[?]]
+    T ~ _file("eio/test/hello.txt") ==== Is("eio/test/hello.txt".path) --: typed[Path Or Err]
+    T ~ _file("not/found")          ==== runtype[Alt[?]]
 
     T ~ the("eel")("eel")   ==== Is("eel")
     T ~ ("y" | "n")("y")    ==== Is("y")

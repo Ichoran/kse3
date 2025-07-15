@@ -104,12 +104,12 @@ object Parse {
     override def userString = message
   }
 
-  final class The[L <: LabelVal](ls: Vector[L]) extends Parse[L] {
+  final class The[L <: LabelStr](ls: Vector[L]) extends Parse[L] {
     def apply(s: String): Ask[L] =
       ls.find(_ == s) match
         case Some(l) => Is(l)
         case _ => Err.or(s"$s is not a valid option.  ${choosy(ls)}")
-    transparent inline def |[M <: LabelVal](m: M) = summonFrom{
+    transparent inline def |[M <: LabelStr](m: M) = summonFrom{
       case have: (M <:< L) => this
       case _               => new The[L | M](ls :+ m)
     }
@@ -241,11 +241,11 @@ val _file: Parse[Path] = new:
   override def userString = "file"
   override def toString = "Parse[Path]"
 
-def the[L <: LabelVal](label: L): Parse.The[L] = Parse.The[L](Vector(label))
+def the[L <: LabelStr](label: L): Parse.The[L] = Parse.The[L](Vector(label))
 
 
-extension [L <: LabelVal](label: L) {
-  transparent inline def |[M <: LabelVal](m: M) = Parse.The[L](Vector(label)).|(m)
+extension [L <: LabelStr](label: L) {
+  transparent inline def |[M <: LabelStr](m: M) = Parse.The[L](Vector(label)).|(m)
 
   inline def %(about: String) = Opt.of[Unit, '\u002D', L](label, '\u002D', _u) % about
 
@@ -262,14 +262,14 @@ extension [C <: CharVal](short: C) {
 
   inline def x: OptNChar[C] = OptNChar(short)
 
-  inline def ~[L <: LabelVal](label: L): OptLabelChar[C, L] =
+  inline def ~[L <: LabelStr](label: L): OptLabelChar[C, L] =
     compiletime.error(s"Place long-form label first")
 
   inline def ~[A](parse: Parse[A]): Opt[A, C, Singleton & ToString[C]] =  Opt.of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse)
   inline def ~[A](pd: (Parse[A], () => A)): OptD[A, C, Singleton & ToString[C]] = Opt.withDefault(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, pd._1, pd._2)
 }
 
-final class OptNLabel[L <: LabelVal](val label: L) {
+final class OptNLabel[L <: LabelStr](val label: L) {
   inline def build: OptN[Unit, '\u002D', L] = OptN.of(label, '\u002D', _u)
 
   inline def %(about: String): OptN[Unit, '\u002D', L] = OptN.of(label, '\u002D', _u) % about
@@ -292,7 +292,7 @@ final class OptNChar[C <: CharVal](val short: C) {
   inline def ~[A](pd: (Parse[A], () => A)): OptN[A, C, Singleton & ToString[C]] = OptN.withDefault(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, pd._1, pd._2)
 }
 
-final class OptLabelChar[C <: CharVal, L <: LabelVal](val label: L, val short: C) {
+final class OptLabelChar[C <: CharVal, L <: LabelStr](val label: L, val short: C) {
   inline def build: Opt[Unit, C, L] = Opt.of(label, short, _u)
 
   inline def %(about: String): Opt[Unit, C, L] = Opt.of(label, short, _u) % about
@@ -303,7 +303,7 @@ final class OptLabelChar[C <: CharVal, L <: LabelVal](val label: L, val short: C
   inline def ~[A](pd: (Parse[A], () => A)): OptD[A, C, L] = Opt.withDefault(label, short, pd._1, pd._2)
 }
 
-final class OptNLabelChar[C <: CharVal, L <: LabelVal](val label: L, val short: C) {
+final class OptNLabelChar[C <: CharVal, L <: LabelStr](val label: L, val short: C) {
   def build: OptN[Unit, C, L] = OptN.of(label, short, _u)
 
   inline def %(about: String): OptN[Unit, C, L] = OptN.of(label, short, _u) % about
@@ -313,7 +313,7 @@ final class OptNLabelChar[C <: CharVal, L <: LabelVal](val label: L, val short: 
 }
 
 
-final case class Opt[A, C <: CharVal, L <: LabelVal] private[cleasy] (label: L, short: C, parse: Parse[A], about: String) {
+final case class Opt[A, C <: CharVal, L <: LabelStr] private[cleasy] (label: L, short: C, parse: Parse[A], about: String) {
   inline def parse_?[E >: Alt[Err]](args: Array[String], consumed: Int => Unit = _ => {})(using boundary.Label[E]): (Option[(A, Int)] \ L) =
     if short == '\u002D' then
       Parse.whereKey(label)(args) match
@@ -370,18 +370,18 @@ final case class Opt[A, C <: CharVal, L <: LabelVal] private[cleasy] (label: L, 
 object Opt {
   val done = new Opt[Unit, '\u002D', ""]("", '\u002D', _u, "Stop parsing options.")
 
-  inline def apply[L <: LabelVal](label: L): Opt[Unit, '\u002D', L] = of(label, '\u002D', _u)
+  inline def apply[L <: LabelStr](label: L): Opt[Unit, '\u002D', L] = of(label, '\u002D', _u)
   inline def apply[C <: CharVal](short: C): Opt[Unit, C, Singleton & ToString[C]] = of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, _u)
-  inline def apply[C <: CharVal, L <: LabelVal](label: L, short: C): Opt[Unit, C, L] = of(label, short, _u)
-  inline def apply[A, L <: LabelVal](label: L, parse: Parse[A]): Opt[A, '\u002D', L] = of(label, '\u002D', parse)
+  inline def apply[C <: CharVal, L <: LabelStr](label: L, short: C): Opt[Unit, C, L] = of(label, short, _u)
+  inline def apply[A, L <: LabelStr](label: L, parse: Parse[A]): Opt[A, '\u002D', L] = of(label, '\u002D', parse)
   inline def apply[A, C <: CharVal](short: C, parse: Parse[A]): Opt[A, C, Singleton & ToString[C]] = of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse)
-  inline def apply[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A]): Opt[A, C, L] = of(label, short, parse)
-  def of[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A]): Opt[A, C, L] = new Opt[A, C, L](label, short, parse, "")
+  inline def apply[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A]): Opt[A, C, L] = of(label, short, parse)
+  def of[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A]): Opt[A, C, L] = new Opt[A, C, L](label, short, parse, "")
 
-  inline def apply[A, L <: LabelVal](label: L, parse: Parse[A], default: () => A): OptD[A, '\u002D', L] = withDefault(label, '\u002D', parse, default)
+  inline def apply[A, L <: LabelStr](label: L, parse: Parse[A], default: () => A): OptD[A, '\u002D', L] = withDefault(label, '\u002D', parse, default)
   inline def apply[A, C <: CharVal](short: C, parse: Parse[A], default: () => A): OptD[A, C, Singleton & ToString[C]] = withDefault(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse, default)
-  inline def apply[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = withDefault(label, short, parse, default)
-  def withDefault[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = new OptD[A, C, L](label, short, parse, default, "")
+  inline def apply[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = withDefault(label, short, parse, default)
+  def withDefault[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = new OptD[A, C, L](label, short, parse, default, "")
   
   private[cleasy] def moreThanOneOptionError(label: String, short: Char, args: Array[String], idxs: Array[(Int, Boolean, Int)]): String =
     val lbb = Array.newBuilder[Int]
@@ -477,7 +477,7 @@ object Opt {
       if sb(End) != '\n' then sb += '\n'
 }
 
-final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label: L, short: C, parse: Parse[A], default: Option[() => A], about: String) {
+final case class OptN[A, C <: CharVal, L <: LabelStr] private[cleasy] (val label: L, short: C, parse: Parse[A], default: Option[() => A], about: String) {
   inline def parse_?[E >: Alt[Err]](args: Array[String], consumed: Int => Unit = _ => {})(using boundary.Label[E]): (List[(A, Int)] \ L) =
     val lb = List.newBuilder[(A, Int)]
     if short == '\u002D' then
@@ -528,21 +528,21 @@ final case class OptN[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
   override lazy val toString = Opt.customToString(label, if short == '-' then "" else short.toString, if parse eq _u then "" else "*" + parse.toString, about)()
 }
 object OptN {
-  inline def apply[L <: LabelVal](label: L): OptN[Unit, '\u002D', L] = of(label, '\u002D', _u)
+  inline def apply[L <: LabelStr](label: L): OptN[Unit, '\u002D', L] = of(label, '\u002D', _u)
   inline def apply[C <: CharVal](short: C): OptN[Unit, C, Singleton & ToString[C]] = of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, _u)
-  inline def apply[C <: CharVal, L <: LabelVal](label: L, short: C): OptN[Unit, C, L] = of(label, short, _u)
-  inline def apply[A, L <: LabelVal](label: L, parse: Parse[A]): OptN[A, '\u002D', L] = of(label, '\u002D', parse)
+  inline def apply[C <: CharVal, L <: LabelStr](label: L, short: C): OptN[Unit, C, L] = of(label, short, _u)
+  inline def apply[A, L <: LabelStr](label: L, parse: Parse[A]): OptN[A, '\u002D', L] = of(label, '\u002D', parse)
   inline def apply[A, C <: CharVal](short: C, parse: Parse[A]): OptN[A, C, Singleton & ToString[C]] = of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse)
-  inline def apply[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A]): OptN[A, C, L] = of(label, short, parse)
-  def of[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A]): OptN[A, C, L] = new OptN(label, short, parse, None, "")
+  inline def apply[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A]): OptN[A, C, L] = of(label, short, parse)
+  def of[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A]): OptN[A, C, L] = new OptN(label, short, parse, None, "")
 
-  inline def apply[A, L <: LabelVal](label: L, parse: Parse[A], default: () => A): OptN[A, '\u002D', L] = withDefault(label, '\u002D', parse, default)
+  inline def apply[A, L <: LabelStr](label: L, parse: Parse[A], default: () => A): OptN[A, '\u002D', L] = withDefault(label, '\u002D', parse, default)
   inline def apply[A, C <: CharVal](short: C, parse: Parse[A], default: () => A): OptN[A, C, Singleton & ToString[C]] = withDefault(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse, default)
-  inline def apply[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptN[A, C, L] = withDefault(label, short, parse, default)
-  def withDefault[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptN[A, C, L] = new OptN(label, short, parse, Some(default), "")
+  inline def apply[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptN[A, C, L] = withDefault(label, short, parse, default)
+  def withDefault[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptN[A, C, L] = new OptN(label, short, parse, Some(default), "")
 }
 
-final case class OptD[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label: L, short: C, parse: Parse[A], default: () => A, about: String) {
+final case class OptD[A, C <: CharVal, L <: LabelStr] private[cleasy] (val label: L, short: C, parse: Parse[A], default: () => A, about: String) {
   inline def parse_?[E >: Alt[Err]](args: Array[String], consumed: Int => Unit = _ => {})(using boundary.Label[E]): ((A, Option[Int]) \ L) =
     if short == '\u002D' then
       Parse.whereKey(label)(args) match
@@ -594,14 +594,14 @@ final case class OptD[A, C <: CharVal, L <: LabelVal] private[cleasy] (val label
   override lazy val toString = Opt.customToString(label, if short == '-' then "" else short.toString, if parse eq _u then "" else "!" + parse.toString, about)()
 }
 object OptD {
-  inline def apply[A, L <: LabelVal](label: L, parse: Parse[A], default: () => A): OptD[A, '\u002D', L] = of(label, '\u002D', parse, default)
+  inline def apply[A, L <: LabelStr](label: L, parse: Parse[A], default: () => A): OptD[A, '\u002D', L] = of(label, '\u002D', parse, default)
   inline def apply[A, C <: CharVal](short: C, parse: Parse[A], default: () => A): OptD[A, C, Singleton & ToString[C]] = of(constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, parse, default)
-  inline def apply[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = of(label, short, parse, default)
-  def of[A, C <: CharVal, L <: LabelVal](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = new OptD(label, short, parse, default, "")
+  inline def apply[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = of(label, short, parse, default)
+  def of[A, C <: CharVal, L <: LabelStr](label: L, short: C, parse: Parse[A], default: () => A): OptD[A, C, L] = new OptD(label, short, parse, default, "")
 }
 
 
-final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: Array[Int], labels: Vector[N], parsed: T) {
+final class Args[N <: LabelStr, T <: Tuple](val original: Array[String], used: Array[Int], labels: Vector[N], parsed: T) {
   val indexedArgs =
     var stopped = false
     original.flex.copyOp: (arg, i) =>
@@ -613,11 +613,11 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
   lazy val options: NamedTuple.NamedTuple[Args.TupleNames[T], Args.TupleTypes[T]] = Args.asNamedTuple(parsed)
   lazy val labeled = Args.asLabeledTuple(parsed)
 
-  transparent inline def indexed[L <: LabelVal](label: L): Args.Extract[L, T] = summonFrom {
+  transparent inline def indexed[L <: LabelStr](label: L): Args.Extract[L, T] = summonFrom {
     case have: (L <:< N) => Args.extract[L, T](label, parsed)
     case _ => compiletime.error("Option by that name does not exist.")
   }
-  transparent inline def apply[L <: LabelVal](label: L) = summonFrom {
+  transparent inline def apply[L <: LabelStr](label: L) = summonFrom {
     case have: (L <:< N) => inline indexed[L](label) match
       case ao: (a, Option[Int]) => ao._1
       case oa: Option[(a, Int)] => oa.map(_._1)
@@ -625,7 +625,7 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
       case _ => compiletime.error("Cannot simplify this type.")
     case _ => compiletime.error("Option by that name does not exist.")
   }
-  inline def found[L <: LabelVal](label: L) = summonFrom {
+  inline def found[L <: LabelStr](label: L) = summonFrom {
     case have: (L <:< N) => inline indexed[L](label) match
       case (_, oi: Option[Int]) => oi.isDefined
       case oa: Option[(?, Int)] => oa.isDefined
@@ -635,7 +635,7 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
         case _ => true
       case _ => compiletime.error("Unexpected type among parsed options")
   }
-  inline def require[L <: LabelVal](label: L): Unit Or Err = summonFrom {
+  inline def require[L <: LabelStr](label: L): Unit Or Err = summonFrom {
     case have: (L <:< N) => inline indexed[L](label) match
       case (_, oi: Option[Int]) => if oi.isDefined then Is(()) else Err.or(s"Option --${label} is required")
       case oa: Option[(?, Int)] => if oa.isDefined then Is(()) else Err.or(s"Option --${label} is required")
@@ -647,11 +647,11 @@ final class Args[N <: LabelVal, T <: Tuple](val original: Array[String], used: A
   }
 }
 object Args {
-  final class Elt[L <: LabelVal, A](val value: A, val isDoneMarker: Boolean = false) {}
-  inline def elt[L <: LabelVal, A](x: \[A, L]): Elt[L, A] = new Elt[L, A](x.unlabel)
-  inline def elt[L <: LabelVal, A](x: \[A, L], m: Boolean): Elt[L, A] = new Elt[L, A](x.unlabel, isDoneMarker = m)
+  final class Elt[L <: LabelStr, A](val value: A, val isDoneMarker: Boolean = false) {}
+  inline def elt[L <: LabelStr, A](x: \[A, L]): Elt[L, A] = new Elt[L, A](x.unlabel)
+  inline def elt[L <: LabelStr, A](x: \[A, L], m: Boolean): Elt[L, A] = new Elt[L, A](x.unlabel, isDoneMarker = m)
 
-  type Extract[L <: LabelVal, T <: Tuple] = T match
+  type Extract[L <: LabelStr, T <: Tuple] = T match
     case EmptyTuple => Nothing
     case Elt[L, a] *: ts => a
     case t *: ts => Extract[L, ts]
@@ -675,13 +675,13 @@ object Args {
       case "" => TupleNames[ts]
       case _ => l *: TupleNames[ts]
 
-  transparent inline def extractUncertainTypeByLabel[L <: LabelVal, T <: Tuple](label: L, tuple: T): Any =
+  transparent inline def extractUncertainTypeByLabel[L <: LabelStr, T <: Tuple](label: L, tuple: T): Any =
     inline compiletime.erasedValue[T] match
       case _: EmptyTuple => compiletime.error("Label not found")
       case _: (Elt[L, a] *: tp) => tuple.asInstanceOf[Elt[L, a] *: tp].head.value
       case _: (t *: tp) => extractUncertainTypeByLabel[L, tp](label, tuple.drop(1).asInstanceOf[tp])
 
-  inline def extract[L <: LabelVal, T <: Tuple](label: L, tuple: T): Extract[L, T] = 
+  inline def extract[L <: LabelStr, T <: Tuple](label: L, tuple: T): Extract[L, T] = 
     extractUncertainTypeByLabel[L, T](label, tuple).asInstanceOf[Extract[L, T]]
 
   inline def asNamedTuple[T <: Tuple](tuple: T): NamedTuple.NamedTuple[TupleNames[T], TupleTypes[T]] =
@@ -725,37 +725,37 @@ object Args {
 }
 
 
-final class Cleasy[N <: LabelVal, H <: CharVal, T <: Tuple](title: String, postfix: String, shorts: Vector[H], labels: Vector[N], options: T) {
-  transparent inline def +[A, C <: CharVal, L <: LabelVal](op: Opt[A, C, L]) = summonFrom {
+final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postfix: String, shorts: Vector[H], labels: Vector[N], options: T) {
+  transparent inline def +[A, C <: CharVal, L <: LabelStr](op: Opt[A, C, L]) = summonFrom {
     case have: (L <:< N) => compiletime.error("Option with that name already exists.")
     case okay: (C <:< '\u002D') => new Cleasy(title, postfix, shorts, (labels :+ op.label): Vector[N | L], options :* op)
     case have: (C <:< H) => compiletime.error("Option with that short name already exists.")
     case _ => new Cleasy(title, postfix, (shorts :+ op.short): Vector[H | C], (labels :+ op.label): Vector[N | L], options :* op)
   }
-  transparent inline def +[A, C <: CharVal, L <: LabelVal](op: OptN[A, C, L]) = summonFrom {
+  transparent inline def +[A, C <: CharVal, L <: LabelStr](op: OptN[A, C, L]) = summonFrom {
     case have: (L <:< N) => compiletime.error("Option with that name already exists.")
     case okay: (C <:< '\u002D') => new Cleasy(title, postfix, shorts, (labels :+ op.label): Vector[N | L], options :* op)
     case have: (C <:< H) => compiletime.error("Option with that short name already exists.")
     case _ => new Cleasy(title, postfix, (shorts :+ op.short): Vector[H | C], (labels :+ op.label): Vector[N | L], options :* op)
   }
-  transparent inline def +[A, C <: CharVal, L <: LabelVal](op: OptD[A, C, L]) = summonFrom {
+  transparent inline def +[A, C <: CharVal, L <: LabelStr](op: OptD[A, C, L]) = summonFrom {
     case have: (L <:< N) => compiletime.error("Option with that name already exists.")
     case okay: (C <:< '\u002D') => new Cleasy(title, postfix, shorts, (labels :+ op.label): Vector[N | L], options :* op)
     case have: (C <:< H) => compiletime.error("Option with that short name already exists.")
     case _ => new Cleasy(title, postfix, (shorts :+ op.short): Vector[H | C], (labels :+ op.label): Vector[N | L], options :* op)
   }
 
-  transparent inline def --[L <: LabelVal](label: L) = this + Opt.of[Unit, '\u002D', L](label, '\u002D', _u)
+  transparent inline def --[L <: LabelStr](label: L) = this + Opt.of[Unit, '\u002D', L](label, '\u002D', _u)
   transparent inline def --[C <: CharVal](short: C) = this + Opt.of[Unit, C, Singleton & ToString[C]](constValue[ToString[C]].asInstanceOf[Singleton & ToString[C]], short, _u)
   
-  transparent inline def --[L <: LabelVal](onl: OptNLabel[L]) = this + onl.build
+  transparent inline def --[L <: LabelStr](onl: OptNLabel[L]) = this + onl.build
   transparent inline def --[C <: CharVal](onc: OptNChar[C]) = this + onc.build
-  transparent inline def --[C <: CharVal, L <: LabelVal](olc: OptLabelChar[C, L]) = this + olc.build
-  transparent inline def --[C <: CharVal, L <: LabelVal](onlc: OptNLabelChar[C, L]) = this + onlc.build
+  transparent inline def --[C <: CharVal, L <: LabelStr](olc: OptLabelChar[C, L]) = this + olc.build
+  transparent inline def --[C <: CharVal, L <: LabelStr](onlc: OptNLabelChar[C, L]) = this + onlc.build
 
-  transparent inline def --[A, C <: CharVal, L <: LabelVal](o: Opt[A, C, L]) = this + o
-  transparent inline def --[A, C <: CharVal, L <: LabelVal](o: OptN[A, C, L]) = this + o
-  transparent inline def --[A, C <: CharVal, L <: LabelVal](o: OptD[A, C, L]) = this + o
+  transparent inline def --[A, C <: CharVal, L <: LabelStr](o: Opt[A, C, L]) = this + o
+  transparent inline def --[A, C <: CharVal, L <: LabelStr](o: OptN[A, C, L]) = this + o
+  transparent inline def --[A, C <: CharVal, L <: LabelStr](o: OptD[A, C, L]) = this + o
 
   transparent inline def parse[E >: Alt[Err]](args: Array[String]) = Ask:
     escape:

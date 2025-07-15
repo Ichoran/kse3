@@ -1302,6 +1302,27 @@ class FlowTest {
     T ~ nice{ "e".toInt }.mapAlt(_.explainBy("Foo")).grab        ==== thrown[ErrType.CatchableException]
     T ~ 17.altIf(x => x % 2 != 0).grab                           ==== thrown[WrongBranchException[?]]
 
+    def cm(a: Array[Option[Int]]) = catchmatch(a(2).get) {
+      case _: ArrayIndexOutOfBoundsException => 0
+    }{
+      case 1 => 1
+      case _ => 2
+    }
+    T ~ cm(Array(None, None, Some(1))) ==== 1
+    T ~ cm(Array(None, None, Some(5))) ==== 2
+    T ~ cm(Array(Some(1), None))       ==== 0
+    T ~ cm(Array(Some(1), None, None)) ==== thrown[NoSuchElementException]
+
+    {
+      var k = 0
+      escape:
+        defer(k *= 2):
+          k += 1
+          escape.break()
+          k += 3
+      T ~ k ==== 2
+    }
+
     {
       var k = 0
       T ~ escape.completed{ k += 1; escape.when(k > 1).?;    k += 1 } ==== true
@@ -1813,9 +1834,11 @@ class FlowTest {
     T ~ linedC.lines(13 to End-3).asCopyingIterator.map(_.str).toVector ==== Vector("erring", "bass", "per")
     T ~ linedB.textLines(13 to End-3).asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== Vector("erring", "bass", "per")
 
+
   @Test
   def sequentialCSDTest(): Unit =
     val csd = ConcurrentSplitDeque.empty[String]
+    val czd = ConcurrentSplitDeque.empty[String]
     val adq = collection.mutable.ArrayDeque.empty[String]
     var i = 0
     def elt = { i += 1; i.toString }
@@ -1827,6 +1850,17 @@ class FlowTest {
       val e = elt
       csd push e
       e +=: adq
+    def a3r: Unit =
+      val e = elt
+      csd += e
+      czd += e
+      adq += e
+    def a3l: Unit =
+      val e = elt
+      csd push e
+      czd push e
+      e +=: adq
+
     adr; adl; adr
     T ~ csd.length         ==== adq.length
     T ~ csd.get().toOption ==== adq.removeHeadOption()
@@ -1834,6 +1868,105 @@ class FlowTest {
     T ~ csd.get().toOption ==== adq.removeHeadOption()
     T ~ csd.length         ==== adq.length
 
+    val r = scala.util.Random(819751987)
+
+    50.visit: n_iter =>
+      csd.clear(): Unit
+      czd.clear(): Unit
+      adq.clear()
+      i = 0
+      20.visit: n_block =>
+        val m = (1 + ((r.nextInt & 0x7FFFFFFF) % (1 << (r.nextInt & 0x9))))
+        val addSideN = ((r.nextInt & 0x7FFFFFFF) % 2) - 1
+        val subSideN = ((r.nextInt & 0x7FFFFFFF) % 2) - 1
+        20.visit: n_chunk =>
+          val addSide = if addSideN < 0 then false else if addSideN > 0 then true else r.nextBoolean
+          val subSide = true // if subSideN < 0 then false else if subSideN > 0 then true else r.nextBoolean
+          val n = 1 + (r.nextInt & 0x7FFFFFFF) % m
+          val h = 1 + (r.nextInt & 0x7FFFFFFF) % m
+          if r.nextBoolean then
+            if addSide then
+              n.times(a3r)
+            else 
+              n.times(a3l)
+            T ~ czd.unsafeNondestructiveCopy().toArray =**= csd.unsafeNondestructiveCopy().toArray
+            T ~ czd.unsafeNondestructiveCopy().toArray =**= adq.toArray
+            T ~ "".make(sb => czd.mkDebugStr(sb)).contains('H') ==== false
+          else
+            val title = s"iteration $n_iter $n_block $n_chunk"
+            h.visit: n_elt =>
+              if subSide then
+                val before = "".make(sb => czd.mkDebugStr(sb))
+                val beefor = "".make(sb => csd.mkDebugStr(sb))
+                val a = czd.chunkLeft(1).toArray.clip.get(0)
+                val b = csd.popLeft().toOption
+                val c = adq.removeHeadOption()
+                val after = "".make(sb => czd.mkDebugStr(sb))
+                val aftur = "".make(sb => csd.mkDebugStr(sb))
+                if after.contains('H') then
+                  println(before)
+                  println(after)
+                  println(beefor)
+                  println(aftur)
+                T ~ "".make(sb => czd.mkDebugStr(sb)).contains('H') ==== false
+                if a != b then
+                  println(before)
+                  println(after)
+                T(title) ~ b ==== c
+                T(title) ~ a ==== b
+              else
+                val a = czd.chunkRight(1).toArray.clip.get(0)
+                val b = csd.popRight().toOption
+                val c = adq.removeLastOption()
+                T(title) ~ b ==== c
+                T(title) ~ a ==== b
+            T ~ czd.unsafeNondestructiveCopy().toArray =**= csd.unsafeNondestructiveCopy().toArray
+        T ~ csd.length ==== adq.length
+        T ~ czd.length ==== csd.length
+
+    /*
+    50.visit: n_iter =>
+      csd.clear(): Unit
+      czd.clear(): Unit
+      adq.clear()
+      i = 0
+      20.visit: n_block =>
+        val m = (1 + ((r.nextInt & 0x7FFFFFFF) % (1 << (r.nextInt & 0x9))))
+        val addSideN = ((r.nextInt & 0x7FFFFFFF) % 2) - 1
+        val subSideN = ((r.nextInt & 0x7FFFFFFF) % 2) - 1
+        20.visit: n_chunk =>
+          val addSide = false //if addSideN < 0 then false else if addSideN > 0 then true else r.nextBoolean
+          val subSide = false //if subSideN < 0 then false else if subSideN > 0 then true else r.nextBoolean
+          val n = 1 + (r.nextInt & 0x7FFFFFFF) % m
+          val h = 1 + (r.nextInt & 0x7FFFFFFF) % m
+          if r.nextBoolean then
+            if addSide then
+              n.times(a3r)
+            else 
+              n.times(a3l)
+          else
+            val title = s"iteration $n_iter $n_block $n_chunk"
+            val xs =
+              if subSide then csd.chunkLeft(h).toArray
+              else csd.chunkRight(h).toArray
+            var i = if subSide then 0 else End.of(xs)
+            h.visit: n_elt =>
+              if subSide then
+                val a = xs.clip.get(i)
+                val b = czd.popLeft().toOption
+                val c = adq.removeHeadOption()
+                T(title) ~ a ==== b
+                T(title) ~ a ==== c
+                i += 1
+              else
+                val a = xs.clip.get(i)
+                val b = czd.popRight().toOption
+                val c = adq.removeLastOption()
+                T(title) ~ a ==== b
+                T(title) ~ a ==== c
+                i -= 1
+        T ~ csd.length ==== czd.length
+    */
 
 
   @Test

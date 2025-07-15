@@ -146,3 +146,34 @@ object Threaded {
     th.start()
     th
 }
+
+
+/*
+final class Concurrent private (f: => Unit, registrar: Concurrent.Registrar) {}
+object Concurrent {
+  enum Signal:
+    case Live
+    case Done
+    case Halt
+
+  def apply(f: Concurrent.Registrar ?=> Unit): Concurrent =
+    val reg = new Registrar()
+    new Concurrent(f(using reg), reg)
+
+  final class Registrar() {
+    def apply(f: () => Unit): Unit = {}
+    def flat(f: () => Ask[Unit]): Unit = {}
+    def select(fs: Array[() => (Unit | Signal | Ask[Unit])])
+  }
+}
+object Go {
+  inline def apply(f: => Unit)(using reg: Concurrent.Registrar): Unit =
+    reg(() => f)
+
+  inline def flat(f: => Ask[Unit])(using reg: Concurrent.Registrar): Unit =
+    reg.flat(() => f)
+
+  def all(fs: (() => (Unit | Signal | Ask[Unit]))*): Unit =
+    reg.repeat(fs.toArray)
+}
+*/

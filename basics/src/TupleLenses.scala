@@ -1595,15 +1595,15 @@ object OpaqueTupleLenses {
         Tup22.insert(tup22)(zf(tup22._1, tup22._2, tup22._3, tup22._4, tup22._5, tup22._6, tup22._7, tup22._8, tup22._9, tup22._10, tup22._11, tup22._12, tup22._13, tup22._14, tup22._15, tup22._16, tup22._17, tup22._18, tup22._19, tup22._20, tup22._21, tup22._22))
 
 
-  opaque type Nup1[La <: LabelVal, A, Zn <: 0 | 1, Zl <: LabelVal] = Tuple1[A]
+  opaque type Nup1[La <: LabelStr, A, Zn <: 0 | 1, Zl <: LabelStr] = Tuple1[A]
   object Nup1:
-    inline def wrap[La <: LabelVal, A, Zl <: LabelVal](nup1: NTup[Tuple1[La], Tuple1[A]])[Zn <: 0 | 1]: Nup1[La, A, Zn, Zl] = nup1.asInstanceOf[Tuple1[A]]
-    extension [La <: LabelVal, A, Zn <: 0 | 1, Zl <: LabelVal](nup1: Nup1[La, A, Zn, Zl])
+    inline def wrap[La <: LabelStr, A, Zl <: LabelStr](nup1: NTup[Tuple1[La], Tuple1[A]])[Zn <: 0 | 1]: Nup1[La, A, Zn, Zl] = nup1.asInstanceOf[Tuple1[A]]
+    extension [La <: LabelStr, A, Zn <: 0 | 1, Zl <: LabelStr](nup1: Nup1[La, A, Zn, Zl])
       transparent inline def get = Tup1.get(nup1.asInstanceOf[Tup1[A, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 1 then compiletime.error("Can insert but not access past end of 1-tuple")
         else compiletime.constValue[La]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 1 then compiletime.error("Can insert but not access past end of 1-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, Tuple1[La]]] match
           case "" => nup1.asInstanceOf[NTup[Tuple1[Lz], Tuple1[A]]]
@@ -1612,7 +1612,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 1 then compiletime.error("Can insert but not access past end of 1-tuple")
         else \.wrap(nup1.asInstanceOf[Tuple1[A]](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 1 then compiletime.error("Can insert but not access past end of 1-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, Tuple1[La]]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1623,20 +1623,20 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup1.map(nup1.asInstanceOf[Tup1[A, Zn]])[Z](zf))[Tuple1[La]]
       inline def delete =
         Tup1.delete(nup1.asInstanceOf[Tup1[A, Zn]])
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, Tuple1[La]]] match
           case "" => NamedTuple.withNames(Tup1.insert(nup1.asInstanceOf[Tup1[A, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[Tuple1[La], Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup2[La <: LabelVal, Lb <: LabelVal, A, B, Zn <: 0 | 1 | 2, Zl <: LabelVal] = (A, B)
+  opaque type Nup2[La <: LabelStr, Lb <: LabelStr, A, B, Zn <: 0 | 1 | 2, Zl <: LabelStr] = (A, B)
   object Nup2:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, A, B, Zl <: LabelVal](nup2: NTup[(La, Lb), (A, B)])[Zn <: 0 | 1 | 2]: Nup2[La, Lb, A, B, Zn, Zl] = nup2.asInstanceOf[(A, B)]
-    extension [La <: LabelVal, Lb <: LabelVal, A, B, Zn <: 0 | 1 | 2, Zl <: LabelVal](nup2: Nup2[La, Lb, A, B, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, A, B, Zl <: LabelStr](nup2: NTup[(La, Lb), (A, B)])[Zn <: 0 | 1 | 2]: Nup2[La, Lb, A, B, Zn, Zl] = nup2.asInstanceOf[(A, B)]
+    extension [La <: LabelStr, Lb <: LabelStr, A, B, Zn <: 0 | 1 | 2, Zl <: LabelStr](nup2: Nup2[La, Lb, A, B, Zn, Zl])
       transparent inline def get = Tup2.get(nup2.asInstanceOf[Tup2[A, B, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 2 then compiletime.error("Can insert but not access past end of 2-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 2 then compiletime.error("Can insert but not access past end of 2-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb)]] match
           case "" => nup2.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb), Lz, 0, Zn], (A, B)]]
@@ -1646,7 +1646,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 2 then compiletime.error("Can insert but not access past end of 2-tuple")
         else \.wrap(nup2.asInstanceOf[(A, B)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 2 then compiletime.error("Can insert but not access past end of 2-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1658,21 +1658,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup2.map(nup2.asInstanceOf[Tup2[A, B, Zn]])[Z](zf))[(La, Lb)]
       inline def delete =
         NamedTuple.withNames(Tup2.delete(nup2.asInstanceOf[Tup2[A, B, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb), 0, Zn]]
-      inline def insert[Lz <: LabelVal](lz: Lz)[Z](z: Z) =
+      inline def insert[Lz <: LabelStr](lz: Lz)[Z](z: Z) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb)]] match
           case "" => NamedTuple.withNames(Tup2.insert(nup2.asInstanceOf[Tup2[A, B, Zn]])[Z](z))[labels.NamesAndLabels.TupleWithExtra[(La, Lb), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup3[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, A, B, C, Zn <: 0 | 1 | 2 | 3, Zl <: LabelVal] = (A, B, C)
+  opaque type Nup3[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, A, B, C, Zn <: 0 | 1 | 2 | 3, Zl <: LabelStr] = (A, B, C)
   object Nup3:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, A, B, C, Zl <: LabelVal](nup3: NTup[(La, Lb, Lc), (A, B, C)])[Zn <: 0 | 1 | 2 | 3]: Nup3[La, Lb, Lc, A, B, C, Zn, Zl] = nup3.asInstanceOf[(A, B, C)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, A, B, C, Zn <: 0 | 1 | 2 | 3, Zl <: LabelVal](nup3: Nup3[La, Lb, Lc, A, B, C, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, A, B, C, Zl <: LabelStr](nup3: NTup[(La, Lb, Lc), (A, B, C)])[Zn <: 0 | 1 | 2 | 3]: Nup3[La, Lb, Lc, A, B, C, Zn, Zl] = nup3.asInstanceOf[(A, B, C)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, A, B, C, Zn <: 0 | 1 | 2 | 3, Zl <: LabelStr](nup3: Nup3[La, Lb, Lc, A, B, C, Zn, Zl])
       transparent inline def get =
         Tup3.get(nup3.asInstanceOf[Tup3[A, B, C, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 3 then compiletime.error("Can insert but not access past end of 3-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 3 then compiletime.error("Can insert but not access past end of 3-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc)]] match
           case "" => nup3.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc), Lz, 0, Zn], (A, B, C)]]
@@ -1682,7 +1682,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 3 then compiletime.error("Can insert but not access past end of 3-tuple")
         else \.wrap(nup3.asInstanceOf[(A, B, C)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 3 then compiletime.error("Can insert but not access past end of 3-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1694,21 +1694,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup3.map(nup3.asInstanceOf[Tup3[A, B, C, Zn]])[Z](zf))[(La, Lb, Lc)]
       inline def delete =
          NamedTuple.withNames(Tup3.delete(nup3.asInstanceOf[Tup3[A, B, C, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc)]] match
           case "" => NamedTuple.withNames(Tup3.insert(nup3.asInstanceOf[Tup3[A, B, C, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup4[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, A, B, C, D, Zn <: 0 | 1 | 2 | 3 | 4, Zl <: LabelVal] = (A, B, C, D)
+  opaque type Nup4[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, A, B, C, D, Zn <: 0 | 1 | 2 | 3 | 4, Zl <: LabelStr] = (A, B, C, D)
   object Nup4:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, A, B, C, D, Zl <: LabelVal](nup4: NTup[(La, Lb, Lc, Ld), (A, B, C, D)])[Zn <: 0 | 1 | 2 | 3 | 4]: Nup4[La, Lb, Lc, Ld, A, B, C, D, Zn, Zl] = nup4.asInstanceOf[(A, B, C, D)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, A, B, C, D, Zn <: 0 | 1 | 2 | 3 | 4, Zl <: LabelVal](nup4: Nup4[La, Lb, Lc, Ld, A, B, C, D, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, A, B, C, D, Zl <: LabelStr](nup4: NTup[(La, Lb, Lc, Ld), (A, B, C, D)])[Zn <: 0 | 1 | 2 | 3 | 4]: Nup4[La, Lb, Lc, Ld, A, B, C, D, Zn, Zl] = nup4.asInstanceOf[(A, B, C, D)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, A, B, C, D, Zn <: 0 | 1 | 2 | 3 | 4, Zl <: LabelStr](nup4: Nup4[La, Lb, Lc, Ld, A, B, C, D, Zn, Zl])
       transparent inline def get =
         Tup4.get(nup4.asInstanceOf[Tup4[A, B, C, D, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 4 then compiletime.error("Can insert but not access past end of 4-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 4 then compiletime.error("Can insert but not access past end of 4-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld)]] match
           case "" => nup4.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld), Lz, 0, Zn], (A, B, C, D)]]
@@ -1718,7 +1718,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 4 then compiletime.error("Can insert but not access past end of 4-tuple")
         else \.wrap(nup4.asInstanceOf[(A, B, C, D)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 4 then compiletime.error("Can insert but not access past end of 4-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1730,21 +1730,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup4.map(nup4.asInstanceOf[Tup4[A, B, C, D, Zn]])[Z](zf))[(La, Lb, Lc, Ld)]
       inline def delete =
          NamedTuple.withNames(Tup4.delete(nup4.asInstanceOf[Tup4[A, B, C, D, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld)]] match
           case "" => NamedTuple.withNames(Tup4.insert(nup4.asInstanceOf[Tup4[A, B, C, D, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup5[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, A, B, C, D, E, Zn <: 0 | 1 | 2 | 3 | 4 | 5, Zl <: LabelVal] = (A, B, C, D, E)
+  opaque type Nup5[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, A, B, C, D, E, Zn <: 0 | 1 | 2 | 3 | 4 | 5, Zl <: LabelStr] = (A, B, C, D, E)
   object Nup5:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, A, B, C, D, E, Zl <: LabelVal](nup5: NTup[(La, Lb, Lc, Ld, Le), (A, B, C, D, E)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5]: Nup5[La, Lb, Lc, Ld, Le, A, B, C, D, E, Zn, Zl] = nup5.asInstanceOf[(A, B, C, D, E)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, A, B, C, D, E, Zn <: 0 | 1 | 2 | 3 | 4 | 5, Zl <: LabelVal](nup5: Nup5[La, Lb, Lc, Ld, Le, A, B, C, D, E, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, A, B, C, D, E, Zl <: LabelStr](nup5: NTup[(La, Lb, Lc, Ld, Le), (A, B, C, D, E)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5]: Nup5[La, Lb, Lc, Ld, Le, A, B, C, D, E, Zn, Zl] = nup5.asInstanceOf[(A, B, C, D, E)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, A, B, C, D, E, Zn <: 0 | 1 | 2 | 3 | 4 | 5, Zl <: LabelStr](nup5: Nup5[La, Lb, Lc, Ld, Le, A, B, C, D, E, Zn, Zl])
       transparent inline def get =
         Tup5.get(nup5.asInstanceOf[Tup5[A, B, C, D, E, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 5 then compiletime.error("Can insert but not access past end of 5-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 5 then compiletime.error("Can insert but not access past end of 5-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le)]] match
           case "" => nup5.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le), Lz, 0, Zn], (A, B, C, D, E)]]
@@ -1754,7 +1754,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 5 then compiletime.error("Can insert but not access past end of 5-tuple")
         else \.wrap(nup5.asInstanceOf[(A, B, C, D, E)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 5 then compiletime.error("Can insert but not access past end of 5-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1766,21 +1766,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup5.map(nup5.asInstanceOf[Tup5[A, B, C, D, E, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le)]
       inline def delete =
          NamedTuple.withNames(Tup5.delete(nup5.asInstanceOf[Tup5[A, B, C, D, E, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le)]] match
           case "" => NamedTuple.withNames(Tup5.insert(nup5.asInstanceOf[Tup5[A, B, C, D, E, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup6[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, A, B, C, D, E, F, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6, Zl <: LabelVal] = (A, B, C, D, E, F)
+  opaque type Nup6[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, A, B, C, D, E, F, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6, Zl <: LabelStr] = (A, B, C, D, E, F)
   object Nup6:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, A, B, C, D, E, F, Zl <: LabelVal](nup6: NTup[(La, Lb, Lc, Ld, Le, Lf), (A, B, C, D, E, F)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6]: Nup6[La, Lb, Lc, Ld, Le, Lf, A, B, C, D, E, F, Zn, Zl] = nup6.asInstanceOf[(A, B, C, D, E, F)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, A, B, C, D, E, F, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6, Zl <: LabelVal](nup6: Nup6[La, Lb, Lc, Ld, Le, Lf, A, B, C, D, E, F, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, A, B, C, D, E, F, Zl <: LabelStr](nup6: NTup[(La, Lb, Lc, Ld, Le, Lf), (A, B, C, D, E, F)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6]: Nup6[La, Lb, Lc, Ld, Le, Lf, A, B, C, D, E, F, Zn, Zl] = nup6.asInstanceOf[(A, B, C, D, E, F)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, A, B, C, D, E, F, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6, Zl <: LabelStr](nup6: Nup6[La, Lb, Lc, Ld, Le, Lf, A, B, C, D, E, F, Zn, Zl])
       transparent inline def get =
         Tup6.get(nup6.asInstanceOf[Tup6[A, B, C, D, E, F, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 6 then compiletime.error("Can insert but not access past end of 6-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 6 then compiletime.error("Can insert but not access past end of 6-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf)]] match
           case "" => nup6.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf), Lz, 0, Zn], (A, B, C, D, E, F)]]
@@ -1790,7 +1790,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 6 then compiletime.error("Can insert but not access past end of 6-tuple")
         else \.wrap(nup6.asInstanceOf[(A, B, C, D, E, F)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 6 then compiletime.error("Can insert but not access past end of 6-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1802,21 +1802,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup6.map(nup6.asInstanceOf[Tup6[A, B, C, D, E, F, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf)]
       inline def delete =
          NamedTuple.withNames(Tup6.delete(nup6.asInstanceOf[Tup6[A, B, C, D, E, F, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf)]] match
           case "" => NamedTuple.withNames(Tup6.insert(nup6.asInstanceOf[Tup6[A, B, C, D, E, F, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup7[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, A, B, C, D, E, F, G, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, Zl <: LabelVal] = (A, B, C, D, E, F, G)
+  opaque type Nup7[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, A, B, C, D, E, F, G, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, Zl <: LabelStr] = (A, B, C, D, E, F, G)
   object Nup7:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, A, B, C, D, E, F, G, Zl <: LabelVal](nup7: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg), (A, B, C, D, E, F, G)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7]: Nup7[La, Lb, Lc, Ld, Le, Lf, Lg, A, B, C, D, E, F, G, Zn, Zl] = nup7.asInstanceOf[(A, B, C, D, E, F, G)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, A, B, C, D, E, F, G, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, Zl <: LabelVal](nup7: Nup7[La, Lb, Lc, Ld, Le, Lf, Lg, A, B, C, D, E, F, G, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, A, B, C, D, E, F, G, Zl <: LabelStr](nup7: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg), (A, B, C, D, E, F, G)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7]: Nup7[La, Lb, Lc, Ld, Le, Lf, Lg, A, B, C, D, E, F, G, Zn, Zl] = nup7.asInstanceOf[(A, B, C, D, E, F, G)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, A, B, C, D, E, F, G, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, Zl <: LabelStr](nup7: Nup7[La, Lb, Lc, Ld, Le, Lf, Lg, A, B, C, D, E, F, G, Zn, Zl])
       transparent inline def get =
         Tup7.get(nup7.asInstanceOf[Tup7[A, B, C, D, E, F, G, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 7 then compiletime.error("Can insert but not access past end of 7-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 7 then compiletime.error("Can insert but not access past end of 7-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg)]] match
           case "" => nup7.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg), Lz, 0, Zn], (A, B, C, D, E, F, G)]]
@@ -1826,7 +1826,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 7 then compiletime.error("Can insert but not access past end of 7-tuple")
         else \.wrap(nup7.asInstanceOf[(A, B, C, D, E, F, G)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 7 then compiletime.error("Can insert but not access past end of 7-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1838,21 +1838,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup7.map(nup7.asInstanceOf[Tup7[A, B, C, D, E, F, G, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg)]
       inline def delete =
          NamedTuple.withNames(Tup7.delete(nup7.asInstanceOf[Tup7[A, B, C, D, E, F, G, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg)]] match
           case "" => NamedTuple.withNames(Tup7.insert(nup7.asInstanceOf[Tup7[A, B, C, D, E, F, G, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup8[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, A, B, C, D, E, F, G, H, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, Zl <: LabelVal] = (A, B, C, D, E, F, G, H)
+  opaque type Nup8[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, A, B, C, D, E, F, G, H, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, Zl <: LabelStr] = (A, B, C, D, E, F, G, H)
   object Nup8:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, A, B, C, D, E, F, G, H, Zl <: LabelVal](nup8: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), (A, B, C, D, E, F, G, H)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8]: Nup8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, A, B, C, D, E, F, G, H, Zn, Zl] = nup8.asInstanceOf[(A, B, C, D, E, F, G, H)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, A, B, C, D, E, F, G, H, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, Zl <: LabelVal](nup8: Nup8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, A, B, C, D, E, F, G, H, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, A, B, C, D, E, F, G, H, Zl <: LabelStr](nup8: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), (A, B, C, D, E, F, G, H)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8]: Nup8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, A, B, C, D, E, F, G, H, Zn, Zl] = nup8.asInstanceOf[(A, B, C, D, E, F, G, H)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, A, B, C, D, E, F, G, H, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, Zl <: LabelStr](nup8: Nup8[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, A, B, C, D, E, F, G, H, Zn, Zl])
       transparent inline def get =
         Tup8.get(nup8.asInstanceOf[Tup8[A, B, C, D, E, F, G, H, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 8 then compiletime.error("Can insert but not access past end of 8-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 8 then compiletime.error("Can insert but not access past end of 8-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]] match
           case "" => nup8.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), Lz, 0, Zn], (A, B, C, D, E, F, G, H)]]
@@ -1862,7 +1862,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 8 then compiletime.error("Can insert but not access past end of 8-tuple")
         else \.wrap(nup8.asInstanceOf[(A, B, C, D, E, F, G, H)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 8 then compiletime.error("Can insert but not access past end of 8-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1874,21 +1874,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup8.map(nup8.asInstanceOf[Tup8[A, B, C, D, E, F, G, H, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]
       inline def delete =
          NamedTuple.withNames(Tup8.delete(nup8.asInstanceOf[Tup8[A, B, C, D, E, F, G, H, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh)]] match
           case "" => NamedTuple.withNames(Tup8.insert(nup8.asInstanceOf[Tup8[A, B, C, D, E, F, G, H, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup9[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, A, B, C, D, E, F, G, H, I, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I)
+  opaque type Nup9[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, A, B, C, D, E, F, G, H, I, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I)
   object Nup9:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, A, B, C, D, E, F, G, H, I, Zl <: LabelVal](nup9: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), (A, B, C, D, E, F, G, H, I)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9]: Nup9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, A, B, C, D, E, F, G, H, I, Zn, Zl] = nup9.asInstanceOf[(A, B, C, D, E, F, G, H, I)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, A, B, C, D, E, F, G, H, I, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, Zl <: LabelVal](nup9: Nup9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, A, B, C, D, E, F, G, H, I, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, A, B, C, D, E, F, G, H, I, Zl <: LabelStr](nup9: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), (A, B, C, D, E, F, G, H, I)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9]: Nup9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, A, B, C, D, E, F, G, H, I, Zn, Zl] = nup9.asInstanceOf[(A, B, C, D, E, F, G, H, I)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, A, B, C, D, E, F, G, H, I, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9, Zl <: LabelStr](nup9: Nup9[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, A, B, C, D, E, F, G, H, I, Zn, Zl])
       transparent inline def get =
         Tup9.get(nup9.asInstanceOf[Tup9[A, B, C, D, E, F, G, H, I, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 9 then compiletime.error("Can insert but not access past end of 9-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 9 then compiletime.error("Can insert but not access past end of 9-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]] match
           case "" => nup9.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I)]]
@@ -1898,7 +1898,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 9 then compiletime.error("Can insert but not access past end of 9-tuple")
         else \.wrap(nup9.asInstanceOf[(A, B, C, D, E, F, G, H, I)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 9 then compiletime.error("Can insert but not access past end of 9-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1910,21 +1910,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup9.map(nup9.asInstanceOf[Tup9[A, B, C, D, E, F, G, H, I, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]
       inline def delete =
          NamedTuple.withNames(Tup9.delete(nup9.asInstanceOf[Tup9[A, B, C, D, E, F, G, H, I, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li)]] match
           case "" => NamedTuple.withNames(Tup9.insert(nup9.asInstanceOf[Tup9[A, B, C, D, E, F, G, H, I, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup10[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, A, B, C, D, E, F, G, H, I, J, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J)
+  opaque type Nup10[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, A, B, C, D, E, F, G, H, I, J, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J)
   object Nup10:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, A, B, C, D, E, F, G, H, I, J, Zl <: LabelVal](nup10: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), (A, B, C, D, E, F, G, H, I, J)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10]: Nup10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, A, B, C, D, E, F, G, H, I, J, Zn, Zl] = nup10.asInstanceOf[(A, B, C, D, E, F, G, H, I, J)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, A, B, C, D, E, F, G, H, I, J, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10, Zl <: LabelVal](nup10: Nup10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, A, B, C, D, E, F, G, H, I, J, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, A, B, C, D, E, F, G, H, I, J, Zl <: LabelStr](nup10: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), (A, B, C, D, E, F, G, H, I, J)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10]: Nup10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, A, B, C, D, E, F, G, H, I, J, Zn, Zl] = nup10.asInstanceOf[(A, B, C, D, E, F, G, H, I, J)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, A, B, C, D, E, F, G, H, I, J, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10, Zl <: LabelStr](nup10: Nup10[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, A, B, C, D, E, F, G, H, I, J, Zn, Zl])
       transparent inline def get =
         Tup10.get(nup10.asInstanceOf[Tup10[A, B, C, D, E, F, G, H, I, J, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 10 then compiletime.error("Can insert but not access past end of 10-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 10 then compiletime.error("Can insert but not access past end of 10-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]] match
           case "" => nup10.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J)]]
@@ -1934,7 +1934,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 10 then compiletime.error("Can insert but not access past end of 10-tuple")
         else \.wrap(nup10.asInstanceOf[(A, B, C, D, E, F, G, H, I, J)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 10 then compiletime.error("Can insert but not access past end of 10-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1946,21 +1946,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup10.map(nup10.asInstanceOf[Tup10[A, B, C, D, E, F, G, H, I, J, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]
       inline def delete =
          NamedTuple.withNames(Tup10.delete(nup10.asInstanceOf[Tup10[A, B, C, D, E, F, G, H, I, J, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj)]] match
           case "" => NamedTuple.withNames(Tup10.insert(nup10.asInstanceOf[Tup10[A, B, C, D, E, F, G, H, I, J, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup11[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K)
+  opaque type Nup11[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K)
   object Nup11:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, Zl <: LabelVal](nup11: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), (A, B, C, D, E, F, G, H, I, J, K)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11]: Nup11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, A, B, C, D, E, F, G, H, I, J, K, Zn, Zl] = nup11.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11, Zl <: LabelVal](nup11: Nup11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, A, B, C, D, E, F, G, H, I, J, K, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, Zl <: LabelStr](nup11: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), (A, B, C, D, E, F, G, H, I, J, K)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11]: Nup11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, A, B, C, D, E, F, G, H, I, J, K, Zn, Zl] = nup11.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11, Zl <: LabelStr](nup11: Nup11[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, A, B, C, D, E, F, G, H, I, J, K, Zn, Zl])
       transparent inline def get =
         Tup11.get(nup11.asInstanceOf[Tup11[A, B, C, D, E, F, G, H, I, J, K, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 11 then compiletime.error("Can insert but not access past end of 11-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 11 then compiletime.error("Can insert but not access past end of 11-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]] match
           case "" => nup11.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K)]]
@@ -1970,7 +1970,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 11 then compiletime.error("Can insert but not access past end of 11-tuple")
         else \.wrap(nup11.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 11 then compiletime.error("Can insert but not access past end of 11-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -1982,21 +1982,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup11.map(nup11.asInstanceOf[Tup11[A, B, C, D, E, F, G, H, I, J, K, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]
       inline def delete =
          NamedTuple.withNames(Tup11.delete(nup11.asInstanceOf[Tup11[A, B, C, D, E, F, G, H, I, J, K, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk)]] match
           case "" => NamedTuple.withNames(Tup11.insert(nup11.asInstanceOf[Tup11[A, B, C, D, E, F, G, H, I, J, K, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup12[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L)
+  opaque type Nup12[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L)
   object Nup12:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, Zl <: LabelVal](nup12: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), (A, B, C, D, E, F, G, H, I, J, K, L)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12]: Nup12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, A, B, C, D, E, F, G, H, I, J, K, L, Zn, Zl] = nup12.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12, Zl <: LabelVal](nup12: Nup12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, A, B, C, D, E, F, G, H, I, J, K, L, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, Zl <: LabelStr](nup12: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), (A, B, C, D, E, F, G, H, I, J, K, L)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12]: Nup12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, A, B, C, D, E, F, G, H, I, J, K, L, Zn, Zl] = nup12.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12, Zl <: LabelStr](nup12: Nup12[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, A, B, C, D, E, F, G, H, I, J, K, L, Zn, Zl])
       transparent inline def get =
         Tup12.get(nup12.asInstanceOf[Tup12[A, B, C, D, E, F, G, H, I, J, K, L, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 12 then compiletime.error("Can insert but not access past end of 12-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 12 then compiletime.error("Can insert but not access past end of 12-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]] match
           case "" => nup12.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L)]]
@@ -2006,7 +2006,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 12 then compiletime.error("Can insert but not access past end of 12-tuple")
         else \.wrap(nup12.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 12 then compiletime.error("Can insert but not access past end of 12-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2018,21 +2018,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup12.map(nup12.asInstanceOf[Tup12[A, B, C, D, E, F, G, H, I, J, K, L, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]
       inline def delete =
          NamedTuple.withNames(Tup12.delete(nup12.asInstanceOf[Tup12[A, B, C, D, E, F, G, H, I, J, K, L, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll)]] match
           case "" => NamedTuple.withNames(Tup12.insert(nup12.asInstanceOf[Tup12[A, B, C, D, E, F, G, H, I, J, K, L, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup13[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M)
+  opaque type Nup13[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M)
   object Nup13:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, Zl <: LabelVal](nup13: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), (A, B, C, D, E, F, G, H, I, J, K, L, M)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13]: Nup13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn, Zl] = nup13.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13, Zl <: LabelVal](nup13: Nup13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, Zl <: LabelStr](nup13: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), (A, B, C, D, E, F, G, H, I, J, K, L, M)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13]: Nup13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn, Zl] = nup13.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13, Zl <: LabelStr](nup13: Nup13[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, A, B, C, D, E, F, G, H, I, J, K, L, M, Zn, Zl])
       transparent inline def get =
         Tup13.get(nup13.asInstanceOf[Tup13[A, B, C, D, E, F, G, H, I, J, K, L, M, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 13 then compiletime.error("Can insert but not access past end of 13-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 13 then compiletime.error("Can insert but not access past end of 13-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]] match
           case "" => nup13.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M)]]
@@ -2042,7 +2042,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 13 then compiletime.error("Can insert but not access past end of 13-tuple")
         else \.wrap(nup13.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 13 then compiletime.error("Can insert but not access past end of 13-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2054,21 +2054,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup13.map(nup13.asInstanceOf[Tup13[A, B, C, D, E, F, G, H, I, J, K, L, M, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]
       inline def delete =
          NamedTuple.withNames(Tup13.delete(nup13.asInstanceOf[Tup13[A, B, C, D, E, F, G, H, I, J, K, L, M, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm)]] match
           case "" => NamedTuple.withNames(Tup13.insert(nup13.asInstanceOf[Tup13[A, B, C, D, E, F, G, H, I, J, K, L, M, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup14[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
+  opaque type Nup14[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N)
   object Nup14:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zl <: LabelVal](nup14: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), (A, B, C, D, E, F, G, H, I, J, K, L, M, N)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14]: Nup14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn, Zl] = nup14.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14, Zl <: LabelVal](nup14: Nup14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zl <: LabelStr](nup14: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), (A, B, C, D, E, F, G, H, I, J, K, L, M, N)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14]: Nup14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn, Zl] = nup14.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14, Zl <: LabelStr](nup14: Nup14[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn, Zl])
       transparent inline def get =
         Tup14.get(nup14.asInstanceOf[Tup14[A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 14 then compiletime.error("Can insert but not access past end of 14-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 14 then compiletime.error("Can insert but not access past end of 14-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]] match
           case "" => nup14.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N)]]
@@ -2078,7 +2078,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 14 then compiletime.error("Can insert but not access past end of 14-tuple")
         else \.wrap(nup14.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 14 then compiletime.error("Can insert but not access past end of 14-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2090,21 +2090,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup14.map(nup14.asInstanceOf[Tup14[A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]
       inline def delete =
          NamedTuple.withNames(Tup14.delete(nup14.asInstanceOf[Tup14[A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln)]] match
           case "" => NamedTuple.withNames(Tup14.insert(nup14.asInstanceOf[Tup14[A, B, C, D, E, F, G, H, I, J, K, L, M, N, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup15[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
+  opaque type Nup15[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)
   object Nup15:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zl <: LabelVal](nup15: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15]: Nup15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn, Zl] = nup15.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, Zl <: LabelVal](nup15: Nup15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zl <: LabelStr](nup15: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15]: Nup15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn, Zl] = nup15.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15, Zl <: LabelStr](nup15: Nup15[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn, Zl])
       transparent inline def get =
         Tup15.get(nup15.asInstanceOf[Tup15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 15 then compiletime.error("Can insert but not access past end of 15-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 15 then compiletime.error("Can insert but not access past end of 15-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]] match
           case "" => nup15.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]]
@@ -2114,7 +2114,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 15 then compiletime.error("Can insert but not access past end of 15-tuple")
         else \.wrap(nup15.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 15 then compiletime.error("Can insert but not access past end of 15-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2126,21 +2126,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup15.map(nup15.asInstanceOf[Tup15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]
       inline def delete =
          NamedTuple.withNames(Tup15.delete(nup15.asInstanceOf[Tup15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo)]] match
           case "" => NamedTuple.withNames(Tup15.insert(nup15.asInstanceOf[Tup15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup16[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
+  opaque type Nup16[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)
   object Nup16:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zl <: LabelVal](nup16: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16]: Nup16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn, Zl] = nup16.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Zl <: LabelVal](nup16: Nup16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zl <: LabelStr](nup16: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16]: Nup16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn, Zl] = nup16.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16, Zl <: LabelStr](nup16: Nup16[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn, Zl])
       transparent inline def get =
         Tup16.get(nup16.asInstanceOf[Tup16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 16 then compiletime.error("Can insert but not access past end of 16-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 16 then compiletime.error("Can insert but not access past end of 16-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]] match
           case "" => nup16.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]]
@@ -2150,7 +2150,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 16 then compiletime.error("Can insert but not access past end of 16-tuple")
         else \.wrap(nup16.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 16 then compiletime.error("Can insert but not access past end of 16-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2162,21 +2162,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup16.map(nup16.asInstanceOf[Tup16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]
       inline def delete =
          NamedTuple.withNames(Tup16.delete(nup16.asInstanceOf[Tup16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp)]] match
           case "" => NamedTuple.withNames(Tup16.insert(nup16.asInstanceOf[Tup16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup17[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
+  opaque type Nup17[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)
   object Nup17:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zl <: LabelVal](nup17: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17]: Nup17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn, Zl] = nup17.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17, Zl <: LabelVal](nup17: Nup17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zl <: LabelStr](nup17: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17]: Nup17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn, Zl] = nup17.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17, Zl <: LabelStr](nup17: Nup17[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn, Zl])
       transparent inline def get =
         Tup17.get(nup17.asInstanceOf[Tup17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 17 then compiletime.error("Can insert but not access past end of 17-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 17 then compiletime.error("Can insert but not access past end of 17-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]] match
           case "" => nup17.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]]
@@ -2186,7 +2186,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 17 then compiletime.error("Can insert but not access past end of 17-tuple")
         else \.wrap(nup17.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 17 then compiletime.error("Can insert but not access past end of 17-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2198,21 +2198,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup17.map(nup17.asInstanceOf[Tup17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]
       inline def delete =
          NamedTuple.withNames(Tup17.delete(nup17.asInstanceOf[Tup17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq)]] match
           case "" => NamedTuple.withNames(Tup17.insert(nup17.asInstanceOf[Tup17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup18[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
+  opaque type Nup18[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)
   object Nup18:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zl <: LabelVal](nup18: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18]: Nup18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn, Zl] = nup18.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18, Zl <: LabelVal](nup18: Nup18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zl <: LabelStr](nup18: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18]: Nup18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn, Zl] = nup18.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18, Zl <: LabelStr](nup18: Nup18[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn, Zl])
       transparent inline def get =
         Tup18.get(nup18.asInstanceOf[Tup18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 18 then compiletime.error("Can insert but not access past end of 18-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 18 then compiletime.error("Can insert but not access past end of 18-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]] match
           case "" => nup18.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]]
@@ -2222,7 +2222,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 18 then compiletime.error("Can insert but not access past end of 18-tuple")
         else \.wrap(nup18.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 18 then compiletime.error("Can insert but not access past end of 18-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2234,21 +2234,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup18.map(nup18.asInstanceOf[Tup18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]
       inline def delete =
          NamedTuple.withNames(Tup18.delete(nup18.asInstanceOf[Tup18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr)]] match
           case "" => NamedTuple.withNames(Tup18.insert(nup18.asInstanceOf[Tup18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup19[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
+  opaque type Nup19[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)
   object Nup19:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zl <: LabelVal](nup19: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19]: Nup19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn, Zl] = nup19.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19, Zl <: LabelVal](nup19: Nup19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zl <: LabelStr](nup19: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19]: Nup19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn, Zl] = nup19.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19, Zl <: LabelStr](nup19: Nup19[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn, Zl])
       transparent inline def get =
         Tup19.get(nup19.asInstanceOf[Tup19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 19 then compiletime.error("Can insert but not access past end of 19-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 19 then compiletime.error("Can insert but not access past end of 19-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]] match
           case "" => nup19.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]]
@@ -2258,7 +2258,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 19 then compiletime.error("Can insert but not access past end of 19-tuple")
         else \.wrap(nup19.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 19 then compiletime.error("Can insert but not access past end of 19-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2270,21 +2270,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup19.map(nup19.asInstanceOf[Tup19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]
       inline def delete =
          NamedTuple.withNames(Tup19.delete(nup19.asInstanceOf[Tup19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls)]] match
           case "" => NamedTuple.withNames(Tup19.insert(nup19.asInstanceOf[Tup19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup20[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
+  opaque type Nup20[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)
   object Nup20:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zl <: LabelVal](nup20: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20]: Nup20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn, Zl] = nup20.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20, Zl <: LabelVal](nup20: Nup20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zl <: LabelStr](nup20: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20]: Nup20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn, Zl] = nup20.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20, Zl <: LabelStr](nup20: Nup20[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn, Zl])
       transparent inline def get =
         Tup20.get(nup20.asInstanceOf[Tup20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 20 then compiletime.error("Can insert but not access past end of 20-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 20 then compiletime.error("Can insert but not access past end of 20-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]] match
           case "" => nup20.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]]
@@ -2294,7 +2294,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 20 then compiletime.error("Can insert but not access past end of 20-tuple")
         else \.wrap(nup20.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 20 then compiletime.error("Can insert but not access past end of 20-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2306,21 +2306,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup20.map(nup20.asInstanceOf[Tup20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]
       inline def delete =
          NamedTuple.withNames(Tup20.delete(nup20.asInstanceOf[Tup20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt)]] match
           case "" => NamedTuple.withNames(Tup20.insert(nup20.asInstanceOf[Tup20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup21[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)
+  opaque type Nup21[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)
   object Nup21:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zl <: LabelVal](nup21: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21]: Nup21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn, Zl] = nup21.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21, Zl <: LabelVal](nup21: Nup21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zl <: LabelStr](nup21: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21]: Nup21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn, Zl] = nup21.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21, Zl <: LabelStr](nup21: Nup21[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn, Zl])
       transparent inline def get =
         Tup21.get(nup21.asInstanceOf[Tup21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 21 then compiletime.error("Can insert but not access past end of 21-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 21 then compiletime.error("Can insert but not access past end of 21-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]] match
           case "" => nup21.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]]
@@ -2330,7 +2330,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 21 then compiletime.error("Can insert but not access past end of 21-tuple")
         else \.wrap(nup21.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 21 then compiletime.error("Can insert but not access past end of 21-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2342,21 +2342,21 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup21.map(nup21.asInstanceOf[Tup21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]
       inline def delete =
          NamedTuple.withNames(Tup21.delete(nup21.asInstanceOf[Tup21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu)]] match
           case "" => NamedTuple.withNames(Tup21.insert(nup21.asInstanceOf[Tup21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
 
-  opaque type Nup22[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, Lv <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22, Zl <: LabelVal] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)
+  opaque type Nup22[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, Lv <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22, Zl <: LabelStr] = (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)
   object Nup22:
-    inline def wrap[La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, Lv <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zl <: LabelVal](nup22: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22]: Nup22[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn, Zl] = nup22.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]
-    extension [La <: LabelVal, Lb <: LabelVal, Lc <: LabelVal, Ld <: LabelVal, Le <: LabelVal, Lf <: LabelVal, Lg <: LabelVal, Lh <: LabelVal, Li <: LabelVal, Lj <: LabelVal, Lk <: LabelVal, Ll <: LabelVal, Lm <: LabelVal, Ln <: LabelVal, Lo <: LabelVal, Lp <: LabelVal, Lq <: LabelVal, Lr <: LabelVal, Ls <: LabelVal, Lt <: LabelVal, Lu <: LabelVal, Lv <: LabelVal, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22, Zl <: LabelVal](nup22: Nup22[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn, Zl])
+    inline def wrap[La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, Lv <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zl <: LabelStr](nup22: NTup[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)])[Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22]: Nup22[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn, Zl] = nup22.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]
+    extension [La <: LabelStr, Lb <: LabelStr, Lc <: LabelStr, Ld <: LabelStr, Le <: LabelStr, Lf <: LabelStr, Lg <: LabelStr, Lh <: LabelStr, Li <: LabelStr, Lj <: LabelStr, Lk <: LabelStr, Ll <: LabelStr, Lm <: LabelStr, Ln <: LabelStr, Lo <: LabelStr, Lp <: LabelStr, Lq <: LabelStr, Lr <: LabelStr, Ls <: LabelStr, Lt <: LabelStr, Lu <: LabelStr, Lv <: LabelStr, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn <: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22, Zl <: LabelStr](nup22: Nup22[La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn, Zl])
       transparent inline def get =
         Tup22.get(nup22.asInstanceOf[Tup22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn]])
       transparent inline def name =
         inline if compiletime.constValue[Zn] == 22 then compiletime.error("Can insert but not access past end of 22-tuple")
         else compiletime.constValue[Zl]
-      transparent inline def rename[Lz <: LabelVal] =
+      transparent inline def rename[Lz <: LabelStr] =
         inline if compiletime.constValue[Zn] == 22 then compiletime.error("Can insert but not access past end of 22-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]] match
           case "" => nup22.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), Lz, 0, Zn], (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]]
@@ -2366,7 +2366,7 @@ object OpaqueTupleLenses {
       transparent inline def pluck =
         inline if compiletime.constValue[Zn] == 22 then compiletime.error("Can insert but not access past end of 22-tuple")
         else \.wrap(nup22.asInstanceOf[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)](compiletime.constValue[Zn]))[Zl]
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 22 then compiletime.error("Can insert but not access past end of 22-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2378,7 +2378,7 @@ object OpaqueTupleLenses {
         NamedTuple.withNames(Tup22.map(nup22.asInstanceOf[Tup22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn]])[Z](zf))[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]
       inline def delete =
          NamedTuple.withNames(Tup22.delete(nup22.asInstanceOf[Tup22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn]]))[labels.NamesAndLabels.TupleWithSkip[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), 0, Zn]]
-      inline infix def insert[Z, Lz <: LabelVal](z: Z \ Lz) =
+      inline infix def insert[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv)]] match
           case "" => NamedTuple.withNames(Tup22.insert(nup22.asInstanceOf[Tup22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[(La, Lb, Lc, Ld, Le, Lf, Lg, Lh, Li, Lj, Lk, Ll, Lm, Ln, Lo, Lp, Lq, Lr, Ls, Lt, Lu, Lv), Lz, 0, Zn]]
           case e => compiletime.error("Duplicate or missing names: " + e)
@@ -2432,7 +2432,7 @@ for n <- 3 to 22 do
   mkTupN(n)
   println()
 
-      transparent inline infix def place[Z, Lz <: LabelVal](z: Z \ Lz) =
+      transparent inline infix def place[Z, Lz <: LabelStr](z: Z \ Lz) =
         inline if compiletime.constValue[Zn] == 2 then compiletime.error("Can insert but not access past end of 2-tuple")
         else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, (La, Lb)]] match
           case "\"\"" => compiletime.error("Invalid field name")
@@ -2447,17 +2447,17 @@ def mkNupN(n: Int) =
   val norg = (0 to n).mkString(" | ")
   val varg = (1 to n).map(i => s"tup$n._$i").mkString(", ")
   val larg = args.map(a => s"L${a.toLowerCase}").mkString(", ")
-  val tlarg = args.map(a => s"L${a.toLowerCase} <: LabelVal").mkString(", ")
-  println(s"opaque type Nup$n[$tlarg, $targ, Zn <: $norg, Zl <: LabelVal] = ($targ)")
+  val tlarg = args.map(a => s"L${a.toLowerCase} <: LabelStr").mkString(", ")
+  println(s"opaque type Nup$n[$tlarg, $targ, Zn <: $norg, Zl <: LabelStr] = ($targ)")
   println(s"object Nup$n:")
-  println(s"  inline def wrap[$tlarg, $targ, Zl <: LabelVal](nup$n: NTup[($larg), ($targ)])[Zn <: $norg]: Nup$n[$larg, $targ, Zn, Zl] = nup$n.asInstanceOf[($targ)]")
-  println(s"  extension [$tlarg, $targ, Zn <: $norg, Zl <: LabelVal](nup$n: Nup$n[$larg, $targ, Zn, Zl])")
+  println(s"  inline def wrap[$tlarg, $targ, Zl <: LabelStr](nup$n: NTup[($larg), ($targ)])[Zn <: $norg]: Nup$n[$larg, $targ, Zn, Zl] = nup$n.asInstanceOf[($targ)]")
+  println(s"  extension [$tlarg, $targ, Zn <: $norg, Zl <: LabelStr](nup$n: Nup$n[$larg, $targ, Zn, Zl])")
   println(s"    transparent inline def get =")
   println(s"      Tup$n.get(nup$n.asInstanceOf[Tup$n[$targ, Zn]])")
   println(s"    transparent inline def name =")
   println(s"      inline if compiletime.constValue[Zn] == $n then compiletime.error(\"Can insert but not access past end of $n-tuple\")")
   println(s"      else compiletime.constValue[Zl]")
-  println(s"    transparent inline def rename[Lz <: LabelVal] =")
+  println(s"    transparent inline def rename[Lz <: LabelStr] =")
   println(s"      inline if compiletime.constValue[Zn] == $n then compiletime.error(\"Can insert but not access past end of $n-tuple\")")
   println(s"      else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, ($larg)]] match")
   println(s"        case \"\" => nup$n.asInstanceOf[NTup[labels.NamesAndLabels.TupleWithSwap[($larg), Lz, 0, Zn], ($targ)]]")
@@ -2467,7 +2467,7 @@ def mkNupN(n: Int) =
   println(s"    transparent inline def pluck =")
   println(s"      inline if compiletime.constValue[Zn] == $n then compiletime.error(\"Can insert but not access past end of $n-tuple\")")
   println(s"      else \\.wrap(nup$n.asInstanceOf[($targ)](compiletime.constValue[Zn]))[Zl]")
-  println(s"    transparent inline infix def place[Z, Lz <: LabelVal](z: Z \\ Lz) =")
+  println(s"    transparent inline infix def place[Z, Lz <: LabelStr](z: Z \\ Lz) =")
   println(s"      inline if compiletime.constValue[Zn] == $n then compiletime.error(\"Can insert but not access past end of $n-tuple\")")
   println(s"      else inline constValue[labels.NamesAndLabels.NameIfPresent[Lz, ($larg)]] match")
   println(s"        case \"\\\"\\\"\" => compiletime.error(\"Invalid field name\")")
@@ -2479,7 +2479,7 @@ def mkNupN(n: Int) =
   println(s"      NamedTuple.withNames(Tup$n.map(nup$n.asInstanceOf[Tup$n[$targ, Zn]])[Z](zf))[($larg)]")
   println(s"    inline def delete =")
   println(s"       NamedTuple.withNames(Tup$n.delete(nup$n.asInstanceOf[Tup$n[$targ, Zn]]))[labels.NamesAndLabels.TupleWithSkip[($larg), 0, Zn]]")
-  println(s"    inline infix def insert[Z, Lz <: LabelVal](z: Z \\ Lz) =")
+  println(s"    inline infix def insert[Z, Lz <: LabelStr](z: Z \\ Lz) =")
   println(s"      inline compiletime.constValue[labels.NamesAndLabels.NameIfPresent[Lz, ($larg)]] match")
   println(s"        case \"\" => NamedTuple.withNames(Tup$n.insert(nup$n.asInstanceOf[Tup$n[$targ, Zn]])[Z](z.unlabel))[labels.NamesAndLabels.TupleWithExtra[($larg), Lz, 0, Zn]]")
   println(s"        case e => compiletime.error(\"Duplicate or missing names: \" + e)")

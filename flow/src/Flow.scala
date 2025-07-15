@@ -263,6 +263,9 @@ object escape {
 
   /** Exit early if test condition is false */
   inline def unless(test: Boolean)(using Label[escape.Token]): Test = !test
+
+  /** Exit early immediately */
+  inline def break()(using Label[escape.Token]): Nothing = boundary.break(Token())
 }
 
 
@@ -477,7 +480,6 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
   try f(default)
   catch case e if e.catchable => default
 
-
 /** Run something, catching specific exceptions, and then map or match the success case.
   *
   * This matches the features of the draft exception matching JEP https://openjdk.org/jeps/8323658
@@ -502,6 +504,90 @@ inline def catchmatch[A](inline a: => A)[Z](inline handler: PartialFunction[Thro
           catch handler
         )(using outer)
     )
+
+/** Defer an action until the end of the block.  This form cannot be used in a procrastinator block.
+  *
+  * Equivalent to try/finally, except the finally block is at the top.
+  *
+  * Works similarly to, but in a block-centric not function-centric manner, defer in Go.
+  * Unlike Go, there are no complex rules about capture: the deferred code is simply executed
+  * at the end of the block, using whatever any mutable values happen to be at the time.
+  * 
+  * If one wants to persist a value that will change, one must manually assign it to a val and
+  * use the val.
+  * 
+  * {{{
+  * var x = 1
+  * defer(println(x)):
+  *   if foo() then x += 1
+  *   println("Hello")
+  *   x = x*3
+  *   while bar(x) do x -= 1
+  * }}}
+  */
+inline def defer[A](inline later: => Unit)(inline a: => A)(using scala.util.NotGiven[procrastinator.Procrastination]): A =
+  try a
+  finally later
+
+/** Defer an action managed by a procrastinator.  Runs at the end of a procrastinator block.
+  * 
+  * Multiple deferrals are run in stack order (first-on, last-off).
+  * 
+  * In case of exception, the code will still run, but an exception during deferral will terminate deferral handling
+  * unless a `procrastinator.nice:` block is used.
+  */
+inline def defer(using p: procrastinator.Procrastination)(later: => Unit): Unit =
+  p.asInstanceOf[Mu[List[() => Unit]]].op((() => later) :: _)
+
+object procrastinator {
+  opaque type Procrastination = Mu[List[() => Unit]]
+  opaque type Unnested = Unit
+
+  private def catchup(items: List[() => Unit]): Unit = items match
+    case f :: more =>
+      f()
+      catchup(more)
+    case _ =>
+
+  /** Denote a block where one may defer code for later using a `later` block.
+    * When the block ends, the items are run in the reverse order they were added (i.e. as a stack).
+    * 
+    * You cannot nest procrastinate blocks.
+    */
+  inline def apply[A](inline f: Procrastination ?=> A): A =
+    val p: Procrastination = Mu(Nil)
+    try f(using p)
+    finally catchup(p.asInstanceOf[Mu[List[() => Unit]]]())
+
+  private def catchupNice(items: List[() => Unit], errors: Mu[List[Err]]): Unit = items match
+    case f :: more =>
+      try kse.flow.nice(f()).foreachAlt(e => errors.op(e :: _))
+      finally catchupNice(more, errors)
+    case _ =>
+
+  /** Denotes a block where one will catch exceptions and defer code for later using a `later` block.
+    * When the block ends, delayed items are run in the reverse order they were added (i.e. as a stack).
+    * 
+    * A best effort is made to run everything, even in case of repeated exceptions.  This may overflow
+    * the stack, so do not enqueue too many items (it is not stack-safe).
+    * 
+    * If no exceptions are encountered, the normal return value is given.  Otherwise, all errors will be
+    * accumulated into a single error value (both from the primary code block and from the later blocks).
+    */
+  inline def nice[A](inline f: Procrastination ?=> A): Ask[A] =
+    val p: Procrastination = Mu(Nil)
+    val em = Mu(Nil: List[Err])
+    var a = Ask.ghosted[A]
+    try a = kse.flow.nice(f(using p))
+    finally
+      try catchupNice(p.asInstanceOf[Mu[List[() => Unit]]](), em)
+      finally
+        val es = em()
+        if es.nonEmpty then
+          a.foreachThem{ _ => a = Alt(Err(ErrType.Many(es))) }{ e => a = Alt(Err(ErrType.Many(e :: es))) }
+    a
+}
+
 
 extension [A](ask: Ask[A])
   inline def niceMap[B](f: A => B): Ask[B] = Ask.flat:

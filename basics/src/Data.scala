@@ -1175,6 +1175,11 @@ object ClippedArray {
       if i >= 0 && i < a.length then a(i)
       else x0
 
+    inline def get(i: Int): Option[A] =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then Some(a(i))
+      else None
+
     inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
       val a = ca.unwrap
       var i = i0
@@ -3819,6 +3824,11 @@ object ClippedString {
       val a = ca.unwrap
       if i >= 0 && i < a.length then a.charAt(i)
       else c
+
+    inline def get(i: Int): Option[Char] =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then Some(a.charAt(i))
+      else None
 
     inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): String =
       val a = ca.unwrap

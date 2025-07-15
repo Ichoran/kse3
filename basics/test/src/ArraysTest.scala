@@ -559,6 +559,12 @@ class ArraysTest() {
     T ~ str.clip(2)('!')             ==== str(2)
     T ~ str.clip(-2)('!')            ==== '!'
     T ~ str.clip(str.length)('!')    ==== '!'
+    T ~ car.clip.get(2)              ==== Some(car(2))
+    T ~ car.clip.get(-2)             ==== None
+    T ~ car.clip.get(car.length)     ==== None
+    T ~ str.clip.get(2)              ==== Some(str(2))
+    T ~ str.clip.get(-2)             ==== None
+    T ~ str.clip.get(car.length)     ==== None
 
     T ~ z{ car.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
     T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum

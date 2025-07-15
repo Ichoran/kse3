@@ -79,6 +79,12 @@ final class ConcurrentSplitDeque[A]() {
   private inline def deeper: ConcurrentSplitDeque[Array[AnyRef]] = buffer(ic).asInstanceOf[ConcurrentSplitDeque[Array[AnyRef]]] // Items in the center of the deque, batched in 24-wide blocks
   private inline def deeper_=(csdao: ConcurrentSplitDeque[Array[AnyRef]]): Unit = buffer(ic) = csdao
 
+  var debugFlag = false
+  def setDebugFlag(value: Boolean): Unit =
+    debugFlag = value
+    val deep = deeper
+    if deep ne null then deep.setDebugFlag(value)
+
 
   ////////////////////////////////////////////////////////////////////////////////////
   // Methods to add single elements including batching and moving to deeper layers //
@@ -94,21 +100,24 @@ final class ConcurrentSplitDeque[A]() {
   // Adds an element to the front of the deque (unguarded--make sure there's room!).
   // Breaks len invariant, so only call on outer layer.
   private def outerAddLeft(a: A): Unit =
-    if nl + nr == 62 then implMoveIn()
+    if nl + nr == 62 then
+      if nl > 24 then implMoveInLeft() else implMoveInRight()
     nl += 1
     buffer((ic - nl) & 0x3F) = a.asInstanceOf[AnyRef]
 
   // Adds an element to the back of the queue (unguarded).
   // Breaks len invariant, so only call on outer layer.
   private def outerAddRight(a: A): Unit =
-    if nl + nr == 62 then implMoveIn()
+    if nl + nr == 62 then
+      if nr > 24 then implMoveInRight() else implMoveInLeft()
     nr += 1
     buffer((ic + nr) & 0x3F) = a.asInstanceOf[AnyRef]
 
   // Adds a block (by reuse or allocation) to the beginning of the deque (inner layers only).
   // Maintains len invariant and preserves the null element invariant.  Only call on inner layers.
   private def innerReuseLeft(gen: () => A): A =
-    if nl + nr == 62 then implMoveIn()
+    if nl + nr == 62 then 
+      if nl > 24 then implMoveInLeft() else implMoveInRight()
     nl += 1
     len += 1
     val i = (ic - nl) & 0x3F
@@ -132,7 +141,8 @@ final class ConcurrentSplitDeque[A]() {
   // Adds a block (by reuse or allocation) to the end of the deque (inner layers only).
   // Maintains len invariant and preserves the null element invariant.  Only call on inner layers.
   private def innerReuseRight(gen: () => A): A =
-    if nl + nr == 62 then implMoveIn()
+    if nl + nr == 62 then
+      if nr > 24 then implMoveInRight() else implMoveInLeft()
     nr += 1
     len += 1
     val i = (ic + nr) & 0x3F
@@ -152,6 +162,35 @@ final class ConcurrentSplitDeque[A]() {
         buffer(i) = ans.asInstanceOf[AnyRef]
         ans
     else a.asInstanceOf[A]
+
+  // Moves a requested number of elements from the outside of the left edge into a buffer, dragging along
+  // any empty buffers.  The caller must ensure that there are enough elements.
+  // len is NOT updated because this might be a transferral into a buffer we own.
+  private def transferLeft(k: Int, target: Array[AnyRef], start: Int = 0): Unit =
+    var i = start
+    var j = (ic - nl) & 0x3F
+    val stop = start + k
+    while i < stop do
+      target(i) = buffer(j)
+      buffer(j) = null
+      i += 1
+      j = (j + 1) & 0x3F
+    if (vzn & 1) == 0 then
+      // In an inner buffer, so drag along empty buffers until we hit a null sentinel or we've dragged half the gap
+      val gap = 62 - nl - nr
+      val toofar = (ic + nr + (gap >> 1)) & 0x3F
+      var found = true
+      j = (j - 1) & 0x3F
+      i = (ic - nl - 1) & 0x3F
+      while found && i != toofar do
+        val x = buffer(i)
+        found = x ne null
+        if found then
+          buffer(j) = x
+          buffer(i) = null
+          i = (i - 1) & 0x3F
+          j = (j - 1) & 0x3F
+    nl -= k
 
   // Moves a requested number of elements from the inside of the left edge into a buffer, healing the left edge
   // and, if it's an inner layer, dragging along empty any buffers.  The caller must ensure there are
@@ -174,9 +213,11 @@ final class ConcurrentSplitDeque[A]() {
       i = (i - 1) & 0x3F
       j = (j - 1) & 0x3F
     if (vzn & 1) == 0 then
-      // We are in an inner buffer, so drag along empty buffers until we hit null sentinel
+      // We are in an inner buffer, so drag along empty buffers until we hit a null sentinel or we've dragged half the gap
+      val gap = 62 - nl - nr
+      val toofar = (ic + nr + (gap >> 1)) & 0x3F
       var found = true
-      while found do
+      while found && j != toofar do
         val x = buffer(j)
         found = x ne null
         if found then
@@ -194,6 +235,33 @@ final class ConcurrentSplitDeque[A]() {
         i = (i - 1) & 0x3F
     nl -= k 
 
+  // Moves a requested number of elements from the outside of the right edge into a buffer, dragging along
+  // any empty buffers.  The caller must ensure that there are enough elements.
+  // len is NOT updated because this might be a transferral into a buffer we own.
+  private def transferRight(k: Int, target: Array[AnyRef], start: Int = 0): Unit =
+    var i = start + k - 1
+    var j = (ic + nr) & 0x3F
+    while i >= start do
+      target(i) = buffer(j)
+      buffer(j) = null
+      i -= 1
+      j = (j - 1) & 0x3F
+    if (vzn & 1) == 0 then
+      // In an inner buffer, so drag along empty buffers until we hit a null sentinel or we've dragged half the gap
+      val gap = 62 - nl - nr
+      val toofar = (ic - nl - (gap >> 1)) & 0x3F
+      var found = true
+      j = (ic + nr - k + 1) & 0x3F
+      i = (ic + nr + 1) & 0x3F
+      while found && i != toofar do
+        val x = buffer(i)
+        found = x ne null
+        if found then
+          buffer(j) = x
+          buffer(i) = null
+          i = (i + 1) & 0x3F
+          j = (j + 1) & 0x3F
+    nr -= k
 
   // Moves a requested number of elements from the inside of the right edge into a buffer, healing the right edge
   // and, if it's an inner layer, dragging along empty any buffers.  The caller must ensure there are
@@ -216,9 +284,11 @@ final class ConcurrentSplitDeque[A]() {
       i = (i + 1) & 0x3F
       j = (j + 1) & 0x3F
     if (vzn & 1) == 0 then
-      // We are in an inner buffer, so drag along empty buffers until we hit null sentinel
+      // We are in an inner buffer, so drag along empty buffers until we hit a null sentinel or we've dragged half the gap
+      val gap = 62 - nl - nr
+      val toofar = (ic - nl - (gap >> 1)) & 0x3F
       var found = true
-      while found do
+      while found && j != toofar do
         val x = buffer(j)
         found = x ne null
         if found then
@@ -258,13 +328,6 @@ final class ConcurrentSplitDeque[A]() {
     val a = deeper.innerReuseRight(() => new Array[AnyRef](24))
     extractRight(24, a, 0)
 
-  // Restructures by moving 24 items from our buffer into a deeper level.
-  // Only call when nl+nr is at least 49 (so one will be greater than 24).
-  // Favors moving the right edge; standard queue operation adds to the right.
-  private def implMoveIn(): Unit =
-    if nr > 24 then implMoveInRight()
-    else if nl > 24 then implMoveInLeft()
-
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
   // Methods to take single elements including removing deeper batches and expanding into our buffer //
@@ -295,7 +358,7 @@ final class ConcurrentSplitDeque[A]() {
   // already have fewer than 24 elements on the left edge.
   // The right edge may shrink if necessary to make space for the left edge; if the two are contiguous we
   // just shuffle the insertion point ic to reflect that we're considering more to be on the left.
-  // Because this is a restructuring, the this layer does not need its len updated.
+  // Because this is a restructuring, this layer does not need its len updated.
   // Deeper layers have their lengths updated as needed.
   private def implMoveOutLeft(): Unit =
     val deep = deeper
@@ -451,15 +514,8 @@ final class ConcurrentSplitDeque[A]() {
       cr = cc % 24
       cc -= cr
     val c = new ConcurrentSplitDeque.Chunk[A](cl, cr)
-    // Take as much of the left edge as is needed--pretend it's always everything so we can use extractLeft
-    val scoot = nl - cl
-    ic = (ic - scoot) & 0x3F
-    nr += scoot
-    nl -= scoot
-    extractLeft(cl, c.buffer, 0)
-    ic = (ic + scoot) & 0x3F
-    nr -= scoot
-    nl = scoot   // This is also how much is left
+    // Take as much of the left edge as is needed, or all of it if we need it all
+    transferLeft(cl, c.buffer, 0)
     // Take inner layers (recursively) if there are any
     if cc > 0 then
       c.deeper = deep.implTakeLeftChunk(cc / 24)
@@ -506,15 +562,8 @@ final class ConcurrentSplitDeque[A]() {
       cl = cc % 24
       cc -= cl
     val c = new ConcurrentSplitDeque.Chunk[A](cl, cr)
-    // Take as much of the right edge as needed--pretend it's always everything so we can use extractRight
-    val scoot = nr - cr
-    ic = (ic + scoot) & 0x3F
-    nr -= scoot
-    nl += scoot
-    extractRight(cr, c.buffer, cl)
-    nl -= scoot
-    ic = (ic - scoot) & 0x3F
-    nr = scoot   // This is also how much is left
+    // Take as much of the right edge as needed, or all of it if we need it all
+    transferRight(cr, c.buffer, cl)
     // Take inner layers (recursively) if there are any
     if cc > 0 then
       c.deeper = deep.implTakeRightChunk(cc / 24)
@@ -828,24 +877,31 @@ final class ConcurrentSplitDeque[A]() {
     lenHandle.setRelease(this, 0)
     m
 
+  def mkDebugStr(sb: MkStr, indent: String = ""): Unit =
+    sb += indent
+    sb += s"$len $vzn : $nl $ic $nr\n"
+    sb += indent
+    buffer.zipWithIndex.foreach{ case (x, i) =>
+        if x eq null then
+          sb += (if i == ic then "_" else "-")
+        else if x.isInstanceOf[Array[AnyRef]] then
+          val a = x.asInstanceOf[Array[AnyRef]]
+          if a.length != 24 then sb += "?"
+          else
+            val n = a.count(_ ne null)
+            if n == 0 then sb += "|"
+            else if n == 24 then sb += "#"
+            else sb += "H"
+        else
+          sb += (if i == ic then "v" else "@")
+    }
+    sb += "\n"
+    if deeper ne null then deeper.mkDebugStr(sb, indent + "> ")
 
   def debug(indent: String = ""): Unit =
-    println(s"$indent$len $vzn : $nl $ic $nr")
-    println(buffer.zipWithIndex.map{ case (x, i) =>
-      if x eq null then
-        if i == ic then "_" else "-"
-      else if x.isInstanceOf[Array[AnyRef]] then
-        val a = x.asInstanceOf[Array[AnyRef]]
-        if a.length != 24 then "?"
-        else
-          val n = a.count(_ ne null)
-          if n == 0 then "|"
-          else if n == 24 then "#"
-          else "H"
-      else
-        if i == ic then "v" else "@"
-    }.mkString(indent, "", ""))
-    if deeper ne null then deeper.debug(indent + "> ")
+    val sb = MkStr.empty()
+    mkDebugStr(sb, indent)
+    println(sb.toString)
 }
 object ConcurrentSplitDeque {
   import java.lang.invoke.MethodHandles

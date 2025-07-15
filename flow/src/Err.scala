@@ -268,6 +268,10 @@ object Ask {
         x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
       }
     catch case t if t.threadCatchable => Alt(Err(t))
+
+  private val emptyAskErr = Alt(Err(""))
+
+  def ghosted[A]: Ask[A] = emptyAskErr
 }
 
 

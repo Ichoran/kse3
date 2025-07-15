@@ -10,7 +10,7 @@ import scala.util.NotGiven
 import scala.compiletime.{codeOf, summonInline, summonFrom, erasedValue, constValue, constValueOpt, constValueTuple}
 import scala.annotation.targetName
 
-import kse.basics.{LabelVal, \ => \^, \< => \<^, \> => \>^ }
+import kse.basics.{LabelStr, \ => \^, \< => \<^, \> => \>^ }
 
 
 
@@ -343,7 +343,7 @@ object NamesAndLabels {
   import compiletime.ops.int.*
   import NamedTuple.{NamedTuple => NTup}
 
-  type LabeledValue[Ns <: Tuple, Vs <: Tuple, L <: LabelVal] <: (Any \^ L) = Ns match
+  type LabeledValue[Ns <: Tuple, Vs <: Tuple, L <: LabelStr] <: (Any \^ L) = Ns match
     case EmptyTuple => Nothing
     case L *: _     => (Tuple.Head[Vs] \^ L)
     case _ *: tail  => LabeledValue[tail, Tuple.Tail[Vs], L]
@@ -353,12 +353,12 @@ object NamesAndLabels {
     case L *: _     => N
     case _ *: tail  => IndexOfType[tail, L, N+1]
 
-  transparent inline def byLabel[Ns <: Tuple, Vs <: Tuple, L <: LabelVal](tup: NTup[Ns, Vs], inline lb: L): LabeledValue[Ns, Vs, L] =
+  transparent inline def byLabel[Ns <: Tuple, Vs <: Tuple, L <: LabelStr](tup: NTup[Ns, Vs], inline lb: L): LabeledValue[Ns, Vs, L] =
     inline constValue[IndexOfType[Ns, L, 0]] match
       case -1 => compiletime.error("No tuple fields by the name of " + constValue[L])
       case i => tup(i).asInstanceOf[LabeledValue[Ns, Vs, L]]
 
-  transparent inline def indexByLabel[Ts <: Tuple](tup: Ts)[L <: LabelVal, N <: Int]: Int =
+  transparent inline def indexByLabel[Ts <: Tuple](tup: Ts)[L <: LabelStr, N <: Int]: Int =
     inline if constValue[Tuple.Size[Ts]] <= constValue[N] then -1
     else summonFrom:
       case _: (Tuple.Elem[Ts, N] <:< (Any \^ L)) => constValue[N]
@@ -812,31 +812,31 @@ object NamesAndLabels {
 
 extension [A](a: A) {
   /** Associate a compile-time name with this value by giving the other (Singular) value */
-  inline def \[L <: LabelVal](l: L): A \^ L = \^.wrap(a)
+  inline def \[L <: LabelStr](l: L): A \^ L = \^.wrap(a)
 
   /** Associate a compile-time name with this value, where it is a subtype of its original type, by giving a name */
-  inline def \<[L <: LabelVal](l: L): A \<^ L = \<^.wrap(a)
+  inline def \<[L <: LabelStr](l: L): A \<^ L = \<^.wrap(a)
 
   /** Associate a compile-time name with this value, where it is a supertype of its original type, by giving a name */
-  inline def \>[L <: LabelVal](l: L): A \>^ L = \>^.wrap(a)
+  inline def \>[L <: LabelStr](l: L): A \>^ L = \>^.wrap(a)
 }
 
 
 extension [Ts <: Tuple](tup: Ts) {
-  transparent inline def labelsToNames: NamedTuple.NamedTuple[NamesAndLabels.LabeledAsNames[Ts], NamesAndLabels.LabeledAsValues[Ts]] =
+  transparent inline def asNamed: NamedTuple.NamedTuple[NamesAndLabels.LabeledAsNames[Ts], NamesAndLabels.LabeledAsValues[Ts]] =
     NamesAndLabels.toNamed[Ts](tup)
 }
 
 extension [Ns <: Tuple, Ts <: Tuple](tup: NamedTuple.NamedTuple[Ns, Ts]) {
-  transparent inline def namesToLabels: NamesAndLabels.NamesToLabels[Ns,Ts] =
+  transparent inline def asLabeled: NamesAndLabels.NamesToLabels[Ns,Ts] =
     NamesAndLabels.toLabeled[Ns, Ts](tup)
 
-  transparent inline infix def pluck[L <: LabelVal](lb: L): NamesAndLabels.LabeledValue[Ns, Ts, L] =
+  transparent inline infix def pluck[L <: LabelStr](lb: L): NamesAndLabels.LabeledValue[Ns, Ts, L] =
     NamesAndLabels.byLabel(tup, lb)
 }
 
 
-extension [L <: LabelVal, A](la: A \^ L) {
+extension [L <: LabelStr, A](la: A \^ L) {
   inline def nt =
     inline if compiletime.constValue[L] == "" then compiletime.error("Invalid tuple field name")
     else NamedTuple.withNames(Tuple1(la.unlabel))[Tuple1[L]]
@@ -844,22 +844,22 @@ extension [L <: LabelVal, A](la: A \^ L) {
 }
 
 
-extension [L <: LabelVal, A](inline tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
+extension [L <: LabelStr, A](inline tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
   transparent inline def lb: A \^ L = \^.wrap(kse.basics.basicsMacroImpl.extractNamedTuple1Literal(tup))
 }
 
-extension [L <: LabelVal, A](tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
+extension [L <: LabelStr, A](tup: NamedTuple.NamedTuple[Tuple1[L], Tuple1[A]]) {
   inline def kv: (L, A) = (compiletime.constValue[L], tup.asInstanceOf[Tuple1[A]]._1)
 }
 
 
-extension [L <: LabelVal](l: L) {
+extension [L <: LabelStr](l: L) {
   inline def labeled[A](f: \^.Assumed[L] ?=> A): A \^ L = \^.wrap[A](f(using \^.Assumed.label[L]))[L]
   inline def assumed[A](f: \^.Assumed[L] ?=> A): A      =            f(using \^.Assumed.label[L])
 }
 
 
-inline def conjure[L <: LabelVal](l: L)[A](using inline nm: ((A \^ L) | (A \>^ L))): A = inline nm match
+inline def conjure[L <: LabelStr](l: L)[A](using inline nm: ((A \^ L) | (A \>^ L))): A = inline nm match
   case nt: (A \^ L)  => nt.unlabel
   case sp: (A \>^ L) => sp
   case _ => nm.asInstanceOf[A]   // Cheating, but they're all the same type anyway, so....
