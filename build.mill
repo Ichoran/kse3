@@ -108,7 +108,8 @@ object all extends Common {
     Seq(
       mvn"org.typelevel::cats-core:2.12.0",
       mvn"com.diffplug.matsim:matfilerw:3.1.1",
-      mvn"com.lihaoyi::upickle:4.1.0"
+      mvn"com.lihaoyi::upickle:4.1.0",
+      mvn"it.unimi.dsi:fastutil:8.5.16"
     )
   }
   def moduleDeps = Seq(basics, flow, maths, eio)

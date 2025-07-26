@@ -1393,8 +1393,9 @@ extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U](inline
 
 extension [A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V](inline tup22: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V))
   inline def fn[Z](inline op22: (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V) => Z): Z = basicsMacroImpl.fnWithoutBoxing22(tup22, op22)
-/*
 
+
+/*
 ################
 ## GENERATORS ##
 ################
@@ -1419,5 +1420,4 @@ def mkFnTup(n: Int) =
 
 for n <- 3 to 22 do
   mkFnTup(n)
-
 */

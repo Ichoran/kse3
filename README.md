@@ -21,8 +21,7 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 ## How do I get it?
 
 Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
-Make sure your module has a sufficiently recent 3.4 or later (at least 3.4.2).  Development occurs under 3.5,
-so that is probably the best version to use.  For example, in mill:
+You'll need to specify an appropriate version of Scala.  For example, in mill:
 
 ```scala
 def scalaVersion = "3.7.0"

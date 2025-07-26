@@ -1023,8 +1023,8 @@ extension (d: Double) {
   inline def sqrt = jm.sqrt(d)
   inline def zsqrt = if d < 0 then 0.0 else jm.sqrt(d)
   inline def cbrt = jm.cbrt(d)
-  inline def hypot(e: Double) = jm.hypot(d, e)
-  inline def pow(e: Double) = jm.pow(d, e)
+  inline infix def hypot(e: Double) = jm.hypot(d, e)
+  inline infix def pow(e: Double) = jm.pow(d, e)
   inline def log = jm.log(d)
   inline def log2 = jm.log(d) * NumericConstants.OverLnTwo
   inline def log10 = jm.log10(d)
@@ -1039,7 +1039,7 @@ extension (d: Double) {
   inline def asin = jm.asin(d)
   inline def acos = jm.acos(d)
   inline def atan = jm.atan(d)
-  inline def atan2(e: Double) = jm.atan2(d, e)
+  inline infix def atan2(e: Double) = jm.atan2(d, e)
   inline def cosh = jm.cosh(d)
   inline def sinh = jm.sinh(d)
   inline def tanh = jm.tanh(d)
@@ -2427,7 +2427,7 @@ object PlusMinus {
       else           PlusMinus.D(r, 0.5*e/r)
 
 
-    def pow(exponent: Double): kse.maths.PlusMinus =
+    infix def pow(exponent: Double): kse.maths.PlusMinus =
       val v = pm.value.toDouble
       val e = pm.error.toDouble
       val p = jm.pow(v, exponent)

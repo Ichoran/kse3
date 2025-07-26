@@ -14,9 +14,10 @@ import kse.basics._
 import kse.basics.intervals._
 
 
-/** Implements a fast concurrent deque that allows O(log n) retrieval of chunks of up to size n.
-  * This makes it suitable for scenarios with many fast producers and a chunk-based consumer, though
-  * it also has good single-element queue and stack performance.
+/** Implements a fast concurrent deque that allows O(log n) inclusion and retrieval of chunks of up to
+  * size n.  This makes it suitable for scenarios with many fast producers and a chunk-based consumer,
+  * a producer that creates chunks with many fast consumers, or m-to-n rechunking.
+  * It also has good single-element queue and stack performance.
   * 
   * Under very heavy contention, overhead will increase markedly due to spin-waiting for access.  One
   * can use the `contention()` method to get a numeric contention score.
@@ -41,6 +42,16 @@ final class ConcurrentSplitDeque[A]() {
   // plus deeper tree layers where each layer contains blocks of 24 items from the previous layer.  This allows
   // addition and removal very rapidly on average (only a single array access and updating a couple values), with
   // worst-case O(log n) restructuring as items in the buffer are put into blocks and pushed deeper into the tree.
+
+  // The top-level elements are between l and c (left items) and c and r (right items).  There is always at least
+  // a one-element gap, so (r - l) & 0x3F is the number of items at the top level.  Because these points are in
+  // half-open order, i.e., l <= i < c (mod 64) are on the left and c <= i < r (mod 64) are on the right,
+  // traversals are performed left-to-right whenever possible to simplify endpoint detection.
+
+  // Deeper elements are grouped in blocks of size 24 by default, but any size from 8 to 64 is supported.
+
+  // Deeper element blocks may be cached at the end of the buffer in elements 64 to 71 inclusive;
+  // these are preferentially reused instead of allocating a new block upon addition, and they are 
 
   // The place in the ring buffer where the deeper blocks are considered to exist is given by the `ic` variable.
   // This should always be in-range; since the buffer is size 64, ic should be between 0 and 63 inclusive.  The
@@ -71,13 +82,12 @@ final class ConcurrentSplitDeque[A]() {
 
   private[ConcurrentSplitDeque] var len: Int = 0   // The total number of stored items, or negative to indicate a computation underway
   private[ConcurrentSplitDeque] var vzn: Int = 1   // A modification version number that is updated whenever something changes (values must be odd; inner copies are even)
-  private var ic: Int = 32   // The insertion point for any more deeply nested items (null if there are none); should have 0 <= ic < 64
-  private var nl: Int = 0    // The number of items inserted to the left of the insertion point (growing left)
-  private var nr: Int = 0    // The number of items inserted at and to the right of the insertion point (growing right)
-  private val buffer: Array[AnyRef] = new Array[AnyRef](64)  // A buffer to hold items at this level; accessed mod 64 (i.e. & 0x3F)
+  private var l: Int = 0    // The index of the start of the left flank of top-level items
+  private var c: Int = 0    // The index of the start of the right flank of top-level items (left flank is before here)
+  private var r: Int = 0    // The index past the end of the right flank of items.
+  private val buffer: Array[AnyRef] = new Array[AnyRef](68)  // A buffer to hold items at this level; accessed mod 64 (i.e. & 0x3F) plus 4 slots for empty buffers
 
-  private inline def deeper: ConcurrentSplitDeque[Array[AnyRef]] = buffer(ic).asInstanceOf[ConcurrentSplitDeque[Array[AnyRef]]] // Items in the center of the deque, batched in 24-wide blocks
-  private inline def deeper_=(csdao: ConcurrentSplitDeque[Array[AnyRef]]): Unit = buffer(ic) = csdao
+  private var deeper: ConcurrentSplitDeque[Array[AnyRef]] = null   // Items in the center of the deque, batched in 24-wide blocks (typically)
 
   var debugFlag = false
   def setDebugFlag(value: Boolean): Unit =
@@ -97,7 +107,7 @@ final class ConcurrentSplitDeque[A]() {
       deep.vzn = if (vzn & 1) == 1 then 2 else vzn + 2
       deeper = deep
 
-  // Adds an element to the front of the deque (unguarded--make sure there's room!).
+  // Adds an element to the front of the deque.
   // Breaks len invariant, so only call on outer layer.
   private def outerAddLeft(a: A): Unit =
     if nl + nr == 62 then
@@ -105,7 +115,7 @@ final class ConcurrentSplitDeque[A]() {
     nl += 1
     buffer((ic - nl) & 0x3F) = a.asInstanceOf[AnyRef]
 
-  // Adds an element to the back of the queue (unguarded).
+  // Adds an element to the back of the queue.
   // Breaks len invariant, so only call on outer layer.
   private def outerAddRight(a: A): Unit =
     if nl + nr == 62 then
@@ -115,7 +125,7 @@ final class ConcurrentSplitDeque[A]() {
 
   // Adds a block (by reuse or allocation) to the beginning of the deque (inner layers only).
   // Maintains len invariant and preserves the null element invariant.  Only call on inner layers.
-  private def innerReuseLeft(gen: () => A): A =
+  private def innerReuseLeft(): A =
     if nl + nr == 62 then 
       if nl > 24 then implMoveInLeft() else implMoveInRight()
     nl += 1
@@ -133,14 +143,14 @@ final class ConcurrentSplitDeque[A]() {
         b.asInstanceOf[A]
       else
         // Safe to use this null spot because there's another null past it
-        val ans = gen()
+        val ans = new Array[AnyRef](24)
         buffer(i) = ans.asInstanceOf[AnyRef]
-        ans
+        ans.asInstanceOf[A]
     else a.asInstanceOf[A]
 
   // Adds a block (by reuse or allocation) to the end of the deque (inner layers only).
   // Maintains len invariant and preserves the null element invariant.  Only call on inner layers.
-  private def innerReuseRight(gen: () => A): A =
+  private def innerReuseRight(): A =
     if nl + nr == 62 then
       if nr > 24 then implMoveInRight() else implMoveInLeft()
     nr += 1
@@ -158,9 +168,9 @@ final class ConcurrentSplitDeque[A]() {
         b.asInstanceOf[A]
       else
         // Safe to use this null spot because there's another null past it
-        val ans = gen()
+        val ans = new Array[AnyRef](24)
         buffer(i) = ans.asInstanceOf[AnyRef]
-        ans
+        ans.asInstanceOf[A]
     else a.asInstanceOf[A]
 
   // Moves a requested number of elements from the outside of the left edge into a buffer, dragging along
@@ -314,7 +324,7 @@ final class ConcurrentSplitDeque[A]() {
   // Only call when there are more than 24 items on the left (leave at least one).
   private def implMoveInLeft(): Unit =
     ensureDeeper()
-    val a = deeper.innerReuseLeft(() => new Array[AnyRef](24))
+    val a = deeper.innerReuseLeft()
     extractLeft(24, a, 0)
 
   // Restructures by moving 24 items from the right edge of the buffer at our level
@@ -325,7 +335,7 @@ final class ConcurrentSplitDeque[A]() {
   // Only call when there are more than 24 items on the right (leave at least one).
   private def implMoveInRight(): Unit =
     ensureDeeper()
-    val a = deeper.innerReuseRight(() => new Array[AnyRef](24))
+    val a = deeper.innerReuseRight()
     extractRight(24, a, 0)
 
 
@@ -440,6 +450,15 @@ final class ConcurrentSplitDeque[A]() {
     buffer(j) = null
     nr -= 1
     ans.asInstanceOf[A]
+
+  // Given at least 24 elements on the left edge of the current buffer, swap them into a deeper layer while removing
+  // 24 elements on the right edge, resulting in the same number of elements in this layer, but with a right bias
+  // rather than a left one.  No len updates because no lengths actually change.
+  //
+  // Use only with at least 24 elements on the left, and when a deeper layer actually exists.
+  /*private def implRotateRight(): Unit =
+    val deep = deeper
+    if deep.nr */
 
 
 

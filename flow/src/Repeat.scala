@@ -4,26 +4,13 @@
 package kse.flow
 
 
-/** C-style for loop: starting with an Int `zero`, until meeting a stopping condition `p`, advance with `next` and operate with `f`. */
-inline def cFor(zero: Int)(inline p: Int => Boolean)(inline next: Int => Int)(inline f: Int => Unit): Unit =
-  var x = zero
-  while p(x) do
-    f(x)
-    x = next(x)
-
-/** C-style for loop: starting with a Long `zero`, until meeting a stopping condition `p`, advance with `next` and operate with `f`. */
-inline def cFor(zero: Long)(inline p: Long => Boolean)(inline next: Long => Long)(inline f: Long => Unit): Unit =
-  var x = zero
-  while p(x) do
-    f(x)
-    x = next(x)
-
 /** C-style for loop: starting with an arbitrary `zero`, until meeting a stopping condition `p`, advance with `next` and operate with `f`. */
-inline def cFor[A](zero: A)(inline p: A => Boolean)(inline next: A => A)(inline f: A => Unit): Unit =
+inline def cFor[A](inline zero: A)(inline p: A => Boolean)(inline next: A => A)(inline f: A => Unit): Unit =
   var x = zero
   while p(x) do
     f(x)
     x = next(x)
+
 
 /** Repeat: run `f` on arguments up to the Int `n` */
 inline def nFor(n: Int)(inline f: Int => Unit): Unit =
@@ -38,6 +25,7 @@ inline def nFor(n: Long)(inline f: Long => Unit): Unit =
   while i < n do
     f(i)
     i += 1
+
 
 /** For everything in iterator `i`, run `f` on the item plus its index */
 inline def iFor[A](i: Iterator[A])(inline f: (A, Int) => Unit): Unit =
@@ -71,6 +59,14 @@ inline def iFor[A](e: java.util.Enumeration[A])(inline f: (A, Int) => Unit): Uni
 inline def iFor[A](s: java.util.Spliterator[A])(inline f: (A, Int) => Unit): Unit =
   var n = 0
   while s.tryAdvance(a => f(a, n)) do n += 1
+
+
+/** A while loop with an index; continues while the condition is true */
+inline def iWhile(inline p: => Boolean)(inline f: Int => Unit): Unit =
+  var n = 0
+  while p do
+    f(n)
+    n += 1
 
 
 /** Applies an operation to everything that we can pull out of a java.util.Queue (e.g. a concurrent.LinkedTransferQueue) */

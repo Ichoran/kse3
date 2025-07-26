@@ -668,6 +668,15 @@ extension [A](a: A) {
 
   /** This is a disfavored value, but make it look like another Or */
   inline def altLike[X, Y >: A](that: X Or Y): X Or Y = Alt(a: Y)
+
+  /** Keep the value if it passes, otherwise discard it */
+  inline def keepIf(inline p: A => Boolean): A Or Unit = if p(a) then Is(a) else Alt.unit
+
+  /** Keep the value of pattern matches, otherwise discard it */
+  inline def keepCase[Z](pf: PartialFunction[A, Z]): Z Or Unit =
+    pf.applyOrElse(a, Or.defaultApplyOrElse.asInstanceOf[Any => Any]) match
+      case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt.unit
+      case z => Is(z.asInstanceOf[Z])
 }
 
 extension [A >: Null] (a: A) {

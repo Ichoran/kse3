@@ -185,6 +185,14 @@ class FlowTest {
     }
     T("java spliterator iFor") ~ birds.result ==== "pigeonpigeonpigeon, sparrowsparrow, hawk"
 
+    var n = 0
+    var cuml = 0
+    iWhile(cuml < 10): i =>
+      n += 1
+      cuml += i
+    T ~ cuml ==== 10
+    T ~ n    ==== 5
+
 
 
   @Test
@@ -286,6 +294,10 @@ class FlowTest {
     T ~ 5.unfoldToOr(_ < 0)(_.toChar)(_ > 3)               ==== Alt(true)    --: typed[Char Or Boolean]
     T ~ 5.isLike(true.orIs[Int])                           ==== 5            --: typed[Int Or Boolean]
     T ~ 5.altLike('e'.orAlt[Int])                          ==== Alt(5)       --: typed[Char Or Int]
+    T ~ 5.keepIf(_ < 3)                                    ==== Alt.unit
+    T ~ 5.keepIf(_ > 3)                                    ==== 5
+    T ~ 5.keepCase{ case x if x < 3 => "!"*x }             ==== Alt.unit
+    T ~ 5.keepCase{ case x if x > 3 => "!"*x }             ==== "!!!!!"
 
     // Extra, probably superfluous tests
     T ~ List(5, -5).map(_.isIf( _ > 0)) ==== List(5, Alt(-5))
