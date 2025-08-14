@@ -2863,7 +2863,7 @@ object Frac {
 }
 extension (value: Int) {
   @targetName("Frac_over")
-  inline def over(denom: Int): kse.maths.Frac = Frac(value, denom)
+  inline infix def over(denom: Int): kse.maths.Frac = Frac(value, denom)
 
   // +(Frac) in OverloadedExtensions
   // -(Frac) in OverloadedExtensions

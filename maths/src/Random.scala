@@ -120,17 +120,17 @@ sealed abstract class Prng {
       val scale = jm.sqrt( (-2 * jm.log(rr)) / rr )
       f(x * scale, y * scale)
 
-  final inline def useZ(            inline f: Boolean => Unit): this.type = { f(Z);        this }
-  final inline def useB(            inline f: Byte    => Unit): this.type = { f(B);        this }
-  final inline def useS(            inline f: Short   => Unit): this.type = { f(S);        this }
-  final inline def useC(            inline f: Char    => Unit): this.type = { f(C);        this }
-  final inline def useI(            inline f: Int     => Unit): this.type = { f(I);        this }
-  final inline def useL(            inline f: Long    => Unit): this.type = { f(L);        this }
-  final inline def useF(            inline f: Float   => Unit): this.type = { f(F);        this }
-  final inline def useD(            inline f: Double  => Unit): this.type = { f(D);        this }
-  final inline def useModI(m: Int )(inline f: Int     => Unit): this.type = { f(this % m); this }
-  final inline def useModL(m: Long)(inline f: Long    => Unit): this.type = { f(this % m); this }
-  final inline def useGaussian(     inline f: Double  => Unit): this.type = { f(gaussian); this }
+  final inline def tapZ(            inline f: Boolean => Unit): this.type = { f(Z);        this }
+  final inline def tapB(            inline f: Byte    => Unit): this.type = { f(B);        this }
+  final inline def tapS(            inline f: Short   => Unit): this.type = { f(S);        this }
+  final inline def tapC(            inline f: Char    => Unit): this.type = { f(C);        this }
+  final inline def tapI(            inline f: Int     => Unit): this.type = { f(I);        this }
+  final inline def tapL(            inline f: Long    => Unit): this.type = { f(L);        this }
+  final inline def tapF(            inline f: Float   => Unit): this.type = { f(F);        this }
+  final inline def tapD(            inline f: Double  => Unit): this.type = { f(D);        this }
+  final inline def tapModI(m: Int )(inline f: Int     => Unit): this.type = { f(this % m); this }
+  final inline def tapModL(m: Long)(inline f: Long    => Unit): this.type = { f(this % m); this }
+  final inline def tapGaussian(     inline f: Double  => Unit): this.type = { f(gaussian); this }
 
   final def fillRangeZ(target: Array[Boolean])(i0: Int, iN: Int): Unit =
     var i = if i0 < 0             then 0             else i0
@@ -701,7 +701,7 @@ sealed abstract class Prng {
             a(this % a.length) = i.next.asInstanceOf[AnyRef]
             w *= math.exp(math.log(D)/k)
         shuffle(a)
-        a.peek()(x => b += x.asInstanceOf[A]) __ Unit
+        a.use()(x => b += x.asInstanceOf[A])
       else
         var m = 0
         while m < k do

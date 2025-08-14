@@ -6,8 +6,9 @@ package kse.flow
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
-import java.util.concurrent.{Future, ExecutorService}
+import java.util.concurrent.{Future, ExecutorService, ArrayBlockingQueue, SynchronousQueue}
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
 
 import scala.util.boundary
 import scala.util.boundary.Label
@@ -44,15 +45,17 @@ object Fu {
   val defaultExecutor = Executor.create()
   given Executor = defaultExecutor
 
-  inline def flat[A](using exec: Executor)(inline work: Label[A Or Err] ?=> A Or Err): kse.flow.Fu[A] = exec match
+  inline def flat[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> Ask[A]): kse.flow.Fu[A] = exec match
     case service: ExecutorService => service.submit(() => Ask.threadsafeFlat{ work })
-    case g: GroupExecutor => g.service.submit(() => Ask.threadsafeFlat{ work }.useAlt(g.fail))
+    case g: GroupExecutor => g.service.submit(() => Ask.threadsafeFlat{ work }.peekAlt(g.fail))
 
-  inline def apply[A](using exec: Executor)(inline work: Label[A Or Err] ?=> A): kse.flow.Fu[A] = exec match
-    case service: ExecutorService => service.submit(() => Ask.threadsafe{ work })
-    case g: GroupExecutor => g.service.submit(() => Ask.threadsafe{ work }.useAlt(g.fail))
+  inline def apply[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> A): kse.flow.Fu[A] = 
+    val run: java.util.concurrent.Callable[Ask[A]] = () => Ask.threadsafe{ work }
+    exec match
+      case service: ExecutorService => service.submit(run)
+      case g: GroupExecutor => g.service.submit(() => run.call().peekAlt(g.fail))
 
-  inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[A Or Err] ?=> A Or Err): kse.flow.Fu[A] = exec match
+  inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> Ask[A]): kse.flow.Fu[A] = exec match
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
@@ -62,11 +65,11 @@ object Fu {
     case g: GroupExecutor =>
       g.service.submit(() => {
         val ex: Executor = Executor.group()
-        try Ask.threadsafeFlat{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
+        try Ask.threadsafeFlat{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).peekAlt(g.fail)
         finally Executor.stopIfGroup(ex)()
       })
 
-  inline def group[A](using exec: Executor)(inline makeWork: Executor ?=> Label[A Or Err] ?=> A): kse.flow.Fu[A] = exec match
+  inline def group[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> A): kse.flow.Fu[A] = exec match
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
@@ -76,18 +79,24 @@ object Fu {
     case g: GroupExecutor =>
       g.service.submit(() => {
         val ex: Executor = Executor.group()
-        try Ask.threadsafe{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).useAlt(g.fail)
+        try Ask.threadsafe{ makeWork(using ex) }.mapAlt(e => Executor.swapError(ex)(e)).peekAlt(g.fail)
         finally Executor.stopIfGroup(ex)()
       })
 
   extension [A](fu: Fu[A]) {
-    def isComplete: Boolean = (fu: Future[A Or Err]).isDone
+    def isComplete: Boolean = (fu: Future[Ask[A]]).isDone
 
     def ask(): Ask[A] =
-      try (fu: Future[A Or Err]).get()
+      try (fu: Future[Ask[A]]).get()
       catch case e if e.catchable => Alt(Err(e))
 
-    def cancel(): Boolean = (fu: Future[A Or Err]).cancel(true)
+    def askWithinMs(timeout: Long): A Or Option[Err] =
+      try (fu: Future[Ask[A]]).get(timeout, java.util.concurrent.TimeUnit.MILLISECONDS).mapAlt(e => Some(e))
+      catch
+        case t: java.util.concurrent.TimeoutException => Alt(None)
+        case e if e.catchable => Alt(Some(Err(e)))
+
+    def cancel(): Boolean = (fu: Future[Ask[A]]).cancel(true)
 
     inline def ?[L >: Alt[Err]](using lb: Label[L]): A = kse.flow.?[A, Err](Fu.ask(fu)())(using lb)
     inline def ?+[E, L >: Alt[E]](inline f: Err => E)(using lb: Label[L]): A = kse.flow.?+(Fu.ask(fu)())(f)(using lb)
@@ -105,7 +114,7 @@ object Fu {
 }
 
 extension [A](a: Array[kse.flow.Fu[A]]) {
-  def allFu(using exec: Fu.Executor, tag: ClassTag[A Or Err]): kse.flow.Fu[Array[A Or Err]] = Fu:
+  def allFu(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.flow.Fu[Array[Ask[A]]] = Fu:
     a.copyWith(fu => Fu.ask(fu)())
 
   def fu(using exec: Fu.Executor, tag: ClassTag[A]): kse.flow.Fu[Array[A]] = Fu.flat:
@@ -146,6 +155,84 @@ object Threaded {
     th.start()
     th
 }
+
+
+
+final class Chan[A](bufferSize: Int) {
+  private val buffer = new Array[AnyRef](if bufferSize <= 0 then 1 else if bufferSize > Int.MaxValue - 7 then Int.MaxValue - 7 else bufferSize)
+  private val lock = new ReentrantLock()
+  private val mightHaveSpace = lock.newCondition()
+  private val mightHaveItems = lock.newCondition()
+  private var i0 = 0
+  private var iN = 0
+  private var state: Chan.State = Chan.State.Open
+
+  private inline def locked[A](inline f: => A): A =
+    lock.lockInterruptibly()
+    try f
+    finally lock.unlock()
+
+  inline def +=?(a: A)(using boundary.Label[Chan.State]): Unit = locked:
+    var attempt = true
+    while attempt do
+      state match
+        case Chan.State.Open =>
+          if iN - i0 >= buffer.length then mightHaveSpace.await()
+          else
+            buffer(iN % buffer.length) = a.asInstanceOf[AnyRef]
+            iN += 1
+            attempt = false
+            mightHaveItems.signal()
+        case c => boundary.break(c)
+
+  inline def take_?(using boundary.Label[Chan.State]): A = locked:
+    while iN == i0 do
+      state match
+        case Chan.State.Open => mightHaveItems.await()
+        case c => boundary.break(c)
+    state match
+      case c: Chan.State.Closed => boundary.break(c)
+      case _ =>
+        val i = i0 % buffer.length
+        val ans = buffer(i).asInstanceOf[A]
+        buffer(i) = null
+        i0 += 1
+        mightHaveSpace.signal()
+        ans
+
+  inline def retire(): Unit = locked:
+    state match
+      case Chan.State.Open =>
+        state = Chan.State.ReadOnly
+        mightHaveSpace.signalAll()
+        mightHaveItems.signalAll()
+      case _ =>
+
+  inline def close(): Unit = locked:
+    state match
+      case c: Chan.State.Closed =>
+      case _ =>
+        state = Chan.completed
+        mightHaveSpace.signalAll()
+        mightHaveItems.signalAll()
+
+  inline def panic(err: Err)(using boundary.Label[Chan.State]): Nothing = locked:
+    state = state match
+      case Chan.State.Closed(Alt(e)) => Chan.State.Closed(Alt(Err(e, err)("")))
+      case _ => Chan.State.Closed(Alt(err))
+    boundary.break(state)
+}
+object Chan {
+  enum State:
+    case Open
+    case ReadOnly
+    case Closed(why: Ask[Unit])
+  val completed = State.Closed(Is.unit)
+  val altOpen = Alt(State.Open)
+  val altReadOnly = Alt(State.ReadOnly)
+  val altClosed = Alt(completed)
+}
+
 
 
 /*

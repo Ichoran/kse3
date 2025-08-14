@@ -587,7 +587,7 @@ object FitLine {
         else minusImpl(x, y)
 
     def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit =
-      vs.peek(i0, iN){ this += _ } __ Unit
+      vs.use(i0, iN){ this += _ }
 
     def addSegment(xs: Array[Double], i0: Int)(ys: Array[Double], j0: Int)(m: Int): Unit =
       var i = i0

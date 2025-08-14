@@ -122,10 +122,10 @@ extension [A](a: Array[A]) {
   @targetName("apply_Start_At") inline def apply(i: Start.At): A = a(i.unwrap)
   @targetName("apply_Start_type") inline def apply(i: Start.type): A = a(0)
 
-  inline def use(i: Int)(inline f: A => Unit): a.type =
+  inline def peek(i: Int)(inline f: A => Unit): a.type =
     if i >= 0 && i < a.length then f(a(i))
     a
-  inline def zap(i: Int)(inline f: A => A): a.type =
+  inline def poke(i: Int)(inline f: A => A): a.type =
     if i >= 0 && i < a.length then a(i) = f(a(i))
     a
 }
@@ -138,7 +138,7 @@ extension (a: String) {
   @targetName("str_apply_Start_At") inline def apply(i: Start.At): Char = a.charAt(i.unwrap)
   @targetName("str_apply_Start_type") inline def apply(i: Start.type): Char = a.charAt(0)
 
-  inline def use(i: Int)(inline f: Char => Unit): a.type =
+  inline def peek(i: Int)(inline f: Char => Unit): a.type =
     if i >= 0 && i < a.length then f(a.charAt(i))
     a
 
@@ -414,11 +414,11 @@ extension [A, M <: Mu[A]](mu: M) {
         case _ => mu.setValue(a)
       }
 
-  inline def use(inline f: A => Unit): mu.type =
+  inline def peek(inline f: A => Unit): mu.type =
     f(mu())
     mu
 
-  inline def op(inline f: A => A): Unit = 
+  inline def zap(inline f: A => A): Unit = 
     inline mu match
       case mut: Mu.T[A] => inline mut match
         case u: Mu.MuUnit.type => ()
@@ -505,11 +505,11 @@ extension [A, M <: Mu[A]](mu: M) {
           case _ => mu.setValue(f(mu.getValue))
         }
 
-  inline def zap(inline f: A => A): mu.type =
-    op(f)
+  inline def poke(inline f: A => A): mu.type =
+    zap(f)
     mu
 
-  inline def opAndGet(inline f: A => A): A =
+  inline def zapAndGet(inline f: A => A): A =
     inline mu match
       case mut: Mu.T[A] => inline mut match
         case u: Mu.MuUnit.type => ()
@@ -596,7 +596,7 @@ extension [A, M <: Mu[A]](mu: M) {
           case _ => { val v = f(mu.getValue); mu.setValue(v); v }
         }
 
-  inline def getAndOp(inline f: A => A): A =
+  inline def getAndZap(inline f: A => A): A =
     inline mu match
       case mut: Mu.T[A] => inline mut match
         case u: Mu.MuUnit.type => ()
@@ -685,7 +685,8 @@ extension [A, M <: Mu[A]](mu: M) {
 }
 
 extension [A <: Mu.Primitive, M <: Mu[A]](mu: M) {
-  inline def specific: Mu.Specialized[A] = inline erasedValue[A] match
+  /** Will copy if needed; otherwise casts original */
+  transparent inline def toPrimitiveMu: Mu.Specialized[A] = inline erasedValue[A] match
     case _: Unit    => Mu.MuUnit
     case _: Boolean => mu match
       case z: Mu.MuBoolean => z
@@ -871,7 +872,7 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def getAndOp(inline f: A => A): A = inline erasedValue[A] match
+    inline def getAndZap(inline f: A => A): A = inline erasedValue[A] match
       case _: Int =>
         var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
         while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], f(x).asInstanceOf[Int]) do
@@ -967,7 +968,7 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def opAndGet(inline f: A => A): A = inline erasedValue[A] match
+    inline def zapAndGet(inline f: A => A): A = inline erasedValue[A] match
       case _: Int =>
         var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
         while { val y = f(x); val done = a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], y.asInstanceOf[Int]); if done then x = y; !done } do
@@ -1063,7 +1064,7 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def op(inline f: A => A): Unit = inline erasedValue[A] match
+    inline def zap(inline f: A => A): Unit = inline erasedValue[A] match
       case _: Int =>
         var x = a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
         while !a.asInstanceOf[AtomicInteger].compareAndSet(x.asInstanceOf[Int], f(x).asInstanceOf[Int]) do
@@ -1140,10 +1141,6 @@ object Atom {
               x = a.asInstanceOf[AtomicReference[AnyRef]].get().asInstanceOf[A]
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
-
-    inline def zap(inline f: A => A): a.type =
-      a.op(f)
-      a
   }
 
   extension [A <: Int | Long](a: Atom[A]) {
@@ -1223,7 +1220,8 @@ object Atom {
   */
 final class Anon[A](val value: A) {
   def map[B](f: A => B) = new Anon(f(value))
-  inline def use(f: A => Unit): this.type = { f(value); this }
+  inline def peek(inline f: A => Unit): this.type = { f(value); this }
+  inline def use(inline f: A => Unit): Unit = f(value)
   override def toString = "..."
   override def hashCode = 1239182
   override def equals(a: Any) = a match {
@@ -1242,7 +1240,8 @@ object Anon {
 /** Box that uses reference equality and identity hash code */
 final class Identity[A](val value: A) {
   def map[B](f: A => B) = new Identity(f(value))
-  inline def use(f: A => Unit): this.type = { f(value); this }
+  inline def peek(inline f: A => Unit): this.type = { f(value); this }
+  inline def use(inline f: A => Unit): Unit = f(value)
   override def toString = value.toString
   override def hashCode = java.lang.System.identityHashCode(value)
   override def equals(a: Any) = a match

@@ -73,16 +73,16 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
 
   protected val errors: Atom[List[Err]] = Atom(Nil)
   def errored(from: Work, e: Err): Unit =
-    errors.op(e :: _)
+    errors.zap(e :: _)
     from.cancel(depermitOnly = true)
 
   final class Permit(val id: Int, count: Atom[Int]) {
-    def again(): Unit = count.op(n => if n > 0 then n + 1 else 0)
-    def stop(): Unit = if count.getAndOp(n => if n > 1 then n - 1 else 0) == 1 then returnPermit()
+    def again(): Unit = count.zap(n => if n > 0 then n + 1 else 0)
+    def stop(): Unit = if count.getAndZap(n => if n > 1 then n - 1 else 0) == 1 then returnPermit()
   }
   object Permit {
     private val id = Atom(0)
-    def apply(): Permit = new Permit(id.opAndGet(_ + 1), Atom(1))
+    def apply(): Permit = new Permit(id.zapAndGet(_ + 1), Atom(1))
   }
 
   /** Tries to do some work, but only if resources are available.
@@ -235,12 +235,12 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
         * if the resource never attains some definite status after a while, an error will be returned.
         */
       @annotation.tailrec
-      def use[A](f: R => Ask[A], fatigue: Int = 0): A Or Ask[Unit] =
+      def wield[A](f: R => Ask[A], fatigue: Int = 0): A Or Ask[Unit] =
         resource.swap(Resource.Unknown) match
           case Resource.Unknown =>
             val f2 = backoff(fatigue)
             if f2 == Int.MaxValue then Alt(Err.or("Resource contention could not be resolved; cannot use resource"))
-            else use(f, f2)
+            else wield(f, f2)
           case Resource.Borrowed =>
             resource := Resource.Borrowed   // Put back marker; whoever marked the borrow will wait for it
             Alt(Is.unit)  // Nothing happened because resource wasn't free; it's the caller's responsibility to busy-wait if that's what they want
@@ -354,12 +354,12 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
             doWork(w)
           .flatten
           val dt = System.nanoTime - t
-          elapsed.op(_ + dt)
-          w.timer.op(_.valueOp(_ + dt))
+          elapsed.zap(_ + dt)
+          w.timer.zap(_.valueOp(_ + dt))
           result.flatMap(ws => todone(w, ws)).foreachAlt(e => errored(w, e))
 
     override def run(): Unit =
-      threadnice{ runloop() }.foreachAlt(e => errors.op(e :: _))
+      threadnice{ runloop() }.foreachAlt(e => errors.zap(e :: _))
   }
 
   final class Worker(jobs: Work.Q[Work]) extends AbstractWorker[Work, Work.Q[Work]](jobs) {
@@ -412,7 +412,7 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
                 w.interrupt()
                 Thread.sleep(100L)
           if rq.isOpen.forall(_ == true) then
-            rq.closeResource().foreachAlt(e => errors.op(e :: _))
+            rq.closeResource().foreachAlt(e => errors.zap(e :: _))
 
 
   /*
@@ -635,7 +635,7 @@ object Percolate {
             lastIndex += 1
             n -= 1
           val ws = b.result()
-          storedCount.op(_ - ws.length)
+          storedCount.zap(_ - ws.length)
           if !more(ws(End), lastIndex) then lastIndex = Int.MaxValue
           if lastIndex == Int.MaxValue then
             if errorIfNonemptyStop && !items.isEmpty then Err ?# s"Sort terminated with ${items.size} items still pending retrieval"
@@ -675,7 +675,7 @@ object Percolate {
       val baskets = synchronized:
         if gathered.isEmpty then Is.break(empty)
         val a = new Array[(B, Gather.Basket[A])](math.max(1, atMost) min gathered.length)
-        a.set(){ () => gathered.dequeue().tap(b => storedCount.op(_ - b._2.needed)) }
+        a.set(){ () => gathered.dequeue().tap(b => storedCount.zap(_ - b._2.needed)) }
         a
       Some(baskets.copyWith(x => x._1 -> polish(x._2.unsafeUnload())))
   }
@@ -720,7 +720,7 @@ object Percolate {
               zold = Is(z)
               consistent = true
       val z = accumulate( zold.getOrElse{ _ => storedCount.++; fresh() } , a )
-      basket.accumulators.op(z :: _)
+      basket.accumulators.zap(z :: _)
       val merges: List[Z] Or Unit = synchronized:
         basket.aggregated.++
         basket.aggregated() match
@@ -736,7 +736,7 @@ object Percolate {
         merge match
           case Some(op) =>
             val zall = zs.reduce(op)
-            storedCount.op(_ - (m-1))
+            storedCount.zap(_ - (m-1))
             synchronized:
               gathered.+=(zall): Unit
           case _ => synchronized:
@@ -751,7 +751,7 @@ object Percolate {
         else
           val zs = new Array[Z](math.max(1, atMost) min gathered.length)
           zs.set(){ () => gathered.dequeue() }
-          storedCount.op(_ - zs.length)
+          storedCount.zap(_ - zs.length)
           Is(Some(zs))
   }
   object Aggregate {

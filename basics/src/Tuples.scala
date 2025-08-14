@@ -1003,7 +1003,7 @@ extension [Ns <: Tuple, Ts <: Tuple](tup: NamedTuple.NamedTuple[Ns, Ts]) {
   transparent inline def indexOf[L <: LabelStr](inline l: L) =
     compiletime.constValue[labels.NamesAndLabels.IndexOfType[Ns, L, 0]]
 
-  transparent inline def copyFrom[Nz <: Tuple, Tz <: Tuple](zup: NamedTuple.NamedTuple[Nz, Tz]) =
+  transparent inline infix def copyFrom[Nz <: Tuple, Tz <: Tuple](zup: NamedTuple.NamedTuple[Nz, Tz]) =
     labels.NamesAndLabels.copyWithUpdateByName[Ns, Ts, Nz, Tz](tup, zup)
 }
 

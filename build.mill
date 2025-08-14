@@ -12,7 +12,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.7.0"
+  def scalaVersion = "3.7.2"
 
   def scalacOptions = Seq(
     "-deprecation",

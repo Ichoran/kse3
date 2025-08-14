@@ -230,6 +230,7 @@ extension [X](is: Is[X]) {
     f(Is unwrap is)
 
   // use in OverloadedExtensions
+  // peek in OverloadedExtensions
 
   /** exists is trivial--just apply predicate */
   inline def exists(inline p: X => Boolean): Boolean =
@@ -475,9 +476,20 @@ extension [X, Y](or: Or[X, Y]) {
     case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
   // use in OverloadedExtensions
+  // peek in OverloadedExtensions
+
+  /** Operate on the disfavored value if it exists.  Same as `foreachAlt`. */
+  inline def useAlt(inline f: Y => Unit): Unit = (or: X Or Y) match
+    case a: Alt[?] => f(a.alt.asInstanceOf[Y])
+    case _ => ()
+
+  /** Operate on whichever value exists.  Same as `foreachThem`. */
+  inline def useThem(inline f: X => Unit)(inline g: Y => Unit) = (or: X Or Y) match
+    case a: Alt[?] => g(a.alt.asInstanceOf[Y])
+    case _ => f(Is unwrap or.asInstanceOf[Is[X]])
 
   /** Operate on the disfavored value if it exists, but pass on the original `Or`. */
-  inline def useAlt(inline f: Y => Unit): or.type =
+  inline def peekAlt(inline f: Y => Unit): or.type =
     (or: X Or Y) match
       case a: Alt[?] => f(a.alt.asInstanceOf[Y])
       case _ =>
@@ -487,7 +499,7 @@ extension [X, Y](or: Or[X, Y]) {
     * 
     * Equivalent to `o.fold{ x => f(x) }{ y => g(y) }; o`
     */
-  inline def useThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
+  inline def peekThem(inline f: X => Unit)(inline g: Y => Unit): or.type =
     (or: X Or Y) match
       case a: Alt[?] => g(a.alt.asInstanceOf[Y])
       case _ => f(Is unwrap or.asInstanceOf[Is[X]])

@@ -103,6 +103,28 @@ extension (i: Int){
 }
 
 
+extension (l: Long){
+  inline def times(inline f: => Unit): Unit =
+    var j = 0L
+    while j < l do
+      f
+      j += 1
+
+  inline def visit(inline f: Long => Unit): Unit =
+    var j = 0
+    while j < l do
+      f(j)
+      j += 1
+
+  inline def visitBy(step: Long)(inline f: Long => Unit): Unit =
+    if step != 0 then
+      var j = if step < 0 then l - 1 else 0L
+      while j < l && j >= 0 do
+        f(j)
+        j += step
+}
+
+
 
 ////////////////////////////////////////////////
 /// Packaging and wrappers to alter behavior ///
@@ -311,63 +333,55 @@ extension [A](a: Array[A]) {
 
   inline def fancy: kse.basics.FancyArray[A] = FancyArray wrap a
 
-  inline def peek()(inline f: A => Unit): a.type =
+  inline def use()(inline f: A => Unit): Unit =
     var i = 0
     while i < a.length do
       f(a(i))
       i += 1
-    a
-  inline def peek(i0: Int, iN: Int)(inline f: A => Unit): a.type =
+  inline def use(i0: Int, iN: Int)(inline f: A => Unit): Unit =
     var i = i0
     while i < iN do
       f(a(i))
       i += 1
-    a
-  inline def peek(ivx: Iv.X)(inline f: A => Unit): a.type =
-    peek(ivx.index0(a), ivx.indexN(a))(f)
-  inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): a.type =
+  inline def use(ivx: Iv.X)(inline f: A => Unit): Unit =
+    use(ivx.index0(a), ivx.indexN(a))(f)
+  inline def use(inline rg: collection.immutable.Range)(inline f: A => Unit): Unit =
     val iv = Iv of rg
-    peek(iv.i0, iv.iN)(f)
-  inline def peek(indices: Array[Int])(inline f: A => Unit): a.type =
+    use(iv.i0, iv.iN)(f)
+  inline def use(indices: Array[Int])(inline f: A => Unit): Unit =
     var i = 0
     while i < indices.length do
       f(a(indices(i)))
       i += 1
-    a
-  inline def peek(indices: scala.collection.IntStepper)(inline f: A => Unit): a.type =
+  inline def use(indices: scala.collection.IntStepper)(inline f: A => Unit): Unit =
     while indices.hasStep do
       f(a(indices.nextStep))
-    a
 
-  inline def poke()(inline f: A => A): a.type =
+  inline def alter()(inline f: A => A): Unit =
     var i = 0
     while i < a.length do
       a(i) = f(a(i))
       i += 1
-    a
-  inline def poke(i0: Int, iN: Int)(inline f: A => A): a.type =
+  inline def alter(i0: Int, iN: Int)(inline f: A => A): Unit =
     var i = i0
     while i < iN do
       a(i) = f(a(i))
       i += 1
-    a
-  inline def poke(ivx: Iv.X)(inline f: A => A): a.type =
-    poke(ivx.index0(a), ivx.indexN(a))(f)
-  inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): a.type =
+  inline def alter(ivx: Iv.X)(inline f: A => A): Unit =
+    alter(ivx.index0(a), ivx.indexN(a))(f)
+  inline def alter(inline rg: collection.immutable.Range)(inline f: A => A): Unit =
     val iv = Iv of rg
-    poke(iv.i0, iv.iN)(f)
-  inline def poke(indices: Array[Int])(inline f: A => A): a.type =
+    alter(iv.i0, iv.iN)(f)
+  inline def alter(indices: Array[Int])(inline f: A => A): Unit =
     var i = 0
     while i < indices.length do
       val j = indices(i)
       a(j) = f(a(j))
       i += 1
-    a
-  inline def poke(indices: scala.collection.IntStepper)(inline f: A => A): a.type =
+  inline def alter(indices: scala.collection.IntStepper)(inline f: A => A): Unit =
     while indices.hasStep do
       val j = indices.nextStep
       a(j) = f(a(j))
-    a
 
   inline def visit()(inline f: (A, Int) => Unit): Unit =
     var i = 0
@@ -1180,7 +1194,10 @@ object ClippedArray {
       if i >= 0 && i < a.length then Some(a(i))
       else None
 
-    inline def peek(i0: Int, iN: Int)(inline f: A => Unit): Array[A] =
+    inline def use(i: Int)(inline f: A => Unit): Unit =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then f(a(i))
+    inline def use(i0: Int, iN: Int)(inline f: A => Unit): Unit =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -1188,29 +1205,26 @@ object ClippedArray {
       while i < iM do
         f(a(i))
         i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: A => Unit): Array[A] =
+    inline def use(ivx: Iv.X)(inline f: A => Unit): Unit =
       val iv = ivx of ca.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: A => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: A => Unit): Unit =
       val a = ca.unwrap
       var i = 0
       while i < indices.length do
         val j = indices(i)
         if j >= 0 && j < a.length then f(a(j))
         i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: A => Unit): Array[A] =
+    inline def use(indices: scala.collection.IntStepper)(inline f: A => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then f(a(j))
-      a
 
-    inline def poke(i0: Int, iN: Int)(inline f: A => A): Array[A] =
+    inline def alter(i0: Int, iN: Int)(inline f: A => A): Unit =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -1218,27 +1232,24 @@ object ClippedArray {
       while i < iM do
         a(i) = f(a(i))
         i += 1
-      a
-    inline def poke(ivx: Iv.X)(inline f: A => A): Array[A] =
+    inline def alter(ivx: Iv.X)(inline f: A => A): Unit =
       val iv = ivx of ca.unwrap
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(inline rg: collection.immutable.Range)(inline f: A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(inline rg: collection.immutable.Range)(inline f: A => A): Unit =
       val iv = Iv of rg
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(indices: Array[Int])(inline f: A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(indices: Array[Int])(inline f: A => A): Unit =
       val a = ca.unwrap
       var i = 0
       while i < indices.length do
         val j = indices(i)
         if j >= 0 && j < a.length then a(j) = f(a(j))
         i += 1
-      a
-    inline def poke(indices: scala.collection.IntStepper)(inline f: A => A): Array[A] =
+    inline def alter(indices: scala.collection.IntStepper)(inline f: A => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then a(j) = f(a(j))
-      a
 
     inline def visit(i0: Int, iN: Int)(inline f: (A, Int) => Unit): Unit =
       val a = ca.unwrap
@@ -1888,66 +1899,60 @@ object FlexArray {
   extension [A](sa: kse.basics.FlexArray[A]) {
     inline def clip: kse.basics.FancyArray[A] = FancyArray wrap sa.unwrap
 
-    inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
         while i < a.length do
           f(a(i))
           i += 1
-      a
-    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sa.unwrap
       var i = i0
       shortcut.quittable:
         while i < iN do
           f(a(i))
           i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val iv = ivx of sa.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
         while i < indices.length do
           f(a(indices(i)))
           i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
           f(a(indices.nextStep))
-      a
 
-    inline def poke()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
         while i < a.length do
           a(i) = f(a(i))
           i += 1
-      a
-    inline def poke(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
       var i = i0
       shortcut.quittable:
         while i < iN do
           a(i) = f(a(i))
           i += 1
-      a
-    inline def poke(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val iv = ivx of sa.unwrap
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val iv = Iv of rg
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
@@ -1955,14 +1960,12 @@ object FlexArray {
           val j = indices(i)
           a(j) = f(a(j))
           i += 1
-      a
-    inline def poke(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
           val j = indices.nextStep
           a(j) = f(a(j))
-      a
 
     inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
       var z = zero
@@ -2339,7 +2342,7 @@ object FancyArray {
     inline def unwrap: Array[A] = sc
 
   extension [A](sc: kse.basics.FancyArray[A]) {
-    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -2348,14 +2351,13 @@ object FancyArray {
         while i < iM do
           f(a(i))
           i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val iv = ivx of sc.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sc.unwrap
       var i = 0
       shortcut.quittable:
@@ -2363,16 +2365,14 @@ object FancyArray {
           val j = indices(i)
           if j >= 0 && j < a.length then f(a(j))
           i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Array[A] =
+    inline def use(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then f(a(j))
-      a
 
-    inline def poke(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -2381,14 +2381,13 @@ object FancyArray {
         while i < iM do
           a(i) = f(a(i))
           i += 1
-      a
-    inline def poke(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val iv = ivx of sc.unwrap
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val iv = Iv of rg
-      poke(iv.i0, iv.iN)(f)
-    inline def poke(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sc.unwrap
       var i = 0
       shortcut.quittable:
@@ -2396,14 +2395,12 @@ object FancyArray {
           val j = indices(i)
           if j >= 0 && j < a.length then a(j) = f(a(j))
           i += 1
-      a
-    inline def poke(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Array[A] =
+    inline def alter(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then a(j) = f(a(j))
-      a
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
@@ -3243,33 +3240,29 @@ extension (a: String) {
 
   inline def fancy: kse.basics.FancyString = FancyString wrap a
 
-  inline def peek()(inline f: Char => Unit): a.type =
+  inline def use()(inline f: Char => Unit): Unit =
     var i = 0
     while i < a.length do
       f(a.charAt(i))
       i += 1
-    a
-  inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): a.type =
+  inline def use(i0: Int, iN: Int)(inline f: Char => Unit): Unit =
     var i = i0
     while i < iN do
       f(a.charAt(i))
       i += 1
-    a
-  inline def peek(ivx: Iv.X)(inline f: Char => Unit): a.type =
-    peek(ivx.index0(a), ivx.indexN(a))(f)
-  inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): a.type =
+  inline def use(ivx: Iv.X)(inline f: Char => Unit): Unit =
+    use(ivx.index0(a), ivx.indexN(a))(f)
+  inline def use(inline rg: collection.immutable.Range)(inline f: Char => Unit): Unit =
     val iv = Iv of rg
-    peek(iv.i0, iv.iN)(f)
-  inline def peek(indices: Array[Int])(inline f: Char => Unit): a.type =
+    use(iv.i0, iv.iN)(f)
+  inline def use(indices: Array[Int])(inline f: Char => Unit): Unit =
     var i = 0
     while i < indices.length do
       f(a.charAt(indices(i)))
       i += 1
-    a
-  inline def peek(indices: scala.collection.IntStepper)(inline f: Char => Unit): a.type =
+  inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
     while indices.hasStep do
       f(a.charAt(indices.nextStep))
-    a
 
   inline def visit()(inline f: (Char, Int) => Unit): Unit =
     var i = 0
@@ -3830,7 +3823,10 @@ object ClippedString {
       if i >= 0 && i < a.length then Some(a.charAt(i))
       else None
 
-    inline def peek(i0: Int, iN: Int)(inline f: Char => Unit): String =
+    inline def use(i: Int)(inline f: Char => Unit): Unit =
+      val a = ca.unwrap
+      if i >= 0 && i < a.length then f(a.charAt(i))
+    inline def use(i0: Int, iN: Int)(inline f: Char => Unit): Unit =
       val a = ca.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -3838,27 +3834,24 @@ object ClippedString {
       while i < iM do
         f(a.charAt(i))
         i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: Char => Unit): String =
+    inline def use(ivx: Iv.X)(inline f: Char => Unit): Unit =
       val iv = ivx of ca.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: Char => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: Char => Unit): Unit =
       val a = ca.unwrap
       var i = 0
       while i < indices.length do
         val j = indices(i)
         if j >= 0 && j < a.length then f(a.charAt(j))
         i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: Char => Unit): String =
+    inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then f(a.charAt(j))
-      a
 
     inline def visit(i0: Int, iN: Int)(inline f: (Char, Int) => Unit): Unit =
       val a = ca.unwrap
@@ -4332,42 +4325,38 @@ object FlexString {
   extension (sa: kse.basics.FlexString) {
     inline def clip: kse.basics.FancyString = FancyString wrap sa.unwrap
 
-    inline def peek()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use()(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
         while i < a.length do
           f(a.charAt(i))
           i += 1
-      a
-    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sa.unwrap
       var i = i0
       shortcut.quittable:
         while i < iN do
           f(a.charAt(i))
           i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val iv = ivx of sa.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sa.unwrap
       var i = 0
       shortcut.quittable:
         while i < indices.length do
           f(a.charAt(indices(i)))
           i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
           f(a.charAt(indices.nextStep))
-      a
 
     inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z) =
       var z = zero
@@ -4731,7 +4720,7 @@ object FancyString {
     inline def unwrap: String = sc
 
   extension (sc: kse.basics.FancyString) {
-    inline def peek(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sc.unwrap
       var i = i0
       if i < 0 then i = 0
@@ -4740,14 +4729,13 @@ object FancyString {
         while i < iM do
           f(a.charAt(i))
           i += 1
-      a
-    inline def peek(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val iv = ivx of sc.unwrap
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val iv = Iv of rg
-      peek(iv.i0, iv.iN)(f)
-    inline def peek(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sc.unwrap
       var i = 0
       shortcut.quittable:
@@ -4755,14 +4743,12 @@ object FancyString {
           val j = indices(i)
           if j >= 0 && j < a.length then f(a.charAt(j))
           i += 1
-      a
-    inline def peek(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): String =
+    inline def use(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then f(a.charAt(j))
-      a
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val a = sc.unwrap

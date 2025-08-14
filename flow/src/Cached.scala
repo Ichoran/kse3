@@ -393,10 +393,10 @@ object Hold {
     private var myValue = (initial, 0L)
 
     /** Set the stored value. */
-    def set(next: V): this.type = this.synchronized{ myValue = (next, myValue._2 + 1); this }
+    def set(next: V): Unit = this.synchronized{ myValue = (next, myValue._2 + 1) }
 
     /** Computes a new stored value from the existing one. */
-    def zap(f: V => V): this.type = this.synchronized{ myValue = (f(myValue._1), myValue._2 + 1); this }
+    def zap(f: V => V): Unit = this.synchronized{ myValue = (f(myValue._1), myValue._2 + 1) }
 
     def release(): Unit = {}
     def recompute(): (V, Long) = this.synchronized{ myValue }

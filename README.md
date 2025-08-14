@@ -197,7 +197,7 @@ b(1 to End) = a  // b is now Array(1, 1, 2)
 b(End - 1) = 4   // b is now Array(1, 4, 2)
 b.inject(a, 2)   // a is now Array(1, 2, 1, 4, 2)
 var n = 0
-a.peek()(n += _)
+a.use()(n += _)
 println(n)      // Prints 10
 ```
 
@@ -338,7 +338,7 @@ exceptions that occur within the block will also be caught and packaged.
 ```scala
 def positiveInt(s: String): Ask[Int] = Ask:
   var ndigits = 0
-  s.peek(){ c => if c.isDigit then ndigits += 1 }
+  s.use(){ c => if c.isDigit then ndigits += 1 }
   if ndigits < s.length then Err ?# s"${s.length - ndigits} characters are not digits"
   val n = nice{ s.toInt }.?
   if n == 0 then Err ?# "Zero not allowed"
@@ -569,12 +569,13 @@ routine.
 missing single value, then `ask` will give the value or an `Err` (i.e. it
 will be an `Ask` type).
 
-5. To access a value, if present, returning the original object, use `use(f)`
-where `f` acts on the contents and returns `Unit`.
+5. To access a value, if present, returning the original object, use `peek(f)`
+where `f` acts on the contents and returns `Unit`.  `use(f)` will simply act on the
+contents (like `foreach` but `use` will be inlined if practical).
 
 6. To act on and update a modifiable value, if present, returning the original
-object, use `zap(f)` where `f` maps between the same types.  To simply update without
-returning the orignal, use `op(f)`.
+object, use `poke(f)` where `f` maps between the same types.  To simply update without
+returning the orignal, use `zap(f)`.
 
 7. If there is a unique modifiable value, `:=` will set it if the setting is foolproof
 and the value is always there; otherwise, if more parameters are needed or error

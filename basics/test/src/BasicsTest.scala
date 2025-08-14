@@ -64,7 +64,7 @@ class BytecodeCheck {
   def fn2test(i: Int, j: Int) =
     (i, j).fn(_ * _)
 
-  def unpeekTest(a: Array[String]) =
+  def unuseTest(a: Array[String]) =
     var i = 0
     var j = 2
     while j <= 5 do
@@ -72,9 +72,9 @@ class BytecodeCheck {
       j += 1
     i
 
-  def peekTest(a: Array[String]) =
+  def useTest(a: Array[String]) =
     var i = 0
-    a.peek(2 to 5)(i += _.length): Unit
+    a.use(2 to 5)(i += _.length)
     i
   
   def boundaryTest(d: Double): Double =
@@ -301,28 +301,28 @@ class BasicsTest() {
     T ~ esp.subtyped          ==== "eel" --: typed[String \> "fish"]
 
     val m = Mu(5)
-    T ~ m()                ==== 5
-    T ~ { m := 3; m }      ==== Mu(3)
-    T ~ m.zap(_ - 1)       ==== Mu(2)
-    T ~ m.toString         ==== "~2"
-    T ~ m.copy             ==== Mu(2) --: typed[Mu.MuInt]
-    T ~ { m.++; m() }      ==== 3
-    T ~ { m.--; m }        ==== Mu(2)
-    T ~ { m.op(_ + 1); m } ==== Mu(3)
+    T ~ m()                 ==== 5
+    T ~ { m := 3; m }       ==== Mu(3)
+    T ~ m.poke(_ - 1)       ==== Mu(2)
+    T ~ m.toString          ==== "~2"
+    T ~ m.copy              ==== Mu(2) --: typed[Mu.MuInt]
+    T ~ { m.++; m() }       ==== 3
+    T ~ { m.--; m }         ==== Mu(2)
+    T ~ { m.zap(_ + 2); m } ==== Mu(4)
 
     object Meter extends NewType[Double] {}
 
-    T ~ Mu(())      .zap(_ => ())           .pipe(x => (x, x.copy.tap(_ := ())))   .sameOp(_()) ==== ((), ())
-    T ~ Mu(true)    .zap(z => !z)           .pipe(x => (x, x.copy.tap(_ := true))) .sameOp(_()) ==== (false, true)
-    T ~ Mu(1: Byte ).zap(b => (b+1).toByte) .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
-    T ~ Mu(1: Short).zap(s => (s+1).toShort).pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Short, 4: Short) --: typed[(Short, Short)]
-    T ~ Mu('e')     .zap(_.toUpper)         .pipe(x => (x, x.copy.tap(_ := 'f')))  .sameOp(_()) ==== ('E', 'f')           --: typed[(Char, Char)]
-    T ~ Mu(1)       .zap(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2, 4)               --: typed[(Int, Int)]
-    T ~ Mu(1L)      .zap(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2L, 4L)             --: typed[(Long, Long)]
-    T ~ Mu(1f)      .zap(_ + 1f)            .pipe(x => (x, x.copy.tap(_ := 4f)))   .sameOp(_()) ==== (2f, 4f)             --: typed[(Float, Float)]
-    T ~ Mu(1.0)     .zap(_ + 1.0)           .pipe(x => (x, x.copy.tap(_ := 4.0)))  .sameOp(_()) ==== (2.0, 4.0)           --: typed[(Double, Double)]
-    T ~ Mu("cod")   .zap(_ + "!")           .pipe(x => (x, x.copy.tap(_ := "eel"))).sameOp(_()) ==== ("cod!", "eel")      --: typed[(String, String)]
-    T ~ Mu.T(Meter(2.0)).zap(m => Meter(m.value+1)).pipe(x => (x, x.copy.tap(_ := Meter(3)))).sameOp(_()) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
+    T ~ Mu(())      .poke(_ => ())           .pipe(x => (x, x.copy.tap(_ := ())))   .sameOp(_()) ==== ((), ())
+    T ~ Mu(true)    .poke(z => !z)           .pipe(x => (x, x.copy.tap(_ := true))) .sameOp(_()) ==== (false, true)
+    T ~ Mu(1: Byte ).poke(b => (b+1).toByte) .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Byte, 4: Byte)   --: typed[(Byte, Byte)]
+    T ~ Mu(1: Short).poke(s => (s+1).toShort).pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2: Short, 4: Short) --: typed[(Short, Short)]
+    T ~ Mu('e')     .poke(_.toUpper)         .pipe(x => (x, x.copy.tap(_ := 'f')))  .sameOp(_()) ==== ('E', 'f')           --: typed[(Char, Char)]
+    T ~ Mu(1)       .poke(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2, 4)               --: typed[(Int, Int)]
+    T ~ Mu(1L)      .poke(_ + 1)             .pipe(x => (x, x.copy.tap(_ := 4)))    .sameOp(_()) ==== (2L, 4L)             --: typed[(Long, Long)]
+    T ~ Mu(1f)      .poke(_ + 1f)            .pipe(x => (x, x.copy.tap(_ := 4f)))   .sameOp(_()) ==== (2f, 4f)             --: typed[(Float, Float)]
+    T ~ Mu(1.0)     .poke(_ + 1.0)           .pipe(x => (x, x.copy.tap(_ := 4.0)))  .sameOp(_()) ==== (2.0, 4.0)           --: typed[(Double, Double)]
+    T ~ Mu("cod")   .poke(_ + "!")           .pipe(x => (x, x.copy.tap(_ := "eel"))).sameOp(_()) ==== ("cod!", "eel")      --: typed[(String, String)]
+    T ~ Mu.T(Meter(2.0)).poke(m => Meter(m.value+1)).pipe(x => (x, x.copy.tap(_ := Meter(3)))).sameOp(_()) ==== (Meter(3), Meter(3)) --: typed[(Meter.Type, Meter.Type)]
     T ~ Mu.T(Meter(2.0)).getClass ==== Mu.MuDouble(2.0).getClass
 
     T ~ Mu(3L).tap(_.--)() ==== 2L
@@ -351,56 +351,56 @@ class BasicsTest() {
     T ~ ad() ==== 0.5        --: typed[Double]
     T ~ aa() ==== "eel"      --: typed[String]
     T ~ am() ==== 1.5        --: typed[Meter.Type]
-    T ~ { az := false; az swap true}    ==== false
-    T ~ { ab := 3;     ab swap 4 }      ==== (3: Byte)
-    T ~ { as := 3;     as swap 4 }      ==== (3: Short)
-    T ~ { ac := 'f';   ac swap 'g' }    ==== 'f'
-    T ~ { ai := 3;     ai swap 4 }      ==== 3
-    T ~ { al := 3L;    al swap 4L }     ==== 3L
-    T ~ { af := 0.4f;  af swap 0.3f }   ==== 0.4f
-    T ~ { ad := 0.4;   ad swap 0.3 }    ==== 0.4
-    T ~ { aa := "cod"; aa swap "bass" } ==== "cod"
-    T ~ { am := q(2);  am swap q(3) }   ==== 2.5
-    T ~ az.getAndOp(z => !z)            ==== true
-    T ~ ab.getAndOp(b => (b+1).toByte)  ==== (4: Byte)
-    T ~ as.getAndOp(s => (s+1).toShort) ==== (4: Short)
-    T ~ ac.getAndOp(c => (c+1).toChar)  ==== 'g'
-    T ~ ai.getAndOp(_ + 1)              ==== 4
-    T ~ al.getAndOp(_ + 1L)             ==== 4L
-    T ~ af.getAndOp(_ - 0.1f)           ==== 0.3f
-    T ~ ad.getAndOp(_ - 0.1)            ==== 0.3
-    T ~ aa.getAndOp(_ + " cod")         ==== "bass"
-    T ~ am.getAndOp(m => q(m.value))    ==== 3.5
-    T ~ az.opAndGet(z => !z)            ==== true
-    T ~ ab.opAndGet(b => (b+2).toByte)  ==== (7: Byte)
-    T ~ as.opAndGet(s => (s+2).toShort) ==== (7: Short)
-    T ~ ac.opAndGet(c => (c+2).toChar)  ==== 'j'
-    T ~ ai.opAndGet(_ + 2)              ==== 7
-    T ~ al.opAndGet(_ + 2)              ==== 7L
-    T ~ af.opAndGet(_ / 2.0f)           =~~= 0.1f
-    T ~ ad.opAndGet(_ / 2.0)            =~~= 0.1
-    T ~ aa.opAndGet(_ + " perch")       ==== "bass cod perch"
-    T ~ am.opAndGet(m => q(m.value+1))  ==== 6.5
-    T ~ az.zap(z => !z)()               ==== false
-    T ~ ab.zap(b => (b+2).toByte)()     ==== (9: Byte)
-    T ~ as.zap(s => (s+2).toShort)()    ==== (9: Short)
-    T ~ ac.zap(c => (c+2).toChar)()     ==== 'l'
-    T ~ ai.zap(_ + 2)()                 ==== 9
-    T ~ al.zap(_ + 2)()                 ==== 9L
-    T ~ af.zap(_ / 2.0f)()              =~~= 0.05f
-    T ~ ad.zap(_ / 2.0)()               =~~= 0.05
-    T ~ aa.zap(_ + " eel")()            ==== "bass cod perch eel"
-    T ~ am.zap(m => q(m.value+1))()     ==== 8.5
-    T ~ az.tap(_.op(z => !z))()            ==== true
-    T ~ ab.tap(_.op(b => (b+2).toByte))()  ==== (11: Byte)
-    T ~ as.tap(_.op(s => (s+2).toShort))() ==== (11: Short)
-    T ~ ac.tap(_.op(c => (c+2).toChar))()  ==== 'n'
-    T ~ ai.tap(_.op(_ + 2))()              ==== 11
-    T ~ al.tap(_.op(_ + 2))()              ==== 11L
-    T ~ af.tap(_.op(_ / 2.0f))()           =~~= 0.025f
-    T ~ ad.tap(_.op(_ / 2.0))()            =~~= 0.025
-    T ~ aa.tap(_.op(_ + " sole"))()        ==== "bass cod perch eel sole"
-    T ~ am.tap(_.op(m => q(m.value+1)))()  ==== 10.5
+    T ~ { az := false; az swap true}     ==== false
+    T ~ { ab := 3;     ab swap 4 }       ==== (3: Byte)
+    T ~ { as := 3;     as swap 4 }       ==== (3: Short)
+    T ~ { ac := 'f';   ac swap 'g' }     ==== 'f'
+    T ~ { ai := 3;     ai swap 4 }       ==== 3
+    T ~ { al := 3L;    al swap 4L }      ==== 3L
+    T ~ { af := 0.4f;  af swap 0.3f }    ==== 0.4f
+    T ~ { ad := 0.4;   ad swap 0.3 }     ==== 0.4
+    T ~ { aa := "cod"; aa swap "bass" }  ==== "cod"
+    T ~ { am := q(2);  am swap q(3) }    ==== 2.5
+    T ~ az.getAndZap(z => !z)            ==== true
+    T ~ ab.getAndZap(b => (b+1).toByte)  ==== (4: Byte)
+    T ~ as.getAndZap(s => (s+1).toShort) ==== (4: Short)
+    T ~ ac.getAndZap(c => (c+1).toChar)  ==== 'g'
+    T ~ ai.getAndZap(_ + 1)              ==== 4
+    T ~ al.getAndZap(_ + 1L)             ==== 4L
+    T ~ af.getAndZap(_ - 0.1f)           ==== 0.3f
+    T ~ ad.getAndZap(_ - 0.1)            ==== 0.3
+    T ~ aa.getAndZap(_ + " cod")         ==== "bass"
+    T ~ am.getAndZap(m => q(m.value))    ==== 3.5
+    T ~ az.zapAndGet(z => !z)            ==== true
+    T ~ ab.zapAndGet(b => (b+2).toByte)  ==== (7: Byte)
+    T ~ as.zapAndGet(s => (s+2).toShort) ==== (7: Short)
+    T ~ ac.zapAndGet(c => (c+2).toChar)  ==== 'j'
+    T ~ ai.zapAndGet(_ + 2)              ==== 7
+    T ~ al.zapAndGet(_ + 2)              ==== 7L
+    T ~ af.zapAndGet(_ / 2.0f)           =~~= 0.1f
+    T ~ ad.zapAndGet(_ / 2.0)            =~~= 0.1
+    T ~ aa.zapAndGet(_ + " perch")       ==== "bass cod perch"
+    T ~ am.zapAndGet(m => q(m.value+1))  ==== 6.5
+    az.zap(z => !z)
+    ab.zap(b => (b+2).toByte)
+    as.zap(s => (s+2).toShort)
+    ac.zap(c => (c+2).toChar)
+    ai.zap(_ + 2)
+    al.zap(_ + 2)
+    af.zap(_ / 2.0f)
+    ad.zap(_ / 2.0)
+    aa.zap(_ + " eel")
+    am.zap(m => q(m.value+1))
+    T ~ az.tap(_.zap(z => !z))()            ==== true
+    T ~ ab.tap(_.zap(b => (b+2).toByte))()  ==== (11: Byte)
+    T ~ as.tap(_.zap(s => (s+2).toShort))() ==== (11: Short)
+    T ~ ac.tap(_.zap(c => (c+2).toChar))()  ==== 'n'
+    T ~ ai.tap(_.zap(_ + 2))()              ==== 11
+    T ~ al.tap(_.zap(_ + 2))()              ==== 11L
+    T ~ af.tap(_.zap(_ / 2.0f))()           =~~= 0.025f
+    T ~ ad.tap(_.zap(_ / 2.0))()            =~~= 0.025
+    T ~ aa.tap(_.zap(_ + " sole"))()        ==== "bass cod perch eel sole"
+    T ~ am.tap(_.zap(m => q(m.value+1)))()  ==== 10.5
 
     T ~ ai.tap(_.--)() ==== 10
     T ~ ai.tap(_.++)() ==== 11
@@ -441,35 +441,35 @@ class BasicsTest() {
       case f: Float   => Mu(f)
       case d: Double  => Mu(d)
       case _          => Mu(a)
-    T ~ Anon(Mu(()))                ==== typed[Anon[Mu.MuUnit.type]]
-    T ~ Anon(gm(()))                ==== typed[Anon[Mu[Unit]]]
-    T ~ Anon(gm(()).specific)       ==== typed[Anon[Mu.MuUnit.type]]
-    T ~ Anon(Mu(true))              ==== typed[Anon[Mu.MuBoolean]]
-    T ~ Anon(gm(true))              ==== typed[Anon[Mu[Boolean]]]
-    T ~ Anon(gm(true).specific)     ==== typed[Anon[Mu.MuBoolean]]
-    T ~ Anon(Mu(1: Byte))           ==== typed[Anon[Mu.MuByte]]
-    T ~ Anon(gm(1: Byte))           ==== typed[Anon[Mu[Byte]]]
-    T ~ Anon(gm(1: Byte).specific)  ==== typed[Anon[Mu.MuByte]]
-    T ~ Anon(Mu(2: Short))          ==== typed[Anon[Mu.MuShort]]
-    T ~ Anon(gm(2: Short))          ==== typed[Anon[Mu[Short]]]
-    T ~ Anon(gm(2: Short).specific) ==== typed[Anon[Mu.MuShort]]
-    T ~ Anon(Mu('e'))               ==== typed[Anon[Mu.MuChar]]
-    T ~ Anon(gm('e'))               ==== typed[Anon[Mu[Char]]]
-    T ~ Anon(gm('e').specific)      ==== typed[Anon[Mu.MuChar]]
-    T ~ Anon(Mu(4))                 ==== typed[Anon[Mu.MuInt]]
-    T ~ Anon(gm(4))                 ==== typed[Anon[Mu[Int]]]
-    T ~ Anon(gm(4).specific)        ==== typed[Anon[Mu.MuInt]]
-    T ~ Anon(Mu(5L))                ==== typed[Anon[Mu.MuLong]]
-    T ~ Anon(gm(5L))                ==== typed[Anon[Mu[Long]]]
-    T ~ Anon(gm(5L).specific)       ==== typed[Anon[Mu.MuLong]]
-    T ~ Anon(Mu(6f))                ==== typed[Anon[Mu.MuFloat]]
-    T ~ Anon(gm(6f))                ==== typed[Anon[Mu[Float]]]
-    T ~ Anon(gm(6f).specific)       ==== typed[Anon[Mu.MuFloat]]
-    T ~ Anon(Mu(7.0))               ==== typed[Anon[Mu.MuDouble]]
-    T ~ Anon(gm(7.0))               ==== typed[Anon[Mu[Double]]]
-    T ~ Anon(gm(7.0).specific)      ==== typed[Anon[Mu.MuDouble]]
-    T ~ Anon(Mu("cod"))             ==== typed[Anon[Mu.MuAny[String]]]
-    T ~ Anon(gm("cod"))             ==== typed[Anon[Mu[String]]]
+    T ~ Anon(Mu(()))                     ==== typed[Anon[Mu.MuUnit.type]]
+    T ~ Anon(gm(()))                     ==== typed[Anon[Mu[Unit]]]
+    T ~ Anon(gm(()).toPrimitiveMu)       ==== typed[Anon[Mu.MuUnit.type]]
+    T ~ Anon(Mu(true))                   ==== typed[Anon[Mu.MuBoolean]]
+    T ~ Anon(gm(true))                   ==== typed[Anon[Mu[Boolean]]]
+    T ~ Anon(gm(true).toPrimitiveMu)     ==== typed[Anon[Mu.MuBoolean]]
+    T ~ Anon(Mu(1: Byte))                ==== typed[Anon[Mu.MuByte]]
+    T ~ Anon(gm(1: Byte))                ==== typed[Anon[Mu[Byte]]]
+    T ~ Anon(gm(1: Byte).toPrimitiveMu)  ==== typed[Anon[Mu.MuByte]]
+    T ~ Anon(Mu(2: Short))               ==== typed[Anon[Mu.MuShort]]
+    T ~ Anon(gm(2: Short))               ==== typed[Anon[Mu[Short]]]
+    T ~ Anon(gm(2: Short).toPrimitiveMu) ==== typed[Anon[Mu.MuShort]]
+    T ~ Anon(Mu('e'))                    ==== typed[Anon[Mu.MuChar]]
+    T ~ Anon(gm('e'))                    ==== typed[Anon[Mu[Char]]]
+    T ~ Anon(gm('e').toPrimitiveMu)      ==== typed[Anon[Mu.MuChar]]
+    T ~ Anon(Mu(4))                      ==== typed[Anon[Mu.MuInt]]
+    T ~ Anon(gm(4))                      ==== typed[Anon[Mu[Int]]]
+    T ~ Anon(gm(4).toPrimitiveMu)        ==== typed[Anon[Mu.MuInt]]
+    T ~ Anon(Mu(5L))                     ==== typed[Anon[Mu.MuLong]]
+    T ~ Anon(gm(5L))                     ==== typed[Anon[Mu[Long]]]
+    T ~ Anon(gm(5L).toPrimitiveMu)       ==== typed[Anon[Mu.MuLong]]
+    T ~ Anon(Mu(6f))                     ==== typed[Anon[Mu.MuFloat]]
+    T ~ Anon(gm(6f))                     ==== typed[Anon[Mu[Float]]]
+    T ~ Anon(gm(6f).toPrimitiveMu)       ==== typed[Anon[Mu.MuFloat]]
+    T ~ Anon(Mu(7.0))                    ==== typed[Anon[Mu.MuDouble]]
+    T ~ Anon(gm(7.0))                    ==== typed[Anon[Mu[Double]]]
+    T ~ Anon(gm(7.0).toPrimitiveMu)      ==== typed[Anon[Mu.MuDouble]]
+    T ~ Anon(Mu("cod"))                  ==== typed[Anon[Mu.MuAny[String]]]
+    T ~ Anon(gm("cod"))                  ==== typed[Anon[Mu[String]]]
 
     T ~ Anon("secret!").toString ==== "..."
     T ~ Anon("secret!").##       ==== 1239182

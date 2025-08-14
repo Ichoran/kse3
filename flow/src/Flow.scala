@@ -537,32 +537,32 @@ inline def defer[A](inline later: => Unit)(inline a: => A)(using scala.util.NotG
   * unless a `procrastinator.nice:` block is used.
   */
 inline def defer(using p: procrastinator.Procrastination)(later: => Unit): Unit =
-  p.asInstanceOf[Mu[List[() => Unit]]].op((() => later) :: _)
+  p.asInstanceOf[Mu[List[() => Unit]]].zap((() => later) :: _)
 
 object procrastinator {
   opaque type Procrastination = Mu[List[() => Unit]]
   opaque type Unnested = Unit
 
-  private def catchup(items: List[() => Unit]): Unit = items match
+  private def catchup(items: Mu[List[() => Unit]]): Unit = items() match
     case f :: more =>
+      items := more  // f() might add things to items!
       f()
-      catchup(more)
+      catchup(items)
     case _ =>
 
   /** Denote a block where one may defer code for later using a `later` block.
     * When the block ends, the items are run in the reverse order they were added (i.e. as a stack).
-    * 
-    * You cannot nest procrastinate blocks.
     */
   inline def apply[A](inline f: Procrastination ?=> A): A =
     val p: Procrastination = Mu(Nil)
     try f(using p)
-    finally catchup(p.asInstanceOf[Mu[List[() => Unit]]]())
+    finally catchup(p.asInstanceOf[Mu[List[() => Unit]]])
 
-  private def catchupNice(items: List[() => Unit], errors: Mu[List[Err]]): Unit = items match
+  private def catchupNice(items: Mu[List[() => Unit]], errors: Mu[List[Err]]): Unit = items() match
     case f :: more =>
-      try kse.flow.nice(f()).foreachAlt(e => errors.op(e :: _))
-      finally catchupNice(more, errors)
+      items := more  // f() might add things to items!
+      try kse.flow.nice(f()).foreachAlt(e => errors.zap(e :: _))
+      finally catchupNice(items, errors)
     case _ =>
 
   /** Denotes a block where one will catch exceptions and defer code for later using a `later` block.
@@ -580,7 +580,7 @@ object procrastinator {
     var a = Ask.ghosted[A]
     try a = kse.flow.nice(f(using p))
     finally
-      try catchupNice(p.asInstanceOf[Mu[List[() => Unit]]](), em)
+      try catchupNice(p.asInstanceOf[Mu[List[() => Unit]]], em)
       finally
         val es = em()
         if es.nonEmpty then

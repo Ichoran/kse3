@@ -148,7 +148,7 @@ object Parse {
     shortcut.quittable:
       args.visit(): (test, i) =>
         shortMatch(key)(test) match
-          case Some(js) => js.peek()(j => iib += ((i, j))) __ Unit
+          case Some(js) => js.use()(j => iib += ((i, j)))
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     iib.result
 
@@ -159,7 +159,7 @@ object Parse {
         val j = keyMatch(key)(test)
         if j >= 0 then izib += ((i, true, j))
         else shortMatch(short)(test) match
-          case Some(js) => js.peek()(j => izib += ((i, false, j))) __ Unit
+          case Some(js) => js.use()(j => izib += ((i, false, j)))
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
     izib.result
 }
@@ -487,7 +487,7 @@ final case class OptN[A, C <: CharVal, L <: LabelStr] private[cleasy] (val label
           case Some(a) => (lb += ((a(), -1))) __ Unit
           case _ =>
       else
-        idxs.peek(): ij =>
+        idxs.use(): ij =>
           val (i, j) = ij
           val arg = args(i)
           val v = arg.select(j to End)

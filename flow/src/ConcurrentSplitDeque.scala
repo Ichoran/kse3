@@ -14,10 +14,17 @@ import kse.basics._
 import kse.basics.intervals._
 
 
-/** Implements a fast concurrent deque that allows O(log n) inclusion and retrieval of chunks of up to
-  * size n.  This makes it suitable for scenarios with many fast producers and a chunk-based consumer,
+/** Implements a fast deque that allows O(log n) inclusion and retrieval of chunks of up to size n.
+  * This makes it suitable for scenarios with many fast producers and a chunk-based consumer,
   * a producer that creates chunks with many fast consumers, or m-to-n rechunking.
   * It also has good single-element queue and stack performance.
+  * 
+  * The same underlying data structure is used for a single-threaded mutable buffer, a concurrent
+  * deque with spin-wait access for moderate contention, or a channel with read lock for blocking.
+  * A related structure provides an immutable copy of gathered data, and a splittable iterator for
+  * serial or parallel processing.
+  * 
+  * TODO--fix docs past here
   * 
   * Under very heavy contention, overhead will increase markedly due to spin-waiting for access.  One
   * can use the `contention()` method to get a numeric contention score.
@@ -35,7 +42,337 @@ import kse.basics.intervals._
   * has filled a deque and is finished with it, favor calling `chunk()` and holding the chunk over
   * persisting the deque.
   */
+object SplitDeque {
+  /*
+  private inline val N_FLANK = 64   // Must be power of 2
+  private inline val RING = 63      // Must be N_FLANK - 1
+  private inline val N_BLOCK = 24   // Recursive chunk size
+  private inline val MAX_BLOCK = 32 // Must be at least N_BLOCK+1
+  private inline val MIN_BLOCK = 4  // Must be at least 2, but no more than 1+(MAX_BLOCK-N_BLOCK)
+
+
+  /** Implementation of a finger-tree-style multi-level blocked deque.  Each level contains a buffer
+    * of items, split into a left flank and a right flang; at depth 0, these are the individual items,
+    * while at depth 1 they are batched in groups of 24 (by default; may be anywhere from 8 to 40),
+    * at depth 2, batches of batches, and so on.  Addition and removal takes place at the "outer"
+    * flank, while pushing into and pulling out of deeper levels happens at the "inner" part of the flank.
+    * 
+    * Methods intended for careful, validated, internal use are named impl_snake_case.  Methods that
+    * have some robustness and are part of the public API use typical camelCase.
+    * 
+    * Data in the buffer is present from `l` until `c` for the left flank, and `c` until `r` for the right flank.
+    * If `l == r` then the buffer is empty, so the max capacity is 63 (one element is always left blank).
+    * 
+    * Note that for efficiency, the shallowest level needs to be highly efficient, but the deeper (blocked) levels
+    * can be less efficient.  Overall throughput is determined mostly by the shallowest level, at least for
+    * individual element addition/removals.  The deeper levels need to be sufficiently efficient to avoid
+    * latency spikes.
+    */
+  sealed private[SplitDeque] class Impl(val depth: Int = 0) {
+    final private var len = 0   // Total length of all stored elements
+    final private var l = 0     // Start index for left flank (mod N_FLANK)
+    final private var c = 0     // End index for left/start for right flank (mod N_FLANK but c - l is correct without modulus)
+    final private var r = 0     // End index for right flank (mod N_FLANK but r - c is correct without modulus)
+    final private val flank: Array[AnyRef] = new Array[AnyRef](N_FLANK)
+    final private var deeper: Deeper = null
+
+    ////////////////////////////////////////////////
+    // Methods to create space and handle caching //
+    ////////////////////////////////////////////////
+
+    private def impl_allocate(n: Int): Array[AnyRef] = new Array[AnyRef](n)   // TODO--actually cache
+
+    private def impl_deallocate(a: Array[AnyRef]): Unit = {}  // TODO--cache empty arrays of size N_BLOCK
+
+    //////////////////////////////////////////////////////////
+    // Methods to move elements in and out of deeper layers //
+    //////////////////////////////////////////////////////////
+    // These never change len because they're rearrangements
+    // Key operations (available as left/right pairs):
+    //   * TBD decide what these are
+
+    final protected def impl_make_space_right(): Unit =
+      if r - c >= N_BLOCK then impl_deepen_inner_right_edge()
+      else impl_deepen_inner_left_edge()
+
+    final protected def impl_deepen_inner_right_edge(): Unit =
+      if deeper eq null then deeper = new Deeper(depth + 1)
+      val k = deeper.move_in_right(flank, c, r)
+      val delta = k - c
+      if c - l < r - k then
+        var i = c
+        while i != l do
+          i -= 1
+          flank((i + delta) & RING) = flank(i & RING)
+        i += delta
+        while i != l do
+          i -= 1
+          flank(i & RING) = null
+        c = (k & RING)
+        l += delta
+      else
+        var i = k
+        while i != r do
+          flank((i - delta) & RING) = flank(i & RING)
+          i += 1
+        i -= delta
+        while i != r do
+          flank(i & RING) = null
+          i += 1
+        r -= delta
+
+    // Must only call this with an empty left flank.  Invariants must assure that one item from deeper will have space.
+    final protected def impl_more_items_left(): Unit =
+      if deeper eq null || deeper.isEmpty then c = r
+      else
+        val a = deeper.take_left()
+        var i = 0
+        val ll = l - a.length
+        while i < a.length do
+          flank((ll + i) & RING) = a(i)
+          a(i) = null
+          i += 1
+        impl_deallocate(a)
+        ll = l
+
+    ////////////////////////////////////////////////////////
+    // Methods that add and remove unstructured elements. //
+    ////////////////////////////////////////////////////////
+    // Key operations (available as left/right pairs):
+    //   * Add an element to the flank, creating a new deeper block if necessary
+    //   * Take an element from the flank, extracting a deeper block if necessary
+    //   * Add multiple elements to the flank, creating new blocks as necessary
+    //   * Take multiple elements from the (outer) flank, extracting deeper blocks if necessary
+
+    final private[SplitDeque] def impl_add_right(x: AnyRef): Unit =
+      val n = (r - l) & RING
+      if n == RING then impl_make_space_right()
+      flank(r & RING) = x
+      r += 1
+      len += 1
+
+    final private[SplitDeque] def impl_take_left(): AnyRef =
+      val nl = (c - l) & RING
+      if nl == 0 then  impl_more_items_left()
+      val x = flank(l & RING)
+      l += 1
+      len -= 1
+      x
+
+    ////////////////////////////////////////////////
+    // Methods that split and merge finger trees. //
+    ////////////////////////////////////////////////
+    // Key operations (available as left/right pairs):
+    //   * Split at an index, returning the remainder as a collection (Array[AnyRef] if small, SplitDeque if not)
+    //   * Merge with another SplitDeque, healing the flanks between the two by creating irregular blocks
+    
+    // TBD
+  }
+
+  /** A deeper (non-outer) level of a SplitDeque.  This is never user-facing, and needs to keep track of additional things like irregularly stored elements */
+  final private[SplitDeque] class Deeper (val depth: Int) {
+    private var leaves = 0
+    private var irregularities = 0
+    private val items = new Impl(depth)
+
+    def isEmpty = leaves == 0
+
+    def take_left(): Array[AnyRef] =
+      val x = items.impl_take_left()
+      if depth < 2 then
+        leaves -= regular_size
+        x.asInstanceOf[Array[AnyRef]]
+
+      vitems.impl_take_left.asInstanceOf[Array[AnyRef]]
+
+  }
+
+
+  /** A concurrent collection-style wrapper for the implementation. */
+  final class Concurrent[A]() extends Impl[A]() {
+    private[ConcurrentSplitDeque] var vzn: Int = 1
+
+    ////////////////////////////////////////////////////
+    // Concurrent API, including user-facing routines //
+    ////////////////////////////////////////////////////
+
+    private def backoff(fatigue: Int): Int =
+      if (fatigue & 0xF) != 0xF then
+        fatigue + 1
+      else if (fatigue & 0x3F0) != 0x3F0 then
+        Thread.onSpinWait()
+        fatigue + 0x10
+      else if (fatigue & 0xFFC00) != 0xFFC00 then
+        var delay = 1 + (fatigue & 0xFFC00)
+        if delay > 0xC0000 then delay = delay << 3
+        LockSupport.parkNanos(delay)
+        fatigue + 0x400
+      else
+        Int.MaxValue
+
+    private def vercheck(v0: Int): Int =
+      if v0 == 0 then vznHandle.getVolatile(this).asInstanceOf[Int]
+      else
+        val v = vznHandle.getVolatile(this).asInstanceOf[Int]
+        if v0 == v then Int.MinValue   // Signals that no progress has been made since the last check and we should probably terminate
+        else v
+
+    private def DIE_BLOCKED(): Nothing =
+      throw new java.util.ConcurrentModificationException("Concurrent SplitDeque blocked and making no progress")
+
+    private def DIE_FULL(m: Int): Nothing = 
+      lenHandle.setRelease(this, m)
+      throw new IllegalArgumentException("Add on full SplitDeque")
+
+    private def compete(): Int =
+      var m = -1
+      var b = 0
+      var v = 0
+      while m < 0 do
+        b = backoff(b)
+        if b == Int.MaxValue then
+          v = vercheck(v)
+          b = 0xC03FFF
+        m = if v == Int.MinValue then Int.MaxValue else lenHandle.getAndSetAcquire(this, -1).asInstanceOf[Int]
+      m
+
+    /** A numerical representation of instantaneous contention--average multiple calls to get a more representative picture.
+      * 
+      * 0.0 indicates no contention.  Values above 0.0 but below 1.0 indicate moderate contention handled with spin-waiting.
+      * Values at 1.0 or above indicate heavy contention handled with timed sleeps via `LockSupport.park`.  PositiveInfinity
+      * indicates that access was never obtained.
+      */
+    def contention(): Double =
+      var m = lenHandle.getAndSetAcquire(this, -1).asInstanceOf[Int]
+      if m >= 0 then
+        lenHandle.setRelease(this, m)
+        0.0
+      else
+        var b = 0
+        while m < 0 && b < Int.MaxValue do
+          b = backoff(b)
+          m = lenHandle.getAndSetAcquire(this, -1).asInstanceOf[Int]
+        if m >= 0 then lenHandle.setRelease(this, m)
+        if b <= 0xF then 0.005*b
+        else if b <= 0x3FF then 0.01*(1 + (b >> 4))
+        else if b <= 0xFFFFF then (b >> 10).toDouble
+        else Double.PositiveInfinity
+
+    /** A numerical representation of instantaneous contention--average multiple calls to get a more representative picture.
+      * 
+      * 0.0 indicates no contention.  Values above 0.0 but below 1.0 indicate moderate contention handled with spin-waiting.
+      * Values at 1.0 or above indicate heavy contention handled with timed sleeps via `LockSupport.park`.  PositiveInfinity
+      * indicates that access was never obtained.
+      * 
+      * This version calls a wakeup callback every time a parked thread resumes with an internal restart counter (which may
+      * regress if other threads make progress) and only continues if the callback returns true.
+      */
+    def contention(onWake: Int => Boolean): Double =
+      var m = lenHandle.getAndSetAcquire(this, -1).asInstanceOf[Int]
+      if m >= 0 then
+        lenHandle.setRelease(this, m)
+        0.0
+      else
+        var b = 0
+        var run = true
+        while run do
+          b = backoff(b)
+          m = lenHandle.getAndSetAcquire(this, -1).asInstanceOf[Int]
+          run = m < 0 && (b != Int.MaxValue) && (((b & 0xFFC00) == 0) || onWake(b >>> 10))
+        if m >= 0 then lenHandle.setRelease(this, m)
+        if b <= 0xF then 0.005*b
+        else if b <= 0x3FF then 0.01*(1 + (b >> 4))
+        else if b <= 0xFFFFFF then (b >> 10).toDouble
+        else Double.PositiveInfinity
+
+
+    /** The instantaneous stable length of this collection.  This length will be observed by some other thread in the future
+      * but there are no guarantees as to which one.
+      */
+    def length: Int =
+      var m = lenHandle.getVolatile(this).asInstanceOf[Int]
+      var b = 0
+      var v = 0
+      while m < 0 do
+        b = backoff(b)
+        if b == Int.MaxValue then
+          v = vercheck(v)
+          if v == Int.MinValue then DIE_BLOCKED()
+          else b = 0xC03FFF // Get another 256 tries
+        m = lenHandle.getVolatile(this).asInstanceOf[Int]
+      m
+
+    // TBD--actually implement the critical API routines.
+  }
+  object Concurrent {
+    import java.lang.invoke.MethodHandles
+
+    private[SplitDeque] final val vznHandle =
+      MethodHandles.privateLookupIn(classOf[Concurrent[?]], MethodHandles.lookup())
+        .findVarHandle(classOf[Concurrent[?]], "vzn", classOf[Int])
+  }
+
+
+  /** Cooperative channel-type wrapper which uses ReentrantReadWriteLock to manage inter-thread handoffs and locking. */
+  final class Chan[A]() extends Impl[A]() {
+    // TBD
+  }
+
+
+  /** A block of irregular blocks of elements (maybe deeper than that). */
+  private[SplitDeque] final class Irregular private (var totalSize: Int, val contents: Array[Irregular | Array[AnyRef]]) {
+    def index(k: Int): Long =
+      if k >= 0 && k < totalSize then
+        var i = 0
+        var needed = k
+        while i < contents.length do
+          val n = contents(i) match
+            case irr: Irregular => irr.totalSize
+            case a: Array[AnyRef] => subsize * a.length
+          if needed < n then return (needed.toLong << 32) | i.toLong
+          needed -= n
+          i += 1
+      -1L
+
+    // TODO--we probably want to know how many elements are irregular so we can revert to regularity when none remain
+  }
+  private[SplitDeque] object Irregular {
+    // Depth must be at least 2; depth 1 always stores Array[AnyRef], and depth 0 stores bare items.
+    def build(depth: Int, contents: Array[Irregular | Array[AnyRef]]): Array[Irregular | Array[AnyRef]] | Irregular =
+      var subsize = 1  // Each element of an Array[AnyRef] inside contents represents this many items
+      var d = 2
+      while d < depth do
+        subsize *= 24
+        d += 1
+      var n = 0
+      var i = 0
+      var simple = contents.length == 24
+      while i < contents.length do
+        n += contents(i) match
+          case irr: Irregular =>
+            simple = false
+            irr.totalSize
+          case a: Array[AnyRef] =>
+            val m = a.length
+            simple = simple && (m == 24)
+            m * subsize
+        i += 1
+      if simple then contents
+      else new Irregular(n, subsize, contents)
+  }
+
+  /** Data structure that we can add/remove in O(log n) time.
+    *
+    * TODO--should this even extend Impl, or should we recreate an immutable simplified version of this?
+    * What are the advantages and disadvantages of each approach?
+    */
+  final class Chunk[A]() extends Impl[A]() {}
+  */
+}
+
+
 final class ConcurrentSplitDeque[A]() {
+  /*
   import ConcurrentSplitDeque.{lenHandle, vznHandle}
 
   // The data structure is loosely inspired by a finger tree, where we have a double-edged element-level ring buffer
@@ -48,7 +385,7 @@ final class ConcurrentSplitDeque[A]() {
   // half-open order, i.e., l <= i < c (mod 64) are on the left and c <= i < r (mod 64) are on the right,
   // traversals are performed left-to-right whenever possible to simplify endpoint detection.
 
-  // Deeper elements are grouped in blocks of size 24 by default, but any size from 8 to 64 is supported.
+  // Deeper elements are grouped in blocks of size 24 by default, but any size from 1 to 64 is supported.
 
   // Deeper element blocks may be cached at the end of the buffer in elements 64 to 71 inclusive;
   // these are preferentially reused instead of allocating a new block upon addition, and they are 
@@ -87,25 +424,21 @@ final class ConcurrentSplitDeque[A]() {
   private var r: Int = 0    // The index past the end of the right flank of items.
   private val buffer: Array[AnyRef] = new Array[AnyRef](68)  // A buffer to hold items at this level; accessed mod 64 (i.e. & 0x3F) plus 4 slots for empty buffers
 
-  private var deeper: ConcurrentSplitDeque[Array[AnyRef]] = null   // Items in the center of the deque, batched in 24-wide blocks (typically)
+  private var deeper: ConcurrentSplitDeque[AnyRef] = null    // Items in the center of the deque, batched in 24-wide blocks (typically)
 
   var debugFlag = false
   def setDebugFlag(value: Boolean): Unit =
     debugFlag = value
-    val deep = deeper
-    if deep ne null then deep.setDebugFlag(value)
+    if deeper ne null then deeper.setDebugFlag(value)
+
+
+
 
 
   ////////////////////////////////////////////////////////////////////////////////////
   // Methods to add single elements including batching and moving to deeper layers //
   ///////////////////////////////////////////////////////////////////////////////////
 
-  // Make sure deeper exists, creating it if not.  Only call if it is needed.
-  private def ensureDeeper(): Unit =
-    if deeper eq null then
-      val deep = new ConcurrentSplitDeque[Array[AnyRef]]()
-      deep.vzn = if (vzn & 1) == 1 then 2 else vzn + 2
-      deeper = deep
 
   // Adds an element to the front of the deque.
   // Breaks len invariant, so only call on outer layer.
@@ -921,8 +1254,10 @@ final class ConcurrentSplitDeque[A]() {
     val sb = MkStr.empty()
     mkDebugStr(sb, indent)
     println(sb.toString)
+  */
 }
 object ConcurrentSplitDeque {
+  /*
   import java.lang.invoke.MethodHandles
 
   private[ConcurrentSplitDeque] final val lenHandle =
@@ -1124,6 +1459,7 @@ object ConcurrentSplitDeque {
       if j >= m then
         j = -1
   }
+  */
   */
 }
 

@@ -42,7 +42,7 @@ class ArraysTest() {
   extension (ac: Array[C.Type])
     def cs: String =
       MkStr: sb =>
-        ac.peek()(sb += _.value): Unit
+        ac.use()(sb += _.value)
 
   object O extends NewType[Option[String]] {
     extension (o: O.Type)
@@ -53,7 +53,7 @@ class ArraysTest() {
   extension (ao: Array[O.Type])
     def os: String =
       MkStr: sb =>
-        ao.peek()(o => sb += (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#"))): Unit
+        ao.use()(o => sb += (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#")))
   
   extension (s: String)
     def c: Array[C.Type] = s.toCharArray.copyWith(c => C(c))
@@ -101,49 +101,49 @@ class ArraysTest() {
 
     T ~ (Start + 1 to End + 3).of(civ) ==== Iv(4, 8)
 
-    T ~ (car.use( 2){ cuml += _.n } eq car) ==== true
-    T ~ (car.use( 9){ cuml += _.n } eq car) ==== true
-    T ~ (car.use(-1){ cuml += _.n } eq car) ==== true
-    T ~ { val x = cuml; cuml = 0; x }       ==== '.'.toInt
-    T ~ car.dup().zap( 2)(_ => C('^')).cs   ==== "ch^ix.#n."
-    T ~ car.dup().zap(-1)(_ => C('^')).cs   ==== str
+    T ~ (car.peek( 2){ cuml += _.n } eq car) ==== true
+    T ~ (car.peek( 9){ cuml += _.n } eq car) ==== true
+    T ~ (car.peek(-1){ cuml += _.n } eq car) ==== true
+    T ~ { val x = cuml; cuml = 0; x }        ==== '.'.toInt
+    T ~ car.dup().poke( 2)(_ => C('^')).cs   ==== "ch^ix.#n."
+    T ~ car.dup().poke(-1)(_ => C('^')).cs   ==== str
 
-    T ~ z{ car.peek()(cuml += _.n) }.cs       ==== str
-    T ~ cuml                                  ==== str.map(_.toInt).sum
-    T ~ z{ oar.peek()(cuml += _.n) }.os       ==== str
-    T ~ cuml                                  ==== oar.map(_.n).sum
-    T ~ z{ car.peek(3, 5)(cuml += _.n) }.cs   ==== str
-    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ oar.peek(1, 3)(cuml += _.n) }.os   ==== str
-    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
-    T ~ z{ car.peek(civ)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ oar.peek(oiv)(cuml += _.n) }.os    ==== str
-    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
-    T ~ z{ car.peek(3 to 4)(cuml += _.n) }.cs ==== str
-    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ oar.peek(1 to 2)(cuml += _.n) }.os ==== str
-    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
-    T ~ z{ car.peek(cpv)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                  ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ oar.peek(opv)(cuml += _.n) }.os    ==== str
-    T ~ cuml                                  ==== oar.slice(1, 3).map(_.n).sum
-    T ~ z{ car.peek(ix)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                  ==== ".ihhi".map(_.toInt).sum
-    T ~ z{ oar.peek(ix)(cuml += _.n) }.os     ==== str
-    T ~ cuml                                  ==== ix.map(i => oar(i).n).sum
-    T ~ z{ car.peek(st)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                  ==== ".ihhi".map(_.toInt).sum
-    T ~ z{ oar.peek(st)(cuml += _.n) }.os     ==== str
-    T ~ cuml                                  ==== ix.map(i => oar(i).n).sum
+    T ~ z{ car.tap(_.use()(cuml += _.n)) }.cs       ==== str
+    T ~ cuml                                        ==== str.map(_.toInt).sum
+    T ~ z{ oar.tap(_.use()(cuml += _.n)) }.os       ==== str
+    T ~ cuml                                        ==== oar.map(_.n).sum
+    T ~ z{ car.tap(_.use(3, 5)(cuml += _.n)) }.cs   ==== str
+    T ~ cuml                                        ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(1, 3)(cuml += _.n)) }.os   ==== str
+    T ~ cuml                                        ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.tap(_.use(civ)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                        ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(oiv)(cuml += _.n)) }.os    ==== str
+    T ~ cuml                                        ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.tap(_.use(3 to 4)(cuml += _.n)) }.cs ==== str
+    T ~ cuml                                        ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(1 to 2)(cuml += _.n)) }.os ==== str
+    T ~ cuml                                        ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.tap(_.use(cpv)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                        ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(opv)(cuml += _.n)) }.os    ==== str
+    T ~ cuml                                        ==== oar.slice(1, 3).map(_.n).sum
+    T ~ z{ car.tap(_.use(ix)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                        ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(ix)(cuml += _.n)) }.os     ==== str
+    T ~ cuml                                        ==== ix.map(i => oar(i).n).sum
+    T ~ z{ car.tap(_.use(st)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                        ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(st)(cuml += _.n)) }.os     ==== str
+    T ~ cuml                                        ==== ix.map(i => oar(i).n).sum
 
-    T ~ car.dup().poke()(      c => if c.l then C(c.value.toUpper) else c).cs ==== str.toUpperCase
-    T ~ car.dup().poke(3, 5)(  c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
-    T ~ car.dup().poke(3 to 4)(c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
-    T ~ car.dup().poke(civ)(   c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
-    T ~ car.dup().poke(cpv)(   c => if c.l then C(c.value.toUpper) else c).cs ==== "ch.IX.#n."
-    T ~ car.dup().poke(ix)(    c => if c.l then C(c.value.toUpper) else c).cs ==== "cH.Ix.#n."
-    T ~ car.dup().poke(st)(    c => if c.l then C(c.value.toUpper) else c).cs ==== "cH.Ix.#n."
+    T ~ car.dup().tap(_.alter()(      c => if c.l then C(c.value.toUpper) else c)).cs ==== str.toUpperCase
+    T ~ car.dup().tap(_.alter(3, 5)(  c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
+    T ~ car.dup().tap(_.alter(3 to 4)(c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
+    T ~ car.dup().tap(_.alter(civ)(   c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
+    T ~ car.dup().tap(_.alter(cpv)(   c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
+    T ~ car.dup().tap(_.alter(ix)(    c => if c.l then C(c.value.toUpper) else c)).cs ==== "cH.Ix.#n."
+    T ~ car.dup().tap(_.alter(st)(    c => if c.l then C(c.value.toUpper) else c)).cs ==== "cH.Ix.#n."
 
     T ~ n{ car.visit()(cuml += _.n + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
     T ~ n{ oar.visit()(cuml += _.n + _) }       ==== oar.map(_.n).sum + oar.length*(oar.length-1)/2
@@ -566,69 +566,69 @@ class ArraysTest() {
     T ~ str.clip.get(-2)             ==== None
     T ~ str.clip.get(car.length)     ==== None
 
-    T ~ z{ car.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.clip.peek(civ)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.clip.peek(cpv)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.clip.peek(ix)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ car.clip.peek(st)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(3, 5)(cuml += _.n)) }.cs   ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(3 to 4)(cuml += _.n)) }.cs ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(civ)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(cpv)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(ix)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.clip.use(st)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
 
-    T ~ n{ car.clip.peek(3, 9)(cuml += _.n) }    ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.clip.peek(3 to 8)(cuml += _.n) }  ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.clip.peek(eiv)(cuml += _.n) }     ==== str.substring(3).map(_.toInt).sum
-    T ~    car.     peek(3, 9)(cuml += _.n)      ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(3 to 8)(cuml += _.n)    ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(eiv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ n{ car.tap(_.clip.use(3, 9)(cuml += _.n)) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(3 to 8)(cuml += _.n)) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(eiv)(cuml += _.n)) }     ==== str.substring(3).map(_.toInt).sum
+    T ~    car.tap(_.     use(3, 9)(cuml += _.n))      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(3 to 8)(cuml += _.n))    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(eiv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
 
-    T ~ n{ car.clip.peek(-2, 5)(cuml += _.n) }   ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.clip.peek(-2 to 4)(cuml += _.n) } ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.clip.peek(fiv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.clip.peek(fpv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
-    T ~    car.     peek(-2, 5)(cuml += _.n)     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(-2 to 4)(cuml += _.n)   ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(fiv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(fpv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ n{ car.tap(_.clip.use(-2, 5)(cuml += _.n)) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(-2 to 4)(cuml += _.n)) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(fiv)(cuml += _.n)) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(fpv)(cuml += _.n)) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~    car.tap(_.     use(-2, 5)(cuml += _.n))     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(-2 to 4)(cuml += _.n))   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(fiv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(fpv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
 
-    T ~ n{ car.clip.peek(-2, 9)(cuml += _.n) }   ==== str.map(_.toInt).sum
-    T ~ n{ car.clip.peek(-2 to 9)(cuml += _.n) } ==== str.map(_.toInt).sum
-    T ~ n{ car.clip.peek(biv)(cuml += _.n) }     ==== str.map(_.toInt).sum
-    T ~    car.     peek(-2, 9)(cuml += _.n)     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(-2 to 9)(cuml += _.n)   ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(biv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ n{ car.tap(_.clip.use(-2, 9)(cuml += _.n)) }   ==== str.map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(-2 to 9)(cuml += _.n)) } ==== str.map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(biv)(cuml += _.n)) }     ==== str.map(_.toInt).sum
+    T ~    car.tap(_.     use(-2, 9)(cuml += _.n))     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(-2 to 9)(cuml += _.n))   ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(biv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
 
-    T ~ n{ car.clip.peek(8, 9)(cuml += _.n) }    ==== 0
-    T ~ n{ car.clip.peek(8 to 9)(cuml += _.n) }  ==== 0
-    T ~ n{ car.clip.peek(niv)(cuml += _.n) }     ==== 0
-    T ~ n{ car.clip.peek(npv)(cuml += _.n) }     ==== 0
-    T ~    car.     peek(8, 9)(cuml += _.n)      ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(8 to 9)(cuml += _.n)    ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(niv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(npv)(cuml += _.n)       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ n{ car.tap(_.clip.use(8, 9)(cuml += _.n)) }    ==== 0
+    T ~ n{ car.tap(_.clip.use(8 to 9)(cuml += _.n)) }  ==== 0
+    T ~ n{ car.tap(_.clip.use(niv)(cuml += _.n)) }     ==== 0
+    T ~ n{ car.tap(_.clip.use(npv)(cuml += _.n)) }     ==== 0
+    T ~    car.tap(_.     use(8, 9)(cuml += _.n))      ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(8 to 9)(cuml += _.n))    ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(niv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(npv)(cuml += _.n))       ==== thrown[ArrayIndexOutOfBoundsException]
 
-    T ~ n{ car.clip.peek(ex)(cuml += _.n) }      ==== ".c#.".map(_.toInt).sum
-    T ~ n{ car.clip.peek(et)(cuml += _.n) }      ==== ".c#.".map(_.toInt).sum
-    T ~    car.     peek(ex)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~    car.     peek(et)(cuml += _.n)        ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ n{ car.tap(_.clip.use(ex)(cuml += _.n)) }     ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.tap(_.clip.use(et)(cuml += _.n)) }     ==== ".c#.".map(_.toInt).sum
+    T ~    car.tap(_.     use(ex)(cuml += _.n))        ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~    car.tap(_.     use(et)(cuml += _.n))        ==== thrown[ArrayIndexOutOfBoundsException]
 
-    T ~ car.dup().clip.poke(3, 9   ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
-    T ~ car.dup().clip.poke(3 to 8 ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
-    T ~ car.dup().clip.poke(eiv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "ch.#IK."
-    T ~ car.dup().clip.poke(-2, 5  ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
-    T ~ car.dup().clip.poke(-2 to 4){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
-    T ~ car.dup().clip.poke(fiv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
-    T ~ car.dup().clip.poke(fpv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "CH.#Ik."
-    T ~ car.dup().clip.poke(8, 10  ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
-    T ~ car.dup().clip.poke(8 to 9 ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
-    T ~ car.dup().clip.poke(niv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
-    T ~ car.dup().clip.poke(npv    ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== str
-    T ~ car.dup().clip.poke(ex     ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "Ch.#ik."
-    T ~ car.dup().clip.poke(et     ){ c => if c.l then C(c.value.toUpper) else c }.cs ==== "Ch.#ik."
+    T ~ car.dup().tap(_.clip.alter(3, 9   ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "ch.#IK."
+    T ~ car.dup().tap(_.clip.alter(3 to 8 ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "ch.#IK."
+    T ~ car.dup().tap(_.clip.alter(eiv    ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "ch.#IK."
+    T ~ car.dup().tap(_.clip.alter(-2, 5  ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "CH.#Ik."
+    T ~ car.dup().tap(_.clip.alter(-2 to 4){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "CH.#Ik."
+    T ~ car.dup().tap(_.clip.alter(fiv    ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "CH.#Ik."
+    T ~ car.dup().tap(_.clip.alter(fpv    ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "CH.#Ik."
+    T ~ car.dup().tap(_.clip.alter(8, 10  ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.alter(8 to 9 ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.alter(niv    ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.alter(npv    ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.alter(ex     ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "Ch.#ik."
+    T ~ car.dup().tap(_.clip.alter(et     ){ c => if c.l then C(c.value.toUpper) else c }).cs ==== "Ch.#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ n{ car.clip.visit(3, 5)(cuml += _.n + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -1308,43 +1308,43 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ z{ car.flex.peek()(cuml += _.n) }.cs       ==== str
-    T ~ cuml                                       ==== str.map(_.toInt).sum
-    T ~ z{ car.flex.peek(3, 5)(cuml += _.n) }.cs   ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.peek(3 to 4)(cuml += _.n) }.cs ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.peek(civ)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.peek(cpv)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.peek(ix)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ car.flex.peek(st)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                       ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use()(cuml += _.n)) }.cs       ==== str
+    T ~ cuml                                             ==== str.map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(3, 5)(cuml += _.n)) }.cs   ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(3 to 4)(cuml += _.n)) }.cs ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(civ)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(cpv)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                             ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(ix)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(st)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
 
-    T ~ z{ car.flex.peek(){ c => qIf(!c.l); cuml += c.n } }.cs      ==== str
-    T ~ cuml                                                        ==== str.take(2).map(_.toInt).sum
-    T ~ z{ car.flex.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
-    T ~ cuml                                                        ==== str(3).toInt
-    T ~ z{ car.flex.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
-    T ~ cuml                                                        ==== str(3).toInt
-    T ~ z{ car.flex.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                        ==== str(3).toInt
-    T ~ z{ car.flex.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                        ==== str(3).toInt
-    T ~ z{ car.flex.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                        ==== ".#".map(_.toInt).sum
-    T ~ z{ car.flex.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                        ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(){ c => qIf(!c.l); cuml += c.n }) }.cs      ==== str
+    T ~ cuml                                                              ==== str.take(2).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(3, 5){ c => qIf(c.l); cuml += c.n }) }.cs   ==== str
+    T ~ cuml                                                              ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(3 to 4){ c => qIf(c.l); cuml += c.n }) }.cs ==== str
+    T ~ cuml                                                              ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(civ){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
+    T ~ cuml                                                              ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(cpv){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
+    T ~ cuml                                                              ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(ix){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
+    T ~ cuml                                                              ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(st){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
+    T ~ cuml                                                              ==== ".#".map(_.toInt).sum
 
-    T ~ car.dup().flex.poke(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs       ==== "CH-#ik."
-    T ~ car.dup().flex.poke(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs   ==== "ch.-ik."
-    T ~ car.dup().flex.poke(3 to 4){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs ==== "ch.-ik."
-    T ~ car.dup().flex.poke(civ){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
-    T ~ car.dup().flex.poke(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }.cs    ==== "ch.-ik."
-    T ~ car.dup().flex.poke(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
-    T ~ car.dup().flex.poke(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }.cs     ==== "ch-#ik."
+    T ~ car.dup().tap(_.flex.alter(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs       ==== "CH-#ik."
+    T ~ car.dup().tap(_.flex.alter(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs   ==== "ch.-ik."
+    T ~ car.dup().tap(_.flex.alter(3 to 4){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs ==== "ch.-ik."
+    T ~ car.dup().tap(_.flex.alter(civ){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs    ==== "ch.-ik."
+    T ~ car.dup().tap(_.flex.alter(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs    ==== "ch.-ik."
+    T ~ car.dup().tap(_.flex.alter(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs     ==== "ch-#ik."
+    T ~ car.dup().tap(_.flex.alter(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs     ==== "ch-#ik."
 
     T ~ n{ qt{ car.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } } }      ==== str.take(2).map(_.toInt).sum + 1
     T ~ n{ qt{ car.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
@@ -1561,87 +1561,87 @@ class ArraysTest() {
     T ~ car.flex.clip ==== typed[FancyArray[C.Type]]
     T ~ car.fancy      ==== typed[FancyArray[C.Type]]
 
-    T ~ z{ car.flex.clip.peek(3, 5)(cuml += _.n) }.cs   ==== str
-    T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(3 to 4)(cuml += _.n) }.cs ==== str
-    T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(civ)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(cpv)(cuml += _.n) }.cs    ==== str
-    T ~ cuml                                                 ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(ix)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                                 ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(st)(cuml += _.n) }.cs     ==== str
-    T ~ cuml                                                 ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(3, 5)(cuml += _.n)) }.cs   ==== str
+    T ~ cuml                                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(3 to 4)(cuml += _.n)) }.cs ==== str
+    T ~ cuml                                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(civ)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(cpv)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                                  ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(ix)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                                  ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(st)(cuml += _.n)) }.cs     ==== str
+    T ~ cuml                                                  ==== ".#hh#".map(_.toInt).sum
 
-    T ~ z{ car.flex.clip.peek(3, 5){ c => qIf(c.l); cuml += c.n } }.cs   ==== str
-    T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.flex.clip.peek(3 to 4){ c => qIf(c.l); cuml += c.n } }.cs ==== str
-    T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.flex.clip.peek(civ){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.flex.clip.peek(cpv){ c => qIf(c.l); cuml += c.n } }.cs    ==== str
-    T ~ cuml                                                                  ==== str(3).toInt
-    T ~ z{ car.flex.clip.peek(ix){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                                  ==== ".#".map(_.toInt).sum
-    T ~ z{ car.flex.clip.peek(st){ c => qIf(c.l); cuml += c.n } }.cs     ==== str
-    T ~ cuml                                                                  ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(3, 5){ c => qIf(c.l); cuml += c.n }) }.cs   ==== str
+    T ~ cuml                                                                   ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.clip.use(3 to 4){ c => qIf(c.l); cuml += c.n }) }.cs ==== str
+    T ~ cuml                                                                   ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.clip.use(civ){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
+    T ~ cuml                                                                   ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.clip.use(cpv){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
+    T ~ cuml                                                                   ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.clip.use(ix){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
+    T ~ cuml                                                                   ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.clip.use(st){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
+    T ~ cuml                                                                   ==== ".#".map(_.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(3, 9)(cuml += _.n) }    ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(3 to 8)(cuml += _.n) }  ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(eiv)(cuml += _.n) }     ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(3, 9)(cuml += _.n)) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(3 to 8)(cuml += _.n)) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(eiv)(cuml += _.n)) }     ==== str.substring(3).map(_.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(3, 9){ c => qIf(c.l); cuml += c.n } }    ==== str(3).toInt
-    T ~ n{ car.flex.clip.peek(3 to 8){ c => qIf(c.l); cuml += c.n } }  ==== str(3).toInt
-    T ~ n{ car.flex.clip.peek(eiv){ c => qIf(c.l); cuml += c.n } }     ==== str(3).toInt
+    T ~ n{ car.tap(_.flex.clip.use(3, 9){ c => qIf(c.l); cuml += c.n }) }    ==== str(3).toInt
+    T ~ n{ car.tap(_.flex.clip.use(3 to 8){ c => qIf(c.l); cuml += c.n }) }  ==== str(3).toInt
+    T ~ n{ car.tap(_.flex.clip.use(eiv){ c => qIf(c.l); cuml += c.n }) }     ==== str(3).toInt
 
-    T ~ n{ car.flex.clip.peek(-2, 5)(cuml += _.n) }   ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(-2 to 4)(cuml += _.n) } ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(fiv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(fpv)(cuml += _.n) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2, 5)(cuml += _.n)) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2 to 4)(cuml += _.n)) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(fiv)(cuml += _.n)) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(fpv)(cuml += _.n)) }     ==== str.substring(0, 5).map(_.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(-2, 5){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.flex.clip.peek(-2 to 4){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.flex.clip.peek(fiv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.flex.clip.peek(fpv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2, 5){ c => qIf(!c.l); cuml += c.n }) }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2 to 4){ c => qIf(!c.l); cuml += c.n }) } ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(fiv){ c => qIf(!c.l); cuml += c.n }) }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(fpv){ c => qIf(!c.l); cuml += c.n }) }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(-2, 9)(cuml += _.n) }   ==== str.map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(-2 to 9)(cuml += _.n) } ==== str.map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(biv)(cuml += _.n) }     ==== str.map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2, 9)(cuml += _.n)) }   ==== str.map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2 to 9)(cuml += _.n)) } ==== str.map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(biv)(cuml += _.n)) }     ==== str.map(_.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(-2, 9){ c => qIf(!c.l); cuml += c.n } }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.flex.clip.peek(-2 to 9){ c => qIf(!c.l); cuml += c.n } } ==== car.takeWhile(_.l).map(_.value.toInt).sum
-    T ~ n{ car.flex.clip.peek(biv){ c => qIf(!c.l); cuml += c.n } }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2, 9){ c => qIf(!c.l); cuml += c.n }) }   ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(-2 to 9){ c => qIf(!c.l); cuml += c.n }) } ==== car.takeWhile(_.l).map(_.value.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(biv){ c => qIf(!c.l); cuml += c.n }) }     ==== car.takeWhile(_.l).map(_.value.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(8, 9)(cuml += _.n) }   ==== 0
-    T ~ n{ car.flex.clip.peek(8 to 9)(cuml += _.n) } ==== 0
-    T ~ n{ car.flex.clip.peek(niv)(cuml += _.n) }    ==== 0
-    T ~ n{ car.flex.clip.peek(npv)(cuml += _.n) }    ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(8, 9)(cuml += _.n)) }   ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(8 to 9)(cuml += _.n)) } ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(niv)(cuml += _.n)) }    ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(npv)(cuml += _.n)) }    ==== 0
 
-    T ~ n{ car.flex.clip.peek(8, 9){ c => qIf(c.l); cuml += c.n } }    ==== 0
-    T ~ n{ car.flex.clip.peek(8 to 9){ c => qIf(c.l); cuml += c.n } }  ==== 0
-    T ~ n{ car.flex.clip.peek(niv){ c => qIf(c.l); cuml += c.n } }     ==== 0
-    T ~ n{ car.flex.clip.peek(npv){ c => qIf(c.l); cuml += c.n } }     ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(8, 9){ c => qIf(c.l); cuml += c.n }) }    ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(8 to 9){ c => qIf(c.l); cuml += c.n }) }  ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(niv){ c => qIf(c.l); cuml += c.n }) }     ==== 0
+    T ~ n{ car.tap(_.flex.clip.use(npv){ c => qIf(c.l); cuml += c.n }) }     ==== 0
 
-    T ~ n{ car.flex.clip.peek(ex)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(et)(cuml += _.n) } ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(ex)(cuml += _.n)) } ==== ".c#.".map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(et)(cuml += _.n)) } ==== ".c#.".map(_.toInt).sum
 
-    T ~ n{ car.flex.clip.peek(ex){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
-    T ~ n{ car.flex.clip.peek(et){ c => qIf(c.value == '#'); cuml += c.n } } ==== ".c".map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(ex){ c => qIf(c.value == '#'); cuml += c.n }) } ==== ".c".map(_.toInt).sum
+    T ~ n{ car.tap(_.flex.clip.use(et){ c => qIf(c.value == '#'); cuml += c.n }) } ==== ".c".map(_.toInt).sum
 
-    T ~ car.dup().clip.flex.poke(3, 9   ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.flex.poke(3 to 8 ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.flex.poke(eiv    ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }.cs ==== "ch.-ik."
-    T ~ car.dup().clip.flex.poke(-2, 5  ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.flex.poke(-2 to 4){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.flex.poke(fiv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.flex.poke(fpv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.flex.poke(8, 10  ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.flex.poke(8 to 9 ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.flex.poke(niv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.flex.poke(npv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }.cs ==== str
-    T ~ car.dup().clip.flex.poke(ex     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
-    T ~ car.dup().clip.flex.poke(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }.cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(3, 9   ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }).cs ==== "ch.-ik."
+    T ~ car.dup().tap(_.clip.flex.alter(3 to 8 ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }).cs ==== "ch.-ik."
+    T ~ car.dup().tap(_.clip.flex.alter(eiv    ){ c => qIf(c.value=='k'); if !c.l then C('-') else c }).cs ==== "ch.-ik."
+    T ~ car.dup().tap(_.clip.flex.alter(-2, 5  ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(-2 to 4){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(fiv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(fpv    ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(8, 10  ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.alter(8 to 9 ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.alter(niv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.alter(npv    ){ c => qIf(c.value=='-'); if !c.l then C('-') else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.alter(ex     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
+    T ~ car.dup().tap(_.clip.flex.alter(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ car.clip.flex.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -2347,20 +2347,20 @@ class ArraysTest() {
     T ~ str(End)   ==== '.'
     T ~ str(End-1) ==== 'n'
 
-    T ~ z{ str.peek()(cuml += _) }       ==== str
-    T ~ cuml                             ==== str.map(_.toInt).sum  
-    T ~ z{ str.peek(3, 5)(cuml += _) }   ==== str
-    T ~ cuml                             ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.peek(civ)(cuml += _) }    ==== str
-    T ~ cuml                             ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.peek(3 to 4)(cuml += _) } ==== str
-    T ~ cuml                             ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.peek(cpv)(cuml += _) }    ==== str
-    T ~ cuml                             ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.peek(ix)(cuml += _) }     ==== str
-    T ~ cuml                             ==== ".ihhi".map(_.toInt).sum
-    T ~ z{ str.peek(st)(cuml += _) }     ==== str
-    T ~ cuml                             ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ str.tap(_.use()(cuml += _)) }       ==== str
+    T ~ cuml                                   ==== str.map(_.toInt).sum  
+    T ~ z{ str.tap(_.use(3, 5)(cuml += _)) }   ==== str
+    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(civ)(cuml += _)) }    ==== str
+    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(3 to 4)(cuml += _)) } ==== str
+    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(cpv)(cuml += _)) }    ==== str
+    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(ix)(cuml += _)) }     ==== str
+    T ~ cuml                                   ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ str.tap(_.use(st)(cuml += _)) }     ==== str
+    T ~ cuml                                   ==== ".ihhi".map(_.toInt).sum
 
     T ~ n{ str.visit()(cuml += _ + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
     T ~ n{ str.visit(3, 5)(cuml += _ + _) }   ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -2554,39 +2554,39 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ z{ str.clip.peek(3, 5)(cuml += _) }   ==== str
-    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.clip.peek(3 to 4)(cuml += _) } ==== str
-    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.clip.peek(civ)(cuml += _) }    ==== str
-    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.clip.peek(cpv)(cuml += _) }    ==== str
-    T ~ cuml                                    ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.clip.peek(ix)(cuml += _) }     ==== str
-    T ~ cuml                                    ==== ".#hh#".map(_.toInt).sum
-    T ~ z{ str.clip.peek(st)(cuml += _) }     ==== str
-    T ~ cuml                                    ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(3, 5)(cuml += _)) }    ==== str
+    T ~ cuml                                         ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(3 to 4)(cuml += _)) }  ==== str
+    T ~ cuml                                         ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(civ)(cuml += _)) }     ==== str
+    T ~ cuml                                         ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(cpv)(cuml += _)) }     ==== str
+    T ~ cuml                                         ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(ix)(cuml += _)) }      ==== str
+    T ~ cuml                                         ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ str.tap(_.clip.use(st)(cuml += _)) }      ==== str
+    T ~ cuml                                         ==== ".#hh#".map(_.toInt).sum
 
-    T ~ n{ str.clip.peek(3, 9)(cuml += _) }    ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ str.clip.peek(3 to 8)(cuml += _) }  ==== str.substring(3).map(_.toInt).sum
-    T ~ n{ str.clip.peek(eiv)(cuml += _) }     ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(3, 9)(cuml += _)) }    ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(3 to 8)(cuml += _)) }  ==== str.substring(3).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(eiv)(cuml += _)) }     ==== str.substring(3).map(_.toInt).sum
 
-    T ~ n{ str.clip.peek(-2, 5)(cuml += _) }   ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ str.clip.peek(-2 to 4)(cuml += _) } ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ str.clip.peek(fiv)(cuml += _) }     ==== str.substring(0, 5).map(_.toInt).sum
-    T ~ n{ str.clip.peek(fpv)(cuml += _) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(-2, 5)(cuml += _)) }   ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(-2 to 4)(cuml += _)) } ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(fiv)(cuml += _)) }     ==== str.substring(0, 5).map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(fpv)(cuml += _)) }     ==== str.substring(0, 5).map(_.toInt).sum
 
-    T ~ n{ str.clip.peek(-2, 9)(cuml += _) }   ==== str.map(_.toInt).sum
-    T ~ n{ str.clip.peek(-2 to 9)(cuml += _) } ==== str.map(_.toInt).sum
-    T ~ n{ str.clip.peek(biv)(cuml += _) }     ==== str.map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(-2, 9)(cuml += _)) }   ==== str.map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(-2 to 9)(cuml += _)) } ==== str.map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(biv)(cuml += _)) }     ==== str.map(_.toInt).sum
 
-    T ~ n{ str.clip.peek(8, 9)(cuml += _) }    ==== 0
-    T ~ n{ str.clip.peek(8 to 9)(cuml += _) }  ==== 0
-    T ~ n{ str.clip.peek(niv)(cuml += _) }     ==== 0
-    T ~ n{ str.clip.peek(npv)(cuml += _) }     ==== 0
+    T ~ n{ str.tap(_.clip.use(8, 9)(cuml += _)) }    ==== 0
+    T ~ n{ str.tap(_.clip.use(8 to 9)(cuml += _)) }  ==== 0
+    T ~ n{ str.tap(_.clip.use(niv)(cuml += _)) }     ==== 0
+    T ~ n{ str.tap(_.clip.use(npv)(cuml += _)) }     ==== 0
 
-    T ~ n{ str.clip.peek(ex)(cuml += _) }      ==== ".c#.".map(_.toInt).sum
-    T ~ n{ str.clip.peek(et)(cuml += _) }      ==== ".c#.".map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(ex)(cuml += _)) }      ==== ".c#.".map(_.toInt).sum
+    T ~ n{ str.tap(_.clip.use(et)(cuml += _)) }      ==== ".c#.".map(_.toInt).sum
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ n{ str.clip.visit(3, 5)(cuml += _ + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -3023,19 +3023,19 @@ class ArraysTest() {
       f: Unit
       cuml
 
-    T ~ z{ str.flex.peek(){ c => qIf(!c.isLetter); cuml += c } }      ==== str
+    T ~ z{ str.tap(_.flex.use(){ c => qIf(!c.isLetter); cuml += c }) }      ==== str
     T ~ cuml                                                               ==== str.take(2).map(_.toInt).sum
-    T ~ z{ str.flex.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
+    T ~ z{ str.tap(_.flex.use(3, 5){ c => qIf(c.isLetter); cuml += c }) }   ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.flex.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
+    T ~ z{ str.tap(_.flex.use(3 to 4){ c => qIf(c.isLetter); cuml += c }) } ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.flex.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.tap(_.flex.use(civ){ c => qIf(c.isLetter); cuml += c }) }    ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.flex.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
+    T ~ z{ str.tap(_.flex.use(cpv){ c => qIf(c.isLetter); cuml += c }) }    ==== str
     T ~ cuml                                                               ==== str(3).toInt
-    T ~ z{ str.flex.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.tap(_.flex.use(ix){ c => qIf(c.isLetter); cuml += c }) }     ==== str
     T ~ cuml                                                               ==== ".#".map(_.toInt).sum
-    T ~ z{ str.flex.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
+    T ~ z{ str.tap(_.flex.use(st){ c => qIf(c.isLetter); cuml += c }) }     ==== str
     T ~ cuml                                                               ==== ".#".map(_.toInt).sum
 
     T ~ str.flex.gather(0)(){ (a, c, i) => qIf(!c.isLetter); a + c + i }      ==== str.take(2).map(_.toInt).sum + 1
@@ -3209,39 +3209,39 @@ class ArraysTest() {
     T ~ str.flex.clip ==== typed[FancyString]
     T ~ str.fancy      ==== typed[FancyString]
 
-    T ~ z{ str.flex.clip.peek(3, 5){ c => qIf(c.isLetter); cuml += c } }   ==== str
-    T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.flex.clip.peek(3 to 4){ c => qIf(c.isLetter); cuml += c } } ==== str
-    T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.flex.clip.peek(civ){ c => qIf(c.isLetter); cuml += c } }    ==== str
-    T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.flex.clip.peek(cpv){ c => qIf(c.isLetter); cuml += c } }    ==== str
-    T ~ cuml                                                                    ==== str(3).toInt
-    T ~ z{ str.flex.clip.peek(ix){ c => qIf(c.isLetter); cuml += c } }     ==== str
-    T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
-    T ~ z{ str.flex.clip.peek(st){ c => qIf(c.isLetter); cuml += c } }     ==== str
-    T ~ cuml                                                                    ==== ".#".map(_.toInt).sum
+    T ~ z{ str.tap(_.flex.clip.use(3, 5){ c => qIf(c.isLetter); cuml += c }) }   ==== str
+    T ~ cuml                                                                     ==== str(3).toInt
+    T ~ z{ str.tap(_.flex.clip.use(3 to 4){ c => qIf(c.isLetter); cuml += c }) } ==== str
+    T ~ cuml                                                                     ==== str(3).toInt
+    T ~ z{ str.tap(_.flex.clip.use(civ){ c => qIf(c.isLetter); cuml += c }) }    ==== str
+    T ~ cuml                                                                     ==== str(3).toInt
+    T ~ z{ str.tap(_.flex.clip.use(cpv){ c => qIf(c.isLetter); cuml += c }) }    ==== str
+    T ~ cuml                                                                     ==== str(3).toInt
+    T ~ z{ str.tap(_.flex.clip.use(ix){ c => qIf(c.isLetter); cuml += c }) }     ==== str
+    T ~ cuml                                                                     ==== ".#".map(_.toInt).sum
+    T ~ z{ str.tap(_.flex.clip.use(st){ c => qIf(c.isLetter); cuml += c }) }     ==== str
+    T ~ cuml                                                                     ==== ".#".map(_.toInt).sum
 
-    T ~ n{ str.flex.clip.peek(3, 9){ c => qIf(c.isLetter); cuml += c } }   ==== str(3).toInt
-    T ~ n{ str.flex.clip.peek(3 to 8){ c => qIf(c.isLetter); cuml += c } } ==== str(3).toInt
-    T ~ n{ str.flex.clip.peek(eiv){ c => qIf(c.isLetter); cuml += c } }    ==== str(3).toInt
+    T ~ n{ str.tap(_.flex.clip.use(3, 9){ c => qIf(c.isLetter); cuml += c }) }   ==== str(3).toInt
+    T ~ n{ str.tap(_.flex.clip.use(3 to 8){ c => qIf(c.isLetter); cuml += c }) } ==== str(3).toInt
+    T ~ n{ str.tap(_.flex.clip.use(eiv){ c => qIf(c.isLetter); cuml += c }) }    ==== str(3).toInt
 
-    T ~ n{ str.flex.clip.peek(-2, 5){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(-2 to 4){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(fiv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(fpv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(-2, 5){ c => qIf(!c.isLetter); cuml += c }) }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(-2 to 4){ c => qIf(!c.isLetter); cuml += c }) } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(fiv){ c => qIf(!c.isLetter); cuml += c }) }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(fpv){ c => qIf(!c.isLetter); cuml += c }) }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
 
-    T ~ n{ str.flex.clip.peek(-2, 9){ c => qIf(!c.isLetter); cuml += c } }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(-2 to 9){ c => qIf(!c.isLetter); cuml += c } } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(biv){ c => qIf(!c.isLetter); cuml += c } }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(-2, 9){ c => qIf(!c.isLetter); cuml += c }) }   ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(-2 to 9){ c => qIf(!c.isLetter); cuml += c }) } ==== str.takeWhile(_.isLetter).map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(biv){ c => qIf(!c.isLetter); cuml += c }) }     ==== str.takeWhile(_.isLetter).map(_.toInt).sum
 
-    T ~ n{ str.flex.clip.peek(8, 9){ c => qIf(c.isLetter); cuml += c } }    ==== 0
-    T ~ n{ str.flex.clip.peek(8 to 9){ c => qIf(c.isLetter); cuml += c } }  ==== 0
-    T ~ n{ str.flex.clip.peek(niv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
-    T ~ n{ str.flex.clip.peek(npv){ c => qIf(c.isLetter); cuml += c } }     ==== 0
+    T ~ n{ str.tap(_.flex.clip.use(8, 9){ c => qIf(c.isLetter); cuml += c }) }    ==== 0
+    T ~ n{ str.tap(_.flex.clip.use(8 to 9){ c => qIf(c.isLetter); cuml += c }) }  ==== 0
+    T ~ n{ str.tap(_.flex.clip.use(niv){ c => qIf(c.isLetter); cuml += c }) }     ==== 0
+    T ~ n{ str.tap(_.flex.clip.use(npv){ c => qIf(c.isLetter); cuml += c }) }     ==== 0
 
-    T ~ n{ str.flex.clip.peek(ex){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
-    T ~ n{ str.flex.clip.peek(et){ c => qIf(c == '#'); cuml += c } } ==== ".c".map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(ex){ c => qIf(c == '#'); cuml += c }) } ==== ".c".map(_.toInt).sum
+    T ~ n{ str.tap(_.flex.clip.use(et){ c => qIf(c == '#'); cuml += c }) } ==== ".c".map(_.toInt).sum
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
     T ~ str.clip.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3

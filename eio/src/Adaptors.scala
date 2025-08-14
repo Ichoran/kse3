@@ -142,7 +142,9 @@ object EioBase64 {
         target(j) = bits.byte(1)
         bits = bits & 0xFF
         j += 1
-    if bits != 0 then Err.break(s"Trailing bits: ${if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString}; Base64 data must be incomplete")
+    if bits != 0 then
+      val bitstr = if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString
+      Err.break(s"Trailing bits: $bitstr; Base64 data must be incomplete")
     j - index
   inline def decodeRangeInto(encoded: Array[Byte], i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
@@ -215,7 +217,9 @@ object EioBase64 {
         target(j) = bits.byte(1)
         bits = bits & 0xFF
         j += 1
-    if bits != 0 then Err.break(s"Trailing bits: ${if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString}; Base64 data must be incomplete")
+    if bits != 0 then
+      val bitstr = if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString
+      Err.break(s"Trailing bits: $bitstr; Base64 data must be incomplete")
     j - index
   inline def decodeRangeInto(encoded: String, i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
@@ -261,10 +265,10 @@ object EioBase85 {
     else
       var bmin = '\t'.toByte
       var bmax = ' '.toByte
-      encoder.peek(){ b =>
+      encoder.use(){ b =>
         if b < bmin then bmin = b
         if b > bmax then bmax = b
-      } __ Unit
+      }
       if bmin < '\t' then throw new Exception(s"Tried to decode a table with indices smaller than tab: $bmin")
       val decoder: Array[Byte] = Array.fill[Byte](1 + bmax - 9)(-1)
       encoder.visit(){ (b, i) =>
@@ -748,20 +752,20 @@ final class MultiArrayChannel private (val growthLimit: Long, val maxChunkSize: 
 extends SeekableByteChannel {
   private val initialLimit =
     var n = 0L
-    existing.peek(){ ai => n += ai.length } __ Unit
+    existing.use(){ ai => n += ai.length }
     n
   private var limit = initialLimit
   private var storage: Array[Array[Byte]] =
     if initialLimit > 0 then
       var emptyCount = 0
-      existing.peek(){ ai => if ai.length == 0 then emptyCount += 1 } __ Unit
+      existing.use(){ ai => if ai.length == 0 then emptyCount += 1 }
       val a = new Array[Array[Byte]](existing.length - emptyCount)
       var j = 0
-      existing.peek(){ ai => 
+      existing.use(){ ai => 
         if ai.length > 0 then
           a(j) = ai
           j += 1
-      } __ Unit
+      }
       a
     else Array(new Array[Byte](256))
   private var active: Array[Byte] = storage(0)

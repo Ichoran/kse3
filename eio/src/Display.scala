@@ -73,13 +73,13 @@ trait Display[-A] {
   /** Place the displayable into a new `String` with specified options. */
   def displayWith(a: A, limit: Int, flags: Display.Flags)(using ctx: Display.Context): String =
     val stb = new StB
-    append(stb, a, limit, flags)
+    append(stb, a, limit, flags) __ Unit
     stb.toString
 
   /** Place the displayable into a new `String`. */
   def display(a: A)(using ctx: Display.Context): String =
     val stb = new StB
-    append(stb, a, ctx.width, Display.Flags.none)
+    append(stb, a, ctx.width, Display.Flags.none) __ Unit
     stb.toString
 }
 object Display {
@@ -224,12 +224,12 @@ object Display {
     else
       val l = target.length
       target append open
-      disp.appendImpl(target, a, space - open.length - close.length, flags)
+      disp.appendImpl(target, a, space - open.length - close.length, flags) __ Unit
       target append close
       if Flags.isStrict(flags) && target.length - l > space then
         target.setLength(l + open.length)
         target append '\u2026'
-        target append close
+        target append close __ Unit
       Info.align(Alignment.left)
 
   given defaultUnitDisplay: Display[Unit] with
@@ -275,8 +275,8 @@ object Display {
             val n = m min 300
             target.append(lotsOfHashes, 0, n)
             m -= n
-          Info.align(Alignment.none)
-        else Info.align(Alignment.value, (target.length - l).clampToShort, (target.length - l).clampToUInt)
+          Info.align(Alignment.none) __ Unit
+        else Info.align(Alignment.value, (target.length - l).clampToShort, (target.length - l).clampToUInt) __ Unit
       Info.align(Alignment.value, (target.length - l).clampToShort, (target.length - l).clampToUInt)
 
   given defaultByteDisplay: Display[Byte] with
@@ -311,7 +311,7 @@ object Display {
           if target.length - l > space then
             target.setLength(l)
             ep = -1
-            target append '\u2026'
+            target append '\u2026' __ Unit
           else
             ep = if aa >= 1000 || aa < 0.001 then target.indexOf("e") else -1
       if ep > 0 then target.setCharAt(ep, 'e')
@@ -323,7 +323,7 @@ object Display {
       target append a
       if target.length - l > space then
         target.setLength(l)
-        target append '\u2026'
+        target append '\u2026' __ Unit
       Info.align(Alignment.anchor, (target.indexOf(".", l) - l).clampToUInt)
 
   given defaultCharDisplay: Display[Char] with
@@ -394,24 +394,24 @@ object Display {
           while more && i < a.length && j < m do
             val c = a.charAt(i)
             needsSpecialHandling(c) match
-              case 0 => target append c
-              case 2 => target append "\\\""
-              case x if x > 0 => target append c
+              case 0 => target append c __ Unit
+              case 2 => target append "\\\"" __ Unit
+              case x if x > 0 => target append c __ Unit
               case _ =>
                 if c < ' ' then
-                  if      c == '\n' then target append "\\n"
-                  else if c == '\r' then target append "\\r"
-                  else if c == '\t' then target append "\\t"
-                  else if c == '\b' then target append "\\b"
-                  else if c == '\f' then target append "\\f"
+                  if      c == '\n' then target append "\\n" __ Unit
+                  else if c == '\r' then target append "\\r" __ Unit
+                  else if c == '\t' then target append "\\t" __ Unit
+                  else if c == '\b' then target append "\\b" __ Unit
+                  else if c == '\f' then target append "\\f" __ Unit
                   else
                     target append "\\x"
                     target append c.toByte.hexString
                 else
-                  if c == '\\' then target append "\\\\"
+                  if c == '\\' then target append "\\\\" __ Unit
                   else
-                    target append "\\u"
-                    target append c.hexString
+                    target append "\\u" __ Unit
+                    target append c.hexString __ Unit
             val n = target.length
             if n < m then
               k = j
@@ -420,21 +420,21 @@ object Display {
             else
               more = false
           if more then
-            target append '"'
+            target append '"' __ Unit
         if i < a.length || target.length > m then
           if unquoted then
             if m > l then target.setLength(m-1)
             else target.setLength(l)
-            target append '\u2026'
+            target append '\u2026' __ Unit
           else
             if target.length <= m-2 then
-              target append "\u2026\""
+              target append "\u2026\"" __ Unit
             else if m-3 >= l then
               target.setLength(if j <= m-2 then j else k)
-              target append "\u2026\""
+              target append "\u2026\"" __ Unit
             else
               target.setLength(l)
-              target append '\u2026'
+              target append '\u2026' __ Unit
       Info.align(Alignment.none)
 
   given defaultArrayDisplay[A](using disp: Display[A]): Display[Array[A]] with
@@ -449,26 +449,26 @@ object Display {
       if spaci > m-2 then
         if m-l <= 2 then
           target.setLength(l)
-          if m-l == 2 && a.isEmpty then target append "[]"
-          else target append '\u2026'
-        else target append "[\u2026]"
+          if m-l == 2 && a.isEmpty then target append "[]" __ Unit
+          else target append '\u2026' __ Unit
+        else target append "[\u2026]" __ Unit
       else
         attempt:
-          a.peek(){ b =>
-            target append ' '
+          a.use(){ b =>
+            target append ' ' __ Unit
             (target.length < m-1).true_!
             spaci = target.length
-            disp.appendImpl(target, b, if disp.nesting then space - (spaci - l) - 3 max 1 else space, flags)
+            disp.appendImpl(target, b, if disp.nesting then space - (spaci - l) - 3 max 1 else space, flags) __ Unit
             (target.length <= m-1).true_!
           }
-          target append ']'
+          target append ']' __ Unit
         .default:
           if m-4 > spaci then
             target.setLength(m-4)
-            target append "\u2026 \u2026]"
+            target append "\u2026 \u2026]" __ Unit
           else
             target.setLength(spaci)
-            target append "\u2026]"
+            target append "\u2026]" __ Unit
       Info.align(Alignment.none)
 
   given Display[Nothing] with
@@ -626,61 +626,61 @@ object Display {
     def appendImpl(target: StB, a: Vc, space: Int, flags: Flags): Display.Info =
       val l = target.length
       target append '<'
-      disp.appendImpl(target, a.x, space, flags)
+      disp.appendImpl(target, a.x, space, flags) __ Unit
       val ll = target.length
-      target append ", "
-      disp.appendImpl(target, a.y, space, flags)
-      target append '>'
+      target append ", " __ Unit
+      disp.appendImpl(target, a.y, space, flags) __ Unit
+      target append '>' __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         target.setLength(l)
-        if space >= 6 then target append "<\u2026, \u2026>"
-        else target append '\u2026'
+        if space >= 6 then target append "<\u2026, \u2026>" __ Unit
+        else target append '\u2026' __ Unit
       Info.align(Alignment.anchor, (ll + 1 - l).clampToUInt)
 
   given defaultPlusMinusDisplay(using disp: Display[Float]): Display[PlusMinus] with
     def appendImpl(target: StB, a: PlusMinus, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      disp.appendImpl(target, a.value, space, flags)
+      disp.appendImpl(target, a.value, space, flags) __ Unit
       val ll = target.length
-      target append " \u00B1 "
+      target append " \u00B1 " __ Unit
       val m = target.length
-      disp.appendImpl(target, a.error, space, flags)
+      disp.appendImpl(target, a.error, space, flags) __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         if m - l < space then
           target.setLength(m)
-          target append '\u2026'
+          target append '\u2026' __ Unit
         else
           target.setLength(l)
-          if space >= 5 then target append "\u2026 \u00B1 \u2026"
-          else target append '\u2026'
+          if space >= 5 then target append "\u2026 \u00B1 \u2026" __ Unit
+          else target append '\u2026' __ Unit
         Info.align(Alignment.none)
       else Info.align(Alignment.anchor, (ll - l).clampToUInt)
 
   given defaultFracDisplay(using disp: Display[Int]): Display[Frac] with
     def appendImpl(target: StB, a: Frac, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      disp.appendImpl(target, a.numer, space, flags)
+      disp.appendImpl(target, a.numer, space, flags) __ Unit
       target append " over "
       val m = target.length
-      disp.appendImpl(target, a.denom, space, flags)
+      disp.appendImpl(target, a.denom, space, flags) __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         if target.length - l <= space - 5 then
           target.replace(m - 6, m, "/")
-          Info.align(Alignment.anchor, (m - 6 - l).clampToUInt)
+          Info.align(Alignment.anchor, (m - 6 - l).clampToUInt) __ Unit
         else
           target.setLength(l)
-          if space >= 3 then target append "\u2026/\u2026"
-          else target append '\u2026'
-          Info.align(Alignment.none)
+          if space >= 3 then target append "\u2026/\u2026" __ Unit
+          else target append '\u2026' __ Unit
+          Info.align(Alignment.none) __ Unit
       Info.align(Alignment.anchor, (m - 3 - l).clampToUInt)
 
   given defaultDurationDisplay: Display[java.time.Duration] with
     def appendImpl(target: StB, a: java.time.Duration, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      target append a.toString
+      target append a.toString __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         target.setLength(l)
-        target append '\u2026'
+        target append '\u2026' __ Unit
       Info.align(Alignment.left)
 
   given defaultNanoDurationDisplay: Display[NanoDuration] with
@@ -690,15 +690,15 @@ object Display {
       target append "ns"
       if target.length - l > space then
         target.setLength(l)
-        if Flags.isStrict(flags) || space < 3 then target append '\u2026'
-        else if space < 7 then target append "\u2026ns"
+        if Flags.isStrict(flags) || space < 3 then target append '\u2026' __ Unit
+        else if space < 7 then target append "\u2026ns" __ Unit
         else
           var t = a.round.into.us
           var n = 0
           while !(t > -1000 && t < 1000) do
             t = if t < 0 then (t - 500)/1000 else (t + 500)/1000
             n += 1
-          target append t
+          target append t __ Unit
           val units = n match
             case 0 => "us"
             case 1 => "ms"
@@ -707,14 +707,14 @@ object Display {
             case 4 => "Ms"
             case 5 => "Gs"
             case _ => "Ts"
-          target append units
+          target append units __ Unit
       Info.align(Alignment.left)
 
   given defaultDoubleDurationDisplay(using disp: Display[Double]): Display[DoubleDuration] with
     def appendImpl(target: StB, a: DoubleDuration, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      disp.appendImpl(target, a.unwrap, 1 max (space - 1), flags)
-      if target.length - l < space then target append 's'
+      disp.appendImpl(target, a.unwrap, 1 max (space - 1), flags) __ Unit
+      if target.length - l < space then target append 's' __ Unit
       Info.align(Alignment.left)
 
   given defaultNanoInstantDisplay: Display[NanoInstant] with
@@ -725,18 +725,18 @@ object Display {
       target append "ns"
       if target.length - l > space && Flags.isStrict(flags) then
         target.setLength(l)
-        target append '\u2026'
+        target append '\u2026' __ Unit
       Info.align(Alignment.left)
 
   given defaultDoubleInstantDisplay(using disp: Display[Double]): Display[DoubleInstant] with
     def appendImpl(target: StB, a: DoubleInstant, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      target append "epoch+"
-      disp.appendImpl(target, a.unwrap, 1 max (space - 7), flags)
-      target append 's'
+      target append "epoch+" __ Unit
+      disp.appendImpl(target, a.unwrap, 1 max (space - 7), flags) __ Unit
+      target append 's' __ Unit
       if target.length - l > space then
         target.setLength(l)
-        target append '\u2026'
+        target append '\u2026' __ Unit
       Info.align(Alignment.left)
 
   given defaultInstantDisplay: Display[java.time.Instant] with
@@ -746,10 +746,10 @@ object Display {
       if target.length - l > space && Flags.isStrict(flags) then
         if space > 5 then
           target.setLength(l + space - 2)
-          target append "\u2026Z"
+          target append "\u2026Z" __ Unit
         else
           target.setLength(l)
-          target append '\u2026'
+          target append '\u2026' __ Unit
         Info.align(Alignment.none)
       else Info.align(Alignment.anchor, (target.indexOf("T", l) - l).clampToUInt)
 
@@ -760,42 +760,42 @@ object Display {
       if target.length - l > space && Flags.isStrict(flags) then
         if space > 4 then target.setLength(l + space - 1)
         else target.setLength(l)
-        target append '\u2026'
+        target append '\u2026' __ Unit
         Info.align(Alignment.none)
       else Info.align(Alignment.anchor, (target.indexOf("T", l) - l).clampToUInt)
 
   given defaultOffsetDateTimeDisplay: Display[java.time.OffsetDateTime] with
     def appendImpl(target: StB, a: java.time.OffsetDateTime, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      target append a.round.ms.toString
+      target append a.round.ms.toString __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         target.setLength(l)
-        target append a.round.m.toString
+        target append a.round.m.toString __ Unit
         (target.length - l) match
           case x if x > space =>
             target.setLength(l)
-            target append '\u2026'
+            target append '\u2026' __ Unit
             return Info.align(Alignment.none)
           case x if x <= space + 3 =>
             target.setLength(l)
-            target append a.round.s.toString
+            target append a.round.s.toString __ Unit
       Info.align(Alignment.anchor, (target.indexOf("T", l) - l).clampToUInt)
 
   given defaultZonedDateTimeDisplay: Display[java.time.ZonedDateTime] with
     def appendImpl(target: StB, a: java.time.ZonedDateTime, space: Int, flags: Flags): Display.Info =
       val l = target.length
-      target append a.round.ms.toString
+      target append a.round.ms.toString __ Unit
       if target.length - l > space && Flags.isStrict(flags) then
         target.setLength(l)
-        target append a.round.m.toString
+        target append a.round.m.toString __ Unit
         (target.length - l) match
           case x if x > space =>
             target.setLength(l)
-            target append '\u2026'
+            target append '\u2026' __ Unit
             return Info.align(Alignment.none)
           case x if x <= space + 3 =>
             target.setLength(l)
-            target append a.round.s.toString
+            target append a.round.s.toString __ Unit
       Info.align(Alignment.anchor, (target.indexOf("T", l) - l).clampToUInt)
 
   given defaultFileTimeDisplay: Display[java.nio.file.attribute.FileTime] with
@@ -805,23 +805,23 @@ object Display {
       if t < -6.4e16 || t > 6.4e16 then
         //FileTime toString overflows the year (??!) so change the display
         val myr = (t / 31556952e6).round
-        target append (if myr < 0 then "epoch" else "epoch+")
-        target append myr
-        target append "Myr"
+        target append (if myr < 0 then "epoch" else "epoch+") __ Unit
+        target append myr __ Unit
+        target append "Myr" __ Unit
         if target.length - l > space && Flags.isStrict(flags) then
           target.setLength(l)
-          target append '\u2026'
+          target append '\u2026' __ Unit
         Info.align(Alignment.left)
       else
         // FileTime toString gives a sensible answer
-        target append a.round.ms.toString
+        target append a.round.ms.toString __ Unit
         if target.length - l > space && Flags.isStrict(flags) then
           if space > 5 then
             target.setLength(l + space - 2)
-            target append "\u2026Z"
+            target append "\u2026Z" __ Unit
           else
             target.setLength(l)
-            target append '\u2026'
+            target append '\u2026' __ Unit
           Info.align(Alignment.none)
         else Info.align(Alignment.anchor, (target.indexOf("T", l) - l).clampToUInt)
 }
@@ -1275,26 +1275,26 @@ object Displayable {
     var j = input.indexOf('\\')
     var sneaky = 0
     while j >= 0 do
-      if j > i then target.append(input, i, j)
+      if j > i then target.append(input, i, j) __ Unit
       if j+1 < input.length then
         j += 1
         input.charAt(j) match
-          case 'n'  => target append '\n'
-          case 't'  => target append '\t'
-          case '\\' => target append '\\'
-          case '"'  => target append '"'
-          case '\'' => target append '\''
-          case 'r'  => target append '\r'
-          case 'f'  => target append '\f'
-          case 'b'  => target append '\b'
+          case 'n'  => target append '\n' __ Unit
+          case 't'  => target append '\t' __ Unit
+          case '\\' => target append '\\' __ Unit
+          case '"'  => target append '"'  __ Unit
+          case '\'' => target append '\'' __ Unit
+          case 'r'  => target append '\r' __ Unit
+          case 'f'  => target append '\f' __ Unit
+          case 'b'  => target append '\b' __ Unit
           case 'u' if j+4 < input.length && { sneaky = h4(input, j+1); sneaky >= 0 } =>
-            target append sneaky.toChar
+            target append sneaky.toChar __ Unit
             j += 4
-          case _ => target.append(input, j-1, j+1)
-      else target append '\\'
+          case _ => target.append(input, j-1, j+1) __ Unit
+      else target append '\\' __ Unit
       i = j + 1
       j = input.indexOf('\\', i)
-    if i < input.length then target.append(input, i, input.length)  
+    if i < input.length then target.append(input, i, input.length) __ Unit
 
   given displayer[A](using disp: Display[A]): Conversion[A, Displayable] with
     def apply(a: A): Displayable = Displayable.apply(a)
@@ -1305,11 +1305,11 @@ extension (sc: StringContext) {
     val ts = sc.parts.iterator
     val is = items.iterator
     val stb = new StB()
-    if ts.hasNext then stb append ts.next
+    if ts.hasNext then stb append ts.next __ Unit
     while is.hasNext do
       val d = is.next
-      d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none)
-      stb append ts.next
+      d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none) __ Unit
+      stb append ts.next __ Unit
     stb.toString
 
   def disp(items: Displayable*): String =
@@ -1319,7 +1319,7 @@ extension (sc: StringContext) {
     if ts.hasNext then Displayable.appendWithConvertedEscapes(stb, ts.next)
     while is.hasNext do
       val d = is.next
-      d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none)
+      d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none) __ Unit
       Displayable.appendWithConvertedEscapes(stb, ts.next)
     stb.toString
 }

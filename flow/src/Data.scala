@@ -40,28 +40,28 @@ extension [X, Y, CC[_]](coll: CC[X Or Y])(using iter: scala.collection.generic.I
 extension [X, Y](a: Array[X Or Y]) {
   def collectIs(using ClassTag[X]): Array[X] =
     var n = 0
-    a.peek()(xy => if xy.isIs then n += 1): Unit
+    a.use()(xy => if xy.isIs then n += 1)
     val xs = new Array[X](n)
     n = 0
-    a.peek(){ xy => xy.foreach{ x => xs(n) = x; n += 1 } }: Unit
+    a.use(){ xy => xy.foreach{ x => xs(n) = x; n += 1 } }
     xs
 
   def collectAlt(using ClassTag[Y]): Array[Y] =
     var n = 0
-    a.peek()(xy => if xy.isAlt then n += 1): Unit
+    a.use()(xy => if xy.isAlt then n += 1)
     val ys = new Array[Y](n)
     n = 0
-    a.peek(){ xy => xy.foreachAlt{ y => ys(n) = y; n += 1 } }: Unit
+    a.use(){ xy => xy.foreachAlt{ y => ys(n) = y; n += 1 } }
     ys
 
   def collectThem(using ClassTag[X], ClassTag[Y]): (Array[X], Array[Y]) =
     var n = 0
-    a.peek()(xy => if xy.isIs then n += 1): Unit
+    a.use()(xy => if xy.isIs then n += 1)
     val xs = new Array[X](n)
     val ys = new Array[Y](a.length - n)
     n = 0
     var m = 0
-    a.peek()(xy => xy.foreachThem{ x => xs(n) = x; n += 1 }{ y => ys(m) = y; m += 1 }): Unit
+    a.use()(xy => xy.foreachThem{ x => xs(n) = x; n += 1 }{ y => ys(m) = y; m += 1 })
     (xs, ys)
 }
 
@@ -139,7 +139,7 @@ extension [A](a: Array[A Or Err]) {
     var es: Array[Err] = null
     var xi = 0
     var ei = 0
-    a.peek(){ xe =>
+    a.use(): xe =>
       xe.fold{ x =>
         if es eq null then
           if xs eq null then
@@ -157,7 +157,6 @@ extension [A](a: Array[A Or Err]) {
         es(ei) = e
         ei += 1
       }
-    } __ Unit
     if es ne null then Alt(es.shrinkTo(ei))
     else if xs ne null then Is(xs)
     else Is(new Array[A](0))
@@ -167,7 +166,7 @@ extension [A](a: Array[A Or Err]) {
     var es: Array[(Int, Err)] = null
     var xi = 0
     var ei = 0
-    a.visit(){ (xe, i) =>
+    a.visit(): (xe, i) =>
       xe.fold{ x =>
         if xs eq null then
           xs = new Array[A](16 min (a.length - ei))
@@ -184,7 +183,6 @@ extension [A](a: Array[A Or Err]) {
         es(ei) = (i, e)
         ei += 1
       }
-    }
     if es eq null then
       if xs eq null then Is(new Array[A](0))
       else Is(xs)

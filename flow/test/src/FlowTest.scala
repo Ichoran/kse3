@@ -187,7 +187,7 @@ class FlowTest {
 
     var n = 0
     var cuml = 0
-    iWhile(cuml < 10): i =>
+    { cuml < 10 }.visit: i =>
       n += 1
       cuml += i
     T ~ cuml ==== 10
@@ -579,80 +579,155 @@ class FlowTest {
     T ~ { var x = 0; oap.foreachThem(c => x = c.toInt)(y => x = nlen(y.get))           ; x } ==== -1
     T ~ { var x = 0; oaq.foreachThem(c => x = c.toInt)(y => x = nlen(y.alt))           ; x } ==== -1
 
-    T ~ { var x = 0; i.use(x = _)                  :==: typedLike(i)  ; x } ==== 5
-    T ~ { var x = 0; a.use(_ => x = 1)             :==: typedLike(a)  ; x } ==== 0
-    T ~ { var x = 0; oi.use(x = _)                 :==: typedLike(oi) ; x } ==== 5
-    T ~ { var x = 0; oa.use(x = _)                 :==: typedLike(oa) ; x } ==== 0
-    T ~ { var x = 0; oii.use(_.foreach(x = _))     :==: typedLike(oii); x } ==== 5
-    T ~ { var x = 0; oia.use(_.foreach(x = _))     :==: typedLike(oia); x } ==== 0
-    T ~ { var x = 0; oai.use(c => x = c.toInt)     :==: typedLike(oai); x } ==== 0
-    T ~ { var x = 0; oaa.use(c => x = c.toInt)     :==: typedLike(oaa); x } ==== 0
-    T ~ { var x = 0; n.use(y => x = nullone(y))    :==: typedLike(n)  ; x } ==== 1
-    T ~ { var x = 0; m.use(_ => x = 1)             :==: typedLike(m)  ; x } ==== 0
-    T ~ { var x = 0; on.use(y => x = nullone(y))   :==: typedLike(on) ; x } ==== 1
-    T ~ { var x = 0; om.use(x = _)                 :==: typedLike(om) ; x } ==== 0
-    T ~ { var x = 0; oin.use(y => x = nullone(y))  :==: typedLike(oin); x } ==== 1
-    T ~ { var x = 0; oim.use(y => x = nullone(y))  :==: typedLike(oim); x } ==== -1
-    T ~ { var x = 0; oan.use(c => x = c.toInt)     :==: typedLike(oan); x } ==== 0
-    T ~ { var x = 0; oam.use(c => x = c.toInt)     :==: typedLike(oam); x } ==== 0
-    T ~ { var x = 0; p.use(y => x = nlen(y))       :==: typedLike(p)  ; x } ==== -1
-    T ~ { var x = 0; q.use(_ => x = 1)             :==: typedLike(q)  ; x } ==== 0
-    T ~ { var x = 0; op.use(y => x = nlen(y))      :==: typedLike(op) ; x } ==== -1
-    T ~ { var x = 0; oq.use(x = _)                 :==: typedLike(oq) ; x } ==== 0
-    T ~ { var x = 0; oip.use(y => x = nlen(y.get)) :==: typedLike(oip); x } ==== -1
-    T ~ { var x = 0; oiq.use(y => x = nlen(y.alt)) :==: typedLike(oiq); x } ==== -1
-    T ~ { var x = 0; oap.use(c => x = c.toInt)     :==: typedLike(oap); x } ==== 0
-    T ~ { var x = 0; oaq.use(c => x = c.toInt)     :==: typedLike(oaq); x } ==== 0
+    T ~ { var x = 0; i.use(x = _)                 ; x } ==== 5
+    T ~ { var x = 0; a.use(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; oi.use(x = _)                ; x } ==== 5
+    T ~ { var x = 0; oa.use(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oii.use(_.use(x = _))    ; x } ==== 5
+    T ~ { var x = 0; oia.use(_.use(x = _))    ; x } ==== 0
+    T ~ { var x = 0; oai.use(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oaa.use(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; n.use(y => x = nullone(y))   ; x } ==== 1
+    T ~ { var x = 0; m.use(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; on.use(y => x = nullone(y))  ; x } ==== 1
+    T ~ { var x = 0; om.use(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oin.use(y => x = nullone(y)) ; x } ==== 1
+    T ~ { var x = 0; oim.use(y => x = nullone(y)) ; x } ==== -1
+    T ~ { var x = 0; oan.use(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oam.use(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; p.use(y => x = nlen(y))      ; x } ==== -1
+    T ~ { var x = 0; q.use(_ => x = 1)            ; x } ==== 0
+    T ~ { var x = 0; op.use(y => x = nlen(y))     ; x } ==== -1
+    T ~ { var x = 0; oq.use(x = _)                ; x } ==== 0
+    T ~ { var x = 0; oip.use(y => x = nlen(y.get)); x } ==== -1
+    T ~ { var x = 0; oiq.use(y => x = nlen(y.alt)); x } ==== -1
+    T ~ { var x = 0; oap.use(c => x = c.toInt)    ; x } ==== 0
+    T ~ { var x = 0; oaq.use(c => x = c.toInt)    ; x } ==== 0
 
-    T ~ { var x = 0; i.useAlt(_ => x = 1)              :==: typedLike(i)  ; x } ==== 0
-    T ~ { var x = 0; a.useAlt(s => x = s.length)       :==: typedLike(a)  ; x } ==== 3
-    T ~ { var x = 0; oi.useAlt(s => x = s.length)      :==: typedLike(oi) ; x } ==== 0
-    T ~ { var x = 0; oa.useAlt(s => x = s.length)      :==: typedLike(oa) ; x } ==== 3
-    T ~ { var x = 0; oii.useAlt(c => x = c.toInt)      :==: typedLike(oii); x } ==== 0
-    T ~ { var x = 0; oia.useAlt(c => x = c.toInt)      :==: typedLike(oia); x } ==== 0
-    T ~ { var x = 0; oai.useAlt(y => x = y.get)        :==: typedLike(oai); x } ==== 5
-    T ~ { var x = 0; oaa.useAlt(y => x = y.alt.length) :==: typedLike(oaa); x } ==== 3
-    T ~ { var x = 0; n.useAlt(_ => x = 1)              :==: typedLike(n)  ; x } ==== 0
-    T ~ { var x = 0; m.useAlt(y => x = nullone(y))     :==: typedLike(m)  ; x } ==== 1
-    T ~ { var x = 0; on.useAlt(x = _)                  :==: typedLike(on) ; x } ==== 0
-    T ~ { var x = 0; om.useAlt(y => x = nullone(y))    :==: typedLike(om) ; x } ==== 1
-    T ~ { var x = 0; oin.useAlt(c => x = c.toInt)      :==: typedLike(oin); x } ==== 0
-    T ~ { var x = 0; oim.useAlt(c => x = c.toInt)      :==: typedLike(oim); x } ==== 0
-    T ~ { var x = 0; oan.useAlt(y => x = nullone(y))   :==: typedLike(oan); x } ==== 1
-    T ~ { var x = 0; oam.useAlt(y => x = nullone(y))   :==: typedLike(oam); x } ==== -1
-    T ~ { var x = 0; p.useAlt(_ => x = 1)              :==: typedLike(p)  ; x } ==== 0
-    T ~ { var x = 0; q.useAlt(y => x = nlen(y))        :==: typedLike(q)  ; x } ==== -1
-    T ~ { var x = 0; op.useAlt(x = _)                  :==: typedLike(op) ; x } ==== 0
-    T ~ { var x = 0; oq.useAlt(y => x = nlen(y))       :==: typedLike(oq) ; x } ==== -1
-    T ~ { var x = 0; oip.useAlt(c => x = c.toInt)      :==: typedLike(oip); x } ==== 0
-    T ~ { var x = 0; oiq.useAlt(c => x = c.toInt)      :==: typedLike(oiq); x } ==== 0
-    T ~ { var x = 0; oap.useAlt(y => x = nlen(y.get))  :==: typedLike(oap); x } ==== -1
-    T ~ { var x = 0; oaq.useAlt(y => x = nlen(y.alt))  :==: typedLike(oaq); x } ==== -1
+    T ~ { var x = 0; i.useAlt(_ => x = 1);             ; x } ==== 0
+    T ~ { var x = 0; a.useAlt(s => x = s.length)       ; x } ==== 3
+    T ~ { var x = 0; oi.useAlt(s => x = s.length)      ; x } ==== 0
+    T ~ { var x = 0; oa.useAlt(s => x = s.length)      ; x } ==== 3
+    T ~ { var x = 0; oii.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oia.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oai.useAlt(y => x = y.get)        ; x } ==== 5
+    T ~ { var x = 0; oaa.useAlt(y => x = y.alt.length) ; x } ==== 3
+    T ~ { var x = 0; n.useAlt(_ => x = 1)              ; x } ==== 0
+    T ~ { var x = 0; m.useAlt(y => x = nullone(y))     ; x } ==== 1
+    T ~ { var x = 0; on.useAlt(x = _)                  ; x } ==== 0
+    T ~ { var x = 0; om.useAlt(y => x = nullone(y))    ; x } ==== 1
+    T ~ { var x = 0; oin.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oim.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oan.useAlt(y => x = nullone(y))   ; x } ==== 1
+    T ~ { var x = 0; oam.useAlt(y => x = nullone(y))   ; x } ==== -1
+    T ~ { var x = 0; p.useAlt(_ => x = 1)              ; x } ==== 0
+    T ~ { var x = 0; q.useAlt(y => x = nlen(y))        ; x } ==== -1
+    T ~ { var x = 0; op.useAlt(x = _)                  ; x } ==== 0
+    T ~ { var x = 0; oq.useAlt(y => x = nlen(y))       ; x } ==== -1
+    T ~ { var x = 0; oip.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oiq.useAlt(c => x = c.toInt)      ; x } ==== 0
+    T ~ { var x = 0; oap.useAlt(y => x = nlen(y.get))  ; x } ==== -1
+    T ~ { var x = 0; oaq.useAlt(y => x = nlen(y.alt))  ; x } ==== -1
 
-    T ~ { var x = 0; i.useThem(x = _)(_ => x = 4)                                  :==: typedLike(i)  ; x } ==== 5
-    T ~ { var x = 0; a.useThem(_ => x = 4)(s => x = s.length)                      :==: typedLike(a)  ; x } ==== 3
-    T ~ { var x = 0; oi.useThem(x = _)(s => x = s.length)                          :==: typedLike(oi) ; x } ==== 5
-    T ~ { var x = 0; oa.useThem(x = _)(s => x = s.length)                          :==: typedLike(oa) ; x } ==== 3
-    T ~ { var x = 0; oii.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oii); x } ==== 6
-    T ~ { var x = 0; oia.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oia); x } ==== 3
-    T ~ { var x = 0; oai.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oai); x } ==== 6
-    T ~ { var x = 0; oaa.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oaa); x } ==== 3
-    T ~ { var x = 0; n.useThem(y => x = nullone(y))(_ => x = 4)                    :==: typedLike(n)  ; x } ==== 1
-    T ~ { var x = 0; m.useThem(_ => x = 4)(y => x = nullone(y))                    :==: typedLike(m)  ; x } ==== 1
-    T ~ { var x = 0; on.useThem(y => x = nullone(y))(x = _)                        :==: typedLike(on) ; x } ==== 1
-    T ~ { var x = 0; om.useThem(x = _)(y => x = nullone(y))                        :==: typedLike(om) ; x } ==== 1
-    T ~ { var x = 0; oin.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oin); x } ==== 1
-    T ~ { var x = 0; oim.useThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oim); x } ==== -1
-    T ~ { var x = 0; oan.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oan); x } ==== 1
-    T ~ { var x = 0; oam.useThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oam); x } ==== -1
-    T ~ { var x = 0; p.useThem(y => x = nlen(y))(_ => x = 4)                       :==: typedLike(p)  ; x } ==== -1
-    T ~ { var x = 0; q.useThem(_ => x = 4)(y => x = nlen(y))                       :==: typedLike(q)  ; x } ==== -1
-    T ~ { var x = 0; op.useThem(y => x = nlen(y))(x = _)                           :==: typedLike(op) ; x } ==== -1
-    T ~ { var x = 0; oq.useThem(x = _)(y => x = nlen(y))                           :==: typedLike(oq) ; x } ==== -1
-    T ~ { var x = 0; oip.useThem(y => x = nlen(y.get))(c => x = c.toInt)           :==: typedLike(oip); x } ==== -1
-    T ~ { var x = 0; oiq.useThem(y => x = nlen(y.alt))(c => x = c.toInt)           :==: typedLike(oiq); x } ==== -1
-    T ~ { var x = 0; oap.useThem(c => x = c.toInt)(y => x = nlen(y.get))           :==: typedLike(oap); x } ==== -1
-    T ~ { var x = 0; oaq.useThem(c => x = c.toInt)(y => x = nlen(y.alt))           :==: typedLike(oaq); x } ==== -1
+    T ~ { var x = 0; i.useThem(x = _)(_ => x = 4)                                  ; x } ==== 5
+    T ~ { var x = 0; a.useThem(_ => x = 4)(s => x = s.length)                      ; x } ==== 3
+    T ~ { var x = 0; oi.useThem(x = _)(s => x = s.length)                          ; x } ==== 5
+    T ~ { var x = 0; oa.useThem(x = _)(s => x = s.length)                          ; x } ==== 3
+    T ~ { var x = 0; oii.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 6
+    T ~ { var x = 0; oia.useThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) ; x } ==== 3
+    T ~ { var x = 0; oai.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 6
+    T ~ { var x = 0; oaa.useThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) ; x } ==== 3
+    T ~ { var x = 0; n.useThem(y => x = nullone(y))(_ => x = 4)                    ; x } ==== 1
+    T ~ { var x = 0; m.useThem(_ => x = 4)(y => x = nullone(y))                    ; x } ==== 1
+    T ~ { var x = 0; on.useThem(y => x = nullone(y))(x = _)                        ; x } ==== 1
+    T ~ { var x = 0; om.useThem(x = _)(y => x = nullone(y))                        ; x } ==== 1
+    T ~ { var x = 0; oin.useThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== 1
+    T ~ { var x = 0; oim.useThem(y => x = nullone(y))(c => x = c.toInt)            ; x } ==== -1
+    T ~ { var x = 0; oan.useThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== 1
+    T ~ { var x = 0; oam.useThem(c => x = c.toInt)(y => x = nullone(y))            ; x } ==== -1
+    T ~ { var x = 0; p.useThem(y => x = nlen(y))(_ => x = 4)                       ; x } ==== -1
+    T ~ { var x = 0; q.useThem(_ => x = 4)(y => x = nlen(y))                       ; x } ==== -1
+    T ~ { var x = 0; op.useThem(y => x = nlen(y))(x = _)                           ; x } ==== -1
+    T ~ { var x = 0; oq.useThem(x = _)(y => x = nlen(y))                           ; x } ==== -1
+    T ~ { var x = 0; oip.useThem(y => x = nlen(y.get))(c => x = c.toInt)           ; x } ==== -1
+    T ~ { var x = 0; oiq.useThem(y => x = nlen(y.alt))(c => x = c.toInt)           ; x } ==== -1
+    T ~ { var x = 0; oap.useThem(c => x = c.toInt)(y => x = nlen(y.get))           ; x } ==== -1
+    T ~ { var x = 0; oaq.useThem(c => x = c.toInt)(y => x = nlen(y.alt))           ; x } ==== -1
+
+    T ~ { var x = 0; i.peek(x = _)                  :==: typedLike(i)  ; x } ==== 5
+    T ~ { var x = 0; a.peek(_ => x = 1)             :==: typedLike(a)  ; x } ==== 0
+    T ~ { var x = 0; oi.peek(x = _)                 :==: typedLike(oi) ; x } ==== 5
+    T ~ { var x = 0; oa.peek(x = _)                 :==: typedLike(oa) ; x } ==== 0
+    T ~ { var x = 0; oii.peek(_.foreach(x = _))     :==: typedLike(oii); x } ==== 5
+    T ~ { var x = 0; oia.peek(_.foreach(x = _))     :==: typedLike(oia); x } ==== 0
+    T ~ { var x = 0; oai.peek(c => x = c.toInt)     :==: typedLike(oai); x } ==== 0
+    T ~ { var x = 0; oaa.peek(c => x = c.toInt)     :==: typedLike(oaa); x } ==== 0
+    T ~ { var x = 0; n.peek(y => x = nullone(y))    :==: typedLike(n)  ; x } ==== 1
+    T ~ { var x = 0; m.peek(_ => x = 1)             :==: typedLike(m)  ; x } ==== 0
+    T ~ { var x = 0; on.peek(y => x = nullone(y))   :==: typedLike(on) ; x } ==== 1
+    T ~ { var x = 0; om.peek(x = _)                 :==: typedLike(om) ; x } ==== 0
+    T ~ { var x = 0; oin.peek(y => x = nullone(y))  :==: typedLike(oin); x } ==== 1
+    T ~ { var x = 0; oim.peek(y => x = nullone(y))  :==: typedLike(oim); x } ==== -1
+    T ~ { var x = 0; oan.peek(c => x = c.toInt)     :==: typedLike(oan); x } ==== 0
+    T ~ { var x = 0; oam.peek(c => x = c.toInt)     :==: typedLike(oam); x } ==== 0
+    T ~ { var x = 0; p.peek(y => x = nlen(y))       :==: typedLike(p)  ; x } ==== -1
+    T ~ { var x = 0; q.peek(_ => x = 1)             :==: typedLike(q)  ; x } ==== 0
+    T ~ { var x = 0; op.peek(y => x = nlen(y))      :==: typedLike(op) ; x } ==== -1
+    T ~ { var x = 0; oq.peek(x = _)                 :==: typedLike(oq) ; x } ==== 0
+    T ~ { var x = 0; oip.peek(y => x = nlen(y.get)) :==: typedLike(oip); x } ==== -1
+    T ~ { var x = 0; oiq.peek(y => x = nlen(y.alt)) :==: typedLike(oiq); x } ==== -1
+    T ~ { var x = 0; oap.peek(c => x = c.toInt)     :==: typedLike(oap); x } ==== 0
+    T ~ { var x = 0; oaq.peek(c => x = c.toInt)     :==: typedLike(oaq); x } ==== 0
+
+    T ~ { var x = 0; i.peekAlt(_ => x = 1)              :==: typedLike(i)  ; x } ==== 0
+    T ~ { var x = 0; a.peekAlt(s => x = s.length)       :==: typedLike(a)  ; x } ==== 3
+    T ~ { var x = 0; oi.peekAlt(s => x = s.length)      :==: typedLike(oi) ; x } ==== 0
+    T ~ { var x = 0; oa.peekAlt(s => x = s.length)      :==: typedLike(oa) ; x } ==== 3
+    T ~ { var x = 0; oii.peekAlt(c => x = c.toInt)      :==: typedLike(oii); x } ==== 0
+    T ~ { var x = 0; oia.peekAlt(c => x = c.toInt)      :==: typedLike(oia); x } ==== 0
+    T ~ { var x = 0; oai.peekAlt(y => x = y.get)        :==: typedLike(oai); x } ==== 5
+    T ~ { var x = 0; oaa.peekAlt(y => x = y.alt.length) :==: typedLike(oaa); x } ==== 3
+    T ~ { var x = 0; n.peekAlt(_ => x = 1)              :==: typedLike(n)  ; x } ==== 0
+    T ~ { var x = 0; m.peekAlt(y => x = nullone(y))     :==: typedLike(m)  ; x } ==== 1
+    T ~ { var x = 0; on.peekAlt(x = _)                  :==: typedLike(on) ; x } ==== 0
+    T ~ { var x = 0; om.peekAlt(y => x = nullone(y))    :==: typedLike(om) ; x } ==== 1
+    T ~ { var x = 0; oin.peekAlt(c => x = c.toInt)      :==: typedLike(oin); x } ==== 0
+    T ~ { var x = 0; oim.peekAlt(c => x = c.toInt)      :==: typedLike(oim); x } ==== 0
+    T ~ { var x = 0; oan.peekAlt(y => x = nullone(y))   :==: typedLike(oan); x } ==== 1
+    T ~ { var x = 0; oam.peekAlt(y => x = nullone(y))   :==: typedLike(oam); x } ==== -1
+    T ~ { var x = 0; p.peekAlt(_ => x = 1)              :==: typedLike(p)  ; x } ==== 0
+    T ~ { var x = 0; q.peekAlt(y => x = nlen(y))        :==: typedLike(q)  ; x } ==== -1
+    T ~ { var x = 0; op.peekAlt(x = _)                  :==: typedLike(op) ; x } ==== 0
+    T ~ { var x = 0; oq.peekAlt(y => x = nlen(y))       :==: typedLike(oq) ; x } ==== -1
+    T ~ { var x = 0; oip.peekAlt(c => x = c.toInt)      :==: typedLike(oip); x } ==== 0
+    T ~ { var x = 0; oiq.peekAlt(c => x = c.toInt)      :==: typedLike(oiq); x } ==== 0
+    T ~ { var x = 0; oap.peekAlt(y => x = nlen(y.get))  :==: typedLike(oap); x } ==== -1
+    T ~ { var x = 0; oaq.peekAlt(y => x = nlen(y.alt))  :==: typedLike(oaq); x } ==== -1
+
+    T ~ { var x = 0; i.peekThem(x = _)(_ => x = 4)                                  :==: typedLike(i)  ; x } ==== 5
+    T ~ { var x = 0; a.peekThem(_ => x = 4)(s => x = s.length)                      :==: typedLike(a)  ; x } ==== 3
+    T ~ { var x = 0; oi.peekThem(x = _)(s => x = s.length)                          :==: typedLike(oi) ; x } ==== 5
+    T ~ { var x = 0; oa.peekThem(x = _)(s => x = s.length)                          :==: typedLike(oa) ; x } ==== 3
+    T ~ { var x = 0; oii.peekThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oii); x } ==== 6
+    T ~ { var x = 0; oia.peekThem(y => x = y.fold(_+1)(_.length))(c => x = c.toInt) :==: typedLike(oia); x } ==== 3
+    T ~ { var x = 0; oai.peekThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oai); x } ==== 6
+    T ~ { var x = 0; oaa.peekThem(c => x = c.toInt)(y => x = y.fold(_+1)(_.length)) :==: typedLike(oaa); x } ==== 3
+    T ~ { var x = 0; n.peekThem(y => x = nullone(y))(_ => x = 4)                    :==: typedLike(n)  ; x } ==== 1
+    T ~ { var x = 0; m.peekThem(_ => x = 4)(y => x = nullone(y))                    :==: typedLike(m)  ; x } ==== 1
+    T ~ { var x = 0; on.peekThem(y => x = nullone(y))(x = _)                        :==: typedLike(on) ; x } ==== 1
+    T ~ { var x = 0; om.peekThem(x = _)(y => x = nullone(y))                        :==: typedLike(om) ; x } ==== 1
+    T ~ { var x = 0; oin.peekThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oin); x } ==== 1
+    T ~ { var x = 0; oim.peekThem(y => x = nullone(y))(c => x = c.toInt)            :==: typedLike(oim); x } ==== -1
+    T ~ { var x = 0; oan.peekThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oan); x } ==== 1
+    T ~ { var x = 0; oam.peekThem(c => x = c.toInt)(y => x = nullone(y))            :==: typedLike(oam); x } ==== -1
+    T ~ { var x = 0; p.peekThem(y => x = nlen(y))(_ => x = 4)                       :==: typedLike(p)  ; x } ==== -1
+    T ~ { var x = 0; q.peekThem(_ => x = 4)(y => x = nlen(y))                       :==: typedLike(q)  ; x } ==== -1
+    T ~ { var x = 0; op.peekThem(y => x = nlen(y))(x = _)                           :==: typedLike(op) ; x } ==== -1
+    T ~ { var x = 0; oq.peekThem(x = _)(y => x = nlen(y))                           :==: typedLike(oq) ; x } ==== -1
+    T ~ { var x = 0; oip.peekThem(y => x = nlen(y.get))(c => x = c.toInt)           :==: typedLike(oip); x } ==== -1
+    T ~ { var x = 0; oiq.peekThem(y => x = nlen(y.alt))(c => x = c.toInt)           :==: typedLike(oiq); x } ==== -1
+    T ~ { var x = 0; oap.peekThem(c => x = c.toInt)(y => x = nlen(y.get))           :==: typedLike(oap); x } ==== -1
+    T ~ { var x = 0; oaq.peekThem(c => x = c.toInt)(y => x = nlen(y.alt))           :==: typedLike(oaq); x } ==== -1
 
     T ~ i.exists(_ == 5)     ==== true
     T ~ i.exists(_ == 4)     ==== false
@@ -1457,8 +1532,8 @@ class FlowTest {
       case Failure(e) => T ~ e.isInstanceOf[WrongBranchException[?]] ==== true
       case _          => T("Success when failure expected") ~ false  ==== true
     var ou: Int = 2
-    T ~ os.use(ou += _.length) ==== os
-    T ~ ou                     ==== 9
+    T ~ os.peek(ou += _.length) ==== os
+    T ~ ou                      ==== 9
 
     val pf: PartialFunction[Int, String] = { case x if x > 0 && x < 5 => "!"*x }
     val orf = (x: Int) => { if x > 0 & x < 5 then Is("!" * x) else Alt.unit }
@@ -1759,44 +1834,44 @@ class FlowTest {
     var used = 0
 
     val bb = Array[Byte](1, 3, 2, 2, 4)
-    T ~ bb.zap(2)(b=>(b-1).toByte)  =**= Array[Byte](1, 3, 1, 2, 4)
-    T ~ bb.use(3)(used += _)        =**= Array[Byte](1, 3, 1, 2, 4)
-    T ~ used                        ==== 2
+    T ~ bb.poke(2)(b=>(b-1).toByte)  =**= Array[Byte](1, 3, 1, 2, 4)
+    T ~ bb.peek(3)(used += _)        =**= Array[Byte](1, 3, 1, 2, 4)
+    T ~ used                         ==== 2
 
     val bs = Array[Short](1, 3, 2, 2, 4)
-    T ~ bs.zap(2)(s=>(s-1).toShort) =**= Array[Short](1, 3, 1, 2, 4)
-    T ~ bs.use(3)(used += _)        =**= Array[Short](1, 3, 1, 2, 4)
-    T ~ used                        ==== 4
+    T ~ bs.poke(2)(s=>(s-1).toShort) =**= Array[Short](1, 3, 1, 2, 4)
+    T ~ bs.peek(3)(used += _)        =**= Array[Short](1, 3, 1, 2, 4)
+    T ~ used                         ==== 4
 
     val bc = Array[Char]('0', '2', 'E', 'E', '3')
-    T ~ bc.zap(2)(_.toLower)        =**= Array[Char]('0', '2', 'e', 'E', '3')
-    T ~ bc.use(3)(used += _ - 'A')  =**= Array[Char]('0', '2', 'e', 'E', '3')
-    T ~ used                        ==== 8
+    T ~ bc.poke(2)(_.toLower)        =**= Array[Char]('0', '2', 'e', 'E', '3')
+    T ~ bc.peek(3)(used += _ - 'A')  =**= Array[Char]('0', '2', 'e', 'E', '3')
+    T ~ used                         ==== 8
 
     val bi = Array[Int](1, 3, 2, 2, 4)
-    T ~ bi.zap(2)(_ - 1)            =**= Array[Int](1, 3, 1, 2, 4)
-    T ~ bi.use(3)(used += _)        =**= Array[Int](1, 3, 1, 2, 4)
-    T ~ used                        ==== 10
+    T ~ bi.poke(2)(_ - 1)            =**= Array[Int](1, 3, 1, 2, 4)
+    T ~ bi.peek(3)(used += _)        =**= Array[Int](1, 3, 1, 2, 4)
+    T ~ used                         ==== 10
 
     val bl = Array[Long](1, 3, 2, 2, 4)
-    T ~ bl.zap(2)(_ - 1)            =**= Array[Long](1, 3, 1, 2, 4)
-    T ~ bl.use(3)(used += _.toInt)  =**= Array[Long](1, 3, 1, 2, 4)
-    T ~ used                        ==== 12
+    T ~ bl.poke(2)(_ - 1)            =**= Array[Long](1, 3, 1, 2, 4)
+    T ~ bl.peek(3)(used += _.toInt)  =**= Array[Long](1, 3, 1, 2, 4)
+    T ~ used                         ==== 12
 
     val bf = Array[Float](1, 3, 2, 2, 4)
-    T ~ bf.zap(2)(_ - 1)            =**= Array[Float](1, 3, 1, 2, 4)
-    T ~ bf.use(3)(used += _.toInt)  =**= Array[Float](1, 3, 1, 2, 4)
-    T ~ used                        ==== 14
+    T ~ bf.poke(2)(_ - 1)            =**= Array[Float](1, 3, 1, 2, 4)
+    T ~ bf.peek(3)(used += _.toInt)  =**= Array[Float](1, 3, 1, 2, 4)
+    T ~ used                         ==== 14
 
     val bd = Array[Double](1, 3, 2, 2, 4)
-    T ~ bd.zap(2)(_ - 1)            =**= Array[Double](1, 3, 1, 2, 4)
-    T ~ bd.use(3)(used += _.toInt)  =**= Array[Double](1, 3, 1, 2, 4)
-    T ~ used                        ==== 16
+    T ~ bd.poke(2)(_ - 1)            =**= Array[Double](1, 3, 1, 2, 4)
+    T ~ bd.peek(3)(used += _.toInt)  =**= Array[Double](1, 3, 1, 2, 4)
+    T ~ used                         ==== 16
 
     val ba = Array[String]("0", "2", "E", "E", "3")
-    T ~ ba.zap(2)(_.toLowerCase)    =**= Array[String]("0", "2", "e", "E", "3")
-    T ~ ba.use(2)(used += _.length) =**= Array[String]("0", "2", "e", "E", "3")
-    T ~ used                        ==== 17
+    T ~ ba.poke(2)(_.toLowerCase)    =**= Array[String]("0", "2", "e", "E", "3")
+    T ~ ba.peek(2)(used += _.length) =**= Array[String]("0", "2", "e", "E", "3")
+    T ~ used                         ==== 17
 
 
   @Test
@@ -1847,6 +1922,7 @@ class FlowTest {
     T ~ linedB.textLines(13 to End-3).asIterator.map{ case (a, iv) => new String(a, iv.i0, iv.length) }.toVector ==== Vector("erring", "bass", "per")
 
 
+  /*
   @Test
   def sequentialCSDTest(): Unit =
     val csd = ConcurrentSplitDeque.empty[String]
@@ -1935,7 +2011,7 @@ class FlowTest {
             T ~ czd.unsafeNondestructiveCopy().toArray =**= csd.unsafeNondestructiveCopy().toArray
         T ~ csd.length ==== adq.length
         T ~ czd.length ==== csd.length
-
+  */
     /*
     50.visit: n_iter =>
       csd.clear(): Unit
@@ -2400,25 +2476,25 @@ class FlowTest {
   def resourceTest: Unit =
     def oops(): Nothing = throw new Exception("oops")
     val m = Mu(0)
-    T ~ Resource(m)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4
+    T ~ Resource(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4
     T ~ m()                                               ==== 3
-    T ~ Resource(m)(_.op(_ * 2)){ x => oops(); () }      ==== thrown[Exception]
+    T ~ Resource(m)(_.zap(_ * 2)){ x => oops(); () }      ==== thrown[Exception]
     T ~ m()                                               ==== 6
-    T ~ Ask[Int]{ Resource(m)(_.op(- _)){ x => 
+    T ~ Ask[Int]{ Resource(m)(_.zap(- _)){ x => 
           if x() > 0 then Is.break(x())
           else if x() < 0 then Err.break("negative")
           else 0
         } }                                               ==== 6 --: typed[Ask[Int]]
     T ~ m()                                               ==== -6
 
-    T ~ Resource.safe(m)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Throwable]
+    T ~ Resource.safe(m)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Throwable]
     T ~ m()                                                    ==== 3
-    T ~ Resource.safe(m)(_.op(_ * 2)){ x => 
+    T ~ Resource.safe(m)(_.zap(_ * 2)){ x => 
           throw new Exception("oops"); ()
         }.existsAlt(_.isInstanceOf[Exception])                 ==== true
     T ~ m()                                                    ==== 6
     T ~ Or.FlatRet{
-          Resource.safe(m)(_.op(- _)){ x => 
+          Resource.safe(m)(_.zap(- _)){ x => 
             if x() > 0 then Is.break(x())
             else if x() < 0 then Err.break("negative")
             else 0
@@ -2426,20 +2502,20 @@ class FlowTest {
         }                                                      ==== 6 --: typed[Int Or Err]
     T ~ m()                                                    ==== -6
     T ~ Resource.safe(m){ x =>
-          throw new Exception("oops"); x.op(_ * 2)
+          throw new Exception("oops"); x.zap(_ * 2)
         }{ x => 
-          x.opAndGet(_ * 3)
+          x.zapAndGet(_ * 3)
         }.existsAlt(_.isInstanceOf[Exception])                 ==== true
     T ~ m()                                                    ==== -18
 
-    T ~ Resource.nice(m.orErr)(_.op(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ Resource.nice(m.orErr)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
     T ~ m()                                                          ==== 3
-    T ~ Resource.nice(m.orErr)(_.op(_ * 2)){ x => 
+    T ~ Resource.nice(m.orErr)(_.zap(_ * 2)){ x => 
           oops(); ()
         }.existsAlt(_.toString contains "oops")                      ==== true
     T ~ m()                                                          ==== 6
     T ~ Or.FlatRet{
-          Resource.nice(m.orErr)(_.op(- _)){ x => 
+          Resource.nice(m.orErr)(_.zap(- _)){ x => 
             if x() > 0 then Is.break(x())
             else if x() < 0 then Err.break("negative")
             else 0
@@ -2447,14 +2523,14 @@ class FlowTest {
         }                                                            ==== 6
     T ~ m()                                                          ==== -6
     T ~ Resource.nice(m.orErr){ x =>
-          oops(); x.op(_ * 2)
+          oops(); x.zap(_ * 2)
         }{ x => 
-          x.opAndGet(_ * 3)
+          x.zapAndGet(_ * 3)
         }.existsAlt(_.toString contains "closing resource")          ==== true
     T ~ Resource.nice(m.orErr){ x =>
-          oops(); x.op(_ * 3)
+          oops(); x.zap(_ * 3)
         }{ x => 
-          x.opAndGet(_ / 2)
+          x.zapAndGet(_ / 2)
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained => ete.context match
             case Some(i: Int) => ete.withContext(i+1).context
@@ -2462,35 +2538,35 @@ class FlowTest {
           case _ => None
         ).altOrElse(_ => None)                                       ==== Some(-8)
     T ~ m()                                                          ==== -9
-    T ~ Resource.nice{ oops(); m.orErr }(_.op(- _)) {
-          x => x.opAndGet(_ * 3)
+    T ~ Resource.nice{ oops(); m.orErr }(_.zap(- _)) {
+          x => x.zapAndGet(_ * 3)
         }                                                            ==== runtype[Alt[?]]
     T ~ m()                                                          ==== -9
     T ~ Resource.nice{
           m.errCase{ case x if x() < 0 => Err("bad") }
-        }(_.op(- _)) {
-          x => x.opAndGet(_ * 3)
+        }(_.zap(- _)) {
+          x => x.zapAndGet(_ * 3)
         }                                                            ==== Err.or("bad")
     T ~ m()                                                          ==== -9
-    T ~ Resource.Nice(m.orErr)(_.op(_ + 3)){ x =>
-          x.opAndGet(_ * 2)
+    T ~ Resource.Nice(m.orErr)(_.zap(_ + 3)){ x =>
+          x.zapAndGet(_ * 2)
         }                                                            ==== -18
     T ~ m()                                                          ==== -15
-    T ~ Resource.Nice(m.orErr)(_.op(- _)){ x =>
+    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           oops()
           x := 7; x()
         }                                                            ==== runtype[Alt[?]]
     T ~ m()                                                          ==== 15
-    T ~ Resource.Nice(m.orErr)(_.op(- _)){ x =>
-          x.op(_ - 8)
+    T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
+          x.zap(_ - 8)
           Err.break(x().toString)
           x := 4; x()
         }                                                            ==== Alt(Err("7"))
     T ~ m()                                                          ==== -7
     T ~ Resource.Nice(m.orErr){ x =>
-          oops(); x.op(_ * 3)
+          oops(); x.zap(_ * 3)
         }{ x => 
-          x.opAndGet(_ + 2)
+          x.zapAndGet(_ + 2)
         }.mapAlt(_.underlying match
           case ete: ErrType.Explained =>
             ete.mapContext(x => x.map(_.toString)).context
@@ -2499,8 +2575,8 @@ class FlowTest {
     T ~ m()                                                          ==== -5
     T ~ Resource.Nice{
           m.errCase{ case x if x() < 0 => Err("bad") }
-        }(_.op(- _)){ x =>
-          x.op(_ - 8)
+        }(_.zap(- _)){ x =>
+          x.zap(_ - 8)
           Err.break(x().toString)
           x := 4; x()
         }                                                            ==== Err.or("bad")

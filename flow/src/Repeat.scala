@@ -61,12 +61,58 @@ inline def iFor[A](s: java.util.Spliterator[A])(inline f: (A, Int) => Unit): Uni
   while s.tryAdvance(a => f(a, n)) do n += 1
 
 
-/** A while loop with an index; continues while the condition is true */
-inline def iWhile(inline p: => Boolean)(inline f: Int => Unit): Unit =
-  var n = 0
-  while p do
-    f(n)
-    n += 1
+extension [A](i: Iterator[A])
+  /** Visit all elements in an Iterator with index */
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var n = 0
+    while i.hasNext do
+      f(i.next, n)
+      n += 1
+  // inline def use moved to OverloadedExtensions
+
+extension [A](s: scala.collection.Stepper[A])
+  /** Visit all elements in a Stepper with index */
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var n = 0
+    while s.hasStep do
+      f(s.nextStep, n)
+      n += 1
+  // inline def use moved to OverloadedExtensions
+
+extension [A](j: java.util.Iterator[A])
+  /** Visit all elements in a Java Iterator with index */
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var n = 0
+    while j.hasNext do
+      f(j.next, n)
+      n += 1
+  // inline def use moved to OverloadedExtensions
+
+extension [A](e: java.util.Enumeration[A])
+  /** Visit all elements in a Java Enumeration withindex */
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var n = 0
+    while e.hasMoreElements do
+      f(e.nextElement, n)
+      n += 1
+  // inline def use moved to OverloadedExtensions
+
+extension [A](s: java.util.Spliterator[A])
+  /** Visit all elements in a Java Spliterator with index */
+  inline def visit(inline f: (A, Int) => Unit): Unit =
+    var n = 0
+    while s.tryAdvance(a => f(a, n)) do n += 1
+  // inline def use moved to OverloadedExtensions
+
+
+extension (inline p: => Boolean)
+  /** Visit all consecutive true elements in a repeatedly evaluated boolean conditional with index */
+  inline def visit(inline f: Int => Unit): Unit =
+    var n = 0
+    while p do
+      f(n)
+      n += 1
+  // inline def use moved to OverloadedExtensions
 
 
 /** Applies an operation to everything that we can pull out of a java.util.Queue (e.g. a concurrent.LinkedTransferQueue) */
