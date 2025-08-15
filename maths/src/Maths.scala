@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2011-15, 2021-24 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
+// Copyright (c) 2011-15, 2021-25 Rex Kerr, HHMI Janelia, UCSF, and Calico Life Sciences LLC.
 
 package kse.maths
 
@@ -174,6 +174,10 @@ object NumericFunctions {
       else
         jm.exp(lanczosLogGTerm(a) + lanczosLogGTerm(b) - lanczosLogGTerm(c))
         * lanczosApproximationRatio(a)*lanczosApproximationRatio(b)/lanczosApproximationRatio(c)
+
+  // This is easily expressed using ordinary analytic functions but we have it here for convenience
+  def pdfNormal(y: Double): Double =
+    jm.exp(-y*y) * OverSqrtTwoPi
 
   // Reasonably high-quality error/inverse error functions for general use
   // Based on Applied Statistics 37:477-484 (1988), alg. AS241
@@ -1088,12 +1092,13 @@ extension (d: Double) {
 
   inline def gamma = NumericFunctions.gamma(d)
   inline def lnGamma = NumericFunctions.lnGamma(d)
+  inline def pdfNormal = NumericFunctions.pdfNormal(d)
+  inline def cdfNormal = NumericFunctions.cdfNormal(d)
+  inline def icdfNormal = NumericFunctions.icdfNormal(d)
   inline def erf = NumericFunctions.erf(d)
   inline def erfc = NumericFunctions.erfc(d)
   inline def erfInv = NumericFunctions.erfInv(d)
   inline def erfcInv = NumericFunctions.erfcInv(d)
-  inline def cdfNormal = NumericFunctions.cdfNormal(d)
-  inline def icdfNormal = NumericFunctions.icdfNormal(d)
 
   inline def rint = jm.rint(d)
 

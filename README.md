@@ -571,11 +571,11 @@ will be an `Ask` type).
 
 5. To access a value, if present, returning the original object, use `peek(f)`
 where `f` acts on the contents and returns `Unit`.  `use(f)` will simply act on the
-contents (like `foreach` but `use` will be inlined if practical).
+contents (like `foreach` but `use` will be inlined when practical).
 
 6. To act on and update a modifiable value, if present, returning the original
 object, use `poke(f)` where `f` maps between the same types.  To simply update without
-returning the orignal, use `zap(f)`.
+returning the orignal object, use `zap(f)`.
 
 7. If there is a unique modifiable value, `:=` will set it if the setting is foolproof
 and the value is always there; otherwise, if more parameters are needed or error
@@ -603,7 +603,7 @@ existing one, use `fooOp` and a function to compute the new value.
 the `foo_=` method).  If it can go wrong, `.fooSet` is allowed to return an
 error value.
 
-7. To set or alter a mutable field inline, use `.fooZap(f)`; this will return
+7. To set or alter a mutable field inline, use `.fooPoke(f)`; this will return
 the object that you've modified, so it should only be provided if errors are
 rare.
 
@@ -632,7 +632,8 @@ control flow with `Try`, and `Try` will prevent use of `.?` and other
 efficient, low-syntactic-overhead control flow constructs that Kse provides.
 
 4. If you must catch control flow-style errors, use `threadsafe{ ... }`.
-`ControlThrowable` will be caught too.
+`ControlThrowable` will be caught too.  For instance, this should be used
+at thread boundaries (hence the name).
 
 ## More to come
 

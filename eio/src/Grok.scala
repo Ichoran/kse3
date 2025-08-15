@@ -100,15 +100,15 @@ object Grok {
     inline def tok[E >: Alt[Err]](using boundary.Label[E]): String =
       ensure(1)
       val i0 = position
-      advanceWhile(c => !delim(c))
+      advanceWhile(c => !delim(c)) __ Unit
       val ans = content.substring(i0, position)
-      advance
+      advance __ Unit
       ans
 
     inline def skip[E >: Alt[Err]](using boundary.Label[E]): Unit =
       ensure(1)
-      advanceWhile(c => !delim(c))
-      advance
+      advanceWhile(c => !delim(c)) __ Unit
+      advance __ Unit
   }
 }
 

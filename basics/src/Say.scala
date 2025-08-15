@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2024 Rex Kerr.
+// Copyright (c) 2024-25 Rex Kerr.
 
 package kse.basics
 
