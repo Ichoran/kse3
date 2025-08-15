@@ -136,6 +136,10 @@ class ArraysTest() {
     T ~ cuml                                        ==== ".ihhi".map(_.toInt).sum
     T ~ z{ oar.tap(_.use(st)(cuml += _.n)) }.os     ==== str
     T ~ cuml                                        ==== ix.map(i => oar(i).n).sum
+    T ~ z{ car.tap(_.use(_.l)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                        ==== "chixn".map(_.toInt).sum
+    T ~ z{ oar.tap(_.use(_.l)(cuml += _.n)) }.os    ==== str
+    T ~ cuml                                        ==== oar.filter(_.l).map(_.n).sum
 
     T ~ car.dup().tap(_.alter()(      c => if c.l then C(c.value.toUpper) else c)).cs ==== str.toUpperCase
     T ~ car.dup().tap(_.alter(3, 5)(  c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
@@ -144,6 +148,7 @@ class ArraysTest() {
     T ~ car.dup().tap(_.alter(cpv)(   c => if c.l then C(c.value.toUpper) else c)).cs ==== "ch.IX.#n."
     T ~ car.dup().tap(_.alter(ix)(    c => if c.l then C(c.value.toUpper) else c)).cs ==== "cH.Ix.#n."
     T ~ car.dup().tap(_.alter(st)(    c => if c.l then C(c.value.toUpper) else c)).cs ==== "cH.Ix.#n."
+    T ~ car.dup().tap(_.alter(_.l)(   c =>             C(c.value.toUpper)       )).cs ==== "CH.IX.#N."
 
     T ~ n{ car.visit()(cuml += _.n + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
     T ~ n{ oar.visit()(cuml += _.n + _) }       ==== oar.map(_.n).sum + oar.length*(oar.length-1)/2
@@ -159,6 +164,8 @@ class ArraysTest() {
     T ~ n{ oar.visit(ix)(cuml += _.n + _) }     ==== ix.map(i => oar(i).n).sum + ix.sum
     T ~ n{ car.visit(st)(cuml += _.n + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ n{ oar.visit(st)(cuml += _.n + _) }     ==== ix.map(i => oar(i).n).sum + ix.sum
+    T ~ n{ car.visit(_.l)(cuml += _.n + _) }    ==== str.zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
+    T ~ n{ oar.visit(_.l)(cuml += _.n + _) }    ==== oar.zipWithIndex.filter(_._1.n >= 0).map{ case (x, i) => x.n + i }.sum
 
     T ~ n{ car.pairs((x, y) => if x.l && y.l then cuml += 1) }                   ==== 2
     T ~ n{ oar.pairs((x, y) => if x.l != y.l then cuml += 1) }                   ==== 2
@@ -202,6 +209,8 @@ class ArraysTest() {
     T ~ oar.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => oar(i).n).sum + ix.sum
     T ~ car.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ oar.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => oar(i).n).sum + ix.sum
+    T ~ car.gather(0)(_.l)(_ + _.n + _)    ==== str.zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
+    T ~ oar.gather(0)(_.l)(_ + _.n + _)    ==== oar.zipWithIndex.filter(_._1.n >= 0).map{ case (x, i) => x.n + i }.sum
 
     T ~ car.dup()                  =**= car
     T ~ (car.dup() eq car)         ==== false
@@ -1322,21 +1331,25 @@ class ArraysTest() {
     T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
     T ~ z{ car.tap(_.flex.use(st)(cuml += _.n)) }.cs     ==== str
     T ~ cuml                                             ==== ".#hh#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(_.l)(cuml += _.n)) }.cs    ==== str
+    T ~ cuml                                             ==== "chik".map(_.toInt).sum
 
-    T ~ z{ car.tap(_.flex.use(){ c => qIf(!c.l); cuml += c.n }) }.cs      ==== str
-    T ~ cuml                                                              ==== str.take(2).map(_.toInt).sum
-    T ~ z{ car.tap(_.flex.use(3, 5){ c => qIf(c.l); cuml += c.n }) }.cs   ==== str
-    T ~ cuml                                                              ==== str(3).toInt
-    T ~ z{ car.tap(_.flex.use(3 to 4){ c => qIf(c.l); cuml += c.n }) }.cs ==== str
-    T ~ cuml                                                              ==== str(3).toInt
-    T ~ z{ car.tap(_.flex.use(civ){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
-    T ~ cuml                                                              ==== str(3).toInt
-    T ~ z{ car.tap(_.flex.use(cpv){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
-    T ~ cuml                                                              ==== str(3).toInt
-    T ~ z{ car.tap(_.flex.use(ix){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
-    T ~ cuml                                                              ==== ".#".map(_.toInt).sum
-    T ~ z{ car.tap(_.flex.use(st){ c => qIf(c.l); cuml += c.n }) }.cs     ==== str
-    T ~ cuml                                                              ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(){ c => qIf(!c.l); cuml += c.n }) }.cs         ==== str
+    T ~ cuml                                                                 ==== str.take(2).map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(3, 5){ c => qIf(c.l); cuml += c.n }) }.cs      ==== str
+    T ~ cuml                                                                 ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(3 to 4){ c => qIf(c.l); cuml += c.n }) }.cs    ==== str
+    T ~ cuml                                                                 ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(civ){ c => qIf(c.l); cuml += c.n }) }.cs       ==== str
+    T ~ cuml                                                                 ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(cpv){ c => qIf(c.l); cuml += c.n }) }.cs       ==== str
+    T ~ cuml                                                                 ==== str(3).toInt
+    T ~ z{ car.tap(_.flex.use(ix){ c => qIf(c.l); cuml += c.n }) }.cs        ==== str
+    T ~ cuml                                                                 ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(st){ c => qIf(c.l); cuml += c.n }) }.cs        ==== str
+    T ~ cuml                                                                 ==== ".#".map(_.toInt).sum
+    T ~ z{ car.tap(_.flex.use(_.l){ c => qIf(c.n > 'h'); cuml += c.n }) }.cs ==== str
+    T ~ cuml                                                                 ==== "ch".map(_.toInt).sum
 
     T ~ car.dup().tap(_.flex.alter(){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs       ==== "CH-#ik."
     T ~ car.dup().tap(_.flex.alter(3, 5){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs   ==== "ch.-ik."
@@ -1345,14 +1358,25 @@ class ArraysTest() {
     T ~ car.dup().tap(_.flex.alter(cpv){ c => qIf(c.value=='i'); C(if !c.l then '-' else c.value.toUpper) }).cs    ==== "ch.-ik."
     T ~ car.dup().tap(_.flex.alter(ix){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs     ==== "ch-#ik."
     T ~ car.dup().tap(_.flex.alter(st){ c => qIf(c.value=='#'); C(if !c.l then '-' else c.value.toUpper) }).cs     ==== "ch-#ik."
+    T ~ car.dup().tap(_.flex.alter(_.l){ c => qIf(c.value=='k'); C((c.value - 1).toChar) }).cs                     ==== "bg.#hk."
 
-    T ~ n{ qt{ car.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } } }      ==== str.take(2).map(_.toInt).sum + 1
-    T ~ n{ qt{ car.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
-    T ~ n{ qt{ car.visit(civ){    (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
-    T ~ n{ qt{ car.visit(3 to 4){ (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
-    T ~ n{ qt{ car.visit(cpv){    (c, i) => qIf(c.l); cuml += c.n + i } } } ==== str(3).toInt + 3
-    T ~ n{ qt{ car.visit(ix){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
-    T ~ n{ qt{ car.visit(st){ (c, i) => qIf(c.l); cuml += c.n + i } } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ car.flex.visit(){ (c, i) => qIf(!c.l); cuml += c.n + i } }            ==== str.take(2).map(_.toInt).sum + 1
+    T ~ n{ car.flex.visit(3, 5){   (c, i) => qIf(c.l); cuml += c.n + i } }       ==== str(3).toInt + 3
+    T ~ n{ car.flex.visit(civ){    (c, i) => qIf(c.l); cuml += c.n + i } }       ==== str(3).toInt + 3
+    T ~ n{ car.flex.visit(3 to 4){ (c, i) => qIf(c.l); cuml += c.n + i } }       ==== str(3).toInt + 3
+    T ~ n{ car.flex.visit(cpv){    (c, i) => qIf(c.l); cuml += c.n + i } }       ==== str(3).toInt + 3
+    T ~ n{ car.flex.visit(ix){ (c, i) => qIf(c.l); cuml += c.n + i } }           ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ car.flex.visit(st){ (c, i) => qIf(c.l); cuml += c.n + i } }           ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ car.flex.visit(_.l){ (c, i) => qIf(c.value=='k'); cuml += c.n + i } } ==== str.zipWithIndex.filter(_._1.isLetter).takeWhile(_._1 != 'k').map{ case (c, i) => c + i }.sum
+
+    T ~ car.dup().tap(_.flex.edit(){ (c, i) => qIf(c.value=='#'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs       ==== "CH/#ik."
+    T ~ car.dup().tap(_.flex.edit(3, 5){ (c, i) => qIf(c.value=='i'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs   ==== "ch.0ik."
+    T ~ car.dup().tap(_.flex.edit(3 to 4){ (c, i) => qIf(c.value=='i'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs ==== "ch.0ik."
+    T ~ car.dup().tap(_.flex.edit(civ){ (c, i) => qIf(c.value=='i'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs    ==== "ch.0ik."
+    T ~ car.dup().tap(_.flex.edit(cpv){ (c, i) => qIf(c.value=='i'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs    ==== "ch.0ik."
+    T ~ car.dup().tap(_.flex.edit(ix){ (c, i) => qIf(c.value=='#'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs     ==== "ch/#ik."
+    T ~ car.dup().tap(_.flex.edit(st){ (c, i) => qIf(c.value=='#'); C(if !c.l then ('-'+i).toChar else c.value.toUpper) }).cs     ==== "ch/#ik."
+    T ~ car.dup().tap(_.flex.edit(_.l){ (c, i) => qIf(c.value=='k'); C((c.value - i).toChar) }).cs                                ==== "cg.#ek."
 
     T ~ car.flex.gather(0)()(_ + _.n + _)       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
     T ~ car.flex.gather(0)(3, 5)(_ + _.n + _)   ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -1361,14 +1385,16 @@ class ArraysTest() {
     T ~ car.flex.gather(0)(cpv)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
     T ~ car.flex.gather(0)(ix)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
     T ~ car.flex.gather(0)(st)(_ + _.n + _)     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ car.flex.gather(0)(_.l)(_ + _.n + _)    ==== str.zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
 
-    T ~ car.flex.gather(0)(){ (a, c, i) => qIf(!c.l); a + c.n + i }      ==== str.take(2).map(_.toInt).sum + 1
-    T ~ car.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }   ==== str(3).toInt + 3
-    T ~ car.flex.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i } ==== str(3).toInt + 3
-    T ~ car.flex.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }    ==== str(3).toInt + 3
-    T ~ car.flex.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
-    T ~ car.flex.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ car.flex.gather(0)(){ (a, c, i) => qIf(!c.l); a + c.n + i }            ==== str.take(2).map(_.toInt).sum + 1
+    T ~ car.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.l); a + c.n + i }         ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(civ){ (a, c, i) => qIf(c.l); a + c.n + i }          ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.l); a + c.n + i }       ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(cpv){ (a, c, i) => qIf(c.l); a + c.n + i }          ==== str(3).toInt + 3
+    T ~ car.flex.gather(0)(ix){ (a, c, i) => qIf(c.l); a + c.n + i }           ==== ".#".map(_.toInt).sum + 5
+    T ~ car.flex.gather(0)(st){ (a, c, i) => qIf(c.l); a + c.n + i }           ==== ".#".map(_.toInt).sum + 5
+    T ~ car.flex.gather(0)(_.l){ (a, c, i) => qIf(c.value=='k'); a + c.n + i } ==== str.zipWithIndex.filter(_._1.isLetter).takeWhile(_._1 != 'k').map{ case (c, i) => c + i }.sum
 
     T ~ car.flex.copyWith{ c => sIf(!c.l); c.n }                              =**= car.filter(_.l).map(_.n)
     T ~ car.flex.copyWith{ c => qIf(!c.l); c.n }                              =**= car.take(2).map(_.n)
@@ -1644,6 +1670,77 @@ class ArraysTest() {
     T ~ car.dup().tap(_.clip.flex.alter(et     ){ c => qIf(c.value=='#'); if !c.l then C('-') else c }).cs ==== "ch-#ik."
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
+
+    T ~ n{ car.clip.flex.visit(3, 5){ (c, i) => cuml += c.n + i } }    ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.flex.visit(3 to 4){ (c, i) => cuml += c.n + i } }  ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.flex.visit(civ){ (c, i) => cuml += c.n + i } }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.flex.visit(cpv){ (c, i) => cuml += c.n + i } }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ car.clip.flex.visit(ix){ (c, i) => cuml += c.n + i } }      ==== ".#hh#".map(_.toInt).sum + 10
+    T ~ n{ car.clip.flex.visit(st){ (c, i) => cuml += c.n + i } }      ==== ".#hh#".map(_.toInt).sum + 10
+
+    T ~ n{ car.clip.flex.visit(3, 5){ (c, i) => qIf(c.l); cuml += c.n + i } }   ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(civ){ (c, i) => qIf(c.l); cuml += c.n + i } }    ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(3 to 4){ (c, i) => qIf(c.l); cuml += c.n + i } } ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(cpv){ (c, i) => qIf(c.l); cuml += c.n + i } }    ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(ix){ (c, i) => qIf(c.l); cuml += c.n + i } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ car.clip.flex.visit(st){ (c, i) => qIf(c.l); cuml += c.n + i } }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ n{ car.clip.flex.visit(3, 9){ (c, i) => cuml += c.n + i } }   ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ car.clip.flex.visit(3 to 8){ (c, i) => cuml += c.n + i } } ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+    T ~ n{ car.clip.flex.visit(eiv){ (c, i) => cuml += c.n + i } }    ==== str.substring(3).map(_.toInt).sum + sm(3, 6)
+
+    T ~ n{ car.clip.flex.visit(3, 9){ (c, i) => qIf(c.l); cuml += c.n + i } }   ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(3 to 8){ (c, i) => qIf(c.l); cuml += c.n + i } } ==== str(3).toInt + 3
+    T ~ n{ car.clip.flex.visit(eiv){ (c, i) => qIf(c.l); cuml += c.n + i } }    ==== str(3).toInt + 3
+
+    T ~ n{ car.clip.flex.visit(-2, 5){ (c, i) => cuml += c.n + i } }   ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.flex.visit(-2 to 4){ (c, i) => cuml += c.n + i } } ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.flex.visit(fiv){ (c, i) => cuml += c.n + i } }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+    T ~ n{ car.clip.flex.visit(fpv){ (c, i) => cuml += c.n + i } }     ==== str.substring(0, 5).map(_.toInt).sum + sm(0, 4)
+
+    T ~ n{ car.clip.flex.visit(-2, 5){ (c, i) => qIf(!c.l); cuml += c.n + i } }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ car.clip.flex.visit(-2 to 4){ (c, i) => qIf(!c.l); cuml += c.n + i } } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ car.clip.flex.visit(fiv){ (c, i) => qIf(!c.l); cuml += c.n + i } }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ car.clip.flex.visit(fpv){ (c, i) => qIf(!c.l); cuml += c.n + i } }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ n{ car.clip.flex.visit(-2, 9){ (c, i) => cuml += c.n + i } }   ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ car.clip.flex.visit(-2 to 9){ (c, i) => cuml += c.n + i } } ==== str.map(_.toInt).sum + sm(0, 6)
+    T ~ n{ car.clip.flex.visit(biv){ (c, i) => cuml += c.n + i } }     ==== str.map(_.toInt).sum + sm(0, 6)
+
+    T ~ n{ car.clip.flex.visit(-2, 9){ (c, i) => qIf(!c.l); cuml += c.n + i } }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ car.clip.flex.visit(-2 to 9){ (c, i) => qIf(!c.l); cuml += c.n + i } } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ car.clip.flex.visit(biv){ (c, i) => qIf(!c.l); cuml += c.n + i } }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ n{ car.clip.flex.visit(8, 9){ (c, i) => cuml += c.n + i } }   ==== 0
+    T ~ n{ car.clip.flex.visit(8 to 9){ (c, i) => cuml += c.n + i } } ==== 0
+    T ~ n{ car.clip.flex.visit(niv){ (c, i) => cuml += c.n + i } }    ==== 0
+    T ~ n{ car.clip.flex.visit(npv){ (c, i) => cuml += c.n + i } }    ==== 0
+
+    T ~ n{ car.clip.flex.visit(8, 9){ (c, i) => qIf(c.l); cuml += c.n + i } }   ==== 0
+    T ~ n{ car.clip.flex.visit(8 to 9){ (c, i) => qIf(c.l); cuml += c.n + i } } ==== 0
+    T ~ n{ car.clip.flex.visit(niv){ (c, i) => qIf(c.l); cuml += c.n + i } }    ==== 0
+    T ~ n{ car.clip.flex.visit(npv){ (c, i) => qIf(c.l); cuml += c.n + i } }    ==== 0
+
+    T ~ n{ car.clip.flex.visit(ex){ (c, i) => cuml += c.n + i } } ==== ".c#.".map(_.toInt).sum + 11
+    T ~ n{ car.clip.flex.visit(et){ (c, i) => cuml += c.n + i } } ==== ".c#.".map(_.toInt).sum + 11
+
+    T ~ n{ car.clip.flex.visit(ex){ (c, i) => qIf(c.value == '#'); cuml += c.n + i } } ==== ".c".map(_.toInt).sum + 2
+    T ~ n{ car.clip.flex.visit(et){ (c, i) => qIf(c.value == '#'); cuml += c.n + i } } ==== ".c".map(_.toInt).sum + 2
+
+    T ~ car.dup().tap(_.clip.flex.edit(3, 9   ){ (c, i) => qIf(c.value=='k'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch.0ik."
+    T ~ car.dup().tap(_.clip.flex.edit(3 to 8 ){ (c, i) => qIf(c.value=='k'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch.0ik."
+    T ~ car.dup().tap(_.clip.flex.edit(eiv    ){ (c, i) => qIf(c.value=='k'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch.0ik."
+    T ~ car.dup().tap(_.clip.flex.edit(-2, 5  ){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+    T ~ car.dup().tap(_.clip.flex.edit(-2 to 4){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+    T ~ car.dup().tap(_.clip.flex.edit(fiv    ){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+    T ~ car.dup().tap(_.clip.flex.edit(fpv    ){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+    T ~ car.dup().tap(_.clip.flex.edit(8, 10  ){ (c, i) => qIf(c.value=='-'); if !c.l then C(('-'+i).toChar) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.edit(8 to 9 ){ (c, i) => qIf(c.value=='-'); if !c.l then C(('-'+i).toChar) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.edit(niv    ){ (c, i) => qIf(c.value=='-'); if !c.l then C(('-'+i).toChar) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.edit(npv    ){ (c, i) => qIf(c.value=='-'); if !c.l then C(('-'+i).toChar) else c }).cs ==== str
+    T ~ car.dup().tap(_.clip.flex.edit(ex     ){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+    T ~ car.dup().tap(_.clip.flex.edit(et     ){ (c, i) => qIf(c.value=='#'); if !c.l then C(('-'+i).toChar) else c }).cs ==== "ch/#ik."
+
     T ~ car.clip.flex.gather(0)(3, 5)(_ + _.n + _)    ==== str.substring(3, 5).map(_.toInt).sum + 7
     T ~ car.clip.flex.gather(0)(3 to 4)(_ + _.n + _)  ==== str.substring(3, 5).map(_.toInt).sum + 7
     T ~ car.clip.flex.gather(0)(civ)(_ + _.n + _)     ==== str.substring(3, 5).map(_.toInt).sum + 7
@@ -2347,28 +2444,31 @@ class ArraysTest() {
     T ~ str(End)   ==== '.'
     T ~ str(End-1) ==== 'n'
 
-    T ~ z{ str.tap(_.use()(cuml += _)) }       ==== str
-    T ~ cuml                                   ==== str.map(_.toInt).sum  
-    T ~ z{ str.tap(_.use(3, 5)(cuml += _)) }   ==== str
-    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.tap(_.use(civ)(cuml += _)) }    ==== str
-    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.tap(_.use(3 to 4)(cuml += _)) } ==== str
-    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.tap(_.use(cpv)(cuml += _)) }    ==== str
-    T ~ cuml                                   ==== str.substring(3, 5).map(_.toInt).sum
-    T ~ z{ str.tap(_.use(ix)(cuml += _)) }     ==== str
-    T ~ cuml                                   ==== ".ihhi".map(_.toInt).sum
-    T ~ z{ str.tap(_.use(st)(cuml += _)) }     ==== str
-    T ~ cuml                                   ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ str.tap(_.use()(cuml += _)) }           ==== str
+    T ~ cuml                                       ==== str.map(_.toInt).sum  
+    T ~ z{ str.tap(_.use(3, 5)(cuml += _)) }       ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(civ)(cuml += _)) }        ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(3 to 4)(cuml += _)) }     ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(cpv)(cuml += _)) }        ==== str
+    T ~ cuml                                       ==== str.substring(3, 5).map(_.toInt).sum
+    T ~ z{ str.tap(_.use(ix)(cuml += _)) }         ==== str
+    T ~ cuml                                       ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ str.tap(_.use(st)(cuml += _)) }         ==== str
+    T ~ cuml                                       ==== ".ihhi".map(_.toInt).sum
+    T ~ z{ str.tap(_.use(_.isLetter)(cuml += _)) } ==== str
+    T ~ cuml                                       ==== "chixn".map(_.toInt).sum
 
-    T ~ n{ str.visit()(cuml += _ + _) }       ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
-    T ~ n{ str.visit(3, 5)(cuml += _ + _) }   ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ n{ str.visit(civ)(cuml += _ + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ n{ str.visit(3 to 4)(cuml += _ + _) } ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ n{ str.visit(cpv)(cuml += _ + _) }    ==== str.substring(3, 5).map(_.toInt).sum + 7
-    T ~ n{ str.visit(ix)(cuml += _ + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
-    T ~ n{ str.visit(st)(cuml += _ + _) }     ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ n{ str.visit()(cuml += _ + _) }           ==== str.map(_.toInt).sum + str.length*(str.length-1)/2
+    T ~ n{ str.visit(3, 5)(cuml += _ + _) }       ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.visit(civ)(cuml += _ + _) }        ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.visit(3 to 4)(cuml += _ + _) }     ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.visit(cpv)(cuml += _ + _) }        ==== str.substring(3, 5).map(_.toInt).sum + 7
+    T ~ n{ str.visit(ix)(cuml += _ + _) }         ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ n{ str.visit(st)(cuml += _ + _) }         ==== ix.map(i => str(i).toInt).sum + ix.sum
+    T ~ n{ str.visit(_.isLetter)(cuml += _ + _) } ==== str.zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
 
     T ~ n{ str.pairs((x, y) => if x.isLetter && y.isLetter then cuml += 1) }                   ==== 2
     T ~ n{ str.trios((x, y, z) => if x.isLetter && !y.isLetter && z.isLetter then cuml += 1) } ==== 1
@@ -3024,19 +3124,30 @@ class ArraysTest() {
       cuml
 
     T ~ z{ str.tap(_.flex.use(){ c => qIf(!c.isLetter); cuml += c }) }      ==== str
-    T ~ cuml                                                               ==== str.take(2).map(_.toInt).sum
+    T ~ cuml                                                                ==== str.take(2).map(_.toInt).sum
     T ~ z{ str.tap(_.flex.use(3, 5){ c => qIf(c.isLetter); cuml += c }) }   ==== str
-    T ~ cuml                                                               ==== str(3).toInt
+    T ~ cuml                                                                ==== str(3).toInt
     T ~ z{ str.tap(_.flex.use(3 to 4){ c => qIf(c.isLetter); cuml += c }) } ==== str
-    T ~ cuml                                                               ==== str(3).toInt
+    T ~ cuml                                                                ==== str(3).toInt
     T ~ z{ str.tap(_.flex.use(civ){ c => qIf(c.isLetter); cuml += c }) }    ==== str
-    T ~ cuml                                                               ==== str(3).toInt
+    T ~ cuml                                                                ==== str(3).toInt
     T ~ z{ str.tap(_.flex.use(cpv){ c => qIf(c.isLetter); cuml += c }) }    ==== str
-    T ~ cuml                                                               ==== str(3).toInt
+    T ~ cuml                                                                ==== str(3).toInt
     T ~ z{ str.tap(_.flex.use(ix){ c => qIf(c.isLetter); cuml += c }) }     ==== str
-    T ~ cuml                                                               ==== ".#".map(_.toInt).sum
+    T ~ cuml                                                                ==== ".#".map(_.toInt).sum
     T ~ z{ str.tap(_.flex.use(st){ c => qIf(c.isLetter); cuml += c }) }     ==== str
-    T ~ cuml                                                               ==== ".#".map(_.toInt).sum
+    T ~ cuml                                                                ==== ".#".map(_.toInt).sum
+    T ~ z{ str.tap(_.flex.use(_.isLetter){ c => qIf(c=='i'); cuml += c }) } ==== str
+    T ~ cuml                                                                ==== "ch".map(_.toInt).sum
+
+    T ~ n{ str.flex.visit(){ (c, i) => qIf(!c.isLetter); cuml += c + i } }      ==== str.take(2).map(_.toInt).sum + 1
+    T ~ n{ str.flex.visit(3, 5){ (c, i) => qIf(c.isLetter); cuml += c + i } }   ==== str(3).toInt + 3
+    T ~ n{ str.flex.visit(civ){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== str(3).toInt + 3
+    T ~ n{ str.flex.visit(3 to 4){ (c, i) => qIf(c.isLetter); cuml += c + i } } ==== str(3).toInt + 3
+    T ~ n{ str.flex.visit(cpv){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== str(3).toInt + 3
+    T ~ n{ str.flex.visit(ix){ (c, i) => qIf(c.isLetter); cuml += c + i } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ str.flex.visit(st){ (c, i) => qIf(c.isLetter); cuml += c + i } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ str.flex.visit(_.isLetter){ (c, i) => qIf(c=='i'); cuml += c + i } } ==== str.takeWhile(_ != 'i').zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
 
     T ~ str.flex.gather(0)(){ (a, c, i) => qIf(!c.isLetter); a + c + i }      ==== str.take(2).map(_.toInt).sum + 1
     T ~ str.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
@@ -3045,6 +3156,7 @@ class ArraysTest() {
     T ~ str.flex.gather(0)(cpv){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
     T ~ str.flex.gather(0)(ix){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
     T ~ str.flex.gather(0)(st){ (a, c, i) => qIf(c.isLetter); a + c + i }     ==== ".#".map(_.toInt).sum + 5
+    T ~ str.flex.gather(0)(_.isLetter){ (a, c, i) => qIf(c=='i'); a + c + i } ==== str.takeWhile(_ != 'i').zipWithIndex.filter(_._1.isLetter).map{ case (c, i) => c + i }.sum
 
     T ~ str.flex.copyWith{ c => qIf(!c.isLetter); c }          ==== str.take(2)
     T ~ str.flex.copyOp((c, i) => if i%2 == 0 then '-' else c) =**= "-h-#-k-".arr
@@ -3244,6 +3356,34 @@ class ArraysTest() {
     T ~ n{ str.tap(_.flex.clip.use(et){ c => qIf(c == '#'); cuml += c }) } ==== ".c".map(_.toInt).sum
 
     def sm(i: Int, j: Int) = j*(j+1)/2 - i*(i-1)/2
+    T ~ n{ str.clip.flex.visit(3, 5){ (c, i) => qIf(c.isLetter); cuml += c + i } }   ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(civ){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(3 to 4){ (c, i) => qIf(c.isLetter); cuml += c + i } } ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(cpv){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(ix){ (c, i) => qIf(c.isLetter); cuml += c + i } }     ==== ".#".map(_.toInt).sum + 5
+    T ~ n{ str.clip.flex.visit(st){ (c, i) => qIf(c.isLetter); cuml += c + i } }     ==== ".#".map(_.toInt).sum + 5
+
+    T ~ n{ str.clip.flex.visit(3, 9){ (c, i) => qIf(c.isLetter); cuml += c + i } }   ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(3 to 8){ (c, i) => qIf(c.isLetter); cuml += c + i } } ==== str(3).toInt + 3
+    T ~ n{ str.clip.flex.visit(eiv){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== str(3).toInt + 3
+
+    T ~ n{ str.clip.flex.visit(-2, 5){ (c, i) => qIf(!c.isLetter); cuml += c + i } }   ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ str.clip.flex.visit(-2 to 4){ (c, i) => qIf(!c.isLetter); cuml += c + i } } ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ str.clip.flex.visit(fiv){ (c, i) => qIf(!c.isLetter); cuml += c + i } }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ str.clip.flex.visit(fpv){ (c, i) => qIf(!c.isLetter); cuml += c + i } }     ==== str.substring(0, 2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ n{ str.clip.flex.visit(-2, 9){ (c, i) => qIf(!c.isLetter); cuml += c + i } }   ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ str.clip.flex.visit(-2 to 9){ (c, i) => qIf(!c.isLetter); cuml += c + i } } ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+    T ~ n{ str.clip.flex.visit(biv){ (c, i) => qIf(!c.isLetter); cuml += c + i } }     ==== str.take(2).map(_.toInt).sum + sm(0, 1)
+
+    T ~ n{ str.clip.flex.visit(8, 9){ (c, i) => qIf(c.isLetter); cuml += c + i } }   ==== 0
+    T ~ n{ str.clip.flex.visit(8 to 9){ (c, i) => qIf(c.isLetter); cuml += c + i } } ==== 0
+    T ~ n{ str.clip.flex.visit(niv){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== 0
+    T ~ n{ str.clip.flex.visit(npv){ (c, i) => qIf(c.isLetter); cuml += c + i } }    ==== 0
+
+    T ~ n{ str.clip.flex.visit(ex){ (c, i) => qIf(c == '#'); cuml += c + i } } ==== ".c".map(_.toInt).sum + 2
+    T ~ n{ str.clip.flex.visit(et){ (c, i) => qIf(c == '#'); cuml += c + i } } ==== ".c".map(_.toInt).sum + 2
+
     T ~ str.clip.flex.gather(0)(3, 5){ (a, c, i) => qIf(c.isLetter); a + c + i }   ==== str(3).toInt + 3
     T ~ str.clip.flex.gather(0)(civ){ (a, c, i) => qIf(c.isLetter); a + c + i }    ==== str(3).toInt + 3
     T ~ str.clip.flex.gather(0)(3 to 4){ (a, c, i) => qIf(c.isLetter); a + c + i } ==== str(3).toInt + 3

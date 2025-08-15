@@ -356,6 +356,12 @@ extension [A](a: Array[A]) {
   inline def use(indices: scala.collection.IntStepper)(inline f: A => Unit): Unit =
     while indices.hasStep do
       f(a(indices.nextStep))
+  inline def use(inline p: A => Boolean)(inline f: A => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      val x = a(i)
+      if p(x) then f(x)
+      i += 1
 
   inline def alter()(inline f: A => A): Unit =
     var i = 0
@@ -382,6 +388,12 @@ extension [A](a: Array[A]) {
     while indices.hasStep do
       val j = indices.nextStep
       a(j) = f(a(j))
+  inline def alter(inline p: A => Boolean)(inline f: A => A): Unit =
+    var i = 0
+    while i < a.length do
+      val x = a(i)
+      if p(x) then a(i) = f(x)
+      i += 1
 
   inline def visit()(inline f: (A, Int) => Unit): Unit =
     var i = 0
@@ -408,6 +420,44 @@ extension [A](a: Array[A]) {
     while indices.hasStep do
       val j = indices.nextStep
       f(a(j), j)
+  inline def visit(inline p: A => Boolean)(inline f: (A, Int) => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      val x = a(i)
+      if p(x) then f(x, i)
+      i += 1
+
+  inline def edit()(inline f: (A, Int) => A): Unit =
+    var i = 0
+    while i < a.length do
+      a(i) = f(a(i), i)
+      i += 1
+  inline def edit(i0: Int, iN: Int)(inline f: (A, Int) => A): Unit =
+    var i = i0
+    while i < iN do
+      a(i) = f(a(i), i)
+      i += 1
+  inline def edit(ivx: Iv.X)(inline f: (A, Int) => A): Unit =
+    edit(ivx.index0(a), ivx.indexN(a))(f)
+  inline def edit(inline rg: collection.immutable.Range)(inline f: (A, Int) => A): Unit =
+    val iv = Iv of rg
+    edit(iv.i0, iv.iN)(f)
+  inline def edit(indices: Array[Int])(inline f: (A, Int) => A): Unit =
+    var i = 0
+    while i < indices.length do
+      val j = indices(i)
+      a(j) = f(a(j), j)
+      i += 1
+  inline def edit(indices: scala.collection.IntStepper)(inline f: (A, Int) => A): Unit =
+    while indices.hasStep do
+      val j = indices.nextStep
+      a(j) = f(a(j), j)
+  inline def edit(inline p: A => Boolean)(inline f: (A, Int) => A): Unit =
+    var i = 0
+    while i < a.length do
+      val x = a(i)
+      if p(x) then a(i) = f(x, i)
+      i += 1
 
   inline def pairs(inline f: (A, A) => Unit): Unit =
     if a.length > 0 then
@@ -517,6 +567,14 @@ extension [A](a: Array[A]) {
     while indices.hasStep do
       val j = indices.nextStep
       z = f(z, a(j), j)
+    z
+  inline def gather[Z](zero: Z)(inline p: A => Boolean)(inline f: (Z, A, Int) => Z) =
+    var i = 0
+    var z = zero
+    while i < a.length do
+      val x = a(i)
+      if p(x) then z = f(z, x, i)
+      i += 1
     z
 
   @targetName("update_All_constant")
@@ -650,35 +708,6 @@ extension [A](a: Array[A]) {
       if pick(a(i)) then
         a(i) = indexer(i)
       i += 1
-
-  @targetName("edit_All_function")
-  inline def edit()(inline function: (A, Int) => A): Unit =
-    edit(0, a.length)(function)
-  @targetName("edit_i0iN_function")
-  inline def edit(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
-    var i = i0
-    while i < iN do
-      a(i) = function(a(i), i)
-      i += 1
-  @targetName("edit_Iv_function")
-  inline def edit(ivx: Iv.X)(inline function: (A, Int) => A): Unit =
-    edit(ivx.index0(a), ivx.indexN(a))(function)
-  @targetName("edit_Range_function")
-  inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
-    val iv = Iv of rg
-    edit(iv.i0, iv.iN)(function)
-  @targetName("edit_Places_function")
-  inline def edit(indices: Array[Int])(inline function: (A, Int) => A): Unit =
-    var i = 0
-    while i < indices.length do
-      val j = indices(i)
-      a(j) = function(a(j), j)
-      i += 1
-  @targetName("edit_Stepper_function")
-  inline def edit(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
-    while indices.hasStep do
-      val j = indices.nextStep
-      a(j) = function(a(j), j)
 
   inline def enlargeTo(n: Int)(using ClassTag[A]): Array[A] =
     if n > a.length then
@@ -1278,6 +1307,34 @@ object ClippedArray {
         val j = indices.nextStep
         if j >= 0 && j < a.length then f(a(j), j)
 
+    inline def edit(i0: Int, iN: Int)(inline f: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var j = iN
+      if j > a.length then j = a.length
+      while i < j do
+        a(i) = f(a(i), i)
+        i += 1
+    inline def edit(ivx: Iv.X)(inline f: (A, Int) => A): Unit =
+      val iv = ivx of ca.unwrap
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(inline rg: collection.immutable.Range)(inline f: (A, Int) => A): Unit =
+      val iv = Iv of rg
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(indices: Array[Int])(inline f: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      var i = 0
+      while i < indices.length do
+        val j = indices(i)
+        if j >= 0 && j < a.length then a(j) = f(a(j), j)
+        i += 1
+    inline def edit(indices: scala.collection.IntStepper)(inline f: (A, Int) => A): Unit =
+      val a = ca.unwrap
+      while indices.hasStep do
+        val j = indices.nextStep
+        if j >= 0 && j < a.length then a(j) = f(a(j), j)
+
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, A, Int) => Z): Z =
       val a = ca.unwrap
       var i = i0
@@ -1446,39 +1503,6 @@ object ClippedArray {
       while indices.hasStep do
         val j = indices.nextStep
         if j >= 0 && j < a.length then a(j) = indexer(j)
-
-    @targetName("edit_i0iN_function")
-    inline def edit(i0: Int, iN: Int)(inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = i0
-      if i < 0 then i = 0
-      var j = iN
-      if j > a.length then j = a.length
-      while i < j do
-        a(i) = function(a(i), i)
-        i += 1
-    @targetName("edit_Iv_function")
-    inline def edit(ivx: Iv.X)(inline function: (A, Int) => A): Unit =
-      val iv = ivx of ca.unwrap
-      edit(iv.i0, iv.iN)(function)
-    @targetName("edit_Range_function")
-    inline def edit(inline rg: collection.immutable.Range)(inline function: (A, Int) => A): Unit =
-      val iv = Iv of rg
-      edit(iv.i0, iv.iN)(function)
-    @targetName("edit_Places_function")
-    inline def edit(indices: Array[Int])(inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      var i = 0
-      while i < indices.length do
-        val j = indices(i)
-        if j >= 0 && j < a.length then a(j) = function(a(j), j)
-        i += 1
-    @targetName("edit_Stepper_function")
-    inline def edit(indices: scala.collection.IntStepper)(inline function: (A, Int) => A): Unit =
-      val a = ca.unwrap
-      while indices.hasStep do
-        val j = indices.nextStep
-        if j >= 0 && j < a.length then a(j) = function(a(j), j)
 
     inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
       val a = ca.unwrap
@@ -1931,6 +1955,14 @@ object FlexArray {
       shortcut.quittable:
         while indices.hasStep do
           f(a(indices.nextStep))
+    inline def use(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val x = a(i)
+          if p(x) then f(x)
+          i += 1
 
     inline def alter()(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
@@ -1966,6 +1998,100 @@ object FlexArray {
         while indices.hasStep do
           val j = indices.nextStep
           a(j) = f(a(j))
+    inline def alter(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val x = a(i)
+          if p(x) then a(i) = f(x)
+          i += 1
+
+    inline def visit()(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          f(a(i), i)
+          i += 1
+    inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          f(a(i), i)
+          i += 1
+    inline def visit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val iv = ivx of sa.unwrap
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          f(a(j), j)
+          i += 1
+    inline def visit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          f(a(j), j)
+    inline def visit(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val x = a(i)
+          if p(x) then f(x, i)
+          i += 1
+
+    inline def edit()(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          a(i) = f(a(i), i)
+          i += 1
+    inline def edit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          a(i) = f(a(i), i)
+          i += 1
+    inline def edit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val iv = ivx of sa.unwrap
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val iv = Iv of rg
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          a(j) = f(a(j), j)
+          i += 1
+    inline def edit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          a(j) = f(a(j), j)
+    inline def edit(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val x = a(i)
+          if p(x) then a(i) = f(x, i)
+          i += 1
 
     inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
       var z = zero
@@ -2008,6 +2134,16 @@ object FlexArray {
         while indices.hasStep do
           val j = indices.nextStep
           z = f(z, a(j), j)
+      z
+    inline def gather[Z](zero: Z)(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        var i = 0
+        while i < a.length do
+          val x = a(i)
+          if p(x) then z = f(z, a(i), i)
+          i += 1
       z
 
     transparent inline def copyWith[B](inline f: boundary.Label[shortcut.Type] ?=> A => B)(using ClassTag[B]): Array[B] =
@@ -2401,6 +2537,66 @@ object FancyArray {
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then a(j) = f(a(j))
+
+    inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      shortcut.quittable:
+        while i < iM do
+          f(a(i), i)
+          i += 1
+    inline def visit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val iv = ivx of sc.unwrap
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sc.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          if j >= 0 && j < a.length then f(a(j), j)
+          i += 1
+    inline def visit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
+      val a = sc.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          if j >= 0 && j < a.length then f(a(j), j)
+
+    inline def edit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      shortcut.quittable:
+        while i < iM do
+          a(i) = f(a(i), i)
+          i += 1
+    inline def edit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val iv = ivx of sc.unwrap
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val iv = Iv of rg
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sc.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          if j >= 0 && j < a.length then a(j) = f(a(j), j)
+          i += 1
+    inline def edit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
+      val a = sc.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          if j >= 0 && j < a.length then a(j) = f(a(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
       val a = sc.unwrap
@@ -3263,6 +3459,12 @@ extension (a: String) {
   inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
     while indices.hasStep do
       f(a.charAt(indices.nextStep))
+  inline def use(inline p: Char => Boolean)(inline f: Char => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      val c = a.charAt(i)
+      if p(c) then f(c)
+      i += 1
 
   inline def visit()(inline f: (Char, Int) => Unit): Unit =
     var i = 0
@@ -3289,6 +3491,12 @@ extension (a: String) {
     while indices.hasStep do
       val j = indices.nextStep
       f(a.charAt(j), j)
+  inline def visit(inline p: Char => Boolean)(inline f: (Char, Int) => Unit): Unit =
+    var i = 0
+    while i < a.length do
+      val c = a.charAt(i)
+      if p(c) then f(c, i)
+      i += 1
 
   inline def pairs(inline f: (Char, Char) => Unit): Unit =
     if a.length > 0 then
@@ -4357,6 +4565,57 @@ object FlexString {
       shortcut.quittable:
         while indices.hasStep do
           f(a.charAt(indices.nextStep))
+    inline def use(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val c = a.charAt(i)
+          if p(c) then f(c)
+          i += 1
+
+    inline def visit()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          f(a.charAt(i), i)
+          i += 1
+    inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = i0
+      shortcut.quittable:
+        while i < iN do
+          f(a.charAt(i), i)
+          i += 1
+    inline def visit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val iv = ivx of sa.unwrap
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          f(a.charAt(j), j)
+          i += 1
+    inline def visit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sa.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          f(a.charAt(j), j)
+    inline def visit(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sa.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < a.length do
+          val c = a.charAt(i)
+          if p(c) then f(c, i)
+          i += 1
 
     inline def gather[Z](zero: Z)()(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z) =
       var z = zero
@@ -4399,6 +4658,16 @@ object FlexString {
         while indices.hasStep do
           val j = indices.nextStep
           z = f(z, a.charAt(j), j)
+      z
+    inline def gather[Z](zero: Z)(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z) =
+      var z = zero
+      val a = sa.unwrap
+      shortcut.quittable:
+        var i = 0
+        while i < a.length do
+          val c = a.charAt(i)
+          if p(c) then z = f(z, c, i)
+          i += 1
       z
 
     inline def copyWith[B](inline f: boundary.Label[shortcut.Type] ?=> Char => Char): String =
@@ -4749,6 +5018,36 @@ object FancyString {
         while indices.hasStep do
           val j = indices.nextStep
           if j >= 0 && j < a.length then f(a.charAt(j))
+
+    inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sc.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      val iM = if iN > a.length then a.length else iN
+      shortcut.quittable:
+        while i < iM do
+          f(a.charAt(i), i)
+          i += 1
+    inline def visit(ivx: Iv.X)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val iv = ivx of sc.unwrap
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(inline rg: collection.immutable.Range)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(indices: Array[Int])(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sc.unwrap
+      var i = 0
+      shortcut.quittable:
+        while i < indices.length do
+          val j = indices(i)
+          if j >= 0 && j < a.length then f(a.charAt(j), j)
+          i += 1
+    inline def visit(indices: scala.collection.IntStepper)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
+      val a = sc.unwrap
+      shortcut.quittable:
+        while indices.hasStep do
+          val j = indices.nextStep
+          if j >= 0 && j < a.length then f(a.charAt(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
       val a = sc.unwrap
