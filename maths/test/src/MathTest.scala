@@ -113,17 +113,17 @@ class MathTest {
     T(name) ~ rng.gaussian.toFloat ==== v.x
     T(name) ~ rng.gaussian.toFloat ==== v.y
 
-    nFor(10){ n => T(s"$name iter $n") ~ rng.Z ==== { var x = false; r2.useZ(x = _); x } }
-    T(name) ~ rng.B ==== { var x: Byte   = 0; r2.useB(x = _); x }
-    T(name) ~ rng.S ==== { var x: Short  = 0; r2.useS(x = _); x }
-    T(name) ~ rng.C ==== { var x  = 0.toChar; r2.useC(x = _); x }
-    T(name) ~ rng.I ==== { var x: Int    = 0; r2.useI(x = _); x }
-    T(name) ~ rng.F ==== { var x: Float  = 0; r2.useF(x = _); x }
-    T(name) ~ rng.L ==== { var x: Long   = 0; r2.useL(x = _); x }
-    T(name) ~ rng.D ==== { var x: Double = 0; r2.useD(x = _); x }
-    T(name) ~ (rng % 43)   ==== { var x: Int  = 0; r2.useModI(43 )(x = _); x }
-    T(name) ~ (rng % 43L)  ==== { var x: Long = 0; r2.useModL(43L)(x = _); x }
-    T(name) ~ rng.gaussian ==== { var x     = 0.0; r2.useGaussian( x = _); x }
+    nFor(10){ n => T(s"$name iter $n") ~ rng.Z ==== { var x = false; r2.tapZ(x = _): Unit; x } }
+    T(name) ~ rng.B ==== { var x: Byte   = 0; r2.tapB(x = _): Unit; x }
+    T(name) ~ rng.S ==== { var x: Short  = 0; r2.tapS(x = _): Unit; x }
+    T(name) ~ rng.C ==== { var x  = 0.toChar; r2.tapC(x = _): Unit; x }
+    T(name) ~ rng.I ==== { var x: Int    = 0; r2.tapI(x = _): Unit; x }
+    T(name) ~ rng.F ==== { var x: Float  = 0; r2.tapF(x = _): Unit; x }
+    T(name) ~ rng.L ==== { var x: Long   = 0; r2.tapL(x = _): Unit; x }
+    T(name) ~ rng.D ==== { var x: Double = 0; r2.tapD(x = _): Unit; x }
+    T(name) ~ (rng % 43)   ==== { var x: Int  = 0; r2.tapModI(43 )(x = _): Unit; x }
+    T(name) ~ (rng % 43L)  ==== { var x: Long = 0; r2.tapModL(43L)(x = _): Unit; x }
+    T(name) ~ rng.gaussian ==== { var x     = 0.0; r2.tapGaussian( x = _): Unit; x }
 
     val zs1 = Array.fill(20)(false)
     val zs2 = Array.fill(20)(false)

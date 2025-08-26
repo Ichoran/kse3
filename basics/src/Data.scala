@@ -1153,7 +1153,7 @@ extension [A](a: Array[A]) {
       case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
   transparent inline def diced(indices: Array[Int])(using ClassTag[A]): Array[Array[A]] = diced(indices, "", "endpoints")
 
-  transparent inline def diced(cut: A => Boolean, mode: "" | "()" | "[)" | "(]" | "[]")(using ClassTag[A]): Array[Array[A]] =
+  transparent inline def diced(inline cut: A => Boolean, mode: "" | "()" | "[)" | "(]" | "[]")(using ClassTag[A]): Array[Array[A]] =
     var bss: Array[Array[A]] = null
     var bzero: Array[A] = null
     var k = 0
@@ -1198,7 +1198,28 @@ extension [A](a: Array[A]) {
     if bss eq null then new Array[Array[A]](0)
     else if k < bss.length then java.util.Arrays.copyOf(bss, k)
     else bss
-  transparent inline def diced(cut: A => Boolean)(using ClassTag[A]): Array[Array[A]] = diced(cut, "")
+  transparent inline def diced(inline cut: A => Boolean)(using ClassTag[A]): Array[Array[A]] = diced(cut, "")
+
+  inline def visitCuts()(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    visitCuts(0, a.length)(cut)(f)
+  inline def visitCuts(i0: Int, iN: Int)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    var i = i0
+    while i < iN do
+      var x = a(i)
+      var j = i + 1
+      var continue = true
+      while continue && j < iN do
+        val y = a(j)
+        if cut(x, y) then continue = false
+        else x = y
+        j += 1
+      f(i, j)
+      i = j
+  inline def visitCuts(ivx: Iv.X)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    visitCuts(ivx.index0(a), ivx.indexN(a))(cut)(f)
+  inline def visitCuts(inline rg: Rg)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    val iv = Iv of rg
+    visitCuts(iv.i0, iv.iN)(cut)(f)
 }
 
 
@@ -1908,6 +1929,30 @@ object ClippedArray {
         case "no endpoints"                 => diced(indices, "", "no endpoints")
         case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
     transparent inline def diced(indices: Array[Int])(using ClassTag[A]): Array[Array[A]] = diced(indices, "", "endpoints")
+
+    inline def visitCuts(i0: Int, iN: Int)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      var l = ca.unwrap.length
+      if iN < l then l = iN
+      while i < l do
+        var x = a(i)
+        var j = i + 1
+        var continue = true
+        while continue && j < l do
+          val y = a(j)
+          if cut(x, y) then continue = false
+          else x = y
+          j += 1
+        f(i, j)
+        i = j
+    inline def visitCuts(ivx: Iv.X)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      visitCuts(ivx.index0(a), ivx.indexN(a))(cut)(f)
+    inline def visitCuts(inline rg: Rg)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visitCuts(iv.i0, iv.iN)(cut)(f)
   }
 }
 
@@ -3498,6 +3543,22 @@ extension (a: String) {
       if p(c) then f(c, i)
       i += 1
 
+  inline def visitLineIvs(newlines: Boolean)(inline f: Iv => Unit): Unit =
+    var i = 0
+    var j = -1
+    val n = a.length()
+    while i < n do
+      j = i + 1
+      while j < n && a.charAt(j) != '\n' do j += 1
+      val k = if j < n then j + 1 else n
+      if !newlines then
+        if j > i && a.charAt(j-1) == '\r' then j = j - 1
+      else if j < n then j = j + 1
+      f(Iv(i, j))
+      i = k
+  inline def visitLineIvs(inline f: Iv => Unit): Unit =
+    visitLineIvs(true)(f)
+
   inline def pairs(inline f: (Char, Char) => Unit): Unit =
     if a.length > 0 then
       var a0 = a.charAt(0)
@@ -3970,7 +4031,7 @@ extension (a: String) {
       case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
   inline def diced(indices: Array[Int]): Array[String] = diced(indices, "", "endpoints")
 
-  transparent inline def diced(cut: Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
+  inline def diced(cut: Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
     var bss: Array[String] = null
     var k = 0
     var i0: Int = inline mode match
@@ -4007,7 +4068,45 @@ extension (a: String) {
     if bss eq null then new Array[String](0)
     else if k < bss.length then java.util.Arrays.copyOf(bss, k)
     else bss
-  transparent inline def diced(cut: Char => Boolean): Array[String] = diced(cut, "")
+  inline def diced(cut: Char => Boolean): Array[String] = diced(cut, "")
+
+  inline def visitCuts()(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    visitCuts(0, a.length)(cut)(f)
+  inline def visitCuts(i0: Int, iN: Int)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    var i = i0
+    while i < iN do
+      var x = a(i)
+      var j = i + 1
+      var continue = true
+      while continue && j < iN do
+        val y = a(j)
+        if cut(x, y) then continue = false
+        else x = y
+        j += 1
+      f(i, j)
+      i = j
+  inline def visitCuts(ivx: Iv.X)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    visitCuts(ivx.index0(a), ivx.indexN(a))(cut)(f)
+  inline def visitCuts(inline rg: Rg)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+    val iv = Iv of rg
+    visitCuts(iv.i0, iv.iN)(cut)(f)
+
+
+  inline def visitLineIndices()(inline f: (Int, Int) => Unit): Unit =
+    visitLineIndices(0, a.length)(f)
+  inline def visitLineIndices(i0: Int, iN: Int)(inline f: (Int, Int) => Unit): Unit =
+    var i = i0
+    while i < iN do
+      var j = i
+      while j < iN && a.charAt(j) != '\n' do j += 1
+      if j < iN then j += 1
+      f(i, j)
+      i = j
+  inline def visitLineIndices(ivx: Iv.X)(inline f: (Int, Int) => Unit): Unit =
+    visitLineIndices(ivx.index0(a), ivx.indexN(a))(f)
+  inline def visitLineIndices(inline rg: Rg)(inline f: (Int, Int) => Unit): Unit =
+    val iv = Iv of rg
+    visitLineIndices(iv.i0, iv.iN)(f)
 }
 
 
@@ -4519,6 +4618,49 @@ object ClippedString {
         case "no endpoints"                 => diced(indices, "", "no endpoints")
         case s: ("()" | "(]" | "[)" | "[]") => diced(indices, s, "endpoints")
     inline def diced(indices: Array[Int]): Array[String] = diced(indices, "", "endpoints")
+
+    inline def visitCuts(i0: Int, iN: Int)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i0 < 0 then i = 0
+      var l = a.length
+      if iN < l then l = iN
+      while i < l do
+        var x = a.charAt(i)
+        var j = i + 1
+        var continue = true
+        while continue && j < l do
+          val y = a.charAt(j)
+          if cut(x, y) then continue = false
+          else x = y
+          j += 1
+        f(i, j)
+        i = j
+    inline def visitCuts(ivx: Iv.X)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      visitCuts(ivx.index0(a), ivx.indexN(a))(cut)(f)
+    inline def visitCuts(inline rg: Rg)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visitCuts(iv.i0, iv.iN)(cut)(f)
+
+    inline def visitLineIndices(i0: Int, iN: Int)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      var i = i0
+      if i < 0 then i = 0
+      var n = a.length
+      if iN < n then n = iN
+      while i < n do
+        var j = i
+        while j < n && a.charAt(j) != '\n' do j += 1
+        if j < n then j += 1
+        f(i, j)
+        i = j
+    inline def visitLineIndices(ivx: Iv.X)(inline f: (Int, Int) => Unit): Unit =
+      val a = ca.unwrap
+      visitLineIndices(ivx.index0(a), ivx.indexN(a))(f)
+    inline def visitLineIndices(inline rg: Rg)(inline f: (Int, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visitLineIndices(iv.i0, iv.iN)(f)
   }
 }
 
@@ -4931,7 +5073,7 @@ object FlexString {
       bs.shrinkTo(j)
 
 
-    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
+    inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean, mode: "" | "()" | "[)" | "(]" | "[]"): Array[String] =
       val a = sa.unwrap
       var bss: Array[String] = null
       var k = 0
@@ -4976,7 +5118,7 @@ object FlexString {
       if bss eq null then new Array[String](0)
       else if k < bss.length then java.util.Arrays.copyOf(bss, k)
       else bss
-    transparent inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[String] = diced(cut, "")
+    inline def diced(cut: boundary.Label[shortcut.Quits.type] ?=> Char => Boolean): Array[String] = diced(cut, "")
   }
 }
 

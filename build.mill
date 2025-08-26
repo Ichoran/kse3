@@ -72,7 +72,6 @@ trait Common extends Base {
 
 object basics extends Common with PublishKse3 {}
 
-
 object flow extends Common with PublishKse3 {
   def moduleDeps = Seq(basics)
   object bench extends ScalaTests with TestModule.Junit4 {}
@@ -81,6 +80,14 @@ object flow extends Common with PublishKse3 {
 object maths extends Common with PublishKse3 {
   def moduleDeps = Seq(basics)
   override def extraTestDeps = Seq(flow)
+}
+
+object loom extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths)
+}
+
+object thyme extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths)
 }
 
 object eio extends Common with PublishKse3 {
@@ -112,5 +119,5 @@ object all extends Common {
       mvn"it.unimi.dsi:fastutil:8.5.16"
     )
   }
-  def moduleDeps = Seq(basics, flow, maths, eio)
+  def moduleDeps = Seq(basics, flow, maths, loom, eio)
 }

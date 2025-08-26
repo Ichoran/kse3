@@ -9,6 +9,7 @@ package kse.basics
 import java.lang.{StringBuilder => StB}
 
 import scala.annotation.targetName
+import scala.util.boundary
 
 import kse.basics.intervals._
 
@@ -41,6 +42,113 @@ extension (s: String) {
     f(sb)
     sb.toString
   inline def maker(): MkStr = MkStr.wrap(new java.lang.StringBuilder(s))
+
+  def indentBy(pad: String): String =
+    var n = 0
+    s.visitLineIndices(): (i0, iN) =>
+      n += 1
+    val sb = new java.lang.StringBuilder(n*pad.length + s.length)
+    s.visitLineIndices(): (i0, iN) =>
+      sb.append(pad): Unit
+      sb.append(s, i0, iN): Unit
+    sb.toString
+
+  def dedentBy(pad: String, skipEmptyStart: Boolean = false): String =
+    if s.length == 0 || (skipEmptyStart && ((s.length == 1 && s.charAt(0) == '\n') || (s.length == 2 && s == "\r\n"))) then ""
+    else
+      val sb = new java.lang.StringBuilder(s.length)
+      var x0 = 0
+      if skipEmptyStart && x0 < s.length then
+        if s.charAt(x0) == '\n' then x0 += 1
+        else if s.charAt(x0) == '\r' && x0+1 < s.length && s.charAt(x0+1) == '\n' then x0 += 2
+      s.visitLineIndices(x0, s.length): (i0, iN) =>
+        var i = i0
+        var j = 0
+        while i < iN && j < pad.length && s.charAt(i) == pad.charAt(j) do
+          i += 1
+          j += 1
+        if i == iN && iN < s.length then i -= 1
+        sb.append(s, i, iN): Unit
+      sb.toString
+
+  def dedent(max: Int = Int.MaxValue, skipEmptyStart: Boolean = true): String =
+    var n = max
+    var j0 = -1
+    var jN = -1
+    var canExtend = true
+    boundary[Unit]:
+      s.visitLineIndices(): (i0, iN) =>
+        var i = i0
+        val k =
+          if iN - i0 > n - 1 then i0 + n
+          else if iN > i0 && s.charAt(iN-1) == '\n' then
+            if iN > i0+1 && s.charAt(iN-2) == '\r' then iN - 2
+            else iN - 1
+          else iN - i0
+        if j0 < 0 then
+          var blank = true
+          while i < k && { blank = java.lang.Character.isWhitespace(s.charAt(i)); blank } do i += 1
+          if i > i0 then
+            j0 = i0
+            jN = i
+            canExtend = blank
+        else
+          var j = j0
+          while i < k && j < jN && s.charAt(i) == s.charAt(j) do
+            i += 1
+            j += 1
+          if j == jN then
+            if i < k && canExtend then
+              var blank = true
+              while i < k && { blank = java.lang.Character.isWhitespace(s.charAt(i)); blank } do i += 1
+              if i - i0 > jN - j0 then
+                jN = i
+                j0 = i0
+              canExtend = blank
+          else if i < k then
+            jN = j
+            canExtend == canExtend && java.lang.Character.isWhitespace(s.charAt(i))
+            if !canExtend && jN == j0 then boundary.break()
+    dedentBy(if j0 < 0 then "" else s.substring(j0, jN), skipEmptyStart)
+
+
+  def demargin(indicator: Char = '|', skipMalformedLines: Boolean = false): String =
+    boundary[String]:
+      var nl0 = s.indexOf('\n')
+      var x0 = if nl0 == 0 || (nl0 == 1 && s.charAt(0) == '\r') then nl0 + 1 else 0
+      if x0 > 0 then
+        nl0 = s.indexOf('\n', x0, s.length)
+      if nl0 < 0 then
+        boundary.break(if s.indexOf(indicator) == s.length - 1 then "" else s)
+      var ic0 = s.indexOf(indicator, x0, nl0)
+      if ic0 < 0 then boundary.break(s)
+      if ic0 != nl0 - 1 then
+        var i = nl0 - 1
+        while i > ic0 && java.lang.Character.isWhitespace(s.charAt(i)) do i -= 1
+        if i > ic0 && !skipMalformedLines then
+          throw new IllegalArgumentException(s"Indicator line has non-whitespace after indicator")
+      if ic0 == x0 then boundary.break(s.substring(nl0+1, s.length))
+      var iw0 = x0
+      while iw0 < ic0 && java.lang.Character.isWhitespace(s.charAt(iw0)) do iw0 += 1
+      val sb = new java.lang.StringBuilder(s.length - (nl0 + 1))
+      var l = 0
+      s.visitLineIndices(nl0+1, s.length): (i0, iN) =>
+        l += 1
+        var j = iN - 1
+        if iN < s.length || (j >= i0 && s.charAt(j) == '\n') then
+          if j > i0 && s.charAt(j-1) == '\r' then j -= 1
+        else j += 1
+        var i = i0
+        var x = x0
+        while i < j && x < ic0 && s.charAt(i) == s.charAt(x) do
+          i += 1
+          x += 1
+        if x == ic0 || (i == j && iw0 == ic0) || skipMalformedLines then sb.append(s, i, iN): Unit
+        else throw new IllegalArgumentException(s"Mismatching prefix on line $l")
+      if sb.length > 0 then
+        if sb.charAt(sb.length - 1) == '\n' then
+          sb.setLength(sb.length - (if sb.length > 1 && sb.charAt(sb.length - 2) == '\r' then 2 else 1))
+      sb.toString
 }
 
 
@@ -221,6 +329,186 @@ object MkStr {
     inline def str(inline rg: Rg): String = 
       val iv = Iv of rg
       (sb: StB).substring(iv.i0, iv.iN)
+
+    inline def use()(inline f: Char => Unit): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        f((sb: StB).charAt(i))
+        i += 1
+    inline def use(i0: Int, iN: Int)(inline f: Char => Unit): Unit =
+      var i = i0
+      if i < 0 then i = i0
+      var n = (sb: StB).length()
+      if iN < n then n = iN
+      while i < n do
+        f((sb: StB).charAt(i))
+        i += 1
+    inline def use(ivx: Iv.X)(inline f: Char => Unit): Unit =
+      val n = (sb: StB).length()
+      use(ivx.index0(n), ivx.indexN(n))(f)
+    inline def use(inline rg: Rg)(inline f: Char => Unit): Unit =
+      val iv = Iv of rg
+      use(iv.i0, iv.iN)(f)
+    inline def use(indices: Array[Int])(inline f: Char => Unit): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while k < indices.length do
+        val i = indices(k)
+        if i >= 0 && i < n then f((sb: StB).charAt(i))
+        k += 1
+    inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while indices.hasStep do
+        val i = indices.nextStep
+        if i >= 0 && i < n then f((sb: StB).charAt(i))
+        k += 1
+    inline def use(inline p: Char => Boolean)(inline f: Char => Unit): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        val c = (sb: StB).charAt(i)
+        if p(c) then f(c)
+        i += 1
+
+    inline def alter()(inline f: Char => Char): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
+        i += 1
+    inline def alter(i0: Int, iN: Int)(inline f: Char => Char): Unit =
+      var i = i0
+      if i < 0 then i = i0
+      var n = (sb: StB).length()
+      if iN < n then n = iN
+      while i < n do
+        (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
+        i += 1
+    inline def alter(ivx: Iv.X)(inline f: Char => Char): Unit =
+      val n = (sb: StB).length()
+      alter(ivx.index0(n), ivx.indexN(n))(f)
+    inline def alter(inline rg: Rg)(inline f: Char => Char): Unit =
+      val iv = Iv of rg
+      alter(iv.i0, iv.iN)(f)
+    inline def alter(indices: Array[Int])(inline f: Char => Char): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while k < indices.length do
+        val i = indices(k)
+        if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
+        k += 1
+    inline def alter(indices: scala.collection.IntStepper)(inline f: Char => Char): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while indices.hasStep do
+        val i = indices.nextStep
+        if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
+        k += 1
+    inline def alter(inline p: Char => Boolean)(inline f: Char => Char): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        val c = (sb: StB).charAt(i)
+        if p(c) then (sb: StB).setCharAt(i, f(c))
+        i += 1
+
+    inline def visit()(inline f: (Char, Int) => Unit): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        f((sb: StB).charAt(i), i)
+        i += 1
+    inline def visit(i0: Int, iN: Int)(inline f: (Char, Int) => Unit): Unit =
+      var i = i0
+      if i < 0 then i = i0
+      var n = (sb: StB).length()
+      if iN < n then n = iN
+      while i < n do
+        f((sb: StB).charAt(i), i)
+        i += 1
+    inline def visit(ivx: Iv.X)(inline f: (Char, Int) => Unit): Unit =
+      val n = (sb: StB).length()
+      visit(ivx.index0(n), ivx.indexN(n))(f)
+    inline def visit(inline rg: Rg)(inline f: (Char, Int) => Unit): Unit =
+      val iv = Iv of rg
+      visit(iv.i0, iv.iN)(f)
+    inline def visit(indices: Array[Int])(inline f: (Char, Int) => Unit): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while k < indices.length do
+        val i = indices(k)
+        if i >= 0 && i < n then f((sb: StB).charAt(i), i)
+        k += 1
+    inline def visit(indices: scala.collection.IntStepper)(inline f: (Char, Int) => Unit): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while indices.hasStep do
+        val i = indices.nextStep
+        if i >= 0 && i < n then f((sb: StB).charAt(i), i)
+        k += 1
+    inline def visit(inline p: Char => Boolean)(inline f: (Char, Int) => Unit): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        val c = (sb: StB).charAt(i)
+        if p(c) then f(c, i)
+        i += 1
+
+    inline def edit()(inline f: (Char, Int) => Char): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
+        i += 1
+    inline def edit(i0: Int, iN: Int)(inline f: (Char, Int) => Char): Unit =
+      var i = i0
+      if i < 0 then i = i0
+      var n = (sb: StB).length()
+      if iN < n then n = iN
+      while i < n do
+        (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
+        i += 1
+    inline def edit(ivx: Iv.X)(inline f: (Char, Int) => Char): Unit =
+      val n = (sb: StB).length()
+      edit(ivx.index0(n), ivx.indexN(n))(f)
+    inline def edit(inline rg: Rg)(inline f: (Char, Int) => Char): Unit =
+      val iv = Iv of rg
+      edit(iv.i0, iv.iN)(f)
+    inline def edit(indices: Array[Int])(inline f: (Char, Int) => Char): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while k < indices.length do
+        val i = indices(k)
+        if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
+        k += 1
+    inline def edit(indices: scala.collection.IntStepper)(inline f: (Char, Int) => Char): Unit =
+      var k = 0
+      val n = (sb: StB).length()
+      while indices.hasStep do
+        val i = indices.nextStep
+        if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
+        k += 1
+    inline def edit(inline p: Char => Boolean)(inline f: (Char, Int) => Char): Unit =
+      var i = 0
+      val n = (sb: StB).length()
+      while i < n do
+        val c = (sb: StB).charAt(i)
+        if p(c) then (sb: StB).setCharAt(i, f(c, i))
+        i += 1
+
+    inline def visitLineIndices(inline f: (Int, Int) => Unit): Unit =
+      var i = 0
+      var j = -1
+      val n = (sb: StB).length()
+      while i < n do
+        j = i + 1
+        while j < n && (sb: StB).charAt(j) != '\n' do j += 1
+        val k = if j < n then j + 1 else n
+        if j < n then j = j + 1
+        f(i, j)
+        i = k
   }
 }
 

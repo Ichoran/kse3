@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2025 Rex Kerr and UCSF (Kato Lab)
 
-package kse.flow
+package kse.loom
 
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
@@ -12,6 +12,7 @@ import scala.reflect.ClassTag
 
 import kse.basics._
 import kse.basics.intervals._
+import kse.flow._
 
 
 /** Implements a fast deque that allows O(log n) inclusion and retrieval of chunks of up to size n.

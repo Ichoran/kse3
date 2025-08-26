@@ -533,6 +533,18 @@ class ArraysTest() {
     T ~ "".arr.diced(_ == 'e', "[)").map(_.str)           =**= Array("")
     T ~ "".arr.diced(_ == 'e', "[]").map(_.str)           =**= Array("")
 
+    val aidx = scala.collection.mutable.ArrayBuffer.empty[String]
+    def w(f: => Unit): Array[String] =
+      aidx.clear()
+      f
+      aidx.toArray
+    def lix(i: Int, j: Int): Unit =
+      aidx += Iv(i, j).pr
+    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
+
 
   def arrayClippedInlinedDataTest(): Unit =
     var cuml = 0
@@ -1285,6 +1297,24 @@ class ArraysTest() {
     T ~ "".arr.clip.diced(Array.empty[Int], "(]").map(_.str)   =**= Array("")
     T ~ "".arr.clip.diced(Array.empty[Int], "[)").map(_.str)   =**= Array("")
     T ~ "".arr.clip.diced(Array.empty[Int], "[]").map(_.str)   =**= Array("")
+
+    val aidx = scala.collection.mutable.ArrayBuffer.empty[String]
+    def w(f: => Unit): Array[String] =
+      aidx.clear()
+      f
+      aidx.toArray
+    def lix(i: Int, j: Int): Unit =
+      aidx += Iv(i, j).pr
+    T ~ w{ test.clip.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2, 9)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 9)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2, 18)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2 to End-4)(_ != 'e' && _ == 'e')(lix) }   =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 11)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(Start+2 to 18)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2 to 11)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 12)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to 18)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+
 
 
   def arrayBreakInlinedDataTest(): Unit =
@@ -2625,6 +2655,18 @@ class ArraysTest() {
     T ~ test.diced(_ == 'e', "(]")             =**= Array("che", "e", "se", "factorie", "s")
     T ~ test.diced(_ == 'e', "[)")             =**= Array("ch", "e", "es", "efactori", "es")
     T ~ test.diced(_ == 'e', "[]")             =**= Array("che", "ee", "ese", "efactorie", "es")
+
+    val aidx = scala.collection.mutable.ArrayBuffer.empty[String]
+    def w(f: => Unit): Array[String] =
+      aidx.clear()
+      f
+      aidx.toArray
+    def lix(i: Int, j: Int): Unit =
+      aidx += Iv(i, j).pr
+    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
 
 
   def stringClippedInlinedDataTest(): Unit =

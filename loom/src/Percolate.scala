@@ -2,7 +2,7 @@
 // Copyright (c) 2024-25 Rex Kerr and UCSF (Kato Lab).
 
 
-package kse.flow
+package kse.loom
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, LinkedTransferQueue, Semaphore}
 import java.time.Duration
@@ -15,6 +15,7 @@ import scala.NamedTuple.{NamedTuple => NTup}
 import kse.basics.*
 import kse.basics.intervals.*
 import kse.basics.labels.*
+import kse.flow.*
 
 /** Class to organize a multithreaded processing operation.
   * 

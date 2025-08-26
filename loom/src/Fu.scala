@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2024-25 Rex Kerr.
 
-package kse.flow
+package kse.loom
 
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
@@ -15,6 +15,7 @@ import scala.util.boundary.Label
 import scala.reflect.ClassTag
 
 import kse.basics._
+import kse.flow._
 
 
 opaque type Fu[A] = Future[Ask[A]]
@@ -28,8 +29,8 @@ object Fu {
 
   opaque type Executor = ExecutorService | GroupExecutor
   object Executor {
-    def create(): kse.flow.Fu.Executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()
-    def group(): kse.flow.Fu.Executor = GroupExecutor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor())
+    def create(): kse.loom.Fu.Executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()
+    def group(): kse.loom.Fu.Executor = GroupExecutor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor())
     extension (e: Executor)
       def unwrap: ExecutorService = e match
         case es: ExecutorService => es
@@ -45,17 +46,17 @@ object Fu {
   val defaultExecutor = Executor.create()
   given Executor = defaultExecutor
 
-  inline def flat[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> Ask[A]): kse.flow.Fu[A] = exec match
+  inline def flat[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> Ask[A]): kse.loom.Fu[A] = exec match
     case service: ExecutorService => service.submit(() => Ask.threadsafeFlat{ work })
     case g: GroupExecutor => g.service.submit(() => Ask.threadsafeFlat{ work }.peekAlt(g.fail))
 
-  inline def apply[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> A): kse.flow.Fu[A] = 
+  inline def apply[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> A): kse.loom.Fu[A] = 
     val run: java.util.concurrent.Callable[Ask[A]] = () => Ask.threadsafe{ work }
     exec match
       case service: ExecutorService => service.submit(run)
       case g: GroupExecutor => g.service.submit(() => run.call().peekAlt(g.fail))
 
-  inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> Ask[A]): kse.flow.Fu[A] = exec match
+  inline def flatGroup[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> Ask[A]): kse.loom.Fu[A] = exec match
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
@@ -69,7 +70,7 @@ object Fu {
         finally Executor.stopIfGroup(ex)()
       })
 
-  inline def group[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> A): kse.flow.Fu[A] = exec match
+  inline def group[A](using exec: Executor)(inline makeWork: Executor ?=> Label[Ask[A]] ?=> A): kse.loom.Fu[A] = exec match
     case service: ExecutorService =>
       service.submit(() => {
         val ex: Executor = Executor.group()
@@ -103,21 +104,21 @@ object Fu {
     inline def ?*[E, L >: Alt[E]](using lb: Label[L], m: Err AutoMap E): A = kse.flow.?*[A, Err](Fu.ask(fu)())(using lb, m)
     inline def ?#[L >: Alt[Err]](inline msg: String)(using lb: Label[L]): A = kse.flow.?#(Fu.ask(fu)())(msg)(using lb)
 
-    inline def map[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => B)): kse.flow.Fu[B] = kse.flow.Fu.apply[B]:
+    inline def map[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => B)): kse.loom.Fu[B] = kse.loom.Fu.apply[B]:
       val result = kse.flow.?(Fu.ask(fu)())
       f(result)
 
-    inline def flatMap[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => (B Or Err))): kse.flow.Fu[B] = kse.flow.Fu.flat[B]:
+    inline def flatMap[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => (B Or Err))): kse.loom.Fu[B] = kse.loom.Fu.flat[B]:
       val result = Fu.ask(fu)()
       kse.flow.flatMap(result)(x => f(x))
   }
 }
 
-extension [A](a: Array[kse.flow.Fu[A]]) {
-  def allFu(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.flow.Fu[Array[Ask[A]]] = Fu:
+extension [A](a: Array[kse.loom.Fu[A]]) {
+  def allFu(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.loom.Fu[Array[Ask[A]]] = Fu:
     a.copyWith(fu => Fu.ask(fu)())
 
-  def fu(using exec: Fu.Executor, tag: ClassTag[A]): kse.flow.Fu[Array[A]] = Fu.flat:
+  def fu(using exec: Fu.Executor, tag: ClassTag[A]): kse.loom.Fu[Array[A]] = Fu.flat:
     var b: scala.collection.mutable.ArrayBuffer[Err] = null
     val v = new Array[A](a.length)
     a.visit(){ (x, i) =>
@@ -131,10 +132,10 @@ extension [A](a: Array[kse.flow.Fu[A]]) {
       else Alt(Err(ErrType.Many(b)))
     else Is(v)
 
-  inline def fuMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => B)): Array[kse.flow.Fu[B]] =
+  inline def fuMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => B)): Array[kse.loom.Fu[B]] =
     a.copyWith(_ map f)
 
-  inline def fuFlatMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => Ask[B])): Array[kse.flow.Fu[B]] =
+  inline def fuFlatMap[B](using exec: Fu.Executor)(inline f: Label[B Or Err] ?=> (A => Ask[B])): Array[kse.loom.Fu[B]] =
     a.copyWith(_ flatMap f)
 }
 
@@ -155,112 +156,3 @@ object Threaded {
     th.start()
     th
 }
-
-
-
-final class Chan[A](bufferSize: Int) {
-  private val buffer = new Array[AnyRef](if bufferSize <= 0 then 1 else if bufferSize > Int.MaxValue - 7 then Int.MaxValue - 7 else bufferSize)
-  private val lock = new ReentrantLock()
-  private val mightHaveSpace = lock.newCondition()
-  private val mightHaveItems = lock.newCondition()
-  private var i0 = 0
-  private var iN = 0
-  private var state: Chan.State = Chan.State.Open
-
-  private inline def locked[A](inline f: => A): A =
-    lock.lockInterruptibly()
-    try f
-    finally lock.unlock()
-
-  inline def +=?(a: A)(using boundary.Label[Chan.State]): Unit = locked:
-    var attempt = true
-    while attempt do
-      state match
-        case Chan.State.Open =>
-          if iN - i0 >= buffer.length then mightHaveSpace.await()
-          else
-            buffer(iN % buffer.length) = a.asInstanceOf[AnyRef]
-            iN += 1
-            attempt = false
-            mightHaveItems.signal()
-        case c => boundary.break(c)
-
-  inline def take_?(using boundary.Label[Chan.State]): A = locked:
-    while iN == i0 do
-      state match
-        case Chan.State.Open => mightHaveItems.await()
-        case c => boundary.break(c)
-    state match
-      case c: Chan.State.Closed => boundary.break(c)
-      case _ =>
-        val i = i0 % buffer.length
-        val ans = buffer(i).asInstanceOf[A]
-        buffer(i) = null
-        i0 += 1
-        mightHaveSpace.signal()
-        ans
-
-  inline def retire(): Unit = locked:
-    state match
-      case Chan.State.Open =>
-        state = Chan.State.ReadOnly
-        mightHaveSpace.signalAll()
-        mightHaveItems.signalAll()
-      case _ =>
-
-  inline def close(): Unit = locked:
-    state match
-      case c: Chan.State.Closed =>
-      case _ =>
-        state = Chan.completed
-        mightHaveSpace.signalAll()
-        mightHaveItems.signalAll()
-
-  inline def panic(err: Err)(using boundary.Label[Chan.State]): Nothing = locked:
-    state = state match
-      case Chan.State.Closed(Alt(e)) => Chan.State.Closed(Alt(Err(e, err)("")))
-      case _ => Chan.State.Closed(Alt(err))
-    boundary.break(state)
-}
-object Chan {
-  enum State:
-    case Open
-    case ReadOnly
-    case Closed(why: Ask[Unit])
-  val completed = State.Closed(Is.unit)
-  val altOpen = Alt(State.Open)
-  val altReadOnly = Alt(State.ReadOnly)
-  val altClosed = Alt(completed)
-}
-
-
-
-/*
-final class Concurrent private (f: => Unit, registrar: Concurrent.Registrar) {}
-object Concurrent {
-  enum Signal:
-    case Live
-    case Done
-    case Halt
-
-  def apply(f: Concurrent.Registrar ?=> Unit): Concurrent =
-    val reg = new Registrar()
-    new Concurrent(f(using reg), reg)
-
-  final class Registrar() {
-    def apply(f: () => Unit): Unit = {}
-    def flat(f: () => Ask[Unit]): Unit = {}
-    def select(fs: Array[() => (Unit | Signal | Ask[Unit])])
-  }
-}
-object Go {
-  inline def apply(f: => Unit)(using reg: Concurrent.Registrar): Unit =
-    reg(() => f)
-
-  inline def flat(f: => Ask[Unit])(using reg: Concurrent.Registrar): Unit =
-    reg.flat(() => f)
-
-  def all(fs: (() => (Unit | Signal | Ask[Unit]))*): Unit =
-    reg.repeat(fs.toArray)
-}
-*/

@@ -353,12 +353,33 @@ Because `Or` is unboxed, this style of error-handling has particularly low overh
 user-defined error strings or a custom `ErrType` are used rather than wrapping exceptions, the failure case also
 has much higher performance than the alternative of throwing exceptions.
 
-Project Loom has delivered low-overhead virtual threads to Java 21, making concurrency especially approachable.  `kse.flow` embraces this
+In addition to these features, kse.flow provides a variety of other nice things that you can find by
+perusing the ScalaDoc, the unit tests, or the code.
+
+### kse.maths
+
+This exists but presently is undocumented.  Feel free to look through the unit tests to see what can be done, however!
+
+A couple of highlights include unsigned primitives (`UInt`, `ULong`, and the like) which do math as they should (use `.unsigned` and `.signed` to
+convert back and forth (`.u` and `.s` if you want less typing), and `.pr` to get a string for the unsigned verson).
+So, for example, `0xE0000000.u / 2.u` is `0x40000000`.  And if you want math to be bounded rather than to wrap, use `+#`, `/#`, etc. operators to
+clip the value inside the range, or `+!`, `/!` etc. to throw an exception.  For example `UByte(0xF0) +# UByte(0x80)` is `UByte(0xFF)`.
+
+But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, and more.
+
+### kse.swarm
+
+This is a work in progress, and isn't well-documented.
+
+Project Loom has delivered low-overhead virtual threads to Java 21, making concurrency especially approachable.  `kse.swarm` embraces this
 with an ultra-lightweight futures system based around virtual threads, where blocking is an encouraged form of concurrency control.
 
 Offload any computation to a virtual thread by using `Fu`:
 
 ```scala
+import kse.flow.*
+import kse.swarm.*
+
 object Concurrent:
   import java.nio.file.{Files, Path}
 
@@ -419,19 +440,6 @@ fail, so the later ones should be cancelled.  The Java mechanism is to use `Inte
 anything that catches and ignores the exception won't be killed, and long-running computations would
 need explicit `Thread.yield` calls to mark points where interruption is acceptable.
 
-In addition to these features, kse.flow provides a variety of other nice things that you can find by
-perusing the ScalaDoc, the unit tests, or the code.
-
-### kse.maths
-
-This exists but presently is undocumented.  Feel free to look through the unit tests to see what can be done, however!
-
-A couple of highlights include unsigned primitives (`UInt`, `ULong`, and the like) which do math as they should (use `.unsigned` and `.signed` to
-convert back and forth (`.u` and `.s` if you want less typing), and `.pr` to get a string for the unsigned verson).
-So, for example, `0xE0000000.u / 2.u` is `0x40000000`.  And if you want math to be bounded rather than to wrap, use `+#`, `/#`, etc. operators to
-clip the value inside the range, or `+!`, `/!` etc. to throw an exception.  For example `UByte(0xF0) +# UByte(0x80)` is `UByte(0xFF)`.
-
-But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, and more.
 
 ### kse.eio
 
