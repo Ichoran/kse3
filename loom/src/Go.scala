@@ -84,6 +84,8 @@ final class Chan[A](bufferSize: Int) {
     boundary.break(state)
 }
 object Chan {
+  
+  
   enum State:
     case Open
     case ReadOnly

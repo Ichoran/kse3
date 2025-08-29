@@ -107,7 +107,7 @@ extension (s: String) {
               canExtend = blank
           else if i < k then
             jN = j
-            canExtend == canExtend && java.lang.Character.isWhitespace(s.charAt(i))
+            canExtend = canExtend && java.lang.Character.isWhitespace(s.charAt(i))
             if !canExtend && jN == j0 then boundary.break()
     dedentBy(if j0 < 0 then "" else s.substring(j0, jN), skipEmptyStart)
 

@@ -14,8 +14,9 @@ import scala.util.boundary
 import scala.util.boundary.Label
 import scala.reflect.ClassTag
 
-import kse.basics._
-import kse.flow._
+import kse.basics.*
+import kse.flow.*
+import kse.maths.*
 
 
 opaque type Fu[A] = Future[Ask[A]]
@@ -91,8 +92,22 @@ object Fu {
       try (fu: Future[Ask[A]]).get()
       catch case e if e.catchable => Alt(Err(e))
 
-    def askWithinMs(timeout: Long): A Or Option[Err] =
-      try (fu: Future[Ask[A]]).get(timeout, java.util.concurrent.TimeUnit.MILLISECONDS).mapAlt(e => Some(e))
+    def ask(timeout: DoubleDuration): A Or Option[Err] =
+      import java.util.concurrent.TimeUnit
+      var t_value = 0L
+      var t_unit =
+        val dt = timeout.unwrap
+        if dt <= 0 then java.util.concurrent.TimeUnit.NANOSECONDS
+        else if dt < 1e-1 then
+          t_value = (dt*1e6).rint.toLong
+          TimeUnit.MICROSECONDS
+        else if dt < 1e6 then
+          t_value = (dt*1e3).rint.toLong
+          TimeUnit.MILLISECONDS
+        else
+          t_value = dt.rint.toLong
+          TimeUnit.SECONDS
+      try (fu: Future[Ask[A]]).get(t_value, t_unit).mapAlt(e => Some(e))
       catch
         case t: java.util.concurrent.TimeoutException => Alt(None)
         case e if e.catchable => Alt(Some(Err(e)))

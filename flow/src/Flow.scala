@@ -509,11 +509,12 @@ inline def catchmatch[A](inline a: => A)[Z](inline handler: PartialFunction[Thro
   *
   * Equivalent to try/finally, except the finally block is at the top.
   *
-  * Works similarly to, but in a block-centric not function-centric manner, defer in Go.
+  * Works similarly to defer in Go, but in a block-centric not function-centric manner.
   * Unlike Go, there are no complex rules about capture: the deferred code is simply executed
-  * at the end of the block, using whatever any mutable values happen to be at the time.
+  * at the end of the block, using whatever any mutable values happen to be at the time.  However,
+  * because the deferred code doesn't have the block in scope, it can't capture those values.
   * 
-  * If one wants to persist a value that will change, one must manually assign it to a val and
+  * If one wants to persist a mutable value that will change, one must manually assign it to a val and
   * use the val.
   * 
   * {{{
