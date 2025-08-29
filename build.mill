@@ -23,7 +23,7 @@ trait Base extends ScalaModule {
 }
 
 
-trait PublishKse3 extends PublishModule {
+trait PublishKse3 extends SonatypeCentralPublishModule {
   def publicationName: String = ""
 
   override def artifactName = {

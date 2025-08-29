@@ -367,7 +367,7 @@ clip the value inside the range, or `+!`, `/!` etc. to throw an exception.  For 
 
 But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, and more.
 
-### kse.swarm
+### kse.loom
 
 This is a work in progress, and isn't well-documented.
 
@@ -378,7 +378,7 @@ Offload any computation to a virtual thread by using `Fu`:
 
 ```scala
 import kse.flow.*
-import kse.swarm.*
+import kse.loom.*
 
 object Concurrent:
   import java.nio.file.{Files, Path}
