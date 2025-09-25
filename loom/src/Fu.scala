@@ -130,10 +130,10 @@ object Fu {
 }
 
 extension [A](a: Array[kse.loom.Fu[A]]) {
-  def allFu(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.loom.Fu[Array[Ask[A]]] = Fu:
+  def allFu()(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.loom.Fu[Array[Ask[A]]] = Fu:
     a.copyWith(fu => Fu.ask(fu)())
 
-  def fu(using exec: Fu.Executor, tag: ClassTag[A]): kse.loom.Fu[Array[A]] = Fu.flat:
+  def fu()(using exec: Fu.Executor, tag: ClassTag[A]): kse.loom.Fu[Array[A]] = Fu.flat:
     var b: scala.collection.mutable.ArrayBuffer[Err] = null
     val v = new Array[A](a.length)
     a.visit(){ (x, i) =>

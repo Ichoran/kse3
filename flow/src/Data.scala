@@ -8,6 +8,8 @@ package kse.flow
 
 import scala.reflect.ClassTag
 
+import scala.util.boundary
+
 import scala.collection.mutable
 import scala.collection.{IterableFactory, IterableFactoryDefaults, SeqOps}
 import scala.collection.generic.DefaultSerializable
@@ -127,7 +129,35 @@ extension [A, CC[_]](coll: CC[A Or Err])(using seq: scala.collection.generic.IsS
     else (ba.result(), bie.result()).asAlt
 
 
-extension [A](a: Array[A Or Err]) {
+extension [A](a: Array[Ask[A]]) {
+  inline def ??[L >: Alt[Err]](using boundary.Label[L], ClassTag[A]): Array[A] =
+    validOrErrors.mapAlt(es => if es.length == 1 then es(0) else Err(es*)("")).?
+    /*
+    var nerr = 0
+    var i = 0
+    while i < a.length do
+      if a(i).isAlt then nerr += 1
+      i += 1
+    if nerr > 0 then
+      val es = new Array[Err](nerr)
+      var j = 0
+      i = 0
+      while i < a.length && j < es.length do
+        a(i).foreachAlt: e =>
+          es(j) = e
+          j += 1
+        i += 1
+      if nerr == 1 then boundary.break(Alt(es(0)))
+      else boundary.break(Alt(Err(es*)("")))
+    else
+      val ans = new Array[A](a.length)
+      i = 0
+      while i < a.length do
+        ans(i) = a(i).get
+        i += 1
+      ans
+    */
+
   def valid(using ClassTag[A]): Ask[Array[A]] = Or.Ret:
     a.copyWith(_.?)
 
@@ -135,31 +165,28 @@ extension [A](a: Array[A Or Err]) {
     a.collectAlt
 
   def validOrErrors(using ClassTag[A]): Array[A] Or Array[Err] =
-    var xs: Array[A] = null
-    var es: Array[Err] = null
-    var xi = 0
-    var ei = 0
-    a.use(): xe =>
-      xe.fold{ x =>
-        if es eq null then
-          if xs eq null then
-            xs = new Array[A](16 min a.length)
-          else
-            if xi == xs.length then xs = xs.enlargeTo(if (xs.length >> 1) + (xs.length >> 2) >= xi then xs.length else 2*xi)
-          xs(xi) = x
-        xi += 1
-      }{ e =>
-        if es eq null then
-          es = new Array[Err](8 min (a.length - xi))
-          xs = null
-        else if ei == es.length then
-          es = es.enlargeTo(if ((a.length - xi) >> 1) >= ei then a.length - xi else 2*ei)
-        es(ei) = e
-        ei += 1
-      }
-    if es ne null then Alt(es.shrinkTo(ei))
-    else if xs ne null then Is(xs)
-    else Is(new Array[A](0))
+    var nerr = 0
+    var i = 0
+    while i < a.length do
+      if a(i).isAlt then nerr += 1
+      i += 1
+    if nerr > 0 then
+      val es = new Array[Err](nerr)
+      var j = 0
+      i = 0
+      while i < a.length && j < es.length do
+        a(i).foreachAlt: e =>
+          es(j) = e
+          j += 1
+        i += 1
+      Alt(es)
+    else
+      val ans = new Array[A](a.length)
+      i = 0
+      while i < a.length do
+        ans(i) = a(i).get
+        i += 1
+      Is(ans)
 
   def validOrIndexedResults(using ClassTag[A]): Array[A] Or (Array[A], Array[(Int, Err)]) =
     var xs: Array[A] = null

@@ -765,11 +765,12 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
           val i = arg.indexOf('=')
           val argname = if i < 0 then arg.select(2 to End) else arg.select(2, i)
           if !labels.contains(argname) then
-            Err ?# s"No such option: argname\n  in argument ${i+1}, $arg"
+            Err ?# s"No such option: $argname\n  in argument ${i+1}, $arg"
         else if arg.startsWith("-") then
           val unknown = arg.drop(1).filterNot(shorts contains _)
           if unknown.nonEmpty then
-            Err ?# s"No such option${if unknown.length > 1 then "s" else ""}: ${Parse.listy(unknown.map(_.toString))}\n  in argument ${i+1}, $arg"
+            val opt_s = if unknown.length > 1 then "s" else ""
+            Err ?# s"No such option$opt_s: ${Parse.listy(unknown.map(_.toString))}\n  in argument ${i+1}, $arg"
     val used = args.copyWith(_ => 0)
     Args(args, used, labels, Cleasy.parse_?(options, args, i => used(i) += 1))
 
@@ -818,7 +819,7 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
                   if o.short != '-' then shortW = shortW max 3 + (if o.parse.argument == Parse.ArgStyle.Always then n else 0)
                 aboutW = aboutW max o.about.length
       if !debug then
-        if sb.length > 1 && sb(End-1) != '\n' then sb += '\n'
+        if sb.length > 1 && sb(End) != '\n' then sb += '\n'
         if labelW < 4 then labelW = 4
         if aboutW < 4 then aboutW = 4
         val lower = MkStr: s2 =>

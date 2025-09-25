@@ -349,6 +349,8 @@ val pi2 = positiveInt("45wx")  // Alt(Err("2 characters are not digits"))
 val pi3 = positiveInt("123456789013245")  // Exception packed in Err
 ```
 
+If you have collected your results in an `Array`, you can use `??` to get the values, or return to a boundary with all the errors packed in an `ErrType.Many`.
+
 Because `Or` is unboxed, this style of error-handling has particularly low overhead for the success case, and if
 user-defined error strings or a custom `ErrType` are used rather than wrapping exceptions, the failure case also
 has much higher performance than the alternative of throwing exceptions.

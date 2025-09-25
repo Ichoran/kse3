@@ -827,6 +827,9 @@ extension (i: Int) {
   @targetName("int_toUShort") inline def toUShort: kse.maths.UShort = UShort.wrap((i & 0xFFFF).toShort)
   @targetName("int_toUInt")   inline def toUInt: kse.maths.UInt     = UInt.wrap(i)
   @targetName("int_toULong")  inline def toULong: kse.maths.ULong   = ULong.wrap(i & 0xFFFFFFFFL)
+  @targetName("int_is_UByte") inline def u8: kse.maths.UByte = inline i match
+    case inBound: UByte.ValidIntValues => UByte(inBound)
+    case _ => compiletime.error("Cannot prove value is in UByte range")
 
   @targetName("int_clampNeg")    def clampNeg: Int                   = if i != Int.MinValue then -i else Int.MaxValue
   @targetName("int_clampByte")   def clampToByte: Byte               = if i < -128 then -128 else if i > 127 then 127 else i.toByte

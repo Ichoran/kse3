@@ -171,6 +171,10 @@ class LoomTest {
     */
 
 
+  // @Test  // Commented out - channel implementation needs more work
+  // def goChannelTest(): Unit =
+  //   GoTestImpl.runAllTests()
+
   @Test
   def loomTest(): Unit =
     import java.util.concurrent.atomic.{AtomicLong, AtomicInteger}
@@ -241,8 +245,8 @@ class LoomTest {
     T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ x*x }.? + 1).orAlt[Err] }.ask() ==== 10
     T ~ Fu{ "eel".length }.flatMap{ x => (Fu{ "e"(x)}.? + 1).orAlt[Err] }.ask() ==== runtype[Alt[?]]
     def fus(): Array[Fu[Int]] = Array(Fu{ "eel".length }, Fu{ "eel".toInt }, Fu.flat{ nice{ "bass".length } }, Fu.flat{ nice{ "bass".toInt } })
-    T ~ fus().allFu.ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
-    T ~ fus().fu.ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
+    T ~ fus().allFu().ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
+    T ~ fus().fu().ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
     T ~ fus().fuMap(n => 14/(n-3)).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)
     T ~ fus().fuFlatMap(n => nice{ "123abc".take(n).toInt }).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(123, -1, -1 ,-1)
     val v1 = new AtomicInteger(0)

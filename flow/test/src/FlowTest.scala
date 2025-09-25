@@ -1901,10 +1901,13 @@ class FlowTest {
     T ~ as.valid                        ==== eparse      --: typed[Array[Int] Or Err]
     T ~ as.filter(_.isIs).valid.get     =**= Array(5, 6)
     T ~ as.errors                       =**= as.collect{ case Alt(a) => a }
+    T ~ Ask(as.filter(_.isIs).??).get   =**= Array(5, 6)
+    T ~ Ask(as.drop(3).??)              ==== as(3)
     T ~ as.validOrErrors.alt            =**= as.collectAlt
     T ~ as.filter(_.isIs).validOrErrors.get         =**= xs.collectIs
     T ~ as.filter(_.isIs).validOrIndexedResults.get =**= Array(5, 6)
     T ~ as.validOrIndexedResults.alt.ops(_.toList, _.toList) ==== (List(5, 6), List((1, xs(1).alt), (3, xs(3).alt)))
+    T ~ Ask(as.??).existsAlt(_.isInstanceOf[ErrType.Many]) ==== true
 
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== typed[List[Int] Or Err]
     T ~ List("2", "e").validMap(s => nice{ s.toInt }) ==== runtype[Alt[?]]
