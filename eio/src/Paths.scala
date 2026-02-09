@@ -283,7 +283,7 @@ extension (the_path: Path) {
     nice{ Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE) }
 
 
-  inline def inZip(inline f: boundary.Label[Unit Or Err] ?=> (Path => Unit)): Ask[Unit] =
+  inline def inZip(inline f: boundary.Label[Ask[Unit]] ?=> (Path => Unit)): Ask[Unit] =
     Resource.Nice{
       val fsys = FileSystems.newFileSystem(the_path, null: ClassLoader)
       var result: Path Or Err = Err.or(s"No directory structure inside $the_path")

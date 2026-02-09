@@ -65,15 +65,21 @@ object Colour {
 
   inline def use_packed_floats(packed: Long)(inline fa: Float => Unit, inline fb: Float => Unit, inline fc: Float => Unit): Unit =
     if packed >= 0 then
-      fa(bits_to_float(((packed >>> 42) & 0x1FFFFF).toInt))
+      fa(bits_to_float(((packed >>> 42)           ).toInt))
       fb(bits_to_float(((packed >>> 21) & 0x1FFFFF).toInt))
       fc(bits_to_float(( packed         & 0x1FFFFF).toInt))
+
+  inline def packed_float_fn[A](packed: Long)(inline f: (Float, Float, Float) => A): A =
+    val one   = if packed >= 0 then bits_to_float(((packed >>> 42)           ).toInt) else Float.NaN
+    val two   = if packed >= 0 then bits_to_float(((packed >>> 21) & 0x1FFFFF).toInt) else Float.NaN
+    val three = if packed >= 0 then bits_to_float(( packed         & 0x1FFFFF).toInt) else Float.NaN
+    f(one, two, three)
 }
 
 
 opaque type Rgb = Int
 object Rgb {
-  inline def wrap(i: Int): Ergb = i
+  inline def wrap(i: Int): Rgb = i
   inline def apply(r: UByte.ValidIntValues, g: UByte.ValidIntValues, b: UByte.ValidIntValues): Rgb =
     (r << 16) | (g << 8) | b
   inline def apply(r: UByte, g: UByte, b: UByte): Rgb =
@@ -90,6 +96,7 @@ object Rgb {
     (ir << 16) | (ig << 8) | ib
 
   extension (color: Rgb) {
+    inline def unwrap: Int = color
     inline def argb: Argb = (color: Int) | 0xFF000000
     inline def alpha(value: UByte): Argb = ((color: Int) & 0x00FFFFFF) | (value.toInt << 24)
     inline def alpha[V <: Int | Float | Double](value: V): Argb = inline value match
@@ -258,3 +265,129 @@ opaque type Ehsv = Long
 object Ehsv {
   given Translucent[Ehsv, Long] with {}
 }
+
+opaque type Oklab = Long
+object Oklab {
+  inline def wrap(l: Long): Oklab = l
+  inline def apply(l: Float, a: Float, b: Float): Oklab = Colour.pack_floats(l, a, b)
+  inline def lch(l: Float, c: Float, h: Float): Oklab = Colour.pack_floats(l, (c * h.cos).toFloat, (c * h.sin).toFloat)
+
+  def from(r: Float, g: Float, b: Float): Oklab =
+    val l = (r * 0.4122214708f  +  g * 0.5363325363f  +  b * 0.0514459929f).cbrt.toFloat
+    val m = (r * 0.2119034982f  +  g * 0.6806995451f  +  b * 0.1073969566f).cbrt.toFloat
+    val s = (r * 0.0883024619f  +  g * 0.2817188376f  +  b * 0.6299787005f).cbrt.toFloat
+
+    Colour.pack_floats(
+      l * 0.2104542553f  +  m * 0.7936177850f  -  s * 0.0040720468f,
+      l * 1.9779984951f  -  m * 2.4285922050f  +  s * 0.4505937099f,
+      l * 0.0259040371f  +  m * 0.7827717662f  -  s * 0.8086757660f
+    )
+
+  def sRGB(rgb: Rgb): Oklab =
+    val r = (Rgb.rF(rgb) pow 2.2).toFloat
+    val g = (Rgb.gF(rgb) pow 2.2).toFloat
+    val b = (Rgb.bF(rgb) pow 2.2).toFloat
+    from(r, g, b)
+
+  def lRGB(rgb: Rgb): Oklab =
+    val r = Rgb.rF(rgb)
+    val g = Rgb.gF(rgb)
+    val b = Rgb.bF(rgb)
+    from(r, g, b)
+
+  def blend(c1: Oklab, w1: Float)(c2: Oklab, w2: Float): Oklab =
+    val x1: Long = c1
+    val x2: Long = c2
+    if x1 < 0 || x2 < 0 then -1L
+    else
+      val l1 = Colour.bits_to_float((x1 >>> 42).toInt)
+      val l2 = Colour.bits_to_float((x2 >>> 42).toInt)
+      val l = l1*w1 + l2*w2
+      if l >= 0 then
+        val d = 1.0f / (if w1*w2 < 0 then math.max(w1.abs, w2.abs) else (w1 + w2).abs)
+        val u1 = w1*d
+        val u2 = w2*d
+        val a1 = Colour.bits_to_float((x1 >>> 21).toInt & 0x1FFFFF)
+        val a2 = Colour.bits_to_float((x2 >>> 21).toInt & 0x1FFFFF)
+        val a = a1*u1 + a2*u2
+        val b1 = Colour.bits_to_float((x1 & 0x1FFFFF).toInt)
+        val b2 = Colour.bits_to_float((x2 & 0x1FFFFF).toInt)
+        val b = b1*u1 + b2*u2
+        Colour.pack_floats(l, a, b)
+      else 0L
+
+  def spiral(c1: Oklab, c2: Oklab, fraction: Float): Oklab =
+    val x1: Long = c1
+    val x2: Long = c2
+    if x1 < 0 || x2 < 0 then -1L
+    else
+      val p = fraction.clamp(0f, 1f)
+      val q = 1-p
+      val l1 = Colour.bits_to_float((x1 >>> 42).toInt)
+      val l2 = Colour.bits_to_float((x2 >>> 42).toInt)
+      val a1 = Colour.bits_to_float((x1 >>> 21).toInt & 0x1FFFFF)
+      val a2 = Colour.bits_to_float((x2 >>> 21).toInt & 0x1FFFFF)
+      val b1 = Colour.bits_to_float((x1 & 0x1FFFFF).toInt)
+      val b2 = Colour.bits_to_float((x2 & 0x1FFFFF).toInt)
+      val c1 = (a1.sq + b1.sq).sqrt.toFloat
+      val c2 = (a2.sq + b2.sq).sqrt.toFloat
+      val h1 = math.atan2(b1, a1).toFloat
+      val h2 = { val v = math.atan2(b2, a2); if v < h1 then v + NumericConstants.TwoPi else v }.toFloat
+      Oklab.lch(l1*p + l2*q, c1*p + c2*q, h1*p + h2*q)
+
+  extension (color: Oklab) {
+    inline def unwrap: Long = color
+    def l: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 42).toInt)
+    inline def lOp(inline f: Float => Float): Oklab =
+      val x: Long = color
+      val v = Colour.float_to_bits(f(Oklab.l(color)))
+      if v < 0 then -1L else (x & 0x3FFFFFFFFFFL) | (v.toLong << 42)
+    def a: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)
+    def b: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x & 0x1FFFFF).toInt)
+    def c: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else (Colour.bits_to_float((x & 0x1FFFFF).toInt).sq + Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF).sq).sqrt.toFloat
+    def h: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else java.lang.Math.atan2(Colour.bits_to_float((x & 0x1FFFFF).toInt), Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)).toFloat
+    def *(x: Float): Oklab =
+      val y: Long = color
+      if y < 0 then y
+      else
+        val l = Colour.float_to_bits(Colour.bits_to_float((y >>> 42).toInt) * x)
+        if l < 0 then -1L else (y & 0x3FFFFFFFFFFL) | (l.toLong << 42)
+    inline def /(x: Float): Oklab = Oklab.*(color)(1f/x)
+    inline def +(other: Oklab): Oklab = Oklab.blend(color, 1.0)(other, 1.0)
+
+    inline def rgbFn[A](inline rgbf: (Float, Float, Float) => A): A =
+      val x: Long = color
+      var r, g, b = Float.NaN
+      if x >= 0 then
+        val L = Colour.bits_to_float((x >>> 42).toInt)
+        val A = Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)
+        val B = Colour.bits_to_float((x & 0x1FFFFF).toInt)
+        val l = (L  +  A * 0.3963377774f  +  B * 0.2158037573f).cube.toFloat
+        val m = (L  -  A * 0.1055613458f  -  B * 0.0638541728f).cube.toFloat
+        val s = (L  -  A * 0.0894841775f  -  B * 1.2914855480f).cube.toFloat
+        r  =  +4.0767416621f * l  -  3.3077115913f * m  +  0.2309699292f * s
+        g  =  -1.2684380046f * l  +  2.6097574011f * m  -  0.3413193965f * s
+        b  =  -0.0041960863f * l  -  0.7034186147f * m  +  1.7076147010f * s
+      rgbf(r, g, b)
+
+    def rgb: Rgb = Oklab.rgbFn(color)((r, g, b) => Rgb.F(r, g, b))
+    def srgb: Rgb = Oklab.rgbFn(color)((r, g, b) => Rgb.D(r pow 1/2.2, g pow 1/2.2, b pow 1/2.2))
+
+    def pr: String =
+      Colour.packed_float_fn(color): (l, a, b) =>
+        f"Oklab[$l%.3f $a%.3f $b%.3f]"
+  }
+}
+
+extension (f: Float)
+  inline def *(color: Oklab): Oklab = Oklab.*(color)(f)

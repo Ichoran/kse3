@@ -3232,47 +3232,47 @@ class MathTest {
     val ls = as.toList
     val two = Array(2, 3).est()
     val one = Array(7).est()
-    val m = Est.mut
+    val m = Est.M()
     m ++= ai
-    T ~ m.n               ==== 7
-    T ~ m.mean            =~~= 4.42857142857143
-    T ~ m.ssq             =~~= ai.map(x => x.toDouble.sq).sum
-    T ~ m.sse             =~~= ai.map(x => (x - 4.42857142857143).sq).sum
-    T ~ m.sum             =~~= ai.sum.toDouble
-    T ~ m.variance        =~~= 7.95238095238095
-    T ~ two.variance      =~~= 0.5
-    T ~ one.variance      =~~= 0.0
-    T ~ m.sd              =~~= 2.81999662276056
-    T ~ two.sd            =~~= 0.5.sqrt
-    T ~ one.sd            =~~= 0.0
-    T ~ m.semSq           =~~= 1.06585853740949.sq
-    T ~ two.semSq         =~~= 0.25
-    T ~ one.semSq         ==== Double.NaN
-    T ~ m.sem             =~~= 1.06585853740949
-    T ~ two.sem           =~~= 0.5
-    T ~ one.sem           =~~= Double.NaN
-    T ~ m.cv              =~~= m.sd / m.mean
-    T ~ m.snr             =~~= m.mean / m.sem
-    T ~ m.pmSD.value      =~~= m.mean.toFloat
-    T ~ m.pmSD.error      =~~= m.sd.toFloat
-    T ~ m.pmSEM.value     =~~= m.mean.toFloat
-    T ~ m.pmSEM.error     =~~= m.sem.toFloat
-    T ~ m.mutableCopy     ==== m
-    T ~ (m ++ m).n        ==== 2*m.n
-    T ~ (m ++ m).mean     =~~= m.mean
-    T ~ (m ++ m).sse      =~~= 2*m.sse
-    T ~ Est.from(ai).n    =~~= m.n
-    T ~ Est.from(ai).mean =~~= m.mean
-    T ~ Est.from(ai).sse  =~~= m.sse
-    T ~ Est.from(al).n    =~~= m.n
-    T ~ Est.from(al).mean =~~= m.mean
-    T ~ Est.from(al).sse  =~~= m.sse
-    T ~ Est.from(af).n    =~~= m.n
-    T ~ Est.from(af).mean =~~= m.mean
-    T ~ Est.from(af).sse  =~~= m.sse
-    T ~ Est.from(ad).n    =~~= m.n
-    T ~ Est.from(ad).mean =~~= m.mean
-    T ~ Est.from(ad).sse  =~~= m.sse
+    T ~ m.n             ==== 7
+    T ~ m.mean          =~~= 4.42857142857143
+    T ~ m.ssq           =~~= ai.map(x => x.toDouble.sq).sum
+    T ~ m.sse           =~~= ai.map(x => (x - 4.42857142857143).sq).sum
+    T ~ m.sum           =~~= ai.sum.toDouble
+    T ~ m.variance      =~~= 7.95238095238095
+    T ~ two.variance    =~~= 0.5
+    T ~ one.variance    =~~= 0.0
+    T ~ m.sd            =~~= 2.81999662276056
+    T ~ two.sd          =~~= 0.5.sqrt
+    T ~ one.sd          =~~= 0.0
+    T ~ m.semSq         =~~= 1.06585853740949.sq
+    T ~ two.semSq       =~~= 0.25
+    T ~ one.semSq       ==== Double.NaN
+    T ~ m.sem           =~~= 1.06585853740949
+    T ~ two.sem         =~~= 0.5
+    T ~ one.sem         =~~= Double.NaN
+    T ~ m.cv            =~~= m.sd / m.mean
+    T ~ m.snr           =~~= m.mean / m.sem
+    T ~ m.pmSD.value    =~~= m.mean.toFloat
+    T ~ m.pmSD.error    =~~= m.sd.toFloat
+    T ~ m.pmSEM.value   =~~= m.mean.toFloat
+    T ~ m.pmSEM.error   =~~= m.sem.toFloat
+    T ~ m.mutableCopy   ==== m
+    T ~ (m ++ m).n      ==== 2*m.n
+    T ~ (m ++ m).mean   =~~= m.mean
+    T ~ (m ++ m).sse    =~~= 2*m.sse
+    T ~ Est.of(ai).n    =~~= m.n
+    T ~ Est.of(ai).mean =~~= m.mean
+    T ~ Est.of(ai).sse  =~~= m.sse
+    T ~ Est.of(al).n    =~~= m.n
+    T ~ Est.of(al).mean =~~= m.mean
+    T ~ Est.of(al).sse  =~~= m.sse
+    T ~ Est.of(af).n    =~~= m.n
+    T ~ Est.of(af).mean =~~= m.mean
+    T ~ Est.of(af).sse  =~~= m.sse
+    T ~ Est.of(ad).n    =~~= m.n
+    T ~ Est.of(ad).mean =~~= m.mean
+    T ~ Est.of(ad).sse  =~~= m.sse
 
     val m2 = m.snapshot
     m -= 1
@@ -3317,11 +3317,11 @@ class MathTest {
     T ~ ai.toVector.est()      ==== m2
     T ~ as.estWith()(_.length) ==== m2
     T ~ ls.estWith()(_.length) ==== m2
-    T ~ Est.M.empty            ==== Est.mut
-    T ~ Est.M.from(ai)         ==== Est.from(ai)
-    T ~ Est.M.from(al)         ==== Est.from(al)
-    T ~ Est.M.from(af)         ==== Est.from(af)
-    T ~ Est.M.from(ad)         ==== Est.from(ad)
+    T ~ Est.M()                ==== new Est.M(0, 0, 0)
+    T ~ Est.M.from(ai)         ==== Est.of(ai)
+    T ~ Est.M.from(al)         ==== Est.of(al)
+    T ~ Est.M.from(af)         ==== Est.of(af)
+    T ~ Est.M.from(ad)         ==== Est.of(ad)
 
     T ~ as.estWith(1, 5)(_.length).n          ==== m.n
     T ~ as.estWith(1, 5)(_.length).mean       =~~= m.mean
@@ -3338,7 +3338,7 @@ class MathTest {
     T ~ Est.M.fromSEM(m2.n)(m2.pmSEM).sse.toFloat  =~~= m2.sse.toFloat
 
     val m3 = m.snapshot
-    T ~ m.tap(_.reset())                               ==== Est.mut
+    T ~ m.tap(_.reset())                               ==== Est.M()
     T ~ m2.mutableCopy.tap(_ += 400L).n                ==== m2.n + 1
     T ~ m2.mutableCopy.tap(_ += 400L).mean             =~~= (al :+ 400L).est().mean
     T ~ m2.mutableCopy.tap(_ += 400L).sse              =~~= (al :+ 400L).est().sse
@@ -3366,105 +3366,105 @@ class MathTest {
     T ~ m2.mutableCopy.tap(_ ++= ad).mean              =~~= (ad ++ ad).est().mean
     T ~ m2.mutableCopy.tap(_ ++= ad).sse               =~~= (ad ++ ad).est().sse
     T ~ m2.mutableCopy.tap(_ ++= Array(Double.NaN))    ==== m2
-    T ~ Est.mut.tap(_ ++= ai.iterator).n               ==== m2.n
-    T ~ Est.mut.tap(_ ++= ai.iterator).mean            =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= ai.iterator).sse             =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= al.iterator).n               ==== m2.n
-    T ~ Est.mut.tap(_ ++= al.iterator).mean            =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= al.iterator).sse             =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= af.iterator).n               ==== m2.n
-    T ~ Est.mut.tap(_ ++= af.iterator).mean            =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= af.iterator).sse             =~~= m2.sse
-    T ~ Est.mut.tap(_ ++= ad.iterator).n               ==== m2.n
-    T ~ Est.mut.tap(_ ++= ad.iterator).mean            =~~= m2.mean
-    T ~ Est.mut.tap(_ ++= ad.iterator).sse             =~~= m2.sse
+    T ~ Est.M().tap(_ ++= ai.iterator).n               ==== m2.n
+    T ~ Est.M().tap(_ ++= ai.iterator).mean            =~~= m2.mean
+    T ~ Est.M().tap(_ ++= ai.iterator).sse             =~~= m2.sse
+    T ~ Est.M().tap(_ ++= al.iterator).n               ==== m2.n
+    T ~ Est.M().tap(_ ++= al.iterator).mean            =~~= m2.mean
+    T ~ Est.M().tap(_ ++= al.iterator).sse             =~~= m2.sse
+    T ~ Est.M().tap(_ ++= af.iterator).n               ==== m2.n
+    T ~ Est.M().tap(_ ++= af.iterator).mean            =~~= m2.mean
+    T ~ Est.M().tap(_ ++= af.iterator).sse             =~~= m2.sse
+    T ~ Est.M().tap(_ ++= ad.iterator).n               ==== m2.n
+    T ~ Est.M().tap(_ ++= ad.iterator).mean            =~~= m2.mean
+    T ~ Est.M().tap(_ ++= ad.iterator).sse             =~~= m2.sse
 
-    T ~ Est.mut.tap(_.addWith(as)(_.length)).n             ==== m2.n
-    T ~ Est.mut.tap(_.addWith(as)(_.length)).mean          =~~= m2.mean
-    T ~ Est.mut.tap(_.addWith(as)(_.length)).sse           =~~= m2.sse
-    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).n    ==== m2.n
-    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).mean =~~= m2.mean
-    T ~ Est.mut.tap(_.addWith(ls.iterator)(_.length)).sse  =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(ai)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).n              ==== m2.n
-    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).mean           =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(ai.clip)(-5, 99)).sse            =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(ai)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).n                ==== m3.n
-    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).mean             =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(ai.clip)(1, 5)).sse              =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).n              ==== m2.n
-    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).mean           =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(al.clip)(-5, 99)).sse            =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(al)(1, 5)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(al)(1, 5)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(al)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).n                ==== m3.n
-    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).mean             =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(al.clip)(1, 5)).sse              =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).n              ==== m2.n
-    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).mean           =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(af.clip)(-5, 99)).sse            =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(af)(1, 5)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(af)(1, 5)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(af)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).n                ==== m3.n
-    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).mean             =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(af.clip)(1, 5)).sse              =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).n              ==== m2.n
-    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).mean           =~~= m2.mean
-    T ~ Est.mut.tap(_.addRange(ad.clip)(-5, 99)).sse            =~~= m2.sse
-    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).n                     ==== m3.n
-    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).mean                  =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(ad)(1, 5)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).n                ==== m3.n
-    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).mean             =~~= m3.mean
-    T ~ Est.mut.tap(_.addRange(ad.clip)(1, 5)).sse              =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(-5, 99)(_.length))           ==== thrown[ArrayIndexOutOfBoundsException]
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).n    ==== m2.n
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).mean =~~= m2.mean
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).sse  =~~= m2.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).n           ==== m3.n
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).mean        =~~= m3.mean
-    T ~ Est.mut.tap(_.addRangeWith(as)(1, 5)(_.length)).sse         =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).n      ==== m3.n
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).mean   =~~= m3.mean
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1, 5)(_.length)).sse    =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(1 to End-2)(_.length)).sse =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as)(1 to 4)(_.length)).sse     =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai.clip)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai.clip)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ai.clip)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al.clip)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al.clip)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(al.clip)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af.clip)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af.clip)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(af.clip)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad.clip)(Iv(1, 5))).sse                 =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad.clip)(1 to End-2)).sse               =~~= m3.sse
-    T ~ Est.mut.tap(_.addRange(ad.clip)(1 to 4)).sse                   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1 to End-2)(_.length)).sse =~~= m3.sse
-    T ~ Est.mut.tap(_.addRangeWith(as.clip)(1 to 4)(_.length)).sse     =~~= m3.sse
+    T ~ Est.M().tap(_.addWith(as)(_.length)).n             ==== m2.n
+    T ~ Est.M().tap(_.addWith(as)(_.length)).mean          =~~= m2.mean
+    T ~ Est.M().tap(_.addWith(as)(_.length)).sse           =~~= m2.sse
+    T ~ Est.M().tap(_.addWith(ls.iterator)(_.length)).n    ==== m2.n
+    T ~ Est.M().tap(_.addWith(ls.iterator)(_.length)).mean =~~= m2.mean
+    T ~ Est.M().tap(_.addWith(ls.iterator)(_.length)).sse  =~~= m2.sse
+    T ~ Est.M().tap(_.addRange(ai)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.M().tap(_.addRange(ai.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.M().tap(_.addRange(ai.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.M().tap(_.addRange(ai.clip)(-5, 99)).sse            =~~= m2.sse
+    T ~ Est.M().tap(_.addRange(ai)(1, 5)).n                     ==== m3.n
+    T ~ Est.M().tap(_.addRange(ai)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(ai)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.M().tap(_.addRange(ai.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(ai.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.M().tap(_.addRange(al.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.M().tap(_.addRange(al.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.M().tap(_.addRange(al.clip)(-5, 99)).sse            =~~= m2.sse
+    T ~ Est.M().tap(_.addRange(al)(1, 5)).n                     ==== m3.n
+    T ~ Est.M().tap(_.addRange(al)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(al)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.M().tap(_.addRange(al.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(al.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.M().tap(_.addRange(af.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.M().tap(_.addRange(af.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.M().tap(_.addRange(af.clip)(-5, 99)).sse            =~~= m2.sse
+    T ~ Est.M().tap(_.addRange(af)(1, 5)).n                     ==== m3.n
+    T ~ Est.M().tap(_.addRange(af)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(af)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.M().tap(_.addRange(af.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(af.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad)(-5, 99))                     ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.M().tap(_.addRange(ad.clip)(-5, 99)).n              ==== m2.n
+    T ~ Est.M().tap(_.addRange(ad.clip)(-5, 99)).mean           =~~= m2.mean
+    T ~ Est.M().tap(_.addRange(ad.clip)(-5, 99)).sse            =~~= m2.sse
+    T ~ Est.M().tap(_.addRange(ad)(1, 5)).n                     ==== m3.n
+    T ~ Est.M().tap(_.addRange(ad)(1, 5)).mean                  =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(ad)(1, 5)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad.clip)(1, 5)).n                ==== m3.n
+    T ~ Est.M().tap(_.addRange(ad.clip)(1, 5)).mean             =~~= m3.mean
+    T ~ Est.M().tap(_.addRange(ad.clip)(1, 5)).sse              =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as)(-5, 99)(_.length))           ==== thrown[ArrayIndexOutOfBoundsException]
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).n    ==== m2.n
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).mean =~~= m2.mean
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(-5, 99)(_.length)).sse  =~~= m2.sse
+    T ~ Est.M().tap(_.addRangeWith(as)(1, 5)(_.length)).n           ==== m3.n
+    T ~ Est.M().tap(_.addRangeWith(as)(1, 5)(_.length)).mean        =~~= m3.mean
+    T ~ Est.M().tap(_.addRangeWith(as)(1, 5)(_.length)).sse         =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(1, 5)(_.length)).n      ==== m3.n
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(1, 5)(_.length)).mean   =~~= m3.mean
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(1, 5)(_.length)).sse    =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as)(1 to End-2)(_.length)).sse =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as)(1 to 4)(_.length)).sse     =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ai.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(al.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(af.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad.clip)(Iv(1, 5))).sse                 =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad.clip)(1 to End-2)).sse               =~~= m3.sse
+    T ~ Est.M().tap(_.addRange(ad.clip)(1 to 4)).sse                   =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(Iv(1, 5))(_.length)).sse   =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(1 to End-2)(_.length)).sse =~~= m3.sse
+    T ~ Est.M().tap(_.addRangeWith(as.clip)(1 to 4)(_.length)).sse     =~~= m3.sse
 
 
 
@@ -3813,8 +3813,8 @@ class MathTest {
     val N = 64
     val a = (new Array[Double](N)).tap(_.randomGaussian(Pcg64(897158911235L))).sorted
     val e = a.est()
-    val b = Bootstrap(1024)(                       0, N)(Est.M.empty)((m, i) => m += a(i))
-    val c = Bootstrap(1024)(Pcg64(1789157893427L))(0, N)(Est.M.empty)((m, i) => m += a(i))
+    val b = Bootstrap(1024)(                       0, N)(Est.M())((m, i) => m += a(i))
+    val c = Bootstrap(1024)(Pcg64(1789157893427L))(0, N)(Est.M())((m, i) => m += a(i))
     val p = b.pm(_.mean)
     val q = c.pm(_.mean)
     T ~ e.pmSEM =~~= b.value.pmSEM

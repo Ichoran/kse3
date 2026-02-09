@@ -21,7 +21,7 @@ supposed to take care of any necessary ugly stuff so you don't have to.
 ## How do I get it?
 
 Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
-You'll need to specify an appropriate version of Scala.  For example, in mill:
+You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala
 def scalaVersion = "3.7.0"
@@ -30,20 +30,22 @@ def scalaVersion = "3.7.0"
 And add at least one of
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.4.1"
-ivy"com.github.ichoran::kse3-flow:0.4.1"
-ivy"com.github.ichoran::kse3-maths:0.4.1"
-ivy"com.github.ichoran::kse3-eio:0.4.1"
+mvn"com.github.ichoran::kse3-basics:0.4.2"
+mvn"com.github.ichoran::kse3-flow:0.4.2"
+mvn"com.github.ichoran::kse3-maths:0.4.2"
+mvn"com.github.ichoran::kse3-loom:0.4.2"
+mvn"com.github.ichoran::kse3-eio:0.4.2"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
 //> using scala 3.7.0
-//> using dep com.github.ichoran::kse3-basics:0.4.1
-//> using dep com.github.ichoran::kse3-flow:0.4.1
-//> using dep com.github.ichoran::kse3-maths:0.4.1
-//> using dep com.github.ichoran::kse3-eio:0.4.1
+//> using dep com.github.ichoran::kse3-basics:0.4.2
+//> using dep com.github.ichoran::kse3-flow:0.4.2
+//> using dep com.github.ichoran::kse3-maths:0.4.2
+//> using dep com.github.ichoran::kse3-loom:0.4.2
+//> using dep com.github.ichoran::kse3-eio:0.4.2
 ```
 
 Because scala-cli does not by default use the default JVM and does not use Java 21 by default,
@@ -142,7 +144,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.4.1"
+ivy"com.github.ichoran::kse3-basics:0.4.2"
 ```
 
 and in your code,
@@ -247,7 +249,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.4.1"
+ivy"com.github.ichoran::kse3-flow:0.4.2"
 ```
 
 and in your code,
@@ -609,19 +611,26 @@ type, `fooTo` should allow it.
 5. To re-create the same object with a different value computed from the
 existing one, use `fooOp` and a function to compute the new value.
 
-6. To set a mutable value where setting cannot go wrong, use `.foo =` (i.e.
-the `foo_=` method).  If it can go wrong, `.fooSet` is allowed to return an
-error value.
+6. To set a mutable value where setting cannot go wrong and access is simple,
+use `.foo =` (i.e. the `foo_=` method) as a companion to the `.foo` accessor.
+If it can go wrong, `.fooSet` is allowed to return an error value.
 
-7. To set or alter a mutable field inline, use `.fooPoke(f)`; this will return
-the object that you've modified, so it should only be provided if errors are
-rare.
+7. To alter a mutable field in place, use `fooZap` (which may but need not
+return an error value).
 
 8. If there are both self-mutating and new-object-creating variants of the
 same method, the former should have `Me` appended, e.g. `reverseMe()` and
 the latter should be in past tense, e.g. `reversed`.
 The `Me` notation is generally considered good form regardless for
 self-modifying methods, unless the naming is clunky.
+
+9. If it makes sense to access by range, the convention is to supply all of
+`(i0: Int, iN: Int)`--start and stop indices (start inclusive, stop exclusive);
+`(ivx: Iv.X)`--custom interval handling like `3 to End-2`; and
+`(inline rg: Range)`--macro-based interception of `1 to 3` to efficient form.
+Generally the latter two should be inline forwarders to the first.  When
+arbitrary indexing makes sense, both `Array[Int]` and `IntStepper` should
+ideally be provided.
 
 #### Control Flow, Exceptions and Error Handling
 

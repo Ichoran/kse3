@@ -213,11 +213,11 @@ class LoomTest {
     T ~ { dt.get() < 50000000L } ==== true
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
     val fs = alnum.arr.map(c => Fu{ zzzz(100); n.++; c })
-    val ans: Array[Char] Or Err = time{ fs.fu.ask() }
+    val ans: Array[Char] Or Err = time{ fs.fu().ask() }
     T ~ (dt.get/1e9 > 0.05)  ==== true
     T ~ (dt.get/1e9 < 0.15)  ==== true
     T ~ ans.map(_.mkString)  ==== alnum --: typed[String Or Err]
-    T ~ fs.fu.ask().get =**= alnum.arr.copyWith(x => x.orAlt[Err])
+    T ~ fs.fu().ask().get =**= alnum.arr.copyWith(x => x.orAlt[Err])
     T ~ n.get               ==== 3 + alnum.length
     T ~ Fu.flat{ nice{ "1".toInt }    }.map(_ * 3).ask() ==== 3 --: typed[Int Or Err]
     T ~ Fu.flat{ Err("eel").orIs[Int] }.map(_ * 3).ask() ==== Alt(Err("eel"))
@@ -247,8 +247,8 @@ class LoomTest {
     def fus(): Array[Fu[Int]] = Array(Fu{ "eel".length }, Fu{ "eel".toInt }, Fu.flat{ nice{ "bass".length } }, Fu.flat{ nice{ "bass".toInt } })
     T ~ fus().allFu().ask().get.map(_.mapAlt(_ => Err("cod")))  =**= fus().map(_.ask()).map(_.mapAlt(_ => Err("cod")))
     T ~ fus().fu().ask().alt.toString.diced(_ == '\n')(0) ==== "Multiple errors found (2)"
-    T ~ fus().fuMap(n => 14/(n-3)).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)
-    T ~ fus().fuFlatMap(n => nice{ "123abc".take(n).toInt }).allFu.ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(123, -1, -1 ,-1)
+    T ~ fus().fuMap(n => 14/(n-3)).allFu().ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(-1, -1, 14, -1)
+    T ~ fus().fuFlatMap(n => nice{ "123abc".take(n).toInt }).allFu().ask().get.map(_.fold(_.abs)(_ => -1)) =**= Array(123, -1, -1 ,-1)
     val v1 = new AtomicInteger(0)
     val v2 = new AtomicInteger(0)
     val v3 = new AtomicInteger(0)

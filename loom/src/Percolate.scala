@@ -4,7 +4,7 @@
 
 package kse.loom
 
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, LinkedTransferQueue, Semaphore}
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, CountDownLatch, LinkedTransferQueue, Semaphore}
 import java.time.Duration
 
 import scala.collection.mutable.TreeMap
@@ -17,12 +17,13 @@ import kse.basics.intervals.*
 import kse.basics.labels.*
 import kse.flow.*
 
+
 /** Class to organize a multithreaded processing operation.
   * 
   * To define a specific processing operation, you inherit from `Percolate`.
   * 
   * Actions that need to be taken inherit from `Work` and define the work to be done
-  * and produce follow-on work.  The upside is that, arbitrarily complex looping or recursive
+  * and produce follow-on work.  The upside is that arbitrarily complex looping or recursive
   * operations are possible.  The downside is that the computation graph is implicit in
   * the data structures.
   * 
@@ -33,11 +34,10 @@ import kse.flow.*
   * to accumulate data sequentially if pairing is needed; or special-purpose accumulators if
   * arbitrary pairing, batching, or sorting is needed.
   * 
-  * If resources are needed to complete the work, one defines a custom resource queue that
-  * holds work that specifically needs that resource to be processed.  This should be
-  * created in a variable in the class that inherits from `Percolate` so that work requiring
-  * that resource can refer to it.  (Work that needs resources must reference a `Work.RQ`
-  * that manages the resource it needs.)
+  * Work is placed on a default queue that is consumed by a predefined number of worker threads.
+  * It is also possible to schedule work to go to custom queues, which may optionally have a
+  * dedicated thread that handles the contents.  This is the mechanism by which access to single-
+  * threaded resources should be guarded.
   * 
   * Work is initally created via a `newWork` method that runs on the main thread; this work
   * is assumed to be sufficiently heavyweight that the amount needs to be guarded by a sempahore
@@ -59,32 +59,130 @@ import kse.flow.*
   * concurrent processing is recommended.  However, for many tasks, this simpler model is
   * more straightforward and possibly lower-overhead.
   */
-abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
+
+/*
+abstract class Percolate(parallelism: Int, maxPermits: Int | (Int => Int))(using Percolate.Runner) {
   import Percolate.*
 
-  protected val canceled = Atom(0)
+  protected val inflight = Atom(1)
   protected val complete = Atom(0L)
-  protected val incomplete = Atom(0)
 
   protected val uncategorized_t = Atom(0L \ "ns")
   
-  private val myPermits = new Semaphore(1 max maxPermits.getOrElse(2*parallelism + 1))
-  final def obtainPermit(): Boolean = myPermits.tryAcquire()
-  final def returnPermit(): Unit = myPermits.release()
+
+  private val myPermits = new Semaphore(
+    maxPermits match
+      case i: Int => 1 max i
+      case f: (Int => Int) => 1 max f(parallelism max 0)
+  )
+  final class Permit(val id: Long, count: Atom[Int]) {
+    def another(): this.type Or Unit =
+      val newCount = count.zapAndGet(n => if n > 0 then n + 1 else 0)
+      if newCount > 0 then Is(this) else Alt.unit
+
+    def retire(): Unit =
+      val oldCount = count.getAndZap(n => if n > 1 then n - 1 else 0)
+      if oldCount == 1 then myPermits.release()
+  }
+  object Permit {
+    private val id = Atom(0L)
+
+    def get(): Permit Or Unit =
+      val got = myPermits.tryAcquire()
+      if got then Is(new Permit(id.zapAndGet(_ + 1), Atom(1)))
+      else Alt.unit
+  }
+
+
+  abstract class Todo[+W <: Work](val title: String)(using Todo.Registry) {
+    final val liveness: Atom[Int] = Atom(1)
+    final val completed = new CountDownLatch(1)
+    val agency: Todo.Agency
+    def take(): W Or Boolean
+    def close(): Boolean
+    final inline def alive(): Boolean = liveness() > 0
+    def onStart(): Ask[Unit] = Is.unit
+  }
+  object Todo {
+    opaque type Registry = Unit
+
+    opaque type Agency = Int
+    object Agency:
+      val Default: Agency = 0
+      val Core: Agency = 1
+      val Solo: Agency = 2
+      extension (a: Agency)
+        def +(aa: Agency): Agency = ((a: Int) | (aa: Int)): Agency
+        def in(aa: Agency): Boolean = ((a: Int) & (aa: Int)) == (a: Int)
+        def has(aa: Agency): Boolean = ((a: Int) & (aa: Int)) == (aa: Int)
+
+    val all = Atom[List[Todo[Work]]](Nil)
+    val byWorkers = Atom[List[Todo[Work]]](Nil)
+    val byCore = Atom[List[Todo[Work]]](Nil)
+
+    def register[W <: Work, T <: Todo[W]](f: Registry ?=> T): T =
+      val todo = f(using (): Registry)
+      all.zap(todo :: _)
+      if todo.agency has Agency.Core then byCore.zap(todo :: _)
+      if !(todo.agency has Agency.Solo) then byWorkers.zap(todo :: _)
+
+    abstract class For[W <: Work](title: String)(using reg: Todo.Registry) extends Todo[W](title)(using reg) {
+      def put(w: W): Ask[Boolean]
+    }
+
+    final class General(title: String)(using reg: Todo.Registry) extends For[Work](title)(using reg) {
+      val agency = Agency.Core
+      val content = new ConcurrentLinkedQueue[Work]()
+      def take(): Work Or Boolean =
+        if liveness() > 0 then
+          content.poll() match
+            case null => Alt.T
+            case w => Is(w)
+        else
+          content.poll() match
+            case null => Alt.F
+            case w => Is(w)
+      def close(): Boolean =
+        alive.zap(x => if (x & 1) == 1 then x - 1 else x)
+        true
+      def put(w: Work): Ask[Boolean] =
+        if liveness.zapAndGet(x => if x > 0 then x + 2 else x) > 0 then
+          content.put(w)
+          liveness.zap(_ - 2)
+          Is.T
+        else Is.F
+    }
+
+    class Resourced[R, W <: Work](title: String, dedicatedThread: Boolean = true)(opener: () => Ask[R])(closer: R => Ask[Unit], shutdownHook: Option[R => Unit] = None)(using reg: Todo.Registry)
+    extends For[W](title)(using reg) {
+      val agency = if dedicatedThread then Agency.Solo else Agency.Solo + Agency.Core
+      val content = new ConcurrentLinkedQueue[W]()
+      val resource: Atom[Option[R]] = Atom(None)
+      val 
+    }
+  }
+
+  val todo = Todo.register:
+    Todo.General("main queue")
+
+
+  abstract class Work protected (final val title: String, final val timer: Atom[Long \ "ns"] = uncategorized_t) {
+    final val permit: Atom[Option[Permit]] = Atom(None)
+    final val hooks: Atom[Option[() => Ask[Unit], () => Ask[Unit]]] = Atom(None)
+    final val status = Atom(0)
+    def queue(): Todo.For[? >: this.type] = todo
+  }
+
 
   protected val errors: Atom[List[Err]] = Atom(Nil)
   def errored(from: Work, e: Err): Unit =
     errors.zap(e :: _)
     from.cancel(depermitOnly = true)
 
-  final class Permit(val id: Int, count: Atom[Int]) {
-    def again(): Unit = count.zap(n => if n > 0 then n + 1 else 0)
-    def stop(): Unit = if count.getAndZap(n => if n > 1 then n - 1 else 0) == 1 then returnPermit()
-  }
-  object Permit {
-    private val id = Atom(0)
-    def apply(): Permit = new Permit(id.zapAndGet(_ + 1), Atom(1))
-  }
+
+
+  abstract class Todo[W <: Work]
+
 
   /** Tries to do some work, but only if resources are available.
    * 
@@ -94,9 +192,15 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
    * typical workflow is to create new work rather than reuse an old one.  However, it is possible to iterate on the same
    * batch of work by having the item resubmit itself if it isn't yet complete.
    */
-  abstract class Work(final val inheritsPermit: Boolean = true, final val beforeWork: Option[() => Unit] = None, final val afterWork: Option[() => Unit] = None, final val timer: Atom[Long \ "ns"] = uncategorized_t) {
-    final val ran: Atom[Int] = Atom(0)
+  abstract class Work(
+    final val inheritsPermit: Boolean = true,
+    final val beforeWork: Option[() => Unit] = None,
+    final val afterWork: Option[() => Unit] = None,
+    final val timer: Atom[Long \ "ns"] = uncategorized_t
+  ) {
+    final val ran: Atom[Int] = Atom(0L)
     final val permit: Atom[Option[Permit]] = Atom(None)
+    def queue:
     def desc: String = s"$Work item $toString"
     def work(): Ask[Array[Work]]
     def and(more: => Work): And = And(this, more)
@@ -495,7 +599,9 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
         Alt.break(Err(ErrType.Many(all)))
   */
 }
+*/
 object Percolate {
+  /*
   /** Contains a resource managed for single-thread access in a multi-thread context.
     *
     * The contract is: when you want to use the resource, swap in `Unknown`.  If you
@@ -777,6 +883,7 @@ object Percolate {
       case n *: ns => NamedTuple.DropNames[NT] match
         case v *: vs => (n, v) | Unionized[NamedTuple.NamedTuple[ns, vs]]
   }
+  */
   */
 }
 

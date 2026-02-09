@@ -45,6 +45,12 @@ object NumericConstants {
   inline val LnHalf = -0.69314718055994530942
   inline val NegOverLnTwo = -1.4426950408889634079
   inline val OverE = 0.36787944117144233
+  inline val TwoLogThree = 2.1972245773362193828
+  inline val MaxElementEntropy = 0.53073784542304298853
+
+  // Statistical distribution constants
+  inline val TwoInvErfHalf = 0.95387255240893974676
+  inline val TwoRootTwoInvErfHalf = 1.3489795003921634864
 
   // Constants for statistical distributions; bidirectional conversions chosen so they multiply to 1.
   // (Elided)
@@ -54,7 +60,9 @@ object NumericConstants {
 
   // Constants for numeric approximation
   inline val GammaTwentyTwo = 5.109094217170944e19
-  inline val LanczosDoubleG = 6.0246800407767295837         // Magic value not from Mathematica
+  inline val LanczosDoubleG = 6.0246800407767295837     // Magic value not from Mathematica
+  inline val CubicSigmoidA = 1.3520815669978354629      // Linear coefficient of cubic that slope-matches logistic at FWHM  (3 - (3/2) Log[3])      
+  inline val CubicSigmoidB = 2.5916737320086581484      // Cubic coefficient of cubic that slope-matches logistic at FWHM  (6 Log[3] - 4)
 
   // Constants involving machine precision
   inline val TiniestDouble = 2.2250738585072014e-308       // NOT subnormal, that's Double.MinPositiveValue
@@ -70,7 +78,85 @@ object NumericFunctions {
 
   inline def log2(d: Double) = jm.log(d) * OverLnTwo
 
-  def entropy(d: Double) = if (d == 0) 0 else d * jm.log(d) * NegOverLnTwo
+  inline def surprisal(d: Double) = jm.log(d) * NegOverLnTwo
+
+  def entropy(d: Double) = if d == 0 then 0 else d * jm.log(d) * NegOverLnTwo
+
+  inline def entropyInv(d: Double, branch: "upper" | "lower") = inline branch match
+    case "upper" =>
+      if d > 0 && d < MaxElementEntropy then entropyInvUpperUnchecked(d * LnTwo)
+      else if d == 0 then 1.0
+      else Double.NaN
+    case "lower" =>
+      if d > 0 && d < MaxElementEntropy then entropyInvLowerUnchecked(d * LnTwo)
+      else if d == 0 then 1.0
+      else Double.NaN
+
+  def entropyInvUpperUnchecked(d: Double): Double =
+    val p = {
+      val rfapprox =
+        if d > 0.36 || d < 0.01 then 0.0
+        else
+          // Rational function approximation by Mathematica 14.2 with max fractional error 1e-5 in 0.02 < d < 0.35
+          val d2 = d*d
+          (0.999967 - 5.83425*d + 10.6885*d2 - 5.9409*d*d2) / 
+          (       1 - 4.83595*d +  6.3777*d2 - 1.46677*d*d2)
+      if d < 0.02 then
+        val o2approx = 1 - d - 0.5*d*d
+        if d <= 0.01 then o2approx
+        else 100*(o2approx*(0.2-d) + rfapprox*(d-0.1))
+      else if d > 0.35 then
+        val dd = OverE - d
+        val qdapprox = OverE*(1 + 0.66666666666666666*dd) + jm.sqrt(2*OverE*dd)
+        if d > 0.36 then qdapprox
+        else 100*(qdapprox*(d-0.35) + rfapprox*(0.36-d))
+      else rfapprox
+    }
+    entropyInvHalley(d, OverE, 1.0, p)
+
+  def entropyInvLowerUnchecked(d: Double): Double =
+    val p = {
+      val rfapprox =
+        if d > 0.34 || d < 0.005 then 0.0
+        else
+          // Rational function approximation by Mathematica 14.2 with max fractional error 0.001 in 0.01 < d < 0.33
+          val d2 = d*d
+          (-0.000128523 + 0.14775*d + 2.91409*d2 -  9.1403*d*d2) /
+          (           1 + 6.10055*d - 41.9712*d2 + 48.2082*d*d2)
+      if d < 0.01 then
+        val ld = jm.log(d)
+        val logapprox = d / (-ld + jm.log(-ld))
+        if d < 0.005 then logapprox
+        else 200*(logapprox*(0.01-d) + rfapprox*(d-0.005))
+      else if d > 0.33 then
+        val dd = OverE - d
+        val qdapprox = OverE*(1 + 0.66666666666666666*dd) - jm.sqrt(2*OverE*dd)
+        if d > 0.34 then qdapprox
+        else 100*(qdapprox*(d-0.33) + rfapprox*(0.34-d))
+      else rfapprox
+    }
+    entropyInvHalley(d, 0, OverE, p)
+
+  private def entropyInvHalley(h: Double, p0: Double, p1: Double, p: Double, abseps: Double = 1e-15, releps: Double = 1e-12, maxiter: Int = 5): Double =
+    val surp = -jm.log(p)
+    val err = p * surp - h
+    if maxiter < 0 then
+      throw new Exception(s"Failed to converge with $h $p0 < $p < $p1")
+    if { val ae = err.abs; ae <= abseps && ae <= h*releps } then p
+    else
+      val errd = surp - 1
+      val errdd = 1/p
+      val pp = p - (err * errd)/(errd * errd - 0.5 * err * errdd)
+      if pp > p0 && pp < p1 then entropyInvHalley(h, p0, p1, pp, abseps, releps, maxiter-1)
+      else if pp <= p0 then p0
+      else if pp >= p1 then p1
+      else Double.NaN
+
+  def logistic(d: Double) = 1.0/(1.0 + jm.exp(-d))
+
+  def logisticInv(d: Double) = if d >= 0 && d <= 1 then jm.log(d/(1.0 - d)) else Double.NaN
+
+  inline def logit(d: Double) = logisticInv(d)
 
   // Functions useful in computing statistical distributions
   // Gamma functions and their ilk (including complete beta)
@@ -1039,6 +1125,34 @@ extension (d: Double) {
   inline def exp2 = jm.pow(2, d)
   inline def exp10 = jm.pow(10, d)
   inline def entropy = if (d == 0) 0 else d * jm.log(d) * NumericConstants.NegOverLnTwo
+  inline def entropyInv(branch: "upper" | "lower") = NumericFunctions.entropyInv(d, branch)
+  inline def entropyInvUpper = NumericFunctions.entropyInv(d, "upper")
+  inline def entropyInvLower = NumericFunctions.entropyInv(d, "lower")
+  inline def surprisal = jm.log(d) * NumericConstants.NegOverLnTwo
+  inline def logistic = NumericFunctions.logistic(d)
+  inline def logisticInv = NumericFunctions.logisticInv(d)
+  inline def logit = NumericFunctions.logisticInv(d)
+  inline def sigmoid(
+    method: "logistic" | "arctan" | "erf" | "cubic",
+    inline mode: "zero" | "symmetric" = "zero",
+    inline fwhm: Double = 1.0,
+    inline center: Double = 0
+  ): Double =
+    // Note that the cubic method matches the slope of the logistic exactly at FWHM (derivation via Mathematica 14.2)
+    inline method match
+      case "logistic" => inline mode match
+        case      "zero" => NumericFunctions.logistic((d - center) * (NumericConstants.TwoLogThree / fwhm))
+        case "symmetric" => NumericFunctions.logistic((d - center) * (NumericConstants.TwoLogThree / fwhm)) * 2.0 - 1.0
+      case "arctan" => inline mode match
+        case      "zero" => (jm.atan((d - center) * (2.0 / fwhm)) + NumericConstants.PiOverTwo) / jm.PI
+        case "symmetric" => (jm.atan((d - center) * (2.0 / fwhm)) / NumericConstants.PiOverTwo)
+      case "erf" => inline mode match
+        case      "zero" => NumericFunctions.cdfNormal((d - center) * (NumericConstants.TwoRootTwoInvErfHalf / fwhm))
+        case "symmetric" => NumericFunctions.erf((d - center) * (NumericConstants.TwoInvErfHalf / fwhm))
+      case "cubic" => inline mode match
+        case      "zero" => { val x = (d - center) / fwhm; val y = NumericConstants.CubicSigmoidA*x + NumericConstants.CubicSigmoidB*x*x*x; y/(1+jm.abs(y)) } * 0.5 + 0.5
+        case "symmetric" => { val x = (d - center) / fwhm; val y = NumericConstants.CubicSigmoidA*x + NumericConstants.CubicSigmoidB*x*x*x; y/(1+jm.abs(y)) }
+
 
   inline def sin = jm.sin(d)
   inline def cos = jm.cos(d)
@@ -1165,6 +1279,25 @@ extension (af: Array[Float]) {
       else if x < af(0) then Double.NegativeInfinity
       else Double.NaN
     else Double.NaN
+
+  def normEntropy: Double =
+    if af.length > 1 then
+      var sum = 0.0
+      var i = 0
+      while i < af.length do
+        val x = af(i)
+        i += 1
+        if x >= 0 && x < Float.PositiveInfinity then sum += x
+        else return Double.NaN
+      var ecuml = 0.0
+      if sum == 0 then return Double.NaN
+      i = 0
+      while i < af.length do
+        ecuml += NumericFunctions.entropy(af(i)/sum)
+        i += 1
+      ecuml
+    else if af.length == 0 && (af(0) >= 0 && af(0) < Float.PositiveInfinity) then 0
+    else Double.NaN
 }
 
 extension (ad: Array[Double]) {
@@ -1220,7 +1353,71 @@ extension (ad: Array[Double]) {
       else if x < ad(0) then Double.NegativeInfinity
       else Double.NaN
     else Double.NaN
+
+  def entropy: Double =
+    if ad.length > 1 then
+      var pcuml = 0.0
+      var ecuml = 0.0
+      var i = 0
+      while i < ad.length do
+        val x = ad(i)
+        i += 1
+        if x >= 0 && x <= 1 then
+          pcuml += x
+          ecuml += NumericFunctions.entropy(x)
+          if pcuml > 1.0000001 then return Double.NaN
+        else return Double.NaN
+      if jm.abs(pcuml - 1) < 1e-16*ad.length then ecuml
+      else Double.NaN
+    else if ad.length==0 && (ad(0)-1) < 1e-16 then 0
+    else Double.NaN
+
+  def normEntropy: Double =
+    if ad.length > 1 then
+      var sum = 0.0
+      var i = 0
+      while i < ad.length do
+        val x = ad(i)
+        i += 1
+        if x >= 0 && x < Double.PositiveInfinity then sum += x
+        else return Double.NaN
+      var ecuml = 0.0
+      if sum == 0 then return Double.NaN
+      i = 0
+      while i < ad.length do
+        ecuml += NumericFunctions.entropy(ad(i)/sum)
+        i += 1
+      ecuml
+    else if ad.length == 0 && (ad(0) >= 0 && ad(0) < Double.PositiveInfinity) then 0
+    else Double.NaN
 }
+
+extension [K, V <: Int | Long | Float | Double](mc: scala.collection.Map[K, V])
+  inline def entropy: Double =
+    val a = new Array[Double](mc.size)
+    var i = 0
+    inline compiletime.erasedValue[V] match
+      case _: Int =>
+        val it = mc.asInstanceOf[scala.collection.Map[K, Int]].valuesIterator
+        while it.hasNext do
+          a(i) = it.next
+          i += 1
+      case _: Long =>
+        val it = mc.asInstanceOf[scala.collection.Map[K, Long]].valuesIterator
+        while it.hasNext do
+          a(i) = it.next.toDouble
+          i += 1
+      case _: Float =>
+        val it = mc.asInstanceOf[scala.collection.Map[K, Float]].valuesIterator
+        while it.hasNext do
+          a(i) = it.next
+          i += 1
+      case _: Double =>
+        val it = mc.asInstanceOf[scala.collection.Map[K, Double]].valuesIterator
+        while it.hasNext do
+          a(i) = it.next
+          i += 1
+    a.normEntropy
 
 
 extension (inline x: Byte | Short | Int | Long | Float | Double) {

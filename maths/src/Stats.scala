@@ -47,15 +47,13 @@ trait Est {
     case _      => false
 }
 object Est {
-  inline def mut: Est.M = new Est.M(0, 0, 0)
+  inline infix def of(values: Array[Int]): Est = Est.M.from(values)
 
-  inline def from(values: Array[Int]): Est = Est.M.from(values)
+  inline infix def of(values: Array[Long]): Est = Est.M.from(values)
 
-  inline def from(values: Array[Long]): Est = Est.M.from(values)
+  inline infix def of(values: Array[Float]): Est = Est.M.from(values)
 
-  inline def from(values: Array[Float]): Est = Est.M.from(values)
-
-  inline def from(values: Array[Double]): Est = Est.M.from(values)
+  inline infix def of(values: Array[Double]): Est = Est.M.from(values)
 
   /** Provide a running update of weighted mean and standard deviation (variance).
     *
@@ -301,7 +299,10 @@ object Est {
     inline val smallestNonzeroWeight = 1e-9
     inline val smallestSubtractable = 1.000000001
 
-    inline def empty: M = new M(0, 0, 0)
+    inline def apply(): M = new M(0, 0, 0)
+    inline def empty(): M = new M(0, 0, 0)
+
+    inline def apply(n: Double, mean: Double, sse: Double): M = new M(n, mean, sse)
 
     inline def from(values: Array[Int]): M =
       val m = new M(0, 0, 0)
@@ -337,7 +338,7 @@ object Est {
 class Bootstrap[T](val value: T, val variants: Array[T]) {
   def n = variants.length
   def estOfVariants(f: T => Double): Est.M =
-    val e = Est.M.empty
+    val e = Est.M()
     var i = 0
     while i < variants.length do
       e += f(variants(i))
@@ -381,9 +382,9 @@ object Ranks {
 
 
 extension (values: Array[Int])
-  inline def est(): Est = Est from values
+  inline def est(): Est = Est of values
   inline def est(i0: Int, iN: Int): Est =
-    val e = Est.M.empty
+    val e = Est.M()
     e.addRange(values)(i0, iN)
     e
   inline def est(inline v: Iv.X): Est =
@@ -394,9 +395,9 @@ extension (values: Array[Int])
     est(iv.i0, iv.iN)
 
 extension (values: Array[Long])
-  inline def est(): Est = Est from values
+  inline def est(): Est = Est of values
   inline def est(i0: Int, iN: Int): Est =
-    val e = Est.M.empty
+    val e = Est.M()
     e.addRange(values)(i0, iN)
     e
   inline def est(inline v: Iv.X): Est =
@@ -407,9 +408,9 @@ extension (values: Array[Long])
     est(iv.i0, iv.iN)
 
 extension (values: Array[Float])
-  inline def est(): Est = Est from values
+  inline def est(): Est = Est of values
   inline def est(i0: Int, iN: Int): Est =
-    val e = Est.M.empty
+    val e = Est.M()
     e.addRange(values)(i0, iN)
     e
   inline def est(inline v: Iv.X): Est =
@@ -420,9 +421,9 @@ extension (values: Array[Float])
     est(iv.i0, iv.iN)
 
 extension (values: Array[Double])
-  inline def est(): Est = Est from values
+  inline def est(): Est = Est of values
   inline def est(i0: Int, iN: Int): Est =
-    val e = Est.M.empty
+    val e = Est.M()
     e.addRange(values)(i0, iN)
     e
   inline def est(inline v: Iv.X): Est =
@@ -434,11 +435,11 @@ extension (values: Array[Double])
 
 extension [A](values: Array[A])
   inline def estWith()(inline f: A => Double): Est =
-    val m = Est.M.empty
+    val m = Est.M()
     m.addRangeWith(values)(0, values.length)(f)
     m
   inline def estWith(i0: Int, iN: Int)(inline f: A => Double): Est =
-    val m = Est.M.empty
+    val m = Est.M()
     m.addRangeWith(values)(i0, iN)(f)
     m
   inline def estWith(inline v: Iv.X)(inline f: A => Double): Est =
@@ -450,12 +451,12 @@ extension [A](values: Array[A])
 
 extension [A <: Int | Long | Float | Double](values: IterableOnce[A])
   inline def est(): Est =
-    val m = Est.M.empty
+    val m = Est.M()
     m ++= values.iterator
     m
 
 extension [A](values: IterableOnce[A])
   inline def estWith()(f: A => Double): Est =
-    val m = Est.M.empty
+    val m = Est.M()
     m.addWith(values.iterator)(f)
     m

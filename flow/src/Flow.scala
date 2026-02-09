@@ -220,6 +220,12 @@ extension (float: Float)
     case x if java.lang.Float.isNaN(x) => boundary.break(Double.NaN)
     case y => y
 
+extension (b: boundary.type)
+    /** Delivers a default value unless there is an early return. */
+    inline def default[A](inline a: A)(inline f: boundary.Label[A] ?=> Unit): A =
+      boundary[A]:
+        f
+        a
 
 /** Enables early returns in side-effecting code.
   *
@@ -705,10 +711,9 @@ extension [X](ask: Ask[X])
   inline def grab: X = ask.getOrElse(_.toss)
 
 
-extension [L, R](either: Either[L, R]) {
+extension [L, R](either: Either[L, R])
   /** Converts to an `Or`, placing `Right` as the favored branch */
   inline def toOr: R Or L = Or from either
-}
 
 
 extension [A](`try`: Try[A]) {

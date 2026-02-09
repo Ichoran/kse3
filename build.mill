@@ -1,4 +1,4 @@
-//| mill-version: 1.0.0
+//| mill-version: 1.0.5
 
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
 // Copyright 2021-2025 Rex Kerr, Calico Life Sciences, LLC, and UCSF (Kato Lab)
@@ -31,7 +31,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.4.1"
+  def publishVersion = "0.4.2"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
