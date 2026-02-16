@@ -1491,7 +1491,7 @@ extension (d: Duration) {
 opaque type NanoInstant = Long
 object NanoInstant {
   inline def apply(nanos: Long): kse.maths.NanoInstant = nanos
-  inline def now: kse.maths.NanoInstant = System.nanoTime
+  inline def now(): kse.maths.NanoInstant = System.nanoTime
 
   final val MinValue: kse.maths.NanoInstant = apply(Long.MinValue)
   final val MaxValue: kse.maths.NanoInstant = apply(Long.MaxValue)
@@ -1588,7 +1588,7 @@ object DoubleInstant {
     else
       if jm.abs(seconds) <= 9223372036L then (1000000000*seconds + nanos)/1e9 else seconds + nanos/1e9
 
-  inline def now: kse.maths.DoubleInstant = apply(Instant.now)
+  inline def now(): kse.maths.DoubleInstant = apply(Instant.now)
 
   extension (t: DoubleInstant) {
     inline def unwrap: Double = t
@@ -2884,19 +2884,19 @@ extension (filetime: FileTime) {
 
 opaque type Tic = Long
 object Tic {
-  def apply(): kse.maths.Tic = NanoInstant.now.unwrap
+  def apply(): kse.maths.Tic = NanoInstant.now().unwrap
 
   extension (t: Tic) {
     inline def unwrap: kse.maths.NanoInstant = NanoInstant(t: Long)
   }
   extension (t: kse.maths.Tic) {
-    inline def toc: kse.maths.NanoDuration = t.unwrap.age
+    inline def toc(): kse.maths.NanoDuration = t.unwrap.age
   }
 
   given Translucent[Tic, Long] with {}
 }
 
-inline def tic: kse.maths.Tic = Tic()
+inline def tic(): kse.maths.Tic = Tic()
 
 
 object Cal {
@@ -2918,4 +2918,17 @@ object Cal {
 
   def instant(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0, second: Int = 0, nanos: Int = 0): Instant =
     OffsetDateTime.of(year, month, day, hour, minute, second, nanos, ZoneOffset.UTC).toInstant
+}
+
+
+object Now {
+  inline def apply(): Instant = Instant.now()
+  inline def nanos(): NanoInstant = NanoInstant.now()
+  inline def double(): DoubleInstant = DoubleInstant.now()
+  inline def local(): LocalDateTime = LocalDateTime.now()
+  inline def offset() = OffsetDateTime.now()
+  inline def offset(zone: ZoneOffset) = OffsetDateTime.now(zone)
+  inline def utc() = OffsetDateTime.now(ZoneOffset.UTC)
+  inline def zoned() = ZonedDateTime.now()
+  inline def zoned(zone: ZoneId) = ZonedDateTime.now(zone)
 }

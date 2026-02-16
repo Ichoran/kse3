@@ -320,6 +320,16 @@ object ArrayReform {
 }
 
 
+extension (arr: Array.type) {
+  inline val MaxSize = 0x7FFFFFF7
+  def upsize(n: Int): Int =
+    if n >= 2 && n <= 0x3FFFFFFB then n >> 1
+    else if n < 0 || n >= MaxSize then -1
+    else if n < 2 then 4
+    else MaxSize
+}
+
+
 /** Higher-level high-speed array access (inlined) */
 extension [A](a: Array[A]) {
   @targetName("update_End_At") inline def update(i: End.At, x: A): Unit = a(i of a) = x

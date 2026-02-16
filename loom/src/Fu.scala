@@ -9,6 +9,9 @@ package kse.loom
 import java.util.concurrent.{Future, ExecutorService, ArrayBlockingQueue, SynchronousQueue}
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.Condition
+import java.util.concurrent.TimeUnit
+import java.time.Duration
 
 import scala.util.boundary
 import scala.util.boundary.Label
@@ -171,3 +174,30 @@ object Threaded {
     th.start()
     th
 }
+
+
+opaque type Sync = ReentrantLock
+object Sync:
+  def apply(): Sync = new ReentrantLock()
+  def fair(): Sync = new ReentrantLock(true)
+  extension (sync: Sync)
+    def unwrap: ReentrantLock = sync
+    inline def apply[A](inline f: sync.type ?=> A): A =
+      (sync: ReentrantLock).lockInterruptibly()
+      try f(using sync)
+      finally (sync: ReentrantLock).unlock()
+    inline def ifFree[A](inline f: sync.type ?=> A): A Or Unit =
+      if (sync: ReentrantLock).tryLock() then
+        try Is(f(using sync))
+        finally (sync: java.util.concurrent.locks.ReentrantLock).unlock()
+      else Alt.unit
+    inline def waiter(): Wait[sync.type] = (sync: ReentrantLock).newCondition()
+  
+  opaque type Wait[S <: Sync & Singleton] = Condition
+  object Wait:
+    extension [S <: Sync & Singleton, W <: Wait[S]](wait: W)
+      def unwrap: Condition = wait
+      inline def ! : Unit = (wait: Condition).signal()
+      inline def !!! : Unit = (wait: Condition).signalAll()
+      inline def apply(nd: NanoDuration)(using sync: S): Boolean = (wait: Condition).await(nd.unwrap, TimeUnit.NANOSECONDS)
+      inline def apply(d: Duration)(using sync: S): Boolean = (wait: Condition).await(d.toNanos, TimeUnit.NANOSECONDS)

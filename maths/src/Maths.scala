@@ -97,7 +97,7 @@ object NumericFunctions {
       val rfapprox =
         if d > 0.36 || d < 0.01 then 0.0
         else
-          // Rational function approximation by Mathematica 14.2 with max fractional error 1e-5 in 0.02 < d < 0.35
+          // Rational function approximation by Mathematica 14.3 with max fractional error 1e-5 in 0.02 < d < 0.35
           val d2 = d*d
           (0.999967 - 5.83425*d + 10.6885*d2 - 5.9409*d*d2) / 
           (       1 - 4.83595*d +  6.3777*d2 - 1.46677*d*d2)
@@ -119,7 +119,7 @@ object NumericFunctions {
       val rfapprox =
         if d > 0.34 || d < 0.005 then 0.0
         else
-          // Rational function approximation by Mathematica 14.2 with max fractional error 0.001 in 0.01 < d < 0.33
+          // Rational function approximation by Mathematica 14.3 with max fractional error 0.001 in 0.01 < d < 0.33
           val d2 = d*d
           (-0.000128523 + 0.14775*d + 2.91409*d2 -  9.1403*d*d2) /
           (           1 + 6.10055*d - 41.9712*d2 + 48.2082*d*d2)
@@ -1138,7 +1138,7 @@ extension (d: Double) {
     inline fwhm: Double = 1.0,
     inline center: Double = 0
   ): Double =
-    // Note that the cubic method matches the slope of the logistic exactly at FWHM (derivation via Mathematica 14.2)
+    // Note that the cubic method matches the slope of the logistic exactly at FWHM (derivation via Mathematica 14.3)
     inline method match
       case "logistic" => inline mode match
         case      "zero" => NumericFunctions.logistic((d - center) * (NumericConstants.TwoLogThree / fwhm))

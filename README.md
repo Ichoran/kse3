@@ -83,6 +83,7 @@ import kse.basics.labels.{given, *}
 import kse.flow.{given, *}
 import kse.maths.{given, *}
 import kse.maths.packed.{given, *}
+import kse.loom.{given, *}
 import kse.eio.{given, *}
 ```
 

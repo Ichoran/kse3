@@ -827,7 +827,7 @@ class TemporalTest() {
     T ~ dayru.ceil.into.days  ==== dayru.ceil.into.d
 
   def testNanoDuration(): Unit =
-    val t = tic
+    val t = tic()
     val t0 = System.nanoTime
 
     val nd  = NanoDuration(238597181528L)
@@ -1068,7 +1068,7 @@ class TemporalTest() {
     T ~ nd.pr ==== "238597181528 ns"
 
     val t1 = System.nanoTime
-    val dt = t.toc
+    val dt = t.toc()
     val dt2 = NanoDuration.since(t.unwrap)
     T ~ ((t1 - t0) <= dt.unwrap) ==== true
     T ~ (dt >= 0.ns_nano)        ==== true
@@ -1831,7 +1831,7 @@ class TemporalTest() {
 
 
   def testNanoInstant(): Unit =
-    val t = NanoInstant.now
+    val t = NanoInstant.now()
     val ts = System.nanoTime
 
     val i = NanoInstant(912835798134L)
@@ -1900,7 +1900,7 @@ class TemporalTest() {
     T ~ List(j, k, h, i).sorted ==== List(i, j, k, h)
 
   def testDoubleInstant(): Unit =
-    val t = DoubleInstant.now
+    val t = DoubleInstant.now()
     val nineG = DoubleInstant(1e9)
     val ti = Instant.now
     val tp = t + 5.0.ms
