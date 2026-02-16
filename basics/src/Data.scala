@@ -321,7 +321,7 @@ object ArrayReform {
 
 
 extension (arr: Array.type) {
-  inline val MaxSize = 0x7FFFFFF7
+  inline def MaxSize: Int = 0x7FFFFFF7
   def upsize(n: Int): Int =
     if n >= 2 && n <= 0x3FFFFFFB then n >> 1
     else if n < 0 || n >= MaxSize then -1
