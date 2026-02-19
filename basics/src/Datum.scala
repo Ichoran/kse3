@@ -109,6 +109,8 @@ extension (i: Int) {
 
   inline def of[A](using ClassTag[A]): Array[A] =
     new Array[A](if i > 0 then i else 0)
+
+  inline infix def span(n: Int): Iv = Iv(i, i+n)
 }
 
 inline def ꓺ:    Iv.Rxy = Iv.Rxy.wrap(0xFFFF_FFFF_0000_0000L)
