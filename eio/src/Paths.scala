@@ -7,7 +7,8 @@ package kse.eio
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
 import java.io._
-import java.nio.channels.SeekableByteChannel
+import java.lang.foreign.Arena
+import java.nio.channels.{SeekableByteChannel, FileChannel}
 import java.nio.file._
 import java.nio.file.attribute.{ FileTime, BasicFileAttributes }
 import java.time._
@@ -281,6 +282,49 @@ extension (the_path: Path) {
 
   def openIO()(using Tidy.Nice[SeekableByteChannel]): Ask[SeekableByteChannel] =
     nice{ Files.newByteChannel(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE) }
+
+  /** Memory-map the file read-write as a `Mem.Owned[A]` (created if absent).  Mapped at the file's
+    * current length, so `memory.length` is the number of whole `A`-sized items already present.
+    */
+  inline def openIOMem[A <: Mem.Type]()(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
+    nice:
+      val arena = Arena.ofShared()
+      try
+        Mem.Owned.create[A](arena){ a =>
+          val ch = FileChannel.open(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+          try ch.map(FileChannel.MapMode.READ_WRITE, 0L, ch.size, a)
+          finally ch.close()
+        }
+      catch
+        case e if e.catchable =>
+          arena.close()
+          throw e
+
+  /** Memory-map the file read-write as a `Mem.Owned[A]` (created if absent), resizing it first.
+    * `resize` receives the count of whole `A`-sized items currently in the file and returns the desired
+    * count (the file is grown or truncated to match).  The returned `Long` is that original count, so
+    * you know where the pre-existing data ends before writing past it.
+    */
+  inline def openIOMem[A <: Mem.Type](resize: Long => Long)(using Tidy.Nice[(Long, Mem.Owned[A])]): Ask[(Long, Mem.Owned[A])] =
+    nice:
+      var existing = 0L
+      val arena = Arena.ofShared()
+      try
+        val owned = Mem.Owned.create[A](arena){ a =>
+          val ch = FileChannel.open(the_path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+          try
+            val eb = Mem.bytesOf[A]
+            existing = ch.size / eb
+            val bytes = resize(existing) * eb
+            if bytes < ch.size then ch.truncate(bytes) __ Unit
+            ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a)
+          finally ch.close()
+        }
+        (existing, owned)
+      catch
+        case e if e.catchable =>
+          arena.close()
+          throw e
 
 
   inline def inZip(inline f: boundary.Label[Ask[Unit]] ?=> (Path => Unit)): Ask[Unit] =

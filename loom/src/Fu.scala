@@ -91,11 +91,11 @@ object Fu {
   extension [A](fu: Fu[A]) {
     def isComplete: Boolean = (fu: Future[Ask[A]]).isDone
 
-    def ask(): Ask[A] =
+    def await(): Ask[A] =
       try (fu: Future[Ask[A]]).get()
       catch case e if e.catchable => Alt(Err(e))
 
-    def ask(timeout: DoubleDuration): A Or Option[Err] =
+    def await(timeout: DoubleDuration): A Or Option[Err] =
       import java.util.concurrent.TimeUnit
       var t_value = 0L
       var t_unit =
@@ -117,30 +117,30 @@ object Fu {
 
     def cancel(): Boolean = (fu: Future[Ask[A]]).cancel(true)
 
-    inline def ?[L >: Alt[Err]](using lb: Label[L]): A = kse.flow.?[A, Err](Fu.ask(fu)())(using lb)
-    inline def ?+[E, L >: Alt[E]](inline f: Err => E)(using lb: Label[L]): A = kse.flow.?+(Fu.ask(fu)())(f)(using lb)
-    inline def ?*[E, L >: Alt[E]](using lb: Label[L], m: Err AutoMap E): A = kse.flow.?*[A, Err](Fu.ask(fu)())(using lb, m)
-    inline def ?#[L >: Alt[Err]](inline msg: String)(using lb: Label[L]): A = kse.flow.?#(Fu.ask(fu)())(msg)(using lb)
+    inline def ?[L >: Alt[Err]](using lb: Label[L]): A = kse.flow.?[A, Err](Fu.await(fu)())(using lb)
+    inline def ?+[E, L >: Alt[E]](inline f: Err => E)(using lb: Label[L]): A = kse.flow.?+(Fu.await(fu)())(f)(using lb)
+    inline def ?*[E, L >: Alt[E]](using lb: Label[L], m: Err AutoMap E): A = kse.flow.?*[A, Err](Fu.await(fu)())(using lb, m)
+    inline def ?#[L >: Alt[Err]](inline msg: String)(using lb: Label[L]): A = kse.flow.?#(Fu.await(fu)())(msg)(using lb)
 
     inline def map[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => B)): kse.loom.Fu[B] = kse.loom.Fu.apply[B]:
-      val result = kse.flow.?(Fu.ask(fu)())
+      val result = kse.flow.?(Fu.await(fu)())
       f(result)
 
     inline def flatMap[B](using exec: Executor)(inline f: Label[B Or Err] ?=> (A => (B Or Err))): kse.loom.Fu[B] = kse.loom.Fu.flat[B]:
-      val result = Fu.ask(fu)()
+      val result = Fu.await(fu)()
       kse.flow.flatMap(result)(x => f(x))
   }
 }
 
 extension [A](a: Array[kse.loom.Fu[A]]) {
   def allFu()(using exec: Fu.Executor, tag: ClassTag[Ask[A]]): kse.loom.Fu[Array[Ask[A]]] = Fu:
-    a.copyWith(fu => Fu.ask(fu)())
+    a.copyWith(fu => Fu.await(fu)())
 
   def fu()(using exec: Fu.Executor, tag: ClassTag[A]): kse.loom.Fu[Array[A]] = Fu.flat:
     var b: scala.collection.mutable.ArrayBuffer[Err] = null
     val v = new Array[A](a.length)
     a.visit(){ (x, i) =>
-      Fu.ask(x)().fold(v(i) = _){ e =>
+      Fu.await(x)().fold(v(i) = _){ e =>
         if b eq null then b = scala.collection.mutable.ArrayBuffer.empty[Err]
         val _ = b += e
       }
@@ -163,7 +163,7 @@ class Threaded[A] private (f: () => A) extends Thread {
   private val result = new java.util.concurrent.CompletableFuture[Ask[A]]()
   override def run(): Unit =
     result.complete(threadnice(f())): Unit
-  def ask(): Ask[A] =
+  def await(): Ask[A] =
     try result.get()
     catch case e if e.catchable => Alt(Err(e))
   def isComplete: Boolean = result.isDone
@@ -180,18 +180,22 @@ opaque type Sync = ReentrantLock
 object Sync:
   def apply(): Sync = new ReentrantLock()
   def fair(): Sync = new ReentrantLock(true)
-  extension (sync: Sync)
+  extension [S <: Sync & Singleton](sync: S)
     def unwrap: ReentrantLock = sync
-    inline def apply[A](inline f: sync.type ?=> A): A =
+    inline def apply[A](inline f: S ?=> A): A =
       (sync: ReentrantLock).lockInterruptibly()
       try f(using sync)
       finally (sync: ReentrantLock).unlock()
-    inline def ifFree[A](inline f: sync.type ?=> A): A Or Unit =
+    inline def uninterrupted[A](inline f: S ?=> A): A =
+      (sync: ReentrantLock).lock()
+      try f(using sync)
+      finally (sync: ReentrantLock).unlock()
+    inline def ifFree[A](inline f: S ?=> A): A Or Unit =
       if (sync: ReentrantLock).tryLock() then
         try Is(f(using sync))
         finally (sync: java.util.concurrent.locks.ReentrantLock).unlock()
       else Alt.unit
-    inline def waiter(): Wait[sync.type] = (sync: ReentrantLock).newCondition()
+    inline def waiter(): Wait[S] = (sync: ReentrantLock).newCondition()
   
   opaque type Wait[S <: Sync & Singleton] = Condition
   object Wait:

@@ -14,8 +14,9 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.7 and later due to its use of
-`scala.util.boundary` and named tuples.  It also assumes at least Java 21.**
+**Warning: kse3 only works on Scala 3.8 and later due to its use of
+`scala.util.boundary` and named tuples, and expectation of running on
+at least Java 25.**
 
 
 ## How do I get it?
@@ -24,32 +25,32 @@ Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) 
 You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala
-def scalaVersion = "3.7.0"
+def scalaVersion = "3.8.2"
 ```
 
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.4.3"
-mvn"com.github.ichoran::kse3-flow:0.4.3"
-mvn"com.github.ichoran::kse3-maths:0.4.3"
-mvn"com.github.ichoran::kse3-loom:0.4.3"
-mvn"com.github.ichoran::kse3-eio:0.4.3"
+mvn"com.github.ichoran::kse3-basics:0.5.0"
+mvn"com.github.ichoran::kse3-flow:0.5.0"
+mvn"com.github.ichoran::kse3-maths:0.5.0"
+mvn"com.github.ichoran::kse3-loom:0.5.0"
+mvn"com.github.ichoran::kse3-eio:0.5.0"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
-//> using scala 3.7.0
-//> using dep com.github.ichoran::kse3-basics:0.4.3
-//> using dep com.github.ichoran::kse3-flow:0.4.3
-//> using dep com.github.ichoran::kse3-maths:0.4.3
-//> using dep com.github.ichoran::kse3-loom:0.4.3
-//> using dep com.github.ichoran::kse3-eio:0.4.3
+//> using scala 3.8.2
+//> using dep com.github.ichoran::kse3-basics:0.5.0
+//> using dep com.github.ichoran::kse3-flow:0.5.0
+//> using dep com.github.ichoran::kse3-maths:0.5.0
+//> using dep com.github.ichoran::kse3-loom:0.5.0
+//> using dep com.github.ichoran::kse3-eio:0.5.0
 ```
 
-Because scala-cli does not by default use the default JVM and does not use Java 21 by default,
-you'll typically need to pass `--jvm=21`, or `--jvm=system` if you have 21 installed, when
+Because scala-cli does not by default use the default JVM and does not use Java 25 by default,
+you'll typically need to pass `--jvm=25`, or `--jvm=system` if you have 25 installed, when
 running scala-cli.
 
 kse3 expects that you will use compiler options to warn against discarding values.  This is
@@ -132,6 +133,17 @@ Because you have to recompile all the time anyway, there is no reason to try to 
 
 I don't hear words when I read them, so I don't have any strong opinion.  I think the most conventional way to pronounce something with that spelling would be Ks-ee, so let's go with that?
 
+#### Why JVM 25?
+
+Kse intends to only use stable JVM features, and LTS releases are preferable because there is enough churn with kse itself
+plus Scala improvements.  After 21, there are three really important features that kse does use or hopefully will use.
+
+1. `synchronized` should not be a footgun with virtual threads.
+2. The FFM interface is a much better way to interact with non-Java libraries, and those capabilities can be very important.
+3. Java Flight Recorder is a really nice tool for performance optimization, but insights might not translate cleanly to earlier JVMs.
+
+The first one alone is reason enough.
+
 
 ## Subprojects
 
@@ -145,7 +157,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.4.3"
+ivy"com.github.ichoran::kse3-basics:0.5.0"
 ```
 
 and in your code,
@@ -250,7 +262,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.4.3"
+ivy"com.github.ichoran::kse3-flow:0.5.0"
 ```
 
 and in your code,

@@ -39,6 +39,7 @@ class EioTest {
   import kse.maths.{given, _}
   import kse.maths.packed.{given, _}
   import kse.eio.{given, _}
+  import kse.loom.{given, _}
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
@@ -740,6 +741,84 @@ class EioTest {
     Resource.nice(q.openWrite())(_.close){ o => o.write("eel".bytes);   T ~ o   ==== runtype[BufferedOutputStream] }: Unit
     T ~ Resource.nice(q.openIO())(_.close)(_.position(1).write(ab2.buffer()))   ==== 2
     T ~ Resource.nice(q.openIO())(_.close){o => o.read(ab2.buffer()); ab2.utf8} ==== "ef"
+
+    // Memory-mapped file as a Mem.Owned
+    q.delete(): Unit
+    T ~ Resource.nice(q.openIOMem[Long](_ => 3))(_._2.close()){ case (existed, o) =>
+      T ~ existed        ==== 0L
+      T ~ o.op(_.length) ==== 3L
+      o.use(_.set()(i => (i + 1) * 10))            // 10, 20, 30
+      o.op(_(1))
+    } ==== 20L
+    T ~ q.size ==== 24L
+    T ~ Resource.nice(q.openIOMem[Long](n => n + 2))(_._2.close()){ case (existed, o) =>
+      T ~ existed        ==== 3L
+      T ~ o.op(_.length) ==== 5L
+      T ~ o.op(_(0))     ==== 10L
+      T ~ o.op(_(2))     ==== 30L
+      o.use(_.set(existed, 5L)(i => i * 100))      // indices 3, 4 -> 300, 400
+      o.op(_(4))
+    } ==== 400L
+    T ~ q.size ==== 40L
+    T ~ Resource.nice(q.openIOMem[Long]())(_.close()){ o =>
+      T ~ o.op(_.length) ==== 5L
+      o.op(_(3))
+    } ==== 300L
+    q.delete(): Unit
+
+    // SharedMemory: write through a region, then attach to the same path and read it back
+    q.delete(): Unit
+    T ~ Resource.nice(SharedMemory.createFrom[Long](q, 4))(_.close()){ region =>
+      T ~ region.path ==== q
+      region.use(_.set()(i => i + 1))    // 1, 2, 3, 4
+      T ~ q.size      ==== 32L
+      T ~ Resource.nice(region.path.openIOMem[Long]())(_.close()){ o =>
+        T ~ o.op(_.length) ==== 4L
+        o.op(_(3))
+      } ==== 4L
+      region.op(_(0))
+    } ==== 1L
+    T ~ q.exists ==== false      // closing the region unlinked the backing file
+
+    // SharedMemory.create makes its own temp file, named by region.path
+    var shmPath: Path = null
+    T ~ Resource.nice(SharedMemory.create[Double](3))(_.close()){ region =>
+      shmPath = region.path
+      T ~ region.path.exists ==== true
+      region.use(_.set()(i => i.toDouble * 4))   // 0, 4, 8
+      T ~ Resource.nice(region.path.openIOMem[Double]())(_.close()){ _.op(_(2)) } ==== 8.0
+      region.op(_(1))
+    } ==== 4.0
+    T ~ shmPath.exists ==== false      // closing the region unlinked the temp file
+
+    // Across threads: a writer hands off the path mid-write; the reader attaches, and the writer
+    // finishes (closing -> unlink) *before* the reader's final read -- yet the memory stays shared.
+    def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
+      val x = sq.poll(10, java.util.concurrent.TimeUnit.SECONDS)
+      if x == null then throw new RuntimeException("shared-memory handoff timed out")
+      x
+    val pathBuf = new java.util.concurrent.SynchronousQueue[Path]()
+    val gotIt   = new java.util.concurrent.SynchronousQueue[AnyRef]()
+
+    val writer = Fu:
+      Resource.nice(SharedMemory.create[Long](4))(_.close()){ region =>
+        region.use{ m => m(0) = 10L; m(1) = 20L }   // write part of the data
+        pathBuf.put(region.path)                     // hand off the path
+        handoff(gotIt) __ Unit                       // wait for the reader's acknowledgement
+        region.use{ m => m(2) = 30L; m(3) = 40L }    // write the rest
+      }.?                                            // region closes here: unmap + unlink
+    val reader = Fu:
+      val p = handoff(pathBuf)                        // receive the path
+      Resource.nice(p.openIOMem[Long]())(_.close()){ o =>
+        val early = (o.op(_(0)), o.op(_(1)))         // read what the writer wrote so far
+        gotIt.put("ack")                             // acknowledge
+        writer.await() __ Unit                       // wait until the writer has fully finished
+        val gone = !Files.exists(p)                  // its name is now unlinked
+        val rest = (o.op(_(2)), o.op(_(3)))          // ...but the shared pages are still readable
+        (early, rest, gone)
+      }.?
+
+    T ~ reader.await() ==== (((10L, 20L), (30L, 40L), true))
 
     val ps = "temp/eio/sym".path
     T ~ (p / "x" / "y").mkdirs().isIs             ==== true

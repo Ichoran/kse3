@@ -545,7 +545,7 @@ extension [A](a: Array[A]) {
       i = f(a(i), i)
     n
 
-  inline def gather[Z](zero: Z)()(inline f: (Z, A, Int) => Z) =
+  inline def gather[Z](inline zero: Z)()(inline f: (Z, A, Int) => Z): Z =
     var i = 0
     var z = zero
     while i < a.length do
@@ -1221,8 +1221,9 @@ extension [A](a: Array[A]) {
       while continue && j < iN do
         val y = a(j)
         if cut(x, y) then continue = false
-        else x = y
-        j += 1
+        else
+          x = y
+          j += 1
       f(i, j)
       i = j
   inline def visitCuts(ivx: Iv.X)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
@@ -1953,8 +1954,9 @@ object ClippedArray {
         while continue && j < l do
           val y = a(j)
           if cut(x, y) then continue = false
-          else x = y
-          j += 1
+          else
+            x = y
+            j += 1
         f(i, j)
         i = j
     inline def visitCuts(ivx: Iv.X)(inline cut: (A, A) => Boolean)(inline f: (Int, Int) => Unit): Unit =
@@ -4091,8 +4093,9 @@ extension (a: String) {
       while continue && j < iN do
         val y = a(j)
         if cut(x, y) then continue = false
-        else x = y
-        j += 1
+        else
+          x = y
+          j += 1
       f(i, j)
       i = j
   inline def visitCuts(ivx: Iv.X)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =
@@ -4642,8 +4645,9 @@ object ClippedString {
         while continue && j < l do
           val y = a.charAt(j)
           if cut(x, y) then continue = false
-          else x = y
-          j += 1
+          else
+            x = y
+            j += 1
         f(i, j)
         i = j
     inline def visitCuts(ivx: Iv.X)(inline cut: (Char, Char) => Boolean)(inline f: (Int, Int) => Unit): Unit =

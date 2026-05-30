@@ -114,6 +114,16 @@ class BytecodeCheck {
           i -= j
         0.0
 
+  def gatherTest(): Double =
+    val xa = 50.unfold(_ * 0.5)
+    val xb = 50.unfold(_ * 0.2)
+    1000.visit: i =>
+      1000.visit: j =>
+        val k = i % xa.length
+        val l = j % xb.length
+        xb(l) = xa.gather(xa(k))()(_ + _ + _*0.001)
+    xb(xb.length-1)
+
   def useRepeated(): Int =
     repeated(5, 6, 7, 8)
 }
@@ -787,6 +797,15 @@ class BasicsTest() {
   @Test def stringBreakInlinedDataTest: Unit = arrayTester.stringBreakInlinedDataTest()
 
   @Test def stringFancyIntervalTest: Unit = arrayTester.stringFancyIntervalTest()
+
+
+  val memTester = new MemTest()
+
+  @Test def memInlinedDataTest: Unit = memTester.memInlinedDataTest()
+
+  @Test def memClippedInlinedDataTest: Unit = memTester.memClippedInlinedDataTest()
+
+  @Test def memConstructTest: Unit = memTester.memConstructTest()
 }
 object BasicsTest {
   // @BeforeClass

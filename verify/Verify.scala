@@ -23,5 +23,5 @@ def testPublish(): Unit = {
     println(digs.bytes.stringEncode64)           // eio
     Err ?# "Not an error, we're just bored"      // flow
     println("You should not see this message.")
-  .ask() __ Unit
+  .await() __ Unit
 }

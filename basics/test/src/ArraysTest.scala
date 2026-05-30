@@ -540,10 +540,10 @@ class ArraysTest() {
       aidx.toArray
     def lix(i: Int, j: Int): Unit =
       aidx += Iv(i, j).pr
-    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
-    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
-    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
-    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
+    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 2), Iv(2, 5), Iv(5, 13), Iv(13, 15)).map(_.pr)
+    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 14)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 5), Iv(5, 11)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 5), Iv(5, 12)).map(_.pr)
 
 
   def arrayClippedInlinedDataTest(): Unit =
@@ -1305,15 +1305,15 @@ class ArraysTest() {
       aidx.toArray
     def lix(i: Int, j: Int): Unit =
       aidx += Iv(i, j).pr
-    T ~ w{ test.clip.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(-2, 9)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 9)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(2, 18)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(-2 to End-4)(_ != 'e' && _ == 'e')(lix) }   =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 11)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(Start+2 to 18)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(-2 to 11)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 12)).map(_.pr)
-    T ~ w{ test.clip.visitCuts(2 to 18)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 14)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2, 9)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(0, 2), Iv(2, 5), Iv(5, 9)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2, 18)(_ != 'e' && _ == 'e')(lix) }         =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 15)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 5), Iv(5, 11)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2 to End-4)(_ != 'e' && _ == 'e')(lix) }   =**= Array(Iv(0, 2), Iv(2, 5), Iv(5, 11)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(Start+2 to 18)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 15)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 5), Iv(5, 12)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(-2 to 11)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(0, 2), Iv(2, 5), Iv(5, 12)).map(_.pr)
+    T ~ w{ test.clip.visitCuts(2 to 18)(_ != 'e' && _ == 'e')(lix) }       =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 15)).map(_.pr)
 
 
 
@@ -2663,10 +2663,10 @@ class ArraysTest() {
       aidx.toArray
     def lix(i: Int, j: Int): Unit =
       aidx += Iv(i, j).pr
-    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 3), Iv(3, 6), Iv(6, 14), Iv(14, 15)).map(_.pr)
-    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 6), Iv(6, 14)).map(_.pr)
-    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 6), Iv(6, 11)).map(_.pr)
-    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 6), Iv(6, 12)).map(_.pr)
+    T ~ w{ test.visitCuts()(_ != 'e' && _ == 'e')(lix) }           =**= Array(Iv(0, 2), Iv(2, 5), Iv(5, 13), Iv(13, 15)).map(_.pr)
+    T ~ w{ test.visitCuts(2, 14)(_ != 'e' && _ == 'e')(lix) }      =**= Array(Iv(2, 5), Iv(5, 13), Iv(13, 14)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to End-4)(_ != 'e' && _ == 'e')(lix) } =**= Array(Iv(2, 5), Iv(5, 11)).map(_.pr)
+    T ~ w{ test.visitCuts(2 to 11)(_ != 'e' && _ == 'e')(lix) }    =**= Array(Iv(2, 5), Iv(5, 12)).map(_.pr)
 
 
   def stringClippedInlinedDataTest(): Unit =

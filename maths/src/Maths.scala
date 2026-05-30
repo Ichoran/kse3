@@ -1133,7 +1133,7 @@ extension (d: Double) {
   inline def logisticInv = NumericFunctions.logisticInv(d)
   inline def logit = NumericFunctions.logisticInv(d)
   inline def sigmoid(
-    method: "logistic" | "arctan" | "erf" | "cubic",
+    method: "logistic" | "arctan" | "erf" | "cubic" | "softsign" | "clamp",
     inline mode: "zero" | "symmetric" = "zero",
     inline fwhm: Double = 1.0,
     inline center: Double = 0
@@ -1152,7 +1152,12 @@ extension (d: Double) {
       case "cubic" => inline mode match
         case      "zero" => { val x = (d - center) / fwhm; val y = NumericConstants.CubicSigmoidA*x + NumericConstants.CubicSigmoidB*x*x*x; y/(1+jm.abs(y)) } * 0.5 + 0.5
         case "symmetric" => { val x = (d - center) / fwhm; val y = NumericConstants.CubicSigmoidA*x + NumericConstants.CubicSigmoidB*x*x*x; y/(1+jm.abs(y)) }
-
+      case "softsign" => inline mode match
+        case      "zero" => { val x = (d - center) * (2.0 / fwhm); x/(1 + jm.abs(x)) } * 0.5 + 0.5
+        case "symmetric" => { val x = (d - center) * (2.0 / fwhm); x/(1 + jm.abs(x)) }
+      case "clamp" => inline mode match
+        case      "zero" => { val x = (d - center) * (2.0 / fwhm); if x < -1 then 0 else if x > 1 then 1 else 0.5*x + 0.5 }
+        case "symmetric" => { val x = (d - center) * (2.0 / fwhm); if x < -1 then -1 else if x > 1 then 1 else x }
 
   inline def sin = jm.sin(d)
   inline def cos = jm.cos(d)

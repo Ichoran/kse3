@@ -132,16 +132,16 @@ object Iv extends Translucent.Companion[Iv, Long] {
         if iN - j < iN then j = iN - Int.MaxValue
       ((i0-j) & 0xFFFFFFFFL) | ((iN-j).toLong << 32)
     def &(that: Iv): Iv =
-      val i0 = (iv & 0xFFFFFFFFL)
-      var i = (that & 0xFFFFFFFFL)
+      val i0 = (iv & 0xFFFFFFFFL).toInt
+      var i = (that & 0xFFFFFFFFL).toInt
       if i0 > i then i = i0
       val iN = (iv >>> 32).toInt
       var j = (that >>> 32).toInt
       if iN < j then j = iN
       (i & 0xFFFFFFFFL) | (j.toLong << 32)
     def |(that: Iv): Iv =
-      val i0 = (iv & 0xFFFFFFFFL)
-      var i = (that & 0xFFFFFFFFL)
+      val i0 = (iv & 0xFFFFFFFFL).toInt
+      var i = (that & 0xFFFFFFFFL).toInt
       val iN = (iv >>> 32).toInt
       var j = (that >>> 32).toInt
       if iN <= i0 then
@@ -332,6 +332,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
 
   final val empty: Iv = 0L
 
+  /** Interval with absolute indexing that includes endpoints */
   opaque type Raa = Long
   object Raa extends Translucent.Companion[Raa, Long] {
     inline def fromValues(first: Int, last: Int): Raa = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -341,9 +342,10 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def i0: Int = ((raa: Long) & 0xFFFFFFFFL).toInt
       inline def i1: Int = ((raa: Long) >>> 32).toInt
       inline def iv: Iv = if ((raa: Long) & 0xFFFFFFFF00000000L) == 0x7FFFFFFF00000000L then Iv.wrap(raa: Long) else Iv.wrap((raa: Long) + 0x100000000L)
-      def len: Long = java.lang.Math.max(1 + ((raa: Long) >>> 32) - ((raa: Long) & 0xFFFFFFFFL), 0L)
+      def len: Long = java.lang.Math.max(1 + ((raa: Long) >> 32) - ((raa: Long) & 0xFFFFFFFFL).toInt, 0L)
   }
 
+  /** Interval with absolute first index and end-relative last index; includes endpoints */
   opaque type Rae = Long
   object Rae extends Translucent.Companion[Rae, Long] {
     inline def fromValues(first: Int, last: Int): Rae = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -356,6 +358,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def last: End.At = End.At.wrap(((rae: Long) >>> 32).toInt)
   }
 
+  /** Interval with absolute first index and start-relative last index; includes endpoints */
   opaque type Ras = Long
   object Ras extends Translucent.Companion[Ras, Long] {
     inline def fromValues(first: Int, last: Int): Ras = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -368,6 +371,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def last: Start.At = Start.At.wrap(((ras: Long) >>> 32).toInt)
   }
 
+  /** Interval with end-relative first index and absolute last index; includes endpoints */
   opaque type Rea = Long
   object Rea extends Translucent.Companion[Rea, Long] {
     inline def fromValues(first: Int, last: Int): Rea = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -380,6 +384,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def first: End.At = End.At.wrap(((rea: Long) & 0xFFFFFFFFL).toInt)
   }
 
+  /** Interval with end-relative indices; includes endpoints */
   opaque type Ree = Long
   object Ree extends Translucent.Companion[Ree, Long] {
     inline def fromValues(first: Int, last: Int): Ree = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -391,9 +396,10 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: End.At = End.At.wrap(((ree: Long) & 0xFFFFFFFFL).toInt)
       inline def last: End.At = End.At.wrap(((ree: Long) >>> 32).toInt)
-      def len: Long = java.lang.Math.max(1 + ((ree: Long) >>> 32) - ((ree: Long) & 0xFFFFFFFFL), 0L)
+      def len: Long = java.lang.Math.max(1 + ((ree: Long) >> 32) - ((ree: Long) & 0xFFFFFFFFL).toInt, 0L)
   }
 
+  /** Interval with end-relative first index and start-relative last index; includes endpoints */
   opaque type Res = Long
   object Res extends Translucent.Companion[Res, Long] {
     inline def fromValues(first: Int, last: Int): Res = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -407,6 +413,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def last: Start.At = Start.At.wrap(((res: Long) >>> 32).toInt)
   }
 
+  /** Interval with start-relative first index and absolute last index; includes endpoints */
   opaque type Rsa = Long
   object Rsa extends Translucent.Companion[Rsa, Long] {
     inline def fromValues(first: Int, last: Int): Rsa = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -419,6 +426,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def first: Start.At = Start.At.wrap(((rsa: Long) & 0xFFFFFFFFL).toInt)
   }
 
+  /** Interval with start-relative first index and end-relative last index; includes endpoints */
   opaque type Rse = Long
   object Rse extends Translucent.Companion[Rse, Long] {
     inline def fromValues(first: Int, last: Int): Rse = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -432,6 +440,7 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def last: End.At = End.At.wrap(((rse: Long) >>> 32).toInt)
   }
 
+  /** Interval with start-relative indices; includes endpoints */
   opaque type Rss = Long
   object Rss extends Translucent.Companion[Rss, Long] {
     inline def fromValues(first: Int, last: Int): Rss = ((first & 0xFFFFFFFFL) | (last.toLong << 32))
@@ -443,9 +452,12 @@ object Iv extends Translucent.Companion[Iv, Long] {
       inline def iv(in: In): Iv = Iv(i0(in), Iv.up(i1(in)))
       inline def first: Start.At = Start.At.wrap(((rss: Long) & 0xFFFFFFFFL).toInt)
       inline def last: Start.At = Start.At.wrap(((rss: Long) >>> 32).toInt)
-      def len: Long = java.lang.Math.max(1 + ((rss: Long) >>> 32) - ((rss: Long) & 0xFFFFFFFFL), 0L)
+      def len: Long = java.lang.Math.max(1 + ((rss: Long) >> 32) - ((rss: Long) & 0xFFFFFFFFL).toInt, 0L)
   }
 
+  /** Interval with Python indexing (positive from 0, negative from end) except endpoint is
+   *  included--use `..` for "true Python" mode (endpoint excluded).
+   */
   opaque type Rxy = Long
   object Rxy extends Translucent.Companion[Rxy, Long] {
     inline def fromValues(first: Int, last: Int): Rxy = ((first & 0xFFFFFFFFL) | (last.toLong << 32))

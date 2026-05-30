@@ -20,7 +20,7 @@ import kse.basics.intervals._
 
 
 extension (ivx: Iv.X) {
-  inline def of(inline target: Int | String | Array[?] | Iv): Iv = inline ivx match
+  inline infix def of(inline target: Int | String | Array[?] | Iv): Iv = inline ivx match
     case iv:  Iv     => iv
     case raa: Iv.Raa => raa.iv
     case rae: Iv.Rae => rae.iv(target)
@@ -1153,6 +1153,20 @@ object Atom {
     inline def -- : Unit = inline erasedValue[A] match
       case _: Int  => a.asInstanceOf[AtomicInteger].decrementAndGet(): Unit
       case _: Long => a.asInstanceOf[AtomicLong].decrementAndGet(): Unit
+  }
+
+  extension (ai: Atom[Int]) {
+    inline def +=(i: Int): Unit = ai.asInstanceOf[AtomicInteger].addAndGet(i): Unit
+    inline def -=(i: Int): Unit = ai.asInstanceOf[AtomicInteger].addAndGet(-i): Unit
+    inline def addAndGet(i: Int): Int = ai.asInstanceOf[AtomicInteger].addAndGet(i)
+    inline def subAndGet(i: Int): Int = ai.asInstanceOf[AtomicInteger].addAndGet(-i)
+  }
+
+  extension (al: Atom[Long]) {
+    inline def +=(l: Long): Unit = al.asInstanceOf[AtomicLong].addAndGet(l): Unit
+    inline def -=(l: Long): Unit = al.asInstanceOf[AtomicLong].addAndGet(-l): Unit
+    inline def addAndGet(l: Long): Long = al.asInstanceOf[AtomicLong].addAndGet(l)
+    inline def subAndGet(l: Long): Long = al.asInstanceOf[AtomicLong].addAndGet(-l)
   }
 
   opaque type Count = LongAdder

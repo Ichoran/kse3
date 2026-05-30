@@ -18,7 +18,7 @@ import kse.basics._
 import kse.flow._
 
 
-
+/*
 final class Chan[A](bufferSize: Int) {
   private val buffer = new Array[AnyRef](if bufferSize <= 0 then 1 else if bufferSize > Int.MaxValue - 7 then Int.MaxValue - 7 else bufferSize)
   private val lock = new ReentrantLock()
@@ -95,6 +95,9 @@ object Chan {
   val altReadOnly = Alt(State.ReadOnly)
   val altClosed = Alt(completed)
 }
+*/
+
+object OldGo {}
 
 
 
