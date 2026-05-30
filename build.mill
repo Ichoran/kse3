@@ -19,7 +19,9 @@ trait Base extends ScalaModule {
     "-deprecation",
     "-Wnonunit-statement",
     "-Wvalue-discard",
-    "-Wconf:msg=is not declared infix:s"
+    "-Wconf:msg=is not declared infix:s",
+    "-release", "25"      // require JDK 25+: stable Foreign Function & Memory API (22) + non-pinning
+                          // synchronized for virtual threads (24), both used by Mem/SharedMemory/Fu
   )
 }
 

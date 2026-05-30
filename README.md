@@ -15,8 +15,8 @@ writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.8 and later due to its use of
-`scala.util.boundary` and named tuples, and expectation of running on
-at least Java 25.**
+`scala.util.boundary` and named tuples; and requires JDK 25+ due to
+using virtual threading and foreign memory segments.**
 
 
 ## How do I get it?
@@ -215,6 +215,9 @@ var n = 0
 a.use()(n += _)
 println(n)      // Prints 10
 ```
+
+Want bigger memory for primitives?  Use Mem for primitives just like an Array--Mem.alloc[Byte](8_000_000_000L) works and is indexable.  Or,
+reinterpret the memory in your existing arrays with Mem.as[Int](myByteArray).  (Using the machine's native endinenness.)
 
 There is also a universal ultra-lightweight type-tagging system using string constants to refine types like `String \ "name"`.  If
 you have a tuple that is entirely labeled, you can convert it into a named tuple with `.labelsToNames`; if you have a named tuple, you can
