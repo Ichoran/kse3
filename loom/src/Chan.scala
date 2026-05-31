@@ -39,7 +39,7 @@ private[loom] final class Parker(val thread: Thread) {
   *    channel auto-closes.
   */
 final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
-  import Chan.{Woe, State, Sentinel}
+  import Chan.{Status, State, Sentinel}
 
   val lock = Sync()
   private var head = 0                                     // index of next item to read
@@ -111,23 +111,24 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
 
   // === Non-blocking core ===
 
-  /** Attempt to enqueue without blocking. */
-  def trySend(a: A): Unit Or Woe = lock.uninterrupted:
+  /** Attempt to enqueue without blocking.  Has no value to return, so reports a flat `Status`. */
+  def trySend(a: A): Status = lock.uninterrupted:
     myState match
       case State.Open =>
-        if count >= buffer.length then Chan.altWait
+        if count >= buffer.length then Status.Wait
         else
           val idx = head + count
           buffer(if idx >= buffer.length then idx - buffer.length else idx) =
             if a.asInstanceOf[AnyRef] eq null then Sentinel else a.asInstanceOf[AnyRef]
           count += 1
           wakeRecvers()
-          Is.unit
-      case State.Closed | State.Complete => Chan.altDone
-      case State.Errored(e)              => Alt(Woe.Fail(e))
+          Status.Okay
+      case State.Closed | State.Complete => Status.Done
+      case State.Errored(e)              => Status.Fail(e)
 
-  /** Attempt to dequeue without blocking. */
-  def tryRecv(): A Or Woe = lock.uninterrupted:
+  /** Attempt to dequeue without blocking.  Carries the value in the `Is`, so `Status.Okay`
+    * never appears here — a successful receive *is* the favored branch. */
+  def tryRecv(): A Or Status = lock.uninterrupted:
     if count > 0 then
       val wasFull = count >= buffer.length
       val v = buffer(head)
@@ -144,25 +145,25 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
         myState = State.Complete
         Chan.altDone
       case State.Complete   => Chan.altDone
-      case State.Errored(e) => Alt(Woe.Fail(e))
+      case State.Errored(e) => Alt(Status.Fail(e))
 
 
   // === Blocking ===
 
   /** Block until the value is sent, or the channel is closed/failed. */
-  def send(a: A): Unit Or Woe =
+  def send(a: A): Status =
     val r0 = trySend(a)
-    if !r0.existsAlt(_ == Woe.Wait) then return r0
+    if r0 != Status.Wait then return r0
     val p = Chan.parkerForCurrentThread()
     addSendWaiter(p)
     sendArm()
     try
-      var res: Unit Or Woe = Alt(Woe.Wait)
-      while res.existsAlt(_ == Woe.Wait) do
+      var res: Status = Status.Wait
+      while res == Status.Wait do
         p.armed = true
         res = trySend(a)
-        if res.existsAlt(_ == Woe.Wait) then
-          if Thread.interrupted() then res = Alt(Woe.Fail(Err("interrupted while sending")))
+        if res == Status.Wait then
+          if Thread.interrupted() then res = Status.Fail(Err("interrupted while sending"))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally
@@ -171,19 +172,19 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
       removeSendWaiter(p)
 
   /** Block until a value is available, or the channel is closed/failed. */
-  def recv(): A Or Woe =
+  def recv(): A Or Status =
     val r0 = tryRecv()
-    if !r0.existsAlt(_ == Woe.Wait) then return r0
+    if !r0.existsAlt(_ == Status.Wait) then return r0
     val p = Chan.parkerForCurrentThread()
     addRecvWaiter(p)
     recvArm()
     try
-      var res: A Or Woe = Alt(Woe.Wait)
-      while res.existsAlt(_ == Woe.Wait) do
+      var res: A Or Status = Alt(Status.Wait)
+      while res.existsAlt(_ == Status.Wait) do
         p.armed = true
         res = tryRecv()
-        if res.existsAlt(_ == Woe.Wait) then
-          if Thread.interrupted() then res = Alt(Woe.Fail(Err("interrupted while receiving")))
+        if res.existsAlt(_ == Status.Wait) then
+          if Thread.interrupted() then res = Alt(Status.Fail(Err("interrupted while receiving")))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally
@@ -222,11 +223,11 @@ object Chan {
 
   private object Sentinel
 
-  // Pre-allocated transient results, so the very common empty-poll / full-push paths don't
-  // rebox an `Alt` every call.  The favored side of an `Or` is phantom, so one instance serves
-  // every element type.
-  private[loom] val altWait: Alt[Woe] = Alt(Woe.Wait)
-  private[loom] val altDone: Alt[Woe] = Alt(Woe.Done)
+  // Pre-allocated alts for the empty-poll receive paths, so they don't rebox an `Alt` every
+  // call.  The favored side of an `Or` is phantom, so one instance serves every element type.
+  // (Sends report a flat `Status`, so they need no wrapper at all.)
+  private[loom] val altWait: Alt[Status] = Alt(Status.Wait)
+  private[loom] val altDone: Alt[Status] = Alt(Status.Done)
 
   private val parkers = new ThreadLocal[Parker]
   private[loom] def parkerForCurrentThread(): Parker =
@@ -244,11 +245,15 @@ object Chan {
     case Errored(e: Err)
   }
 
-  /** The non-success outcomes of a channel operation. */
-  enum Woe {
-    case Wait              // transient: full (send) or empty (recv), channel still open
-    case Done              // permanent: channel closed/complete successfully
-    case Fail(e: Err)      // permanent: channel errored
+  /** The outcome of a channel step or a select-loop step: progress, a transient block, a clean
+    * finish, or an error.  Sends and select-loop steps return it directly; a receive carries its
+    * value in the `Is` of an `A Or Status`, so there a success *is* the favored branch and `Okay`
+    * does not appear. */
+  enum Status {
+    case Okay              // progress: a value moved, or a handler ran
+    case Wait              // transient: full (send) or empty (recv), still open; or the loop is idle
+    case Done              // permanent: channel closed/drained; or a handler is inactive
+    case Fail(e: Err)      // permanent: errored
   }
 
   /** Create an open channel with the given capacity (clamped to at least 1). */

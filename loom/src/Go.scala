@@ -13,7 +13,7 @@ import scala.util.boundary
 import kse.basics._
 import kse.flow._
 
-import Chan.Woe
+import Chan.Status
 
 
 /** A persistent structured-concurrency scope running on a virtual thread.
@@ -51,12 +51,12 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
   private[loom] val coord: Coord = if coordIn eq null then new Coord else coordIn
 
-  private val result = new CompletableFuture[Unit Or Err]()
+  private val result = new CompletableFuture[Ask[Unit]]()
   private val handlers = new java.util.ArrayList[Handler](4)
   private var hs: Array[Handler] = null   // handlers frozen into a bare array once the loop starts
   private val children = new java.util.ArrayList[Go](2)
-  private val writingTo =
-    java.util.Collections.newSetFromMap(new java.util.IdentityHashMap[Chan[?], java.lang.Boolean]())
+  // Channels this scope writes to, keyed by identity; drives the auto-close cascade in cleanup.
+  private val writingTo = new java.util.IdentityHashMap[Chan[?], java.lang.Boolean]()
   private var stopConds: java.util.ArrayList[() => Boolean] = null   // Stop.on predicates
   private var deferred: java.util.ArrayList[() => Unit] = null       // Defer cleanups (LIFO)
 
@@ -65,10 +65,10 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   @volatile private[loom] var stopRequested = false
   private var inInit = true
   private var handlerIndex = 0
-  private var errorField: Err Or Unit = Alt.unit       // Is(err) once this scope has failed
+  private var errs: List[Err] = Nil                    // this scope's errors, newest first; bundled at the end
 
   private[loom] def thread: Thread = myThread
-  private[loom] def failure: Err Or Unit = errorField
+  private[loom] def errors: List[Err] = errs
 
 
   // === Public handle API ===
@@ -77,12 +77,9 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   def isComplete: Boolean = result.isDone
 
   /** Block until the whole scope tree finishes, yielding success or the first error. */
-  def await(): Unit Or Err =
+  def await(): Ask[Unit] =
     try result.get()
     catch case e if e.catchable => Alt(Err(e))
-
-  /** Alias for `await()`. */
-  def ask(): Unit Or Err = await()
 
   /** Like `await()`, but usable as `go.?` inside an `Or`/`Ask` boundary. */
   inline def ?[L >: Alt[Err]](using lb: boundary.Label[L]): Unit =
@@ -115,7 +112,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     handlers.add(h) __ Unit
 
   private[loom] def trackWriter(chan: Chan[?]): Unit =
-    if writingTo.add(chan) then chan.registerWriter()
+    if writingTo.put(chan, java.lang.Boolean.TRUE) eq null then chan.registerWriter()
 
   private[loom] def addStopCond(cond: () => Boolean): Unit =
     if !inInit then throw new IllegalStateException("Stop.on can only be registered during a task's initializer")
@@ -167,20 +164,20 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
       // --- run phase (skipped if we already failed or are being cancelled).  The loop may run
       //     before the barrier opens; it just can't *finish* until then. ---
-      if errorField.isAlt && coord.failure.get().isAlt && !stopRequested then
+      if errs.isEmpty && coord.failure.get().isAlt && !stopRequested then
         runLoop()
     catch
       case e: InterruptedException =>
         Thread.currentThread().interrupt()
-        if errorField.isAlt then errorField = Is(Err(e))
+        if errs.isEmpty then errs = Err(e) :: errs
       case e if e.catchable =>
-        if errorField.isAlt then errorField = Is(Err(e))
+        if errs.isEmpty then errs = Err(e) :: errs
     finally
       cleanup()
 
-  /** Record an error for this scope (first one wins) and cancel the whole tree. */
+  /** Record an error for this scope and cancel the whole tree. */
   private def fail(err: Err): Unit =
-    if errorField.isAlt then errorField = Is(err)
+    errs = err :: errs
     coord.cancel(err)
 
   /** Are we still producing/consuming new work, or stopping (explicit stop, or a Stop.on
@@ -208,9 +205,9 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
         running = false
       else
         tryExecuteOne(producing()) match
-          case Outcome.Executed  => ()                                 // made progress; keep going
-          case Outcome.Failed(e) => fail(e); running = false
-          case Outcome.Idle      =>
+          case Status.Okay    => ()                                    // made progress; keep going
+          case Status.Fail(e) => fail(e); running = false
+          case _ =>                                                    // idle: nothing ready this scan
             // Arm *before* the re-scan, so a producer/consumer that fires now sees us armed.
             arm(p)
             if coord.failure.get().isIs then
@@ -219,9 +216,9 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
             else
               val prod = producing()
               tryExecuteOne(prod) match
-                case Outcome.Executed  => disarm(p)
-                case Outcome.Failed(e) => disarm(p); fail(e); running = false
-                case Outcome.Idle      =>
+                case Status.Okay    => disarm(p)
+                case Status.Fail(e) => disarm(p); fail(e); running = false
+                case _ =>
                   // We may only *finish* once every initializer in the tree has run.
                   if coord.initGate.isDone && finished(prod) then
                     disarm(p)
@@ -253,21 +250,21 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     var i = 0
     while i < hs.length do { hs(i).disarm(); i += 1 }
 
-  /** Try each handler once, round-robin, executing the first that is ready. */
-  private def tryExecuteOne(prod: Boolean): Outcome =
+  /** Try each handler once, round-robin, executing the first that is ready.  Returns `Okay` if
+    * one ran, `Fail` if one errored, or `Wait` if the whole scan made no progress. */
+  private def tryExecuteOne(prod: Boolean): Status =
     val n = hs.length
     var k = 0
     while k < n do
       val idx = { val t = handlerIndex + k; if t >= n then t - n else t }
       hs(idx).tryRun(prod) match
-        case Tried.Executed =>
+        case Status.Okay =>
           handlerIndex = { val t = idx + 1; if t >= n then 0 else t }
-          return Outcome.Executed
-        case Tried.Failed(e) => return Outcome.Failed(e)
-        case Tried.NotReady  => ()
-        case Tried.Inactive  => ()
+          return Status.Okay
+        case s: Status.Fail => return s
+        case _ => ()                       // Wait / Done: this handler made no progress; try the next
       k += 1
-    Outcome.Idle
+    Status.Wait
 
   /** Could any handler ever fire again? */
   private def scopeAlive(): Boolean =
@@ -287,11 +284,10 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
   private def cleanup(): Unit =
     // 1. Tell every channel we write to that one writer is gone (cascade-closes channels).
-    writingTo.forEach(c => c.writerDone())
+    writingTo.keySet.forEach(c => c.writerDone())
 
-    // 2. Join children (tolerating interruption, since they're being torn down too) and
-    //    collect their errors.
-    var childErrs: java.util.ArrayList[Err] = null
+    // 2. Join children (tolerating interruption, since they're being torn down too) and fold
+    //    their errors into ours, so a failing tree reports every distinct cause.
     var j = 0
     while j < children.size do
       val c = children.get(j)
@@ -301,34 +297,25 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
         while !joined do
           try { ct.join(); joined = true }
           catch case _: InterruptedException => Thread.currentThread().interrupt()
-      c.failure.foreach { e =>
-        if childErrs eq null then childErrs = new java.util.ArrayList[Err](2)
-        childErrs.add(e) __ Unit
-      }
+      c.errors.foreach(e => errs = e :: errs)
       j += 1
 
-    if errorField.isAlt && (childErrs ne null) && !childErrs.isEmpty then
-      errorField = Is(
-        if childErrs.size == 1 then childErrs.get(0)
-        else
-          import scala.jdk.CollectionConverters._
-          Err(ErrType.Many(childErrs.asScala.toSeq))
-      )
-
     // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure); a
-    //    throwing defer records an error if we don't already have one.
+    //    throwing defer adds its own error to the bundle.
     if deferred ne null then
       var k = deferred.size - 1
       while k >= 0 do
         try deferred.get(k).apply()
-        catch case e if e.catchable => if errorField.isAlt then errorField = Is(Err(e))
+        catch case e if e.catchable => errs = Err(e) :: errs
         k -= 1
 
-    // 4. Publish our result.  Always runs, so `await()` can never hang.  A scope with no error
-    //    of its own still reports the tree-wide cause if it was cancelled/failed elsewhere
-    //    (but a graceful `stop()` leaves the cause unset, so it reports success).
-    val effective: Err Or Unit = if errorField.isIs then errorField else coord.failure.get()
-    val out: Unit Or Err = effective.fold(e => Alt(e))(_ => Is.unit)
+    // 4. Publish our result.  Always runs, so `await()` can never hang.  With no error of our
+    //    own (or below us) we still report the tree-wide cause if cancelled/failed elsewhere
+    //    (but a graceful `stop()` leaves that unset, so it reports success).
+    val out: Ask[Unit] = errs match
+      case Nil      => coord.failure.get().fold(e => Alt(e))(_ => Is.unit)
+      case e :: Nil => Alt(e)
+      case many     => Alt(Err(ErrType.Many(many.reverse)))
     result.complete(out) __ Unit
 }
 
@@ -400,17 +387,11 @@ object Go {
 
 
   // === Select-loop handlers ===
-
-  private enum Outcome:
-    case Executed
-    case Idle
-    case Failed(err: Err)
-
-  private[loom] enum Tried:
-    case Executed
-    case NotReady
-    case Inactive
-    case Failed(e: Err)
+  //
+  // A handler step, a channel op, and a whole-loop scan all report the same four outcomes, so
+  // they share one `Chan.Status`: `Okay` (progressed), `Wait` (nothing ready now), `Done`
+  // (permanently inactive), `Fail` (errored).  The loop treats `Wait` and `Done` alike — both
+  // just mean "this handler didn't run" — so it never has to tell them apart.
 
   private[loom] sealed trait Handler {
     /** Could this handler still fire at some point in the future? */
@@ -419,12 +400,30 @@ object Go {
     def hasPending: Boolean
     /** Try to make progress.  `producing` is false once the task is stopping, in which case the
       * handler only flushes a value it already holds (it neither produces nor consumes anew). */
-    def tryRun(producing: Boolean): Tried
+    def tryRun(producing: Boolean): Status
     def register(p: Parker): Unit
     def unregister(p: Parker): Unit
     /** Bump / drop this channel's armed count when the scope parks / wakes. */
     def arm(): Unit
     def disarm(): Unit
+  }
+
+  /** A handler that holds at most one produced-but-not-yet-delivered value, cached so contention
+    * never drops it.  A subclass fills `pending` while empty, then `flush` delivers it to `out`. */
+  private[loom] abstract class BufferingHandler[B](out: Chan[B]) extends Handler {
+    protected var pendingFlag = false
+    protected var pending: B = null.asInstanceOf[B]
+    final def hasPending: Boolean = pendingFlag
+
+    /** Deliver the buffered value to `out`, clearing it on success; a full channel (`Wait`) keeps
+      * it for the next round, and a terminal status passes straight through. */
+    protected final def flush(): Status =
+      out.trySend(pending) match
+        case Status.Okay =>
+          pendingFlag = false
+          pending = null.asInstanceOf[B]
+          Status.Okay
+        case other => other
   }
 
   private[loom] final class RecvHandler[A](chan: Chan[A], f: A => Ask[Unit]) extends Handler {
@@ -434,83 +433,52 @@ object Go {
     def unregister(p: Parker): Unit = chan.removeRecvWaiter(p)
     def arm(): Unit = chan.recvArm()
     def disarm(): Unit = chan.recvDisarm()
-    def tryRun(producing: Boolean): Tried =
-      if !producing then return Tried.Inactive          // stopping: don't consume anything new
+    def tryRun(producing: Boolean): Status =
+      if !producing then return Status.Done             // stopping: don't consume anything new
       chan.tryRecv().fold{ v =>
-        f(v).fold(_ => Tried.Executed)(e => Tried.Failed(e))
-      }{
-        case Woe.Wait    => Tried.NotReady
-        case Woe.Done    => Tried.Inactive
-        case Woe.Fail(e) => Tried.Failed(e)
-      }
+        f(v).fold(_ => Status.Okay)(e => Status.Fail(e))
+      }(identity)                                        // Wait / Done / Fail pass straight through
   }
 
-  private[loom] final class SendHandler[A](chan: Chan[A], cond: () => Boolean, producer: () => Ask[A]) extends Handler {
-    // A produced-but-not-yet-delivered value is cached so contention never drops it.
-    private var pendingFlag = false
-    private var pending: A = null.asInstanceOf[A]
-
+  private[loom] final class SendHandler[A](chan: Chan[A], cond: () => Boolean, producer: () => Ask[A])
+  extends BufferingHandler[A](chan) {
     // Live while a value is buffered to deliver, or the channel is open and `cond` may yet
     // be true.  `cond` is a producer's per-handler termination signal, so liveness consults it.
     def alive: Boolean =
       pendingFlag || (chan.isOpen && { try cond() catch case e if e.catchable => true })
-    def hasPending: Boolean = pendingFlag
     def register(p: Parker): Unit = chan.addSendWaiter(p)
     def unregister(p: Parker): Unit = chan.removeSendWaiter(p)
     def arm(): Unit = chan.sendArm()
     def disarm(): Unit = chan.sendDisarm()
-    def tryRun(producing: Boolean): Tried =
+    def tryRun(producing: Boolean): Status =
       if !pendingFlag then
-        if !producing then return Tried.Inactive        // stopping: produce nothing new
+        if !producing then return Status.Done           // stopping: produce nothing new
         val c =
           try cond()
-          catch case e if e.catchable => return Tried.Failed(Err(e))
-        if !c then return Tried.Inactive
-        producer().fold{ a => pending = a; pendingFlag = true }{ e => return Tried.Failed(e) }
-      chan.trySend(pending).fold{ _ =>
-        pendingFlag = false
-        pending = null.asInstanceOf[A]
-        Tried.Executed
-      }{
-        case Woe.Wait    => Tried.NotReady               // keep pending for next round
-        case Woe.Done    => Tried.Inactive
-        case Woe.Fail(e) => Tried.Failed(e)
-      }
+          catch case e if e.catchable => return Status.Fail(Err(e))
+        if !c then return Status.Done
+        producer().fold{ a => pending = a; pendingFlag = true }{ e => return Status.Fail(e) }
+      flush()
   }
 
   /** Reads `src`, transforms with `f`, writes `dst` — holding at most one in-flight item, so
     * backpressure is deterministic: it won't read the next input until the current output is
     * delivered, and it parks on a full `dst` rather than buffering. */
-  private[loom] final class TransferHandler[A, B](src: Chan[A], dst: Chan[B], f: A => Ask[B]) extends Handler {
-    private var pendingFlag = false
-    private var pending: B = null.asInstanceOf[B]
-
+  private[loom] final class TransferHandler[A, B](src: Chan[A], dst: Chan[B], f: A => Ask[B])
+  extends BufferingHandler[B](dst) {
     // Live while we can still deliver (dst open) and either hold a value or src may yet give one.
     def alive: Boolean = dst.isOpen && (pendingFlag || !src.isComplete)
-    def hasPending: Boolean = pendingFlag
     def register(p: Parker): Unit = { src.addRecvWaiter(p); dst.addSendWaiter(p) }
     def unregister(p: Parker): Unit = { src.removeRecvWaiter(p); dst.removeSendWaiter(p) }
     def arm(): Unit = { src.recvArm(); dst.sendArm() }
     def disarm(): Unit = { src.recvDisarm(); dst.sendDisarm() }
-    def tryRun(producing: Boolean): Tried =
+    def tryRun(producing: Boolean): Status =
       if !pendingFlag then
-        if !producing then return Tried.Inactive         // stopping: read nothing new
+        if !producing then return Status.Done            // stopping: read nothing new
         src.tryRecv().fold{ v =>
-          f(v).fold{ b => pending = b; pendingFlag = true }{ e => return Tried.Failed(e) }
-        }{
-          case Woe.Wait    => return Tried.NotReady
-          case Woe.Done    => return Tried.Inactive       // input exhausted
-          case Woe.Fail(e) => return Tried.Failed(e)
-        }
-      dst.trySend(pending).fold{ _ =>
-        pendingFlag = false
-        pending = null.asInstanceOf[B]
-        Tried.Executed
-      }{
-        case Woe.Wait    => Tried.NotReady                // dst full: hold the item, park
-        case Woe.Done    => Tried.Inactive                // downstream gone
-        case Woe.Fail(e) => Tried.Failed(e)
-      }
+          f(v).fold{ b => pending = b; pendingFlag = true }{ e => return Status.Fail(e) }
+        }{ st => return st }                              // Wait / Done (input exhausted) / Fail
+      flush()
   }
 }
 
