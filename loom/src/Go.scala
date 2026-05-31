@@ -5,7 +5,6 @@ package kse.loom
 
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 import java.util.concurrent.locks.LockSupport
 
 import scala.util.boundary
@@ -101,7 +100,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   def go(body: Go ?=> Unit): Unit =
     val child = new Go(this, coord)
     children.add(child) __ Unit
-    coord.pendingInit.incrementAndGet() __ Unit
+    coord.pendingInit.++
     child.launch(body)
 
 
@@ -160,11 +159,11 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       inInit = false
 
       // --- announce that this scope is established; release the barrier once all are ---
-      if coord.pendingInit.decrementAndGet() == 0 then coord.releaseInit()
+      if coord.pendingInit.subAndGet(1) == 0 then coord.releaseInit()
 
       // --- run phase (skipped if we already failed or are being cancelled).  The loop may run
       //     before the barrier opens; it just can't *finish* until then. ---
-      if errs.isEmpty && coord.failure.get().isAlt && !stopRequested then
+      if errs.isEmpty && (coord.failure() eq null) && !stopRequested then
         runLoop()
     catch
       case e: InterruptedException =>
@@ -201,7 +200,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
     var running = true
     while running do
-      if coord.failure.get().isIs || Thread.currentThread().isInterrupted then
+      if (coord.failure() ne null) || Thread.currentThread().isInterrupted then
         running = false
       else
         tryExecuteOne(producing()) match
@@ -210,14 +209,18 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
           case _ =>                                                    // idle: nothing ready this scan
             // Arm *before* the re-scan, so a producer/consumer that fires now sees us armed.
             arm(p)
-            if coord.failure.get().isIs then
+            if coord.failure() ne null then
               disarm(p)
               running = false
             else
               val prod = producing()
               tryExecuteOne(prod) match
-                case Status.Okay    => disarm(p)
-                case Status.Fail(e) => disarm(p); fail(e); running = false
+                case Status.Okay =>
+                  disarm(p)
+                case Status.Fail(e) =>
+                  disarm(p)
+                  fail(e)
+                  running = false
                 case _ =>
                   // We may only *finish* once every initializer in the tree has run.
                   if coord.initGate.isDone && finished(prod) then
@@ -226,7 +229,6 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
                   else
                     LockSupport.parkNanos(Chan.parkCapNanos)
                     disarm(p)
-
     i = 0
     while i < hs.length do { hs(i).unregister(p); i += 1 }
 
@@ -313,7 +315,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     //    own (or below us) we still report the tree-wide cause if cancelled/failed elsewhere
     //    (but a graceful `stop()` leaves that unset, so it reports success).
     val out: Ask[Unit] = errs match
-      case Nil      => coord.failure.get().fold(e => Alt(e))(_ => Is.unit)
+      case Nil      => coord.failure().fn(x => if x eq null then Is.unit else x.asInstanceOf[Alt[Err]])
       case e :: Nil => Alt(e)
       case many     => Alt(Err(ErrType.Many(many.reverse)))
     result.complete(out) __ Unit
@@ -347,10 +349,10 @@ object Go {
   // === Coordination shared by an entire scope tree ===
 
   private[loom] final class Coord {
-    val pendingInit = new AtomicInteger(1)              // starts at 1 for the session root
+    val pendingInit = Atom(1)                          // starts at 1 for the session root
     val initGate = new CompletableFuture[Unit]()
-    val failure = new AtomicReference[Err Or Unit](Alt.unit)  // Is(err) once any scope fails
-    @volatile var stopping = false                            // true once a tree-wide stop/cancel began
+    val failure = Atom[Alt[Err] | Null](null)          // Stores cancellation error if one exists
+    @volatile var stopping = false                     // true once a tree-wide stop/cancel began
     private val gos = new ConcurrentLinkedQueue[Go]()
 
     def register(go: Go): Unit = gos.add(go) __ Unit
@@ -375,7 +377,7 @@ object Go {
       * stop + hard-interrupt every scope so all parks/blocking calls unwind. */
     def cancel(cause: Err): Unit =
       stopping = true
-      failure.compareAndSet(Alt.unit, Is(cause)) __ Unit
+      failure.cas(null, Alt(cause)) __ Unit
       initGate.complete(()) __ Unit
       val it = gos.iterator()
       while it.hasNext do
@@ -430,7 +432,7 @@ object Go {
     def alive: Boolean = !chan.isComplete               // more data (or an error) may still arrive
     def hasPending: Boolean = false
     def register(p: Parker): Unit = chan.addRecvWaiter(p)
-    def unregister(p: Parker): Unit = chan.removeRecvWaiter(p)
+    def unregister(p: Parker): Unit = chan.delRecvWaiter(p)
     def arm(): Unit = chan.recvArm()
     def disarm(): Unit = chan.recvDisarm()
     def tryRun(producing: Boolean): Status =
@@ -447,7 +449,7 @@ object Go {
     def alive: Boolean =
       pendingFlag || (chan.isOpen && { try cond() catch case e if e.catchable => true })
     def register(p: Parker): Unit = chan.addSendWaiter(p)
-    def unregister(p: Parker): Unit = chan.removeSendWaiter(p)
+    def unregister(p: Parker): Unit = chan.delSendWaiter(p)
     def arm(): Unit = chan.sendArm()
     def disarm(): Unit = chan.sendDisarm()
     def tryRun(producing: Boolean): Status =
@@ -469,7 +471,7 @@ object Go {
     // Live while we can still deliver (dst open) and either hold a value or src may yet give one.
     def alive: Boolean = dst.isOpen && (pendingFlag || !src.isComplete)
     def register(p: Parker): Unit = { src.addRecvWaiter(p); dst.addSendWaiter(p) }
-    def unregister(p: Parker): Unit = { src.removeRecvWaiter(p); dst.removeSendWaiter(p) }
+    def unregister(p: Parker): Unit = { src.delRecvWaiter(p); dst.delSendWaiter(p) }
     def arm(): Unit = { src.recvArm(); dst.sendArm() }
     def disarm(): Unit = { src.recvDisarm(); dst.sendDisarm() }
     def tryRun(producing: Boolean): Status =

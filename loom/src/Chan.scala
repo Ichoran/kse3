@@ -4,7 +4,6 @@
 package kse.loom
 
 import java.util.concurrent.locks.LockSupport
-import java.util.concurrent.atomic.AtomicInteger
 
 import kse.basics._
 import kse.flow._
@@ -23,6 +22,8 @@ import kse.flow._
   */
 private[loom] final class Parker(val thread: Thread) {
   @volatile var armed: Boolean = false
+  inline def unparkArmed(): Unit =
+    if armed then LockSupport.unpark(thread)
 }
 
 
@@ -38,24 +39,22 @@ private[loom] final class Parker(val thread: Thread) {
   *    the channel one more writer exists; when every registered writer has finished the
   *    channel auto-closes.
   */
-final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
+final class Chan[A] private (buffer: Array[AnyRef]) {
   import Chan.{Status, State, Sentinel}
 
   val lock = Sync()
-  private var head = 0                                     // index of next item to read
-  private var count = 0                                    // number of buffered items
-  @volatile private var myState: State = initialState
-  private val writerCount = new AtomicInteger(0)
-
-  // Threads waiting for data to arrive (consumers) and for space to free up (producers).
-  private val recvWaiters = new java.util.ArrayList[Parker](2)
-  private val sendWaiters = new java.util.ArrayList[Parker](2)
+  private var head = 0                                     // index of next item to read (use under lock only)
+  private var count = 0                                    // number of buffered items (use under lock only)
+  @volatile private var myState: State = State.Open
+  private var recv0 = 4                                    // Index of first receiver in waiters array (builds from end)
+  private var sendN = 0                                    // Index past last sender in waiters array (builds from start)
+  private var waiters = new Array[Parker](4)               // Threads waiting for data
 
   // Count of waiters currently *armed* (parked or about to park) in each direction.  The
   // common case under load is zero — the partner is busy, not blocked — so a single volatile
   // read lets push/poll skip the waiter-list scan entirely and keep the critical section short.
-  private val recvArmedN = new AtomicInteger(0)
-  private val sendArmedN = new AtomicInteger(0)
+  private val recvArmedN = Atom(0)
+  private val sendArmedN = Atom(0)
 
   def capacity: Int = buffer.length
   def state: State = myState
@@ -66,47 +65,82 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
     case _                             => false
   def isComplete: Boolean = myState == State.Complete
   def isErrored: Boolean = myState match
-    case State.Errored(_) => true
+    case _: State.Errored => true
     case _                => false
 
   // === Waiter registration (used by Go select loops; called under no external lock) ===
 
-  private[loom] def addRecvWaiter(p: Parker): Unit = lock.uninterrupted{ recvWaiters.add(p) __ Unit }
-  private[loom] def addSendWaiter(p: Parker): Unit = lock.uninterrupted{ sendWaiters.add(p) __ Unit }
-  private[loom] def removeRecvWaiter(p: Parker): Unit = lock.uninterrupted{ recvWaiters.remove(p) __ Unit }
-  private[loom] def removeSendWaiter(p: Parker): Unit = lock.uninterrupted{ sendWaiters.remove(p) __ Unit }
+  // Must be used under lock
+  private def ensureWaiterSpace(): Unit =
+    if sendN == recv0 then
+      val w = new Array[Parker](2 * waiters.length)
+      if sendN > 0 then
+        waiters.inject(w)(0, sendN) __ Unit
+      if recv0 < waiters.length then
+        waiters.inject(w, recv0 + waiters.length)(recv0, waiters.length) __ Unit
+      recv0 += waiters.length
+      waiters = w
+
+  private[loom] def addRecvWaiter(p: Parker): Unit = lock.uninterrupted:
+    ensureWaiterSpace()
+    recv0 -= 1
+    waiters(recv0) = p
+  private[loom] def addSendWaiter(p: Parker): Unit = lock.uninterrupted:
+    ensureWaiterSpace()
+    waiters(sendN) = p
+    sendN += 1
+  private[loom] def delRecvWaiter(p: Parker): Unit = lock.uninterrupted:
+    var i = waiters.length - 1
+    var seeking = true
+    while i >= recv0 && seeking do
+      if waiters(i) eq p then seeking = false
+      i -= 1
+    while i >= recv0 do
+      waiters(i+1) = waiters(i)
+      i -= 1
+    if !seeking then
+      waiters(recv0) = null
+      recv0 += 1
+  private[loom] def delSendWaiter(p: Parker): Unit = lock.uninterrupted:
+    var i = 0
+    var seeking = true
+    while i < sendN && seeking do
+      if waiters(i) eq p then seeking = false
+      i += 1
+    while i < sendN do
+      waiters(i-1) = waiters(i)
+      i += 1
+    if !seeking then
+      sendN -= 1
+      waiters(sendN) = null
 
   // Arming bumps the count *before* the waiter re-checks readiness; a partner that publishes
   // data/space then reads the count (below, under `lock`) is guaranteed to see the bump
   // (the re-check acquires `lock` after the bump), so wakeups are never lost.
-  private[loom] def recvArm(): Unit = recvArmedN.incrementAndGet() __ Unit
-  private[loom] def recvDisarm(): Unit = recvArmedN.decrementAndGet() __ Unit
-  private[loom] def sendArm(): Unit = sendArmedN.incrementAndGet() __ Unit
-  private[loom] def sendDisarm(): Unit = sendArmedN.decrementAndGet() __ Unit
+  private[loom] def recvArm(): Unit = recvArmedN.++
+  private[loom] def recvDisarm(): Unit = recvArmedN.--
+  private[loom] def sendArm(): Unit = sendArmedN.++
+  private[loom] def sendDisarm(): Unit = sendArmedN.--
 
   // Must be called while holding `lock`.  Fast path: nobody armed -> nothing to do.
   private def wakeRecvers(): Unit =
-    if recvArmedN.get() > 0 then
-      var i = 0
-      while i < recvWaiters.size do
-        val p = recvWaiters.get(i)
-        if p.armed then LockSupport.unpark(p.thread)
-        i += 1
+    if recvArmedN() > 0 then
+      waiters.use(recv0, waiters.length): p =>
+        p.unparkArmed()
   private def wakeSenders(): Unit =
-    if sendArmedN.get() > 0 then
-      var i = 0
-      while i < sendWaiters.size do
-        val p = sendWaiters.get(i)
-        if p.armed then LockSupport.unpark(p.thread)
-        i += 1
+    if sendArmedN() > 0 then
+      waiters.use(0, sendN): p =>
+        p.unparkArmed()
 
   // === Writer tracking (drives auto-close) ===
 
-  private[loom] def registerWriter(): Unit = writerCount.incrementAndGet() __ Unit
+  private val writerCount = Atom(0)
+
+  private[loom] def registerWriter(): Unit = writerCount.++
 
   /** A writer scope has finished; close the channel once the last writer is gone. */
   private[loom] def writerDone(): Unit =
-    if writerCount.decrementAndGet() == 0 then close() __ Unit
+    if writerCount.subAndGet(1) == 0 then close() __ Unit
 
 
   // === Non-blocking core ===
@@ -152,24 +186,25 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
 
   /** Block until the value is sent, or the channel is closed/failed. */
   def send(a: A): Status =
-    val r0 = trySend(a)
-    if r0 != Status.Wait then return r0
-    val p = Chan.parkerForCurrentThread()
-    addSendWaiter(p)
-    sendArm()
-    try
-      var res: Status = Status.Wait
-      while res == Status.Wait do
-        p.armed = true
-        res = trySend(a)
-        if res == Status.Wait then
-          if Thread.interrupted() then res = Status.Fail(Err("interrupted while sending"))
-          else LockSupport.parkNanos(Chan.parkCapNanos)
-      res
-    finally
-      p.armed = false
-      sendDisarm()
-      removeSendWaiter(p)
+    trySend(a) match
+      case Status.Wait =>
+        val p = Chan.parkerForCurrentThread()
+        addSendWaiter(p)
+        sendArm()
+        try
+          var res: Status = Status.Wait
+          while res == Status.Wait do
+            p.armed = true
+            res = trySend(a)
+            if res == Status.Wait then
+              if Thread.interrupted() then res = Status.Fail(Err("interrupted while sending"))
+              else LockSupport.parkNanos(Chan.parkCapNanos)
+          res
+        finally
+          p.armed = false
+          sendDisarm()
+          delSendWaiter(p)
+      case x => x
 
   /** Block until a value is available, or the channel is closed/failed. */
   def recv(): A Or Status =
@@ -190,7 +225,7 @@ final class Chan[A] private (buffer: Array[AnyRef], initialState: Chan.State) {
     finally
       p.armed = false
       recvDisarm()
-      removeRecvWaiter(p)
+      delRecvWaiter(p)
 
 
   // === Explicit control ===
@@ -262,5 +297,5 @@ object Chan {
       if capacity <= 0 then 1
       else if capacity > Int.MaxValue - 8 then Int.MaxValue - 8
       else capacity
-    new Chan[A](new Array[AnyRef](cap), State.Open)
+    new Chan[A](new Array[AnyRef](cap))
 }

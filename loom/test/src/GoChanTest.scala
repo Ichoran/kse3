@@ -66,7 +66,7 @@ class GoChanTest {
   def goRunsBodyOnce(): Unit = Reps.times:
     val n = new AtomicInteger(0)
     val h = Go.session { _ ?=> n.incrementAndGet(): Unit }
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     assertEquals(1, n.get())
 
 
@@ -81,7 +81,7 @@ class GoChanTest {
         var i = 0
         ch.onSendWhile(i < 100){ i += 1; i }
       ch.onRecv{ v => sum.addAndGet(v.toLong) __ Unit }
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     assertEquals(5050L, sum.get())                        // producer auto-closed -> consumer ended
 
 
@@ -96,7 +96,7 @@ class GoChanTest {
       g.go{ var i = 0; ch.onSendWhile(i < 50){ i += 1; i } }
       g.go{ var i = 0; ch.onSendWhile(i < 50){ i += 1; i } }
       ch.onRecv{ v => count.incrementAndGet(); sum.addAndGet(v.toLong) __ Unit }
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     assertEquals(100, count.get())                        // closes only after BOTH writers done
     assertEquals(2L * 1275, sum.get())
 
@@ -113,7 +113,7 @@ class GoChanTest {
       g.go{ var i = 0; b.onSendWhile(i < 5){ i += 1; 100 + i } }
       a.onRecv{ v => got.add(v) __ Unit }
       b.onRecv{ v => got.add(v) __ Unit }
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     assertEquals(10, got.size())
 
 
@@ -130,7 +130,7 @@ class GoChanTest {
         out.writing                                              // declare we write to `out`
         in.onRecv{ v => out.send(v * 2) __ Unit }                // transform in -> out
       out.onRecv{ v => results.add(v) __ Unit }                  // collect
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     import scala.jdk.CollectionConverters._
     assertEquals((1 to 10).map(_ * 2).toSet, results.asScala.toSet)
 
@@ -145,7 +145,7 @@ class GoChanTest {
       g.go{ var i = 0; ch.onSendWhile(i < 20){ i += 1; i } }
       var sum = 0                                                // lives for the whole scope
       ch.onRecv{ v => sum += v; finalSum.set(sum) }
-    assertTrue(h.ask().isIs)
+    assertTrue(h.await().isIs)
     assertEquals(210, finalSum.get())
 
 
@@ -157,7 +157,7 @@ class GoChanTest {
     val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 1000){ i += 1; i } }
       ch.onRecv{ v => if v == 5 then throw new RuntimeException("boom") }
-    val r = h.ask()
+    val r = h.await()
     assertTrue(r.isAlt)
     assertTrue(r.altOrElse(_ => "").toString.contains("boom"))
 
@@ -171,7 +171,7 @@ class GoChanTest {
     val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 10_000_000){ i += 1; i } }   // effectively unbounded
       ch.onRecv{ v => if seen.incrementAndGet() >= 10 then g.stop() }
-    assertTrue(h.ask().isIs)                                   // graceful stop -> success
+    assertTrue(h.await().isIs)                                   // graceful stop -> success
     assertTrue(seen.get() >= 10)
 
 
@@ -186,7 +186,7 @@ class GoChanTest {
     Thread.sleep(50)
     assertFalse(h.isComplete)
     h.cancel()
-    val r = h.ask()
+    val r = h.await()
     assertTrue(r.isAlt)                                        // cancellation surfaces as an error
 
 
@@ -203,7 +203,7 @@ class GoChanTest {
       val h = Go.session: g ?=>
         g.go{ var i = 0; ch.onSendWhile(i < n){ i += 1; i } }
         ch.onRecv{ v => sum.addAndGet(v.toLong) __ Unit }
-      assertTrue(h.ask().isIs)
+      assertTrue(h.await().isIs)
       val rate = n / ((System.nanoTime() - t0) / 1e9)
       if rate > best then best = rate
       assertEquals(n.toLong * (n + 1) / 2, sum.get())
