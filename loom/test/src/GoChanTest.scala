@@ -3,7 +3,7 @@
 
 package kse.test.loom
 
-import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 import java.util.Collections
 
 import org.junit.runner.RunWith
@@ -65,7 +65,7 @@ class GoChanTest {
   @Test(timeout = 30000)
   def goRunsBodyOnce(): Unit = Reps.times:
     val n = new AtomicInteger(0)
-    val h = Go { _ ?=> n.incrementAndGet(): Unit }
+    val h = Go.session { _ ?=> n.incrementAndGet(): Unit }
     assertTrue(h.ask().isIs)
     assertEquals(1, n.get())
 
@@ -76,7 +76,7 @@ class GoChanTest {
   def producerConsumer(): Unit = Reps.times:
     val ch = Chan[Int](4)
     val sum = new AtomicLong(0)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go:
         var i = 0
         ch.onSendWhile(i < 100){ i += 1; i }
@@ -92,7 +92,7 @@ class GoChanTest {
     val ch = Chan[Int](4)
     val count = new AtomicInteger(0)
     val sum = new AtomicLong(0)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 50){ i += 1; i } }
       g.go{ var i = 0; ch.onSendWhile(i < 50){ i += 1; i } }
       ch.onRecv{ v => count.incrementAndGet(); sum.addAndGet(v.toLong) __ Unit }
@@ -108,7 +108,7 @@ class GoChanTest {
     val a = Chan[Int](2)
     val b = Chan[Int](2)
     val got = Collections.synchronizedList(new java.util.ArrayList[Int]())
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; a.onSendWhile(i < 5){ i += 1; i } }
       g.go{ var i = 0; b.onSendWhile(i < 5){ i += 1; 100 + i } }
       a.onRecv{ v => got.add(v) __ Unit }
@@ -124,7 +124,7 @@ class GoChanTest {
     val in = Chan[Int](4)
     val out = Chan[Int](4)
     val results = Collections.synchronizedList(new java.util.ArrayList[Int]())
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; in.onSendWhile(i < 10){ i += 1; i } }     // produce 1..10
       g.go:
         out.writing                                              // declare we write to `out`
@@ -141,7 +141,7 @@ class GoChanTest {
   def statefulAccumulator(): Unit = Reps.times:
     val ch = Chan[Int](4)
     val finalSum = new AtomicInteger(-1)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 20){ i += 1; i } }
       var sum = 0                                                // lives for the whole scope
       ch.onRecv{ v => sum += v; finalSum.set(sum) }
@@ -154,7 +154,7 @@ class GoChanTest {
   @Test(timeout = 30000)
   def errorPropagates(): Unit = Reps.times:
     val ch = Chan[Int](2)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 1000){ i += 1; i } }
       ch.onRecv{ v => if v == 5 then throw new RuntimeException("boom") }
     val r = h.ask()
@@ -168,7 +168,7 @@ class GoChanTest {
   def explicitStop(): Unit = Reps.times:
     val ch = Chan[Int](16)
     val seen = new AtomicInteger(0)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       g.go{ var i = 0; ch.onSendWhile(i < 10_000_000){ i += 1; i } }   // effectively unbounded
       ch.onRecv{ v => if seen.incrementAndGet() >= 10 then g.stop() }
     assertTrue(h.ask().isIs)                                   // graceful stop -> success
@@ -180,7 +180,7 @@ class GoChanTest {
   @Test(timeout = 30000)
   def cancelUnwinds(): Unit = SleepReps.times:
     val ch = Chan[Int](2)
-    val h = Go: g ?=>
+    val h = Go.session: g ?=>
       // producer with no consumer: fills the channel then blocks forever
       g.go{ var i = 0; ch.onSendWhile(i < 10_000_000){ i += 1; i } }
     Thread.sleep(50)
@@ -200,7 +200,7 @@ class GoChanTest {
       val ch = Chan[Int](1024)
       val sum = new AtomicLong(0)
       val t0 = System.nanoTime()
-      val h = Go: g ?=>
+      val h = Go.session: g ?=>
         g.go{ var i = 0; ch.onSendWhile(i < n){ i += 1; i } }
         ch.onRecv{ v => sum.addAndGet(v.toLong) __ Unit }
       assertTrue(h.ask().isIs)
@@ -208,6 +208,136 @@ class GoChanTest {
       if rate > best then best = rate
       assertEquals(n.toLong * (n + 1) / 2, sum.get())
     info(f"throughput: best ${best}%.0f items/s over 5 runs of $n")
+
+  // === New API: put / get / Stop / Defer (the canonical session shape) ===
+
+  @Test(timeout = 30000)
+  def putGetStopDefer(): Unit = Reps.times:
+    val ch = Chan[String](100)
+    val collected = new AtomicReference[List[String]](null)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          "eel"
+        Stop.on(i >= 100)
+      Go:
+        var stack = List.empty[String]
+        ch.get: x =>
+          stack = x :: stack
+        Defer:
+          collected.set(stack.reverse)
+    assertTrue(h.await().isIs)
+    val got = collected.get()
+    assertEquals(100, got.size)
+    assertTrue(got.forall(_ == "eel"))
+
+  // === New API: into (transfer with one-item backpressure) ===
+
+  @Test(timeout = 30000)
+  def transferInto(): Unit = Reps.times:
+    val in  = Chan[Int](4)
+    val out = Chan[Int](4)
+    val sum = new AtomicLong(0)
+    val h = Go.session:
+      Go:
+        var i = 0
+        in.put:
+          i += 1
+          i
+        Stop.on(i >= 10)
+      Go:
+        in.into(out): x =>
+          x * 2
+      Go:
+        out.get: v =>
+          sum.addAndGet(v.toLong) __ Unit
+    assertTrue(h.await().isIs)
+    assertEquals((1 to 10).map(_ * 2).sum.toLong, sum.get())
+
+  // === New API: Defer runs even when a sibling fails ===
+
+  @Test(timeout = 30000)
+  def deferRunsOnFailure(): Unit = Reps.times:
+    val ch = Chan[Int](2)
+    val cleaned = new AtomicInteger(0)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          i
+        Stop.on(i >= 1000)
+      Go:
+        ch.get: v =>
+          if v == 5 then throw new RuntimeException("boom")
+        Defer:
+          cleaned.incrementAndGet() __ Unit
+    assertTrue(h.await().isAlt)
+    assertEquals(1, cleaned.get())
+
+  // === New API: Stop.session() from inside a task stops the whole tree, successfully ===
+
+  @Test(timeout = 30000)
+  def stopSessionFromTask(): Unit = Reps.times:
+    val ch = Chan[Int](16)
+    val seen = new AtomicInteger(0)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          i
+        Stop.on(i >= 10_000_000)        // effectively unbounded
+      Go:
+        ch.get: _ =>
+          if seen.incrementAndGet() >= 10 then Stop.session()
+    assertTrue(h.await().isIs)
+    assertTrue(seen.get() >= 10)
+
+
+  // === New API: `.?` inside a handler fails the task (and the tree) ===
+
+  @Test(timeout = 30000)
+  def questionMarkFailsTask(): Unit = Reps.times:
+    val ch = Chan[Int](4)
+    val seen = new AtomicInteger(0)
+    def checkOdd(v: Int): Int Or Err =
+      if v % 2 == 0 then Alt(Err(s"even: $v")) else Is(v)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          2 * i - 1                                       // 1, 3, 5, ... all odd
+        Stop.on(i >= 100)
+      Go:
+        ch.get: v =>
+          checkOdd(v).? __ Unit                           // never fires for odd input
+          seen.incrementAndGet() __ Unit
+    assertTrue(h.await().isIs)
+    assertTrue(seen.get() >= 1)
+
+  @Test(timeout = 30000)
+  def questionMarkBreaksToErr(): Unit = Reps.times:
+    val ch = Chan[Int](4)
+    def checkOdd(v: Int): Int Or Err =
+      if v % 2 == 0 then Alt(Err(s"even: $v")) else Is(v)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          i                                               // 1, 2, 3, ... -> hits an even value
+        Stop.on(i >= 100)
+      Go:
+        ch.get: v =>
+          checkOdd(v).? __ Unit                           // breaks with Err when v is even
+    val r = h.await()
+    assertTrue(r.isAlt)
+    assertTrue(r.altOrElse(_ => Err("")).toString.contains("even"))
+
 
   private def info(s: String): Unit = println(s"[GoChanTest] $s")
 }

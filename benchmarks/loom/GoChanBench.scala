@@ -92,12 +92,17 @@ class SpscBench {
   def spsc(): Long =
     val ch = Chan[String](capacity)
     var acc = 0L
-    Go: g ?=>
-      g.go:
+    Go.session:
+      Go:
         var i = 0
-        ch.onSendWhile(i < Total){ val s = Pool(i & Mask); i += 1; s }
-      ch.onRecv{ v => acc += v.length }
-    .ask() __ Unit
+        ch.put:
+          val s = Pool(i & Mask)
+          i += 1
+          s
+        Stop.on(i >= Total)
+      ch.get: v =>
+        acc += v.length
+    .await() __ Unit
     acc
 }
 
@@ -123,7 +128,7 @@ class SelectBench {
   @Param(Array("1024"))
   var capacity: Int = 0
 
-  @Param(Array("1", "4", "16", "64"))
+  @Param(Array("1", "4", "16"))
   var channels: Int = 0
 
   @Param(Array("0", "256"))
@@ -136,22 +141,23 @@ class SelectBench {
     val w = work
     val chs = Array.fill(channels)(Chan[String](capacity))
     var acc = 0L
-    Go: g ?=>
+    Go.session:
       var c = 0
       while c < chs.length do
         val ch = chs(c)
-        g.go:
+        Go:
           var i = 0
           var perturb = 0
-          ch.onSendWhile(i < per){
+          ch.put:
             val s = Pool((i + perturb) & Mask)
             perturb = collatzWork(s.length, w)          // work result steers the next selection
             i += 1
             s
-          }
-        ch.onRecv{ v => acc += v.length }
+          Stop.on(i >= per)
+        ch.get: v =>
+          acc += v.length
         c += 1
-    .ask() __ Unit
+    .await() __ Unit
     acc
 
   @Benchmark
@@ -211,15 +217,20 @@ class FanInBench {
     val per = Total / producers
     val ch = Chan[String](capacity)
     var acc = 0L
-    Go: g ?=>
+    Go.session:
       var p = 0
       while p < producers do
-        g.go:
+        Go:
           var i = 0
-          ch.onSendWhile(i < per){ val s = Pool(i & Mask); i += 1; s }
+          ch.put:
+            val s = Pool(i & Mask)
+            i += 1
+            s
+          Stop.on(i >= per)
         p += 1
-      ch.onRecv{ v => acc += v.length }
-    .ask() __ Unit
+      ch.get: v =>
+        acc += v.length
+    .await() __ Unit
     acc
 
   /** Control: same shape over a plain blocking queue. */
