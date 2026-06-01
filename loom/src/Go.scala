@@ -57,7 +57,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   // Channels this scope writes to, keyed by identity; drives the auto-close cascade in cleanup.
   private val writingTo = new java.util.IdentityHashMap[Chan[?], java.lang.Boolean]()
   private var stopConds: java.util.ArrayList[() => Boolean] = null   // Stop.on predicates
-  private var deferred: java.util.ArrayList[() => Unit] = null       // Defer cleanups (LIFO)
+  private var deferred: List[List[Err] => Unit] = Nil                // Defer cleanups (LIFO)
 
   @volatile private var myThread: Thread = null
   @volatile private var myParker: Parker = null
@@ -118,10 +118,9 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     if stopConds eq null then stopConds = new java.util.ArrayList[() => Boolean](2)
     stopConds.add(cond) __ Unit
 
-  private[loom] def addDefer(body: () => Unit): Unit =
+  private[loom] def addDefer(body: List[Err] => Unit): Unit =
     if !inInit then throw new IllegalStateException("Defer can only be registered during a task's initializer")
-    if deferred eq null then deferred = new java.util.ArrayList[() => Unit](2)
-    deferred.add(body) __ Unit
+    deferred = body :: deferred
 
   /** Mark this task for a graceful stop from within one of its own handlers. */
   private[loom] def stopSelf(): Unit = stopRequested = true
@@ -154,8 +153,8 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
         case e: InterruptedException =>
           Thread.currentThread().interrupt()
           fail(Err(e))
-        case e if e.catchable =>
-          fail(Err(e))
+        case e if e.threadCatchable =>      // packages a stray control-flow break too, so it can't
+          fail(Err(e))                      // skip the barrier decrement below and hang our siblings
       inInit = false
 
       // --- announce that this scope is established; release the barrier once all are ---
@@ -169,7 +168,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       case e: InterruptedException =>
         Thread.currentThread().interrupt()
         if errs.isEmpty then errs = Err(e) :: errs
-      case e if e.catchable =>
+      case e if e.threadCatchable =>        // a break that escaped the loop is stranded here — package it
         if errs.isEmpty then errs = Err(e) :: errs
     finally
       cleanup()
@@ -285,40 +284,45 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     false
 
   private def cleanup(): Unit =
-    // 1. Tell every channel we write to that one writer is gone (cascade-closes channels).
-    writingTo.keySet.forEach(c => c.writerDone())
+    try
+      // 1. Tell every channel we write to that one writer is gone (cascade-closes channels).
+      writingTo.keySet.forEach(c => c.writerDone())
 
-    // 2. Join children (tolerating interruption, since they're being torn down too) and fold
-    //    their errors into ours, so a failing tree reports every distinct cause.
-    var j = 0
-    while j < children.size do
-      val c = children.get(j)
-      val ct = c.thread
-      if ct ne null then
-        var joined = false
-        while !joined do
-          try { ct.join(); joined = true }
-          catch case _: InterruptedException => Thread.currentThread().interrupt()
-      c.errors.foreach(e => errs = e :: errs)
-      j += 1
+      // 2. Join children (tolerating interruption, since they're being torn down too) and fold
+      //    their errors into ours, so a failing tree reports every distinct cause.
+      var j = 0
+      while j < children.size do
+        val c = children.get(j)
+        val ct = c.thread
+        if ct ne null then
+          var joined = false
+          while !joined do
+            try { ct.join(); joined = true }
+            catch case _: InterruptedException => Thread.currentThread().interrupt()
+        c.errors.foreach(e => errs = e :: errs)
+        j += 1
 
-    // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure); a
-    //    throwing defer adds its own error to the bundle.
-    if deferred ne null then
-      var k = deferred.size - 1
-      while k >= 0 do
-        try deferred.get(k).apply()
-        catch case e if e.catchable => errs = Err(e) :: errs
-        k -= 1
-
-    // 4. Publish our result.  Always runs, so `await()` can never hang.  With no error of our
-    //    own (or below us) we still report the tree-wide cause if cancelled/failed elsewhere
-    //    (but a graceful `stop()` leaves that unset, so it reports success).
-    val out: Ask[Unit] = errs match
-      case Nil      => coord.failure().fn(x => if x eq null then Is.unit else x.asInstanceOf[Alt[Err]])
-      case e :: Nil => Alt(e)
-      case many     => Alt(Err(ErrType.Many(many.reverse)))
-    result.complete(out) __ Unit
+      // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure); a
+      //    throwing defer adds its error to the bundle and the rest still run.  `threadCatchable`,
+      //    not `catchable`, so a stray control-flow break from a defer body is captured too.
+      while deferred.nonEmpty do
+        val f = deferred.head
+        deferred = deferred.tail
+        try f(coord.failure().fn(e => if e eq null then errs else e.asInstanceOf[Alt[Err]].alt :: errs))
+        catch case e if e.threadCatchable => errs = Err(e) :: errs
+    catch
+      // Steps 1-2 aren't expected to throw, but if a bug ever makes them, capture it rather than
+      // letting it unwind past the result publication below (which would hang every `await()`).
+      case e if e.threadCatchable => errs = Err(e) :: errs
+    finally
+      // 4. Publish our result — in a `finally`, so it runs even if the above threw and `await()`
+      //    can never hang.  With no error of our own (or below us) we still report the tree-wide
+      //    cause if cancelled/failed elsewhere (a graceful `stop()` leaves that unset → success).
+      val out: Ask[Unit] = errs match
+        case Nil      => coord.failure().fn(x => if x eq null then Is.unit else x.asInstanceOf[Alt[Err]])
+        case e :: Nil => Alt(e)
+        case many     => Alt(Err(ErrType.Many(many.reverse)))
+      result.complete(out) __ Unit
 }
 
 
@@ -344,6 +348,21 @@ object Go {
     * contextual `Go`, so this only compiles inside a `Go.session` (or another task). */
   def apply(body: Go ?=> Unit)(using parent: Go): Unit =
     parent.go(body)
+
+  /** Most identical tasks a single `Go.x` may spawn.  Virtual threads are cheap, so this is not
+    * a system limit — just a guard to turn a runaway count (an arithmetic slip) into a clean
+    * error instead of an attempt to launch millions of threads. */
+  final val MaxDuplication = 16384
+
+  /** Spawn `n` identical tasks in the enclosing session — `Go.x(n){ ... }` is `Go { ... }` run
+    * `n` times.  Each copy is its own scope on its own virtual thread, so a pool of `n` workers
+    * all draining the same channel is just `Go.x(n){ ch.get{ ... } }`.  `n <= 0` spawns none;
+    * `n > MaxDuplication` is refused as almost certainly a mistake. */
+  def x(n: Int)(body: Go ?=> Unit)(using parent: Go): Unit =
+    if n > MaxDuplication then
+      throw new IllegalArgumentException(s"Go.x asked for $n tasks, over the MaxDuplication limit of $MaxDuplication")
+    n.times:
+      parent.go(body)
 
 
   // === Coordination shared by an entire scope tree ===
@@ -496,10 +515,25 @@ object Stop {
   def session()(using go: Go): Unit = go.coord.stopAll()
 }
 
-/** Register cleanup to run when the current task finishes (success, stop, or failure).  Like
-  * Scala's `Using`/Go's `defer`, multiple `Defer`s run last-registered-first. */
+/** Register cleanup to run when the current task finishes.  Multiple `Defer`s run
+  * last-registered-first (LIFO), like Scala's `Using` or Go's `defer`.
+  *
+  *  - `Defer { … }` always runs.
+  *  - `Defer.ifOkay { … }` runs only if the task ended without error — which **includes** a
+  *    graceful `Stop`/`Stop.session()`; only an actual failure or `cancel()` is not-okay.
+  *  - `Defer.ifFail { … }` runs only if the task ended with an error (its own, a child's, or a
+  *    tree-wide cancellation).
+  *  - `Defer.withErrorView { errs => … }` always runs, handed the errors bundled for this task —
+  *    its own, its children's, and any tree-wide cancellation cause — empty when it ended okay.
+  *
+  * A `Defer` that itself throws is recorded as a failure, so any later (lower-on-the-stack)
+  * `Defer` sees a non-empty error list. */
 object Defer {
-  def apply(body: => Unit)(using go: Go): Unit = go.addDefer(() => body)
+  /** Always run `body` at task end, handed the task's errors (an empty list means it ended okay). */
+  def withErrorView(body: List[Err] => Unit)(using go: Go): Unit = go.addDefer(body)
+  inline def apply(inline body: => Unit)(using go: Go): Unit = go.addDefer(_ => body)
+  inline def ifOkay(inline body: => Unit)(using go: Go): Unit = go.addDefer(es => if es.isEmpty then body)
+  inline def ifFail(inline body: => Unit)(using go: Go): Unit = go.addDefer(es => if es.nonEmpty then body)
 }
 
 

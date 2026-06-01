@@ -339,5 +339,56 @@ class GoChanTest {
     assertTrue(r.altOrElse(_ => Err("")).toString.contains("even"))
 
 
+  // === Go.x: a pool of N identical workers drains one channel; every item consumed exactly once ===
+
+  @Test(timeout = 30000)
+  def workerPoolViaX(): Unit = Reps.times:
+    val ch = Chan[Int](8)
+    val n = 200
+    val sum = new AtomicLong(0)
+    val taken = new AtomicInteger(0)
+    val h = Go.session:
+      Go:
+        var i = 0
+        ch.put:
+          i += 1
+          i
+        Stop.on(i >= n)
+      Go.x(4):
+        ch.get: v =>
+          taken.incrementAndGet()
+          sum.addAndGet(v.toLong) __ Unit
+    assertTrue(h.await().isIs)
+    assertEquals(n, taken.get())                            // each item taken once, none lost/duplicated
+    assertEquals(n.toLong * (n + 1) / 2, sum.get())
+
+  // === Go.x refuses an absurd count rather than launching it ===
+
+  @Test(timeout = 30000)
+  def xRefusesOverLimit(): Unit =
+    val h = Go.session:
+      Go.x(Go.MaxDuplication + 1){ () }
+    val r = h.await()
+    assertTrue(r.isAlt)                                     // refusal is captured, not propagated
+    assertTrue(r.altOrElse(_ => Err("")).toString.contains("MaxDuplication"))
+
+
+  // === A stray control-flow break leaking from a Defer is captured, not propagated (no hang) ===
+
+  @Test(timeout = 30000)
+  def deferStrayBreakDoesNotHang(): Unit = 
+    import scala.util.boundary
+    Reps.times:
+      val h = Go.session:
+        Go:
+          // A label whose boundary has already returned: breaking to it throws a stranded `Break`
+          // (threadCatchable but NOT catchable) — exactly what a leaked `.?` in a Defer looks like.
+          scala.util.boundary[Unit]:
+            Defer:
+              boundary.break()
+      val r = h.await()                          // must complete, not hang on the un-published result
+      assertTrue(r.isAlt)                        // the stranded break is bundled as an error
+
+
   private def info(s: String): Unit = println(s"[GoChanTest] $s")
 }

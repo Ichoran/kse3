@@ -95,9 +95,7 @@ final class Chan[A] private (buffer: Array[AnyRef]) {
     while i >= recv0 && seeking do
       if waiters(i) eq p then seeking = false
       i -= 1
-    while i >= recv0 do
-      waiters(i+1) = waiters(i)
-      i -= 1
+    if i >= recv0 then waiters(i+1) = waiters(recv0)
     if !seeking then
       waiters(recv0) = null
       recv0 += 1
@@ -107,9 +105,7 @@ final class Chan[A] private (buffer: Array[AnyRef]) {
     while i < sendN && seeking do
       if waiters(i) eq p then seeking = false
       i += 1
-    while i < sendN do
-      waiters(i-1) = waiters(i)
-      i += 1
+    if i < sendN then waiters(i-1) = waiters(sendN-1)
     if !seeking then
       sendN -= 1
       waiters(sendN) = null
