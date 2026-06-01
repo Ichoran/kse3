@@ -61,8 +61,8 @@ import kse.flow.*
   */
 
 /*
-abstract class Percolate(parallelism: Int, maxPermits: Int | (Int => Int))(using Percolate.Runner) {
-  import Percolate.*
+abstract class PercolateDraft(parallelism: Int, maxPermits: Int | (Int => Int))(using Percolate.Runner) {
+  import PercolateDraft.*
 
   protected val inflight = Atom(1)
   protected val complete = Atom(0L)
@@ -600,7 +600,7 @@ abstract class Percolate(parallelism: Int, maxPermits: Int | (Int => Int))(using
   */
 }
 */
-object Percolate {
+object PercolateDraft {
   /*
   /** Contains a resource managed for single-thread access in a multi-thread context.
     *
