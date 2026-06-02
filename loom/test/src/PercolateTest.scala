@@ -86,7 +86,8 @@ class PercolateTest {
 
   /** An engine whose root work comes from a `Producer` resource (a single-threaded source) rather than
     * the general `newWork`. */
-  class Feed(parallelism: Int, m: Int) extends Percolate(parallelism) {
+  class Feed(parallelism: Int, m: Int, affinity: Affinity = Affinity.Any, failOpen: Boolean = false)
+  extends Percolate(parallelism) {
     val ran = Atom(0)
     val opened = Atom(0)
     val closedN = Atom(0)
@@ -95,9 +96,9 @@ class PercolateTest {
     def teardown(): Ask[Unit] = Is.unit
     def newWork(): Ask[Work] = Is(Work.Empty)                  // all production via the Producer
 
-    final class Src extends Producer("src") {
+    final class Src extends Producer("src", affinity) {
       private var made = 0
-      protected override def open():  Ask[Unit] = { opened.++; Is.unit }
+      protected override def open():  Ask[Unit] = if failOpen then Alt(Err("cannot open src")) else { opened.++; Is.unit }
       protected override def close(): Ask[Unit] = { closedN.++; Is.unit }
       protected def produce(): Ask[Work] =
         if made < m then { made += 1; Is(new Job(made)) }
@@ -254,6 +255,23 @@ class PercolateTest {
     assertTrue(f.go().isIs)
     assertEquals(200, f.ran())
     assertEquals(1, f.closedN())
+
+  // An `Own` producer: it opens/produces on its dedicated thread, emitted work runs on the pool.
+  @Test(timeout = 30000)
+  def ownProducerCompletes(): Unit = Reps.times:
+    val f = new Feed(parallelism = 4, m = 300, affinity = Affinity.Own)
+    assertTrue(f.go().isIs)
+    assertEquals(300, f.ran())
+    assertEquals(1, f.opened())
+    assertEquals(1, f.closedN())
+
+  // A producer whose open() fails retires cleanly (no busy-spin / hang) and the run reports the error.
+  @Test(timeout = 30000)
+  def producerOpenFailureShutsDown(): Unit = Reps.times:
+    val f = new Feed(parallelism = 4, m = 300, affinity = Affinity.Own, failOpen = true)
+    assertTrue(f.go().isAlt)
+    assertEquals(0, f.opened())
+    assertEquals(0, f.closedN())
 
 
   // === Affine resources (a fixed, unchanging serving thread) ===

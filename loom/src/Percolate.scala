@@ -188,8 +188,12 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
 
     private[Percolate] def enqueue(w: Work): Unit =
       q.add(w) __ Unit
-      // Wake the right server: an `Own` resource's dedicated thread, else the shared worker pool.
-      if affinity == Affinity.Own then ownSignal.release() else available.release()
+      // Wake the right server: an `Own` resource's dedicated thread, or a worker for `Any`.  `Main` is
+      // served only by the never-parked main loop, so it needs no wakeup.
+      affinity match
+        case Affinity.Own => ownSignal.release()
+        case Affinity.Any => available.release()
+        case Affinity.Main =>
 
     /** Open lazily, under the guard.  Any failure (incl. `???`) becomes data via `errors`; the resource
       * then stops serving. */
@@ -221,14 +225,15 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
             else { runItem(w); true }
         finally guard.unlock()
 
-    /** Close once, at teardown (under the guard); a `close` failure is recorded. */
+    /** Close once, at teardown (under the guard); a `close` failure is recorded.  `emergencyDone` is set
+      * only on a *successful* close — if close fails, the resource is not cleanly closed, so the
+      * emergency-close hook stays armed to try on hard exit. */
     private[Percolate] def closeIfOpen(): Unit =
       guard.lock()
       try
         if opened && !closed then
           closed = true
-          emergencyDone := true
-          threadnice{ close() }.flatten.foreachAlt(e => errors.zap(e :: _))
+          threadnice{ close() }.flatten.fold(_ => emergencyDone := true)(e => errors.zap(e :: _))
       finally guard.unlock()
   }
 
@@ -304,12 +309,13 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
         case Pull.Busy     => returnPermit(); false
         case Pull.Broke(e) => returnPermit(); errors.zap(e :: _); false
 
-  /** Pull one item from a producer, under its guard.  `Busy` if a consumer holds it. */
+  /** Pull one item from a producer, under its guard.  `Busy` only for *transient* lock contention; a
+    * permanent open failure (already recorded in `errors`) retires the producer with `Done`. */
   private def pullFrom(p: Producer): Pull =
     if !p.guard.tryLock() then Pull.Busy
     else
       try
-        if !p.ensureOpen() then Pull.Busy
+        if !p.ensureOpen() then Pull.Done    // open failed (permanent, recorded) — retire, don't spin on Busy
         else threadnice{ p.pullProduce() }.flatten.fold(w => if w eq Work.Empty then Pull.Done else Pull.Made(w))(e => Pull.Broke(e))
       finally p.guard.unlock()
 
@@ -521,13 +527,17 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     prodIdx = 0
     ownThreads = Array.empty[Thread]
 
-    threadnice(setup()).flatten.?
-    threadnice(startWorkers()).flatten.foreachAlt: e =>
+    // On a startup failure after `setup()` succeeded, stop whatever started, close resources, run
+    // teardown, and surface the error — so teardown always runs even if thread creation fails.
+    def abortStartup(e: Err): Nothing =
       stopWorkers()
       closeAllResources()
       threadnice(teardown()).flatten.foreachAlt(_ => ())
       boundary.break(Alt(e))
-    startOwnThreads()
+
+    threadnice(setup()).flatten.?                                  // setup cleans up after itself on error
+    threadnice(startWorkers()).flatten.foreachAlt(abortStartup)
+    threadnice{ startOwnThreads() }.foreachAlt(abortStartup)
 
     var wall = 0L
     threadnice:
@@ -639,7 +649,10 @@ object Percolate {
           ready.enqueue(b -> IArray.unsafeFromArray(buf.toArray))
         Is.unit
 
-    def seal(): Unit = synchronized { ended = true }
+    def seal(): Unit = synchronized:
+      ended = true
+      baskets.valuesIterator.foreach(b => stored.zap(_ - b.length))   // abandon incomplete baskets; stop counting them
+      baskets.clear()
 
     def draw(atMost: Int = Int.MaxValue): Drawn[(B, IArray[A])] = synchronized:
       if ready.nonEmpty then
