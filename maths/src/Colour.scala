@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2025 Rex Kerr and UCSF / Kato Lab
+// Copyright (c) 2025-26 Rex Kerr and UCSF / Kato Lab
 
 package kse.maths.colours
 

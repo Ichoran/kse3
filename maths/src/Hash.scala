@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2015-16, 2021-23 by Rex Kerr and Calico Life Sciences LLC
+// Copyright (c) 2015-16, 2021-25 by Rex Kerr and Calico Life Sciences LLC
 //
 // Contains code ported from xxHash C source (by Yann Collet, "Cyan5973")
 //   See https://github.com/Cyan4973/xxHash
