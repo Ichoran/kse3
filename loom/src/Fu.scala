@@ -6,7 +6,7 @@ package kse.loom
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
-import java.util.concurrent.{Future, ExecutorService, ArrayBlockingQueue, SynchronousQueue}
+import java.util.concurrent.{Future, ExecutorService, ArrayBlockingQueue, SynchronousQueue, CompletableFuture}
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.Condition
@@ -49,6 +49,17 @@ object Fu {
 
   val defaultExecutor = Executor.create()
   given Executor = defaultExecutor
+
+  /** Adopt an externally-completed `CompletableFuture[Ask[A]]` as a `Fu[A]`, so a value produced
+    * elsewhere (a promise, a reply slot) joins the `Fu` world with its `.?`/`await` machinery.
+    * No executor is involved — completion is whoever holds the future's job. */
+  def wrap[A](cf: CompletableFuture[Ask[A]]): kse.loom.Fu[A] = cf
+
+  /** A completed `Fu[A]` carrying an already-known outcome (no work scheduled). */
+  def of[A](result: Ask[A]): kse.loom.Fu[A] =
+    val cf = new CompletableFuture[Ask[A]]()
+    cf.complete(result) __ Unit
+    cf
 
   inline def flat[A](using exec: Executor)(inline work: Label[Ask[A]] ?=> Ask[A]): kse.loom.Fu[A] = exec match
     case service: ExecutorService => service.submit(() => Ask.threadsafeFlat{ work })

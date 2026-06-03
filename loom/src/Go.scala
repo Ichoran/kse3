@@ -12,8 +12,6 @@ import scala.util.boundary
 import kse.basics._
 import kse.flow._
 
-import Chan.Status
-
 
 /** A persistent structured-concurrency scope running on a virtual thread.
   *
@@ -203,8 +201,8 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
         running = false
       else
         tryExecuteOne(producing()) match
-          case Status.Okay    => ()                                    // made progress; keep going
-          case Status.Fail(e) => fail(e); running = false
+          case RunStatus.Okay    => ()                                    // made progress; keep going
+          case RunStatus.Fail(e) => fail(e); running = false
           case _ =>                                                    // idle: nothing ready this scan
             // Arm *before* the re-scan, so a producer/consumer that fires now sees us armed.
             arm(p)
@@ -214,9 +212,9 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
             else
               val prod = producing()
               tryExecuteOne(prod) match
-                case Status.Okay =>
+                case RunStatus.Okay =>
                   disarm(p)
-                case Status.Fail(e) =>
+                case RunStatus.Fail(e) =>
                   disarm(p)
                   fail(e)
                   running = false
@@ -253,19 +251,19 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
   /** Try each handler once, round-robin, executing the first that is ready.  Returns `Okay` if
     * one ran, `Fail` if one errored, or `Wait` if the whole scan made no progress. */
-  private def tryExecuteOne(prod: Boolean): Status =
+  private def tryExecuteOne(prod: Boolean): RunStatus =
     val n = hs.length
     var k = 0
     while k < n do
       val idx = { val t = handlerIndex + k; if t >= n then t - n else t }
       hs(idx).tryRun(prod) match
-        case Status.Okay =>
+        case RunStatus.Okay =>
           handlerIndex = { val t = idx + 1; if t >= n then 0 else t }
-          return Status.Okay
-        case s: Status.Fail => return s
+          return RunStatus.Okay
+        case s: RunStatus.Fail => return s
         case _ => ()                       // Wait / Done: this handler made no progress; try the next
       k += 1
-    Status.Wait
+    RunStatus.Wait
 
   /** Could any handler ever fire again? */
   private def scopeAlive(): Boolean =
@@ -410,7 +408,7 @@ object Go {
   // === Select-loop handlers ===
   //
   // A handler step, a channel op, and a whole-loop scan all report the same four outcomes, so
-  // they share one `Chan.Status`: `Okay` (progressed), `Wait` (nothing ready now), `Done`
+  // they share one `RunStatus`: `Okay` (progressed), `Wait` (nothing ready now), `Done`
   // (permanently inactive), `Fail` (errored).  The loop treats `Wait` and `Done` alike — both
   // just mean "this handler didn't run" — so it never has to tell them apart.
 
@@ -421,7 +419,7 @@ object Go {
     def hasPending: Boolean
     /** Try to make progress.  `producing` is false once the task is stopping, in which case the
       * handler only flushes a value it already holds (it neither produces nor consumes anew). */
-    def tryRun(producing: Boolean): Status
+    def tryRun(producing: Boolean): RunStatus
     def register(p: Parker): Unit
     def unregister(p: Parker): Unit
     /** Bump / drop this channel's armed count when the scope parks / wakes. */
@@ -438,12 +436,12 @@ object Go {
 
     /** Deliver the buffered value to `out`, clearing it on success; a full channel (`Wait`) keeps
       * it for the next round, and a terminal status passes straight through. */
-    protected final def flush(): Status =
+    protected final def flush(): RunStatus =
       out.trySend(pending) match
-        case Status.Okay =>
+        case RunStatus.Okay =>
           pendingFlag = false
           pending = null.asInstanceOf[B]
-          Status.Okay
+          RunStatus.Okay
         case other => other
   }
 
@@ -454,10 +452,10 @@ object Go {
     def unregister(p: Parker): Unit = chan.delRecvWaiter(p)
     def arm(): Unit = chan.recvArm()
     def disarm(): Unit = chan.recvDisarm()
-    def tryRun(producing: Boolean): Status =
-      if !producing then return Status.Done             // stopping: don't consume anything new
+    def tryRun(producing: Boolean): RunStatus =
+      if !producing then return RunStatus.Done             // stopping: don't consume anything new
       chan.tryRecv().fold{ v =>
-        f(v).fold(_ => Status.Okay)(e => Status.Fail(e))
+        f(v).fold(_ => RunStatus.Okay)(e => RunStatus.Fail(e))
       }(identity)                                        // Wait / Done / Fail pass straight through
   }
 
@@ -471,14 +469,14 @@ object Go {
     def unregister(p: Parker): Unit = chan.delSendWaiter(p)
     def arm(): Unit = chan.sendArm()
     def disarm(): Unit = chan.sendDisarm()
-    def tryRun(producing: Boolean): Status =
+    def tryRun(producing: Boolean): RunStatus =
       if !pendingFlag then
-        if !producing then return Status.Done           // stopping: produce nothing new
+        if !producing then return RunStatus.Done           // stopping: produce nothing new
         val c =
           try cond()
-          catch case e if e.catchable => return Status.Fail(Err(e))
-        if !c then return Status.Done
-        producer().fold{ a => pending = a; pendingFlag = true }{ e => return Status.Fail(e) }
+          catch case e if e.catchable => return RunStatus.Fail(Err(e))
+        if !c then return RunStatus.Done
+        producer().fold{ a => pending = a; pendingFlag = true }{ e => return RunStatus.Fail(e) }
       flush()
   }
 
@@ -493,51 +491,22 @@ object Go {
     def unregister(p: Parker): Unit = { src.delRecvWaiter(p); dst.delSendWaiter(p) }
     def arm(): Unit = { src.recvArm(); dst.sendArm() }
     def disarm(): Unit = { src.recvDisarm(); dst.sendDisarm() }
-    def tryRun(producing: Boolean): Status =
+    def tryRun(producing: Boolean): RunStatus =
       if !pendingFlag then
-        if !producing then return Status.Done            // stopping: read nothing new
+        if !producing then return RunStatus.Done            // stopping: read nothing new
         src.tryRecv().fold{ v =>
-          f(v).fold{ b => pending = b; pendingFlag = true }{ e => return Status.Fail(e) }
+          f(v).fold{ b => pending = b; pendingFlag = true }{ e => return RunStatus.Fail(e) }
         }{ st => return st }                              // Wait / Done (input exhausted) / Fail
       flush()
   }
 }
 
 
-// === Coordination verbs available inside a task ===
-
-/** Stop the current task.  `Stop()` stops it now (gracefully); `Stop.on(cond)` stops it once
-  * `cond` holds; `Stop.session()` gracefully stops the whole scope tree.  In every case a value
-  * already produced is flushed before the task tears down. */
-object Stop {
-  def apply()(using go: Go): Unit = go.stopSelf()
-  def on(cond: => Boolean)(using go: Go): Unit = go.addStopCond(() => cond)
-  def session()(using go: Go): Unit = go.coord.stopAll()
-}
-
-/** Register cleanup to run when the current task finishes.  Multiple `Defer`s run
-  * last-registered-first (LIFO), like Scala's `Using` or Go's `defer`.
-  *
-  *  - `Defer { … }` always runs.
-  *  - `Defer.ifOkay { … }` runs only if the task ended without error — which **includes** a
-  *    graceful `Stop`/`Stop.session()`; only an actual failure or `cancel()` is not-okay.
-  *  - `Defer.ifFail { … }` runs only if the task ended with an error (its own, a child's, or a
-  *    tree-wide cancellation).
-  *  - `Defer.withErrorView { errs => … }` always runs, handed the errors bundled for this task —
-  *    its own, its children's, and any tree-wide cancellation cause — empty when it ended okay.
-  *
-  * A `Defer` that itself throws is recorded as a failure, so any later (lower-on-the-stack)
-  * `Defer` sees a non-empty error list. */
-object Defer {
-  /** Always run `body` at task end, handed the task's errors (an empty list means it ended okay). */
-  def withErrorView(body: List[Err] => Unit)(using go: Go): Unit = go.addDefer(body)
-  inline def apply(inline body: => Unit)(using go: Go): Unit = go.addDefer(_ => body)
-  inline def ifOkay(inline body: => Unit)(using go: Go): Unit = go.addDefer(es => if es.isEmpty then body)
-  inline def ifFail(inline body: => Unit)(using go: Go): Unit = go.addDefer(es => if es.nonEmpty then body)
-}
-
-
 // === Channel operations available inside a task ===
+//
+// `Stop` and `Defer` — the coordination verbs usable inside a task — now live in Orchestrate.scala,
+// generalized over `Go | Munch.Context[?]` so they read identically in a `Go` task or a `Munch`
+// muncher.  `Stop.on` / `Stop.session` stay `Go`-only there.
 
 extension [A](chan: Chan[A]) {
   /** Consume each value as it arrives (a terminal sink — to forward to another channel use

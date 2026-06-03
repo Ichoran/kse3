@@ -40,7 +40,7 @@ private[loom] final class Parker(val thread: Thread) {
   *    channel auto-closes.
   */
 final class Chan[A] private (buffer: Array[AnyRef]) {
-  import Chan.{Status, State, Sentinel}
+  import Chan.{State, Sentinel}
 
   val lock = Sync()
   private var head = 0                                     // index of next item to read (use under lock only)
@@ -141,24 +141,24 @@ final class Chan[A] private (buffer: Array[AnyRef]) {
 
   // === Non-blocking core ===
 
-  /** Attempt to enqueue without blocking.  Has no value to return, so reports a flat `Status`. */
-  def trySend(a: A): Status = lock.uninterrupted:
+  /** Attempt to enqueue without blocking.  Has no value to return, so reports a flat `RunStatus`. */
+  def trySend(a: A): RunStatus = lock.uninterrupted:
     myState match
       case State.Open =>
-        if count >= buffer.length then Status.Wait
+        if count >= buffer.length then RunStatus.Wait
         else
           val idx = head + count
           buffer(if idx >= buffer.length then idx - buffer.length else idx) =
             if a.asInstanceOf[AnyRef] eq null then Sentinel else a.asInstanceOf[AnyRef]
           count += 1
           wakeRecvers()
-          Status.Okay
-      case State.Closed | State.Complete => Status.Done
-      case State.Errored(e)              => Status.Fail(e)
+          RunStatus.Okay
+      case State.Closed | State.Complete => RunStatus.Done
+      case State.Errored(e)              => RunStatus.Fail(e)
 
-  /** Attempt to dequeue without blocking.  Carries the value in the `Is`, so `Status.Okay`
+  /** Attempt to dequeue without blocking.  Carries the value in the `Is`, so `RunStatus.Okay`
     * never appears here — a successful receive *is* the favored branch. */
-  def tryRecv(): A Or Status = lock.uninterrupted:
+  def tryRecv(): A Or RunStatus = lock.uninterrupted:
     if count > 0 then
       val wasFull = count >= buffer.length
       val v = buffer(head)
@@ -170,30 +170,30 @@ final class Chan[A] private (buffer: Array[AnyRef]) {
       if wasFull then wakeSenders()
       Is((if v eq Sentinel then null else v).asInstanceOf[A])
     else myState match
-      case State.Open => Chan.altWait
+      case State.Open => RunStatus.altWait
       case State.Closed =>
         myState = State.Complete
-        Chan.altDone
-      case State.Complete   => Chan.altDone
-      case State.Errored(e) => Alt(Status.Fail(e))
+        RunStatus.altDone
+      case State.Complete   => RunStatus.altDone
+      case State.Errored(e) => Alt(RunStatus.Fail(e))
 
 
   // === Blocking ===
 
   /** Block until the value is sent, or the channel is closed/failed. */
-  def send(a: A): Status =
+  def send(a: A): RunStatus =
     trySend(a) match
-      case Status.Wait =>
+      case RunStatus.Wait =>
         val p = Chan.parkerForCurrentThread()
         addSendWaiter(p)
         sendArm()
         try
-          var res: Status = Status.Wait
-          while res == Status.Wait do
+          var res: RunStatus = RunStatus.Wait
+          while res == RunStatus.Wait do
             p.armed = true
             res = trySend(a)
-            if res == Status.Wait then
-              if Thread.interrupted() then res = Status.Fail(Err("interrupted while sending"))
+            if res == RunStatus.Wait then
+              if Thread.interrupted() then res = RunStatus.Fail(Err("interrupted while sending"))
               else LockSupport.parkNanos(Chan.parkCapNanos)
           res
         finally
@@ -203,19 +203,19 @@ final class Chan[A] private (buffer: Array[AnyRef]) {
       case x => x
 
   /** Block until a value is available, or the channel is closed/failed. */
-  def recv(): A Or Status =
+  def recv(): A Or RunStatus =
     val r0 = tryRecv()
-    if !r0.existsAlt(_ == Status.Wait) then return r0
+    if !r0.existsAlt(_ == RunStatus.Wait) then return r0
     val p = Chan.parkerForCurrentThread()
     addRecvWaiter(p)
     recvArm()
     try
-      var res: A Or Status = Alt(Status.Wait)
-      while res.existsAlt(_ == Status.Wait) do
+      var res: A Or RunStatus = Alt(RunStatus.Wait)
+      while res.existsAlt(_ == RunStatus.Wait) do
         p.armed = true
         res = tryRecv()
-        if res.existsAlt(_ == Status.Wait) then
-          if Thread.interrupted() then res = Alt(Status.Fail(Err("interrupted while receiving")))
+        if res.existsAlt(_ == RunStatus.Wait) then
+          if Thread.interrupted() then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally
@@ -254,12 +254,6 @@ object Chan {
 
   private object Sentinel
 
-  // Pre-allocated alts for the empty-poll receive paths, so they don't rebox an `Alt` every
-  // call.  The favored side of an `Or` is phantom, so one instance serves every element type.
-  // (Sends report a flat `Status`, so they need no wrapper at all.)
-  private[loom] val altWait: Alt[Status] = Alt(Status.Wait)
-  private[loom] val altDone: Alt[Status] = Alt(Status.Done)
-
   private val parkers = new ThreadLocal[Parker]
   private[loom] def parkerForCurrentThread(): Parker =
     val t = Thread.currentThread()
@@ -274,17 +268,6 @@ object Chan {
     case Closed            // no more writes; buffered items remain
     case Complete          // closed and drained
     case Errored(e: Err)
-  }
-
-  /** The outcome of a channel step or a select-loop step: progress, a transient block, a clean
-    * finish, or an error.  Sends and select-loop steps return it directly; a receive carries its
-    * value in the `Is` of an `A Or Status`, so there a success *is* the favored branch and `Okay`
-    * does not appear. */
-  enum Status {
-    case Okay              // progress: a value moved, or a handler ran
-    case Wait              // transient: full (send) or empty (recv), still open; or the loop is idle
-    case Done              // permanent: channel closed/drained; or a handler is inactive
-    case Fail(e: Err)      // permanent: errored
   }
 
   /** Create an open channel with the given capacity (clamped to at least 1). */

@@ -28,9 +28,9 @@ class GoChanTest {
   @Test(timeout = 30000)
   def channelTrySendRecv(): Unit = Reps.times:
     val ch = Chan[Int](2)
-    assertEquals(Chan.Status.Okay, ch.trySend(1))
-    assertEquals(Chan.Status.Okay, ch.trySend(2))
-    assertEquals(Chan.Status.Wait, ch.trySend(3))         // full
+    assertEquals(RunStatus.Okay, ch.trySend(1))
+    assertEquals(RunStatus.Okay, ch.trySend(2))
+    assertEquals(RunStatus.Wait, ch.trySend(3))         // full
     assertEquals(1, ch.tryRecv().getOrElse(_ => -1))
     assertEquals(2, ch.tryRecv().getOrElse(_ => -1))
     assertTrue(ch.tryRecv().isAlt)                        // empty
@@ -41,10 +41,10 @@ class GoChanTest {
     ch.trySend(10) __ Unit
     ch.trySend(20) __ Unit
     assertTrue(ch.close())
-    assertEquals(Chan.Status.Done, ch.trySend(30))        // no more writes
+    assertEquals(RunStatus.Done, ch.trySend(30))        // no more writes
     assertEquals(10, ch.tryRecv().getOrElse(_ => -1))     // buffered items still drain
     assertEquals(20, ch.tryRecv().getOrElse(_ => -1))
-    assertTrue(ch.tryRecv().existsAlt(_ == Chan.Status.Done))
+    assertTrue(ch.tryRecv().existsAlt(_ == RunStatus.Done))
     assertTrue(ch.isComplete)
 
   @Test(timeout = 30000)
@@ -55,7 +55,7 @@ class GoChanTest {
     t.start()
     Thread.sleep(50)
     assertEquals(-1, got.get())                           // blocked, nothing yet
-    assertEquals(Chan.Status.Okay, ch.send(42))
+    assertEquals(RunStatus.Okay, ch.send(42))
     t.join(2000)
     assertEquals(42, got.get())
 
