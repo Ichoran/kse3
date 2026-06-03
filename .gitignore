@@ -1,0 +1,25 @@
+# This is the only dotfile we keep.  Everything else beginning with "." is
+# ignored by default: tool config (.bsp/, .metals/, .bloop/, .idea/, .vscode/),
+# scala-cli build state (.scala-build/), local secrets (.sonatype-*), agent
+# scratch (.claude/), OS cruft (.DS_Store), Cursor/Windsurf/Copilot rule files
+# (.cursorrules, .cursor/, .windsurfrules, .github/copilot-instructions.md),
+# and so on.
+.*
+!.gitignore
+
+# Build output: Mill's top-level ./out and any nested out/ (e.g. test scratch).
+out/
+
+# Editor / tool leftovers: backup copies (foo.scala~), vim swap files, and the
+# crash dump JOE leaves behind.
+*~
+*.swp
+DEADJOE
+
+# LLM agent instructions.  Kept out of the repo for now: these are tuned to one
+# machine / collaborator rather than distilled into guidance that is generally
+# useful to any coding agent.  Revisit and commit a cleaned-up version later.
+# Codex reads AGENTS.md; Claude Code reads CLAUDE.md; Gemini reads GEMINI.md.
+AGENTS.md
+CLAUDE.md
+GEMINI.md
