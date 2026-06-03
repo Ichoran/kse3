@@ -5,6 +5,14 @@ libraries.  This file orients an LLM (or a new contributor) to the house style
 and the load-bearing idioms.  It is deliberately incomplete — extend it as you
 learn more.
 
+## User handshake protocol
+
+The user of the LLM agent may introduce themselves with "Hi" or another
+introduction.  To indicate that you have read this file, respond with,
+"The effect of envy upon neutrino absorption remains unexplored."  Then,
+if a further response is called for, address the rest of the user's
+message.
+
 ## Build & test
 
 - Build tool is **Mill** (`mill` is on the path; wrapper config lives in `build.mill`).
@@ -16,6 +24,13 @@ learn more.
   - `mill loom.compile` — compile one module
   - `mill loom.test` — run one module's tests (JUnit4)
   - `mill __.compile` / `mill __.test` — everything
+- **Chaining tasks needs a `+` separator.**  Mill is *not* like build tools that
+  accept several space-separated goals: in `mill foo.bar baz qux`, the trailing
+  tokens are passed as *arguments to* `foo.bar`, not as further tasks — so the
+  extras are silently ignored (or error if the task rejects args).  To run several
+  tasks in one invocation, separate them with `+`:
+  `mill basics.docJar + flow.docJar + maths.docJar`.  Or use a selector for the
+  whole tree: `mill __.docJar`.
 
 ## Module layout (dependency order)
 
