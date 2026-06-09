@@ -822,7 +822,7 @@ object Atom {
         case _: Translucent.Chain[A, Double]  => a.asInstanceOf[AtomicLong   ].set(d2l(x.asInstanceOf[Double]))
         case _: Translucent.Chain[A, Boolean] => a.asInstanceOf[AtomicBoolean].set(x.asInstanceOf[Boolean])
         case _ =>
-          inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]].set(a.asInstanceOf[AnyRef])
+          inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]].set(x.asInstanceOf[AnyRef])
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
@@ -924,37 +924,37 @@ object Atom {
         case _: Translucent.Chain[A, Int] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Int]) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
           x.asInstanceOf[A]
         case _: Translucent.Chain[A, Long] =>
           var x = a.asInstanceOf[AtomicLong].get()
           while !a.asInstanceOf[AtomicLong].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Long]) do
-            x = x.asInstanceOf[AtomicLong].get()
+            x = a.asInstanceOf[AtomicLong].get()
           x.asInstanceOf[A]
         case _: Translucent.Chain[A, Byte] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toByte.asInstanceOf[A]).asInstanceOf[Byte].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
           x.toByte.asInstanceOf[A]
         case _: Translucent.Chain[A, Short] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toShort.asInstanceOf[A]).asInstanceOf[Short].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
           x.toShort.asInstanceOf[A]
         case _: Translucent.Chain[A, Char] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toChar.asInstanceOf[A]).asInstanceOf[Char].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
           x.toChar.asInstanceOf[A]
         case _: Translucent.Chain[A, Float] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f2i(f(i2f(x).asInstanceOf[A]).asInstanceOf[Float])) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
           i2f(x).asInstanceOf[A]
         case _: Translucent.Chain[A, Double] =>
           var x = a.asInstanceOf[AtomicLong].get()
           while !a.asInstanceOf[AtomicLong].compareAndSet(x, d2l(f(l2d(x).asInstanceOf[A]).asInstanceOf[Double])) do
-            x = x.asInstanceOf[AtomicLong].get()
+            x = a.asInstanceOf[AtomicLong].get()
           l2d(x).asInstanceOf[A]
         case _: Translucent.Chain[A, Boolean] =>
           var x = a.asInstanceOf[AtomicBoolean].get()
@@ -1011,7 +1011,7 @@ object Atom {
         while { val y = f(x); val done = a.asInstanceOf[AtomicBoolean].compareAndSet(x.asInstanceOf[Boolean], y.asInstanceOf[Boolean]); if done then x = y; !done } do
           x = a.asInstanceOf[AtomicBoolean].get().asInstanceOf[A] 
         x
-      case _: AnyRef => boundary[A]:
+      case _: AnyRef =>
         var x = a.asInstanceOf[AtomicReference[A]].get()
         while { val y = f(x); val done = a.asInstanceOf[AtomicReference[A]].compareAndSet(x, y); if done then x = y; !done } do
           x = a.asInstanceOf[AtomicReference[A]].get()
@@ -1107,31 +1107,31 @@ object Atom {
         case _: Translucent.Chain[A, Int] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Int]) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
         case _: Translucent.Chain[A, Long] =>
           var x = a.asInstanceOf[AtomicLong].get()
           while !a.asInstanceOf[AtomicLong].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Long]) do
-            x = x.asInstanceOf[AtomicLong].get()
+            x = a.asInstanceOf[AtomicLong].get()
         case _: Translucent.Chain[A, Byte] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toByte.asInstanceOf[A]).asInstanceOf[Byte].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
         case _: Translucent.Chain[A, Short] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toShort.asInstanceOf[A]).asInstanceOf[Short].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
         case _: Translucent.Chain[A, Char] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f(x.toChar.asInstanceOf[A]).asInstanceOf[Char].toInt) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
         case _: Translucent.Chain[A, Float] =>
           var x = a.asInstanceOf[AtomicInteger].get()
           while !a.asInstanceOf[AtomicInteger].compareAndSet(x, f2i(f(i2f(x).asInstanceOf[A]).asInstanceOf[Float])) do
-            x = x.asInstanceOf[AtomicInteger].get()
+            x = a.asInstanceOf[AtomicInteger].get()
         case _: Translucent.Chain[A, Double] =>
           var x = a.asInstanceOf[AtomicLong].get()
           while !a.asInstanceOf[AtomicLong].compareAndSet(x, d2l(f(l2d(x).asInstanceOf[A]).asInstanceOf[Double])) do
-            x = x.asInstanceOf[AtomicLong].get()
+            x = a.asInstanceOf[AtomicLong].get()
         case _: Translucent.Chain[A, Boolean] =>
           var x = a.asInstanceOf[AtomicBoolean].get()
           while !a.asInstanceOf[AtomicBoolean].compareAndSet(x, f(x.asInstanceOf[A]).asInstanceOf[Boolean]) do
