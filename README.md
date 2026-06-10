@@ -31,22 +31,22 @@ def scalaVersion = "3.8.2"
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.5.1"
-mvn"com.github.ichoran::kse3-flow:0.5.1"
-mvn"com.github.ichoran::kse3-maths:0.5.1"
-mvn"com.github.ichoran::kse3-loom:0.5.1"
-mvn"com.github.ichoran::kse3-eio:0.5.1"
+mvn"com.github.ichoran::kse3-basics:0.5.2"
+mvn"com.github.ichoran::kse3-flow:0.5.2"
+mvn"com.github.ichoran::kse3-maths:0.5.2"
+mvn"com.github.ichoran::kse3-loom:0.5.2"
+mvn"com.github.ichoran::kse3-eio:0.5.2"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
 //> using scala 3.8.2
-//> using dep com.github.ichoran::kse3-basics:0.5.1
-//> using dep com.github.ichoran::kse3-flow:0.5.1
-//> using dep com.github.ichoran::kse3-maths:0.5.1
-//> using dep com.github.ichoran::kse3-loom:0.5.1
-//> using dep com.github.ichoran::kse3-eio:0.5.1
+//> using dep com.github.ichoran::kse3-basics:0.5.2
+//> using dep com.github.ichoran::kse3-flow:0.5.2
+//> using dep com.github.ichoran::kse3-maths:0.5.2
+//> using dep com.github.ichoran::kse3-loom:0.5.2
+//> using dep com.github.ichoran::kse3-eio:0.5.2
 ```
 
 Because scala-cli does not by default use the default JVM and does not use Java 25 by default,
@@ -157,7 +157,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.5.1"
+ivy"com.github.ichoran::kse3-basics:0.5.2"
 ```
 
 and in your code,
@@ -265,7 +265,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.5.1"
+ivy"com.github.ichoran::kse3-flow:0.5.2"
 ```
 
 and in your code,
