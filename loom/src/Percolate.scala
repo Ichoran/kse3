@@ -484,23 +484,38 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
   def step(): Ask[Boolean] = Ask:
     var progressed = false
 
-    // 1. Serve the resource queues main is responsible for — `Any` (it's the fallback server) and `Main`
-    //    (its sole server); never `Own` (that has its own thread).  tryServe has already caught any
+    // 1. Serve `Main`-affinity resources — main is their *sole* server, so this is its own duty, not
+    //    stealing; it must run every pass regardless of whether main is producing.  (`Any` is served
+    //    below only when not producing; `Own` has its own thread.)  tryServe has already caught any
     //    failure (open/work) and routed it to `errors`, so it surfaces only progress.
     var i = 0
     while i < resources.length do
       val r = resources(i)
-      if (r.affinity != Affinity.Own) && r.tryServe() then progressed = true
+      if (r.affinity == Affinity.Main) && r.tryServe() then progressed = true
       i += 1
 
-    // 2. Steal a general item so main is never merely an admitter.
-    val w = worklist.poll()
-    if w ne null then { runItem(w); progressed = true }
-
-    // 3. Admit from one rotation producer (general `newWork` + `Any`/`Main` producers) under a permit.
+    // 2. Produce in preference to stealing.  Admitting is work that, among the rotation servers, only
+    //    main drives, so while producers remain and a permit is free, main feeds the pool instead of
+    //    running an item a worker could take — otherwise a busy main starves idle workers of work only
+    //    it can generate.
+    var admitted = false
     if !mainProdsDone then
       val p = nextActiveProd()
-      if (p ne null) && admit(p.pull, () => p.done = true) then progressed = true
+      if (p ne null) && admit(p.pull, () => p.done = true) then { progressed = true; admitted = true }
+
+    // 3. Steal only when *not* producing — a permit was unavailable (budget exhausted), the chosen
+    //    producer was busy, or all producers are done.  This drains the `Any` resources (a worker's
+    //    equals) and the general worklist, preserving the single-thread invariant: with no workers,
+    //    main produces up to the permit budget, then falls here to drain (releasing permits), and loops
+    //    back to produce more.
+    if !admitted then
+      i = 0
+      while i < resources.length do
+        val r = resources(i)
+        if (r.affinity == Affinity.Any) && r.tryServe() then progressed = true
+        i += 1
+      val w = worklist.poll()
+      if w ne null then { runItem(w); progressed = true }
 
     if mainProdsDone && ownProdsDone && incomplete() == 0 && allQueuesEmpty then false
     else
