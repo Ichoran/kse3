@@ -30,6 +30,53 @@ you'd swap that for `//> using dep com.github.ichoran::kse3-all:0.5.0`.
 If scala-cli's incremental compiler ever errors with `FileAlreadyExistsException`, remove the
 build cache for that area: `rm -rf benchmarks/<area>/.scala-build`.
 
+## benchmarks/splitdeque — SplitDeque vs java.util(.concurrent)
+
+All scores are **items/second** moved end-to-end. Items are references from a fixed
+`String[]` pool walked in scrambled order (no per-item allocation, no prefetch-friendly
+adjacency). No Blackhole: the consumer does a real trivial task — `sum` (string lengths)
+or `copy` (into a pre-allocated output array) — and the result is returned to JMH.
+Concurrent workers are **platform** threads; pin runs to one core complex
+(`taskset -c 0-15` = P-cores on the 14900HX) or variance swamps the results.
+
+| benchmark | what it measures | params |
+|---|---|---|
+| `SdPipeBench.sd` / `.sdInto` | m producers → one SplitDeque → n consumers; single (`pushRight`/`popLeft`) or block transfer — `sd` extracts via `splitLeft`+drain, `sdInto` via `popLeftInto` straight into an array | `pairs` 1/4/8, `in` 1/32, `out` 1/8/32, `task` |
+| `BlockingPipeBench.abq` / `.lbd` | same pipe over `ArrayBlockingQueue` / `LinkedBlockingDeque`; block extraction via `drainTo`, no block insert (compare `in=1` rows) | `pairs`, `out`, `task`, `capacity` (1024) |
+| `CldPipeBench.cld` | same pipe over lock-free unbounded `ConcurrentLinkedDeque`; no block ops (compare `in=1, out=1` rows) | `pairs`, `task` |
+| `SoloBench` | single-threaded fill-1000/drain-1000 cycles: `batch` (raw engine, no atomics) vs `sd` (uncontended lock) vs `adq` (`ArrayDeque`) vs `abq` | — |
+| `RebatchBench` | single-threaded chunked container-to-container moves: `splice` (split/splice, O(blockSize·log n) per chunk) vs `spliceSd` (+lock) vs `singles`/`adq` (element loops) | `chunk` 32/1024 |
+
+### Findings (2026-06-10, JDK 25, taskset -c 0-15, default geometry lgCap=6/blockSize=24)
+
+Items/second, `sum` task (`copy` was indistinguishable everywhere — the benchmark measures
+coordination, not the task, as intended).
+
+- **The rebatching thesis holds where it's supposed to.**  Batch-in/batch-out (`32/32`)
+  moves 50M items/s at 1×1, 33.7M at 4×4, **29.6M at 8×8** — degrading only 1.7× from no
+  contention to 16 threads, and 3–4× faster than ABQ/LBD in any shape at high contention
+  (7× CLD).  One lock acquisition per 32 items is the whole story.
+- **Per-item ops under contention are the weak spot.**  At `1/1`, 8×8: sd 4.9M ≈ CLD 4.3M,
+  vs ABQ ~7–12M (blocking-queue runs are noisy, ±50%+ errors) — the single len-spinlock
+  serializes everything where ABQ has separate put/take locks and parks.  Mixed shapes
+  (`1/32`, `32/1`) land in between (~9–10M at 8×8): the single-item side is the bottleneck.
+- **Uncontended single-op cost ≈ ABQ.**  Solo: sd 43M/s vs abq 48M/s; the raw engine
+  (`batch`) does 163M/s, so the shell's two atomics + sentinel check cost ~3.8× the engine
+  op; `ArrayDeque` is in another class (534M/s).
+- **`popLeftInto` (2026-06-10 addition) makes small blocks pay.**  Direct array
+  extraction — one lock acquisition, no Batch, sentinel swap fused into the copy
+  (≤127 copies under the lock; bigger cuts detach via split and copy lock-free) — at
+  `in=32`: out=8 goes from 16.6M (`splitLeft`) to **31.6M** items/s at 8×8, i.e. an
+  8-element cut now buys what `splitLeft` needed 32 for; at out=32 it's 10–20% ahead
+  (copy task more: 44.0M vs 33.1M at 4×4 — it pops straight into the final array).
+  At out=1 it matches plain `popLeft`.  Ceiling ~50M at 1×1 regardless of mechanism.
+- **Split/splice is nearly free at large chunks but has real per-call overhead.**
+  Single-threaded chunk=1024: 4.4G items/s (±1.3G — ~0.25ns/item, pure pointer shuffling)
+  vs 516M for the ArrayDeque element loop.  But chunk=32 splice is *slower* than the
+  element loop (359M vs 516M; spliceSd 287M): the O(blockSize·log n) fixed cost plus Batch
+  allocation needs hundreds of items — or lock amortization under contention — to pay off.
+  Crossover is between 32 and 1024 single-threaded; under contention 32 already wins big.
+
 ## benchmarks/loom — Go/Chan concurrency
 
 All scores are **items/second** (items moved end-to-end, normalized via

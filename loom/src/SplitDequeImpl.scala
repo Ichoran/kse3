@@ -434,6 +434,91 @@ private[kse] final class SplitDequeImpl(val lgCap: Int, val blockSize: Int, val 
   /** Caller must ensure nonempty. */
   def popRight(): AnyRef = popSlot(false)
 
+  /** Remove the first n elements (caller must ensure n <= count), copying them in
+    * order into `target` starting at `where`, with any element eq to `sentinel`
+    * replaced by null.  Block-grained: whole flank runs and whole deeper blocks are
+    * copied without per-element bookkeeping (the emptied blocks are stashed); at most
+    * one boundary block gets unpacked back into the flank.
+    */
+  def popLeftInto(target: Array[AnyRef], where: Int, n: Int, sentinel: AnyRef): Unit =
+    var done = 0
+    while done < n do
+      if nl > 0 then
+        var c = n - done
+        if c > nl then c = nl
+        val p0 = anchor - nl
+        var i = 0
+        while i < c do
+          val x = Ring.at(ring, mask, p0 + i)
+          Ring.set(ring, mask, p0 + i, null)
+          target(where + done + i) = if x eq sentinel then null else x
+          i += 1
+        nl -= c
+        count -= c
+        done += c
+      else
+        val deep = deeper
+        if (deep ne null) && deep.count > 0 then
+          val blk = deep.popSlot(true).asInstanceOf[Array[AnyRef]]
+          val w = deep.xfer
+          if w <= n - done then
+            var i = 0
+            while i < w do
+              val x = blk(i)
+              blk(i) = null
+              target(where + done + i) = if x eq sentinel then null else x
+              i += 1
+            stash(blk)
+            count -= w
+            done += w
+          else
+            if nl + nr + blockSize > mask + 1 then makeRoom(true)
+            unpack(true, blk)
+        else refill(true)
+
+  /** Remove the last n elements (caller must ensure n <= count), copying them *in
+    * order* (as splitRight would) into `target` starting at `where`, with any element
+    * eq to `sentinel` replaced by null.  Block-grained, mirroring popLeftInto: the
+    * target span fills from its far end backward.
+    */
+  def popRightInto(target: Array[AnyRef], where: Int, n: Int, sentinel: AnyRef): Unit =
+    var done = 0
+    while done < n do
+      if nr > 0 then
+        var c = n - done
+        if c > nr then c = nr
+        val p0 = anchor + nr - c
+        val t0 = where + n - done - c
+        var i = 0
+        while i < c do
+          val x = Ring.at(ring, mask, p0 + i)
+          Ring.set(ring, mask, p0 + i, null)
+          target(t0 + i) = if x eq sentinel then null else x
+          i += 1
+        nr -= c
+        count -= c
+        done += c
+      else
+        val deep = deeper
+        if (deep ne null) && deep.count > 0 then
+          val blk = deep.popSlot(false).asInstanceOf[Array[AnyRef]]
+          val w = deep.xfer
+          if w <= n - done then
+            val t0 = where + n - done - w
+            var i = 0
+            while i < w do
+              val x = blk(i)
+              blk(i) = null
+              target(t0 + i) = if x eq sentinel then null else x
+              i += 1
+            stash(blk)
+            count -= w
+            done += w
+          else
+            if nl + nr + blockSize > mask + 1 then makeRoom(false)
+            unpack(false, blk)
+        else refill(false)
+
 
   // === Validation and traversal (test support; correctness over speed) ===
 

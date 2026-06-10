@@ -56,7 +56,7 @@ class SplitDequeTest {
     var next = 0
     var i = 0
     while i < ops do
-      val r = rng.nextInt(24)
+      val r = rng.nextInt(28)
       if r < 8 then
         val v = Integer.valueOf(next)
         next += 1
@@ -106,7 +106,7 @@ class SplitDequeTest {
           else if bref.isEmpty then assertTrue(s"$ctx op=$i batch empty", b.popLeft().isAlt)
           else if (r & 1) == 0 then assertSame(s"$ctx op=$i batch popL", bref.pollFirst(), got(b.popLeft()))
           else assertSame(s"$ctx op=$i batch popR", bref.pollLast(), got(b.popRight()))
-      else
+      else if r < 24 then
         // Batch-to-batch split or splice
         if batches.size >= 2 then
           val (b1, ref1) = batches(0)
@@ -126,6 +126,35 @@ class SplitDequeTest {
             else
               b1.spliceLeft(b3)
               while !ref3.isEmpty do ref1.addFirst(ref3.pollLast())
+      else
+        // Bulk pop into an array, deque or batch, either side.  Sizes range across
+        // the direct-copy/detach threshold; slack and padding exercise clipping by
+        // space and by size.
+        val want = 1 + rng.nextInt(if rng.nextInt(4) == 0 then 200 else 8)
+        val pad = rng.nextInt(3)
+        val slack = rng.nextInt(3)
+        val a = new Array[Integer](pad + want)
+        if batches.isEmpty || rng.nextBoolean() then
+          val take = math.min(want, dref.size)
+          if (r & 1) == 0 then
+            assertEquals(s"$ctx op=$i popLInto", take, d.popLeftInto(a, pad, want + slack))
+            var t = 0
+            while t < take do { assertSame(s"$ctx op=$i popLInto elt $t", dref.pollFirst(), a(pad + t)); t += 1 }
+          else
+            assertEquals(s"$ctx op=$i popRInto", take, d.popRightInto(a, pad, want + slack))
+            var t = take - 1
+            while t >= 0 do { assertSame(s"$ctx op=$i popRInto elt $t", dref.pollLast(), a(pad + t)); t -= 1 }
+        else
+          val (b, bref) = batches(rng.nextInt(batches.size))
+          val take = math.min(want, bref.size)
+          if (r & 1) == 0 then
+            assertEquals(s"$ctx op=$i batch popLInto", take, b.popLeftInto(a, pad, want + slack))
+            var t = 0
+            while t < take do { assertSame(s"$ctx op=$i batch popLInto elt $t", bref.pollFirst(), a(pad + t)); t += 1 }
+          else
+            assertEquals(s"$ctx op=$i batch popRInto", take, b.popRightInto(a, pad, want + slack))
+            var t = take - 1
+            while t >= 0 do { assertSame(s"$ctx op=$i batch popRInto elt $t", bref.pollLast(), a(pad + t)); t -= 1 }
       checkD(s"$ctx op=$i", d, dref)
       var q = 0
       while q < batches.size do
@@ -171,6 +200,65 @@ class SplitDequeTest {
     b.pushLeft(null)
     assertNull(b.popRight().fold(x => x)(_ => "NONEMPTY"))
     assertTrue(b.popLeft().isAlt)
+
+  @Test
+  def bulkPopIntoBehaves(): Unit =
+    val d = new SplitDeque[String]()
+    assertEquals(0, d.popLeftInto(new Array[String](4), 0, 4))
+    d.pushRight(null)
+    d.pushRight("b")
+    d.pushLeft("a")
+    val a3 = new Array[String](5)
+    assertEquals(3, d.popLeftInto(a3, 1, 4))            // clipped by size; null survives
+    assertEquals("a", a3(1))
+    assertNull(a3(2))
+    assertEquals("b", a3(3))
+    assertEquals(0, d.length)
+
+    // Cross the direct-copy/detach threshold on both sides, checking order
+    val n = 500
+    var i = 0
+    while i < n do { d.pushRight(i.toString); i += 1 }
+    val out = new Array[String](n)
+    assertEquals(200, d.popLeftInto(out, 0, 200))
+    i = 0
+    while i < 200 do { assertEquals(i.toString, out(i)); i += 1 }
+    assertEquals(100, d.popRightInto(out, 0, 100))      // last 100, in order
+    i = 0
+    while i < 100 do { assertEquals((n - 100 + i).toString, out(i)); i += 1 }
+    assertEquals(200, d.popRightInto(out, 0, 200))
+    i = 0
+    while i < 200 do { assertEquals((n - 300 + i).toString, out(i)); i += 1 }
+    assertEquals(0, d.length)
+
+    try
+      d.popLeftInto(out, -1, 1) __ Unit
+      fail("negative where accepted")
+    catch case _: ArrayIndexOutOfBoundsException => ()
+
+    // Boxed-primitive deque popping into a primitive array takes the generic path
+    val di = new SplitDeque[Int]()
+    i = 0
+    while i < 300 do { di.pushRight(i); i += 1 }
+    val ai = new Array[Int](300)
+    assertEquals(100, di.popRightInto(ai, 0, 100))      // last 100, in order
+    i = 0
+    while i < 100 do { assertEquals(200 + i, ai(i)); i += 1 }
+    assertEquals(200, di.popLeftInto(ai, 0, 300))
+    i = 0
+    while i < 200 do { assertEquals(i, ai(i)); i += 1 }
+
+    // Batch versions
+    val b = SplitDeque.Batch.empty[String]()
+    i = 0
+    while i < 50 do { b.pushRight(i.toString); i += 1 }
+    assertEquals(10, b.popLeftInto(out, 0, 10))
+    assertEquals("0", out(0))
+    assertEquals("9", out(9))
+    assertEquals(10, b.popRightInto(out, 0, 10))        // last 10, in order
+    assertEquals("40", out(0))
+    assertEquals("49", out(9))
+    assertEquals(30, b.length)
 
   @Test
   def geometryMismatchRejected(): Unit =

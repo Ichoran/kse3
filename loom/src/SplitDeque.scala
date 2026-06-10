@@ -234,6 +234,99 @@ final class SplitDeque[A] private[kse] (lgCap: Int, blockSize: Int) {
   inline def pop(): A Or Unit = popLeft()
 
 
+  // === Bulk extraction into arrays ===
+
+  // Largest cut copied directly under the lock; bigger cuts detach in
+  // O(blockSize * log n) and copy outside, so lock hold time never becomes O(n).
+  // Also keeps the direct path's boxed count inside the preallocated Integer cache.
+  private inline val DirectCut = 127
+
+  // Remove up to n of the first/last elements under one lock acquisition: either
+  // copied straight into target (answering the count, boxed for free), or, when
+  // there are many, detached wholesale as an engine for the caller to drain with
+  // no lock held at all.
+  private def cutLeft(target: Array[AnyRef], where: Int, n: Int): SplitDequeImpl | Int =
+    val m = acquire()
+    var k = n
+    if k > m then k = m
+    if k <= DirectCut then
+      impl.popLeftInto(target, where, k, Sentinel)
+      release(m - k)
+      k
+    else
+      val e = impl.splitLeft(k)
+      release(m - k)
+      e
+
+  private def cutRight(target: Array[AnyRef], where: Int, n: Int): SplitDequeImpl | Int =
+    val m = acquire()
+    var k = n
+    if k > m then k = m
+    if k <= DirectCut then
+      impl.popRightInto(target, where, k, Sentinel)
+      release(m - k)
+      k
+    else
+      val e = impl.splitRight(k)
+      release(m - k)
+      e
+
+  // Fallback for primitive-element targets (the engine's bulk copy needs a reference
+  // array); elements were boxed going in, and the generic update unboxes them here.
+  private def popSlowly(target: Array[A], where: Int, n: Int, left: Boolean): Int =
+    val m = acquire()
+    var k = n
+    if k > m then k = m
+    var i = 0
+    while i < k do
+      val x = if left then impl.popLeft() else impl.popRight()
+      val j = if left then where + i else where + k - 1 - i
+      target(j) = (if x eq Sentinel then null else x).asInstanceOf[A]
+      i += 1
+    release(m - k)
+    k
+
+  /** Remove up to n of the first elements, copying them in order into `target`
+    * starting at index `where`, and answer how many were moved (limited by the
+    * deque's size and the space in `target`).  No allocation, and never more than
+    * O(blockSize * log n) time under the lock: when the destination is an array this
+    * beats `splitLeft`, whose batch is only worth building if it will be consumed
+    * *as* a batch (spliced onward, kept structured).
+    */
+  def popLeftInto(target: Array[A], where: Int, n: Int): Int =
+    if where < 0 || where > target.length then throw new ArrayIndexOutOfBoundsException(where)
+    var k = if n > target.length - where then target.length - where else n
+    if k <= 0 then 0
+    else (target: Any) match
+      case t: Array[AnyRef] =>
+        cutLeft(t, where, k) match
+          case i: Int => i
+          case e: SplitDequeImpl =>
+            val c = e.count
+            e.popLeftInto(t, where, c, Sentinel)
+            c
+      case _ => popSlowly(target, where, k, true)
+
+  /** Remove up to n of the last elements, copying them *in order* (as splitRight
+    * would: the deque's last element lands last) into `target` starting at index
+    * `where`, and answer how many were moved (limited by the deque's size and the
+    * space in `target`).
+    */
+  def popRightInto(target: Array[A], where: Int, n: Int): Int =
+    if where < 0 || where > target.length then throw new ArrayIndexOutOfBoundsException(where)
+    var k = if n > target.length - where then target.length - where else n
+    if k <= 0 then 0
+    else (target: Any) match
+      case t: Array[AnyRef] =>
+        cutRight(t, where, k) match
+          case i: Int => i
+          case e: SplitDequeImpl =>
+            val c = e.count
+            e.popRightInto(t, where, c, Sentinel)
+            c
+      case _ => popSlowly(target, where, k, false)
+
+
   // === Batch operations ===
 
   /** Remove the first n elements (all of them, if no more than n) into an independent
@@ -356,6 +449,49 @@ object SplitDeque {
       else
         val x = impl.popRight()
         Is((if x eq Sentinel then null else x).asInstanceOf[A])
+
+    /** Remove up to n of the first elements, copying them in order into `target`
+      * starting at index `where`, and answer how many were moved (limited by the
+      * batch's size and the space in `target`).
+      */
+    def popLeftInto(target: Array[A], where: Int, n: Int): Int =
+      if where < 0 || where > target.length then throw new ArrayIndexOutOfBoundsException(where)
+      var k = if n > target.length - where then target.length - where else n
+      if k > impl.count then k = impl.count
+      if k <= 0 then 0
+      else (target: Any) match
+        case t: Array[AnyRef] =>
+          impl.popLeftInto(t, where, k, Sentinel)
+          k
+        case _ =>
+          var i = 0
+          while i < k do
+            val x = impl.popLeft()
+            target(where + i) = (if x eq Sentinel then null else x).asInstanceOf[A]
+            i += 1
+          k
+
+    /** Remove up to n of the last elements, copying them *in order* (as splitRight
+      * would: the batch's last element lands last) into `target` starting at index
+      * `where`, and answer how many were moved (limited by the batch's size and the
+      * space in `target`).
+      */
+    def popRightInto(target: Array[A], where: Int, n: Int): Int =
+      if where < 0 || where > target.length then throw new ArrayIndexOutOfBoundsException(where)
+      var k = if n > target.length - where then target.length - where else n
+      if k > impl.count then k = impl.count
+      if k <= 0 then 0
+      else (target: Any) match
+        case t: Array[AnyRef] =>
+          impl.popRightInto(t, where, k, Sentinel)
+          k
+        case _ =>
+          var i = 0
+          while i < k do
+            val x = impl.popRight()
+            target(where + k - 1 - i) = (if x eq Sentinel then null else x).asInstanceOf[A]
+            i += 1
+          k
 
     /** Remove the first n elements (all, if no more than n) into a new independent batch. */
     def splitLeft(n: Int): Batch[A] = new Batch(impl.splitLeft(n))
