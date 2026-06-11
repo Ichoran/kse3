@@ -53,7 +53,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   private var hs: Array[Handler] = null   // handlers frozen into a bare array once the loop starts
   private val children = new java.util.ArrayList[Go](2)
   // Channels this scope writes to, keyed by identity; drives the auto-close cascade in cleanup.
-  private val writingTo = new java.util.IdentityHashMap[Chan[?], java.lang.Boolean]()
+  private val writingTo = new java.util.IdentityHashMap[WriterTracked, java.lang.Boolean]()
   private var stopConds: java.util.ArrayList[() => Boolean] = null   // Stop.on predicates
   private var deferred: List[List[Err] => Unit] = Nil                // Defer cleanups (LIFO)
 
@@ -108,7 +108,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     if !inInit then throw new IllegalStateException("Channel operations can only be registered during a task's initializer")
     handlers.add(h) __ Unit
 
-  private[loom] def trackWriter(chan: Chan[?]): Unit =
+  private[loom] def trackWriter(chan: WriterTracked): Unit =
     if writingTo.put(chan, java.lang.Boolean.TRUE) eq null then chan.registerWriter()
 
   private[loom] def addStopCond(cond: () => Boolean): Unit =
@@ -412,7 +412,8 @@ object Go {
   // (permanently inactive), `Fail` (errored).  The loop treats `Wait` and `Done` alike — both
   // just mean "this handler didn't run" — so it never has to tell them apart.
 
-  private[loom] sealed trait Handler {
+  // Not sealed: ChanN's chunked handlers (ChanN.scala) implement it too.
+  private[loom] trait Handler {
     /** Could this handler still fire at some point in the future? */
     def alive: Boolean
     /** Is this handler holding a produced-but-not-yet-delivered value? */
@@ -548,5 +549,62 @@ extension [A](chan: Chan[A]) {
   /** Declare that the current task writes to this channel via imperative `send` (rather than a
     * `put`/`into`/`onSend*` registration), so the channel still auto-closes when the task
     * finishes.  Use this for relay tasks that `recv` then `send` by hand. */
+  def writing(using go: Go): Unit = go.trackWriter(chan)
+}
+
+
+// === The same verbs for the chunked channel (handlers live in ChanN.scala) ===
+
+extension [A](chan: ChanN[A]) {
+  /** Consume each value as it arrives, extracting up to the channel's default batch per wakeup.
+    * The per-item shape is identical to `Chan`'s `get`; only the transport is chunked. */
+  def get(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.addHandler(new ChanN.GetNHandler(chan, chan.batch, false, v => Go.attempt(f(v))))
+
+  /** Consume each value as it arrives, extracting up to `n` per wakeup. */
+  def get(n: Int)(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    if n < 1 then throw new IllegalArgumentException(s"get batch must be at least 1: $n")
+    go.addHandler(new ChanN.GetNHandler(chan, n, false, v => Go.attempt(f(v))))
+
+  /** Like `get`, but consume only whole chunks of the channel's default batch: nothing runs
+    * until a full chunk is buffered, except that once the channel is no longer open the final
+    * partial chunk is delivered.  The chunk is clamped to the capacity so it can always
+    * assemble. */
+  def getFull(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.addHandler(new ChanN.GetNHandler(chan, chan.batch, true, v => Go.attempt(f(v))))
+
+  /** Like `get(n)`, but consume only whole chunks of `n` (see `getFull`). */
+  def getFull(n: Int)(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    if n < 1 then throw new IllegalArgumentException(s"get batch must be at least 1: $n")
+    go.addHandler(new ChanN.GetNHandler(chan, n, true, v => Go.attempt(f(v))))
+
+  /** Produce one value at a time whenever the channel has room — the Chan-like form (the
+    * empty argument list distinguishes it from the batched `put(n)`).  Registers this task
+    * as a writer; terminate via `Stop.on`/`Stop()` as with `Chan`. */
+  def put()(produce: Go.CanFail[A] ?=> A)(using go: Go): Unit =
+    go.trackWriter(chan)
+    go.addHandler(new ChanN.PutOneHandler(chan, () => Go.attempt(produce)))
+
+  /** Produce values `n` at a time: `f` maps a running element index 0, 1, 2, ... to a value,
+    * and the whole batch moves in one lock acquisition (or a few, when room is short).
+    * Inside `f`, `shortcut.skip()` omits the current index, `shortcut.quit()` ends production
+    * for good (any values already produced are still delivered, then the channel auto-closes
+    * once every writer is done), and `.?` fails the task.  Registers this task as a writer;
+    * without a quit, terminate via `Stop.on`/`Stop()`. */
+  def put(n: Int)(f: (Go.CanFail[Unit], boundary.Label[shortcut.Type]) ?=> Int => A)(using go: Go): Unit =
+    if n < 1 then throw new IllegalArgumentException(s"put batch must be at least 1: $n")
+    go.trackWriter(chan)
+    go.addHandler(new ChanN.PutNHandler(chan, n, f))
+
+  /** Drain `source(x0 until xN)` into the channel directly from the array, up to the channel's
+    * default batch per lock acquisition, then go inactive (auto-closing the channel once every
+    * writer is done).  The slice must not be mutated while the task runs. */
+  def putN(source: Array[A], x0: Int, xN: Int)(using go: Go): Unit =
+    if x0 < 0 || xN > source.length || x0 > xN then throw new ArrayIndexOutOfBoundsException(s"range $x0 until $xN in array of length ${source.length}")
+    go.trackWriter(chan)
+    go.addHandler(new ChanN.PutArrayHandler(chan, source, x0, xN, chan.batch))
+
+  /** Declare that the current task writes to this channel via imperative `send`/`sendN`, so
+    * the channel still auto-closes when the task finishes. */
   def writing(using go: Go): Unit = go.trackWriter(chan)
 }

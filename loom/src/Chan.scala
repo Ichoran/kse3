@@ -27,6 +27,15 @@ private[loom] final class Parker(val thread: Thread) {
 }
 
 
+/** A channel whose writers are counted, so it auto-closes when the last registered
+  * writer finishes.  Lets `Go` track [[Chan]] and [[ChanN]] uniformly.
+  */
+private[loom] trait WriterTracked {
+  private[loom] def registerWriter(): Unit
+  private[loom] def writerDone(): Unit
+}
+
+
 /** A bounded MPMC channel with a fixed-capacity ring buffer.
   *
   * Two ways to use it:
@@ -39,7 +48,7 @@ private[loom] final class Parker(val thread: Thread) {
   *    the channel one more writer exists; when every registered writer has finished the
   *    channel auto-closes.
   */
-final class Chan[A] private (buffer: Array[AnyRef]) {
+final class Chan[A] private (buffer: Array[AnyRef]) extends WriterTracked {
   import Chan.{State, Sentinel}
 
   val lock = Sync()

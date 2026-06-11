@@ -89,6 +89,11 @@ Every kse benchmark has a plain-`java.util.concurrent` control of the same shape
 | `spsc` | single producer → single consumer | `abqSpsc` (`ArrayBlockingQueue`) |
 | `selectN` | one consumer selecting over N persistent recv handlers | `abqSelectN` (consumer round-robin-polling N queues — the "rebuild the select each iteration" approach) |
 | `fanIn` | N producers contending on one shared channel | `abqFanIn` (`ArrayBlockingQueue`) |
+| `ChanNSpscBench.spscN` / `.spscNArr` | chunked spsc through ChanN, `put(n)` generation / `putN` array drain, batch ∈ {1, 8, 32} | the `SpscBench` rows |
+| `ChanNFanInBench.fanInN` | N batched producers on one shared ChanN — the headline rebatching claim | the `FanInBench` rows |
+| `ChanNSelectBench.selectN` | one consumer over N chunked channels, ± per-item producer work | the `SelectBench` rows |
+| `ChanNLatencyBench` / `ChanLatencyBench` | per-item delivery latency p50/p99/p999 (printed each iteration from a 2x-bucket histogram), trickle & bursty regimes | each other |
+| `ChanNFullGrabBench.fullGrab` / `.asAvailable` | `getFull` vs `get` at independently chosen producer batch and consumer chunk (m-to-n rebatching through the channel) | each other |
 
 Reading the results: `spsc` vs `abqSpsc` says how close a *blocking, select-capable, lifecycle-
 managed* channel gets to a bare blocking queue. `selectN` vs `abqSelectN` tests the design's
@@ -96,6 +101,49 @@ thesis (registering handlers once instead of rebuilding selection per iteration)
 control *spins* (busy poll) to reach its throughput, while `selectN` blocks, so equal throughput
 already favors the blocking design on CPU. `fanIn` is the case most sensitive to the single
 per-channel lock.
+
+## ChanN findings (2026-06-10, initial: single fork, taskset -c 0-15, JDK 25)
+
+ChanN is the chunked channel built on the SplitDeque engine (`loom/src/ChanN.scala`); it exists
+because of the verdict below — chunking divides the per-item coordination costs by the batch
+size.  Initial pinned numbers (items/s):
+
+- **Fan-in, 8 producers — the headline holds.**  ChanN batch=32: **10.5M**, vs Chan 1.79M
+  (5.9×, prediction was 4–5×) and ABQ 3.61M (2.9× — the shape Chan *lost* at 49–82%).
+  Batch=8: 5.5M, already 1.5× ABQ.
+- **SPSC scales to the engine's ceiling.**  Batch=32 `put(n)`: 36.5M vs Chan 7.6M ≈ ABQ 7.4M
+  (4.8×); `putN` array drain: 44.5M — near the SplitDeque `popLeftInto` pipe ceiling (~50M).
+- **batch=1 degeneracy is approximate, not exact**: 0.8× Chan on spsc (6.1M), 0.6× on fan-in
+  (1.07M).  The chunked producer pays a `shortcut` boundary + a local-buffer hop per item where
+  Chan's `put` pays only an `attempt`; possible to optimize later, but the knob story (turn the
+  batch up) is the point.
+- **Saturated select: the old select tax is gone.**  At batch=32 the consumer holds
+  **~33–42M items/s flat across 1/4/16 channels**, vs Chan 6.8/3.2/2.2M and the ABQ poll
+  sweep 7.7/2.7/2.6M — ~13–16x at 4–16 channels, because the per-block `arm`/`disarm` O(N)
+  cost (what made Chan's select cross over) is paid once per batch.  batch=1 is ~0.9x Chan
+  at every channel count, the best degeneracy in the suite.
+- **Work-bound (blocking) select is an open question.**  At work=256 ChanN *lags* Chan at low
+  channel counts — ch=1: ~280k vs 594k; ch=4: 1.05M vs 1.65M (Chan's old 1.9x-over-ABQ win
+  shrinks to 1.2x) — and passes it only at ch=16 (2.7M vs 2.1M; ABQ's poll sweep still wins
+  that cell at 3.4M, as it did against Chan).  Batch size barely moves these numbers (266k
+  vs 286k at ch=1), so it is *not* the batching: some per-item cost in ChanN's trickle path,
+  unidentified — and the latency bench below shows the *opposite* ordering at similar work,
+  so it is likely scheduler/JIT-sensitive.  Profile before drawing conclusions.
+- **Full-grab consumption is throughput-free, and the bottleneck side's chunk is what
+  matters.**  `getFull` (consume only whole chunks) matched `get` within error in every cell
+  of a producers {1,8} x pbatch {8,32} x cbatch {8,32} sweep — saturated channels rarely sit
+  below a chunkful, so the mode's value is semantic (whole-chunk processing) plus its trickle
+  behavior.  The crossed sizes are the real finding: with 8 producers and one consumer the
+  *consumer's* chunk dominates (cbatch 8 -> 32 takes 5M -> 12M at any pbatch), and producer
+  batch 8 *beats* 32 there (12.2M vs ~10M) — the surplus side hogging the lock with big
+  bursts starves the bottleneck side.  Size the chunk on the bottleneck; keep the surplus
+  side's modest.
+- **Latency is the price, and it is exactly the predicted one.**  Trickle regime (~11us/item
+  production): batch=1 is latency-identical to Chan (p50 3.1us, p99 6.1us), batch=32 sits at
+  p50 ~197us — the first item of a batch waits for its 31 batchmates, since `put(n)` fills the
+  whole batch before flushing (there is no time-bound flush; the batch size *is* the latency
+  knob).  Bursty arrivals (work clumped per 64 items): batch=32 p50 ~98us vs Chan's ~25us, with
+  equal p99 (~197us) — items produced together chunk for free.
 
 ## Findings (2026-05-30) — why this design was shelved
 
