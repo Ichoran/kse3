@@ -155,15 +155,15 @@ object TestUtilities {
         val longest = (count + index).toString
         var istr = "  #" + index.toString
         if istr.length < 3+longest.length then istr = " "*(3+longest.length - istr.length) + istr
-        pickMoreElements(count-1, index+1, it, s"$istr = ${it.next}" :: acc)
+        pickMoreElements(count-1, index+1, it, s"$istr = ${it.next()}" :: acc)
 
     def =**=[D, J <: IsIterable[D]](d: => D)(using jj: J): Unit =
       var i = 0
       val ia = ii(value()).iterator
       val ib = jj(d).iterator
       while ia.hasNext && ib.hasNext do
-        val va = ia.next
-        val vb = ib.next
+        val va = ia.next()
+        val vb = ib.next()
         if va != vb then
           assertEquals(message + s"\nerror at index $i", va, vb)
         i += 1
@@ -182,7 +182,7 @@ object TestUtilities {
       val ia = ii(value()).iterator
       val vb = b
       while ia.hasNext do
-        val va = ia.next
+        val va = ia.next()
         if va == vb then
           return
       assertTrue(s"${message}could not find an element matching $vb", false )
@@ -190,7 +190,7 @@ object TestUtilities {
     def exists(f: ii.A => Boolean): Unit =
       val ia = ii(value()).iterator
       while ia.hasNext do
-        if f(ia.next) then return
+        if f(ia.next()) then return
       assertTrue(s"${message}collection never passed test", false )
   }
 

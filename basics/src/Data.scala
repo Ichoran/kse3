@@ -365,7 +365,7 @@ extension [A](a: Array[A]) {
       i += 1
   inline def use(indices: scala.collection.IntStepper)(inline f: A => Unit): Unit =
     while indices.hasStep do
-      f(a(indices.nextStep))
+      f(a(indices.nextStep()))
   inline def use(inline p: A => Boolean)(inline f: A => Unit): Unit =
     var i = 0
     while i < a.length do
@@ -396,7 +396,7 @@ extension [A](a: Array[A]) {
       i += 1
   inline def alter(indices: scala.collection.IntStepper)(inline f: A => A): Unit =
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       a(j) = f(a(j))
   inline def alter(inline p: A => Boolean)(inline f: A => A): Unit =
     var i = 0
@@ -428,7 +428,7 @@ extension [A](a: Array[A]) {
       i += 1
   inline def visit(indices: scala.collection.IntStepper)(inline f: (A, Int) => Unit): Unit =
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       f(a(j), j)
   inline def visit(inline p: A => Boolean)(inline f: (A, Int) => Unit): Unit =
     var i = 0
@@ -460,7 +460,7 @@ extension [A](a: Array[A]) {
       i += 1
   inline def edit(indices: scala.collection.IntStepper)(inline f: (A, Int) => A): Unit =
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       a(j) = f(a(j), j)
   inline def edit(inline p: A => Boolean)(inline f: (A, Int) => A): Unit =
     var i = 0
@@ -575,7 +575,7 @@ extension [A](a: Array[A]) {
   inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: (Z, A, Int) => Z): Z =
     var z = zero
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       z = f(z, a(j), j)
     z
   inline def gather[Z](zero: Z)(inline p: A => Boolean)(inline f: (Z, A, Int) => Z) =
@@ -629,12 +629,12 @@ extension [A](a: Array[A]) {
   @targetName("update_Stepper_constant")
   inline def update(indices: scala.collection.IntStepper, value: A): Unit =
     while indices.hasStep do
-      a(indices.nextStep) = value
+      a(indices.nextStep()) = value
   @targetName("update_Stepper_array")
   inline def update(indices: scala.collection.IntStepper, values: Array[A]): Unit =
     var i = 0
     while indices.hasStep do
-      a(indices.nextStep) = values(i)
+      a(indices.nextStep()) = values(i)
       i += 1
 
   @targetName("update_Selector")
@@ -697,11 +697,11 @@ extension [A](a: Array[A]) {
   @targetName("set_Stepper_generate")
   inline def set(indices: scala.collection.IntStepper)(inline generator: () => A): Unit =
     while indices.hasStep do
-      a(indices.nextStep) = generator()
+      a(indices.nextStep()) = generator()
   @targetName("set_Stepper_index")
   inline def set(indices: scala.collection.IntStepper)(inline indexer: Int => A): Unit =
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       a(j) = indexer(j)
 
   @targetName("set_Selector_generate")
@@ -935,7 +935,7 @@ extension [A](a: Array[A]) {
   inline def inject(that: Array[A], where: Int)(indices: scala.collection.IntStepper): Int =
     var j = where
     while indices.hasStep do
-      that(j) = a(indices.nextStep)
+      that(j) = a(indices.nextStep())
       j += 1
     j - where
   inline def inject(that: Array[A])(inline pick: A => Boolean): Int =
@@ -991,7 +991,7 @@ extension [A](a: Array[A]) {
   inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: (A, Int) => B): Int =
     var j = where
     while indices.hasStep do
-      val i = indices.nextStep
+      val i = indices.nextStep()
       that(j) = f(a(i), i)
       j += 1
     j - where
@@ -1029,7 +1029,7 @@ extension [A](a: Array[A]) {
     var j = 0
     while indices.hasStep do
       if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
-      b(j) = a(indices.nextStep)
+      b(j) = a(indices.nextStep())
       j += 1
     b.shrinkTo(j)
   inline def select(inline pick: A => Boolean)(using ClassTag[A]): Array[A] =
@@ -1070,7 +1070,7 @@ extension [A](a: Array[A]) {
     var j = 0
     while indices.hasStep do
       if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
-      val i = indices.nextStep
+      val i = indices.nextStep()
       b(j) = op(a(i), i)
       j += 1
     b.shrinkTo(j)
@@ -1282,7 +1282,7 @@ object ClippedArray {
     inline def use(indices: scala.collection.IntStepper)(inline f: A => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then f(a(j))
 
     inline def alter(i0: Int, iN: Int)(inline f: A => A): Unit =
@@ -1309,7 +1309,7 @@ object ClippedArray {
     inline def alter(indices: scala.collection.IntStepper)(inline f: A => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = f(a(j))
 
     inline def visit(i0: Int, iN: Int)(inline f: (A, Int) => Unit): Unit =
@@ -1336,7 +1336,7 @@ object ClippedArray {
     inline def visit(indices: scala.collection.IntStepper)(inline f: (A, Int) => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then f(a(j), j)
 
     inline def edit(i0: Int, iN: Int)(inline f: (A, Int) => A): Unit =
@@ -1364,7 +1364,7 @@ object ClippedArray {
     inline def edit(indices: scala.collection.IntStepper)(inline f: (A, Int) => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = f(a(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, A, Int) => Z): Z =
@@ -1396,7 +1396,7 @@ object ClippedArray {
       val a = ca.unwrap
       var z = zero
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then z = f(z, a(j), j)
       z
 
@@ -1455,14 +1455,14 @@ object ClippedArray {
     inline def update(indices: scala.collection.IntStepper, value: A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = value
     @targetName("update_Stepper_array")
     inline def update(indices: scala.collection.IntStepper, values: Array[A]): Unit =
       val a = ca.unwrap
       var i = 0
       while indices.hasStep && i < values.length do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then
           a(j) = values(i)
           i += 1
@@ -1527,13 +1527,13 @@ object ClippedArray {
     inline def set(indices: scala.collection.IntStepper)(inline generator: () => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = generator()
     @targetName("set_Stepper_index")
     inline def set(indices: scala.collection.IntStepper)(inline indexer: Int => A): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = indexer(j)
 
     inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
@@ -1660,7 +1660,7 @@ object ClippedArray {
       var j = where
       if j < 0 then j = 0
       while indices.hasStep && j < that.length do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           that(j) = a(i)
           j += 1
@@ -1738,7 +1738,7 @@ object ClippedArray {
       var j = where
       if j < 0 then j = 0
       while indices.hasStep && j < that.length do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           that(j) = f(a(i), i)
           j += 1
@@ -1789,7 +1789,7 @@ object ClippedArray {
       var b = new Array[A](if a.length <= 8 then a.length else 8)
       var j = 0
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
           b(j) = a(i)
@@ -1832,7 +1832,7 @@ object ClippedArray {
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
           b(j) = op(a(i), i)
@@ -2011,7 +2011,7 @@ object FlexArray {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          f(a(indices.nextStep))
+          f(a(indices.nextStep()))
     inline def use(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => Unit): Unit =
       val a = sa.unwrap
       var i = 0
@@ -2053,7 +2053,7 @@ object FlexArray {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           a(j) = f(a(j))
     inline def alter(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
       val a = sa.unwrap
@@ -2096,7 +2096,7 @@ object FlexArray {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           f(a(j), j)
     inline def visit(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
       val a = sa.unwrap
@@ -2139,7 +2139,7 @@ object FlexArray {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           a(j) = f(a(j), j)
     inline def edit(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
       val a = sa.unwrap
@@ -2189,7 +2189,7 @@ object FlexArray {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           z = f(z, a(j), j)
       z
     inline def gather[Z](zero: Z)(inline p: A => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z) =
@@ -2391,7 +2391,7 @@ object FlexArray {
       var j = where
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           shortcut.inner:
             that(j) = f(a(i), i)
             j += 1
@@ -2449,7 +2449,7 @@ object FlexArray {
       var j = 0
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           shortcut.inner:
             val y = op(a(i), i)
             if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
@@ -2562,7 +2562,7 @@ object FancyArray {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then f(a(j))
 
     inline def alter(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> A => A): Unit =
@@ -2592,7 +2592,7 @@ object FancyArray {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then a(j) = f(a(j))
 
     inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => Unit): Unit =
@@ -2622,7 +2622,7 @@ object FancyArray {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then f(a(j), j)
 
     inline def edit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (A, Int) => A): Unit =
@@ -2652,7 +2652,7 @@ object FancyArray {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then a(j) = f(a(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, A, Int) => Z): Z =
@@ -2687,7 +2687,7 @@ object FancyArray {
       var z = zero
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then z = f(z, a(j), j)
       z
 
@@ -2839,7 +2839,7 @@ object FancyArray {
       if j < 0 then j = 0
       shortcut.outer:
         while indices.hasStep && j < that.length do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           if i >= 0 && i < a.length then
             shortcut.inner:
               that(j) = f(a(i), i)
@@ -2887,7 +2887,7 @@ object FancyArray {
       var j = 0
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           if i >= 0 && i < a.length then
             shortcut.inner:
               val y = op(a(i), i)
@@ -3515,7 +3515,7 @@ extension (a: String) {
       i += 1
   inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
     while indices.hasStep do
-      f(a.charAt(indices.nextStep))
+      f(a.charAt(indices.nextStep()))
   inline def use(inline p: Char => Boolean)(inline f: Char => Unit): Unit =
     var i = 0
     while i < a.length do
@@ -3546,7 +3546,7 @@ extension (a: String) {
       i += 1
   inline def visit(indices: scala.collection.IntStepper)(inline f: (Char, Int) => Unit): Unit =
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       f(a.charAt(j), j)
   inline def visit(inline p: Char => Boolean)(inline f: (Char, Int) => Unit): Unit =
     var i = 0
@@ -3677,7 +3677,7 @@ extension (a: String) {
   inline def gather[Z](zero: Z)(indices: scala.collection.IntStepper)(inline f: (Z, Char, Int) => Z): Z =
     var z = zero
     while indices.hasStep do
-      val j = indices.nextStep
+      val j = indices.nextStep()
       z = f(z, a.charAt(j), j)
     z
 
@@ -3826,7 +3826,7 @@ extension (a: String) {
   inline def inject(that: Array[Char], where: Int)(indices: scala.collection.IntStepper): Int =
     var j = where
     while indices.hasStep do
-      that(j) = a.charAt(indices.nextStep)
+      that(j) = a.charAt(indices.nextStep())
       j += 1
     j - where
   inline def inject(that: Array[Char])(inline pick: Char => Boolean): Int =
@@ -3882,7 +3882,7 @@ extension (a: String) {
   inline def injectOp[B](that: Array[B], where: Int)(indices: scala.collection.IntStepper)(inline f: (Char, Int) => B): Int =
     var j = where
     while indices.hasStep do
-      val i = indices.nextStep
+      val i = indices.nextStep()
       that(j) = f(a.charAt(i), i)
       j += 1
     j - where
@@ -3916,7 +3916,7 @@ extension (a: String) {
     var b = new java.lang.StringBuilder()
     var j = 0
     while indices.hasStep do
-      b append a.charAt(indices.nextStep)
+      b append a.charAt(indices.nextStep())
       j += 1
     b.toString
   inline def select(inline pick: Char => Boolean): String =
@@ -3954,7 +3954,7 @@ extension (a: String) {
     var j = 0
     while indices.hasStep do
       if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
-      val i = indices.nextStep
+      val i = indices.nextStep()
       b(j) = op(a.charAt(i), i)
       j += 1
     b.shrinkTo(j)
@@ -4170,7 +4170,7 @@ object ClippedString {
     inline def use(indices: scala.collection.IntStepper)(inline f: Char => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then f(a.charAt(j))
 
     inline def visit(i0: Int, iN: Int)(inline f: (Char, Int) => Unit): Unit =
@@ -4197,7 +4197,7 @@ object ClippedString {
     inline def visit(indices: scala.collection.IntStepper)(inline f: (Char, Int) => Unit): Unit =
       val a = ca.unwrap
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then f(a.charAt(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: (Z, Char, Int) => Z): Z =
@@ -4229,7 +4229,7 @@ object ClippedString {
       val a = ca.unwrap
       var z = zero
       while indices.hasStep do
-        val j = indices.nextStep
+        val j = indices.nextStep()
         if j >= 0 && j < a.length then z = f(z, a.charAt(j), j)
       z
 
@@ -4362,7 +4362,7 @@ object ClippedString {
       var j = where
       if j < 0 then j = 0
       while indices.hasStep && j < that.length do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           that(j) = a.charAt(i)
           j += 1
@@ -4440,7 +4440,7 @@ object ClippedString {
       var j = where
       if j < 0 then j = 0
       while indices.hasStep && j < that.length do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           that(j) = f(a.charAt(i), i)
           j += 1
@@ -4486,7 +4486,7 @@ object ClippedString {
       val a = ca.unwrap
       var b = new java.lang.StringBuilder()
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           b.append(a.charAt(i)): Unit
       b.toString
@@ -4527,7 +4527,7 @@ object ClippedString {
       var b = new Array[B](if a.length <= 8 then a.length else 8)
       var j = 0
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < a.length then
           if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
           b(j) = op(a.charAt(i), i)
@@ -4720,7 +4720,7 @@ object FlexString {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          f(a.charAt(indices.nextStep))
+          f(a.charAt(indices.nextStep()))
     inline def use(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> Char => Unit): Unit =
       val a = sa.unwrap
       var i = 0
@@ -4762,7 +4762,7 @@ object FlexString {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           f(a.charAt(j), j)
     inline def visit(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
       val a = sa.unwrap
@@ -4812,7 +4812,7 @@ object FlexString {
       val a = sa.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           z = f(z, a.charAt(j), j)
       z
     inline def gather[Z](zero: Z)(inline p: Char => Boolean)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z) =
@@ -5012,7 +5012,7 @@ object FlexString {
       var j = where
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           shortcut.inner:
             that(j) = f(a.charAt(i), i)
             j += 1
@@ -5067,7 +5067,7 @@ object FlexString {
       var j = 0
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           shortcut.inner:
             val y = op(a.charAt(i), i)
             if j >= b.length then b = b.enlargeTo(b.length | (b.length << 1))
@@ -5172,7 +5172,7 @@ object FancyString {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then f(a.charAt(j))
 
     inline def visit(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Char, Int) => Unit): Unit =
@@ -5202,7 +5202,7 @@ object FancyString {
       val a = sc.unwrap
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then f(a.charAt(j), j)
 
     inline def gather[Z](zero: Z)(i0: Int, iN: Int)(inline f: boundary.Label[shortcut.Quits.type] ?=> (Z, Char, Int) => Z): Z =
@@ -5237,7 +5237,7 @@ object FancyString {
       var z = zero
       shortcut.quittable:
         while indices.hasStep do
-          val j = indices.nextStep
+          val j = indices.nextStep()
           if j >= 0 && j < a.length then z = f(z, a.charAt(j), j)
       z
 
@@ -5389,7 +5389,7 @@ object FancyString {
       if j < 0 then j = 0
       shortcut.outer:
         while indices.hasStep && j < that.length do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           if i >= 0 && i < a.length then
             shortcut.inner:
               that(j) = f(a.charAt(i), i)
@@ -5437,7 +5437,7 @@ object FancyString {
       var j = 0
       shortcut.outer:
         while indices.hasStep do
-          val i = indices.nextStep
+          val i = indices.nextStep()
           if i >= 0 && i < a.length then
             shortcut.inner:
               val y = op(a.charAt(i), i)

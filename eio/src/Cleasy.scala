@@ -150,7 +150,7 @@ object Parse {
         shortMatch(key)(test) match
           case Some(js) => js.use()(j => iib += ((i, j)))
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
-    iib.result
+    iib.result()
 
   def whereEither(key: String, short: Char)(args: Array[String]): Array[(Int, Boolean, Int)] =
     val izib = Array.newBuilder[(Int, Boolean, Int)]
@@ -161,7 +161,7 @@ object Parse {
         else shortMatch(short)(test) match
           case Some(js) => js.use()(j => izib += ((i, false, j)))
           case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
-    izib.result
+    izib.result()
 }
 
 val _u: Parse[Unit] = new:
@@ -388,8 +388,8 @@ object Opt {
     val shb = Array.newBuilder[Int]
     idxs.visit(): (ixj, _) =>
       if ixj._2 then lbb += ixj._1 else shb += ixj._1
-    val labelIdx = lbb.result
-    val shortIdx = shb.result
+    val labelIdx = lbb.result()
+    val shortIdx = shb.result()
     MkStr: sb =>
       if shortIdx.length == 0 then sb += s"--$label may only be given once but was found ${labelIdx.length} times\n"
       else if labelIdx.length == 0 then sb += s"-$short (--$label) may only be given once but was found ${shortIdx.length} times\n"
@@ -516,7 +516,7 @@ final case class OptN[A, C <: CharVal, L <: LabelStr] private[cleasy] (val label
         }
         consumed(i)
         (lb += ((a, i))) __ Unit
-    \.wrap[List[(A, Int)]](lb.result)[L]
+    \.wrap[List[(A, Int)]](lb.result())[L]
 
   inline def getDefault: Option[A] = default.map(_())
 

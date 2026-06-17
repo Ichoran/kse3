@@ -47,12 +47,12 @@ extension [A](option: Option[A])
 extension [A](i: Iterator[A])
   /** Visit all elements in an Iterator without index */
   inline def use(inline f: A => Unit): Unit =
-    while i.hasNext do f(i.next)
+    while i.hasNext do f(i.next())
 
 extension [A](s: scala.collection.Stepper[A])
   /** Visit all elements in a Stepper without index */
   inline def use(inline f: A => Unit): Unit =
-    while s.hasStep do f(s.nextStep)
+    while s.hasStep do f(s.nextStep())
 
 extension [A](j: java.util.Iterator[A])
   /** Visit all elements in a Java Iterator without index */

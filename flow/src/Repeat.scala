@@ -31,14 +31,14 @@ inline def nFor(n: Long)(inline f: Long => Unit): Unit =
 inline def iFor[A](i: Iterator[A])(inline f: (A, Int) => Unit): Unit =
   var n = 0
   while i.hasNext do
-    f(i.next, n)
+    f(i.next(), n)
     n += 1
 
 /** For everything in stepper `s`, run `f` on the item plus its index */
 inline def iFor[A](s: scala.collection.Stepper[A])(inline f: (A, Int) => Unit): Unit =
   var n = 0
   while s.hasStep do
-    f(s.nextStep, n)
+    f(s.nextStep(), n)
     n += 1
 
 /** For everything in java Iterator `j`, run `f` on the item plus its index */
@@ -66,7 +66,7 @@ extension [A](i: Iterator[A])
   inline def visit(inline f: (A, Int) => Unit): Unit =
     var n = 0
     while i.hasNext do
-      f(i.next, n)
+      f(i.next(), n)
       n += 1
   // inline def use moved to OverloadedExtensions
 
@@ -75,7 +75,7 @@ extension [A](s: scala.collection.Stepper[A])
   inline def visit(inline f: (A, Int) => Unit): Unit =
     var n = 0
     while s.hasStep do
-      f(s.nextStep, n)
+      f(s.nextStep(), n)
       n += 1
   // inline def use moved to OverloadedExtensions
 

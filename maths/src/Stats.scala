@@ -173,25 +173,25 @@ object Est {
       case _: Int =>
         val i = values.asInstanceOf[Iterator[Int]]
         while i.hasNext do
-          this += i.next
+          this += i.next()
       case _: Long =>
         val i = values.asInstanceOf[Iterator[Long]]
         while i.hasNext do
-          this += i.next
+          this += i.next()
       case _: Float =>
         val i = values.asInstanceOf[Iterator[Float]]
         while i.hasNext do
-          this += i.next
+          this += i.next()
       case _: Double =>
         val i = values.asInstanceOf[Iterator[Double]]
         while i.hasNext do
-          this += i.next
+          this += i.next()
 
     inline def addWith[A](values: Array[A])(inline f: A => Double): Unit = addRangeWith(values)(0, values.length)(f)
 
     def addWith[A](values: Iterator[A])(f: A => Double): Unit =
       while values.hasNext do
-        this += f(values.next)
+        this += f(values.next())
 
     @targetName("raw_add_I") def addRange(values: Array[Int])(i0: Int, iN: Int): Unit =
       values.visit(i0, iN): (j, _) =>

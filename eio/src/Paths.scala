@@ -656,7 +656,7 @@ object PathsHelper {
   def javaIterable(i1: scala.collection.IterableOnce[String]): java.lang.Iterable[String] = new java.lang.Iterable[String] {
     def iterator(): java.util.Iterator[String] = new java.util.Iterator[String] {
       private val i = i1.iterator
-      def next: String = i.next
+      def next: String = i.next()
       def hasNext: Boolean = i.hasNext
     }
   }

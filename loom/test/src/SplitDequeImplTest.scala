@@ -8,6 +8,7 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
+import kse.basics.*
 import kse.loom.SplitDequeImpl
 
 
@@ -198,7 +199,7 @@ class SplitDequeImplTest {
         assertEquals(s"$ctx op=$i donor emptied", 0, dj.count)
         val errj = dj.validate()
         if errj ne null then fail(s"$ctx op=$i donor invalid: $errj")
-        pool.remove(jdx)
+        pool.remove(jdx) __ Unit
       var q = 0
       while q < pool.size do
         check(s"$ctx op=$i pool($q)", pool(q)._1, pool(q)._2)

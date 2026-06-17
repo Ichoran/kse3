@@ -36,7 +36,7 @@ extension [X, Y, CC[_]](coll: CC[X Or Y])(using iter: scala.collection.generic.I
     iter(coll).iterator.foreach{ i =>
       id(i).foreachThem(x => bx += x)(y => by += y)
     }
-    (bx.result, by.result)
+    (bx.result(), by.result())
 }
 
 extension [X, Y](a: Array[X Or Y]) {
@@ -74,7 +74,7 @@ extension [A, CC[_]](coll: CC[A Or Err])(using iter: scala.collection.generic.Is
     val b = factory.newBuilder
     val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]] // id witnesses that this must be the case
     while i.hasNext do
-      b += i.next.?
+      b += i.next().?
     b.result()
 
   /** Extracts all disfavored results */
@@ -82,7 +82,7 @@ extension [A, CC[_]](coll: CC[A Or Err])(using iter: scala.collection.generic.Is
     val b = factory.newBuilder
     val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]]
     while i.hasNext do
-      i.next.foreachAlt(b += _)
+      i.next().foreachAlt(b += _)
     b.result()
 
   /** Collects all favored results as favored, or if there are any errors, collects all those as disfavored */
@@ -93,17 +93,17 @@ extension [A, CC[_]](coll: CC[A Or Err])(using iter: scala.collection.generic.Is
     var berr: scala.collection.mutable.Builder[Err, CC[Err]] = null
     val i = iter(coll).iterator.asInstanceOf[Iterator[A Or Err]]
     if i.hasNext then
-      i.next.foreachThem{ a =>
+      i.next().foreachThem{ a =>
         ba = fa.newBuilder; ba += a
       }{ err =>
         berr = ferr.newBuilder; berr += err
       }
       while (berr eq null) && i.hasNext do
-        i.next.foreachThem{ ba += _ }{ err =>
+        i.next().foreachThem{ ba += _ }{ err =>
           berr = ferr.newBuilder; berr += err
         }
       while i.hasNext do
-        i.next.foreachAlt(berr += _)
+        i.next().foreachAlt(berr += _)
       if berr ne null then berr.result().asAlt
       else ba.result().asIs
     else fa.newBuilder.result().asIs
@@ -120,7 +120,7 @@ extension [A, CC[_]](coll: CC[A Or Err])(using seq: scala.collection.generic.IsS
     var n = 0
     val i = seq(coll).iterator.asInstanceOf[Iterator[A Or Err]]
     while i.hasNext do
-      i.next.foreachThem(ba += _){ err =>
+      i.next().foreachThem(ba += _){ err =>
         if bie eq null then bie = fie.newBuilder
         bie += ((n, err))
       }
@@ -227,7 +227,7 @@ extension [A, CC[_]](coll: CC[A])(using iter: scala.collection.generic.IsIterabl
     val b = factory.newBuilder
     val i = iter(coll).iterator.asInstanceOf[Iterator[A]]
     while i.hasNext do
-      b += f(i.next).?
+      b += f(i.next()).?
     b.result()
 
 
@@ -270,7 +270,7 @@ object RotatingBuffer {
       if hasNext then
         state = 0
         (ma().get, miv())
-      else Iterator.empty.next
+      else Iterator.empty.next()
   }
   final class CopyIterator[A](ib: RotatingBuffer[A])(using ClassTag[A]) extends Iterating[A, Array[A]](ib, false) {
     def next: Array[A] =
@@ -278,7 +278,7 @@ object RotatingBuffer {
         state = 0
         val a = ma().get
         a.clip.select(miv())
-      else Iterator.empty.next
+      else Iterator.empty.next()
   }
 
   final class Lines(source: Array[Char], where: Iv = Iv(0, Int.MaxValue)) extends RotatingBuffer[Char] {

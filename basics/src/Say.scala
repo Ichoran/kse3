@@ -361,7 +361,7 @@ object MkStr {
       var k = 0
       val n = (sb: StB).length()
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < n then f((sb: StB).charAt(i))
         k += 1
     inline def use(inline p: Char => Boolean)(inline f: Char => Unit): Unit =
@@ -403,7 +403,7 @@ object MkStr {
       var k = 0
       val n = (sb: StB).length()
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
         k += 1
     inline def alter(inline p: Char => Boolean)(inline f: Char => Char): Unit =
@@ -445,7 +445,7 @@ object MkStr {
       var k = 0
       val n = (sb: StB).length()
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < n then f((sb: StB).charAt(i), i)
         k += 1
     inline def visit(inline p: Char => Boolean)(inline f: (Char, Int) => Unit): Unit =
@@ -487,7 +487,7 @@ object MkStr {
       var k = 0
       val n = (sb: StB).length()
       while indices.hasStep do
-        val i = indices.nextStep
+        val i = indices.nextStep()
         if i >= 0 && i < n then (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
         k += 1
     inline def edit(inline p: Char => Boolean)(inline f: (Char, Int) => Char): Unit =

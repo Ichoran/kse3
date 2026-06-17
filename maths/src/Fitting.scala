@@ -285,7 +285,7 @@ sealed abstract class Fit2D() {
   inline def addWith[A](it: IterableOnce[A])(inline fx: A => Double, inline fy: A => Double): Unit =
     val i = it.iterator
     while i.hasNext do
-      val a = i.next
+      val a = i.next()
       this += (fx(a), fy(a))
 
   def addSegment(xs: Array[Double], i0: Int)(ys: Array[Double], j0: Int)(m: Int): Unit

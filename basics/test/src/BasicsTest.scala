@@ -552,8 +552,8 @@ class BasicsTest() {
     inline def step2a(s: IntStepper) =
       val b = Array.newBuilder[Int]
       while s.hasStep do
-        b += s.nextStep
-      b.result
+        b += s.nextStep()
+      b.result()
 
     T ~ 3.where()                                           =**= Array(0, 1, 2)
     T ~ -2.where()                                          =**= Array[Int]()

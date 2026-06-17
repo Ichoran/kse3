@@ -584,10 +584,11 @@ object Percolate {
   /** The outcome of drawing from a [[Source]]: a batch of assembled items, nothing ready yet (but more may
     * still come), or exhausted.  This explicit three-way replaces an `Option[Array]` whose `Some(empty)` vs
     * `None` carried the not-yet-vs-done distinction implicitly. */
-  enum Drawn[+A]:
-    case Items(values: IArray[A])
-    case NotReady
-    case Done
+  type Drawn[A] = Drawn.Items[A] | Drawn.NotReady.type | Drawn.Done.type
+  object Drawn:
+    case class Items[A](values: Array[A])
+    case object NotReady {}
+    case object Done {}
 
   /** Something you can draw assembled items from, one batch at a time.  Thread-safe implementations let
     * many workers feed and drain concurrently. */
@@ -637,16 +638,16 @@ object Percolate {
         val ws = b.result()
         stored.zap(_ - ws.length)
         if !continues(ws(ws.length - 1), lastIndex) then { stored.zap(_ - items.size); items.clear(); ended = true }
-        Drawn.Items(IArray.unsafeFromArray(ws))
+        Drawn.Items(ws)
       else if ended then Drawn.Done           // sealed/finished: drain contiguous, then done (gap items dropped)
       else Drawn.NotReady
 
   /** Collects items by category, emitting a category's items as one batch once `needed(category)` of them
     * have arrived.  `seal()` ends it (any still-incomplete categories are then abandoned). */
-  final class Gather[A, B](categorize: A => B)(needed: B => Int)(using ClassTag[A], ClassTag[(B, IArray[A])])
-  extends Workshop[A, (B, IArray[A])]:
+  final class Gather[A, B](categorize: A => B)(needed: B => Int)(using ClassTag[A], ClassTag[(B, Array[A])])
+  extends Workshop[A, (B, Array[A])]:
     private val baskets = HashMap.empty[B, ArrayBuffer[A]]
-    private val ready = Queue.empty[(B, IArray[A])]
+    private val ready = Queue.empty[(B, Array[A])]
     private var ended = false
     private val stored = Atom(0)
 
@@ -661,7 +662,7 @@ object Percolate {
         stored.++
         if buf.length >= math.max(1, needed(b)) then
           baskets -= b
-          ready.enqueue(b -> IArray.unsafeFromArray(buf.toArray))
+          ready.enqueue(b -> buf.toArray)
         Is.unit
 
     def seal(): Unit = synchronized:
@@ -669,17 +670,17 @@ object Percolate {
       baskets.valuesIterator.foreach(b => stored.zap(_ - b.length))   // abandon incomplete baskets; stop counting them
       baskets.clear()
 
-    def draw(atMost: Int = Int.MaxValue): Drawn[(B, IArray[A])] = synchronized:
+    def draw(atMost: Int = Int.MaxValue): Drawn[(B, Array[A])] = synchronized:
       if ready.nonEmpty then
         val k = math.max(1, atMost) min ready.length
-        val out = new Array[(B, IArray[A])](k)
+        val out = new Array[(B, Array[A])](k)
         var i = 0
         while i < k do
           val t = ready.dequeue()
           stored.zap(_ - t._2.length)
           out(i) = t
           i += 1
-        Drawn.Items(IArray.unsafeFromArray(out))
+        Drawn.Items(out)
       else if ended then Drawn.Done
       else Drawn.NotReady
 
@@ -715,7 +716,7 @@ object Percolate {
         var i = 0
         while i < k do { out(i) = ready.dequeue(); i += 1 }
         stored.zap(_ - k)
-        Drawn.Items(IArray.unsafeFromArray(out))
+        Drawn.Items(out)
       else if ended then Drawn.Done
       else Drawn.NotReady
 }

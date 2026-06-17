@@ -13,7 +13,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.8.2"
+  def scalaVersion = "3.8.3"
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -34,7 +34,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.5.3"
+  def publishVersion = "0.5.4"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),

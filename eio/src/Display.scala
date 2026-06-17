@@ -1305,21 +1305,21 @@ extension (sc: StringContext) {
     val ts = sc.parts.iterator
     val is = items.iterator
     val stb = new StB()
-    if ts.hasNext then stb append ts.next __ Unit
+    if ts.hasNext then stb append ts.next() __ Unit
     while is.hasNext do
-      val d = is.next
+      val d = is.next()
       d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none) __ Unit
-      stb append ts.next __ Unit
+      stb append ts.next() __ Unit
     stb.toString
 
   def disp(items: Displayable*): String =
     val ts = sc.parts.iterator
     val is = items.iterator
     val stb = new StB()
-    if ts.hasNext then Displayable.appendWithConvertedEscapes(stb, ts.next)
+    if ts.hasNext then Displayable.appendWithConvertedEscapes(stb, ts.next())
     while is.hasNext do
-      val d = is.next
+      val d = is.next()
       d.myDisplay.append(stb, d, Int.MaxValue, Display.Flags.none) __ Unit
-      Displayable.appendWithConvertedEscapes(stb, ts.next)
+      Displayable.appendWithConvertedEscapes(stb, ts.next())
     stb.toString
 }

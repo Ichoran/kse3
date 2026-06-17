@@ -677,7 +677,7 @@ sealed abstract class Prng {
             b += coll.apply(indices(i))
             i += 1
             h += 1
-    b.result
+    b.result()
 
   final def sampleCollection[A, CC <: IterableOnce[A]](k: Int)(coll: CC)(using factory: scala.collection.Factory[A, CC]): CC =
     val b = factory.newBuilder
@@ -687,7 +687,7 @@ sealed abstract class Prng {
       b.sizeHint(k)
       var n = 0
       while i.hasNext && n < a.length do
-        a(n) = i.next.asInstanceOf[AnyRef]
+        a(n) = i.next().asInstanceOf[AnyRef]
         n += 1
       if n == k then   
         // Li algorithmL in unknown length mode
@@ -695,10 +695,10 @@ sealed abstract class Prng {
         while i.hasNext do
           var h = math.floor(math.log(D)/math.log(1-w)).toInt
           while h > 0 && i.hasNext do
-            i.next __ Unit
+            i.next() __ Unit
             h -= 1
           if i.hasNext then
-            a(this % a.length) = i.next.asInstanceOf[AnyRef]
+            a(this % a.length) = i.next().asInstanceOf[AnyRef]
             w *= math.exp(math.log(D)/k)
         shuffle(a)
         a.use()(x => b += x.asInstanceOf[A])
@@ -711,7 +711,7 @@ sealed abstract class Prng {
             b += a(j).asInstanceOf[A]
             j += 1
             m += 1
-    b.result
+    b.result()
 
 
   final def stringFrom(letters: String, n: Int): String =
@@ -1047,15 +1047,15 @@ extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
   def sampleOneAlgorithmL(rng: Prng): A =
       // Li algorithmL specialized to a single sample
       val i = coll.iterator
-      var a = i.next
+      var a = i.next()
       var w = rng.D
       while i.hasNext do
         var h = math.floor(math.log(rng.D)/math.log(1-w)).toInt
         while h > 0 && i.hasNext do
-          i.next __ Unit
+          i.next() __ Unit
           h -= 1
         if i.hasNext then
-          a = i.next
+          a = i.next()
           w *= rng.D
       a
 

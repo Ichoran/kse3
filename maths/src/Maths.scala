@@ -1405,22 +1405,22 @@ extension [K, V <: Int | Long | Float | Double](mc: scala.collection.Map[K, V])
       case _: Int =>
         val it = mc.asInstanceOf[scala.collection.Map[K, Int]].valuesIterator
         while it.hasNext do
-          a(i) = it.next
+          a(i) = it.next()
           i += 1
       case _: Long =>
         val it = mc.asInstanceOf[scala.collection.Map[K, Long]].valuesIterator
         while it.hasNext do
-          a(i) = it.next.toDouble
+          a(i) = it.next().toDouble
           i += 1
       case _: Float =>
         val it = mc.asInstanceOf[scala.collection.Map[K, Float]].valuesIterator
         while it.hasNext do
-          a(i) = it.next
+          a(i) = it.next()
           i += 1
       case _: Double =>
         val it = mc.asInstanceOf[scala.collection.Map[K, Double]].valuesIterator
         while it.hasNext do
-          a(i) = it.next
+          a(i) = it.next()
           i += 1
     a.normEntropy
 

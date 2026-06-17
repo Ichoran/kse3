@@ -11,6 +11,7 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
+import scala.annotation.nowarn
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -116,9 +117,9 @@ class FlowTest {
        }.alt.toThrowable                     ==== runtype[NumberFormatException]
     val herrs = Err(herr, herr)("Two")
     val herrsDesc = herrs.toString.linesIterator
-    T ~ herrsDesc.next    ==== "Two"
-    T ~ herrsDesc.next    ==== "1: " + herr.toString
-    T ~ herrsDesc.next    ==== "2: " + herr.toString
+    T ~ herrsDesc.next()  ==== "Two"
+    T ~ herrsDesc.next()  ==== "1: " + herr.toString
+    T ~ herrsDesc.next()  ==== "2: " + herr.toString
     T ~ herrsDesc.hasNext ==== false
    
 
@@ -150,14 +151,14 @@ class FlowTest {
       if fish.nonEmpty then fish ++= ", "
       fish ++= s*(i + 1)
     }
-    T("iFor") ~ fish.result ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
+    T("iFor") ~ fish.result() ==== "cod, bassbass, perchperchperch, salmonsalmonsalmonsalmon"
 
-    fish.clear
+    fish.clear()
     iFor(xs.stepper){ (s, i) =>
       if fish.nonEmpty then fish ++= ", "
       fish ++= s*(4-i)
     }
-    T("stepper iFor") ~ fish.result ==== "codcodcodcod, bassbassbass, perchperch, salmon"
+    T("stepper iFor") ~ fish.result() ==== "codcodcodcod, bassbassbass, perchperch, salmon"
 
     val ys = Array("pigeon", "sparrow", "hawk")
     val birds = new StringBuilder
@@ -165,25 +166,25 @@ class FlowTest {
       if birds.nonEmpty then birds ++= ", "
       birds ++= s*(i+1)
     }
-    T("java iFor") ~ birds.result ==== "pigeon, sparrowsparrow, hawkhawkhawk"
+    T("java iFor") ~ birds.result() ==== "pigeon, sparrowsparrow, hawkhawkhawk"
 
     val e = new java.util.Enumeration[String](){
       var i = 0
       def hasMoreElements = i < ys.length
       def nextElement = { i += 1; ys(i-1) }
     } 
-    birds.clear
+    birds.clear()
     iFor(e){ (s, i) =>
       birds ++= s.take(2*(i+1))
     }
-    T("java enumeration iFor") ~ birds.result ==== "pisparhawk"
+    T("java enumeration iFor") ~ birds.result() ==== "pisparhawk"
 
-    birds.clear
+    birds.clear()
     iFor(java.util.Arrays.stream(ys).spliterator){ (s, i) =>
       if birds.nonEmpty then birds ++= ", "
       birds ++= s*(3-i)
     }
-    T("java spliterator iFor") ~ birds.result ==== "pigeonpigeonpigeon, sparrowsparrow, hawk"
+    T("java spliterator iFor") ~ birds.result() ==== "pigeonpigeonpigeon, sparrowsparrow, hawk"
 
     var n = 0
     var cuml = 0
@@ -1064,11 +1065,13 @@ class FlowTest {
     T ~ oia.reject{ case Alt(y) if y.nonEmpty => y.head }     ==== Alt('c')        --: typed[(Int Or String) Or Char]
     T ~ oai.reject{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(5)          --: typed[Char Or (Int Or String)]
     T ~ oaa.reject{ case c if c<' ' => c.toInt.orAlt[String] }==== Alt(Alt("cod")) --: typed[Char Or (Int Or String)]
-    T ~ n.reject{ case x if x eq null => 4 }                  ==== Alt(4)          --: typed[Null Or Int]
-    T ~ n.reject{ case x if x ne null => 4 }                  ==== null            --: typed[Null Or Int]
+    T ~ n.reject{ case null => 4 }                            ==== Alt(4)          --: typed[Null Or Int]
+    T ~ (n.reject{ case x if x ne null => 4 }: @nowarn("msg=Unreachable case except for null"))
+                                                              ==== null            --: typed[Null Or Int]
     T ~ m.reject{ case x => "salmon" }                        ==== Alt(null)
-    T ~ on.reject{ case x if x eq null => 4 }                 ==== Alt(4)          --: typed[Null Or Int]
-    T ~ on.reject{ case x if x ne null => 4 }                 ==== null            --: typed[Null Or Int]
+    T ~ on.reject{ case null => 4 }                           ==== Alt(4)          --: typed[Null Or Int]
+    T ~ (on.reject{ case x if x ne null => 4 }: @nowarn("msg=Unreachable case except for null"))
+                                                              ==== null            --: typed[Null Or Int]
     T ~ om.reject{ case x if x > 0 => null }                  ==== Alt(null)       --: typed[Int Or Null]
     T ~ oin.reject{ case Alt(y) if y == 0 => '0' }            ==== null            --: typed[(Null Or Int) Or Char]
     T ~ oim.reject{ case Alt(y) if y eq null => '0' }         ==== Alt('0')        --: typed[(Int Or Null) Or Char]
@@ -1096,11 +1099,13 @@ class FlowTest {
     T ~ oai.rescue{ case Alt(y) if y.nonEmpty => y.head }       ==== Alt(5)         --: typed[Char Or (Int Or String)]
     T ~ oaa.rescue{ case Alt(y) if y.nonEmpty => y.head }       ==== 'c'            --: typed[Char Or (Int Or String)]
     T ~ n.rescue{ case x => null }                              ==== null
-    T ~ m.rescue{ case x if x eq null => 4 }                    ==== 4              --: typed[Int Or Null]
-    T ~ m.rescue{ case x if x ne null => 4 }                    ==== Alt(null)      --: typed[Int Or Null]
+    T ~ m.rescue{ case null => 4 }                              ==== 4              --: typed[Int Or Null]
+    T ~ (m.rescue{ case x if x ne null => 4 }: @nowarn("msg=Unreachable case except for null"))
+                                                                ==== Alt(null)      --: typed[Int Or Null]
     T ~ on.rescue{ case x if x < 0 => null }                    ==== null           --: typed[Null Or Int]
-    T ~ om.rescue{ case x if x eq null => 4 }                   ==== 4              --: typed[Int Or Null]
-    T ~ om.rescue{ case x if x ne null => 4 }                   ==== Alt(null)      --: typed[Int Or Null]
+    T ~ om.rescue{ case null => 4 }                             ==== 4              --: typed[Int Or Null]
+    T ~ (om.rescue{ case x if x ne null => 4 }: @nowarn("msg=Unreachable case except for null"))
+                                                                ==== Alt(null)      --: typed[Int Or Null]
     T ~ oin.rescue{ case c if c < ' ' => c.toInt.orIs[Null] }   ==== null           --: typed[(Null Or Int) Or Char]
     T ~ oim.rescue{ case c if c < ' ' => c.toInt.orAlt[Null] }  ==== Is(Alt(null))  --: typed[(Int Or Null) Or Char]
     T ~ oan.rescue{ case Alt(y) if y == 0 => '0' }              ==== Alt(null)      --: typed[Char Or (Null Or Int)]
@@ -1119,8 +1124,9 @@ class FlowTest {
     T ~ oi.alsoReject{ case x if x > 0 => x > 3 }     ==== Alt(true)       --: typed[Int Or (Boolean Or String)]
     T ~ oi.alsoReject{ case x if x < 0 => x < -3 }    ==== 5               --: typed[Int Or (Boolean Or String)]
     T ~ oa.alsoReject{ case 0 => true }               ==== Alt(Alt("cod")) --: typed[Int Or (Boolean Or String)]
-    T ~ on.alsoReject{ case x if x eq null => true }  ==== Alt(true)       --: typed[Null Or (Boolean Or Int)]
-    T ~ on.alsoReject{ case x if x ne null => true }  ==== null            --: typed[Null Or (Boolean Or Int)]
+    T ~ on.alsoReject{ case null => true }            ==== Alt(true)       --: typed[Null Or (Boolean Or Int)]
+    T ~ (on.alsoReject{ case x if x ne null => true }: @nowarn("msg=Unreachable case except for null"))
+                                                      ==== null            --: typed[Null Or (Boolean Or Int)]
     T ~ om.alsoReject{ case 0 => true }               ==== Alt(Alt(null))  --: typed[Int Or (Boolean Or Null)]
 
 
@@ -1876,16 +1882,16 @@ class FlowTest {
 
   @Test
   def dataCollectionTest(): Unit =
-    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectIs     ==== List(3, 5)  --: typed[Seq[Int]]
-    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectAlt    ==== List("eel") --: typed[Seq[String]]
-    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectThem   ==== (List(3, 5), List("eel"))
-    T ~ Array(Is(3), Alt("eel")).collectIs          ==== typed[Array[Int]]
-    T ~ Array(Is(3), Alt("eel")).collectIs.head     ==== 3
-    T ~ Array(Is(3), Alt("eel")).collectAlt.head    ==== "eel"
-    T ~ Array(Is(3), Alt("eel")).collectThem._1     =**= Array(3)
-    T ~ Array(Is(3), Alt("eel")).collectThem._2     =**= Array("eel")
-    T ~ Iterator(Is(3), Alt("eel")).collectAlt      ==== typed[Iterator[String]]
-    T ~ Iterator(Is(3), Alt("eel")).collectAlt.next ==== "eel"
+    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectIs       ==== List(3, 5)  --: typed[Seq[Int]]
+    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectAlt      ==== List("eel") --: typed[Seq[String]]
+    T ~ Seq(Is(3), Alt("eel"), Is(5)).collectThem     ==== (List(3, 5), List("eel"))
+    T ~ Array(Is(3), Alt("eel")).collectIs            ==== typed[Array[Int]]
+    T ~ Array(Is(3), Alt("eel")).collectIs.head       ==== 3
+    T ~ Array(Is(3), Alt("eel")).collectAlt.head      ==== "eel"
+    T ~ Array(Is(3), Alt("eel")).collectThem._1       =**= Array(3)
+    T ~ Array(Is(3), Alt("eel")).collectThem._2       =**= Array("eel")
+    T ~ Iterator(Is(3), Alt("eel")).collectAlt        ==== typed[Iterator[String]]
+    T ~ Iterator(Is(3), Alt("eel")).collectAlt.next() ==== "eel"
 
     val eparse = nice{ "e".toInt }
     val xs = Vector[Int Or Err](Is(5), eparse, 6.asIs, Err("boo").orIs[Int])

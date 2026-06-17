@@ -156,7 +156,7 @@ object ExceptionExplainer {
     else if missedLines > 0 then
       ans += s". . . (+$missedLines lines)"
 
-    ans.result
+    ans.result()
 
   /** Converts a Throwable into a Vector of strings by gathering
     * the Throwable's messsage, stack trace, and any sub-Throwables

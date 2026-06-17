@@ -366,7 +366,7 @@ class Xsv private (
       val it = content.iterator
       var more = it.hasNext
       while more do
-        val a = it.next
+        val a = it.next()
         more = it.hasNext
         index = 0
         if k > 0 then
@@ -430,7 +430,7 @@ class Xsv private (
       var more = it.hasNext
       while more do
         index = 0
-        val s = it.next
+        val s = it.next()
         visitRange(s, 0, s.length, visitor, { more = it.hasNext; if more then EoL else EoF }).?
         if index < s.length then visitor.breakWithError(Err(sayWhere(s"Only consumed $index of ${s.length} characters")))
       visitor.complete(line)
@@ -499,7 +499,7 @@ object Xsv {
       val it = content.iterator
       if !it.hasNext then xsv.decode(it)
       else
-        val first = it.next
+        val first = it.next()
         if first.hasBOM then
           if it.hasNext then xsv.decode(Iterator(first.select(3 to End)) ++ it)
           else xsv.visit(first, 3 to End, gv.get(first.length - 3))
@@ -705,7 +705,7 @@ object Xsv {
     private var row = if (table eq null) || table.length == 0 then -1 else 0
     def hasNext = row >= 0
     def next: Array[Byte] =
-      if row < 0 then Iterator.empty.next
+      if row < 0 then Iterator.empty.next()
       val sb = MkStr.empty()
       encodeRow(table(row), separator)(sb)
       val b = sb.str().bytes

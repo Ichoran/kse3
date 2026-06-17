@@ -234,7 +234,7 @@ object Send {
       var m = 0L max count
       var n = 0L
       while in.hasNext && m - n > 0 do
-        val ab = in.next
+        val ab = in.next()
         if ab.length > 0 then
           out.write(ab)
           n += ab.length
@@ -253,7 +253,7 @@ object Send {
       var m = 0L max count
       var n = 0L
       while in.hasNext && m - n > 0 do
-        val ab = in.next
+        val ab = in.next()
         val passes = if endline.length == 0 then 1 else 2
         var i = if ab.length > 0 then 0 else 1
         while i < passes do
@@ -282,7 +282,7 @@ object Send {
       var m = 0L max count
       var n = 0L
       while in.hasNext & m - n > 0 do
-        val ab = in.next
+        val ab = in.next()
         val h = if m - n < ab.length then (m - n).toInt else ab.length
         val k = out.write(ab, 0)(h)
         if k < h then

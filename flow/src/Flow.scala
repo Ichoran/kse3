@@ -123,45 +123,45 @@ extension [A](option: Option[A])
 extension [A](iterator: Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return to an escape/loop boundary. */
   inline def ?(using Label[escape.Token]): A =
-    if iterator.hasNext then iterator.next else boundary.break(escape.Token())
+    if iterator.hasNext then iterator.next() else boundary.break(escape.Token())
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
   inline def ?+[L](inline l: L)(using Label[L]): A =
-    if iterator.hasNext then iterator.next else boundary.break(l)
+    if iterator.hasNext then iterator.next() else boundary.break(l)
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
   inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
-    if iterator.hasNext then iterator.next else boundary.break(shortcut.Skips: S)
+    if iterator.hasNext then iterator.next() else boundary.break(shortcut.Skips: S)
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
   inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
-    if iterator.hasNext then iterator.next else boundary.break(shortcut.Quits: Q)
+    if iterator.hasNext then iterator.next() else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
-    if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
+    if iterator.hasNext then iterator.next() else boundary.break(Alt(Err(msg)))
 
 
 extension [A](stepper: scala.collection.Stepper[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return to an escape/loop boundary. */
   inline def ?(using Label[escape.Token]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break(escape.Token())
+    if stepper.hasStep then stepper.nextStep() else boundary.break(escape.Token())
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return of a default value. */
   inline def ?+[L](inline l: L)(using Label[L]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break(l)
+    if stepper.hasStep then stepper.nextStep() else boundary.break(l)
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return to a Skip boundary. */
   inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break(shortcut.Skips: S)
+    if stepper.hasStep then stepper.nextStep() else boundary.break(shortcut.Skips: S)
 
   /** Delivers the value if it exists, or does a perhaps nonlocal return to a Quit boundary. */
   inline def quit_?[Q >: shortcut.Quits.type <: shortcut.Type](using lb: Label[Q]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break(shortcut.Quits: Q)
+    if stepper.hasStep then stepper.nextStep() else boundary.break(shortcut.Quits: Q)
 
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
-    if stepper.hasStep then stepper.nextStep else boundary.break(Alt(Err(msg)))
+    if stepper.hasStep then stepper.nextStep() else boundary.break(Alt(Err(msg)))
 
 
 extension [A](iterator: java.util.Iterator[A])
@@ -990,12 +990,12 @@ extension [T](`try`: Try[T])
 
 extension [I](iterator: Iterator[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
-    if iterator.hasNext then iterator.next
+    if iterator.hasNext then iterator.next()
     else boundary.break(kse.flow.Attempt.failed)
 
 extension [I](stepper: scala.collection.Stepper[I])
   inline def ![A](using Label[kse.flow.Attempt[A]]): I =
-    if stepper.hasStep then stepper.nextStep
+    if stepper.hasStep then stepper.nextStep()
     else boundary.break(kse.flow.Attempt.failed)
 
 extension [I](iterator: java.util.Iterator[I])

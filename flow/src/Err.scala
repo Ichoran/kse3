@@ -180,7 +180,7 @@ object ErrType {
       val it = errs.iterator
       while it.hasNext do
         i += 1
-        val e = it.next
+        val e = it.next()
         Err.buildLines(e)(sb, prefix + fmt.format(i))
 
     def toThrowable =
