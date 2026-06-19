@@ -148,6 +148,26 @@ class MemTest() {
     T ~ (Mem of ai).whereFrom(ix)(_ > 4)                          =**= Array[Long](3, 4)
     T ~ (Mem of ai).whereFromOp(ix)((x, i) => if x > 4 then i else -1L)   =**= Array[Long](3, 4)
     T ~ (Mem of ai).where()                                       ==== typed[Array[Long]]
+    {
+      val mem = Mem of Array(1, 2, 3, 4, 5, 6, 7)
+      val eom = mem.length - 1
+      T ~ mem.whereFwd(0)(x => (x%2) == 0)   ==== mem.where(x => (x%2) == 0)(0)
+      T ~ mem.whereFwd(0)(x => (x%2) == 1)   ==== mem.where(x => (x%2) == 1)(0)
+      T ~ mem.whereFwd(2)(x => (x%2) == 0)   ==== mem.whereIn(2, eom + 1)(x => (x%2) == 0)(0)
+      T ~ mem.whereFwd(2)(x => (x%2) == 1)   ==== mem.whereIn(2, eom + 1)(x => (x%2) == 1)(0)
+      T ~ mem.whereFwd(eom)(x => (x%2) == 0) ==== { if (mem(eom) % 2) == 0 then eom else -1 }
+      T ~ mem.whereFwd(eom)(x => (x%2) == 1) ==== { if (mem(eom) % 2) == 0 then -1 else eom }
+      T ~ mem.whereFwd(0)(_ == 999)          ==== -1
+      T ~ mem.whereFwd(3)(_ == 999)          ==== -1
+      T ~ mem.whereBkw(eom)(x => (x%2) == 0) ==== mem.where(x => (x%2) == 0).last
+      T ~ mem.whereBkw(eom)(x => (x%2) == 1) ==== mem.where(x => (x%2) == 1).last
+      T ~ mem.whereBkw(2)(x => (x%2) == 0)   ==== mem.whereIn(0, 3)(x => (x%2) == 0).last
+      T ~ mem.whereBkw(2)(x => (x%2) == 1)   ==== mem.whereIn(0, 3)(x => (x%2) == 1).last
+      T ~ mem.whereBkw(0)(x => (x%2) == 0)   ==== { if (mem(0) % 2) == 0 then 0 else -1 }
+      T ~ mem.whereBkw(0)(x => (x%2) == 1)   ==== { if (mem(0) % 2) == 0 then -1 else 0 }    
+      T ~ mem.whereBkw(eom)(_ == 999)        ==== -1
+      T ~ mem.whereBkw(3)(_ == 999)          ==== -1
+    }
 
     // inject
     T ~ into(7)(d => (Mem of ai).inject(d))            =**= Array(2, 3, 5, 7, 11, 0, 0)

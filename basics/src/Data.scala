@@ -897,6 +897,34 @@ extension [A](a: Array[A]) {
       i += 1
     ix.shrinkTo(j)
 
+  inline def whereFwd(i: Int)(inline f: A => Boolean): Int =
+    if i < 0 then -1
+    else boundary[Int]:
+      var j = i
+      while j < a.length do
+        if f(a(j)) then boundary.break(j)
+        j += 1
+      -1
+  @targetName("whereFwd_rel_End")
+  inline def whereFwd(ei: End.At)(inline f: A => Boolean): Int =
+    whereFwd(ei of a)(f)
+  @targetName("whereFwd_rel_End")
+  inline def whereFwd(e: End.type)(inline f: A => Boolean): Int =
+    whereFwd(a.length-1)(f)
+  inline def whereBkw(i: Int)(inline f: A => Boolean): Int =
+    if i >= a.length then -1
+    else boundary[Int]:
+      var j = i
+      while j >= 0 do
+        if f(a(j)) then boundary.break(j)
+        j -= 1
+      -1
+  @targetName("whereBkw_rel_End")
+  inline def whereBkw(ei: End.At)(inline f: A => Boolean): Int =
+    whereBkw(ei of a)(f)
+  @targetName("whereBkw_rel_End")
+  inline def whereBkw(e: End.type)(inline f: A => Boolean): Int =
+    whereBkw(a.length-1)(f)
 
   inline def inject(that: Array[A]): Int =
     java.lang.System.arraycopy(a, 0, that, 0, a.length)
@@ -3786,6 +3814,35 @@ extension (a: String) {
         j += 1
       i += 1  
     ix.shrinkTo(j)  
+
+  inline def whereFwd(i: Int)(inline f: Char => Boolean): Int =
+    if i < 0 then -1
+    else boundary[Int]:
+      var j = i
+      while j < a.length do
+        if f(a(j)) then boundary.break(j)
+        j += 1
+      -1
+  @targetName("str_whereFwd_rel_End")
+  inline def whereFwd(ei: End.At)(inline f: Char => Boolean): Int =
+    whereFwd(ei of a)(f)
+  @targetName("str_whereFwd_rel_End")
+  inline def whereFwd(e: End.type)(inline f: Char => Boolean): Int =
+    whereFwd(a.length-1)(f)
+  inline def whereBkw(i: Int)(inline f: Char => Boolean): Int =
+    if i >= a.length then -1
+    else boundary[Int]:
+      var j = i
+      while j >= 0 do
+        if f(a(j)) then boundary.break(j)
+        j -= 1
+      -1
+  @targetName("str_whereBkw_rel_End")
+  inline def whereBkw(ei: End.At)(inline f: Char => Boolean): Int =
+    whereBkw(ei of a)(f)
+  @targetName("str_whereBkw_rel_End")
+  inline def whereBkw(e: End.type)(inline f: Char => Boolean): Int =
+    whereBkw(a.length - 1)(f)  
 
   inline def inject(that: Array[Char]): Int =
     inject(that, 0)(0, a.length)

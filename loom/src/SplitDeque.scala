@@ -395,6 +395,15 @@ final class SplitDeque[A] private[kse] (lgCap: Int, blockSize: Int) {
 
 object SplitDeque {
   import java.lang.invoke.MethodHandles
+  import scala.annotation.static
+
+  @static private[SplitDeque] final val lenHandle =
+    MethodHandles.privateLookupIn(classOf[SplitDeque[?]], MethodHandles.lookup())
+      .findVarHandle(classOf[SplitDeque[?]], "len", classOf[Int])
+
+  @static private[SplitDeque] final val vznHandle =
+    MethodHandles.privateLookupIn(classOf[SplitDeque[?]], MethodHandles.lookup())
+      .findVarHandle(classOf[SplitDeque[?]], "vzn", classOf[Int])
 
   // Production geometry: 64-slot rings, 24-wide blocks.  To be frozen to inline
   // constants only after soak-fuzzing at full size (see roadmap in tests).
@@ -402,14 +411,6 @@ object SplitDeque {
   private[kse] val defaultBlockSize = 24
 
   private object Sentinel   // Stored in place of null elements (the engine uses null for vacancy)
-
-  private[SplitDeque] final val lenHandle =
-    MethodHandles.privateLookupIn(classOf[SplitDeque[?]], MethodHandles.lookup())
-      .findVarHandle(classOf[SplitDeque[?]], "len", classOf[Int])
-
-  private[SplitDeque] final val vznHandle =
-    MethodHandles.privateLookupIn(classOf[SplitDeque[?]], MethodHandles.lookup())
-      .findVarHandle(classOf[SplitDeque[?]], "vzn", classOf[Int])
 
   def empty[A]: SplitDeque[A] = new SplitDeque[A]()
 

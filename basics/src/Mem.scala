@@ -10,6 +10,7 @@ import java.lang.foreign.ValueLayout.*
 import scala.annotation.targetName
 import scala.collection.LongStepper
 import scala.compiletime.{erasedValue, error}
+import scala.util.boundary
 
 
 /** Array-like high-speed access to off-heap (or heap-array-backed) primitive memory.
@@ -492,6 +493,24 @@ object Mem {
           j += 1
         i += 1
       ix.shrinkTo(j)
+
+    inline def whereFwd(i: Long)(inline f: A => Boolean): Long =
+      if i < 0 then -1L
+      else boundary[Long]:
+        var j = i
+        val n = m.length
+        while j < n do
+          if f(m(j)) then boundary.break(j)
+          j += 1
+        -1L
+    inline def whereBkw(i: Long)(inline f: A => Boolean): Long =
+      if i >= m.length then -1
+      else boundary[Long]:
+        var j = i
+        while j >= 0 do
+          if f(m(j)) then boundary.break(j)
+          j -= 1
+        -1L
 
     /** Copy elements into a caller-provided destination; returns the number copied. */
     inline def inject(that: Mem[A]): Long =

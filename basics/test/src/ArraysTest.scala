@@ -38,6 +38,7 @@ class ArraysTest() {
       def l: Boolean = c.value.isLetter
       def o: O.Type = O(Some(c.value.toString))
       def ^(i: Int) = (c.value + i).toChar
+      def ch: Char = c.value
   }
   extension (ac: Array[C.Type])
     def cs: String =
@@ -246,6 +247,28 @@ class ArraysTest() {
     T ~ oar.whereIn(opv   )(_.l)            =**= Array(1)
     T ~ car.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
     T ~ oar.whereFrom(ix)(_.l)              =**= Array(3, 1, 1, 3)
+    T ~ car.whereFwd(0)(_.l)                ==== car.where(_.l)(0)
+    T ~ car.whereFwd(0)(! _.l)              ==== car.where(! _.l)(0)
+    T ~ car.whereFwd(2)(_.l)                ==== car.whereIn(2 to End)(_.l)(0)
+    T ~ car.whereFwd(2)(! _.l)              ==== car.whereIn(2 to End)(! _.l)(0)
+    T ~ car.whereFwd(End-3)(_.l)            ==== car.whereIn(End-3 to End)(_.l)(0)
+    T ~ car.whereFwd(End-3)(! _.l)          ==== car.whereIn(End-3 to End)(! _.l)(0)
+    T ~ car.whereFwd(End)(_.l)              ==== { if car(End).l then End of car else -1 }
+    T ~ car.whereFwd(End)(! _.l)            ==== { if car(End).l then -1 else End of car }
+    T ~ car.whereFwd(0)(_.ch == 'W')        ==== -1
+    T ~ car.whereFwd(3)(_.ch == 'W')        ==== -1
+    T ~ car.whereFwd(End-3)(_.ch == 'W')    ==== -1
+    T ~ car.whereBkw(End)(_.l)              ==== car.where(_.l).last
+    T ~ car.whereBkw(End)(! _.l)            ==== car.where(! _.l).last
+    T ~ car.whereBkw(2)(_.l)                ==== car.whereIn(0 to 2)(_.l).last
+    T ~ car.whereBkw(2)(! _.l)              ==== car.whereIn(0 to 2)(! _.l).last
+    T ~ car.whereBkw(End-3)(_.l)            ==== car.whereIn(0 to End-3)(_.l).last
+    T ~ car.whereBkw(End-3)(! _.l)          ==== car.whereIn(0 to End-3)(! _.l).last
+    T ~ car.whereBkw(0)(_.l)                ==== { if car(0).l then 0 else -1 }
+    T ~ car.whereBkw(0)(! _.l)              ==== { if car(0).l then -1 else 0 }    
+    T ~ car.whereBkw(End)(_.ch == 'W')      ==== -1
+    T ~ car.whereBkw(3)(_.ch == 'W')        ==== -1
+    T ~ car.whereBkw(End-3)(_.ch == 'W')    ==== -1
 
     def linc(c: C.Type, i: Int) = if c.l then i+7 else -1
     T ~ car.whereOp(linc)                     =**= car.where(_.l).copyWith(_ + 7)
@@ -2443,7 +2466,29 @@ class ArraysTest() {
     T ~ ba.fillRange(2 to 3)("b")     =**= Array[String]("0", "2", "b", "b", "3")
     T ~ ba.fill("4")                  =**= Array[String]("4", "4", "4", "4", "4")
     */
+}
 
+
+class StringsTest() {
+  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.{_, given}
+  import kse.basics.intervals._
+
+  given Asserter(
+    (m, test, x) => assertEquals(m, x, test),
+    (m, test, x) => assertNotEquals(m, x, test),
+    assertTrue
+  )
+
+  object O extends NewType[Option[String]] {
+    extension (o: O.Type)
+      def n: Int = o.value.map(_.length).getOrElse(-1)
+      def l: Boolean = o.value.isDefined
+  }
+  extension (ao: Array[O.Type])
+    def os: String =
+      MkStr: sb =>
+        ao.use()(o => sb += (if o.asInstanceOf[AnyRef] eq null then "@" else o.value.map(_+".").getOrElse("#")))
 
   def stringInlinedDataTest(): Unit =
     var cuml = 0
@@ -2533,6 +2578,32 @@ class ArraysTest() {
     T ~ str.whereIn(civ   )(_ == 'x') =**= Array(4)
     T ~ str.whereIn(cpv   )(_ == 'x') =**= Array(4)
     T ~ str.whereFrom(ix)(_ != 'i')   =**= Array(2, 1, 1)
+    {
+      extension (char: Char)
+        inline def l = char.isLetter
+      T ~ str.whereFwd(0)(_.l)          ==== str.where(_.l)(0)
+      T ~ str.whereFwd(0)(! _.l)        ==== str.where(! _.l)(0)
+      T ~ str.whereFwd(2)(_.l)          ==== str.whereIn(2 to End)(_.l)(0)
+      T ~ str.whereFwd(2)(! _.l)        ==== str.whereIn(2 to End)(! _.l)(0)
+      T ~ str.whereFwd(End-3)(_.l)      ==== str.whereIn(End-3 to End)(_.l)(0)
+      T ~ str.whereFwd(End-3)(! _.l)    ==== str.whereIn(End-3 to End)(! _.l)(0)
+      T ~ str.whereFwd(End)(_.l)        ==== { if str(End).l then End of str else -1 }
+      T ~ str.whereFwd(End)(! _.l)      ==== { if str(End).l then -1 else End of str }
+      T ~ str.whereFwd(0)(_ == 'W')     ==== -1
+      T ~ str.whereFwd(3)(_ == 'W')     ==== -1
+      T ~ str.whereFwd(End-3)(_ == 'W') ==== -1
+      T ~ str.whereBkw(End)(_.l)        ==== str.where(_.l).last
+      T ~ str.whereBkw(End)(! _.l)      ==== str.where(! _.l).last
+      T ~ str.whereBkw(2)(_.l)          ==== str.whereIn(0 to 2)(_.l).last
+      T ~ str.whereBkw(2)(! _.l)        ==== str.whereIn(0 to 2)(! _.l).last
+      T ~ str.whereBkw(End-3)(_.l)      ==== str.whereIn(0 to End-3)(_.l).last
+      T ~ str.whereBkw(End-3)(! _.l)    ==== str.whereIn(0 to End-3)(! _.l).last
+      T ~ str.whereBkw(0)(_.l)          ==== { if str(0).l then 0 else -1 }
+      T ~ str.whereBkw(0)(! _.l)        ==== { if str(0).l then -1 else 0 }    
+      T ~ str.whereBkw(End)(_ == 'W')   ==== -1
+      T ~ str.whereBkw(3)(_ == 'W')     ==== -1
+      T ~ str.whereBkw(End-3)(_ == 'W') ==== -1
+    }
 
     def linc(c: Char, i: Int) = if c.isLetter then i+7 else -1
     T ~ str.whereOp(linc)               =**= str.where(_.isLetter).copyWith(_ + 7)

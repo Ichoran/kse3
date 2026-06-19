@@ -746,6 +746,13 @@ object Atom {
   import java.lang.Double.{doubleToRawLongBits => d2l, longBitsToDouble => l2d}
   import java.lang.Float.{floatToRawIntBits => f2i, intBitsToFloat => i2f}
 
+  inline def fence(kind: "full" | "acquire" | "release" | "load-load" | "store-store"): Unit = inline kind match
+    case "full"    => java.lang.invoke.VarHandle.fullFence()
+    case "acquire" => java.lang.invoke.VarHandle.acquireFence()
+    case "release" => java.lang.invoke.VarHandle.releaseFence()
+    case "load-load" => java.lang.invoke.VarHandle.loadLoadFence()
+    case "store-store" => java.lang.invoke.VarHandle.storeStoreFence()
+
   inline def apply[A](a: A): kse.basics.Atom[A] = inline a match
     case i: Int     => new AtomicInteger(i)
     case l: Long    => new AtomicLong(l)

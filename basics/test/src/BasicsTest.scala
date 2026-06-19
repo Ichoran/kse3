@@ -790,13 +790,16 @@ class BasicsTest() {
 
   @Test def arrayPrimitiveDataTest: Unit = arrayTester.arrayPrimitiveDataTest()
 
-  @Test def stringInlinedDataTest: Unit = arrayTester.stringInlinedDataTest()
 
-  @Test def stringClippedInlinedDataTest: Unit = arrayTester.stringClippedInlinedDataTest()
+  val stringTester = new StringsTest()
 
-  @Test def stringBreakInlinedDataTest: Unit = arrayTester.stringBreakInlinedDataTest()
+  @Test def stringInlinedDataTest: Unit = stringTester.stringInlinedDataTest()
 
-  @Test def stringFancyIntervalTest: Unit = arrayTester.stringFancyIntervalTest()
+  @Test def stringClippedInlinedDataTest: Unit = stringTester.stringClippedInlinedDataTest()
+
+  @Test def stringBreakInlinedDataTest: Unit = stringTester.stringBreakInlinedDataTest()
+
+  @Test def stringFancyIntervalTest: Unit = stringTester.stringFancyIntervalTest()
 
 
   val memTester = new MemTest()
