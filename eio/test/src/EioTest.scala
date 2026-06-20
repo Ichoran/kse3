@@ -820,6 +820,34 @@ class EioTest {
 
     T ~ reader.await() ==== (((10L, 20L), (30L, 40L), true))
 
+    // attach: view an existing POSIX-named shared object by name (Linux: through /dev/shm). Linux/tmpfs-only.
+    if Files.isDirectory(SharedMemory.posixShmDir) && Files.isWritable(SharedMemory.posixShmDir) then
+      val nm = "/kse-attach-test"
+      val sf = SharedMemory.posixShmDir.resolve(nm.stripPrefix("/"))
+      Files.deleteIfExists(sf) __ Unit
+      T ~ Resource.nice(SharedMemory.createFrom[Long](sf, 3))(_.close()){ region =>
+        region.use(_.set()(i => (i + 1) * 100))   // 100, 200, 300
+        T ~ Resource.nice(SharedMemory.attach[Long](nm, 3))(_.close()){ o =>
+          T ~ o.op(_.length) ==== 3L
+          o.op(_(2))
+        } ==== 300L
+        // a read-only view of the same object also attaches
+        T ~ Resource.nice(SharedMemory.attach[Long](nm, 3, readOnly = true))(_.close()){ _.op(_(0)) } ==== 100L
+        region.op(_(1))
+      } ==== 200L
+      T ~ sf.exists ==== false      // closing the creating region unlinked the object
+
+      // createNamed: create a fresh RAM-resident named object, attach by its (random) name, round-trip, close
+      var made: String = null
+      T ~ Resource.nice(SharedMemory.createNamed[Long](4))(_.close()){ later =>
+        made = later.op(_.name)
+        later.use(_.use(_.set()(i => (i + 1) * 10)))    // 10, 20, 30, 40
+        T ~ Resource.nice(SharedMemory.attach[Long](made, 4))(_.close()){ _.op(_(3)) } ==== 40L
+        later.op(_.op(_(1)))
+      } ==== 20L
+      T ~ made.startsWith("/kse-")                                       ==== true
+      T ~ SharedMemory.posixShmDir.resolve(made.stripPrefix("/")).exists ==== false   // closing destroyed it
+
     val ps = "temp/eio/sym".path
     T ~ (p / "x" / "y").mkdirs().isIs             ==== true
     T ~ (p / "sym").isSymlink                     ==== false

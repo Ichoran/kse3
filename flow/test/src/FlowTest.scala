@@ -2359,6 +2359,91 @@ class FlowTest {
           x := 4; x()
         }                                                            ==== Err.or("bad")
     T ~ m()                                                          ==== -5
+
+  @Test
+  def laterTest: Unit =
+    val log = scala.collection.mutable.ArrayBuffer.empty[Int]
+    given Tidy.Clean[Int] = i => log.synchronized{ log += i } __ Unit
+
+    // open: op/use compute; cleanup is deferred
+    val a = Tidy.Later(1)
+    T ~ a.op(_ + 10)         ==== 11
+    a.use(_ => ())
+    T ~ log.size             ==== 0
+    // close: cleanup runs exactly once
+    a.close()
+    T ~ log.size             ==== 1
+    a.close()
+    T ~ log.size             ==== 1
+    // closed behavior
+    T ~ a.isOpen      ==== false
+    T ~ a.op(_ + 1)   ==== thrown[IllegalStateException]
+    T ~ a.nice(_ + 1) ==== runtype[Alt[?]]
+
+    // isOpen snapshot while still open, then after close
+    val b = Tidy.Later(2)
+    T ~ b.isOpen    ==== true
+    T ~ b.op(_ + 1) ==== 3
+    b.close()
+    T ~ b.isOpen    ==== false
+
+    // AndClose runs the op, then closes
+    val c = Tidy.Later(7)
+    T ~ c.opAndClose(_ + 1) ==== 8
+    T ~ c.isOpen            ==== false
+    T ~ log.contains(7)     ==== true
+
+    // nice/flatNice carry a boundary for .? / Err.break
+    val d = Tidy.Later(20)
+    T ~ d.nice(r => r * 2)                  ==== 40
+    T ~ d.flatNice(r => Is(r + 1))          ==== 21
+    T ~ d.nice(r => { Err.break("no"); r }) ==== Err.or("no")
+    d.close()
+
+    // AndClose never drops a close error; never lets it mask the op error
+    val boom: Tidy.Clean[Int] = _ => throw new Exception("boomclose")
+    T ~ Tidy.Later(9).niceAndClose(r => r * 2)                     ==== 18                  // op ok, close ok
+    T ~ Tidy.Later(9).niceAndClose(r => { Err.break("nope"); r })  ==== Err.or("nope")      // op fails, close ok
+    T ~ Tidy.Later(5)(using boom).niceAndClose(r => r + 1)
+          .existsAlt(_.toString.contains("closing"))               ==== true                // op ok, close fails
+    val both = Tidy.Later(5)(using boom).niceAndClose(r => { Err.break("opfail"); r })
+    T ~ both.existsAlt(_.toString.contains("opfail"))              ==== true                // both fail: op kept
+    T ~ both.existsAlt(_.toString.contains("boomclose"))           ==== true                // both fail: close kept
+    var sup: Throwable = null
+    try Tidy.Later(0)(using boom).opAndClose(_ => throw new Exception("opboom"))
+    catch case e if e.catchable => sup = e
+    T ~ sup.getMessage                                  ==== "opboom"
+    T ~ sup.getSuppressed.exists(_.getMessage == "boomclose") ==== true
+
+    // closedLater: acquire and hand back the owning Later (unmanaged-but-backstopped)
+    val l77 = Resource.closedLater(77)(i => log.synchronized{ log += i } __ Unit)
+    T ~ l77.op(_ + 1)    ==== 78
+    T ~ l77.isOpen       ==== true
+    l77.close()
+    T ~ l77.isOpen       ==== false
+    T ~ log.contains(77) ==== true
+
+    // reapNow drains pending newest-first (the shutdown-hook backstop)
+    log.clear()
+    val p = Tidy.Later(101)
+    val q = Tidy.Later(102)
+    val s = Tidy.Later(103)
+    Tidy.Later.reapNow()
+    T ~ log.toList ==== List(103, 102, 101)
+    T ~ p.isOpen   ==== false
+    T ~ q.isOpen   ==== false
+    T ~ s.isOpen   ==== false
+
+    // scoped Resource.clean / Clean: cleanup at block exit, backstopped meanwhile
+    val m = Mu(0)
+    T ~ Resource.clean(m.orErr)(_.zap(_ + 1)){ x => x := 2; x() + 2 } ==== 4  --: typed[Int Or Err]
+    T ~ m()                                                           ==== 3
+    T ~ Resource.Clean(m.orErr)(_.zap(- _)){ x =>
+          x.zap(_ - 8)
+          Err.break(x().toString)
+          x := 4; x()
+        }                                                            ==== Alt(Err("-5"))
+    T ~ m()                                                          ==== 5
 }
 object FlowTest {
   // @BeforeClass
