@@ -3670,6 +3670,111 @@ class MathTest {
 
 
   @Test
+  def quantileTest(): Unit =
+    // Type-7 (R default / NumPy linear) reference values, hand-computed on the sorted data.
+    val a = Array(3.0, 1, 4, 1, 5, 9, 2, 6)   // sorted: 1 1 2 3 4 5 6 9  (n=8)
+    T ~ a.quantile(0.0)   =~~= 1.0
+    T ~ a.quantile(0.1)   =~~= 1.0
+    T ~ a.quantile(0.25)  =~~= 1.75
+    T ~ a.quantile(0.5)   =~~= 3.5
+    T ~ a.median          =~~= 3.5
+    T ~ a.quantile(0.75)  =~~= 5.25
+    T ~ a.quantile(0.9)   =~~= 6.9
+    T ~ a.quantile(1.0)   =~~= 9.0
+    T ~ a.iqr             =~~= 3.5
+    // Clamping out-of-range p
+    T ~ a.quantile(-1.0)  =~~= 1.0
+    T ~ a.quantile(2.0)   =~~= 9.0
+
+    // Odd length: median is a real data point.  sorted: 1 2 3 4 5 7 9  (n=7)
+    val b = Array(1.0, 3, 4, 5, 9, 7, 2)
+    T ~ b.median          =~~= 4.0
+    T ~ b.quantile(0.25)  =~~= 2.5
+    T ~ b.quantile(0.75)  =~~= 6.0
+    T ~ b.iqr             =~~= 3.5
+
+    // Singletons and empties
+    T ~ Array(42.0).median          =~~= 42.0
+    T ~ Array(42.0).iqr             =~~= 0.0
+    T ~ (Array.empty[Double].median.nan) ==== true
+
+    // Non-finite values are skipped, matching Est's NaN-skipping behavior.
+    val c = Array(1.0, Double.NaN, 2, Double.PositiveInfinity, 3, 4, Double.NegativeInfinity)
+    T ~ c.median          =~~= Array(1.0, 2, 3, 4).median   // finite part is 1 2 3 4
+    T ~ c.median          =~~= 2.5
+    T ~ c.quantile(0.25)  =~~= 1.75
+    T ~ c.quantile(0.75)  =~~= 3.25
+
+    // Range-restricted overloads operate on [i0, iN).
+    T ~ a.median(0, 4)    =~~= Array(3.0, 1, 4, 1).median    // sorted 1 1 3 4 -> 2.0
+    T ~ a.median(0, 4)    =~~= 2.0
+    T ~ a.quantile(2, 6)(0.5) =~~= Array(4.0, 1, 5, 9).median  // sorted 1 4 5 9 -> 4.5
+    T ~ a.iqr(0, 4)       =~~= Array(3.0, 1, 4, 1).iqr
+
+
+  @Test
+  def theilSenTest(): Unit =
+    import kse.maths.fitting.{TheilSen, FitLine}
+
+    // Perfect line y = 2x + 1: every pairwise slope is 2, CI collapses to the point.
+    val px = Array(0.0, 1, 2, 3, 4)
+    val py = Array(1.0, 3, 5, 7, 9)
+    val pf = TheilSen.fit(px, py)
+    T ~ pf.slope       =~~= 2.0
+    T ~ pf.intercept   =~~= 1.0
+    T ~ pf.slopeLower  =~~= 2.0
+    T ~ pf.slopeUpper  =~~= 2.0
+    T ~ pf.x2y(10)     =~~= 21.0
+    T ~ pf.n           ==== 5
+    T ~ pf.pairs       ==== 10
+
+    // Robustness: corrupt the last point massively.  Theil-Sen ignores it; OLS is dragged far off.
+    val ox = Array(0.0, 1, 2, 3, 4)
+    val oy = Array(1.0, 3, 5, 7, 100)
+    val of = TheilSen.fit(ox, oy)
+    T ~ of.slope       =~~= 2.0
+    T ~ of.intercept   =~~= 1.0
+    T ~ of.slopeLower  =~~= 2.0          // hand-computed: ss(0)
+    T ~ of.slopeUpper  =~~= 93.0         // hand-computed: ss(9), the corrupted-point slope
+    val ols = FitLine.Impl()
+    ox.visit(): (x, i) =>
+      ols += (x, oy(i))
+    T ~ (ols.x2y.slope > 15.0) ==== true   // OLS slope is ~20.2, nowhere near the true 2
+
+    // Even pair count exercises median interpolation.  Hand-computed reference.
+    val ex = Array(0.0, 1, 2, 3)
+    val ey = Array(0.0, 2, 1, 6)
+    val ef = TheilSen.fit(ex, ey)
+    T ~ ef.slope       =~~= 2.0
+    T ~ ef.intercept   =~~= -1.5
+    T ~ ef.slopeLower  =~~= -1.0
+    T ~ ef.slopeUpper  =~~= 5.0
+    T ~ ef.pairs       ==== 6
+
+    // 10-point dataset cross-checked against an independent (Mathematica) oracle.
+    val mx = Array(1.0, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    val my = Array(2.1, 3.9, 6.2, 7.8, 10.1, 12.2, 13.7, 16.1, 18.3, 19.8)
+    val mf = TheilSen.fit(mx, my)
+    T ~ mf.pairs       ==== 45
+    T ~ mf.slope       =~~= 2.0
+    T ~ mf.intercept   =~~= 0.14999999999999858
+    T ~ mf.slopeLower  =~~= 1.942857142857143
+    T ~ mf.slopeUpper  =~~= 2.057142857142857
+
+    // Non-finite points are skipped; equal-x pairs contribute no slope.
+    val nx = Array(0.0, 1, Double.NaN, 2, 3, 4)
+    val ny = Array(1.0, 3, 99, 5, 7, 9)
+    val nf = TheilSen.fit(nx, ny)
+    T ~ nf.n           ==== 5
+    T ~ nf.slope       =~~= 2.0
+    T ~ nf.intercept   =~~= 1.0
+
+    // Too few usable points: NaN slope, no crash.
+    T ~ TheilSen.fit(Array(1.0), Array(2.0)).slope.nan      ==== true
+    T ~ TheilSen.fit(Array(1.0, 1.0), Array(2.0, 5.0)).slope.nan ==== true   // all pairs vertical
+
+
+  @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
     val fin = FitLine.Impl()

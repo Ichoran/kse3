@@ -8,6 +8,8 @@ package kse.maths.fitting
 
 import scala.collection.immutable.{Range => Rg}
 
+import java.lang.{Math => jm}
+
 import kse.basics.{given, _}
 import kse.basics.intervals._
 
@@ -603,6 +605,125 @@ object FitLine {
 
     override def toString = s"Fit centered at [$cx, $cy], n=$n"
   }
+}
+
+
+/** Theil-Sen robust linear fit: the slope is the median of all pairwise slopes, which makes it
+  * insensitive to outliers (breakdown point ~29%) and free of Gaussian-noise assumptions.  The
+  * confidence interval on the slope is the distribution-free rank-based interval (Sen 1968), using
+  * the normal approximation to the distribution of Kendall's S with tie corrections.  The intercept
+  * is `median(y) - slope*median(x)`.
+  *
+  * Computation is explicit over all `n(n-1)/2` pairs, so cost is O(n^2) in time and memory; intended
+  * for modest sample sizes, not for very large data sets.
+  */
+object TheilSen {
+  /** The result of a Theil-Sen fit: a robust line plus a distribution-free interval on the slope. */
+  final class Fit(
+    val slope: Double,
+    val intercept: Double,
+    /** Lower end of the slope confidence interval (at confidence `conf`). */
+    val slopeLower: Double,
+    /** Upper end of the slope confidence interval (at confidence `conf`). */
+    val slopeUpper: Double,
+    /** Number of finite data points used. */
+    val n: Int,
+    /** Number of valid (non-vertical) pairwise slopes the median was taken over. */
+    val pairs: Int,
+    /** Confidence level used for `slopeLower`/`slopeUpper` (e.g. 0.95). */
+    val conf: Double
+  ) {
+    /** Predict y at a given x along the fitted line. */
+    def x2y(x: Double): Double = slope * x + intercept
+
+    /** A symmetric Gaussian-equivalent standard error for the slope, derived from the rank-based
+      * interval as half-width / z, where z is the normal quantile at the interval's confidence.
+      * Useful for downstream significance tests that assume approximate normality.
+      */
+    def slopeSem: Double =
+      val z = NumericFunctions.icdfNormal(0.5 * (1 + conf))
+      if z > 0 && (slopeUpper - slopeLower).finite then (slopeUpper - slopeLower) / (2 * z)
+      else Double.NaN
+
+    /** The slope with its Gaussian-equivalent standard error. */
+    def slopePm: PlusMinus = slope.toFloat +- slopeSem.toFloat
+
+    override def toString =
+      f"TheilSen: y = $slope%.5g x + $intercept%.5g  (slope ${conf*100}%.0f%% CI [$slopeLower%.5g, $slopeUpper%.5g], n=$n)"
+  }
+
+  // Sum of k(k-1)(2k+5) over the sizes k>=2 of equal-value runs in an ascending-sorted array.
+  private def tieCorrection(sorted: Array[Double]): Double =
+    var total = 0.0
+    var i = 0
+    while i < sorted.length do
+      var j = i + 1
+      while j < sorted.length && sorted(j) == sorted(i) do j += 1
+      val k = (j - i).toDouble
+      if k >= 2 then total += k * (k - 1) * (2 * k + 5)
+      i = j
+    total
+
+  /** Theil-Sen fit over the finite points (xs(i), ys(i)) for i in [i0, iN), with a slope confidence
+    * interval at level `conf` (default 0.95).  Pairs with equal x, or with any non-finite coordinate,
+    * are skipped.  Returns a `Fit` whose slope/intercept are NaN if fewer than two usable points remain.
+    */
+  def fit(xs: Array[Double], ys: Array[Double], i0: Int, iN: Int, conf: Double = 0.95): Fit =
+    val cc = if conf <= 0 || conf >= 1 then 0.95 else conf
+    // Gather the finite points into compact x/y buffers.
+    val cap = if iN > i0 then iN - i0 else 0
+    val fx = new Array[Double](cap)
+    val fy = new Array[Double](cap)
+    var n = 0
+    var i = i0
+    while i < iN do
+      val x = xs(i)
+      val y = ys(i)
+      if x.finite && y.finite then
+        fx(n) = x
+        fy(n) = y
+        n += 1
+      i += 1
+    if n < 2 then return new Fit(Double.NaN, Double.NaN, Double.NaN, Double.NaN, n, 0, cc)
+
+    // All pairwise slopes (skipping vertical pairs).
+    val slopes = new Array[Double](n * (n - 1) / 2)
+    var p = 0
+    i = 0
+    while i < n do
+      var j = i + 1
+      while j < n do
+        val dx = fx(j) - fx(i)
+        if dx != 0.0 then
+          slopes(p) = (fy(j) - fy(i)) / dx
+          p += 1
+        j += 1
+      i += 1
+    if p == 0 then return new Fit(Double.NaN, Double.NaN, Double.NaN, Double.NaN, n, 0, cc)
+
+    val ss = if p == slopes.length then slopes else java.util.Arrays.copyOf(slopes, p)
+    java.util.Arrays.sort(ss)
+    val medslope = Quantile.ofSorted(ss, 0, p)(0.5)
+
+    // Intercept: median(y) - slope * median(x).
+    val sx = java.util.Arrays.copyOf(fx, n); java.util.Arrays.sort(sx)
+    val sy = java.util.Arrays.copyOf(fy, n); java.util.Arrays.sort(sy)
+    val medinter = Quantile.ofSorted(sy, 0, n)(0.5) - medslope * Quantile.ofSorted(sx, 0, n)(0.5)
+
+    // Rank-based confidence interval on the slope (Sen 1968, normal approximation with tie corrections).
+    val nn = n.toDouble
+    val sigsq = (nn * (nn - 1) * (2 * nn + 5) - tieCorrection(sx) - tieCorrection(sy)) / 18.0
+    val sigma = if sigsq > 0 then sigsq.sqrt else 0.0
+    val z = NumericFunctions.icdfNormal(0.5 * (1 - cc))   // negative
+    val ru = jm.min(jm.round((p - z * sigma) / 2.0).toInt, p - 1)
+    val rl = jm.max(jm.round((p + z * sigma) / 2.0).toInt - 1, 0)
+    new Fit(medslope, medinter, ss(rl), ss(ru), n, p, cc)
+
+  /** Theil-Sen fit over all finite points, with a slope confidence interval at level `conf`. */
+  inline def fit(xs: Array[Double], ys: Array[Double]): Fit = fit(xs, ys, 0, jm.min(xs.length, ys.length), 0.95)
+
+  /** Theil-Sen fit over all finite points, with a slope confidence interval at the given level. */
+  inline def fit(xs: Array[Double], ys: Array[Double], conf: Double): Fit = fit(xs, ys, 0, jm.min(xs.length, ys.length), conf)
 }
 
 

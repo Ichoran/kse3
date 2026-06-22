@@ -729,6 +729,73 @@ object Ranks {
 */
 
 
+////////////////////////////////////////////////////////
+/// Quantiles, medians, and robust spread of raw data  ///
+////////////////////////////////////////////////////////
+
+object Quantile {
+  /** Linearly-interpolated quantile (R type-7 / NumPy `linear`, the most common default) of an
+    * already ascending-sorted range `[i0, iN)` of `sorted`, which must contain only finite values.
+    * `p` is clamped to `[0, 1]`.  Returns NaN for an empty range.
+    */
+  def ofSorted(sorted: Array[Double], i0: Int, iN: Int)(p: Double): Double =
+    val m = iN - i0
+    if m <= 0 then Double.NaN
+    else if m == 1 then sorted(i0)
+    else
+      val pp = if p < 0 then 0.0 else if p > 1 then 1.0 else p
+      val h = (m - 1) * pp
+      val lo = jm.floor(h).toInt
+      if lo >= m - 1 then sorted(iN - 1)
+      else
+        val a = sorted(i0 + lo)
+        a + (h - lo) * (sorted(i0 + lo + 1) - a)
+
+  /** Copies the finite values of `values` in `[i0, iN)` into a fresh array and sorts them ascending. */
+  def finiteSorted(values: Array[Double], i0: Int, iN: Int): Array[Double] =
+    val buffer = new Array[Double](if iN > i0 then iN - i0 else 0)
+    var i = i0
+    var n = 0
+    while i < iN do
+      val v = values(i)
+      if v == v && v != Double.PositiveInfinity && v != Double.NegativeInfinity then
+        buffer(n) = v
+        n += 1
+      i += 1
+    val sorted = if n == buffer.length then buffer else java.util.Arrays.copyOf(buffer, n)
+    java.util.Arrays.sort(sorted)
+    sorted
+}
+
+extension (values: Array[Double]) {
+  /** Linearly-interpolated quantile `p` (R type-7) of the finite values, computed over a sorted copy. */
+  inline def quantile(p: Double): Double =
+    val s = Quantile.finiteSorted(values, 0, values.length)
+    Quantile.ofSorted(s, 0, s.length)(p)
+
+  /** Linearly-interpolated quantile `p` (R type-7) of the finite values in `[i0, iN)`. */
+  inline def quantile(i0: Int, iN: Int)(p: Double): Double =
+    val s = Quantile.finiteSorted(values, i0, iN)
+    Quantile.ofSorted(s, 0, s.length)(p)
+
+  /** Median (linearly interpolated) of the finite values. */
+  inline def median: Double = quantile(0.5)
+
+  /** Median (linearly interpolated) of the finite values in `[i0, iN)`. */
+  inline def median(i0: Int, iN: Int): Double = quantile(i0, iN)(0.5)
+
+  /** Interquartile range (Q3 - Q1, type-7) of the finite values, sorting only once. */
+  inline def iqr: Double =
+    val s = Quantile.finiteSorted(values, 0, values.length)
+    Quantile.ofSorted(s, 0, s.length)(0.75) - Quantile.ofSorted(s, 0, s.length)(0.25)
+
+  /** Interquartile range (Q3 - Q1, type-7) of the finite values in `[i0, iN)`, sorting only once. */
+  inline def iqr(i0: Int, iN: Int): Double =
+    val s = Quantile.finiteSorted(values, i0, iN)
+    Quantile.ofSorted(s, 0, s.length)(0.75) - Quantile.ofSorted(s, 0, s.length)(0.25)
+}
+
+
 extension (values: Array[Int])
   inline def est(): Est = Est of values
   inline def est(i0: Int, iN: Int): Est =
