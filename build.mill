@@ -34,7 +34,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.5.6"
+  def publishVersion = "0.6.0"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
