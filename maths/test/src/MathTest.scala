@@ -3775,6 +3775,109 @@ class MathTest {
 
 
   @Test
+  def sketchTest(): Unit =
+    def relerr(a: Double, b: Double): Double = math.abs(a - b) / math.abs(b)
+
+    // --- Exact moments, min/max, count on insert (independent of bucket resolution) ---
+    val s1 = UDDSketch(0.01)
+    var i = 1
+    while i <= 1000 do { s1 += i.toDouble; i += 1 }
+    T ~ s1.count            ==== 1000L
+    T ~ s1.min              ==== 1.0
+    T ~ s1.max              ==== 1000.0
+    T ~ s1.mean             =~~= 500.5            // exact via Est
+    T ~ s1.collapses        ==== 0               // ~10 octaves fits easily
+
+    // --- Quantile accuracy vs exact type-7, on 1..100000 ---
+    val N = 100000
+    val sorted = new Array[Double](N)
+    val sq = UDDSketch(0.01)
+    i = 0
+    while i < N do { val x = (i + 1).toDouble; sorted(i) = x; sq += x; i += 1 }
+    for p <- Seq(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99) do
+      val tru = Quantile.ofSorted(sorted, 0, N)(p)
+      T(s"interp q=$p") ~ (relerr(sq.quantile(p), tru) < 0.02)       ==== true
+      T(s"strict q=$p") ~ (relerr(sq.quantileStrict(p), tru) < 0.02) ==== true
+    T ~ (relerr(sq.median, 50000.5) < 0.02) ==== true
+
+    // --- quantileStrict honors the alpha guarantee at a finer alpha ---
+    val sg = UDDSketch(0.002)
+    i = 0
+    while i < N do { sg += sorted(i); i += 1 }
+    for p <- Seq(0.1, 0.3, 0.5, 0.7, 0.9) do
+      val tru = Quantile.ofSorted(sorted, 0, N)(p)
+      T(s"guarantee q=$p") ~ (relerr(sg.quantileStrict(p), tru) <= 1.5 * sg.alpha) ==== true
+
+    // --- Outlier robustness: a few far spikes park in sparse tails; no collapse, bulk intact ---
+    val so = UDDSketch(0.01, maxBuckets = 512, sparseBuckets = 32)
+    i = 0
+    while i < 50000 do { so += (10.0 + (i % 1000) * 0.01); i += 1 }   // tight cluster in [10, 20)
+    val bulkMed = so.median
+    so += 1e6; so += 1e7; so += 1e8; so += 1e9; so += 1e12           // 5 distant spikes
+    T ~ so.collapses                      ==== 0       // spikes parked in sparse tails, bulk untouched
+    T ~ so.max                            ==== 1e12    // exact
+    T ~ (relerr(so.median, bulkMed) < 0.01) ==== true  // median barely moves
+    T ~ so.count                          ==== 50005L
+
+    // --- Add / subtract round-trips exactly at bucket resolution (counts) ---
+    val sa = UDDSketch(0.01)
+    i = 0
+    while i < 20000 do { sa += (1.0 + (i % 500)); i += 1 }
+    val rtQs = Seq(0.1, 0.5, 0.9)
+    val before = rtQs.map(sa.quantileStrict)
+    val cntBefore = sa.count
+    i = 0
+    while i < 5000 do { sa += (1.0 + (i % 500)); i += 1 }   // add then remove the same multiset
+    i = 0
+    while i < 5000 do { sa -= (1.0 + (i % 500)); i += 1 }
+    T ~ sa.count     ==== cntBefore
+    T ~ sa.collapses ==== 0
+    for (p, v) <- rtQs.zip(before) do
+      T(s"roundtrip q=$p") ~ sa.quantileStrict(p) ==== v    // counts restored exactly
+
+    // --- Merge matches a single combined sketch ---
+    val mA = UDDSketch(0.01)
+    val mB = UDDSketch(0.01)
+    val mAll = UDDSketch(0.01)
+    i = 1
+    while i <= 10000 do
+      val x = i.toDouble
+      if i <= 5000 then mA += x else mB += x
+      mAll += x
+      i += 1
+    mA.mergeWith(mB)
+    T ~ mA.count ==== 10000L
+    for p <- Seq(0.1, 0.5, 0.9) do
+      T(s"merge q=$p") ~ (relerr(mA.quantile(p), mAll.quantile(p)) < 0.02) ==== true
+
+    // --- Collapse: wide log-uniform data forces collapses, raises alpha, stays accurate to current alpha ---
+    val sc = UDDSketch(0.001, maxBuckets = 128, sparseBuckets = 4)
+    val M = 20000
+    val wide = new Array[Double](M)
+    i = 0
+    while i < M do
+      val x = math.pow(10.0, 6.0 * i / M)    // log-uniform over [1, 1e6]
+      wide(i) = x; sc += x; i += 1
+    java.util.Arrays.sort(wide)
+    T ~ (sc.collapses > 0)        ==== true
+    T ~ (sc.alpha > sc.alpha0)    ==== true
+    for p <- Seq(0.1, 0.5, 0.9) do
+      val tru = Quantile.ofSorted(wide, 0, M)(p)
+      T(s"collapsed q=$p") ~ (relerr(sc.quantileStrict(p), tru) <= 2.5 * sc.alpha) ==== true
+
+    // --- Zeros, empties, and bad input ---
+    val sz = UDDSketch(0.01)
+    T ~ sz.quantile(0.5).nan ==== true       // empty -> NaN
+    sz += 0.0; sz += 0.0; sz += 4.0
+    T ~ sz.count          ==== 3L
+    T ~ sz.min            ==== 0.0
+    T ~ sz.quantile(0.0)  ==== 0.0
+    T ~ sz.max            ==== 4.0
+    T ~ { sz += -1.0 }    ==== thrown[IllegalArgumentException]
+    T ~ { sz += Double.PositiveInfinity } ==== thrown[IllegalArgumentException]
+
+
+  @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
     val fin = FitLine.Impl()
