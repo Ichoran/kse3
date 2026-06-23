@@ -229,3 +229,28 @@ same window). Validated against the JMH absolute scores above:
   against w2000 vs w10000); the **difference/ratio** is the robust, reported answer.
 - Dispatch is **block-interleaved** (`OffBlock` calls per branch) so the first/second selection
   branch doesn't add per-call misprediction cost or a spurious order-of-evaluation warning.
+
+### RNG choice: dropped Thyme's hand-rolled pcg32 (2026-06-22)
+
+Thyme originally carried its own 32-bit PCG (`pcg32`, XSH-RR) on the theory that a small generator
+might be faster than the maths module's 64-bit `Pcg64` for the cheap int draws Thyme makes while
+shuffling. We settled it by dogfooding — `benchOff` summing N int draws from each:
+
+| N draws | typical verdict (4 of 5 runs) |
+|---|---|
+| 100   | Pcg64 faster ~1.2× |
+| 1000  | Pcg64 faster ~1.38× |
+| 10000 | Pcg64 faster ~1.37× |
+
+`Pcg64` won — likely because it carries a single 64-bit state word, while the `pcg32` we had carried
+*two* Longs (state + a selectable-stream increment) and added the increment every step. So the
+hand-rolled generator was duplicated code that was also slower. **`Pcg32` was removed; Thyme now uses
+`kse.maths.Pcg64`.**
+
+One run out of five flipped the verdict (it measured pcg32 faster at N=1000/10000). That outlier is a
+finding in itself: for two implementations this close (~within 40%) and this JIT-sensitive, *which one
+wins can depend on how the JIT happened to compile them in that particular JVM invocation*. This is
+exactly why JMH forks multiple JVMs — to average over per-invocation compilation variance — and why
+`benchOff`, which runs in the one JVM you're in, honestly reports "faster **here, now**" rather than a
+universal truth. Within any single run `benchOff` was tight and self-consistent; the variance is
+across runs. A 1.2× `benchOff` win on JIT-sensitive code may not replicate in a fresh JVM.

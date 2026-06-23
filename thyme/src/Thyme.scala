@@ -37,7 +37,7 @@ import kse.maths.fitting.{given, _}
   * rather than reporting a confident-looking but wrong number.  For anything you would stake a
   * decision on, reach for JMH.
   */
-final class Thyme(var targetTime: Double = 50e-3, val rng: Thyme.Pcg32 = Thyme.Pcg32()):
+final class Thyme(var targetTime: Double = 50e-3, val rng: Pcg64 = Pcg64()):
   import Thyme.{Report, Watch, Benched, Comparison, packLong}
 
   /** Target fractional accuracy (standard error / mean) that `bench` tries to reach before stopping. */
@@ -307,7 +307,7 @@ final class Thyme(var targetTime: Double = 50e-3, val rng: Thyme.Pcg32 = Thyme.P
       i += 1
     var j = count - 1
     while j > 0 do
-      val k = rng.roll(j + 1)
+      val k = rng % (j + 1)
       val t = who(j); who(j) = who(k); who(k) = t
       j -= 1
 
@@ -377,7 +377,7 @@ final class Thyme(var targetTime: Double = 50e-3, val rng: Thyme.Pcg32 = Thyme.P
       var i = 0
       while i < ss do { order(i) = i; i += 1 }
       i = ss - 1
-      while i > 0 do { val k = rng.roll(i + 1); val t = order(i); order(i) = order(k); order(k) = t; i -= 1 }
+      while i > 0 do { val k = rng % (i + 1); val t = order(i); order(i) = order(k); order(k) = t; i -= 1 }
       var oi = 0
       while oi < ss do
         val w = -1.0 + 2.0 * order(oi) / (ss - 1)
@@ -728,69 +728,3 @@ object Thyme:
       if !converged then
         sb ++= "\n  [NOT CONVERGED: target precision not reached within the time budget — raise tooMuchTime]"
       sb.result()
-
-
-  // ---- PCG32 random number generator -----------------------------------------------------------
-
-  /** A PCG generator, specifically `pcg32` = `pcg_setseq_64_xsh_rr_32` from the PCG family of
-    * Melissa E. O'Neill ("PCG: A Family of Simple Fast Space-Efficient Statistically Good Algorithms
-    * for Random Number Generation", Harvey Mudd College tech report HMC-CS-2014-0905, 2014;
-    * https://www.pcg-random.org).  Concretely: a 64-bit linear congruential base (multiplier
-    * 6364136223846793005, a selectable per-instance odd increment a.k.a. "stream") whose output is
-    * the XSH-RR permutation — xorshift the high bits down, then rotate right by a random amount —
-    * yielding 32 bits per step.  The seeding constants are PCG's canonical `PCG32_INITIALIZER`.
-    *
-    * NOTE ON ATTRIBUTION: "XSH-RR" is PCG nomenclature and is NOT the xoshiro/xoroshiro family of
-    * Blackman & Vigna (whose scramblers are named `+`, `++`, `**`); the abbreviations look similar
-    * but the algorithms are unrelated.  Recording the exact variant here matters: fast RNGs have
-    * repeatedly been found to have structural weaknesses, and a fix or recall only applies to the
-    * specific algorithm it was found in.  This is `pcg32` XSH-RR with 64-bit state.
-    *
-    * Kept as a lightweight alternative to the maths module's 64-bit generators for benchmark inner
-    * loops, where only cheap `Int`-sized draws are needed.  Not cryptographically secure.
-    */
-  final class Pcg32 private ():
-    import Pcg32.{Mult, DefaultSeed, DefaultStream}
-
-    // Both are overwritten by `seed`, which every constructor in the companion calls.
-    private var state: Long = 0L
-    private var inc: Long = 0L
-
-    /** Reseeds the generator from a starting value and a stream-selecting sequence. */
-    def seed(start: Long, sequence: Long): this.type =
-      state = 0L
-      inc = (sequence << 1) | 1L
-      nextInt() __ Unit
-      state += start
-      nextInt() __ Unit
-      this
-
-    /** The next pseudo-random 32-bit value. */
-    def nextInt(): Int =
-      val s = state
-      state = s * Mult + inc
-      val xorshifted = (((s >>> 18) ^ s) >>> 27).toInt
-      val rot = (s >>> 59).toInt
-      (xorshifted >>> rot) | (xorshifted << ((-rot) & 31))
-
-    /** A pseudo-random value in `[0, bound)`, using rejection sampling to avoid modulo bias. */
-    def roll(bound: Int): Int =
-      if bound <= 0 then 0
-      else
-        val threshold = Integer.remainderUnsigned(-bound, bound)
-        var x = nextInt()
-        while Integer.compareUnsigned(x, threshold) < 0 do x = nextInt()
-        Integer.remainderUnsigned(x, bound)
-  object Pcg32:
-    private inline val Mult          = 0x5851F42D4C957F2DL   // PCG LCG multiplier
-    private inline val DefaultSeed   = 0x853C49E6748FEA9BL   // PCG default initial state
-    private inline val DefaultStream = 0xDA3E39CB94B95BDBL   // PCG default stream selector
-
-    /** A generator seeded from the system clock (distinct each call). */
-    def apply(): Pcg32 = new Pcg32().seed(DefaultSeed, System.nanoTime)
-
-    /** A generator with a chosen seed and the default stream. */
-    def apply(seed: Long): Pcg32 = new Pcg32().seed(seed, DefaultStream)
-
-    /** A generator with a chosen seed and stream. */
-    def apply(seed: Long, sequence: Long): Pcg32 = new Pcg32().seed(seed, sequence)

@@ -34,35 +34,6 @@ class ThymeTest {
 
 
   @Test
-  def pcg32Test(): Unit =
-    // Deterministic for a given seed; independent instances with the same seed agree.
-    val a = Thyme.Pcg32(12345L)
-    val b = Thyme.Pcg32(12345L)
-    val xs = Array.fill(100)(a.nextInt())
-    val ys = Array.fill(100)(b.nextInt())
-    T ~ xs =**= ys
-
-    // Different seeds (almost surely) diverge.
-    val c = Thyme.Pcg32(99999L)
-    T ~ (Array.fill(100)(c.nextInt()).toList != xs.toList) ==== true
-
-    // roll stays in range and (loosely) covers it.
-    val r = Thyme.Pcg32(7L)
-    val seen = new Array[Boolean](10)
-    var i = 0
-    var allInRange = true
-    while i < 10000 do
-      val v = r.roll(10)
-      if v < 0 || v >= 10 then allInRange = false
-      seen(v) = true
-      i += 1
-    T ~ allInRange ==== true
-    T ~ seen.forall(x => x) ==== true
-    T ~ r.roll(0) ==== 0
-    T ~ r.roll(1) ==== 0
-
-
-  @Test
   def humanTimeTest(): Unit =
     T ~ Thyme.humanTime(2.5)   ==== "2.500 s"
     T ~ Thyme.humanTime(2.5e-3).endsWith("ms") ==== true

@@ -78,3 +78,4 @@ object ThymeReport:
     println("  " + th.benchOff(Work.busywork(1000))(Work.busywork(10000)).toString.replace("\n", "\n  "))
     println("w1000 vs w1000  (identical — must be indistinguishable):")
     println("  " + th.benchOff(Work.busywork(1000))(Work.busywork(1000)).toString.replace("\n", "\n  "))
+
