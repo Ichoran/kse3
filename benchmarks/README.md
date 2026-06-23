@@ -171,3 +171,61 @@ The one axis where the design genuinely differs — it *blocks* efficiently inst
 is a CPU/latency property a throughput benchmark can't show, and isn't novel versus Go/Kotlin
 selects. Conclusion: no differentiating performance boundary; the model's only remaining
 justification would be ergonomic, which was not pursued. Left in history as a testbed result.
+
+## benchmarks/thyme — Thyme vs JMH (validation, not a benchmark of the library)
+
+This area exists to keep `kse.thyme.Thyme` honest: it measures identical workloads with **JMH
+(ground truth)** and with **Thyme**, so we can tell whether Thyme is measuring properly-compiled
+steady-state code. `Work.busywork(n)` is O(n) integer churn with a loop-carried dependency, called
+verbatim by both. (This project pins an explicit `jmh-core` dep so the Thyme-side `main` compiles
+without `--jmh`; the JMH benchmark still runs under `--jmh` as usual.)
+
+```
+mill all.assembly
+taskset -c 0-7 scala-cli --power run benchmarks/thyme --jmh -- -f 1 -wi 5 -i 5 -tu ns   # ground truth
+taskset -c 0-7 scala-cli --power run benchmarks/thyme                                   # Thyme's estimates
+```
+
+### Findings (2026-06-22, JDK 25, taskset -c 0-7)
+
+| workload | JMH avgt (ns/op) | Thyme /call | Thyme/JMH |
+|---|---|---|---|
+| w10    | 0.192   | 0.418 ns | 2.2× |
+| w100   | 43.59   | 43.02 ns | 0.99× |
+| w1000  | 520.4   | 500.1 ns | 0.96× |
+| w10000 | 5469    | 5.031 µs | 0.92× |
+
+- **For ops ≥ ~40 ns, Thyme matches JMH within ~1–8%.** This is the load-bearing result: it shows
+  Thyme's steady-state detection and OSR-based warmup are measuring C2 code, not interpreter/C1 code.
+  If Thyme were failing to warm up, it would read *wildly high* here; it does not.
+- **Sub-nanosecond ops have a sink-overhead floor.** At w10 both tools agree the op is sub-ns
+  (JMH 0.19 ns); Thyme reads 0.42 ns because every measured iteration also pays for `consume`
+  (the anti-dead-code sink), ~0.2 ns/call. That overhead is negligible above ~40 ns and only
+  visible at the floor. This is the price of guaranteed dead-code protection, and is the honest
+  limit of an in-process tool — for sub-ns work, or anything you'll stake a decision on, use JMH.
+- Workloads too slow to reach the warmup-invocation floor within `tooMuchTime` are reported by
+  Thyme as **NOT CONVERGED** rather than as a confident (and possibly C1) number.
+
+### benchOff — head-to-head (2026-06-22)
+
+`th.benchOff(a)(b)` runs scrambled block-interleaved mixtures of `a` and `b` and fits time vs
+mixture ratio; the slope is the per-call cost difference (robust to drift, since both run in the
+same window). Validated against the JMH absolute scores above:
+
+| comparison | true ratio (JMH) | benchOff verdict |
+|---|---|---|
+| w1000 vs w2000  | ~2×    | First faster 2.01× |
+| w1000 vs w10000 | ~10.5× | First faster 10.2× |
+| w1000 vs w1000  | 1× (identical) | indistinguishable |
+
+- **The close call is where it shines and where it's most accurate** (2.01× on a true 2×). That's
+  the question benchOff exists for — "is A faster than B, here, now" — and the one heavier harnesses
+  find awkward.
+- **Identical code is reported as indistinguishable, not a spurious win.** A "winner" requires the
+  difference to clear a practical-significance floor (`accuracyTarget`), not merely statistical
+  significance — two separately-inlined copies of the same code differ by ~1–2% from layout/caches,
+  and crowning a winner on that would be crying wolf.
+- Per-call *absolute* costs are mixture-context-dependent (cache pressure differs when w1000 is run
+  against w2000 vs w10000); the **difference/ratio** is the robust, reported answer.
+- Dispatch is **block-interleaved** (`OffBlock` calls per branch) so the first/second selection
+  branch doesn't add per-call misprediction cost or a spurious order-of-evaluation warning.

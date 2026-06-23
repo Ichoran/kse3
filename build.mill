@@ -21,7 +21,7 @@ trait Base extends ScalaModule {
     "-Wvalue-discard",
     "-Wconf:msg=is not declared infix:s",
     "-release", "25"      // require JDK 25+: stable Foreign Function & Memory API (22) + non-pinning
-                          // synchronized for virtual threads (24), both used by Mem/SharedMemory/Fu
+                          // synchronized for virtual threads (24), used by Mem/SharedMemory/Fu
   )
 }
 
@@ -124,5 +124,5 @@ object all extends Common {
       mvn"com.twelvemonkeys.imageio:imageio-tiff:3.10.1"
     )
   }
-  def moduleDeps = Seq(basics, flow, maths, loom, eio)
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme)
 }
