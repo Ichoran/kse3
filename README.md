@@ -461,6 +461,56 @@ anything that catches and ignores the exception won't be killed, and long-runnin
 need explicit `Thread.yield` calls to mark points where interruption is acceptable.
 
 
+### kse.thyme
+
+Ever wanted a fast yet statistically-competent microbenchmark run quickly right in your program?
+
+Try Thyme!  (You can also use it to run one-off commands in the REPL with pclock or ptime.)  Get
+an instance with `val th = new Thyme()`, then run a statistically-sensible microbenchmark--all the
+usual caveats still apply!--with `th.bench`, or run a randomized head-to-head with `th.benchOff`.
+
+```scala
+import kse.basics.*
+import kse.thyme.*
+
+val th = new Thyme()
+
+def benchmark() =
+  val a = Atom("Hi")
+  val m = Mu("Hi")
+
+  // Test uncontended atomic vs simple mutable payload
+  th.pbenchOff{
+    val x = a()
+    a := { if x == "Hi" then "Bye" else "Hi" }
+    x  // Return some value to prove that we did some work
+  }{
+    val x = m()
+    m := { if x == "Hi" then "Bye" else "Hi" }
+    x
+  }
+
+// Maybe don't trust this one--Thyme has some internal machinery that might need to warm up
+benchmark()
+
+// This one is probably good!
+benchmark()
+```
+
+Thyme _does not run multiple JVM instances for you_.  This means that results may be sensitive
+to various sorts of order and run-specific factors.  Use JMH for more robust microbenchmarks
+when you can.  But when you can't--you need the microbenchmark in the context of a running
+application, or you just want to try a thousand things to narrow down the ones that count, or
+you are stuck with a machine under heavy, variable load--you can get a pretty good estimate
+of the head-to-head favorability of two options in about half a second.
+
+As always, make sure the result depends on the work you're doing (so the JVM doesn't elide the
+unused work), for anything important run multiple times and both directions, be skeptical,
+don't expect extreme accuracy for tasks that take only a couple nanoseconds or less, and all
+the rest.  But if you keep that in mind, Thyme takes care of a lot of the warmup, scaling, and
+statistics for you.
+
+
 ### kse.eio
 
 This also partly exists but is also mostly undocumented.  There are some tests, though!
