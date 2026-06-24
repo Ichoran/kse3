@@ -315,3 +315,40 @@ object shortcut {
   }
 }
 
+
+/** A source location: the file path, 1-based line, and 1-based column of a call site.
+  *
+  * Build one for the current site with [[SourceLine.record]], or capture call sites implicitly
+  * via `(using SourceLine)`.  When you only need the identity string or a single field, prefer
+  * [[SourceLine.text]] / [[SourceLine.pathname]] / [[SourceLine.line]] / [[SourceLine.column]],
+  * which the macro emits as compile-time constants — no allocation, no runtime work.
+  */
+final case class SourceLine(path: String, line: Int, column: Int) {
+  /** The bare file name (the path after the last `/` or `\`). */
+  def file: String =
+    val i = math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    if i >= 0 then path.substring(i + 1) else path
+
+  /** The compact `file:line` identity. */
+  override def toString = s"$file:$line"
+}
+object SourceLine {
+  /** A `SourceLine` record for this call site (fields filled at compile time). */
+  inline def record: SourceLine = ${ basicsMacroImpl.sourcelineRecordImpl }
+
+  /** This call site's compact `file:line` identity, as a compile-time string constant. */
+  inline def text: String = ${ basicsMacroImpl.sourcelineTextImpl }
+
+  /** This call site's full source path, as a compile-time string constant. */
+  inline def pathname: String = ${ basicsMacroImpl.sourcelinePathImpl }
+
+  /** This call site's 1-based line, as a compile-time constant. */
+  inline def line: Int = ${ basicsMacroImpl.sourcelineLineImpl }
+
+  /** This call site's 1-based column, as a compile-time constant. */
+  inline def column: Int = ${ basicsMacroImpl.sourcelineColumnImpl }
+
+  /** Captures the call site wherever a `(using SourceLine)` is needed. */
+  inline given SourceLine = ${ basicsMacroImpl.sourcelineRecordImpl }
+}
+

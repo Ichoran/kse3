@@ -145,6 +145,29 @@ inline def rangePackedInLong(inline range: scala.collection.immutable.Range): Lo
 inline def untypedRangePackedInLong(inline range: Any): Long =
   ${ rangePackedInLongExpr('range) }
 
+def sourcelinePos(using Quotes): (String, Int, Int) =
+  import quotes.reflect.*
+  val pos = Position.ofMacroExpansion
+  (pos.sourceFile.path, pos.startLine + 1, pos.startColumn + 1)   // reflect lines/columns are 0-based
+
+def sourcelineFile(path: String): String =
+  val i = math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  if i >= 0 then path.substring(i + 1) else path
+
+def sourcelineRecordImpl(using Quotes): Expr[kse.basics.SourceLine] =
+  val (path, line, column) = sourcelinePos
+  '{ new kse.basics.SourceLine(${ Expr(path) }, ${ Expr(line) }, ${ Expr(column) }) }
+
+def sourcelineTextImpl(using Quotes): Expr[String] =
+  val (path, line, _) = sourcelinePos
+  Expr(s"${sourcelineFile(path)}:$line")
+
+def sourcelinePathImpl(using Quotes): Expr[String] = Expr(sourcelinePos._1)
+
+def sourcelineLineImpl(using Quotes): Expr[Int] = Expr(sourcelinePos._2)
+
+def sourcelineColumnImpl(using Quotes): Expr[Int] = Expr(sourcelinePos._3)
+
 def applyWithoutBoxingExpr2[A: Type, B: Type, Z: Type](a: Expr[A], e: Expr[((A, B) => Z, B)])(using qt: Quotes): Expr[Z] =
   e match
     case '{ ($op: ((A, B) => Z), $b: B) } => '{ $op.apply($a, $b) }

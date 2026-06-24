@@ -276,6 +276,38 @@ class BasicsTest() {
 
 
   @Test
+  def sourceLineTest(): Unit =
+    // record() captures this very site.
+    val r = SourceLine.record
+    T ~ (r.line > 0)             ==== true
+    T ~ (r.column > 0)           ==== true
+    T ~ r.file                  ==== "BasicsTest.scala"
+    T ~ r.path.endsWith("BasicsTest.scala")        ==== true
+    T ~ SourceLine.pathname.endsWith("BasicsTest.scala") ==== true
+    T ~ r.toString              ==== s"BasicsTest.scala:${r.line}"
+
+    // text / line on the same physical line agree with a record on that line.
+    val rr = SourceLine.record; val tx = SourceLine.text; val ln = SourceLine.line
+    T ~ tx                      ==== rr.toString
+    T ~ ln                      ==== rr.line
+
+    // The given expands at each *call* site: two consecutive calls differ by one line.
+    def whereLine(using s: SourceLine): Int = s.line
+    val a = whereLine
+    val b = whereLine
+    val c = summon[SourceLine].line
+    T ~ (b - a)                 ==== 1
+    T ~ (c - a)                 ==== 2
+
+    // Two columns on one line increase left-to-right.
+    //          1          2         3        4
+    // 012346789 123456789 123456789 123456789
+    //          v------------------v    19 character advance   
+    val cols = (SourceLine.column, SourceLine.column)
+    T ~ (cols._2 - cols._1)     ==== 19
+
+
+  @Test
   def dataWrapperTest(): Unit =
     val ent = "eel" \ "fish"
     val esb = "eel" \> "fish"
