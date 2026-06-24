@@ -3878,6 +3878,60 @@ class MathTest {
 
 
   @Test
+  def adwinTest(): Unit =
+    // Deterministic pseudo-noise in [-5, 5) so the variance-aware bound is exercised.
+    def noise(i: Int): Double = (((i * 2654435761L) >>> 8) % 1000).toDouble / 100.0 - 5.0
+
+    // --- Empty / NaN handling ---
+    val ae = Adwin()
+    T ~ ae.mean.nan      ==== true
+    T ~ ae.add(Double.NaN) ==== false
+    T ~ ae.width         ==== 0L
+
+    // --- Step change 10 -> 100 is detected, window then tracks the new regime ---
+    val as = Adwin()
+    var changes = 0
+    var i = 0
+    while i < 1000 do { if as.add(10.0 + noise(i)) then changes += 1; i += 1 }
+    val preMean = as.mean
+    T ~ (math.abs(preMean - 10.0) < 1.0) ==== true
+    i = 0
+    while i < 1000 do { if as.add(100.0 + noise(i)) then changes += 1; i += 1 }
+    T ~ (changes > 0)            ==== true       // the shift was detected
+    T ~ (as.mean > 90.0)         ==== true       // window dropped the old regime, tracks ~100
+    T ~ (as.width < 1500L)       ==== true       // and shrank away from the full 2000 points
+
+    // --- Stationary stream: no runaway collapse, accurate mean, window grows ---
+    val ast = Adwin()
+    var statChanges = 0
+    i = 0
+    while i < 3000 do { if ast.add(50.0 + noise(i)) then statChanges += 1; i += 1 }
+    T ~ (statChanges <= 5)        ==== true       // ~no false alarms on stationary data
+    T ~ (ast.width > 2000L)       ==== true       // window kept growing (nothing dropped)
+    T ~ (math.abs(ast.mean - 50.0) < 1.0) ==== true
+
+    // --- Bounded memory: O(log width) rows even after a long stationary run ---
+    val ab = Adwin()
+    i = 0
+    while i < 100000 do { ab.add(7.0 + noise(i)): Unit; i += 1 }
+    T ~ (ab.width > 90000L)       ==== true       // grew with the data
+    T ~ (ab.rowsInUse < 30)       ==== true       // but stayed logarithmic in memory
+
+    // --- Reacts again on a second change (tracks back down) ---
+    val ar = Adwin()
+    i = 0
+    while i < 800 do { ar.add(100.0 + noise(i)): Unit; i += 1 }
+    i = 0
+    while i < 800 do { ar.add(5.0 + noise(i)): Unit; i += 1 }
+    T ~ (ar.mean < 15.0)          ==== true       // followed the drop back to ~5
+    T ~ (ar.width < 1200L)        ==== true
+
+    // --- Bad confidence rejected ---
+    T ~ { Adwin(0.0) } ==== thrown[IllegalArgumentException]
+    T ~ { Adwin(1.5) } ==== thrown[IllegalArgumentException]
+
+
+  @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
     val fin = FitLine.Impl()

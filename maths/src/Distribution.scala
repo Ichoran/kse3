@@ -1,11 +1,13 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2026 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab).
 
 package kse.maths
 
 
 import java.lang.{Math => jm}
 import java.util.Arrays
+
+import scala.collection.mutable.ArrayBuffer
 
 import kse.basics.{given, *}
 
@@ -491,4 +493,199 @@ object UDDSketch {
     if sparseBuckets < 1 then
       throw new IllegalArgumentException(s"UDDSketch needs at least 1 sparse bucket, not $sparseBuckets")
     new UDDSketch(alpha, maxBuckets, sparseBuckets)
+}
+
+
+////////////////////////////////////////////////////////////////////////
+/// ADWIN2: adaptive-windowing change detection over a streaming mean   ///
+////////////////////////////////////////////////////////////////////////
+
+/** ADWIN2 (Bifet & Gavaldà 2007) — an adaptive-window change detector for a stream of
+  * real values, with a variance-aware cut.
+  *
+  * It keeps a window of the most recent values, compressed as an '''exponential
+  * histogram''': a ladder of buckets whose sizes grow geometrically (1,1,…,2,2,…,4,…),
+  * each holding the `(count, sum, SSE)` of a contiguous run.  Memory is `O(log width)`.
+  *
+  * On every [[add]] it inspects each split of the window into an older sub-window `W0`
+  * and a newer `W1` (at bucket boundaries); if their means differ by more than a
+  * variance-aware Hoeffding bound (confidence [[delta]]) it concludes the distribution
+  * changed there and '''drops `W0`''', shrinking the window to the current regime.  So
+  * the window mean tracks the present regime, and [[add]] returning `true` is a
+  * changepoint signal — the natural trigger for closing a profiling segment.
+  *
+  * The sufficient statistics are exactly additive/subtractive, which is what makes the
+  * bucket merges and the drop exact.  This detector watches the *mean*; pair it with a
+  * separate quantile sketch (e.g. [[UDDSketch]]) per segment for distributional summaries.
+  */
+final class Adwin private (val delta: Double, maxBucketsPerRow: Int) {
+  import Adwin.Row
+
+  private val M = maxBucketsPerRow
+  private val minWin = 5            // don't test cuts against sub-windows smaller than this
+
+  private var wWidth = 0L           // number of values in the window
+  private var wTotal = 0.0          // sum of values
+  private var wSse = 0.0            // sum of squared deviations from the window mean
+
+  private val rows = ArrayBuffer.empty[Row]   // rows(k) holds buckets of size 2^k; higher k = older
+
+
+  //////////////////////////
+  /// Public observations ///
+  //////////////////////////
+
+  /** Number of values currently in the adaptive window (shrinks when a change is detected). */
+  def width: Long = wWidth
+
+  /** Sum of the values in the window. */
+  def total: Double = wTotal
+
+  /** Mean of the window (the current-regime estimate). */
+  def mean: Double = if wWidth > 0 then wTotal / wWidth else Double.NaN
+
+  /** Sample variance of the window. */
+  def variance: Double = if wWidth > 1 then wSse / (wWidth - 1) else 0.0
+
+  /** Sample standard deviation of the window. */
+  def sd: Double = jm.sqrt(variance)
+
+  /** Number of histogram rows in use (`O(log width)`); exposed mainly for inspection. */
+  def rowsInUse: Int = rows.length
+
+
+  ////////////////
+  /// Ingest   ///
+  ////////////////
+
+  /** Feed one value.  Returns `true` if a change was detected (and stale data dropped). */
+  def add(x: Double): Boolean =
+    if x != x then return false
+    if wWidth > 0 then wSse += (wWidth.toDouble / (wWidth + 1)) * sq(wTotal / wWidth - x)
+    wTotal += x
+    wWidth += 1
+    pushBucket(0, x, 0.0)
+    compress()
+    checkDrift()
+
+  /** Drop all data, resetting the window. */
+  def clear(): Unit =
+    wWidth = 0; wTotal = 0.0; wSse = 0.0
+    rows.clear()
+
+
+  ////////////////
+  /// Internals ///
+  ////////////////
+
+  private inline def sq(d: Double): Double = d * d
+
+  /** Append a bucket of `2^level` items (newest position) to row `level`, growing the ladder. */
+  private def pushBucket(level: Int, t: Double, v: Double): Unit =
+    while rows.length <= level do rows += new Row(M + 1)
+    val row = rows(level)
+    row.total(row.n) = t
+    row.variance(row.n) = v
+    row.n += 1
+
+  /** Merge the two oldest buckets of any over-full row into one of the next size up. */
+  private def compress(): Unit =
+    var level = 0
+    while level < rows.length do
+      val row = rows(level)
+      if row.n > M then
+        val size = (1L << level).toDouble
+        val t = row.total(0) + row.total(1)
+        val v = row.variance(0) + row.variance(1) + sq(row.total(0) - row.total(1)) / (2.0 * size)
+        var k = 2
+        while k < row.n do
+          row.total(k - 2) = row.total(k); row.variance(k - 2) = row.variance(k)
+          k += 1
+        row.n -= 2
+        pushBucket(level + 1, t, v)
+      level += 1
+
+  /** Remove the globally-oldest bucket (top non-empty row, oldest slot), updating the moments. */
+  private def deleteOldest(): Unit =
+    val level = rows.length - 1
+    val row = rows(level)
+    val size = (1L << level)
+    val u = row.total(0)
+    val v = row.variance(0)
+    val wNew = wWidth - size
+    if wNew <= 0 then
+      wWidth = 0; wTotal = 0.0; wSse = 0.0
+    else
+      val uNew = wTotal - u
+      val meanA = uNew / wNew
+      val meanB = u / size
+      wSse = wSse - v - (wNew.toDouble * size / wWidth) * sq(meanA - meanB)
+      if wSse < 0 then wSse = 0.0
+      wTotal = uNew
+      wWidth = wNew
+    var k = 1
+    while k < row.n do
+      row.total(k - 1) = row.total(k); row.variance(k - 1) = row.variance(k)
+      k += 1
+    row.n -= 1
+    while rows.nonEmpty && rows(rows.length - 1).n == 0 do rows.remove(rows.length - 1): Unit
+
+  /** Variance-aware Hoeffding cut: do the sub-window means differ beyond the bound? */
+  private def cut(n0: Long, n1: Long, u0: Double, u1: Double): Boolean =
+    val n = wWidth.toDouble
+    val v = wSse / wWidth
+    val m = 1.0 / (n0 - minWin + 1) + 1.0 / (n1 - minWin + 1)
+    val dd = jm.log(2.0 * jm.log(n) / delta)
+    val eps = jm.sqrt(2.0 * m * v * dd) + (2.0 / 3.0) * dd * m
+    jm.abs(u0 / n0 - u1 / n1) > eps
+
+  /** Peel stale buckets from the old end while any boundary cut signals a change. */
+  private def checkDrift(): Boolean =
+    var changed = false
+    if wWidth >= 2 * minWin then
+      var scanning = true
+      while scanning do
+        scanning = false
+        var n0 = 0L; var u0 = 0.0
+        var n1 = wWidth; var u1 = wTotal
+        var level = rows.length - 1
+        var triggered = false
+        while level >= 0 && !triggered do
+          val row = rows(level)
+          val size = (1L << level)
+          var idx = 0
+          while idx < row.n && !triggered do
+            val t = row.total(idx)
+            n0 += size; u0 += t; n1 -= size; u1 -= t
+            if n1 > 0 && n0 > minWin && n1 > minWin && cut(n0, n1, u0, u1) then
+              deleteOldest()
+              changed = true
+              triggered = true
+              scanning = true
+            idx += 1
+          level -= 1
+    changed
+
+  override def toString =
+    if wWidth == 0 then s"Adwin(empty, δ=$delta)"
+    else f"Adwin(width=$wWidth, mean=$mean%.4g, sd=$sd%.4g)"
+}
+object Adwin {
+  private final class Row(cap: Int) {
+    val total = new Array[Double](cap)
+    val variance = new Array[Double](cap)
+    var n = 0
+  }
+
+  /** An ADWIN2 detector.
+    *
+    * @param delta             confidence (false-positive budget per cut); smaller = fewer false alarms, slower to react
+    * @param maxBucketsPerRow  exponential-histogram resolution `M` (memory/precision knob; 5 is the usual default)
+    */
+  def apply(delta: Double = 0.002, maxBucketsPerRow: Int = 5): Adwin =
+    if !(delta > 0 && delta < 1) then
+      throw new IllegalArgumentException(s"Adwin confidence delta must be in (0, 1), not $delta")
+    if maxBucketsPerRow < 2 then
+      throw new IllegalArgumentException(s"Adwin needs maxBucketsPerRow >= 2, not $maxBucketsPerRow")
+    new Adwin(delta, maxBucketsPerRow)
 }
