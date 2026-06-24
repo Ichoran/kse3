@@ -117,7 +117,7 @@ class ThymeTest {
   def parsleyTest(): Unit =
     // Custom onClose captures the report rather than printing it.
     var closes = 0
-    var captured = Vector.empty[(String, Vector[(String, Parsley.Stat)])]
+    var captured = Vector.empty[(String, Vector[(String, Parsley.Track)])]
     val p = Parsley(px => { closes += 1; captured = px.results })
 
     // time: returns the value, records the run at this call site.
@@ -143,17 +143,17 @@ class ThymeTest {
 
     // The "both" site has both alternatives, each run all 40 times, slow slower than fast.
     val off = rs.find(_._2.exists(_._1 == "slow")).get._2
-    T ~ off.length                         ==== 2
-    val slow = off.find(_._1 == "slow").get._2
-    val fast = off.find(_._1 == "fast").get._2
-    T ~ slow.n                             ==== 40L
-    T ~ fast.n                             ==== 40L
-    T ~ (slow.median > fast.median)        ==== true
-    T ~ (slow.q90 >= slow.median)          ==== true
+    T ~ off.length                                 ==== 2
+    val slow = off.find(_._1 == "slow").get._2.overall
+    val fast = off.find(_._1 == "fast").get._2.overall
+    T ~ slow.n                                     ==== 40L
+    T ~ fast.n                                     ==== 40L
+    T ~ (slow.median > fast.median)                ==== true
+    T ~ (slow.q90 >= slow.median)                  ==== true
 
     // The "pick" site ran exactly one alternative per call, so the two counts sum to 40.
     val pick = rs.find(_._2.exists(_._1 == "x")).get._2
-    T ~ (pick.find(_._1 == "x").get._2.n + pick.find(_._1 == "y").get._2.n) ==== 40L
+    T ~ (pick.find(_._1 == "x").get._2.overall.n + pick.find(_._1 == "y").get._2.overall.n) ==== 40L
 
     // close runs onClose exactly once and is idempotent.
     p.close()
@@ -165,6 +165,34 @@ class ThymeTest {
     // After close, further records are ignored.
     p.time(busywork(100)): Unit
     T ~ p.results.length ==== rs.length
+
+
+  @Test
+  def parsleySegmentTest(): Unit =
+    // Drive the regime detector with synthetic timings: a warmup regime (~5) then steady state (~1).
+    val p = Parsley(_ => (), segCadence = 32, segCapacity = 1024, segMinSeg = 20, segAlpha = 0.01)
+    val rng = Pcg64(424242L)
+    var i = 0
+    while i < 300  do { p.record("warm", "t", 5.0 + 0.1 * rng.gaussian); i += 1 }   // warmup
+    i = 0
+    while i < 2000 do { p.record("warm", "t", 1.0 + 0.1 * rng.gaussian); i += 1 }   // steady
+
+    val tr = p.results.find(_._1 == "warm").get._2.find(_._1 == "t").get._2
+    T ~ tr.overall.n                          ==== 2300L
+    T ~ (tr.segments.length >= 2)             ==== true       // warmup split off from steady
+    T ~ (tr.segments.head.median > 3.0)       ==== true       // first regime is the slow warmup
+    T ~ (tr.segments.last.median < 2.0)       ==== true       // last regime is steady state
+    // The split lands near the true boundary: the first (warmup) segment is roughly 300 calls.
+    T ~ (tr.segments.head.n >= 250L && tr.segments.head.n <= 450L) ==== true
+
+    // No false regimes on a clean stationary stream.
+    val q = Parsley(_ => (), segCadence = 32, segMinSeg = 20, segAlpha = 0.001)
+    i = 0
+    while i < 2000 do { q.record("flat", "t", 2.0 + 0.1 * rng.gaussian); i += 1 }
+    T ~ q.results.find(_._1 == "flat").get._2.find(_._1 == "t").get._2.segments.length ==== 1
+
+    p.close()
+    q.close()
 
 
   @Test
