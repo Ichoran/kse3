@@ -789,3 +789,139 @@ object Pradwin {
     if !(alpha > 0 && alpha < 1) then throw new IllegalArgumentException(s"Pradwin alpha must be in (0, 1), not $alpha")
     new Pradwin(capacity, minSeg, alpha, ciMargin)
 }
+
+
+////////////////////////////////////////////////////////////////////////
+/// MultiPradwin: segmented multi-channel summary, detection driven by  ///
+/// a synthesized score (composes Pradwin + UDDSketch + Est).            ///
+////////////////////////////////////////////////////////////////////////
+
+/** MultiPradwin — accumulate several labeled input channels at once, summarizing each per regime,
+  * where the regime boundaries come from a single '''synthesized''' score.
+  *
+  * {{{
+  * val m = MultiPradwin(Array("first","second"))("ratio", xs => xs(1)/xs(0))
+  * m.add(Array(tFirst, tSecond))   // one tick = one value per input channel
+  * }}}
+  * Each input channel keeps its own per-segment and overall [[Est]]/[[UDDSketch]] summary.  Every tick
+  * the `synth` function maps the inputs to one score, which drives a composed [[Pradwin]] detector; on a
+  * significant changepoint that also clears a practical-effect gate, every channel's current segment is
+  * closed at once (boundaries are shared, set by the score).  Detecting on a *ratio* makes the
+  * segmentation immune to common-mode shifts (core migration, throttling, load) that move all inputs
+  * together — only changes in the *relationship* split.  Inputs and score must be non-negative.
+  */
+final class MultiPradwin private (
+  val inputs: Array[String],
+  val scoreLabel: String,
+  synth: Array[Double] => Double,
+  cfg: MultiPradwin.Config
+) {
+  import MultiPradwin.Chan
+  private val k = inputs.length
+  private val chans = Array.tabulate(k)(i => new Chan(inputs(i)))
+  private val score = new Chan(scoreLabel)
+  private val pradwin = Pradwin(cfg.capacity, cfg.minSeg, cfg.alpha)
+  private val recent = new Array[Double](jm.max(2 * cfg.minSeg, 8))   // recent scores ≈ the new regime
+  private var rHead = 0
+  private var rFill = 0
+  private var sinceCheck = 0
+
+  /** Feed one tick: one value per input channel (length must equal `inputs.length`). */
+  def add(xs: Array[Double]): Unit = this.synchronized:
+    if xs.length != k then throw new IllegalArgumentException(s"MultiPradwin expects $k inputs, got ${xs.length}")
+    var i = 0
+    while i < k do { chans(i).add(xs(i)); i += 1 }
+    val s = synth(xs)
+    score.add(s)
+    pradwin.add(s)
+    recent(rHead) = s; rHead = (rHead + 1) % recent.length; if rFill < recent.length then rFill += 1
+    sinceCheck += 1
+    if sinceCheck >= cfg.cadence then
+      sinceCheck = 0
+      if pradwin.size >= 2 * cfg.minSeg && pradwin.locate().significant then
+        val newLevel = recentMedian
+        val oldLevel = score.segMedian                 // O(1) sketch query (mostly the old regime)
+        pradwin.clear()
+        if practicallyDifferent(oldLevel, newLevel) then    // gate out tiny shifts
+          i = 0
+          while i < k do { chans(i).commit(); i += 1 }
+          score.commit()
+
+  private def recentMedian: Double =
+    if rFill == 0 then Double.NaN else java.util.Arrays.copyOf(recent, rFill).median
+
+  private def practicallyDifferent(a: Double, b: Double): Boolean =
+    val scale = jm.max(jm.abs(a), jm.abs(b))
+    scale > 0 && jm.abs(a - b) / scale > cfg.effect
+
+  /** One [[MultiPradwin.Track]] per input channel, then the synthesized score channel. */
+  def tracks: Vector[MultiPradwin.Track] = this.synchronized:
+    val out = Vector.newBuilder[MultiPradwin.Track]
+    var i = 0
+    while i < k do { out += chans(i).track; i += 1 }
+    out += score.track
+    out.result()
+
+  /** Drop all data. */
+  def clear(): Unit = this.synchronized:
+    var i = 0
+    while i < k do { chans(i).reset(); i += 1 }
+    score.reset()
+    pradwin.clear()
+    rHead = 0; rFill = 0; sinceCheck = 0
+}
+object MultiPradwin {
+  /** Summary statistics for one segment (or the overall) of one channel. */
+  case class Stat(n: Long, mean: Double, sd: Double, median: Double, q90: Double, q99: Double)
+
+  /** One channel's record: per-regime `segments` (the last is the still-open one) and `overall`. */
+  case class Track(label: String, segments: Vector[Stat], overall: Stat)
+
+  private case class Config(alpha: Double, effect: Double, cadence: Int, capacity: Int, minSeg: Int)
+
+  private def newSketch = UDDSketch(0.01, maxBuckets = 512, sparseBuckets = 32)
+
+  private def statOf(e: Est, s: UDDSketch): Stat =
+    Stat(jm.round(e.n), e.mean, e.sd, s.median, s.quantile(0.9), s.quantile(0.99))
+
+  private final class Chan(val label: String) {
+    private var segEst = new Est.M(0, 0, 0)
+    private var segSketch = newSketch
+    private val allEst = new Est.M(0, 0, 0)
+    private val allSketch = newSketch
+    private val segs = scala.collection.mutable.ArrayBuffer.empty[Stat]
+    def add(x: Double): Unit =
+      if x == x && x >= 0 then
+        segEst += x; segSketch += x; allEst += x; allSketch += x
+    def segMedian: Double = segSketch.median
+    def commit(): Unit =
+      segs += statOf(segEst, segSketch)
+      segEst = new Est.M(0, 0, 0); segSketch = newSketch
+    def track: Track = Track(label, (segs.toVector :+ statOf(segEst, segSketch)), statOf(allEst, allSketch))
+    def reset(): Unit =
+      segEst = new Est.M(0, 0, 0); segSketch = newSketch
+      allEst.reset(); allSketch.clear(); segs.clear()
+  }
+
+  /** A segmenting multi-channel summarizer whose regime boundaries come from `synth`.
+    *
+    * @param inputs   labels for the input channels (and the required `add` array length)
+    * @param scoreLabel label for the synthesized score channel
+    * @param synth    maps one tick's inputs to the changepoint score (non-negative; e.g. a ratio)
+    * @param alpha    detector p-value cutoff (conservative default to limit over-segmenting)
+    * @param effect   minimum relative level change for a real regime (smaller shifts are absorbed)
+    * @param cadence  ticks between changepoint checks
+    * @param capacity detector window size; minSeg the smallest segment each side
+    */
+  def apply(inputs: Array[String])(
+    scoreLabel: String,
+    synth: Array[Double] => Double,
+    alpha: Double = 0.001,
+    effect: Double = 0.03,
+    cadence: Int = 128,
+    capacity: Int = 1024,
+    minSeg: Int = 20
+  ): MultiPradwin =
+    if inputs.isEmpty then throw new IllegalArgumentException("MultiPradwin needs at least one input channel")
+    new MultiPradwin(inputs.clone, scoreLabel, synth, Config(alpha, jm.max(0.0, effect), jm.max(1, cadence), jm.max(8, capacity), jm.max(2, minSeg)))
+}

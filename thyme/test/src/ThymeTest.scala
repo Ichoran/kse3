@@ -117,7 +117,7 @@ class ThymeTest {
   def parsleyTest(): Unit =
     // Custom onClose captures the report rather than printing it.
     var closes = 0
-    var captured = Vector.empty[(String, Vector[(String, Parsley.Track)])]
+    var captured = Vector.empty[(String, Vector[MultiPradwin.Track])]
     val p = Parsley(px => { closes += 1; captured = px.results })
 
     // time: returns the value, records the run at this call site.
@@ -141,19 +141,21 @@ class ThymeTest {
     val rs = p.results
     T ~ rs.nonEmpty ==== true
 
-    // The "both" site has both alternatives, each run all 40 times, slow slower than fast.
-    val off = rs.find(_._2.exists(_._1 == "slow")).get._2
-    T ~ off.length                                 ==== 2
-    val slow = off.find(_._1 == "slow").get._2.overall
-    val fast = off.find(_._1 == "fast").get._2.overall
+    // The "both" site has both alternatives + a synthesized "ratio" channel.
+    val off = rs.find(_._2.exists(_.label == "slow")).get._2
+    T ~ off.length                                 ==== 3       // slow, fast, ratio
+    val slow = off.find(_.label == "slow").get.overall
+    val fast = off.find(_.label == "fast").get.overall
     T ~ slow.n                                     ==== 40L
     T ~ fast.n                                     ==== 40L
     T ~ (slow.median > fast.median)                ==== true
     T ~ (slow.q90 >= slow.median)                  ==== true
+    val ratio = off.find(_.label == "ratio").get.overall
+    T ~ (ratio.median < 0.5)                       ==== true     // ratio = fast/slow ≈ 0.25
 
     // The "pick" site ran exactly one alternative per call, so the two counts sum to 40.
-    val pick = rs.find(_._2.exists(_._1 == "x")).get._2
-    T ~ (pick.find(_._1 == "x").get._2.overall.n + pick.find(_._1 == "y").get._2.overall.n) ==== 40L
+    val pick = rs.find(_._2.exists(_.label == "x")).get._2
+    T ~ (pick.find(_.label == "x").get.overall.n + pick.find(_.label == "y").get.overall.n) ==== 40L
 
     // close runs onClose exactly once and is idempotent.
     p.close()
@@ -173,11 +175,11 @@ class ThymeTest {
     val p = Parsley(_ => (), segCadence = 32, segCapacity = 1024, segMinSeg = 20, segAlpha = 0.01)
     val rng = Pcg64(424242L)
     var i = 0
-    while i < 300  do { p.record("warm", "t", 5.0 + 0.1 * rng.gaussian); i += 1 }   // warmup
+    while i < 300  do { p.recordOne("warm", "t", 5.0 + 0.1 * rng.gaussian); i += 1 }   // warmup
     i = 0
-    while i < 2000 do { p.record("warm", "t", 1.0 + 0.1 * rng.gaussian); i += 1 }   // steady
+    while i < 2000 do { p.recordOne("warm", "t", 1.0 + 0.1 * rng.gaussian); i += 1 }   // steady
 
-    val tr = p.results.find(_._1 == "warm").get._2.find(_._1 == "t").get._2
+    val tr = p.results.find(_._1 == "warm").get._2.find(_.label == "t").get
     T ~ tr.overall.n                          ==== 2300L
     T ~ (tr.segments.length >= 2)             ==== true       // warmup split off from steady
     T ~ (tr.segments.head.median > 3.0)       ==== true       // first regime is the slow warmup
@@ -188,8 +190,8 @@ class ThymeTest {
     // No false regimes on a clean stationary stream.
     val q = Parsley(_ => (), segCadence = 32, segMinSeg = 20, segAlpha = 0.001)
     i = 0
-    while i < 2000 do { q.record("flat", "t", 2.0 + 0.1 * rng.gaussian); i += 1 }
-    T ~ q.results.find(_._1 == "flat").get._2.find(_._1 == "t").get._2.segments.length ==== 1
+    while i < 2000 do { q.recordOne("flat", "t", 2.0 + 0.1 * rng.gaussian); i += 1 }
+    T ~ q.results.find(_._1 == "flat").get._2.find(_.label == "t").get.segments.length ==== 1
 
     p.close()
     q.close()
