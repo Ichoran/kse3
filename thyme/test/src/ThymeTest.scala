@@ -114,6 +114,60 @@ class ThymeTest {
 
 
   @Test
+  def parsleyTest(): Unit =
+    // Custom onClose captures the report rather than printing it.
+    var closes = 0
+    var captured = Vector.empty[(String, Vector[(String, Parsley.Stat)])]
+    val p = Parsley(px => { closes += 1; captured = px.results })
+
+    // time: returns the value, records the run at this call site.
+    val a = p.time(busywork(5000))
+    T ~ a ==== busywork(5000)
+
+    // Repeated calls at one call site (the loop body line) accumulate as one site.
+    var i = 0
+    while i < 50 do { p.time(busywork(1000)): Unit; i += 1 }
+
+    // timeOff "both": both run (randomized order), the first's value is returned.
+    var sum = 0L
+    var j = 0
+    while j < 40 do { sum += p.timeOff("slow", "fast"){ busywork(4000) }{ busywork(1000) }; j += 1 }
+    T ~ (sum == 40L * busywork(4000)) ==== true       // "both" returns the first alternative
+
+    // timeOff "pick": exactly one runs per call.
+    var k = 0
+    while k < 40 do { p.timeOff("x", "y", mode = "pick"){ busywork(200) }{ busywork(200) }: Unit; k += 1 }
+
+    val rs = p.results
+    T ~ rs.nonEmpty ==== true
+
+    // The "both" site has both alternatives, each run all 40 times, slow slower than fast.
+    val off = rs.find(_._2.exists(_._1 == "slow")).get._2
+    T ~ off.length                         ==== 2
+    val slow = off.find(_._1 == "slow").get._2
+    val fast = off.find(_._1 == "fast").get._2
+    T ~ slow.n                             ==== 40L
+    T ~ fast.n                             ==== 40L
+    T ~ (slow.median > fast.median)        ==== true
+    T ~ (slow.q90 >= slow.median)          ==== true
+
+    // The "pick" site ran exactly one alternative per call, so the two counts sum to 40.
+    val pick = rs.find(_._2.exists(_._1 == "x")).get._2
+    T ~ (pick.find(_._1 == "x").get._2.n + pick.find(_._1 == "y").get._2.n) ==== 40L
+
+    // close runs onClose exactly once and is idempotent.
+    p.close()
+    T ~ closes          ==== 1
+    p.close()
+    T ~ closes          ==== 1
+    T ~ captured.nonEmpty ==== true
+
+    // After close, further records are ignored.
+    p.time(busywork(100)): Unit
+    T ~ p.results.length ==== rs.length
+
+
+  @Test
   def timeTest(): Unit =
     val th = new Thyme()
     val (v, report) = th.timePair(busywork(200000))
