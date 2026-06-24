@@ -512,6 +512,33 @@ object NumericFunctions {
   // Runtime equal to regularizedLowerIncompleteGamma
   inline def cdfChiSq(df: Double, chisq: Double) = regularizedLowerIncompleteGamma(0.5*df, 0.5*chisq)
 
+  /** The Kolmogorov distribution: `P(sup_{0≤t≤1} |B(t)| ≤ x)` for a Brownian bridge `B`.
+    *
+    * This is the *asymptotic* (n→∞) null for the maximum of a standardized rank-CUSUM or a
+    * Kolmogorov–Smirnov statistic; a single-changepoint p-value is `1 − cdfKolmogorov(stat)`.
+    * It has no sample-size argument because it is the continuous-limit distribution — and used at
+    * finite `n` it is '''conservative''' (it under-rejects, the safe direction), converging only as
+    * `O(1/√n)`.  Measured rejection rate at nominal 0.05 (rank-CUSUM sup): ≈0.045 at n=1000, 0.035 at
+    * n=100, 0.030 at n=50, 0.018 at n=20, ≈0 at n≤10.  '''Ties do not affect this''' provided the
+    * statistic is standardized by the empirical score variance (the Wilcoxon tie correction):
+    * binary data at n=500 calibrates the same as distinct ranks.  For accurate small-`n` p-values,
+    * apply the Stephens (1970) finite-sample correction or use a permutation null.
+    *
+    * Series `1 + 2·Σ_{k≥1} (−1)^k exp(−2 k² x²)`, which converges quickly away from 0.
+    */
+  def cdfKolmogorov(x: Double): Double =
+    if x <= 0.2 then 0.0    // negligibly small here, and the series converges slowly as x→0
+    else
+      var sum = 0.0
+      var k = 1
+      var go = true
+      while go && k <= 200 do
+        val t = jm.exp(-2.0 * k * k * x * x)
+        sum += (if (k & 1) == 1 then -t else t)
+        if t < 1e-14 then go = false else k += 1
+      val c = 1.0 + 2.0 * sum
+      if c < 0.0 then 0.0 else if c > 1.0 then 1.0 else c
+
 
   // Incomplete beta functions and F distribution based on DiDonato & Morris, ACM Trans Math Soft v18 pp360-373 (1992)
   // Additional inspiration taken from bratio.f90 by DD & M, and Boost 1.53 implementation and documentation also based on DD & M

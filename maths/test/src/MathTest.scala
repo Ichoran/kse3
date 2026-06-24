@@ -3932,6 +3932,73 @@ class MathTest {
 
 
   @Test
+  def pradwinTest(): Unit =
+    // Gaussian noise (σ = 1) plus a transition; since σ = 1, SNR = step.
+    def runStep(n: Int, step: Double, seed: Long, outliers: Set[Int] = Set.empty): Pradwin.Change =
+      val noise = Pcg64(seed).arrayGaussian(2 * n)
+      val pw = Pradwin(capacity = 4 * n)
+      var i = 0
+      while i < 2 * n do
+        pw.add(if outliers(i) then 1e6 else noise(i) + (if i < n then 0.0 else step))
+        i += 1
+      pw.locate()
+
+    def runSigmoid(n: Int, step: Double, fwhm: Double, seed: Long): Pradwin.Change =
+      val noise = Pcg64(seed).arrayGaussian(2 * n)
+      val pw = Pradwin(capacity = 4 * n)
+      var i = 0
+      while i < 2 * n do
+        pw.add(noise(i) + step * i.toDouble.sigmoid("logistic", fwhm = fwhm, center = n.toDouble))
+        i += 1
+      pw.locate()
+
+    val hi  = runStep(1000, 10.0, 1L)
+    val mid = runStep(1000, 5.0, 2L)
+    val lo  = runStep(1000, 3.0, 3L)
+    val flat = runStep(1000, 0.0, 4L)
+    val rob = runStep(1000, 10.0, 5L, Set(300, 1700))
+    val sharp = runSigmoid(1000, 8.0, 2.0, 6L)
+    val broad = runSigmoid(1000, 8.0, 80.0, 7L)
+    // High SNR (10σ): pinned at 1000; rank-CUSUM CI is flat-topped so ~5% of the window wide.
+    T ~ hi.significant                       ==== true
+    T ~ (math.abs(hi.at - 1000) < 15)        ==== true
+    T ~ (hi.loCI <= hi.at && hi.at <= hi.hiCI) ==== true
+    T ~ ((hi.hiCI - hi.loCI) < 90)           ==== true
+
+    // Medium (5σ) and low (3σ) SNR: still found and well localized.
+    T ~ mid.significant                ==== true
+    T ~ (math.abs(mid.at - 1000) < 30) ==== true
+    T ~ lo.significant                 ==== true
+    T ~ (math.abs(lo.at - 1000) < 60)  ==== true
+
+    // No step → nothing significant.
+    T ~ flat.significant ==== false
+
+    // Robustness: two laptop-sleep spikes (1e6) don't move the breakpoint or blind detection.
+    T ~ rob.significant                ==== true
+    T ~ (math.abs(rob.at - 1000) < 20) ==== true
+
+    // Gradual transitions: both a sharp and a broad sigmoid localize near the center.
+    T ~ sharp.significant                  ==== true
+    T ~ broad.significant                  ==== true
+    T ~ (math.abs(sharp.at - 1000) < 30)   ==== true
+    T ~ (math.abs(broad.at - 1000) < 60)   ==== true
+    T ~ (broad.loCI <= broad.at && broad.at <= broad.hiCI) ==== true
+
+    // Sub-noise mean shift (0.2σ, 1500 each side): found with high confidence and localized well,
+    // even though the shift is a fifth of the noise — the integrated evidence over many samples.
+    val subtle = runStep(1500, 0.2, 9L)
+    T ~ subtle.significant            ==== true
+    T ~ (subtle.p < 0.01)             ==== true
+    T ~ (math.abs(subtle.at - 1500) < 150) ==== true
+
+    // Degenerate inputs.
+    val tiny = Pradwin(); tiny.add(1.0); tiny.add(2.0)
+    T ~ tiny.locate().significant ==== false
+    T ~ { Pradwin(capacity = 2) } ==== thrown[IllegalArgumentException]
+
+
+  @Test
   def fittingTest(): Unit =
     val lin = LinearFn2D(2.0, 2.5)
     val fin = FitLine.Impl()

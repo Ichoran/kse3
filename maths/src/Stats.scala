@@ -890,3 +890,88 @@ extension [A](values: IterableOnce[A])
     val m = Est.M()
     m.addWith(values.iterator)(f)
     m
+
+
+/////////////////////////////////////////////////////////
+/// Ranks and distribution-free rank-CUSUM change tests ///
+/////////////////////////////////////////////////////////
+
+object Ranks {
+  /** Average (mid-)ranks `1..n` of `values[i0, iN)`, returned in the original order; tied values
+    * share the mean of the ranks they span (the standard Wilcoxon tie handling).
+    */
+  def of(values: Array[Double], i0: Int, iN: Int): Array[Double] =
+    val n = if iN > i0 then iN - i0 else 0
+    val rank = new Array[Double](n)
+    if n == 0 then return rank
+    val ord = Array.range(0, n).sortBy(k => values(i0 + k))    // boxes; fine at this scale
+    var k = 0
+    while k < n do
+      var j = k
+      while j + 1 < n && values(i0 + ord(j + 1)) == values(i0 + ord(k)) do j += 1
+      val avg = (k + j) / 2.0 + 1.0
+      var t = k
+      while t <= j do { rank(ord(t)) = avg; t += 1 }
+      k = j + 1
+    rank
+
+  inline def of(values: Array[Double]): Array[Double] = of(values, 0, values.length)
+}
+
+
+object Changepoint {
+  /** Result of a single-changepoint CUSUM-bridge scan: the standardized peak `stat`, the split `at`
+    * (number of points in the older piece) achieving it, and the per-split standardized CUSUM.
+    */
+  final class Bridge(val stat: Double, val at: Int, private val u: Array[Double]) {
+    /** Asymptotic p-value via the Kolmogorov `sup|bridge|` null.  Distribution-free for rank scores;
+      * conservative at small n (`O(1/√n)`) — see [[kse.maths.NumericFunctions.cdfKolmogorov]].
+      */
+    def p: Double = 1.0 - NumericFunctions.cdfKolmogorov(stat)
+
+    /** Localization interval: the contiguous splits whose `|standardized CUSUM|` stays within
+      * `margin` of the peak (sharp for a clean jump, wide when the evidence is diffuse).
+      */
+    def interval(margin: Double): (Int, Int) =
+      val n = u.length - 1
+      val thr = stat - margin
+      var lo = at; while lo > 1 && jm.abs(u(lo - 1)) >= thr do lo -= 1
+      var hi = at; while hi < n - 1 && jm.abs(u(hi + 1)) >= thr do hi += 1
+      (lo, hi)
+  }
+
+  /** Single-changepoint statistic: the standardized maximum CUSUM of `scores` (a change in their
+    * mean) over interior splits `[minSeg, n−minSeg]`.  Under a random reordering of the fixed scores
+    * its maximum is asymptotically `sup|Brownian bridge|`, so feeding '''ranks''' makes it
+    * '''distribution-free''' — Wilcoxon (ranks) detects a location change, Mood (squared centered
+    * ranks) a scale change.  Standardizing by the empirical score variance is the exact tie
+    * correction.  `O(n)` given the scores.
+    */
+  def bridge(scores: Array[Double], minSeg: Int): Bridge =
+    val n = scores.length
+    val u = new Array[Double](n + 1)
+    if n < 2 * minSeg then return new Bridge(0.0, n / 2, u)
+    var sum = 0.0
+    var i = 0
+    while i < n do { sum += scores(i); i += 1 }
+    val mean = sum / n
+    var ss = 0.0
+    i = 0
+    while i < n do { val d = scores(i) - mean; ss += d * d; i += 1 }
+    if !(ss > 0) then return new Bridge(0.0, n / 2, u)
+    val scale = jm.sqrt(ss * n / (n - 1.0))     // makes Var(u) → t(1−t), a Brownian bridge
+    val loB = minSeg
+    val hiB = n - minSeg
+    var s = 0.0
+    var peak = 0.0
+    var at = -1
+    i = 0
+    while i < n do
+      s += scores(i) - mean
+      val tau = i + 1
+      u(tau) = s / scale
+      val au = jm.abs(u(tau))
+      if tau >= loB && tau <= hiB && au > peak then { peak = au; at = tau }
+      i += 1
+    new Bridge(peak, if at < 0 then n / 2 else at, u)
+}

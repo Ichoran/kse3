@@ -689,3 +689,103 @@ object Adwin {
       throw new IllegalArgumentException(s"Adwin needs maxBucketsPerRow >= 2, not $maxBucketsPerRow")
     new Adwin(delta, maxBucketsPerRow)
 }
+////////////////////////////////////////////////////////////////////////
+/// Pradwin: precise, robust, distribution-free changepoint location    ///
+////////////////////////////////////////////////////////////////////////
+
+/** Pradwin (precise robust ADWIN) — retrospective changepoint localization over a buffered window
+  * of a real-valued stream, built on '''rank-CUSUM''' statistics so it is distribution-free and
+  * outlier-robust by construction.
+  *
+  * It keeps the most recent `capacity` values; [[locate]] pools them into ranks and scans for the
+  * single split best explaining the window as two regimes, in two complementary channels (both via
+  * [[kse.maths.Changepoint.bridge]], whose null is `sup|Brownian bridge|`):
+  *
+  *  - '''location''' (Wilcoxon — a CUSUM of the ranks): a shift in level, sensitive well below the
+  *    noise given enough samples;
+  *  - '''dispersion''' (Mood — a CUSUM of squared centered ranks): a change in spread/shape that
+  *    leaves the median put.
+  *
+  * Because everything runs on ranks, a single huge outlier is merely "rank n" — it cannot move the
+  * breakpoint or break calibration — and the per-channel p-values are correct for '''any''' noise
+  * distribution (Gaussian, heavy-tailed, skewed) and for tied/quantized data alike.  The two
+  * channels are combined by Bonferroni; [[locate]] returns the breakpoint, a localization interval,
+  * and the combined p-value, leaving any across-stream false-discovery control to the caller.
+  *
+  * The Kolmogorov null is asymptotic, so p-values are mildly conservative for small windows
+  * (`O(1/√n)`); the profiler's windows are large and `minSeg` keeps each side substantial.
+  */
+final class Pradwin private (val capacity: Int, val minSeg: Int, val alpha: Double, val ciMargin: Double) {
+  private val values = new Array[Double](capacity)
+  private var head = 0
+  private var count = 0
+  private var seen = 0L
+
+  /** Number of values currently buffered. */
+  def size: Int = count
+
+  /** Total number of values ever fed (the absolute stream length). */
+  def total: Long = seen
+
+  private inline def oldest: Int = if count == capacity then head else 0
+  private inline def at(p: Int): Double = values((oldest + p) % capacity)
+
+  /** Feed one value (NaN ignored).  O(1). */
+  def add(x: Double): Unit =
+    if x != x then return
+    values(head) = x
+    head = (head + 1) % capacity
+    if count < capacity then count += 1
+    seen += 1
+
+  /** Drop all buffered data. */
+  def clear(): Unit = { head = 0; count = 0; seen = 0 }
+
+  /** Locate the most likely single breakpoint in the current window. */
+  def locate(): Pradwin.Change =
+    val n = count
+    val base = seen - n
+    if n < 2 * minSeg then return Pradwin.Change(base + n, base + n, base + n, 1.0, 1.0, 1.0, false)
+
+    val r = new Array[Double](n)
+    var i = 0
+    while i < n do { r(i) = at(i); i += 1 }
+    val rank = Ranks.of(r)
+
+    val locB = Changepoint.bridge(rank, minSeg)         // Wilcoxon: location
+    val center = (n + 1) / 2.0
+    val disp = new Array[Double](n)
+    i = 0
+    while i < n do { val c = rank(i) - center; disp(i) = c * c; i += 1 }   // Mood: dispersion
+    val dispB = Changepoint.bridge(disp, minSeg)
+
+    val pLoc = locB.p
+    val pScale = dispB.p
+    val p = jm.min(1.0, 2.0 * jm.min(pLoc, pScale))     // Bonferroni across the two channels
+    val sig = p < alpha
+    val b = if pLoc <= pScale then locB else dispB
+    val ci = b.interval(ciMargin)
+    Pradwin.Change(base + b.at, base + ci._1, base + ci._2, p, pLoc, pScale, sig)
+}
+object Pradwin {
+  /** A located breakpoint.  `at` is the absolute stream index of the first value of the new regime
+    * and `[loCI, hiCI]` its localization interval; `p` is the combined (Bonferroni) p-value with
+    * `pLoc`/`pScale` the per-channel values (location vs dispersion).  `significant` is the
+    * convenience `p < alpha`; consumers should use `p` and apply their own across-stream false-
+    * discovery control.
+    */
+  case class Change(at: Long, loCI: Long, hiCI: Long, p: Double, pLoc: Double, pScale: Double, significant: Boolean)
+
+  /** A distribution-free rank-CUSUM changepoint localizer.
+    *
+    * @param capacity  how many recent values to retain (the localizable window)
+    * @param minSeg    smallest segment allowed each side of a split (keeps the asymptotic null sound)
+    * @param alpha     p-value cutoff for the convenience `significant` flag (consumers should use `p`)
+    * @param ciMargin  margin (in Brownian-bridge units) defining the localization interval
+    */
+  def apply(capacity: Int = 4096, minSeg: Int = 20, alpha: Double = 0.05, ciMargin: Double = 0.5): Pradwin =
+    if capacity < 4 then throw new IllegalArgumentException(s"Pradwin needs capacity >= 4, not $capacity")
+    if minSeg < 2 then throw new IllegalArgumentException(s"Pradwin minSeg must be >= 2, not $minSeg")
+    if !(alpha > 0 && alpha < 1) then throw new IllegalArgumentException(s"Pradwin alpha must be in (0, 1), not $alpha")
+    new Pradwin(capacity, minSeg, alpha, ciMargin)
+}
