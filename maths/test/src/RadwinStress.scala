@@ -3,8 +3,8 @@
 
 package kse.test.maths
 
-// Standalone Monte Carlo stress harness for Pradwin — NOT part of the JUnit suite.
-// Run with:  mill maths.test.runMain kse.test.maths.PradwinStress
+// Standalone Monte Carlo stress harness for Radwin — NOT part of the JUnit suite.
+// Run with:  mill maths.test.runMain kse.test.maths.RadwinStress
 //
 // It measures (1) the false-positive rate on pure noise of several distributions (a check on the
 // p<0.05 calibration), and (2) detection power p(found) and center-localization error as a step's
@@ -12,7 +12,7 @@ package kse.test.maths
 
 import kse.maths.{_, given}
 
-object PradwinStress {
+object RadwinStress {
   type Gen = (Long, Int) => Array[Double]   // (seed, n) => zero-mean, unit-σ noise
 
   val gaussian: Gen = (seed, n) => Pcg64(seed).arrayGaussian(n)
@@ -39,9 +39,9 @@ object PradwinStress {
   val noises = Seq("gaussian" -> gaussian, "uniform" -> uniform, "exponential" -> exponential, "quantized" -> quantized)
 
   /** Feed `gen` noise with a step of `step` added to the second half; return the located change. */
-  def runStep(gen: Gen, seed: Long, n: Int, step: Double): Pradwin.Change =
+  def runStep(gen: Gen, seed: Long, n: Int, step: Double): Radwin.Change =
     val data = gen(seed, n)
-    val pw = Pradwin(capacity = n)
+    val pw = Radwin(capacity = n)
     val half = n / 2
     var i = 0
     while i < n do { pw.add(data(i) + (if i < half then 0.0 else step)); i += 1 }

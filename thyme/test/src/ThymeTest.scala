@@ -117,7 +117,7 @@ class ThymeTest {
   def parsleyTest(): Unit =
     // Custom onClose captures the report rather than printing it.
     var closes = 0
-    var captured = Vector.empty[(String, Vector[MultiPradwin.Track])]
+    var captured = Vector.empty[(String, Vector[MultiRadwin.Track])]
     val p = Parsley(px => { closes += 1; captured = px.results })
 
     // time: returns the value, records the run at this call site.
@@ -128,11 +128,17 @@ class ThymeTest {
     var i = 0
     while i < 50 do { p.time(busywork(1000)): Unit; i += 1 }
 
-    // timeOff "both": both run (randomized order), the first's value is returned.
-    var sum = 0L
+    // timeOff "both": both run (randomized order), the value of whichever ran first is returned —
+    // so every result is one of the two alternatives' values, but which one varies by coin flip.
+    val vSlow = busywork(4000)
+    val vFast = busywork(1000)
+    var allValid = true
     var j = 0
-    while j < 40 do { sum += p.timeOff("slow", "fast"){ busywork(4000) }{ busywork(1000) }; j += 1 }
-    T ~ (sum == 40L * busywork(4000)) ==== true       // "both" returns the first alternative
+    while j < 40 do
+      val r = p.timeOff("slow", "fast"){ busywork(4000) }{ busywork(1000) }
+      if r != vSlow && r != vFast then allValid = false
+      j += 1
+    T ~ allValid                        ==== true     // "both" returns whichever alternative ran first
 
     // timeOff "pick": exactly one runs per call.
     var k = 0

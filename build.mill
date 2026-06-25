@@ -34,7 +34,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.6.0"
+  def publishVersion = "0.6.1"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -101,7 +101,7 @@ object eio extends Common with PublishKse3 {
   ) }
 }
 
-object data extends Common with PublishKse3 {
+object data extends Common {
   override def mvnDeps = Task {
     super.mvnDeps() ++
     Seq(mvn"org.ojalgo:ojalgo:51.4.1")

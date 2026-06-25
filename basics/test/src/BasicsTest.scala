@@ -306,6 +306,18 @@ class BasicsTest() {
     val cols = (SourceLine.column, SourceLine.column)
     T ~ (cols._2 - cols._1)     ==== 19
 
+    // The Text / Path opaque keys are the compile-time string constants, usable directly as String.
+    // Compared captures must sit on the *same* physical line, since the key carries the line number.
+    val txt: String = SourceLine.Text.apply; val txt2 = SourceLine.text       // same line ⇒ same key
+    val pth: String = SourceLine.Path.apply; val pth2 = SourceLine.pathname
+    T ~ txt                     ==== txt2
+    T ~ pth                     ==== pth2
+    def whereText(using t: SourceLine.Text): String = t
+    val ta = whereText
+    val tb = whereText
+    T ~ ta                      ==== s"BasicsTest.scala:${SourceLine.line - 2}"
+    T ~ (ta != tb)              ==== true   // captured per call site, one line apart
+
 
   @Test
   def dataWrapperTest(): Unit =

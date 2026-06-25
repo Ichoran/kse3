@@ -3873,8 +3873,107 @@ class MathTest {
     T ~ sz.min            ==== 0.0
     T ~ sz.quantile(0.0)  ==== 0.0
     T ~ sz.max            ==== 4.0
-    T ~ { sz += -1.0 }    ==== thrown[IllegalArgumentException]
+    sz += -1.0                                          // negatives are accepted now
+    T ~ sz.count          ==== 4L
+    T ~ sz.min            ==== -1.0
+    T ~ sz.isSigned       ==== false                   // one stray negative stays in the buffer
     T ~ { sz += Double.PositiveInfinity } ==== thrown[IllegalArgumentException]
+    T ~ { sz += Double.NegativeInfinity } ==== thrown[IllegalArgumentException]
+
+
+  @Test
+  def signedSketchTest(): Unit =
+    def relerr(a: Double, b: Double): Double = math.abs(a - b) / math.abs(b)
+
+    // --- Two far-from-zero clusters (±[1e3,1e5]) span enough buckets to flip to signed mode ---
+    val sb = UDDSketch(0.01)
+    val rngB = new java.util.Random(7)
+    val nB = 40000
+    val xb = new Array[Double](nB)
+    var i = 0
+    while i < nB do
+      val mag = 1000.0 + rngB.nextDouble() * 99000.0
+      val x = if (i & 1) == 0 then -mag else mag
+      xb(i) = x; sb += x; i += 1
+    java.util.Arrays.sort(xb)
+    T ~ sb.isSigned                ==== true
+    T ~ sb.count                   ==== nB.toLong
+    T ~ sb.min                     ==== xb(0)
+    T ~ sb.max                     ==== xb(nB - 1)
+    for p <- Seq(0.05, 0.1, 0.25, 0.75, 0.9, 0.95) do      // away from the gap at the median
+      val tru = Quantile.ofSorted(xb, 0, nB)(p)
+      T(s"signed cluster q=$p") ~ (relerr(sb.quantile(p), tru) < 0.03) ==== true
+
+    // --- Mixed-scale Gaussian noise: count/min/max exact, monotone & spread-accurate quantiles ---
+    val rngG = new java.util.Random(99)
+    for trial <- 0 until 6 do
+      val n = 3000 + trial * 2000
+      val xs = new Array[Double](n)
+      i = 0
+      while i < n do { xs(i) = rngG.nextGaussian() * math.pow(10.0, rngG.nextInt(4)); i += 1 }
+      val sg = UDDSketch(0.01)
+      i = 0; while i < n do { sg += xs(i); i += 1 }
+      java.util.Arrays.sort(xs)
+      T ~ sg.isSigned   ==== true
+      T ~ sg.count      ==== n.toLong
+      T ~ sg.min        ==== xs(0)
+      T ~ sg.max        ==== xs(n - 1)
+      val spread = Quantile.ofSorted(xs, 0, n)(0.95) - Quantile.ofSorted(xs, 0, n)(0.05)
+      var prev = Double.NegativeInfinity
+      for p <- Seq(0.1, 0.2, 0.3, 0.5, 0.7, 0.8, 0.9) do
+        val tru = Quantile.ofSorted(xs, 0, n)(p)
+        val est = sg.quantile(p)
+        T(s"gauss monotone q=$p")  ~ (est >= prev - 1e-9)                               ==== true
+        T(s"gauss accurate q=$p")  ~ (math.abs(est - tru) <= 0.08 * math.abs(tru) + 0.05 * spread) ==== true
+        prev = est
+
+    // --- All-negative data is the mirror of all-positive: quantiles match a negated positive sketch ---
+    val sn = UDDSketch(0.01)
+    val xn = new Array[Double](100000)
+    i = 0
+    while i < 100000 do { val x = -(i + 1).toDouble; xn(i) = x; sn += x; i += 1 }
+    java.util.Arrays.sort(xn)
+    T ~ sn.isSigned ==== true
+    for p <- Seq(0.05, 0.25, 0.5, 0.75, 0.95) do
+      val tru = Quantile.ofSorted(xn, 0, 100000)(p)
+      T(s"all-neg q=$p") ~ (relerr(sn.quantile(p), tru) < 0.02) ==== true
+
+    // --- Add / subtract round-trips exactly at bucket resolution in signed mode ---
+    val sr = UDDSketch(0.01)
+    val bvals = new Array[Double](84)                  // 80 distinct negatives (span > the buffer) + zero + positives
+    i = 0
+    while i < 80 do { bvals(i) = -math.pow(10.0, 4.0 * i / 79); i += 1 }
+    bvals(80) = 0.0; bvals(81) = 7.0; bvals(82) = 33.0; bvals(83) = 480.0
+    i = 0
+    while i < 6000 do { sr += bvals(i % bvals.length); i += 1 }
+    T ~ sr.isSigned ==== true
+    val rtQs = Seq(0.1, 0.5, 0.9)
+    val before = rtQs.map(sr.quantileStrict)
+    val cntBefore = sr.count
+    i = 0
+    while i < 2100 do { sr += bvals(i % bvals.length); i += 1 }   // add then remove the same multiset
+    i = 0
+    while i < 2100 do { sr -= bvals(i % bvals.length); i += 1 }
+    T ~ sr.count ==== cntBefore
+    for (p, v) <- rtQs.zip(before) do
+      T(s"signed roundtrip q=$p") ~ sr.quantileStrict(p) ==== v
+
+    // --- Merge of two signed sketches matches a single combined sketch ---
+    val mA = UDDSketch(0.01)
+    val mB = UDDSketch(0.01)
+    val mAll = UDDSketch(0.01)
+    val rngM = new java.util.Random(2024)
+    i = 0
+    while i < 20000 do
+      val x = rngM.nextGaussian() * 50.0
+      if (i & 1) == 0 then mA += x else mB += x
+      mAll += x
+      i += 1
+    mA.mergeWith(mB)
+    T ~ mA.count ==== 20000L
+    for p <- Seq(0.1, 0.25, 0.5, 0.75, 0.9) do
+      val tru = mAll.quantile(p)
+      T(s"signed merge q=$p") ~ (math.abs(mA.quantile(p) - tru) <= 0.05 * math.abs(tru) + 0.5) ==== true
 
 
   @Test
@@ -3932,20 +4031,20 @@ class MathTest {
 
 
   @Test
-  def pradwinTest(): Unit =
+  def radwinTest(): Unit =
     // Gaussian noise (σ = 1) plus a transition; since σ = 1, SNR = step.
-    def runStep(n: Int, step: Double, seed: Long, outliers: Set[Int] = Set.empty): Pradwin.Change =
+    def runStep(n: Int, step: Double, seed: Long, outliers: Set[Int] = Set.empty): Radwin.Change =
       val noise = Pcg64(seed).arrayGaussian(2 * n)
-      val pw = Pradwin(capacity = 4 * n)
+      val pw = Radwin(capacity = 4 * n)
       var i = 0
       while i < 2 * n do
         pw.add(if outliers(i) then 1e6 else noise(i) + (if i < n then 0.0 else step))
         i += 1
       pw.locate()
 
-    def runSigmoid(n: Int, step: Double, fwhm: Double, seed: Long): Pradwin.Change =
+    def runSigmoid(n: Int, step: Double, fwhm: Double, seed: Long): Radwin.Change =
       val noise = Pcg64(seed).arrayGaussian(2 * n)
-      val pw = Pradwin(capacity = 4 * n)
+      val pw = Radwin(capacity = 4 * n)
       var i = 0
       while i < 2 * n do
         pw.add(noise(i) + step * i.toDouble.sigmoid("logistic", fwhm = fwhm, center = n.toDouble))
@@ -3993,9 +4092,9 @@ class MathTest {
     T ~ (math.abs(subtle.at - 1500) < 150) ==== true
 
     // Degenerate inputs.
-    val tiny = Pradwin(); tiny.add(1.0); tiny.add(2.0)
+    val tiny = Radwin(); tiny.add(1.0); tiny.add(2.0)
     T ~ tiny.locate().significant ==== false
-    T ~ { Pradwin(capacity = 2) } ==== thrown[IllegalArgumentException]
+    T ~ { Radwin(capacity = 2) } ==== thrown[IllegalArgumentException]
 
 
   @Test

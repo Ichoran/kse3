@@ -350,5 +350,34 @@ object SourceLine {
 
   /** Captures the call site wherever a `(using SourceLine)` is needed. */
   inline given SourceLine = ${ basicsMacroImpl.sourcelineRecordImpl }
+
+  /** A call site's compact `file:line` identity, carried as the literal `String` itself.
+    *
+    * Summon with `(using SourceLine.Text)`: the value *is* the compile-time string constant the
+    * macro emits — no `SourceLine` allocation and no runtime `toString`, so it is a zero-cost
+    * per-call-site key.  It is a subtype of `String`, so it can be used directly anywhere a
+    * `String` is expected. */
+  opaque type Text <: String = String
+  object Text {
+    private inline def pack(inline s: String): Text = s
+
+    /** This call site's `file:line` identity as a compile-time string constant. */
+    inline def apply: Text = pack(SourceLine.text)
+
+    /** Captures the call site's `file:line` identity wherever a `(using SourceLine.Text)` is needed. */
+    inline given Text = pack(SourceLine.text)
+  }
+
+  /** A call site's full source path, carried as the literal `String` itself (see [[Text]]). */
+  opaque type Path <: String = String
+  object Path {
+    private inline def pack(inline s: String): Path = s
+
+    /** This call site's full source path as a compile-time string constant. */
+    inline def apply: Path = pack(SourceLine.pathname)
+
+    /** Captures the call site's source path wherever a `(using SourceLine.Path)` is needed. */
+    inline given Path = pack(SourceLine.pathname)
+  }
 }
 

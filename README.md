@@ -25,28 +25,28 @@ Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) 
 You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala
-def scalaVersion = "3.8.2"
+def scalaVersion = "3.8.3"
 ```
 
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.6.0"
-mvn"com.github.ichoran::kse3-flow:0.6.0"
-mvn"com.github.ichoran::kse3-maths:0.6.0"
-mvn"com.github.ichoran::kse3-loom:0.6.0"
-mvn"com.github.ichoran::kse3-eio:0.6.0"
+mvn"com.github.ichoran::kse3-basics:0.6.1"
+mvn"com.github.ichoran::kse3-flow:0.6.1"
+mvn"com.github.ichoran::kse3-maths:0.6.1"
+mvn"com.github.ichoran::kse3-loom:0.6.1"
+mvn"com.github.ichoran::kse3-eio:0.6.1"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
 //> using scala 3.8.2
-//> using dep com.github.ichoran::kse3-basics:0.6.0
-//> using dep com.github.ichoran::kse3-flow:0.6.0
-//> using dep com.github.ichoran::kse3-maths:0.6.0
-//> using dep com.github.ichoran::kse3-loom:0.6.0
-//> using dep com.github.ichoran::kse3-eio:0.6.0
+//> using dep com.github.ichoran::kse3-basics:0.6.1
+//> using dep com.github.ichoran::kse3-flow:0.6.1
+//> using dep com.github.ichoran::kse3-maths:0.6.1
+//> using dep com.github.ichoran::kse3-loom:0.6.1
+//> using dep com.github.ichoran::kse3-eio:0.6.1
 ```
 
 Because scala-cli does not by default use the default JVM and does not use Java 25 by default,
@@ -157,7 +157,7 @@ you shouldn't use that with Scala 3 because Kse is actually still on Scala
 The basics module has no dependencies itself.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-basics:0.6.0"
+ivy"com.github.ichoran::kse3-basics:0.6.1"
 ```
 
 and in your code,
@@ -265,7 +265,7 @@ See the test suite, or package Scaladoc, for more examples of what you could do 
 The flow module depends only on kse.basics.  In mill, add the dependency
 
 ```scala
-ivy"com.github.ichoran::kse3-flow:0.6.0"
+ivy"com.github.ichoran::kse3-flow:0.6.1"
 ```
 
 and in your code,

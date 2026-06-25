@@ -9,10 +9,14 @@ import java.util.concurrent.ThreadLocalRandom
 
 import kse.basics.SourceLine
 import kse.flow.Tidy
-import kse.maths.MultiPradwin
+import kse.maths.MultiRadwin
 
 
-/** Parsley — an embedded in-situ profiler for "is this thing slow, and is the alternative better?".
+/** Parsley — "Provides Automated Robust Statistical Latencies while Embedded.  Yay!".
+  * 
+  * Parsley measures timings of code blocks--including head-to-head runs--within
+  * your program.  It is not a benchmarking harness per se; it is geared to measure
+  * timings on alternative implementations in the middle of running code.
   *
   * Put one in a companion object and instrument the calls you care about:
   * {{{
@@ -21,7 +25,7 @@ import kse.maths.MultiPradwin
   * val z = Prof.parsley.timeOff("old", "new"){ slow(x) }{ fast(x) }        // race two implementations
   * }}}
   * Timings are keyed by the source location of the call (via [[kse.basics.SourceLine]]) and summarized
-  * per regime by a [[kse.maths.MultiPradwin]] — moments and quantiles for each alternative, split into
+  * per regime by a [[kse.maths.MultiRadwin]] — moments and quantiles for each alternative, split into
   * the regimes (warmup, steady state, …) the timing stream actually passes through.
   *
   * For `timeOff` in `"both"` mode the regime boundaries are detected on the '''ratio''' of the two
@@ -56,7 +60,9 @@ final class Parsley(
     if !shut then
       shut = true
       try onClose(this)
-      catch case e: Throwable => System.err.println(s"Parsley onClose failed: $e")
+      catch case e: Throwable =>
+        System.err.println(s"Parsley onClose failed: $e")
+        throw e
 
   /** Run the `onClose` action now (idempotent) and release the shutdown backstop. */
   def close(): Unit =
@@ -79,21 +85,19 @@ final class Parsley(
         case _                    => ()
 
   /** Time a single run of `f`, recording it under this call site, and return its value. */
-  inline def time[A](inline f: A)(using sl: SourceLine): A =
+  inline def time[A](inline f: A)(using site: SourceLine.Text): A =
     val t0 = System.nanoTime
     val a = f
-    recordOne(sl.toString, "", (System.nanoTime - t0) * 1e-9)
+    recordOne(site, "", (System.nanoTime - t0) * 1e-9)
     a
 
   /** Race two implementations at this call site.
     *
-    * In `"both"` mode (default) both run, in randomized order, each timed, and the first's value is
-    * returned — use when the two are interchangeable and side-effect-free (or idempotent); regimes are
-    * detected on the ratio (common-mode-immune).  In `"pick"` mode exactly one is chosen at random,
-    * timed, and returned — use when only one may run.
+    * In `"both"` mode (default) both run, in randomized order, each timed, and the value of whichever
+    * went first is returned — use when the two are interchangeable and side-effect-free (or idempotent).
+    * In `"pick"` mode exactly one is chosen at random, timed, and returned — use when only one may run.
     */
-  inline def timeOff[A](aLabel: String, bLabel: String, inline mode: "both" | "pick" = "both")(inline f1: A)(inline f2: A)(using sl: SourceLine): A =
-    val site = sl.toString
+  inline def timeOff[A](aLabel: String, bLabel: String, inline mode: "both" | "pick" = "both")(inline f1: A)(inline f2: A)(using site: SourceLine.Text): A =
     inline mode match
       case "both" =>
         if ThreadLocalRandom.current().nextBoolean() then
@@ -105,50 +109,50 @@ final class Parsley(
           val t1 = System.nanoTime; val b = f2; val db = (System.nanoTime - t1) * 1e-9
           val t0 = System.nanoTime; val a = f1; val da = (System.nanoTime - t0) * 1e-9
           recordPair(site, aLabel, bLabel, da, db)
-          a
+          b
       case "pick" =>
         if ThreadLocalRandom.current().nextBoolean() then
           val t0 = System.nanoTime; val a = f1; recordOne(site, aLabel, (System.nanoTime - t0) * 1e-9); a
         else
           val t0 = System.nanoTime; val b = f2; recordOne(site, bLabel, (System.nanoTime - t0) * 1e-9); b
 
-  /** A snapshot of all measurements: each source site, with one [[kse.maths.MultiPradwin.Track]] per
+  /** A snapshot of all measurements: each source site, with one [[kse.maths.MultiRadwin.Track]] per
     * alternative (and, for a `"both"` site, the `"ratio"` channel carrying the relative regimes). */
-  def results: Vector[(String, Vector[MultiPradwin.Track])] =
+  def results: Vector[(String, Vector[MultiRadwin.Track])] =
     val sites = new java.util.ArrayList[String](data.keySet)
     sites.sort(null)
-    val out = Vector.newBuilder[(String, Vector[MultiPradwin.Track])]
+    val out = Vector.newBuilder[(String, Vector[MultiRadwin.Track])]
     sites.forEach(s => out += s -> data.get(s).tracks)
     out.result()
 }
 object Parsley {
   private case class SegCfg(alpha: Double, effect: Double, cadence: Int, capacity: Int, minSeg: Int)
 
-  private sealed abstract class Entry { def tracks: Vector[MultiPradwin.Track] }
+  private sealed abstract class Entry { def tracks: Vector[MultiRadwin.Track] }
 
   // `time` / `"pick"`: each label is an independent single-channel stream.
   private final class SinglesEntry(cfg: SegCfg) extends Entry {
-    private val mps = new java.util.LinkedHashMap[String, MultiPradwin]()   // first-seen order
+    private val mps = new java.util.LinkedHashMap[String, MultiRadwin]()   // first-seen order
     def add(label: String, t: Double): Unit = this.synchronized:
       var mp = mps.get(label)
       if mp eq null then
-        mp = MultiPradwin(Array(label))(label, _(0), cfg.alpha, cfg.effect, cfg.cadence, cfg.capacity, cfg.minSeg)
+        mp = MultiRadwin(Array(label))(label, _(0), cfg.alpha, cfg.effect, cfg.cadence, cfg.capacity, cfg.minSeg)
         mps.put(label, mp): Unit
       mp.add(Array(t))
-    def tracks: Vector[MultiPradwin.Track] = this.synchronized:
-      val b = Vector.newBuilder[MultiPradwin.Track]
+    def tracks: Vector[MultiRadwin.Track] = this.synchronized:
+      val b = Vector.newBuilder[MultiRadwin.Track]
       mps.forEach((_, mp) => b += mp.tracks.head)   // the input channel (score is the identity duplicate)
       b.result()
   }
 
   // `timeOff "both"`: two contemporaneous channels with regimes detected on their ratio.
   private final class PairEntry(aLabel: String, bLabel: String, cfg: SegCfg) extends Entry {
-    private val mp = MultiPradwin(Array(aLabel, bLabel))(
+    private val mp = MultiRadwin(Array(aLabel, bLabel))(
       "ratio", xs => xs(1) / math.max(xs(0), 1e-9),
       cfg.alpha, cfg.effect, cfg.cadence, cfg.capacity, cfg.minSeg
     )
     def add(a: Double, b: Double): Unit = mp.add(Array(a, b))
-    def tracks: Vector[MultiPradwin.Track] = mp.tracks
+    def tracks: Vector[MultiRadwin.Track] = mp.tracks
   }
 
   /** A Parsley whose formatted closing report is handed to `sink` — e.g. `Parsley.onClose(println)`
@@ -157,7 +161,7 @@ object Parsley {
   def onClose(sink: String => Unit): Parsley = new Parsley(p => sink(formatReport(p)))
 
   /** Default `onClose`: print a per-site, per-regime report to stdout. */
-  def printReport(p: Parsley): Unit = System.out.print(formatReport(p))
+  def printReport(p: Parsley): Unit = println(formatReport(p))
 
   /** The per-site, per-regime report as a string. */
   def formatReport(p: Parsley): String =
@@ -174,7 +178,7 @@ object Parsley {
         else
           sb ++= f"    $tag${o.n}%d calls   median ${Thyme.humanTime(o.median)}%s   mean ${Thyme.humanTime(o.mean)}%s   p90 ${Thyme.humanTime(o.q90)}%s\n"
         if tr.segments.length > 1 then
-          val fmt: MultiPradwin.Stat => String =
+          val fmt: MultiRadwin.Stat => String =
             if tr.label == "ratio" then s => f"${s.n}×${s.median}%.3f×" else s => s"${s.n}×${Thyme.humanTime(s.median)}"
           sb ++= s"      regimes: ${tr.segments.map(fmt).mkString(" → ")}\n"
     sb.result()

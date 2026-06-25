@@ -17,55 +17,79 @@ import kse.basics.{given, *}
 /// over non-negative data, with a dense core + sparse tails.            ///
 /////////////////////////////////////////////////////////////////////////
 
-/** A quantile sketch for non-negative data with a *relative* error guarantee.
+/** A quantile sketch for real-valued data with a *relative* error guarantee.
   *
-  * This is a UDDSketch (Epicoco et al. 2020, "Uniform DDSketch") with three
+  * This is a UDDSketch (Epicoco et al. 2020, "Uniform DDSketch") with four
   * deliberate departures that suit it to embedded latency profiling:
   *
-  *  - '''Dense core + sparse tails.'''  Values map to logarithmic buckets
-  *    `i = ⌊log_γ x⌋` (`γ = (1+α)/(1-α)`); the contiguous central mass lives in a
+  *  - '''Dense core + sparse tails.'''  Magnitudes map to logarithmic buckets
+  *    `i = ⌊log_γ|x|⌋` (`γ = (1+α)/(1-α)`); the contiguous central mass lives in a
   *    dense `Array[Long]` of [[maxBuckets]] slots, while scattered outlying buckets
   *    live in a small sparse store of up to [[sparseBuckets]] entries.  A handful of
   *    huge (often spurious) values therefore occupy their own full-resolution buckets
   *    *without* widening the core's span — so they don't force a collapse that would
   *    coarsen the resolution of the bulk.
   *
-  *  - '''Per-bucket sums.'''  Each bucket carries the exact sum of its members, so a
+  *  - '''Adaptive sign support.'''  Exact zeros are always counted separately.  Data is
+  *    treated as non-negative ('''unsigned mode''') until enough distinct negative buckets
+  *    accrue to overflow a small buffer; then the sketch flips to '''signed mode''', where the
+  *    dense core is split symmetrically (half for negative magnitudes, half for positive),
+  *    each side carries its own large-magnitude sparse tail, and the centre band the symmetric
+  *    axis cannot split — `0 < |x| < γ^m` — is aggregated into per-sign "tiny" bins.  All-positive
+  *    workloads never leave unsigned mode, so they keep full relative resolution down to zero.
+  *
+  *  - '''Per-bucket sums.'''  Each bucket carries the exact sum of its members' magnitudes, so a
   *    bucket's point estimate is the true mean and [[quantile]] interpolates between
-  *    adjacent bucket means.  [[quantileStrict]] returns the geometric bucket centre,
+  *    adjacent bucket means.  [[quantileStrict]] returns the (signed) geometric bucket centre,
   *    carrying the clean worst-case `≤ α` relative-error guarantee.
   *
   *  - '''Exact moments.'''  `n`, [[mean]], and [[sd]] are tracked exactly via an
   *    [[Est]] accumulator, independent of bucket resolution.
   *
-  * The sketch is a pure bag of bucket counts split across two containers, so
-  * [[add]] / [[subtract]] / [[mergeWith]] are all exact at bucket resolution: removal
-  * is structurally identical to insertion.  (Observed [[min]]/[[max]] are
-  * insert-accurate only and may read wide after subtraction.)
+  * The sketch is a pure bag of bucket counts, so [[add]] / [[subtract]] / [[mergeWith]] are
+  * exact at bucket resolution: removal is structurally identical to insertion.  (Observed
+  * [[min]]/[[max]] are insert-accurate only and may read wide after subtraction.)
   *
   * When the populated span will not fit, a '''uniform collapse''' merges every
   * adjacent bucket pair (`i → ⌊i/2⌋`), squaring `γ` and raising [[alpha]].
   *
   * Bucketing uses one `log2` per point (the JVM's is faster than any polynomial we
-  * could substitute); construct with [[UDDSketch.apply]].  Only finite `x >= 0` may be
-  * added; `NaN` is ignored, negatives and infinities throw.
+  * could substitute); construct with [[UDDSketch.apply]].  Any finite `x` may be added;
+  * `NaN` is ignored, infinities throw.
   */
 final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val sparseBuckets: Int) {
   private var gamma: Double = (1 + alpha0) / (1 - alpha0)
   private var invLog2Gamma: Double = 1.0 / gamma.log2     // i = ⌊log2(x) · (1/log2 γ)⌋
   private var nCollapse: Int = 0
 
-  // Dense core: bucket index `base + k` is stored at slot `k`.
+  // Dense core.  Unsigned mode: abs-bucket `base + k` at slot `k`, spanning all `maxBuckets`.
+  // Signed mode: value-ordered, slot 0 = most negative … slot maxBuckets-1 = most positive; the
+  // negative half is `[0, half)`, the positive half `[half, maxBuckets)`, and `base` is the band
+  // edge abs-bucket `m` shared by both signs (see `posSlot`/`negSlot`).  `denseSum` holds magnitudes.
   private val dense = new Array[Long](maxBuckets)
   private val denseSum = new Array[Double](maxBuckets)
   private var base = 0
   private var started = false
+  private val half = maxBuckets / 2
 
-  // Sparse tails: parallel arrays sorted ascending by index, with one slot of overflow slack.
+  // Positive sparse tail.  Unsigned mode: every out-of-window positive bucket (low and high).
+  // Signed mode: the positive large-magnitude tail only.
   private val sIdx = new Array[Int](sparseBuckets + 1)
   private val sCnt = new Array[Long](sparseBuckets + 1)
   private val sSum = new Array[Double](sparseBuckets + 1)
   private var sLen = 0
+
+  // Negative store.  Unsigned mode: the small negative buffer (by abs-bucket) whose overflow flips
+  // the sketch to signed mode.  Signed mode: the negative large-magnitude sparse tail.
+  private val nIdx = new Array[Int](sparseBuckets + 1)
+  private val nCnt = new Array[Long](sparseBuckets + 1)
+  private val nSum = new Array[Double](sparseBuckets + 1)
+  private var nLen = 0
+
+  private var signed = false
+  // Signed-mode centre band (|x| below the dense window), aggregated per sign.
+  private var tinyPosCnt = 0L; private var tinyPosSum = 0.0
+  private var tinyNegCnt = 0L; private var tinyNegSum = 0.0
 
   private var zeroCount = 0L
   private var total = 0L
@@ -87,6 +111,9 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
   /** Number of uniform collapses performed so far (0 if the data fit at full resolution). */
   def collapses: Int = nCollapse
 
+  /** True once negative data has forced the symmetric signed representation. */
+  def isSigned: Boolean = signed
+
   /** Exact mean of all added values (independent of bucket resolution). */
   def mean: Double = acc.mean
 
@@ -97,7 +124,7 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
   def moments: Est = acc.snapshot
 
   /** Smallest value observed.  Insert-accurate; may read low after [[subtract]]. */
-  def min: Double = if zeroCount > 0 then 0.0 else loSeen
+  def min: Double = if total <= 0 then Double.NaN else loSeen
 
   /** Largest value observed.  Insert-accurate; may read high after [[subtract]]. */
   def max: Double = if total <= 0 then Double.NaN else hiSeen
@@ -107,23 +134,36 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
   /// Construction ///
   ////////////////////
 
-  /** Bucket index of `x > 0`: `⌊log_γ x⌋`. */
-  private def bucketOf(x: Double): Int = jm.floor(x.log2 * invLog2Gamma).toInt
+  /** Abs-bucket index of `|x| > 0`: `⌊log_γ|x|⌋`. */
+  private def bucketOf(ax: Double): Int = jm.floor(ax.log2 * invLog2Gamma).toInt
 
-  /** Add a single non-negative value.  `NaN` is ignored; negatives/infinities throw. */
+  /** Add a single value.  `NaN` is ignored; infinities throw. */
   def +=(x: Double): Unit = add(x, 1L)
 
-  /** Add `c` copies of a non-negative value.  `NaN` is ignored; negatives/infinities throw. */
+  /** Add `c` copies of a value.  `NaN` is ignored; infinities throw. */
   def add(x: Double, c: Long): Unit =
     if x != x || c <= 0 then return
-    if x < 0 || x == Double.PositiveInfinity then
-      throw new IllegalArgumentException(s"UDDSketch accepts only finite x >= 0, not $x")
+    if x == Double.PositiveInfinity || x == Double.NegativeInfinity then
+      throw new IllegalArgumentException(s"UDDSketch accepts only finite values, not $x")
     acc.addWithWeight(c.toDouble)(x)
     total += c
     if x < loSeen then loSeen = x
     if x > hiSeen then hiSeen = x
     if x == 0.0 then zeroCount += c
-    else putBucket(bucketOf(x), c, x * c)
+    else place(x, c)
+
+  /** Route a finite, nonzero value into the bucket structure (no moment/extreme/total bookkeeping). */
+  private def place(x: Double, c: Long): Unit =
+    val ax = jm.abs(x)
+    val b = bucketOf(ax)
+    val s = ax * c
+    if signed then putSigned(x > 0, b, c, s)
+    else if x > 0 then putBucket(b, c, s)
+    else
+      nLen = sIns(nIdx, nCnt, nSum, nLen, b, c, s)
+      if nLen > sparseBuckets then flip()
+
+  // --- Unsigned positive store (also the whole store before any flip) ---
 
   private def putBucket(i: Int, c: Long, s: Double): Unit =
     if !started then
@@ -134,25 +174,67 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
       dense(off) += c
       denseSum(off) += s
     else
-      sparsePut(i, c, s)
+      sLen = sIns(sIdx, sCnt, sSum, sLen, i, c, s)
       if sLen > sparseBuckets then rebalance()
 
-  private def sparsePut(i: Int, c: Long, s: Double): Unit =
+  // --- Generic sorted sparse helpers (positive tail, negative buffer/tail) ---
+
+  private def sIns(idx: Array[Int], cnt: Array[Long], sum: Array[Double], len: Int, i: Int, c: Long, s: Double): Int =
     var lo = 0
-    var hi = sLen
+    var hi = len
     while lo < hi do
       val mid = (lo + hi) >>> 1
-      if sIdx(mid) < i then lo = mid + 1 else hi = mid
-    if lo < sLen && sIdx(lo) == i then
-      sCnt(lo) += c
-      sSum(lo) += s
+      if idx(mid) < i then lo = mid + 1 else hi = mid
+    if lo < len && idx(lo) == i then
+      cnt(lo) += c; sum(lo) += s; len
     else
-      var j = sLen
+      var j = len
       while j > lo do
-        sIdx(j) = sIdx(j - 1); sCnt(j) = sCnt(j - 1); sSum(j) = sSum(j - 1)
+        idx(j) = idx(j - 1); cnt(j) = cnt(j - 1); sum(j) = sum(j - 1)
         j -= 1
-      sIdx(lo) = i; sCnt(lo) = c; sSum(lo) = s
-      sLen += 1
+      idx(lo) = i; cnt(lo) = c; sum(lo) = s
+      len + 1
+
+  private def sDel(idx: Array[Int], cnt: Array[Long], sum: Array[Double], len: Int, i: Int, c: Long, s: Double): Int =
+    var lo = 0
+    var hi = len
+    while lo < hi do
+      val mid = (lo + hi) >>> 1
+      if idx(mid) < i then lo = mid + 1 else hi = mid
+    if lo < len && idx(lo) == i then
+      cnt(lo) -= c
+      if cnt(lo) <= 0 then
+        var j = lo
+        while j < len - 1 do
+          idx(j) = idx(j + 1); cnt(j) = cnt(j + 1); sum(j) = sum(j + 1)
+          j += 1
+        len - 1
+      else { sum(lo) -= s; len }
+    else len
+
+
+  // --- Signed store ---
+
+  /** Dense slot for a positive magnitude bucket `b` inside the window `[base, base+half)`. */
+  private inline def posSlot(b: Int): Int = half + (b - base)
+
+  /** Dense slot for a negative magnitude bucket `b` inside the window `[base, base+half)`. */
+  private inline def negSlot(b: Int): Int = (half - 1) - (b - base)
+
+  private def putSigned(positive: Boolean, b: Int, c: Long, s: Double): Unit =
+    val off = b - base
+    if off >= 0 && off < half then
+      val slot = if positive then half + off else (half - 1) - off
+      dense(slot) += c; denseSum(slot) += s
+    else if b < base then
+      if positive then { tinyPosCnt += c; tinyPosSum += s }
+      else { tinyNegCnt += c; tinyNegSum += s }
+    else if positive then
+      sLen = sIns(sIdx, sCnt, sSum, sLen, b, c, s)
+      if sLen > sparseBuckets then rebalanceSigned()
+    else
+      nLen = sIns(nIdx, nCnt, nSum, nLen, b, c, s)
+      if nLen > sparseBuckets then rebalanceSigned()
 
 
   ////////////////
@@ -165,15 +247,21 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
   /** Remove `c` copies of a previously-added value.  Counts are clamped at zero. */
   def subtract(x: Double, c: Long): Unit =
     if x != x || c <= 0 then return
-    if x < 0 || x == Double.PositiveInfinity then
-      throw new IllegalArgumentException(s"UDDSketch accepts only finite x >= 0, not $x")
+    if x == Double.PositiveInfinity || x == Double.NegativeInfinity then
+      throw new IllegalArgumentException(s"UDDSketch accepts only finite values, not $x")
     acc.incorporate(-c.toDouble, x, 0.0)
     total -= c
     if total < 0 then total = 0
     if x == 0.0 then
       zeroCount -= c
       if zeroCount < 0 then zeroCount = 0
-    else removeBucket(bucketOf(x), c, x * c)
+    else
+      val ax = jm.abs(x)
+      val b = bucketOf(ax)
+      val s = ax * c
+      if signed then removeSigned(x > 0, b, c, s)
+      else if x > 0 then removeBucket(b, c, s)
+      else nLen = sDel(nIdx, nCnt, nSum, nLen, b, c, s)
 
   private def removeBucket(i: Int, c: Long, s: Double): Unit =
     val off = i - base
@@ -181,28 +269,29 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
       dense(off) -= c
       if dense(off) <= 0 then { dense(off) = 0; denseSum(off) = 0.0 }
       else denseSum(off) -= s
-    else
-      var lo = 0
-      var hi = sLen
-      while lo < hi do
-        val mid = (lo + hi) >>> 1
-        if sIdx(mid) < i then lo = mid + 1 else hi = mid
-      if lo < sLen && sIdx(lo) == i then
-        sCnt(lo) -= c
-        if sCnt(lo) <= 0 then
-          var j = lo
-          while j < sLen - 1 do
-            sIdx(j) = sIdx(j + 1); sCnt(j) = sCnt(j + 1); sSum(j) = sSum(j + 1)
-            j += 1
-          sLen -= 1
-        else sSum(lo) -= s
+    else sLen = sDel(sIdx, sCnt, sSum, sLen, i, c, s)
+
+  private def removeSigned(positive: Boolean, b: Int, c: Long, s: Double): Unit =
+    val off = b - base
+    if off >= 0 && off < half then
+      val slot = if positive then half + off else (half - 1) - off
+      dense(slot) -= c
+      if dense(slot) <= 0 then { dense(slot) = 0; denseSum(slot) = 0.0 }
+      else denseSum(slot) -= s
+    else if b < base then
+      if positive then
+        tinyPosCnt -= c; if tinyPosCnt <= 0 then { tinyPosCnt = 0; tinyPosSum = 0.0 } else tinyPosSum -= s
+      else
+        tinyNegCnt -= c; if tinyNegCnt <= 0 then { tinyNegCnt = 0; tinyNegSum = 0.0 } else tinyNegSum -= s
+    else if positive then sLen = sDel(sIdx, sCnt, sSum, sLen, b, c, s)
+    else nLen = sDel(nIdx, nCnt, nSum, nLen, b, c, s)
 
 
   /////////////////////////
   /// Collapse / balance ///
   /////////////////////////
 
-  /** Gather every populated bucket (zeros excluded) in ascending index order. */
+  /** Gather every populated positive bucket (zeros excluded) in ascending index order. */
   private def gather(): (Array[Int], Array[Long], Array[Double], Int) =
     var nz = sLen
     var off = 0
@@ -298,45 +387,119 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
       k += 1
     started = true
 
+  // --- Signed mode: flip and symmetric rebalance ---
+
+  /** Switch from unsigned mode to signed mode, redistributing the positive store and negative buffer
+    * into the symmetric (value-ordered) dense core with two large-magnitude tails and tiny bands. */
+  private def flip(): Unit =
+    val (pi, pc, ps, pn) = gather()
+    val ni = new Array[Int](nLen);    System.arraycopy(nIdx, 0, ni, 0, nLen)
+    val nc = new Array[Long](nLen);   System.arraycopy(nCnt, 0, nc, 0, nLen)
+    val ns = new Array[Double](nLen); System.arraycopy(nSum, 0, ns, 0, nLen)
+    val nn = nLen
+    clearDense(); sLen = 0; nLen = 0; base = 0; started = false
+    signed = true
+    placeSigned(pi, pc, ps, pn, ni, nc, ns, nn)
+
+  /** Re-pack the current signed store after a sparse-tail overflow. */
+  private def rebalanceSigned(): Unit =
+    val (pi, pc, ps, pn) = gatherSigned(positive = true)
+    val (ni, nc, ns, nn) = gatherSigned(positive = false)
+    val tp = tinyPosCnt; val tps = tinyPosSum
+    val tn = tinyNegCnt; val tns = tinyNegSum
+    clearDense(); sLen = 0; nLen = 0
+    tinyPosCnt = 0; tinyPosSum = 0.0; tinyNegCnt = 0; tinyNegSum = 0.0
+    placeSigned(pi, pc, ps, pn, ni, nc, ns, nn)
+    tinyPosCnt += tp; tinyPosSum += tps          // already-aggregated tiny mass stays tiny
+    tinyNegCnt += tn; tinyNegSum += tns
+
+  /** Gather one sign's populated abs-buckets (dense half + large tail), ascending. */
+  private def gatherSigned(positive: Boolean): (Array[Int], Array[Long], Array[Double], Int) =
+    val (idx, cnt, sum, len) = if positive then (sIdx, sCnt, sSum, sLen) else (nIdx, nCnt, nSum, nLen)
+    var nz = len
+    var slot = 0
+    while slot < half do
+      val ds = if positive then half + slot else (half - 1) - slot
+      if dense(ds) > 0 then nz += 1
+      slot += 1
+    val gi = new Array[Int](nz)
+    val gc = new Array[Long](nz)
+    val gs = new Array[Double](nz)
+    var w = 0
+    // dense half in ascending abs-bucket order: positive slots half..maxBuckets-1; negative slots half-1..0
+    var off = 0
+    while off < half do
+      val ds = if positive then half + off else (half - 1) - off
+      if dense(ds) > 0 then { gi(w) = base + off; gc(w) = dense(ds); gs(w) = denseSum(ds); w += 1 }
+      off += 1
+    var p = 0
+    while p < len do { gi(w) = idx(p); gc(w) = cnt(p); gs(w) = sum(p); w += 1; p += 1 }
+    (gi, gc, gs, w)
+
+  /** Choose a shared symmetric window over the two signs' ascending bucket arrays (collapsing as
+    * needed), then scatter each side into dense / large tail / tiny band. */
+  private def placeSigned(
+    pi: Array[Int], pc: Array[Long], ps: Array[Double], pn0: Int,
+    ni: Array[Int], nc: Array[Long], ns: Array[Double], nn0: Int
+  ): Unit =
+    var pn = pn0
+    var nn = nn0
+    if pn == 0 && nn == 0 then { started = true; return }
+    var placed = false
+    while !placed do
+      var lo = Int.MaxValue
+      if pn > 0 && pi(0) < lo then lo = pi(0)
+      if nn > 0 && ni(0) < lo then lo = ni(0)
+      // highest non-parkable bucket per side (top `sparseBuckets` go to the large tail)
+      val pCore = if pn > sparseBuckets then pi(pn - 1 - sparseBuckets) else lo - 1
+      val nCore = if nn > sparseBuckets then ni(nn - 1 - sparseBuckets) else lo - 1
+      val core = jm.max(pCore, nCore)
+      if core - lo + 1 <= half then
+        base = lo
+        scatterSigned(true,  pi, pc, ps, pn)
+        scatterSigned(false, ni, nc, ns, nn)
+        started = true
+        placed = true
+      else
+        pn = collapseRuns(pi, pc, ps, pn)
+        nn = collapseRuns(ni, nc, ns, nn)
+        bumpCollapse()
+
+  private def scatterSigned(positive: Boolean, gi: Array[Int], gc: Array[Long], gs: Array[Double], n: Int): Unit =
+    var k = 0
+    while k < n do
+      val b = gi(k); val off = b - base
+      if off >= 0 && off < half then
+        val slot = if positive then half + off else (half - 1) - off
+        dense(slot) = gc(k); denseSum(slot) = gs(k)
+      else if b < base then
+        if positive then { tinyPosCnt += gc(k); tinyPosSum += gs(k) }
+        else { tinyNegCnt += gc(k); tinyNegSum += gs(k) }
+      else if positive then { sIdx(sLen) = b; sCnt(sLen) = gc(k); sSum(sLen) = gs(k); sLen += 1 }
+      else { nIdx(nLen) = b; nCnt(nLen) = gc(k); nSum(nLen) = gs(k); nLen += 1 }
+      k += 1
+
 
   ///////////////
   /// Merging ///
   ///////////////
 
   /** Merge another sketch into this one.  Both must share the same base accuracy [[alpha0]].
-    * The finer sketch is uniformly collapsed to the coarser one's resolution first.
+    * Each of `that`'s bucket means is re-added at its own multiplicity, so the result is exact at
+    * bucket resolution when the grids align and within bucket error otherwise; moments are exact.
     */
   def mergeWith(that: UDDSketch): Unit =
     if that.alpha0 != alpha0 then
       throw new IllegalArgumentException(s"Cannot merge UDDSketches with different base accuracy: $alpha0 vs ${that.alpha0}")
-    while nCollapse < that.nCollapse do
-      val (gi, gc, gs, n) = gather()
-      val m = collapseRuns(gi, gc, gs, n)
-      bumpCollapse()
-      redistributeFresh(gi, gc, gs, m)
-    val dThat = nCollapse - that.nCollapse     // collapse `that` down to our (coarser) grid as we read it
-    val (ti, tc, ts, tn) = that.gather()
-    var k = 0
-    while k < tn do
-      putBucket(ti(k) >> dThat, tc(k), ts(k))
-      k += 1
-    zeroCount += that.zeroCount
-    total += that.total          // putBucket doesn't touch total, so add the whole of `that` here
-    acc += that.acc
-    if that.loSeen < loSeen then loSeen = that.loSeen
-    if that.hiSeen > hiSeen then hiSeen = that.hiSeen
-
-  private def redistributeFresh(gi: Array[Int], gc: Array[Long], gs: Array[Double], n: Int): Unit =
-    if n == 0 then { clearDense(); sLen = 0; return }
-    val span = gi(n - 1) - gi(0) + 1
-    if span <= maxBuckets then
-      base = gi(0)
-      redistribute(gi, gc, gs, n, 0, n)
-    else
-      clearDense(); sLen = 0
-      var k = 0
-      while k < n do { putBucket(gi(k), gc(k), gs(k)); k += 1 }
-      if sLen > sparseBuckets then rebalance()
+    val thatLo = that.loSeen
+    val thatHi = that.hiSeen
+    val thatAcc = that.acc.snapshot
+    that.foreachAll: (mean, _, c) =>
+      total += c
+      if mean == 0.0 then zeroCount += c else place(mean, c)
+    acc += thatAcc
+    if thatLo < loSeen then loSeen = thatLo
+    if thatHi > hiSeen then hiSeen = thatHi
 
 
   /////////////////
@@ -345,16 +508,45 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
 
   private inline def clampUnit(q: Double): Double = if q < 0 then 0.0 else if q > 1 then 1.0 else q
 
-  /** Iterate populated buckets (zeros first) ascending, with each bucket's exact mean value and count. */
-  private inline def foreachValue(inline f: (Double, Long) => Unit): Unit =
-    if zeroCount > 0 then f(0.0, zeroCount)
-    var p = 0
-    while p < sLen && sIdx(p) < base do { f(sSum(p) / sCnt(p), sCnt(p)); p += 1 }
-    var off = 0
-    while off < maxBuckets do
-      if dense(off) > 0 then f(denseSum(off) / dense(off), dense(off))
-      off += 1
-    while p < sLen do { f(sSum(p) / sCnt(p), sCnt(p)); p += 1 }
+  /** Iterate every populated entry in ascending value order, yielding `(meanValue, strictValue, count)`:
+    * `strictValue` is the signed geometric bucket centre (or the mean, for zero / tiny bins). */
+  private inline def foreachAll(inline f: (Double, Double, Long) => Unit): Unit =
+    // Negatives, ascending value (most negative first): large tail (desc abs-bucket), dense half, tiny.
+    var p = nLen - 1
+    while p >= 0 do { val m = nSum(p) / nCnt(p); f(-m, -jm.pow(gamma, nIdx(p) + 0.5), nCnt(p)); p -= 1 }
+    if signed then
+      var slot = 0
+      while slot < half do
+        if dense(slot) > 0 then
+          val b = base + (half - 1 - slot)
+          f(-(denseSum(slot) / dense(slot)), -jm.pow(gamma, b + 0.5), dense(slot))
+        slot += 1
+      if tinyNegCnt > 0 then { val m = tinyNegSum / tinyNegCnt; f(-m, -m, tinyNegCnt) }
+    if zeroCount > 0 then f(0.0, 0.0, zeroCount)
+    if signed then
+      if tinyPosCnt > 0 then { val m = tinyPosSum / tinyPosCnt; f(m, m, tinyPosCnt) }
+      var slot = half
+      while slot < maxBuckets do
+        if dense(slot) > 0 then
+          val b = base + (slot - half)
+          f(denseSum(slot) / dense(slot), jm.pow(gamma, b + 0.5), dense(slot))
+        slot += 1
+      var q = 0
+      while q < sLen do { f(sSum(q) / sCnt(q), jm.pow(gamma, sIdx(q) + 0.5), sCnt(q)); q += 1 }
+    else
+      var q = 0
+      while q < sLen && sIdx(q) < base do { f(sSum(q) / sCnt(q), jm.pow(gamma, sIdx(q) + 0.5), sCnt(q)); q += 1 }
+      var off = 0
+      while off < maxBuckets do
+        if dense(off) > 0 then f(denseSum(off) / dense(off), jm.pow(gamma, (base + off) + 0.5), dense(off))
+        off += 1
+      while q < sLen do { f(sSum(q) / sCnt(q), jm.pow(gamma, sIdx(q) + 0.5), sCnt(q)); q += 1 }
+
+  private def entryCount(): Int =
+    var n = 0
+    foreachAll: (_, _, _) =>
+      n += 1
+    n
 
   /** Interpolated quantile `q` (mean-anchored): exact at the extremes, smoothly
     * interpolated between adjacent bucket means in between.  `q` is clamped to `[0,1]`.
@@ -363,13 +555,13 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
     if total <= 0 then return Double.NaN
     if total == 1 then return hiSeen
     val r = clampUnit(q) * (total - 1)
-    val nb = bucketEntries()
+    val nb = entryCount()
     val rs = new Array[Double](nb + 2)
     val vs = new Array[Double](nb + 2)
     rs(0) = 0.0; vs(0) = min
     var w = 1
     var cum = 0L
-    foreachValue: (v, c) =>
+    foreachAll: (v, _, c) =>
       rs(w) = cum + (c - 1) / 2.0
       vs(w) = v
       w += 1
@@ -384,7 +576,7 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
       val f = (r - r0) / (r1 - r0)
       vs(j) + f * (vs(j + 1) - vs(j))
 
-  /** Strict quantile `q`: the geometric centre of the bucket holding rank `q`, carrying the
+  /** Strict quantile `q`: the (signed) geometric centre of the bucket holding rank `q`, carrying the
     * worst-case relative-error guarantee ([[alpha]]).  `q` is clamped to `[0,1]`.
     */
   def quantileStrict(q: Double): Double =
@@ -393,20 +585,10 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
     var cum = 0L
     var ans = Double.NaN
     var done = false
-    if zeroCount > 0 then
-      cum += zeroCount
-      if target < cum then { ans = 0.0; done = true }
-    inline def consider(i: Int, c: Long): Unit =
+    foreachAll: (_, strict, c) =>
       if !done then
         cum += c
-        if target < cum then { ans = jm.pow(gamma, i + 0.5); done = true }
-    var p = 0
-    while p < sLen && sIdx(p) < base do { consider(sIdx(p), sCnt(p)); p += 1 }
-    var off = 0
-    while off < maxBuckets do
-      if dense(off) > 0 then consider(base + off, dense(off))
-      off += 1
-    while p < sLen do { consider(sIdx(p), sCnt(p)); p += 1 }
+        if target < cum then { ans = strict; done = true }
     if done then ans else max
 
   /** Median (interpolated). */
@@ -418,33 +600,11 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
   /** Approximate fraction of values `<= x` (the empirical CDF at `x`). */
   def fractionBelow(x: Double): Double =
     if total <= 0 then return Double.NaN
-    if x < 0 then return 0.0
     var below = 0.0
-    if x == 0.0 then below = zeroCount.toDouble * 0.5
-    else
-      if zeroCount > 0 then below += zeroCount.toDouble
-      val ix = bucketOf(x)
-      foreachValueIndexed: (i, _, c) =>
-        if i < ix then below += c.toDouble
-        else if i == ix then below += c.toDouble * 0.5
+    foreachAll: (v, _, c) =>
+      if v < x then below += c.toDouble
+      else if v == x then below += c.toDouble * 0.5
     below / total
-
-  private inline def foreachValueIndexed(inline f: (Int, Double, Long) => Unit): Unit =
-    var p = 0
-    while p < sLen && sIdx(p) < base do { f(sIdx(p), sSum(p) / sCnt(p), sCnt(p)); p += 1 }
-    var off = 0
-    while off < maxBuckets do
-      if dense(off) > 0 then f(base + off, denseSum(off) / dense(off), dense(off))
-      off += 1
-    while p < sLen do { f(sIdx(p), sSum(p) / sCnt(p), sCnt(p)); p += 1 }
-
-  private def bucketEntries(): Int =
-    var nz = sLen + (if zeroCount > 0 then 1 else 0)
-    var off = 0
-    while off < maxBuckets do
-      if dense(off) > 0 then nz += 1
-      off += 1
-    nz
 
 
   ////////////////
@@ -462,21 +622,30 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
     System.arraycopy(sCnt, 0, s.sCnt, 0, sLen)
     System.arraycopy(sSum, 0, s.sSum, 0, sLen)
     s.sLen = sLen
+    System.arraycopy(nIdx, 0, s.nIdx, 0, nLen)
+    System.arraycopy(nCnt, 0, s.nCnt, 0, nLen)
+    System.arraycopy(nSum, 0, s.nSum, 0, nLen)
+    s.nLen = nLen
+    s.signed = signed
+    s.tinyPosCnt = tinyPosCnt; s.tinyPosSum = tinyPosSum
+    s.tinyNegCnt = tinyNegCnt; s.tinyNegSum = tinyNegSum
     s.zeroCount = zeroCount; s.total = total
     s.acc.n = acc.n; s.acc.mean = acc.mean; s.acc.sse = acc.sse
     s.loSeen = loSeen; s.hiSeen = hiSeen
     s
 
-  /** Remove all data, returning to the initial resolution. */
+  /** Remove all data, returning to the initial resolution and unsigned mode. */
   def clear(): Unit =
     gamma = (1 + alpha0) / (1 - alpha0); invLog2Gamma = 1.0 / gamma.log2; nCollapse = 0
-    clearDense(); base = 0; started = false; sLen = 0
+    clearDense(); base = 0; started = false; sLen = 0; nLen = 0
+    signed = false
+    tinyPosCnt = 0; tinyPosSum = 0.0; tinyNegCnt = 0; tinyNegSum = 0.0
     zeroCount = 0; total = 0; acc.reset()
     loSeen = Double.PositiveInfinity; hiSeen = Double.NegativeInfinity
 
   override def toString =
     if total <= 0 then s"UDDSketch(empty, α=$alpha0)"
-    else f"UDDSketch(n=$total, α=$alpha%.4g${if nCollapse > 0 then s", $nCollapse collapses" else ""}, median≈${quantile(0.5)}%.4g)"
+    else f"UDDSketch(n=$total, α=$alpha%.4g${if signed then ", signed" else ""}${if nCollapse > 0 then s", $nCollapse collapses" else ""}, median≈${quantile(0.5)}%.4g)"
 }
 object UDDSketch {
   /** A sketch with base relative accuracy `alpha` (e.g. `0.01` for ~1% buckets).
@@ -690,10 +859,10 @@ object Adwin {
     new Adwin(delta, maxBucketsPerRow)
 }
 ////////////////////////////////////////////////////////////////////////
-/// Pradwin: precise, robust, distribution-free changepoint location    ///
+/// Radwin: robust, distribution-free changepoint location             ///
 ////////////////////////////////////////////////////////////////////////
 
-/** Pradwin (precise robust ADWIN) — retrospective changepoint localization over a buffered window
+/** Radwin (robust ADWIN) — retrospective changepoint localization over a buffered window
   * of a real-valued stream, built on '''rank-CUSUM''' statistics so it is distribution-free and
   * outlier-robust by construction.
   *
@@ -715,7 +884,7 @@ object Adwin {
   * The Kolmogorov null is asymptotic, so p-values are mildly conservative for small windows
   * (`O(1/√n)`); the profiler's windows are large and `minSeg` keeps each side substantial.
   */
-final class Pradwin private (val capacity: Int, val minSeg: Int, val alpha: Double, val ciMargin: Double) {
+final class Radwin private (val capacity: Int, val minSeg: Int, val alpha: Double, val ciMargin: Double) {
   private val values = new Array[Double](capacity)
   private var head = 0
   private var count = 0
@@ -742,10 +911,10 @@ final class Pradwin private (val capacity: Int, val minSeg: Int, val alpha: Doub
   def clear(): Unit = { head = 0; count = 0; seen = 0 }
 
   /** Locate the most likely single breakpoint in the current window. */
-  def locate(): Pradwin.Change =
+  def locate(): Radwin.Change =
     val n = count
     val base = seen - n
-    if n < 2 * minSeg then return Pradwin.Change(base + n, base + n, base + n, 1.0, 1.0, 1.0, false)
+    if n < 2 * minSeg then return Radwin.Change(base + n, base + n, base + n, 1.0, 1.0, 1.0, false)
 
     val r = new Array[Double](n)
     var i = 0
@@ -765,9 +934,9 @@ final class Pradwin private (val capacity: Int, val minSeg: Int, val alpha: Doub
     val sig = p < alpha
     val b = if pLoc <= pScale then locB else dispB
     val ci = b.interval(ciMargin)
-    Pradwin.Change(base + b.at, base + ci._1, base + ci._2, p, pLoc, pScale, sig)
+    Radwin.Change(base + b.at, base + ci._1, base + ci._2, p, pLoc, pScale, sig)
 }
-object Pradwin {
+object Radwin {
   /** A located breakpoint.  `at` is the absolute stream index of the first value of the new regime
     * and `[loCI, hiCI]` its localization interval; `p` is the combined (Bonferroni) p-value with
     * `pLoc`/`pScale` the per-channel values (location vs dispersion).  `significant` is the
@@ -783,44 +952,44 @@ object Pradwin {
     * @param alpha     p-value cutoff for the convenience `significant` flag (consumers should use `p`)
     * @param ciMargin  margin (in Brownian-bridge units) defining the localization interval
     */
-  def apply(capacity: Int = 4096, minSeg: Int = 20, alpha: Double = 0.05, ciMargin: Double = 0.5): Pradwin =
-    if capacity < 4 then throw new IllegalArgumentException(s"Pradwin needs capacity >= 4, not $capacity")
-    if minSeg < 2 then throw new IllegalArgumentException(s"Pradwin minSeg must be >= 2, not $minSeg")
-    if !(alpha > 0 && alpha < 1) then throw new IllegalArgumentException(s"Pradwin alpha must be in (0, 1), not $alpha")
-    new Pradwin(capacity, minSeg, alpha, ciMargin)
+  def apply(capacity: Int = 4096, minSeg: Int = 20, alpha: Double = 0.05, ciMargin: Double = 0.5): Radwin =
+    if capacity < 4 then throw new IllegalArgumentException(s"Radwin needs capacity >= 4, not $capacity")
+    if minSeg < 2 then throw new IllegalArgumentException(s"Radwin minSeg must be >= 2, not $minSeg")
+    if !(alpha > 0 && alpha < 1) then throw new IllegalArgumentException(s"Radwin alpha must be in (0, 1), not $alpha")
+    new Radwin(capacity, minSeg, alpha, ciMargin)
 }
 
 
 ////////////////////////////////////////////////////////////////////////
-/// MultiPradwin: segmented multi-channel summary, detection driven by  ///
-/// a synthesized score (composes Pradwin + UDDSketch + Est).            ///
+/// MultiRadwin: segmented multi-channel summary, detection driven by  ///
+/// a synthesized score (composes Radwin + UDDSketch + Est).            ///
 ////////////////////////////////////////////////////////////////////////
 
-/** MultiPradwin — accumulate several labeled input channels at once, summarizing each per regime,
+/** MultiRadwin — accumulate several labeled input channels at once, summarizing each per regime,
   * where the regime boundaries come from a single '''synthesized''' score.
   *
   * {{{
-  * val m = MultiPradwin(Array("first","second"))("ratio", xs => xs(1)/xs(0))
+  * val m = MultiRadwin(Array("first","second"))("ratio", xs => xs(1)/xs(0))
   * m.add(Array(tFirst, tSecond))   // one tick = one value per input channel
   * }}}
   * Each input channel keeps its own per-segment and overall [[Est]]/[[UDDSketch]] summary.  Every tick
-  * the `synth` function maps the inputs to one score, which drives a composed [[Pradwin]] detector; on a
+  * the `synth` function maps the inputs to one score, which drives a composed [[Radwin]] detector; on a
   * significant changepoint that also clears a practical-effect gate, every channel's current segment is
   * closed at once (boundaries are shared, set by the score).  Detecting on a *ratio* makes the
   * segmentation immune to common-mode shifts (core migration, throttling, load) that move all inputs
   * together — only changes in the *relationship* split.  Inputs and score must be non-negative.
   */
-final class MultiPradwin private (
+final class MultiRadwin private (
   val inputs: Array[String],
   val scoreLabel: String,
   synth: Array[Double] => Double,
-  cfg: MultiPradwin.Config
+  cfg: MultiRadwin.Config
 ) {
-  import MultiPradwin.Chan
+  import MultiRadwin.Chan
   private val k = inputs.length
   private val chans = Array.tabulate(k)(i => new Chan(inputs(i)))
   private val score = new Chan(scoreLabel)
-  private val pradwin = Pradwin(cfg.capacity, cfg.minSeg, cfg.alpha)
+  private val radwin = Radwin(cfg.capacity, cfg.minSeg, cfg.alpha)
   private val recent = new Array[Double](jm.max(2 * cfg.minSeg, 8))   // recent scores ≈ the new regime
   private var rHead = 0
   private var rFill = 0
@@ -828,20 +997,20 @@ final class MultiPradwin private (
 
   /** Feed one tick: one value per input channel (length must equal `inputs.length`). */
   def add(xs: Array[Double]): Unit = this.synchronized:
-    if xs.length != k then throw new IllegalArgumentException(s"MultiPradwin expects $k inputs, got ${xs.length}")
+    if xs.length != k then throw new IllegalArgumentException(s"MultiRadwin expects $k inputs, got ${xs.length}")
     var i = 0
     while i < k do { chans(i).add(xs(i)); i += 1 }
     val s = synth(xs)
     score.add(s)
-    pradwin.add(s)
+    radwin.add(s)
     recent(rHead) = s; rHead = (rHead + 1) % recent.length; if rFill < recent.length then rFill += 1
     sinceCheck += 1
     if sinceCheck >= cfg.cadence then
       sinceCheck = 0
-      if pradwin.size >= 2 * cfg.minSeg && pradwin.locate().significant then
+      if radwin.size >= 2 * cfg.minSeg && radwin.locate().significant then
         val newLevel = recentMedian
         val oldLevel = score.segMedian                 // O(1) sketch query (mostly the old regime)
-        pradwin.clear()
+        radwin.clear()
         if practicallyDifferent(oldLevel, newLevel) then    // gate out tiny shifts
           i = 0
           while i < k do { chans(i).commit(); i += 1 }
@@ -854,9 +1023,9 @@ final class MultiPradwin private (
     val scale = jm.max(jm.abs(a), jm.abs(b))
     scale > 0 && jm.abs(a - b) / scale > cfg.effect
 
-  /** One [[MultiPradwin.Track]] per input channel, then the synthesized score channel. */
-  def tracks: Vector[MultiPradwin.Track] = this.synchronized:
-    val out = Vector.newBuilder[MultiPradwin.Track]
+  /** One [[MultiRadwin.Track]] per input channel, then the synthesized score channel. */
+  def tracks: Vector[MultiRadwin.Track] = this.synchronized:
+    val out = Vector.newBuilder[MultiRadwin.Track]
     var i = 0
     while i < k do { out += chans(i).track; i += 1 }
     out += score.track
@@ -867,10 +1036,10 @@ final class MultiPradwin private (
     var i = 0
     while i < k do { chans(i).reset(); i += 1 }
     score.reset()
-    pradwin.clear()
+    radwin.clear()
     rHead = 0; rFill = 0; sinceCheck = 0
 }
-object MultiPradwin {
+object MultiRadwin {
   /** Summary statistics for one segment (or the overall) of one channel. */
   case class Stat(n: Long, mean: Double, sd: Double, median: Double, q90: Double, q99: Double)
 
@@ -921,7 +1090,7 @@ object MultiPradwin {
     cadence: Int = 128,
     capacity: Int = 1024,
     minSeg: Int = 20
-  ): MultiPradwin =
-    if inputs.isEmpty then throw new IllegalArgumentException("MultiPradwin needs at least one input channel")
-    new MultiPradwin(inputs.clone, scoreLabel, synth, Config(alpha, jm.max(0.0, effect), jm.max(1, cadence), jm.max(8, capacity), jm.max(2, minSeg)))
+  ): MultiRadwin =
+    if inputs.isEmpty then throw new IllegalArgumentException("MultiRadwin needs at least one input channel")
+    new MultiRadwin(inputs.clone, scoreLabel, synth, Config(alpha, jm.max(0.0, effect), jm.max(1, cadence), jm.max(8, capacity), jm.max(2, minSeg)))
 }

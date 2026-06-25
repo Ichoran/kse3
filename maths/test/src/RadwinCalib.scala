@@ -4,7 +4,7 @@
 package kse.test.maths
 
 // Standalone finite-N calibration of cdfKolmogorov used as the rank-CUSUM scan-maximum null — NOT
-// part of the JUnit suite.  Run:  mill maths.test.runMain kse.test.maths.PradwinCalib
+// part of the JUnit suite.  Run:  mill maths.test.runMain kse.test.maths.RadwinCalib
 //
 // For each N it Monte-Carlos the null (random orderings of a fixed rank multiset) and reports the
 // ACTUAL rejection rate at nominal p-cutoffs, so we can document where the asymptotic is trustworthy.
@@ -12,7 +12,7 @@ package kse.test.maths
 import kse.maths.{_, given}
 import kse.maths.NumericFunctions.cdfKolmogorov
 
-object PradwinCalib {
+object RadwinCalib {
   /** Standardized sup of the CUSUM of `scores` over all interior splits — the statistic whose null
     * is asymptotically the Kolmogorov (sup|Brownian bridge|) distribution.
     */
