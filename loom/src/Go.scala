@@ -430,7 +430,7 @@ object Go {
 
   /** A handler that holds at most one produced-but-not-yet-delivered value, cached so contention
     * never drops it.  A subclass fills `pending` while empty, then `flush` delivers it to `out`. */
-  private[loom] abstract class BufferingHandler[B](out: Chan[B]) extends Handler {
+  private[loom] abstract class BufferingHandler[B](out: ChanOut[B]) extends Handler {
     protected var pendingFlag = false
     protected var pending: B = null.asInstanceOf[B]
     final def hasPending: Boolean = pendingFlag
@@ -446,7 +446,7 @@ object Go {
         case other => other
   }
 
-  private[loom] final class RecvHandler[A](chan: Chan[A], f: A => Ask[Unit]) extends Handler {
+  private[loom] final class RecvHandler[A](chan: ChanIn[A], f: A => Ask[Unit]) extends Handler {
     def alive: Boolean = !chan.isComplete               // more data (or an error) may still arrive
     def hasPending: Boolean = false
     def register(p: Parker): Unit = chan.addRecvWaiter(p)
@@ -460,7 +460,7 @@ object Go {
       }(identity)                                        // Wait / Done / Fail pass straight through
   }
 
-  private[loom] final class SendHandler[A](chan: Chan[A], cond: () => Boolean, producer: () => Ask[A])
+  private[loom] final class SendHandler[A](chan: ChanOut[A], cond: () => Boolean, producer: () => Ask[A])
   extends BufferingHandler[A](chan) {
     // Live while a value is buffered to deliver, or the channel is open and `cond` may yet
     // be true.  `cond` is a producer's per-handler termination signal, so liveness consults it.
@@ -484,7 +484,7 @@ object Go {
   /** Reads `src`, transforms with `f`, writes `dst` — holding at most one in-flight item, so
     * backpressure is deterministic: it won't read the next input until the current output is
     * delivered, and it parks on a full `dst` rather than buffering. */
-  private[loom] final class TransferHandler[A, B](src: Chan[A], dst: Chan[B], f: A => Ask[B])
+  private[loom] final class TransferHandler[A, B](src: ChanIn[A], dst: ChanOut[B], f: A => Ask[B])
   extends BufferingHandler[B](dst) {
     // Live while we can still deliver (dst open) and either hold a value or src may yet give one.
     def alive: Boolean = dst.isOpen && (pendingFlag || !src.isComplete)
@@ -525,7 +525,7 @@ extension [A](chan: Chan[A]) {
 
   /** Transfer values from this channel into `dst`, transforming with `f`, one in-flight item at
     * a time (deterministic backpressure).  Registers this task as a writer of `dst`. */
-  def into[B](dst: Chan[B])(f: A => (Go.CanFail[B] ?=> B))(using go: Go): Unit =
+  def into[B](dst: ChanOut[B])(f: A => (Go.CanFail[B] ?=> B))(using go: Go): Unit =
     go.trackWriter(dst)
     go.addHandler(new Go.TransferHandler(chan, dst, v => Go.attempt(f(v))))
 
@@ -607,4 +607,53 @@ extension [A](chan: ChanN[A]) {
   /** Declare that the current task writes to this channel via imperative `send`/`sendN`, so
     * the channel still auto-closes when the task finishes. */
   def writing(using go: Go): Unit = go.trackWriter(chan)
+}
+
+
+// === The consume verbs for a read-only source (handlers shared with the channels) ===
+//
+// A `Chan.Source` is a `ChanInN`, so it reuses the chunked `GetNHandler`/`TransferHandler`:
+// `get` pulls a batch per wakeup straight from the backing, `into` relays it into a real
+// channel with backpressure.  There is no `put`/`writing` — a source is read-only.
+
+extension [A](src: Chan.Source[A]) {
+  /** Consume each value as it arrives, pulling up to `ChanN`'s default batch per wakeup.  When
+    * the source is exhausted (or closed) this registration goes inactive, ending the task if it
+    * has nothing else to do. */
+  def get(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.addHandler(new ChanN.GetNHandler(src, ChanN.defaultBatch, false, v => Go.attempt(f(v))))
+
+  /** Consume each value as it arrives, pulling up to `n` per wakeup. */
+  def get(n: Int)(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    if n < 1 then throw new IllegalArgumentException(s"get batch must be at least 1: $n")
+    go.addHandler(new ChanN.GetNHandler(src, n, false, v => Go.attempt(f(v))))
+
+  /** Drain this source into `dst`, transforming with `f`, one in-flight item at a time
+    * (deterministic backpressure).  Registers this task as a writer of `dst`. */
+  def into[B](dst: ChanOut[B])(f: A => (Go.CanFail[B] ?=> B))(using go: Go): Unit =
+    go.trackWriter(dst)
+    go.addHandler(new Go.TransferHandler(src, dst, v => Go.attempt(f(v))))
+
+  /** Alias for `get` (single-value form). */
+  def onRecv(f: A => Unit)(using go: Go): Unit =
+    go.addHandler(new Go.RecvHandler(src, v => { try { f(v); Is.unit } catch case e if e.catchable => Alt(Err(e)) }))
+}
+
+
+// === The produce verbs for a write-only sink (feeding is `into`; handlers shared with the channels) ===
+//
+// A `Chan.Sink` is a `ChanOut`, so `chan.into(sink)` / `source.into(sink)` already relay into it
+// with backpressure and the auto-close cascade — no sink-specific `into` is needed.  These verbs
+// cover a task that *generates* straight into a sink, or writes it imperatively.
+
+extension [A](sink: Chan.Sink[A]) {
+  /** Produce a value whenever asked (a sink always has room).  Registers this task as a writer, so
+    * the sink is finalized once every writer has finished.  Terminate via `Stop.on`/`Stop()`. */
+  def put(produce: Go.CanFail[A] ?=> A)(using go: Go): Unit =
+    go.trackWriter(sink)
+    go.addHandler(new Go.SendHandler(sink, () => true, () => Go.attempt(produce)))
+
+  /** Declare that the current task writes to this sink via imperative `send`, so it is still
+    * finalized when the task finishes. */
+  def writing(using go: Go): Unit = go.trackWriter(sink)
 }

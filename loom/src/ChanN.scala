@@ -45,7 +45,7 @@ import kse.flow._
   * element.  Cross-producer order was never specified for `Chan` either, but anyone
   * expecting rough round-robin should expect per-producer runs here.
   */
-final class ChanN[A] private (val capacity: Int, val batch: Int) extends WriterTracked {
+final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN[A], ChanOutN[A] {
   import Chan.State
   import ChanN.Sentinel
 
@@ -467,7 +467,7 @@ object ChanN {
     * then runs the per-item handler from the local copy with the shared structure untouched.
     * With `full` set it extracts nothing until a whole chunk is ready (or the channel has left
     * the open state); the chunk is clamped to the capacity so it can always assemble. */
-  private[loom] final class GetNHandler[A](chan: ChanN[A], n: Int, full: Boolean, f: A => Ask[Unit]) extends Go.Handler {
+  private[loom] final class GetNHandler[A](chan: ChanInN[A], n: Int, full: Boolean, f: A => Ask[Unit]) extends Go.Handler {
     private val lim = if n > chan.capacity then chan.capacity else n
     private val buf = new Array[AnyRef](lim)
     def alive: Boolean = !chan.isComplete               // more data (or an error) may still arrive
@@ -492,7 +492,7 @@ object ChanN {
   }
 
   /** One-at-a-time producer, exactly Chan's `put` shape (see `Go.SendHandler`). */
-  private[loom] final class PutOneHandler[A](chan: ChanN[A], producer: () => Ask[A]) extends Go.Handler {
+  private[loom] final class PutOneHandler[A](chan: ChanOut[A], producer: () => Ask[A]) extends Go.Handler {
     private var pendingFlag = false
     private var pending: A = null.asInstanceOf[A]
     def alive: Boolean = pendingFlag || chan.isOpen
@@ -518,7 +518,7 @@ object ChanN {
     * in as few lock acquisitions as room allows.  An undelivered remainder is pending: it is
     * flushed before the task may stop, and only ever dropped if the channel closes under us
     * (exactly when Chan drops a pending value). */
-  private[loom] final class PutNHandler[A](chan: ChanN[A], n: Int,
+  private[loom] final class PutNHandler[A](chan: ChanOutN[A], n: Int,
     f: (Go.CanFail[Unit], boundary.Label[shortcut.Type]) ?=> Int => A
   ) extends Go.Handler {
     private val buf = new Array[AnyRef](n)
@@ -569,7 +569,7 @@ object ChanN {
   /** Drains `source(x0 until xN)` into the channel, up to `chunk` elements per lock
     * acquisition, then goes inactive.  The elements live in the caller's array, not in any
     * handler buffer, so there is nothing to flush on a stop. */
-  private[loom] final class PutArrayHandler[A](chan: ChanN[A], source: Array[A], x0: Int, xN: Int, chunk: Int) extends Go.Handler {
+  private[loom] final class PutArrayHandler[A](chan: ChanOutN[A], source: Array[A], x0: Int, xN: Int, chunk: Int) extends Go.Handler {
     private var x = x0
     def alive: Boolean = x < xN && chan.isOpen
     def hasPending: Boolean = false
