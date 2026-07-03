@@ -1,117 +1,1016 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2014-15, 2024 Rex Kerr, UCSF, and Calico Life Sciences LLC
+// Copyright (c) 2014-15, 2024, 2026 Rex Kerr, UCSF, and Calico Life Sciences LLC
 
-package kse.eio.grok
+package kse.eio
 
 
-// import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
-
+import scala.annotation.publicInBinary
 import scala.util.boundary
-import scala.compiletime.{uninitialized, erasedValue}
+import scala.util.boundary.Label
 
-import kse.basics._
-import kse.flow._
-import kse.maths._
+import kse.basics.{given, _}
+import kse.flow.{given, _}
 
 
-/*
-trait Grok {
-  def Z[E >: Alt[Err]](using Lb[E])
-}
-*/
+//////////////////////////
+/// Delimiter machinery ///
+//////////////////////////
 
-trait Grok {
-  type Elt <: Byte | Char
-  inline def has(i: Int): Boolean
-  inline def peek: Elt
-  inline def peekC: Char = inline peek match
-    case b: Byte => b.toChar
-    case c: Char => c
-  inline def advance: Boolean
-  inline def next[E >: Alt[Err]](using boundary.Label[E]): Elt =
-    if advance then peek
-    else boundary.break(Err.or("at end of input"))
-  inline def advanceIf(inline p: Elt => Boolean): Boolean
-  inline def advanceWhile(inline p: Elt => Boolean): Int =
-    var i = 0
-    while advanceIf(p) do i += 1
-    i
-
-  inline def ensure[E >: Alt[Err]](i: Int)(using boundary.Label[E]): Unit =
-    if !has(i) then
-      boundary.break(Err.or("at end of input")) 
-
-  /*
-  inline def Z[E >: Alt[Err]](using boundary.Label[E]): Boolean =
-    ensure(1)
-    peekC match
-      case 't' | 'T' =>
-        if !advance then
-          true
-        else if delim(peek) then
-          advance
-          true
-        else if !use(3) then boundary.break(Err.or(s"out of input while trying to grok 'true'"))
-        else if !verifyC(c => c == 'r' || c == 'R') || !verifyC(c => c == 'u' || c == 'U') || !verifyC
-      case 'f' | 'F' =>
-      case 
-    inline peek match
-      case b: Byte =>
-      case c: Char =>
-        if delim(c) then boundary.break(Err.or("token end instead of boolean"))
-        val cc 
-
-  inline def B[E >: Alt[Err]](using boundary.Label[E]): Byte
-  inline def uB[E >: Alt[Err]](using boundary.Label[E]): UByte
-  inline def xB[E >: Alt[Err]](using boundary.Label[E]): Byte
-  inline def S[E >: Alt[Err]](using boundary.Label[E]): Short
-  inline def xS[E >: Alt[Err]](using boundary.Label[E]): Short
-  inline def C[E >: Alt[Err]](using boundary.Label[E]): Char
-  inline def I[E >: Alt[Err]](using boundary.Label[E]): Int
-  inline def uI[E >: Alt[Err]](using boundary.Label[E]): UInt
-  inline def xI[E >: Alt[Err]](using boundary.Label[E]): Int
-  inline def L[E >: Alt[Err]](using boundary.Label[E]): Long
-  inline def uL[E >: Alt[Err]](using boundary.Label[E]): ULong
-  inline def xL[E >: Alt[Err]](using boundary.Label[E]): Long
-  inline def skip[E >: Alt[Err]](using boundary.Label[E]): Unit
+/** A set of token-delimiting characters, stored as a 128-bit ASCII bitmask plus a flag that
+  * covers every non-ASCII character.  Membership testing is therefore two or three instructions
+  * with no virtual calls, which matters because it runs once per input character.
+  *
+  * Every `Delim` also knows which delimiter applies to a sub-parse within one of its own tokens,
+  * so tokenization can progress naturally, e.g. from lines to words to nothing (`Delim.lines.sub`
+  * is `Delim.white`, whose `sub` is `Delim.none`).
   */
-  inline def tok[E >: Alt[Err]](using boundary.Label[E]): String
+final class Delim private (val lo: Long, val hi: Long, val high: Boolean, sub0: Delim | Null) {
+  /** The delimiter to use for a sub-parse within one of our tokens (ourself, if nothing finer exists). */
+  def sub: Delim = sub0 match
+    case null => this
+    case d: Delim => d
+
+  /** Test whether a character code (0-65535 for text, 0-255 for raw bytes) is a delimiter. */
+  inline def apply(c: Int): Boolean =
+    if c < 64 then c >= 0 && ((lo >>> c) & 1L) != 0
+    else if c < 128 then ((hi >>> (c - 64)) & 1L) != 0
+    else high
 }
+object Delim {
+  /** No delimiters at all: the token is everything that remains. */
+  val none: Delim = new Delim(0L, 0L, false, null)
+
+  /** Whitespace-delimited tokens; sub-tokens are undelimited. */
+  val white: Delim = of(" \t\n\r\u000B\f", none)
+
+  /** Line-delimited tokens; sub-tokens are whitespace-delimited. */
+  val lines: Delim = of("\n\r", white)
+
+  /** A delimiter set of exactly the characters in `chars`, with `sub` used within tokens.
+    * Any non-ASCII character in `chars` makes _every_ non-ASCII character a delimiter.
+    */
+  def of(chars: String, sub: Delim = none): Delim =
+    var lo = 0L
+    var hi = 0L
+    var high = false
+    var k = 0
+    while k < chars.length do
+      val c = chars.charAt(k)
+      if c < 64 then lo |= 1L << c
+      else if c < 128 then hi |= 1L << (c - 64)
+      else high = true
+      k += 1
+    new Delim(lo, hi, high, sub)
+}
+
+
+/////////////////////////////
+/// The Grok parser itself ///
+/////////////////////////////
+
+/** A direct-mode parser: within a `Grok(input){ g => ... }` block you simply ask for what you
+  * want (`g.I` for an Int, `g.tok` for a delimited token, `g < '-'` to require a character) and
+  * either get it, with the cursor advanced, or jump to the block's boundary with a data-bearing
+  * `Err` that says what was expected, what was found, and where.  A failed read leaves the cursor
+  * at the point of failure.
+  *
+  * {{{
+  * Grok("2025-06-25", partial = true): g =>
+  *   (g.I, (g < '-').I, (g < '-').I)      // Ask[(Int, Int, Int)]
+  * }}}
+  *
+  * Token-level operations (`tok`, `< "literal"`, `grok`, `skip`, and value parses) skip leading
+  * delimiters unless the Grok was created with `exact = true`; `< (c: Char)` and `C` never skip.
+  * Numbers and booleans must normally end at a delimiter or the end of input; with
+  * `partial = true` they instead consume the longest valid prefix.
+  *
+  * Heavy lifting happens in per-source-type worker methods that report failure through an error
+  * code; the tiny inline shims that jump on error are the only boundary-aware code, so the happy
+  * path is monomorphic and jump-free.  A Grok is mutable state for exactly one parse: use it in
+  * one thread and do not let it escape its block.
+  */
+sealed abstract class Grok protected () {
+
+  // === Parse state (absolute indices into the root content; sub-parses narrow iA/iZ) ===
+
+  @publicInBinary protected[eio] var i = 0L
+  @publicInBinary protected[eio] var iA = 0L
+  @publicInBinary protected[eio] var iZ = 0L
+  @publicInBinary protected[eio] var dlm: Delim = Delim.lines
+  @publicInBinary protected[eio] var partialMode = false
+  @publicInBinary protected[eio] var skipMode = true
+
+  // === Failure report, set by workers when they fail ===
+  // eCode: 0 = ok; 1 = expected eWant, found <char at ePos>; 2 = message in eWant; 3 = expected eWant, found <token at ePos>
+  // Invariant: error handling happens entirely on the error branch.  eCode is 0 except in flight
+  // between an error branch setting it and failErr() consuming (and clearing) it, so success paths
+  // never touch it.  All error deliveries go through failErr(); continue() and user-level Err
+  // breaks bypass eCode entirely.
+
+  @publicInBinary protected[eio] var eCode = 0
+  @publicInBinary protected[eio] var ePos = 0L
+  @publicInBinary protected[eio] var eWant = ""
+  @publicInBinary protected[eio] var vPos = 0L
+
+  // === Single-character lookahead cache ===
+  // Invariant: cc IS the character code at the cursor (cc == at(i)), or -1 exactly when i >= iZ.
+  // It is always loaded, so ops need no bounds checks of their own: cc == -1 encodes end-of-view,
+  // and a loop's terminating read becomes the next op's lookahead, touching each character once.
+  // Every move of the cursor must eagerly reload cc (the advance needed a guarded load anyway);
+  // skipped means delimiters are already consumed at the cursor and clears on any move or
+  // delimiter change.  Code that breaks out mid-parse (sub-parse failure) may leave these stale;
+  // select restores them with the rest of the state, and otherwise the parse is over.
+
+  @publicInBinary protected[eio] var cc = -1
+  @publicInBinary protected[eio] var skipped = false
+
+  // === Workers, instantiated per concrete source type from the inline templates below ===
+
+  @publicInBinary protected[eio] def skipDelimsWork(): Unit
+  @publicInBinary protected[eio] def tokEndWork(): Long
+  @publicInBinary protected[eio] def loadWork(): Unit
+  @publicInBinary protected[eio] def cWork(): Char
+  @publicInBinary protected[eio] def matchCWork(c: Char): Unit
+  @publicInBinary protected[eio] def matchTokWork(s: String): Unit
+  @publicInBinary protected[eio] def longWork(): Long
+  @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long
+  @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double
+  @publicInBinary protected[eio] def zWork(): Boolean
+  @publicInBinary protected[eio] def tokWork(): String
+  @publicInBinary protected[eio] def tokSpanWork(): Int
+
+  // === Cold access to raw content, for error reporting only ===
+
+  protected def rawLength: Long
+  protected def rawCharAt(pos: Long): Char
+
+
+  ///////////////////////////////////////////////
+  /// Non-jumping status and configuration API ///
+  ///////////////////////////////////////////////
+
+  /** Absolute position of the cursor within the original input. */
+  final def position: Long = i
+
+  /** True if any input remains in the current view. */
+  final def hasMore: Boolean = i < iZ
+
+  /** How many elements remain in the current view. */
+  final def remaining: Long = iZ - i
+
+  /** Consume any delimiters at the cursor.  Never fails. */
+  final def sp: this.type = { skipDelimsWork(); this }
+
+  /** Use a different delimiter set from here on. */
+  final def delimit(d: Delim): this.type = { dlm = d; skipped = false; this }
+
+  /** The character at the cursor (bytes as 0-255) without consuming it, or `alt` if no input remains. */
+  inline final def peekOr(alt: Char): Char =
+    val c = cc
+    if c < 0 then alt else c.toChar
+
+
+  /////////////////////////////////////////////////
+  /// Readers: parse a value or jump with an Err ///
+  /////////////////////////////////////////////////
+
+  /** The character at the cursor (bytes as 0-255) without consuming it; fails if no input remains. */
+  inline final def peek[E >: Alt[Err]](using Label[E]): Char =
+    val c = cc
+    if c < 0 then
+      eCode = 1
+      eWant = "a character"
+      ePos = i
+      boundary.break(Alt(failErr()))
+    c.toChar
+
+  /** Read a single character exactly as it is (bytes read as 0-255); delimiters are not skipped. */
+  inline final def C[E >: Alt[Err]](using Label[E]): Char =
+    val c = cWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    c
+
+  /** Require character `c` exactly at the cursor (no delimiter skipping) and consume it. */
+  inline final def <[E >: Alt[Err]](c: Char)(using Label[E]): this.type =
+    matchCWork(c)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    this
+
+  /** Require the literal `s` here (after skipping leading delimiters) and consume it.  `s` is
+    * treated as its own token no matter what follows, so e.g. `g < ","` works in `"1, 2"` and `"1,2"` alike.
+    * For whole-token equality, use `tok_?(_ == s)`.
+    */
+  inline final def <[E >: Alt[Err]](s: String)(using Label[E]): this.type =
+    matchTokWork(s)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    this
+
+  /** Parse a Long. */
+  inline final def L[E >: Alt[Err]](using Label[E]): Long =
+    val x = longWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x
+
+  /** Parse an Int (same rules as `L`, plus a range check). */
+  inline final def I[E >: Alt[Err]](using Label[E]): Int =
+    val x = longWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if x < Int.MinValue || x > Int.MaxValue then
+      eCode = 2
+      eWant = "number out of Int range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x.toInt
+
+  /** Parse a Double (correctly rounded; also accepts NaN, Infinity, -Infinity). */
+  inline final def D[E >: Alt[Err]](using Label[E]): Double =
+    val x = doubleWork(true)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x
+
+  /** Advance past a Double without computing it; answers how many elements it occupied. */
+  inline final def Dspan[E >: Alt[Err]](using Label[E]): Int =
+    doubleWork(false) __ Unit
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    (i - vPos).toInt
+
+  /** Parse a Boolean (`true` or `false`, any case). */
+  inline final def Z[E >: Alt[Err]](using Label[E]): Boolean =
+    val b = zWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    b
+
+  /** Read the next delimited token as a String.  The trailing delimiter is not consumed. */
+  inline final def tok[E >: Alt[Err]](using Label[E]): String =
+    val s = tokWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    s
+
+  /** Advance past the next delimited token without creating a String; answers its length. */
+  inline final def tokSpan[E >: Alt[Err]](using Label[E]): Int =
+    val n = tokSpanWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    n
+
+  /** Skip one token. */
+  inline final def skip[E >: Alt[Err]]()(using Label[E]): Unit = skip(1)
+
+  /** Skip `n` tokens. */
+  inline final def skip[E >: Alt[Err]](n: Int)(using Label[E]): Unit =
+    skipTokWork(n)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+
+  /** Require that no input remains in the current view. */
+  inline final def end[E >: Alt[Err]](using Label[E]): Unit =
+    if i < iZ then
+      eCode = 1
+      eWant = "end of input"
+      ePos = i
+      boundary.break(Alt(failErr()))
+
+  /** Fail the parse right here with a custom message. */
+  inline final def oops[E >: Alt[Err]](msg: String)(using Label[E]): Nothing =
+    eCode = 2
+    eWant = msg
+    ePos = i
+    boundary.break(Alt(failErr()))
+
+
+  //////////////////////////////////////////////////////
+  /// Validating readers: parse, test, jump if unfit  ///
+  //////////////////////////////////////////////////////
+
+  /** Parse an Int and check it; fail with `msg` (pointing at the value) if the test does not pass. */
+  inline final def I_?[E >: Alt[Err]](inline p: Int => Boolean, msg: String = "invalid value")(using Label[E]): Int =
+    val x = I
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Long and check it; fail with `msg` if the test does not pass. */
+  inline final def L_?[E >: Alt[Err]](inline p: Long => Boolean, msg: String = "invalid value")(using Label[E]): Long =
+    val x = L
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Double and check it; fail with `msg` if the test does not pass. */
+  inline final def D_?[E >: Alt[Err]](inline p: Double => Boolean, msg: String = "invalid value")(using Label[E]): Double =
+    val x = D
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Read a token and check it; fail with `msg` if the test does not pass. */
+  inline final def tok_?[E >: Alt[Err]](inline p: String => Boolean, msg: String = "invalid token")(using Label[E]): String =
+    val s = tok
+    if !p(s) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    s
+
+
+  //////////////////////////////////
+  /// Structured parsing: sub-parse and alternatives ///
+  //////////////////////////////////
+
+  /** Parse within the next token using a sub-parser over just that token's extent; the delimiter
+    * narrows one level (lines to words to nothing).  On success the cursor moves past the token;
+    * on failure the error is wrapped with the sub-parse's starting position as it unwinds.
+    */
+  inline final def grok[B, E >: Alt[Err]]()(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
+    grokImpl(dlm.sub)(f)
+
+  /** Parse within the next token using a sub-parser with the delimiter given explicitly. */
+  inline final def grok[B, E >: Alt[Err]](d: Delim)(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
+    grokImpl(d)(f)
+
+  protected inline def grokImpl[B, E >: Alt[Err]](d: Delim)(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
+    if skipMode then skipDelimsWork()
+    if i >= iZ then
+      eCode = 1
+      eWant = "a token to parse"
+      ePos = i
+      boundary.break(Alt(failErr()))
+    val e = tokEndWork()
+    val a0 = iA
+    val z0 = iZ
+    val d0 = dlm
+    val t0 = i
+    iA = i
+    iZ = e
+    dlm = d
+    skipped = false
+    val r = boundary[B Or Err]{ Is(f(this)) }
+    iA = a0
+    iZ = z0
+    dlm = d0
+    skipped = false
+    r match
+      case a: Alt[Err @unchecked] => boundary.break(Alt(subErr(t0, a.alt)))
+      case _ =>
+        i = e
+        loadWork()
+        r.get
+
+  /** Try each alternative in order; the first to succeed supplies the answer.  A failed
+    * alternative restores the cursor (and view, delimiter, and modes) before the next is tried.
+    * Within an alternative, `continue()` abandons it without manufacturing an error.  If every
+    * alternative fails, the whole parse fails with a trace of each attempt.
+    */
+  final def select[A, E >: Alt[Err]](alts: (Label[A Or Err] ?=> A)*)(using lb: Label[E]): A =
+    val p0 = i
+    val a0 = iA
+    val z0 = iZ
+    val d0 = dlm
+    val pm0 = partialMode
+    val sm0 = skipMode
+    val cc0 = cc
+    val sk0 = skipped
+    var errs: List[Err] = Nil
+    boundary[A]: done ?=>
+      var k = 0
+      while k < alts.length do
+        boundary[A Or Err]{ Is(alts(k)) } match
+          case a: Alt[Err @unchecked] =>
+            errs = a.alt :: errs
+            i = p0
+            iA = a0
+            iZ = z0
+            dlm = d0
+            partialMode = pm0
+            skipMode = sm0
+            cc = cc0
+            skipped = sk0
+          case r =>
+            boundary.break(r.get)(using done)
+        k += 1
+      boundary.break(Alt(failAt(p0, "no alternative matched (" + alts.length + " tried)", errs.reverse)): E)(using lb)
+
+  /** Abandon the current `select` alternative (or, outside any select, the whole parse). */
+  inline final def continue[E >: Alt[Err]]()(using Label[E]): Nothing =
+    boundary.break(Grok.declinedAlt: E)
+
+
+  ///////////////////////////////
+  /// Cold-path error assembly ///
+  ///////////////////////////////
+
+  private def lineColOf(pos: Long): Long =
+    val n = rawLength
+    val q = if pos > n then n else if pos < 0 then 0L else pos
+    var line = 1
+    var last = -1L
+    var j = 0L
+    while j < q do
+      if rawCharAt(j) == '\n' then
+        line += 1
+        last = j
+      j += 1
+    (line.toLong << 32) | (q - last)
+
+  private def foundChar(p: Long): String =
+    if p >= rawLength then "end of input"
+    else if p >= iZ then "end of section"
+    else rawCharAt(p) match
+      case '\n' | '\r' => "end of line"
+      case '\t' => "tab"
+      case c if c < ' ' => "control character " + c.toInt
+      case c => "'" + c + "'"
+
+  private def foundTok(p: Long): String =
+    if p >= rawLength then "end of input"
+    else if p >= iZ then "end of section"
+    else
+      val sb = new java.lang.StringBuilder
+      var j = p
+      while j < iZ && j < p + 20 && !dlm(rawCharAt(j)) && rawCharAt(j) >= ' ' do
+        sb.append(rawCharAt(j)) __ Unit
+        j += 1
+      if j < iZ && j == p + 20 && !dlm(rawCharAt(j)) then sb.append('…') __ Unit
+      "\"" + sb + "\""
+
+  /** Build a data-bearing parse error at an arbitrary position (used by `select`; workers go through `failErr`). */
+  protected final def failAt(pos: Long, desc: String, attempts: List[Err]): Err =
+    val n = rawLength
+    val q = if pos > n then n else if pos < 0 then 0L else pos
+    val lc = lineColOf(q)
+    var x0 = q - 8
+    if x0 < 0 then x0 = 0
+    var x1 = q + 8
+    if x1 > n then x1 = n
+    val sb = new java.lang.StringBuilder
+    if x0 > 0 then sb.append("...") __ Unit
+    val off = sb.length + (q - x0).toInt
+    var j = x0
+    while j < x1 do
+      val c = rawCharAt(j)
+      sb.append(if c < ' ' then '·' else c) __ Unit
+      j += 1
+    if x1 < n then sb.append("...") __ Unit
+    Err(new Grok.Failure(desc, q, (lc >>> 32).toInt, (lc & 0xFFFFFFFFL).toInt, sb.toString, off, attempts))
+
+  /** Materialize the failure recorded in the error fields and clear them (called by the inline
+    * shims when eCode is nonzero; the only place an in-flight error is consumed).
+    */
+  @publicInBinary protected[eio] def failErr(): Err =
+    val desc = eCode match
+      case 1 => "expected " + eWant + ", found " + foundChar(ePos)
+      case 3 => "expected " + eWant + ", found " + foundTok(ePos)
+      case _ => eWant
+    eCode = 0
+    failAt(ePos, desc, Nil)
+
+  /** Wrap a sub-parse failure with where the sub-parse began, as data and text. */
+  @publicInBinary protected[eio] def subErr(pos: Long, err: Err): Err =
+    val lc = lineColOf(pos)
+    Err(ErrType.Explained("in sub-parse starting at line " + (lc >>> 32).toInt + ", pos " + (lc & 0xFFFFFFFFL).toInt + ":", err, context = Some(pos)))
+
+  /** Cold error-field setter, kept out of the hot workers so they stay within the JIT inlining budget. */
+  @publicInBinary protected[eio] final def wantAt(want: String, pos: Long): Unit =
+    eCode = 1
+    eWant = want
+    ePos = pos
+
+  @publicInBinary protected[eio] def skipTokWork(n: Int): Unit =
+    var k = n
+    while k > 0 && eCode == 0 do
+      if skipMode then skipDelimsWork()
+      if i >= iZ then
+        eCode = 1
+        eWant = "a token"
+        ePos = i
+      else
+        i = tokEndWork()
+        loadWork()
+        skipped = false
+        k -= 1
+
+
+  //////////////////////////////////////////////////////////////////////////
+  /// Inline worker templates: written once, instantiated per source type ///
+  //////////////////////////////////////////////////////////////////////////
+
+  // `at` answers the unsigned character code at an absolute index (bytes as 0-255); `sub` cuts a
+  // String from an absolute index range.  Each concrete subclass instantiates these inside plain
+  // final methods so the JIT sees one monomorphic copy of each parser per source type.
+
+  protected inline def loadImpl(inline at: Long => Int): Unit =
+    cc = if i < iZ then at(i) else -1
+
+  protected inline def skipDelimsImpl(inline at: Long => Int): Unit =
+    if !skipped then
+      var j = i
+      var c = cc
+      while c >= 0 && dlm(c) do
+        j += 1
+        c = if j < iZ then at(j) else -1
+      i = j
+      cc = c
+      skipped = true
+
+  protected inline def tokEndImpl(inline at: Long => Int): Long =
+    var j = i
+    var c = cc
+    while c >= 0 && !dlm(c) do
+      j += 1
+      c = if j < iZ then at(j) else -1
+    j
+
+  protected inline def cImpl(inline at: Long => Int): Char =
+    val c = cc
+    if c >= 0 then
+      i += 1
+      cc = if i < iZ then at(i) else -1
+      skipped = false
+      c.toChar
+    else
+      eCode = 1
+      eWant = "a character"
+      ePos = i
+      (0: Char)
+
+  protected inline def matchCImpl(inline at: Long => Int)(c0: Char): Unit =
+    if cc == c0.toInt then
+      i += 1
+      cc = if i < iZ then at(i) else -1
+      skipped = false
+    else
+      eCode = 1
+      eWant = "'" + c0 + "'"
+      ePos = i
+
+  protected inline def matchTokImpl(inline at: Long => Int)(s: String): Unit =
+    if skipMode then skipDelimsImpl(at)
+    val m = s.length
+    var ok = iZ - i >= m
+    var k = 0
+    if ok && m > 0 then
+      ok = cc == s.charAt(0).toInt
+      k = 1
+    while ok && k < m do
+      if at(i + k) != s.charAt(k).toInt then ok = false
+      k += 1
+    if ok then
+      i += m
+      cc = if i < iZ then at(i) else -1
+      skipped = false
+    else
+      eCode = 3
+      eWant = "\"" + s + "\""
+      ePos = i
+
+  protected inline def longImpl(inline at: Long => Int): Long =
+    if skipMode then skipDelimsImpl(at)
+    vPos = i
+    var j = i
+    var neg = false
+    var c = cc
+    if c == '-' then
+      neg = true
+      j += 1
+      c = if j < iZ then at(j) else -1
+    else if c == '+' then
+      j += 1
+      c = if j < iZ then at(j) else -1
+    val j0 = j
+    val jF = if iZ - j0 >= 18 then j0 + 18 else iZ
+    var x = 0L
+    boundary:
+      while c >= '0' && c <= '9' do
+        x = x * 10 - (c - '0')   // negative accumulation; 18 digits cannot overflow
+        j += 1
+        if j >= jF then boundary.break()
+        c = at(j)
+    i = j
+    cc = if j >= jF then (if j < iZ then at(j) else -1) else c
+    skipped = false
+    if j == j0 then
+      wantAt("a number", j)
+      0L
+    else if j == jF && c >= '0' && c <= '9' then
+      longTailWork(x, neg)     // a 19th digit exists: overflow checking required (rare, and kept out of the hot worker)
+    else if !partialMode && c >= 0 && !dlm(c) then
+      wantAt("end of number", j)
+      0L
+    else if neg then x
+    else -x
+
+  protected inline def longTailImpl(inline at: Long => Int)(x0: Long, neg: Boolean): Long =
+    var j = i
+    var x = x0
+    val limit = if neg then Long.MinValue else -Long.MaxValue
+    val before = limit / 10
+    var over = false
+    var c = cc
+    while c >= '0' && c <= '9' do
+      if x < before then over = true
+      else
+        x *= 10
+        if x < limit + (c - '0') then over = true
+        else x -= c - '0'
+      j += 1
+      c = if j < iZ then at(j) else -1
+    i = j
+    cc = c
+    skipped = false
+    if over then
+      eCode = 2
+      eWant = "number out of Long range"
+      ePos = vPos
+      0L
+    else if !partialMode && c >= 0 && !dlm(c) then
+      wantAt("end of number", j)
+      0L
+    else if neg then x
+    else -x
+
+  protected inline def zImpl(inline at: Long => Int): Boolean =
+    if skipMode then skipDelimsImpl(at)
+    vPos = i
+    var v = false
+    var len = 0
+    if i < iZ then
+      val c = at(i) | 0x20
+      if c == 't' && iZ - i >= 4 && (at(i+1)|0x20) == 'r' && (at(i+2)|0x20) == 'u' && (at(i+3)|0x20) == 'e' then
+        v = true
+        len = 4
+      else if c == 'f' && iZ - i >= 5 && (at(i+1)|0x20) == 'a' && (at(i+2)|0x20) == 'l' && (at(i+3)|0x20) == 's' && (at(i+4)|0x20) == 'e' then
+        len = 5
+    if len == 0 then
+      eCode = 1
+      eWant = "'true' or 'false'"
+      ePos = i
+      false
+    else
+      i += len
+      val c2 = if i < iZ then at(i) else -1
+      cc = c2
+      skipped = false
+      if !partialMode && c2 >= 0 && !dlm(c2) then
+        eCode = 1
+        eWant = "end of boolean"
+        ePos = i
+        false
+      else v
+
+  protected inline def tokImpl(inline at: Long => Int, inline sub: (Long, Long) => String): String =
+    if skipMode then skipDelimsImpl(at)
+    vPos = i
+    if i >= iZ then
+      eCode = 1
+      eWant = "a token"
+      ePos = i
+      ""
+    else
+      val j = tokEndImpl(at)
+      val s = sub(i, j)
+      i = j
+      cc = if j < iZ then at(j) else -1
+      skipped = false
+      s
+
+  protected inline def tokSpanImpl(inline at: Long => Int): Int =
+    if skipMode then skipDelimsImpl(at)
+    vPos = i
+    if i >= iZ then
+      eCode = 1
+      eWant = "a token"
+      ePos = i
+      0
+    else
+      val j = tokEndImpl(at)
+      val n = (j - i).toInt
+      i = j
+      cc = if j < iZ then at(j) else -1
+      skipped = false
+      n
+
+  protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String)(compute: Boolean): Double =
+    if skipMode then skipDelimsImpl(at)
+    vPos = i
+    var j = i
+    var neg = false
+    if j < iZ then
+      val c = at(j)
+      if c == '-' then
+        neg = true
+        j += 1
+      else if c == '+' then j += 1
+    var special = 0.0
+    var isSpecial = false
+    if j < iZ && (at(j) == 'N' || at(j) == 'I') then
+      if at(j) == 'N' && iZ - j >= 3 && at(j+1) == 'a' && at(j+2) == 'N' then
+        j += 3
+        special = Double.NaN
+        isSpecial = true
+      else if at(j) == 'I' && iZ - j >= 8 && at(j+1)=='n' && at(j+2)=='f' && at(j+3)=='i' && at(j+4)=='n' && at(j+5)=='i' && at(j+6)=='t' && at(j+7)=='y' then
+        j += 8
+        special = if neg then Double.NegativeInfinity else Double.PositiveInfinity
+        isSpecial = true
+    if isSpecial then
+      i = j
+      cc = if j < iZ then at(j) else -1
+      skipped = false
+      if !partialMode && j < iZ && !dlm(at(j)) then
+        eCode = 1
+        eWant = "end of number"
+        ePos = j
+        0.0
+      else special
+    else
+      var mant = 0L
+      var nd = 0
+      var droppedInt = 0
+      var fracScale = 0
+      var truncated = false
+      var anyDigit = false
+      var live = true
+      while live && j < iZ do
+        val c = at(j)
+        if c >= '0' && c <= '9' then
+          anyDigit = true
+          val d = c - '0'
+          if nd == 0 && d == 0 then ()
+          else if nd < 18 then
+            mant = mant * 10 + d
+            nd += 1
+          else
+            droppedInt += 1
+            if d != 0 then truncated = true
+          j += 1
+        else live = false
+      if j < iZ && at(j) == '.' then
+        j += 1
+        live = true
+        while live && j < iZ do
+          val c = at(j)
+          if c >= '0' && c <= '9' then
+            anyDigit = true
+            val d = c - '0'
+            if nd == 0 && d == 0 then fracScale += 1
+            else if nd < 18 then
+              mant = mant * 10 + d
+              nd += 1
+              fracScale += 1
+            else
+              if d != 0 then truncated = true
+            j += 1
+          else live = false
+      if !anyDigit then
+        i = j
+        cc = if j < iZ then at(j) else -1
+        skipped = false
+        eCode = 1
+        eWant = "a number"
+        ePos = j
+        0.0
+      else
+        var e10 = droppedInt - fracScale
+        if j < iZ && (at(j) == 'e' || at(j) == 'E') then
+          var k = j + 1
+          var esign = false
+          if k < iZ && (at(k) == '+' || at(k) == '-') then
+            esign = at(k) == '-'
+            k += 1
+          if k < iZ && at(k) >= '0' && at(k) <= '9' then
+            var ex = 0
+            while k < iZ && at(k) >= '0' && at(k) <= '9' do
+              if ex < 100000000 then ex = ex * 10 + (at(k) - '0')
+              k += 1
+            e10 += (if esign then -ex else ex)
+            j = k
+        i = j
+        cc = if j < iZ then at(j) else -1
+        skipped = false
+        if !partialMode && j < iZ && !dlm(at(j)) then
+          eCode = 1
+          eWant = "end of number"
+          ePos = j
+          0.0
+        else if !compute then 0.0
+        else if mant == 0 then
+          if neg then -0.0 else 0.0
+        else if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
+          // Exact-arithmetic fast path (Clinger): mantissa and power of ten are both exactly
+          // representable, so the single multiply or divide rounds correctly.
+          var v = mant.toDouble
+          if e10 > 0 then v *= Grok.pow10(e10)
+          else if e10 < 0 then v /= Grok.pow10(-e10)
+          if neg then -v else v
+        else
+          // Rare hard cases (>15 digits or extreme exponent): let the JDK do the correct rounding.
+          java.lang.Double.parseDouble(sub(vPos, j))
+}
+
+
 object Grok {
-  class Str(content: String, delim: Char => Boolean, multi: Boolean, i0: Int = 0, iN: Int = Int.MaxValue) extends Grok {
-    type Elt = Char
 
-    private val n = if content.length < iN then content.length else if iN > 0 then iN else 0
-    var position = if i0 < 0 then 0 else if i0 > n then n else i0
+  /** A data-bearing parse failure: what was being sought, where the input broke, and what the
+    * input looked like there.  `attempts` holds the individual failures when alternatives were
+    * tried and none matched.  Rendered as e.g.
+    * `Could not grok 2025-06b-25: expected '-', found 'b' (line 1, pos 8)`.
+    */
+  final class Failure(
+    val description: String,
+    val position: Long,
+    val line: Int,
+    val column: Int,
+    val excerpt: String,
+    val excerptOffset: Int,
+    val attempts: List[Err]
+  ) extends ErrType {
+    type E = String
+    def error: E = description
 
-    inline def has(i: Int): Boolean = n - position >= i
-    inline def peek: Char = content.charAt(position)
-    inline def advance: Boolean =
-      if position < n then
-        position += 1
-        true
-      else false
-    inline def advanceIf(inline p: Char => Boolean): Boolean =
-      if position < n && p(peek) then
-        position += 1
-        true
-      else false
+    /** The one-line summary (attempted alternatives are only in `buildLines`/`toString`). */
+    def message: String = s"Could not grok $excerpt: $description (line $line, pos $column)"
 
-    inline def tok[E >: Alt[Err]](using boundary.Label[E]): String =
-      ensure(1)
-      val i0 = position
-      advanceWhile(c => !delim(c)) __ Unit
-      val ans = content.substring(i0, position)
-      advance __ Unit
-      ans
+    override lazy val toString: String =
+      if attempts.isEmpty then message
+      else MkStr: sb =>
+        buildLines(sb, "")
 
-    inline def skip[E >: Alt[Err]](using boundary.Label[E]): Unit =
-      ensure(1)
-      advanceWhile(c => !delim(c)) __ Unit
-      advance __ Unit
+    def buildLines(sb: MkStr, prefix: String): Unit =
+      ErrType.buildLinesFromString(sb, message, prefix)
+      var k = 0
+      attempts.foreach{ e =>
+        k += 1
+        Err.buildLines(e)(sb, prefix + s"#$k: ")
+      }
+
+    def toThrowable: Throwable = ErrType.StringErrException(toString)
   }
-}
 
-extension (s: String)
-  inline def grok[A](inline f: boundary.Label[A Or Err] ?=> (Grok.Str => A)): Ask[A] = Or.Ret[A, Err]:
-    f(Grok.Str(s, _ == ' ', true, 0, s.length))
+  @publicInBinary private[eio] val pow10: Array[Double] = Array(
+    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
+    1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
+  )
+
+  @publicInBinary private[eio] val declinedAlt: Alt[Err] = Alt(Err("alternative declined"))
+
+
+  /** Groks a String.  Create via `Grok(...)`, not directly. */
+  final class Str(content: String, d: Delim, partial: Boolean, autoskip: Boolean) extends Grok {
+    dlm = d
+    partialMode = partial
+    skipMode = autoskip
+    iZ = content.length
+    cc = if content.length > 0 then content.charAt(0) else -1
+
+    protected def rawLength: Long = content.length
+    protected def rawCharAt(pos: Long): Char = content.charAt(pos.toInt)
+
+    @publicInBinary protected[eio] def skipDelimsWork(): Unit = skipDelimsImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def tokEndWork(): Long = tokEndImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content.charAt(j.toInt))(c)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content.charAt(j.toInt))(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content.charAt(j.toInt))
+
+    @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content.charAt(j.toInt))(x0, neg)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
+    @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content.charAt(j.toInt))
+  }
+
+  /** Parse a String in direct mode; any failure jumps out as a data-bearing `Err`.
+    *
+    * `delim` sets the token delimiter (default: line ends).  `partial = true` lets numbers and
+    * booleans stop at the first character that cannot continue them, rather than requiring a
+    * delimiter.  `exact = true` turns off the automatic skipping of leading delimiters.
+    */
+  inline def apply[A](content: String, delim: Delim = Delim.lines, partial: Boolean = false, exact: Boolean = false)(inline f: Label[A Or Err] ?=> Str => A): Ask[A] =
+    Or.Nice(f(new Str(content, delim, partial, !exact)))
+
+
+  /** Groks raw bytes.  Structure (delimiters, numbers, and `<` literals) is ASCII, read as
+    * unsigned 0-255; `tok` decodes its span as UTF-8, which is safe because multi-byte sequences
+    * never contain ASCII bytes.  Error positions are byte positions.  Create via `Grok(...)`.
+    */
+  final class Bytes(content: Array[Byte], d: Delim, partial: Boolean, autoskip: Boolean) extends Grok {
+    dlm = d
+    partialMode = partial
+    skipMode = autoskip
+    iZ = content.length
+    cc = if content.length > 0 then content(0) & 0xFF else -1
+
+    protected def rawLength: Long = content.length
+    protected def rawCharAt(pos: Long): Char = (content(pos.toInt) & 0xFF).toChar
+
+    private def utf8(a: Long, b: Long): String = new String(content, a.toInt, (b - a).toInt, java.nio.charset.StandardCharsets.UTF_8)
+
+    @publicInBinary protected[eio] def skipDelimsWork(): Unit = skipDelimsImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def tokEndWork(): Long = tokEndImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt) & 0xFF)(c)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt) & 0xFF)(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt) & 0xFF)(x0, neg)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
+    @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt) & 0xFF)
+  }
+
+  /** Groks characters from an `Array[Char]`; semantics as for the String form.  Create via `Grok(...)`. */
+  final class Chars(content: Array[Char], d: Delim, partial: Boolean, autoskip: Boolean) extends Grok {
+    dlm = d
+    partialMode = partial
+    skipMode = autoskip
+    iZ = content.length
+    cc = if content.length > 0 then content(0).toInt else -1
+
+    protected def rawLength: Long = content.length
+    protected def rawCharAt(pos: Long): Char = content(pos.toInt)
+
+    @publicInBinary protected[eio] def skipDelimsWork(): Unit = skipDelimsImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def tokEndWork(): Long = tokEndImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt))(c)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt))(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt))(x0, neg)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))
+    @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt))
+  }
+
+  /** Parse raw bytes in direct mode; parameters as for the String form.  (Scala permits default
+    * arguments on only one overload, so this one takes all of them explicitly.)
+    */
+  inline def apply[A](content: Array[Byte], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> Bytes => A): Ask[A] =
+    Or.Nice(f(new Bytes(content, delim, partial, !exact)))
+
+  /** Parse raw bytes in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
+  inline def apply[A](content: Array[Byte])(inline f: Label[A Or Err] ?=> Bytes => A): Ask[A] =
+    apply(content, Delim.lines, false, false)(f)
+
+  /** Groks raw bytes held in a `Mem[Byte]` (heap-wrapped or off-heap); semantics as for `Bytes`.
+    * The Mem must stay alive and unmodified for the duration of the parse.  Create via `Grok(...)`.
+    */
+  final class MemBytes(content: Mem[Byte], d: Delim, partial: Boolean, autoskip: Boolean) extends Grok {
+    dlm = d
+    partialMode = partial
+    skipMode = autoskip
+    iZ = content.length
+    cc = if content.length > 0 then content(0L) & 0xFF else -1
+
+    protected def rawLength: Long = content.length
+    protected def rawCharAt(pos: Long): Char = (content(pos) & 0xFF).toChar
+
+    private def utf8(a: Long, b: Long): String =
+      val n = (b - a).toInt
+      val arr = new Array[Byte](n)
+      var k = 0
+      while k < n do
+        arr(k) = content(a + k)
+        k += 1
+      new String(arr, java.nio.charset.StandardCharsets.UTF_8)
+
+    @publicInBinary protected[eio] def skipDelimsWork(): Unit = skipDelimsImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def tokEndWork(): Long = tokEndImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j) & 0xFF)(c)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j) & 0xFF)(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j) & 0xFF)(x0, neg)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
+    @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j) & 0xFF)
+  }
+
+  /** Parse bytes held in a `Mem[Byte]` in direct mode; parameters as for the String form. */
+  inline def apply[A](content: Mem[Byte], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> MemBytes => A): Ask[A] =
+    Or.Nice(f(new MemBytes(content, delim, partial, !exact)))
+
+  /** Parse bytes held in a `Mem[Byte]` in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
+  inline def apply[A](content: Mem[Byte])(inline f: Label[A Or Err] ?=> MemBytes => A): Ask[A] =
+    apply(content, Delim.lines, false, false)(f)
+
+  /** Parse an `Array[Char]` in direct mode; parameters as for the String form. */
+  inline def apply[A](content: Array[Char], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> Chars => A): Ask[A] =
+    Or.Nice(f(new Chars(content, delim, partial, !exact)))
+
+  /** Parse an `Array[Char]` in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
+  inline def apply[A](content: Array[Char])(inline f: Label[A Or Err] ?=> Chars => A): Ask[A] =
+    apply(content, Delim.lines, false, false)(f)
+}
