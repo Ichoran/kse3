@@ -134,6 +134,152 @@ Design decisions already made:
   boundaries, `1.7976931348623157e308`, long all-9s mantissas); Mathematica available for
   independent reference values.
 
+## Traversal (iterator) mode: measured cost of pull-based access
+
+DECIDED 2026-07-03: the windowed design (next section) won and the Nx implementation was
+deleted (it was never committed; this section is its record).  Deciding data: head-to-head on
+ByteBuffer — the motivating use case — the window beat pull by +22% (64-byte window) to +37%
+(512), because pull pays the source's per-char access cost (`get()` dispatch and checks) where
+the window pays it once per bulk refill.
+
+For sources that cannot (or should not) be indexed — ByteBuffer via relative `get()`, streams —
+we prototyped parallel worker templates (`...ImplNx` in Grok.scala) over three inline
+capabilities: `nx()` (next char or -1 at view end), `rw(p)` (reposition to an already-read
+absolute position — bounded backtracking for failed probes, dangling exponents, and value
+re-reads), and `cut(a,b)` (text of an already-read span, for tok strings and the JDK double
+fallback).  That set is sufficient for every core op; a `has(n)` capability turned out to be
+unnecessary (see below).  The global cursor `i` stays template-maintained, so error reporting is
+unchanged.  `select` and `grok` sub-parses are NOT yet traversal-safe (they move the cursor
+without informing the source); decision deferred until we choose between this and a buffering
+design.
+
+Same machinery, same `Array[Byte]`, only the access discipline differs (ints/µs, whole-array):
+
+| workload            | index (Bytes) | traversal (NxBytes) | traversal (ByteBuffer get()) |
+|---------------------|-------|-------|-------|
+| ints, ~10 digits    | 0.83  | 0.60 (-28%) | 0.47 (-43%) |
+| ints, 1 digit       | 1.14  | 1.02 (-10%) | 0.87 (-24%) |
+| doubles, 10 digits  | 0.56  | 0.54 (-3%)  |       |
+| doubles, ~17 digits | 0.091 | 0.091 (0%)  |       |
+
+(Also new here: index-mode doubles over *bytes* run 0.56 at 10 digits vs the 0.38 recorded for
+Str above.)
+
+Findings:
+- **Fixed per-element cost of traversal is small** (~1 ns/element: the 1-digit and double rows).
+  Doubles are traversal-neutral because index-mode `doubleImpl` does guarded loads throughout
+  anyway; `nx()`'s internal guard costs the same.
+- **Hot digit loops pay 2x per digit** (0.36 → 0.77 ns/digit).  FALSIFIED as the cause: the
+  end-of-view guard inside `nx()`.  Adding `has(n)` + unguarded `nxu()` to recover the index
+  template's unguarded 18-digit window bought only ~3%, within noise of the guard theory being
+  wrong.  The remaining structural difference is that the adapter's cursor is a *field* mutated
+  once per character (a store the JIT cannot hoist across safepoint-bearing loop back edges),
+  where index mode loops on a local and commits the cursor once per op.  This appears inherent
+  to a pull interface: the source owns per-char mutable state.  (Inference from elimination, not
+  from perf counters; check with `-prof perfasm` if it ever matters.)
+- **ByteBuffer relative `get()` adds another ~15-20%** on top of traversal discipline: its own
+  internal bounds/position bookkeeping.  An index-mode Grok over absolute `get(i)` would likely
+  do better; measure if ByteBuffer parsing becomes a real use case.
+- Where this lands: traversal-mode Grok on digit-heavy input ≈ Grok.Str ≈ 0.9x Jackson-on-bytes
+  (vs index mode's 1.28x).  Fine as the *adapter* story for genuinely non-indexable sources; not
+  a replacement for the index templates.
+- The alternative if this is deemed too slow: a **chunked/buffering design** (adapter refills an
+  internal array; index templates run over the chunk; token-straddles-boundary handled by
+  compact-and-refill, as Jackson/jsoniter do).  That gets index speed for chunk-resident tokens
+  at the cost of refill plumbing in the view-end paths, and it would obsolete `rw`/`cut` (the
+  buffer itself provides both).
+
+## Windowed (chunked-buffer) mode: measured, and why it is not free either
+
+THIS IS THE SETTLED DESIGN (2026-07-03) for pull-based sources.  Final form: `Grok.Buffered`, a
+sliding window with initial size 64 (constructor param) that DOUBLES whenever retention leaves
+no room to advance — so oversized tokens/values/delimiter-runs work, they just cost memory.
+`select` support: `pinWork(pos)`/`releaseWork(token)` hooks on the base class (no-ops for
+indexed sources, LIFO-nesting via the returned previous pin); `select` pins its start so failed
+alternatives can re-read arbitrarily far, and the window grows to hold everything since the
+pin.  No selectImpl template was needed — the field-restore in shared `select` is already
+correct because `at(j)` self-heals; the pin only governs retention.  Adding pin/growth was
+verified perf-neutral (pinned is touched only in cold scoot; select's pin calls are per-select).
+
+`Grok.Buffered`: a small sliding window (default 64 bytes) fed by a pull function, running the
+ORDINARY index templates.  `at(j)` inline-translates `j - discard` into the window and calls an
+out-of-line scoot-and-refill when the read falls off the loaded end; a new `inline advise(n)`
+hook in `longImpl`/`zImpl`/`matchTokImpl`/`doubleImpl` (no-op lambda for plain sources)
+pre-arranges the window at op start.  Scooting retains from the op-start cursor — which works
+because workers only commit `i` on completion, so field `i` is exactly the earliest position an
+op can re-read.  Bonus semantics vs traversal mode: `select` and `grok` sub-parses just work
+(select via pin, above); error positions stay absolute (excerpts degrade outside the window).
+
+Ints (ops/µs; per-parse costs INCLUDE allocating the window, since the benchmark parses ~1.3 KB
+per Grok — long-lived streams would amortize that):
+
+| source                                   | full  | 1-digit |
+|------------------------------------------|-------|---------|
+| index (Bytes)                            | 0.83  | 1.20    |
+| window aliased to input (control: no alloc/copy/refill) | 0.65 | 1.06 |
+| window 512                               | 0.63  | 1.05    |
+| window 64                                | 0.58  | 1.03    |
+| traversal Nx (for comparison)            | 0.59  | 0.97    |
+| window 4096 (per-parse alloc dominates)  | 0.56  | 0.84    |
+| window 64 fed from ByteBuffer            | 0.57  | 0.96    |
+
+Doubles at 10 digits: index 0.56, Nx 0.54, window-64 0.40 — windowing is WORSE than pull mode
+for doubles because it taxes every `at()` call and `doubleImpl` reads some chars 2-3x (NaN/Inf
+probe, end checks), where `nx()` touches each char once; plus scoot+alloc on the longer text.
+
+Cost decomposition (each verified against 2+ rows):
+- **Window read discipline ≈ 0.3 ns/char** (the aliased-window control), ~2x what was predicted.
+  FALSIFIED first theory: that scoot frequency at 64 bytes was the dominant cost (bigger windows
+  barely helped, and 4096 was *worse* per-parse).  The discipline cost is `j - discard`
+  translation plus two field loads that C2 must reload per read (the slow branch calls
+  `fetched()`, which clobbers them) plus a second, non-elidable bounds check on the window array.
+- **Refill/scoot ≈ 0.15 ns/char more at 64-byte windows**, shrinking with window size.
+- **Per-parse window allocation** (`new Array[Byte](w)` zeroing): what sinks 4096 here; vanishes
+  for reused Groks / long streams.  Same class of issue as the known ~158 ns fixed setup cost.
+
+Bottom line so far: pull mode pays a per-char cursor store; window mode pays per-read
+translation + field reloads.  Both land ~25-30% behind index on digit-heavy input.  The open
+idea to reach index speed within window mode: after `advise(n)` *guarantees* residency of
+[i, min(i+n, iZ)), a bounded op could legally use a fetch-free accessor (`buf((j-discard).toInt)`
+with no slow branch), which C2 can fully hoist — i.e., two at-lambdas per windowed source, one
+resident-unguarded for advised ops, one self-healing for unbounded scans.  Untested.
+
+## The digit kernel (adopted 2026-07-03)
+
+Number scanning now runs through one shared kernel, `digitsImpl`, instantiated per source as
+the `digitsWork` worker and CALLED AS A PLAIN METHOD from `longImpl` and `doubleImpl`
+rather than expanded inline.  Measured trio on full-digit ints — current longImpl 0.814,
+kernel-inlined 0.804, kernel-as-method 0.816 (±0.004); at 1 digit the kernel variants swing
+1.17-1.29 across forks (JIT layout noise) vs baseline 1.17, so: parity or slightly better,
+never worse.  `digitsWork` is 167 bytecodes (half the 325 hot-inline budget) and every call
+site is monomorphic (a final class's worker calling its own method), so C2 inlines it anyway;
+the method form keeps the callers small (longWork went 628 → 511 bytecodes) and lets several
+ops share one instantiation instead of re-expanding the template.
+
+Design points:
+- The kernel accumulates POSITIVELY and commits the cursor itself (i to end of run, cc to the
+  guarded lookahead there) and returns the value; the caller recovers the digit count as
+  i - j0.  No scratch fields: i and cc are the natural output channels, and the transient
+  cc-invariant gap (cc ahead of i between kernel return and the caller's error checks) is
+  unobservable inside a worker.
+- Negative accumulation is GONE from the hot path.  It only ever mattered for Long.MinValue,
+  which always has 19 digits and therefore goes through `longTailWork` — which still works in
+  negative space, receiving `-x`.  (Negating ≤18 digits is always safe.)
+- Positive accumulation is what a future 19-digit budget needs: 19 nines exceeds
+  Long.MaxValue but fits unsigned, so Eisel-Lemire's mantissa can come straight out of the
+  kernel with `budget = 19` and unsigned ops downstream.
+- `doubleImpl` was rebuilt on digitsWork the same day (two kernel calls: integer part and
+  fraction, spliced with `mant * pow10L(fd) + v`, which cannot overflow at ≤18 total digits;
+  leading-zero skipping and dropped-digit skimming stay in the caller; each character is now
+  read exactly once).  On windowed sources the kernel's eager commit advances the retention
+  point mid-number, so `doubleImpl` pins vPos across its body (single-exit structure; no-op on
+  indexed sources) to keep the slow-path `sub(vPos, j)` readable — tested with a slow-path
+  double straddling the window edge.  Verified against 500 random decimal strings
+  differentially with `Double.parseDouble`.  Measured (10-digit / full-precision doubles):
+  Bytes 0.56→0.62 / 0.09 flat; Str 0.38→0.53 (cc-threading pays most where reads were dearest);
+  Buffered-64 0.40→0.48 (every removed re-read also saved the window tax).  Full precision
+  stays parseDouble-bound until Eisel-Lemire.
+
 ## Other open performance items (all secondary)
 
 - `Grok.Bytes` / `Grok.Chars` over `MemorySegment.ofArray/ofBuffer`: same templates, byte loads
@@ -143,6 +289,4 @@ Design decisions already made:
   parses.  A reusable/resettable Grok is possible if it ever matters.
 - `select` currently spawns a closure per alternative and uses a cross-frame break on total
   failure; inline 2-4-arity overloads would compile alternative misses to same-frame jumps.
-- `doubleImpl` is 1838 bytecodes; harmless per the inlining findings, but it should get the same
-  cc-threading the int path has (currently it re-reads a char the cache already holds and does
-  its own guarded loads throughout).
+- ~~`doubleImpl` cc-threading~~ DONE 2026-07-03 via the digit kernel (see above).

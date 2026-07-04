@@ -134,10 +134,20 @@ sealed abstract class Grok protected () {
   @publicInBinary protected[eio] def matchTokWork(s: String): Unit
   @publicInBinary protected[eio] def longWork(): Long
   @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long
+  @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long
   @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double
   @publicInBinary protected[eio] def zWork(): Boolean
   @publicInBinary protected[eio] def tokWork(): String
   @publicInBinary protected[eio] def tokSpanWork(): Int
+
+  // === Backtrack retention hooks ===
+  // Indexed sources retain everything, so these defaults do nothing; windowed sources override
+  // them to keep input from the pinned position onward available for re-reading (select uses
+  // them around its alternatives).  Pins nest LIFO: pinWork answers the previous pin for the
+  // matching releaseWork to restore.
+
+  @publicInBinary protected[eio] def pinWork(pos: Long): Long = 0L
+  @publicInBinary protected[eio] def releaseWork(token: Long): Unit = ()
 
   // === Cold access to raw content, for error reporting only ===
 
@@ -378,25 +388,30 @@ sealed abstract class Grok protected () {
     val sm0 = skipMode
     val cc0 = cc
     val sk0 = skipped
+    val pin0 = pinWork(p0)   // windowed sources must retain from here so failed alternatives can be re-read
     var errs: List[Err] = Nil
-    boundary[A]: done ?=>
-      var k = 0
-      while k < alts.length do
-        boundary[A Or Err]{ Is(alts(k)) } match
-          case a: Alt[Err @unchecked] =>
-            errs = a.alt :: errs
-            i = p0
-            iA = a0
-            iZ = z0
-            dlm = d0
-            partialMode = pm0
-            skipMode = sm0
-            cc = cc0
-            skipped = sk0
-          case r =>
-            boundary.break(r.get)(using done)
-        k += 1
-      boundary.break(Alt(failAt(p0, "no alternative matched (" + alts.length + " tried)", errs.reverse)): E)(using lb)
+    var found: A Or Err = Grok.declinedAlt
+    var searching = true
+    var k = 0
+    while searching && k < alts.length do
+      boundary[A Or Err]{ Is(alts(k)) } match
+        case a: Alt[Err @unchecked] =>
+          errs = a.alt :: errs
+          i = p0
+          iA = a0
+          iZ = z0
+          dlm = d0
+          partialMode = pm0
+          skipMode = sm0
+          cc = cc0
+          skipped = sk0
+        case r =>
+          found = r
+          searching = false
+      k += 1
+    releaseWork(pin0)
+    if searching then boundary.break(Alt(failAt(p0, "no alternative matched (" + alts.length + " tried)", errs.reverse)): E)(using lb)
+    else found.get
 
   /** Abandon the current `select` alternative (or, outside any select, the whole parse). */
   inline final def continue[E >: Alt[Err]]()(using Label[E]): Nothing =
@@ -551,8 +566,9 @@ sealed abstract class Grok protected () {
       eWant = "'" + c0 + "'"
       ePos = i
 
-  protected inline def matchTokImpl(inline at: Long => Int)(s: String): Unit =
+  protected inline def matchTokImpl(inline at: Long => Int, inline advise: Int => Unit)(s: String): Unit =
     if skipMode then skipDelimsImpl(at)
+    advise(s.length + 1)
     val m = s.length
     var ok = iZ - i >= m
     var k = 0
@@ -571,8 +587,36 @@ sealed abstract class Grok protected () {
       eWant = "\"" + s + "\""
       ePos = i
 
-  protected inline def longImpl(inline at: Long => Int): Long =
+  // === Digit-run kernel: the shared core of number scanning ===
+  // Accumulates up to `budget` decimal digits POSITIVELY (callers negate as needed; a future
+  // 19-digit budget for Eisel-Lemire relies on unsigned interpretation of the accumulator).
+  // Starts at position j0 whose already-loaded lookahead is c0.  Commits the cursor — i moves
+  // to the end of the run, cc holds the guarded lookahead there — and answers the accumulated
+  // value; the caller recovers the digit count as i - j0.  Instantiated per source as the
+  // digitsWork method (167 bytecodes, well under the JIT hot-inline budget; the call from each
+  // worker is monomorphic) rather than expanded inline — measured equal, and it keeps callers
+  // small when several ops share it.  NOTE for doubleImpl adoption: on windowed sources the
+  // eager commit advances the retention point mid-number, so the double worker must pin vPos
+  // to keep the slow-path sub(vPos, ...) readable.
+
+  protected inline def digitsImpl(inline at: Long => Int)(j0: Long, c0: Int, budget: Int): Long =
+    var j = j0
+    var c = c0
+    var x = 0L
+    val jF = if iZ - j0 >= budget then j0 + budget else iZ
+    boundary:
+      while c >= '0' && c <= '9' do
+        x = x * 10 + (c - '0')
+        j += 1
+        if j >= jF then boundary.break()
+        c = at(j)
+    i = j
+    cc = if j >= jF then (if j < iZ then at(j) else -1) else c
+    x
+
+  protected inline def longImpl(inline at: Long => Int, inline advise: Int => Unit): Long =
     if skipMode then skipDelimsImpl(at)
+    advise(20)
     vPos = i
     var j = i
     var neg = false
@@ -585,27 +629,20 @@ sealed abstract class Grok protected () {
       j += 1
       c = if j < iZ then at(j) else -1
     val j0 = j
-    val jF = if iZ - j0 >= 18 then j0 + 18 else iZ
-    var x = 0L
-    boundary:
-      while c >= '0' && c <= '9' do
-        x = x * 10 - (c - '0')   // negative accumulation; 18 digits cannot overflow
-        j += 1
-        if j >= jF then boundary.break()
-        c = at(j)
-    i = j
-    cc = if j >= jF then (if j < iZ then at(j) else -1) else c
+    val x = digitsWork(j, c, 18)
     skipped = false
-    if j == j0 then
-      wantAt("a number", j)
+    val cE = cc
+    if i == j0 then
+      wantAt("a number", i)
       0L
-    else if j == jF && c >= '0' && c <= '9' then
-      longTailWork(x, neg)     // a 19th digit exists: overflow checking required (rare, and kept out of the hot worker)
-    else if !partialMode && c >= 0 && !dlm(c) then
-      wantAt("end of number", j)
+    else if i - j0 == 18 && cE >= '0' && cE <= '9' then
+      longTailWork(-x, neg)     // a 19th digit exists: the checked tail continues in negative space
+    else if !partialMode && cE >= 0 && !dlm(cE) then
+      wantAt("end of number", i)
       0L
-    else if neg then x
-    else -x
+    else if neg then -x
+    else x
+
 
   protected inline def longTailImpl(inline at: Long => Int)(x0: Long, neg: Boolean): Long =
     var j = i
@@ -636,8 +673,9 @@ sealed abstract class Grok protected () {
     else if neg then x
     else -x
 
-  protected inline def zImpl(inline at: Long => Int): Boolean =
+  protected inline def zImpl(inline at: Long => Int, inline advise: Int => Unit): Boolean =
     if skipMode then skipDelimsImpl(at)
+    advise(6)   // "false" + lookahead
     vPos = i
     var v = false
     var len = 0
@@ -697,121 +735,140 @@ sealed abstract class Grok protected () {
       skipped = false
       n
 
-  protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String)(compute: Boolean): Double =
+  // cc-threaded throughout (each char is read once), significant digits gathered by the
+  // digitsWork kernel, and a single exit so windowed sources can pin vPos across the kernel's
+  // eager cursor commits (the slow path re-reads [vPos, end) at the very end)
+  protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline advise: Int => Unit)(compute: Boolean): Double =
     if skipMode then skipDelimsImpl(at)
+    advise(28)   // covers typical doubles; longer ones self-heal read by read
     vPos = i
-    var j = i
-    var neg = false
-    if j < iZ then
-      val c = at(j)
+    val pv = pinWork(vPos)
+    val result =
+      var j = i
+      var c = cc
+      var neg = false
       if c == '-' then
         neg = true
         j += 1
-      else if c == '+' then j += 1
-    var special = 0.0
-    var isSpecial = false
-    if j < iZ && (at(j) == 'N' || at(j) == 'I') then
-      if at(j) == 'N' && iZ - j >= 3 && at(j+1) == 'a' && at(j+2) == 'N' then
+        c = if j < iZ then at(j) else -1
+      else if c == '+' then
+        j += 1
+        c = if j < iZ then at(j) else -1
+      var special = 0.0
+      var isSpecial = false
+      if c == 'N' && iZ - j >= 3 && at(j+1) == 'a' && at(j+2) == 'N' then
         j += 3
         special = Double.NaN
         isSpecial = true
-      else if at(j) == 'I' && iZ - j >= 8 && at(j+1)=='n' && at(j+2)=='f' && at(j+3)=='i' && at(j+4)=='n' && at(j+5)=='i' && at(j+6)=='t' && at(j+7)=='y' then
+      else if c == 'I' && iZ - j >= 8 && at(j+1)=='n' && at(j+2)=='f' && at(j+3)=='i' && at(j+4)=='n' && at(j+5)=='i' && at(j+6)=='t' && at(j+7)=='y' then
         j += 8
         special = if neg then Double.NegativeInfinity else Double.PositiveInfinity
         isSpecial = true
-    if isSpecial then
-      i = j
-      cc = if j < iZ then at(j) else -1
-      skipped = false
-      if !partialMode && j < iZ && !dlm(at(j)) then
-        eCode = 1
-        eWant = "end of number"
-        ePos = j
-        0.0
-      else special
-    else
-      var mant = 0L
-      var nd = 0
-      var droppedInt = 0
-      var fracScale = 0
-      var truncated = false
-      var anyDigit = false
-      var live = true
-      while live && j < iZ do
-        val c = at(j)
-        if c >= '0' && c <= '9' then
-          anyDigit = true
-          val d = c - '0'
-          if nd == 0 && d == 0 then ()
-          else if nd < 18 then
-            mant = mant * 10 + d
-            nd += 1
-          else
-            droppedInt += 1
-            if d != 0 then truncated = true
-          j += 1
-        else live = false
-      if j < iZ && at(j) == '.' then
-        j += 1
-        live = true
-        while live && j < iZ do
-          val c = at(j)
-          if c >= '0' && c <= '9' then
-            anyDigit = true
-            val d = c - '0'
-            if nd == 0 && d == 0 then fracScale += 1
-            else if nd < 18 then
-              mant = mant * 10 + d
-              nd += 1
-              fracScale += 1
-            else
-              if d != 0 then truncated = true
-            j += 1
-          else live = false
-      if !anyDigit then
+      if isSpecial then
+        c = if j < iZ then at(j) else -1
         i = j
-        cc = if j < iZ then at(j) else -1
+        cc = c
         skipped = false
-        eCode = 1
-        eWant = "a number"
-        ePos = j
-        0.0
-      else
-        var e10 = droppedInt - fracScale
-        if j < iZ && (at(j) == 'e' || at(j) == 'E') then
-          var k = j + 1
-          var esign = false
-          if k < iZ && (at(k) == '+' || at(k) == '-') then
-            esign = at(k) == '-'
-            k += 1
-          if k < iZ && at(k) >= '0' && at(k) <= '9' then
-            var ex = 0
-            while k < iZ && at(k) >= '0' && at(k) <= '9' do
-              if ex < 100000000 then ex = ex * 10 + (at(k) - '0')
-              k += 1
-            e10 += (if esign then -ex else ex)
-            j = k
-        i = j
-        cc = if j < iZ then at(j) else -1
-        skipped = false
-        if !partialMode && j < iZ && !dlm(at(j)) then
+        if !partialMode && c >= 0 && !dlm(c) then
           eCode = 1
           eWant = "end of number"
           ePos = j
           0.0
-        else if !compute then 0.0
-        else if mant == 0 then
-          if neg then -0.0 else 0.0
-        else if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
-          // Exact-arithmetic fast path (Clinger): mantissa and power of ten are both exactly
-          // representable, so the single multiply or divide rounds correctly.
-          var v = mant.toDouble
-          if e10 > 0 then v *= Grok.pow10(e10)
-          else if e10 < 0 then v /= Grok.pow10(-e10)
-          if neg then -v else v
+        else special
+      else
+        var anyDigit = false
+        while c == '0' do   // leading integer zeros are not significant
+          anyDigit = true
+          j += 1
+          c = if j < iZ then at(j) else -1
+        var mant = 0L
+        var nd = 0
+        var droppedInt = 0
+        var truncated = false
+        if c >= '1' && c <= '9' then
+          mant = digitsWork(j, c, 18)
+          nd = (i - j).toInt
+          anyDigit = true
+          j = i
+          c = cc
+          while c >= '0' && c <= '9' do   // significance exhausted: count dropped integer digits
+            droppedInt += 1
+            if c != '0' then truncated = true
+            j += 1
+            c = if j < iZ then at(j) else -1
+        var fracScale = 0
+        if c == '.' then
+          j += 1
+          c = if j < iZ then at(j) else -1
+          if nd == 0 then
+            while c == '0' do   // leading fraction zeros scale the value but are not significant
+              anyDigit = true
+              fracScale += 1
+              j += 1
+              c = if j < iZ then at(j) else -1
+          if nd < 18 && c >= '0' && c <= '9' then
+            val v = digitsWork(j, c, 18 - nd)
+            val fd = (i - j).toInt
+            mant = mant * Grok.pow10L(fd) + v   // nd + fd <= 18, so this cannot overflow
+            nd += fd
+            fracScale += fd
+            anyDigit = true
+            j = i
+            c = cc
+          while c >= '0' && c <= '9' do   // dropped fraction digits: only roundability matters
+            if c != '0' then truncated = true
+            j += 1
+            c = if j < iZ then at(j) else -1
+        if !anyDigit then
+          i = j
+          cc = c
+          skipped = false
+          eCode = 1
+          eWant = "a number"
+          ePos = j
+          0.0
         else
-          // Rare hard cases (>15 digits or extreme exponent): let the JDK do the correct rounding.
-          java.lang.Double.parseDouble(sub(vPos, j))
+          var e10 = droppedInt - fracScale
+          if c == 'e' || c == 'E' then
+            var k = j + 1
+            var esign = false
+            var cq = if k < iZ then at(k) else -1
+            if cq == '+' || cq == '-' then
+              esign = cq == '-'
+              k += 1
+              cq = if k < iZ then at(k) else -1
+            if cq >= '0' && cq <= '9' then
+              var ex = 0
+              while cq >= '0' && cq <= '9' do
+                if ex < 100000000 then ex = ex * 10 + (cq - '0')
+                k += 1
+                cq = if k < iZ then at(k) else -1
+              e10 += (if esign then -ex else ex)
+              j = k
+              c = cq
+          i = j
+          cc = c
+          skipped = false
+          if !partialMode && c >= 0 && !dlm(c) then
+            eCode = 1
+            eWant = "end of number"
+            ePos = j
+            0.0
+          else if !compute then 0.0
+          else if mant == 0 then
+            if neg then -0.0 else 0.0
+          else if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
+            // Exact-arithmetic fast path (Clinger): mantissa and power of ten are both exactly
+            // representable, so the single multiply or divide rounds correctly.
+            var v = mant.toDouble
+            if e10 > 0 then v *= Grok.pow10(e10)
+            else if e10 < 0 then v /= Grok.pow10(-e10)
+            if neg then -v else v
+          else
+            // Rare hard cases (>15 digits or extreme exponent): let the JDK do the correct rounding.
+            java.lang.Double.parseDouble(sub(vPos, j))
+    releaseWork(pv)
+    result
 }
 
 
@@ -858,6 +915,12 @@ object Grok {
     1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
   )
 
+  @publicInBinary private[eio] val pow10L: Array[Long] = Array(
+    1L, 10L, 100L, 1000L, 10000L, 100000L, 1000000L, 10000000L, 100000000L, 1000000000L,
+    10000000000L, 100000000000L, 1000000000000L, 10000000000000L, 100000000000000L,
+    1000000000000000L, 10000000000000000L, 100000000000000000L, 1000000000000000000L
+  )
+
   @publicInBinary private[eio] val declinedAlt: Alt[Err] = Alt(Err("alternative declined"))
 
 
@@ -877,12 +940,13 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content.charAt(j.toInt))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content.charAt(j.toInt))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content.charAt(j.toInt))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content.charAt(j.toInt))(s)
-    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content.charAt(j.toInt), _ => ())(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content.charAt(j.toInt), _ => ())
 
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content.charAt(j.toInt))(x0, neg)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))(compute)
-    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content.charAt(j.toInt))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt), _ => ())(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content.charAt(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content.charAt(j.toInt))
   }
@@ -918,13 +982,14 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt) & 0xFF)
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt) & 0xFF)
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt) & 0xFF)(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt) & 0xFF)(s)
-    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt) & 0xFF, _ => ())(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt) & 0xFF)(x0, neg)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))(compute)
-    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
   }
 
   /** Groks characters from an `Array[Char]`; semantics as for the String form.  Create via `Grok(...)`. */
@@ -943,11 +1008,12 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt))(s)
-    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt), _ => ())(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt))(x0, neg)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))(compute)
-    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt), _ => ())(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt))
   }
@@ -989,11 +1055,12 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j) & 0xFF)
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j) & 0xFF)
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j) & 0xFF)(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j) & 0xFF)(s)
-    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j) & 0xFF, _ => ())(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j) & 0xFF)(x0, neg)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(compute)
-    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j) & 0xFF)(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b), _ => ())(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j) & 0xFF)
   }
@@ -1013,4 +1080,120 @@ object Grok {
   /** Parse an `Array[Char]` in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
   inline def apply[A](content: Array[Char])(inline f: Label[A Or Err] ?=> Chars => A): Ask[A] =
     apply(content, Delim.lines, false, false)(f)
+
+
+  /** Groks bytes pulled on demand through a sliding window, using the ordinary indexed worker
+    * templates.  `index - discard` addresses the window; a read past the loaded end (or an
+    * `advise(n)` that does not fit) scoots the window forward and refills from the pull
+    * function.  The window retains everything from the current op's start — which is all the
+    * templates ever re-read — or from the earliest live `select` mark, whose alternatives may
+    * need re-reading; when retention leaves no room to advance, the window doubles.
+    * `fill(dst, off, max)` answers how many bytes it wrote (0 when it has no more); the total
+    * input length must be known up front.  Error excerpts degrade to `?` behind the window.
+    */
+  final class Buffered(fill: (Array[Byte], Int, Int) => Int, totalLen: Long, d: Delim, partial: Boolean, autoskip: Boolean, window: Int = 64) extends Grok {
+    dlm = d
+    partialMode = partial
+    skipMode = autoskip
+    iZ = totalLen
+
+    private var buf = new Array[Byte](if window < 8 then 8 else window)
+    private var discard = 0L   // absolute position of buf(0)
+    private var loaded = 0     // bytes of buf currently valid
+    private var pinned = -1L   // earliest select mark to retain, or -1 for none
+    refill()
+    cc = if loaded > 0 then buf(0) & 0xFF else -1
+
+    protected def rawLength: Long = totalLen
+    protected def rawCharAt(pos: Long): Char =
+      val d = (pos - discard).toInt
+      if 0 <= d && d < loaded then (buf(d) & 0xFF).toChar else '?'   // cold path: excerpts degrade outside the window
+
+    private def refill(): Unit =
+      var more = true
+      while more && loaded < buf.length do
+        val n = fill(buf, loaded, buf.length - loaded)
+        if n > 0 then loaded += n else more = false
+
+    // Off the hot path: drop everything behind the retention point (the current op's start, or
+    // the earliest live select mark), double the window if that frees no room, then refill.
+    private def scoot(): Unit =
+      val from = if 0 <= pinned && pinned < i then pinned else i
+      val keep = (from - discard).toInt
+      if keep < 0 then throw new IllegalStateException("Grok.Buffered: backtrack to " + from + " behind the window at " + discard)
+      if keep > 0 then
+        System.arraycopy(buf, keep, buf, 0, loaded - keep)
+        discard += keep
+        loaded -= keep
+      if loaded == buf.length then buf = java.util.Arrays.copyOf(buf, buf.length << 1)
+      refill()
+
+    private def fetched(j: Long): Int =
+      scoot()
+      val d = (j - discard).toInt
+      if 0 <= d && d < loaded then buf(d) & 0xFF
+      else throw new IllegalStateException("Grok.Buffered: cannot load position " + j + " (window at " + discard + ", " + loaded + " loaded)")
+
+    @publicInBinary protected[eio] override def pinWork(pos: Long): Long =
+      val prev = pinned
+      if prev < 0 || pos < prev then pinned = pos
+      prev
+
+    @publicInBinary protected[eio] override def releaseWork(token: Long): Unit = pinned = token
+
+    private inline def atc(j: Long): Int =
+      val d = (j - discard).toInt
+      if 0 <= d && d < loaded then buf(d) & 0xFF
+      else fetched(j)
+
+    private inline def advc(n: Int): Unit =
+      if i + n > discard + loaded && discard + loaded < totalLen then scoot()
+
+    private def utf8(a: Long, b: Long): String = new String(buf, (a - discard).toInt, (b - a).toInt, java.nio.charset.StandardCharsets.UTF_8)
+
+    @publicInBinary protected[eio] def skipDelimsWork(): Unit = skipDelimsImpl(j => atc(j))
+    @publicInBinary protected[eio] def tokEndWork(): Long = tokEndImpl(j => atc(j))
+    @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => atc(j))
+    @publicInBinary protected[eio] def cWork(): Char = cImpl(j => atc(j))
+    @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => atc(j))(c)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => atc(j), n => advc(n))(s)
+    @publicInBinary protected[eio] def longWork(): Long = longImpl(j => atc(j), n => advc(n))
+    @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => atc(j))(x0, neg)
+    @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => atc(j))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => atc(j), (a, b) => utf8(a, b), n => advc(n))(compute)
+    @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => atc(j), n => advc(n))
+    @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => utf8(a, b))
+    @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
+  }
+
+  /** Parse raw bytes pulled through a sliding window that starts at `window` bytes (mostly
+    * useful for testing the windowed machinery against direct indexing — prefer `Grok(bytes)`
+    * when the whole array is at hand; parameters otherwise as for the String form).
+    */
+  inline def buffered[A](content: Array[Byte], delim: Delim = Delim.lines, partial: Boolean = false, exact: Boolean = false, window: Int = 64)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
+    var pos = 0
+    val fill = (dst: Array[Byte], off: Int, max: Int) => {
+      val n = if content.length - pos < max then content.length - pos else max
+      if n > 0 then System.arraycopy(content, pos, dst, off, n)
+      pos += n
+      n
+    }
+    Or.Nice(f(new Buffered(fill, content.length, delim, partial, !exact, window)))
+
+  /** Parse a ByteBuffer's remaining bytes, consumed via relative bulk `get()` through a sliding
+    * window that starts at `window` bytes; parameters otherwise as for the String form.
+    */
+  inline def buffered[A](content: java.nio.ByteBuffer, delim: Delim, partial: Boolean, exact: Boolean, window: Int)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
+    val fill = (dst: Array[Byte], off: Int, max: Int) => {
+      val n = if content.remaining() < max then content.remaining() else max
+      content.get(dst, off, n) __ Unit
+      n
+    }
+    Or.Nice(f(new Buffered(fill, content.remaining(), delim, partial, !exact, window)))
+
+  /** Parse a ByteBuffer's remaining bytes with the default settings (line tokens, strict numbers,
+    * delimiter skipping, 64-byte initial window).
+    */
+  inline def buffered[A](content: java.nio.ByteBuffer)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
+    buffered(content, Delim.lines, false, false, 64)(f)
 }

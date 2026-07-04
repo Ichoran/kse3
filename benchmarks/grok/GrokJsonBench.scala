@@ -183,6 +183,41 @@ class GrokJsonBench {
       xsb.result()
     .get
 
+  /** Sliding-window size for the grokBuf benchmarks (bytes) */
+  @Param(Array("64"))
+  var bufwin: Int = 0
+
+  // Sliding window fed from the same bytes, running the ordinary indexed templates:
+  // the chunked-buffer alternative to traversal mode
+  @Benchmark
+  def grokBufBytes(): Array[Int] =
+    val xsb = Array.newBuilder[Int]
+    Grok.buffered(bytes, Delim.white, partial = true, window = bufwin): g =>
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.I
+      xsb.result()
+    .get
+
+  // Sliding window fed from a ByteBuffer via bulk relative get()
+  @Benchmark
+  def grokBufBuffer(): Array[Int] =
+    val xsb = Array.newBuilder[Int]
+    Grok.buffered(java.nio.ByteBuffer.wrap(bytes), Delim.white, true, false, bufwin): g =>
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.I
+      xsb.result()
+    .get
+
   // Int result via the (unfolded) Long worker: g.L.toInt with an Int builder, so the only
   // difference from `grok` is which digit-parsing worker runs
   @Benchmark
@@ -218,6 +253,36 @@ class GrokJsonBench {
   def grokD(): Array[Double] =
     val xsb = Array.newBuilder[Double]
     Grok(dtext, delim = Delim.white, partial = true): g =>
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.D
+      xsb.result()
+    .get
+
+  // Index-mode doubles over bytes: the like-for-like baseline for grokBufD
+  @Benchmark
+  def grokDBytes(): Array[Double] =
+    val xsb = Array.newBuilder[Double]
+    Grok(dbytes, Delim.white, true, false): g =>
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.D
+      xsb.result()
+    .get
+
+  // Sliding-window doubles over the same bytes as grokDBytes
+  @Benchmark
+  def grokBufD(): Array[Double] =
+    val xsb = Array.newBuilder[Double]
+    Grok.buffered(dbytes, Delim.white, partial = true): g =>
       (g < '[') __ Unit
       var more = true
       while more do
