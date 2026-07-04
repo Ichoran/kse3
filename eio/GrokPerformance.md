@@ -49,12 +49,16 @@ Doubles in (-1, 1) (`dprec` = decimal digits):
 | parser                            | 10 digits | full (~17 digits) |
 |-----------------------------------|-----------|-------------------|
 | jsoniter-scala (bytes)            | 0.89      | 0.57              |
-| **Grok**                          | **0.38**  | **0.082**         |
+| **Grok.Bytes**                    | **0.62**  | **0.089**         |
+| **Grok.Str**                      | **0.53**  | **0.094**         |
 | hand-rolled span + JDK parse      | 0.21      | 0.095             |
 | Jackson streaming (String)        | 0.19      | 0.088             |
 
+(Grok rows updated after the digit-kernel doubleImpl rebuild, 2026-07-03; before it, Grok-on-Str
+measured 0.38 / 0.082.)
+
 Two headlines:
-1. **Doubles that fit our Clinger fast path (≤15 sig digits, |e10| ≤ 22): Grok beats Jackson 2x**,
+1. **Doubles that fit our Clinger fast path (≤15 sig digits, |e10| ≤ 22): Grok beats Jackson 3x**,
    because Jackson delegates doubles to `Double.parseDouble` (its FastDoubleParser mode is off by
    default) and we do our own exact-arithmetic conversion.
 2. **Full-precision doubles are a disaster for everyone who delegates to the JDK.**
@@ -198,7 +202,10 @@ no room to advance — so oversized tokens/values/delimiter-runs work, they just
 indexed sources, LIFO-nesting via the returned previous pin); `select` pins its start so failed
 alternatives can re-read arbitrarily far, and the window grows to hold everything since the
 pin.  No selectImpl template was needed — the field-restore in shared `select` is already
-correct because `at(j)` self-heals; the pin only governs retention.  Adding pin/growth was
+correct because `at(j)` self-heals; the pin only governs retention.  Known caveat: select
+releases its pin on its own exit paths, but a user-level boundary.break unwinding THROUGH
+select skips the release — if the user catches it and keeps parsing, the window retains from
+the stale pin (unbounded growth, not incorrectness).  Adding pin/growth was
 verified perf-neutral (pinned is touched only in cold scoot; select's pin calls are per-select).
 
 `Grok.Buffered`: a small sliding window (default 64 bytes) fed by a pull function, running the
@@ -281,6 +288,10 @@ Design points:
   stays parseDouble-bound until Eisel-Lemire.
 
 ## Other open performance items (all secondary)
+
+- `Grok.Buffered` requires the total input length up front (`iZ` = totalLen drives every view
+  guard).  Unknown-length streams need a template-level end-of-input story (discovering the end
+  when `fill` returns 0 and materializing it as cc == -1 without a known iZ).
 
 - `Grok.Bytes` / `Grok.Chars` over `MemorySegment.ofArray/ofBuffer`: same templates, byte loads
   instead of UTF-16 `charAt` — this is where the remaining gap to jsoniter mostly lives.
