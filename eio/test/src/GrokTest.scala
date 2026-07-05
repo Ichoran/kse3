@@ -317,6 +317,128 @@ class GrokTest {
         } ==== Is(((1, 22, 333), true))
 
   @Test
+  def grokQuotedStringTest(): Unit =
+    val utf8 = java.nio.charset.StandardCharsets.UTF_8
+    // JSON style on a String source
+    T ~ Grok("\"hello\"")(g => g.str)                                   ==== Is("hello")
+    T ~ Grok("\"\"")(g => g.str)                                        ==== Is("")
+    T ~ Grok("\"a\\n\\t\\\"b\\\\c\\/d\\be\\ff\\rg\"")(g => g.str)       ==== Is("a\n\t\"b\\c/d\be\ff\rg")
+    T ~ Grok("\"snow \\u2603!\"")(g => g.str)                           ==== Is("snow ☃!")
+    T ~ Grok("\"\\uD83D\\uDE00\"")(g => g.str)                          ==== Is("😀")
+    T ~ Grok("  \"padded\"", delim = Delim.white)(g => g.str)           ==== Is("padded")
+    T ~ Grok("\"a\",\"b\"")(g => (g.str, (g < ',').str))                ==== Is(("a", "b"))    // quote is self-delimiting
+    T ~ Grok("\"del im\" 5", delim = Delim.white)(g => (g.str, g.I))    ==== Is(("del im", 5)) // delimiters are content
+    // CSV style: doubling, and backslash/newline as plain content
+    T ~ Grok("\"say \"\"hi\"\"\"")(g => g.str(Quote.csv))               ==== Is("say \"hi\"")
+    T ~ Grok("\"\"\"\"")(g => g.str(Quote.csv))                         ==== Is("\"")
+    T ~ Grok("\"a\nb\"")(g => g.str(Quote.csv))                         ==== Is("a\nb")
+    T ~ Grok("\"back\\slash\"")(g => g.str(Quote.csv))                  ==== Is("back\\slash")
+    T ~ Grok("\"a\",\"b \"\"x\"\"\",7")(g => (g.str(Quote.csv), (g < ',').str(Quote.csv), (g < ',').I)) ==== Is(("a", "b \"x\"", 7))
+    // Other quote styles
+    T ~ Grok("'it''s'")(g => g.str(Quote.sql))                          ==== Is("it's")
+    T ~ Grok("'don\\'t'")(g => g.str(Quote('\'')))                      ==== Is("don't")
+    // Output forms
+    T ~ Grok("\"chars\"")(g => new String(g.strChars))                  ==== Is("chars")
+    T ~ Grok("\"say \"\"hi\"\"\"")(g => new String(g.strChars(Quote.csv))) ==== Is("say \"hi\"")
+    T ~ Grok("\"hi☃\"")(g => g.strBytes.toList)                    ==== Is("hi☃".getBytes(utf8).toList)
+    T ~ Grok("\"\\uD83D\\uDE00\"")(g => g.strBytes.toList)              ==== Is("😀".getBytes(utf8).toList)
+    T ~ Grok("\"abc\"def")(g => (g.strSpan, g.tok))                     ==== Is((5, "def"))
+    T ~ Grok("\"a\\u0041b\" 9", delim = Delim.white)(g => (g.strSpan, g.I)) ==== Is((10, 9))
+    // Lone surrogates: kept in UTF-16 output, U+FFFD in UTF-8 output
+    T ~ Grok("\"lone\\uD800!\"")(g => g.str)                            ==== Is("lone\uD800!")
+    T ~ Grok("\"lone\\uD800!\"")(g => g.strBytes.toList)                ==== Is("lone�!".getBytes(utf8).toList)
+    // Failures: no quote, unclosed, bad escape, bad hex, trailing backslash
+    T ~ bad(Grok("noquote")(g => g.str))                                ==== true
+    T ~ bad(Grok("\"unclosed")(g => g.str))                             ==== true
+    T ~ bad(Grok("\"bad\\q\"")(g => g.str))                             ==== true
+    T ~ bad(Grok("\"bad\\u12G4\"")(g => g.str))                         ==== true
+    T ~ bad(Grok("\"trail\\")(g => g.str))                              ==== true
+    T ~ bad(Grok("\"a\"\"")(g => g.str(Quote.csv)))                     ==== true   // doubled quote then end: unclosed
+    T ~ bad(Grok(" \"x\"", delim = Delim.white, exact = true)(g => g.str)) ==== true
+    T ~ errText(Grok("\"unclosed")(g => g.str)).contains("unclosed quoted string") ==== true
+    Grok("\"oops\\q\"")(g => g.str) match
+      case Alt(e) => e.underlying match
+        case f: Grok.Failure =>
+          T ~ f.position                                    ==== 6L
+          T ~ f.description.contains("expected a valid escape") ==== true
+          T ~ f.description.contains("found 'q'")           ==== true
+        case u => assertTrue("not a Grok.Failure: " + u, false)
+      case v => assertTrue("unexpected success: " + v, false)
+    // A failed str is an ordinary select alternative
+    T ~ Grok("plain", delim = Delim.white)(g => g.select(g.str, g.tok)) ==== Is("plain")
+
+  @Test
+  def grokQuotedSourcesTest(): Unit =
+    val utf8 = java.nio.charset.StandardCharsets.UTF_8
+    def b(s: String): Array[Byte] = s.getBytes(utf8)
+    // Byte source: escapes decode straight to UTF-8; clean strBytes never decodes
+    T ~ Grok(b("\"snow \\u2603\""))(g => g.str)                         ==== Is("snow ☃")
+    T ~ Grok(b("\"\\uD83D\\uDE00\""))(g => g.str)                       ==== Is("😀")
+    T ~ Grok(b("\"\\uD83D\\uDE00\""))(g => g.strBytes.toList)           ==== Is("😀".getBytes(utf8).toList)
+    T ~ Grok(b("\"π≈3\""))(g => g.str)                        ==== Is("π≈3")
+    T ~ Grok(b("\"π≈3\""))(g => g.strBytes.toList)            ==== Is("π≈3".getBytes(utf8).toList)
+    T ~ Grok(b("\"lone\\uD800!\""))(g => g.str)                         ==== Is("lone�!")
+    T ~ Grok(b("\"say \"\"hi\"\"\" x"), Delim.white, false, false)(g => (g.str(Quote.csv), g.tok)) ==== Is(("say \"hi\"", "x"))
+    T ~ Grok(b("\"a\\u0041b\" 9"), Delim.white, false, false)(g => (g.strSpan, g.I)) ==== Is((10, 9))
+    T ~ Grok(b("\"chars \\u2603\""))(g => new String(g.strChars))       ==== Is("chars ☃")
+    T ~ bad(Grok(b("\"unclosed"))(g => g.str))                          ==== true
+    T ~ bad(Grok(b("\"bad\\q\""))(g => g.str))                          ==== true
+    // Mem source
+    def m(s: String): Mem[Byte] = Mem.of(b(s))
+    T ~ Grok(m("\"snow \\u2603\""))(g => g.str)                         ==== Is("snow ☃")
+    T ~ Grok(m("\"say \"\"hi\"\"\""))(g => g.str(Quote.csv))            ==== Is("say \"hi\"")
+    T ~ Grok(m("\"π≈3\""))(g => g.strBytes.toList)            ==== Is("π≈3".getBytes(utf8).toList)
+    // Chars source
+    T ~ Grok("\"snow \\u2603\"".toCharArray)(g => g.str)                ==== Is("snow ☃")
+    T ~ Grok("'it''s'".toCharArray)(g => g.str(Quote.sql))              ==== Is("it's")
+    T ~ Grok("\"hi☃\"".toCharArray)(g => g.strBytes.toList)        ==== Is("hi☃".getBytes(utf8).toList)
+    // Buffered source: strings larger than the window, clean and escaped, plus window-edge starts
+    val longClean = "z" * 150
+    T ~ Grok.buffered(b("\"" + longClean + "\" next"), Delim.white)(g => (g.str, g.tok)) ==== Is((longClean, "next"))
+    val manyEsc = "ab\\\"" * 40
+    T ~ Grok.buffered(b("\"" + manyEsc + "\""))(g => g.str)             ==== Is("ab\"" * 40)
+    T ~ Grok.buffered(b(" " * 60 + "\"snow \\u2603\""), Delim.white)(g => g.str) ==== Is("snow ☃")
+    T ~ Grok.buffered(b("\"π≈3\""))(g => g.strBytes.toList)   ==== Is("π≈3".getBytes(utf8).toList)
+    T ~ Grok.buffered(b("\"" + longClean + "\"x"))(g => (g.strSpan, g.C)) ==== Is((152, 'x'))
+    T ~ bad(Grok.buffered(b("\"" + longClean))(g => g.str))             ==== true
+    // Differential vs the directly indexed Bytes source
+    val csvish = (0 until 20).map(k => "\"f" + k + " \"\"q\"\" ☃\"").mkString(",")
+    def viaB   = Grok(b(csvish), Delim.lines, false, false)(g => Array.fill(20){ val s = g.str(Quote.csv); if g.hasMore then (g < ',') __ Unit; s }.toSeq)
+    def viaW   = Grok.buffered(b(csvish))(g => Array.fill(20){ val s = g.str(Quote.csv); if g.hasMore then (g < ',') __ Unit; s }.toSeq)
+    T ~ viaW ==== viaB
+
+  @Test
+  def grokBufferedCharsTest(): Unit =
+    def cb(s: String) = java.nio.CharBuffer.wrap(s.toCharArray)
+    T ~ Grok.buffered(cb("2025-06-25"), Delim.lines, true, false, 64)(g => (g.I, (g < '-').I, (g < '-').I)) ==== Is((2025, 6, 25))
+    T ~ Grok.buffered(cb("10 20 -5"), Delim.white, false, false, 64)(g => g.I + g.I + g.I)   ==== Is(25)
+    T ~ Grok.buffered(cb("π = 3.25"), Delim.white, false, false, 64)(g => (g.tok, (g < "=").D)) ==== Is(("π", 3.25))
+    T ~ Grok.buffered(cb("3.14159 true"), Delim.white, false, false, 64)(g => (g.D, g.Z))    ==== Is((3.14159, true))
+    T ~ bad(Grok.buffered(cb("06b"))(g => g.I))                                              ==== true
+    // Window growth and scooting on plain tokens
+    T ~ Grok.buffered(cb("y" * 150 + " end"), Delim.white, false, false, 64)(g => (g.tokSpan, g.tok)) ==== Is((150, "end"))
+    val ns = Array.tabulate(60)(k => (k * 1000003) % 39916801 - 19958400)
+    T ~ Grok.buffered(cb(ns.mkString(" ")), Delim.white, false, false, 64)(g => { var s = 0L; while g.hasMore do s += g.I; s }) ==== Is(ns.map(_.toLong).sum)
+    // Quoted strings through the window: clean and escaped strings larger than the window
+    val longClean = "z" * 150
+    T ~ Grok.buffered(cb("\"" + longClean + "\" next"), Delim.white, false, false, 64)(g => (g.str, g.tok)) ==== Is((longClean, "next"))
+    val manyEsc = "ab\\\"" * 40
+    T ~ Grok.buffered(cb("\"" + manyEsc + "\""))(g => g.str)                                 ==== Is("ab\"" * 40)
+    T ~ Grok.buffered(cb(" " * 60 + "\"snow \\u2603\""), Delim.white, false, false, 64)(g => g.str) ==== Is("snow ☃")
+    T ~ Grok.buffered(cb("\"say \"\"hi\"\"\""))(g => g.str(Quote.csv))                       ==== Is("say \"hi\"")
+    T ~ Grok.buffered(cb("\"hi☃\""))(g => g.strBytes.toList) ==== Is("hi☃".getBytes(java.nio.charset.StandardCharsets.UTF_8).toList)
+    T ~ Grok.buffered(cb("\"" + longClean + "\"x"))(g => (g.strSpan, g.C))                   ==== Is((152, 'x'))
+    T ~ bad(Grok.buffered(cb("\"" + longClean))(g => g.str))                                 ==== true
+    T ~ bad(Grok.buffered(cb("\"bad\\q\""))(g => g.str))                                     ==== true
+    // select pins across the window, as for bytes
+    T ~ Grok.buffered(cb("x 2.5"), Delim.white, false, false, 64)(g => g.select((g.I + g.I).toString, { g.skip(1); g.D.toString })) ==== Is("2.5")
+    // Differential vs the String source on escape-dense content crossing many scoots
+    val csvish = (0 until 20).map(k => "\"f" + k + " \"\"q\"\" ☃\"").mkString(",")
+    def viaS = Grok(csvish)(g => Array.fill(20){ val s = g.str(Quote.csv); if g.hasMore then (g < ',') __ Unit; s }.toSeq)
+    def viaC = Grok.buffered(cb(csvish))(g => Array.fill(20){ val s = g.str(Quote.csv); if g.hasMore then (g < ',') __ Unit; s }.toSeq)
+    T ~ viaC ==== viaS
+
+  @Test
   def grokValidateTest(): Unit =
     def date(s: String): Ask[(Int, Int, Int)] = Grok(s, partial = true): g =>
       val y = g.I

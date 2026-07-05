@@ -287,6 +287,82 @@ Design points:
   Buffered-64 0.40→0.48 (every removed re-read also saved the window tax).  Full precision
   stays parseDouble-bound until Eisel-Lemire.
 
+## Quoted strings (kernels settled 2026-07-05)
+
+`str`/`strChars`/`strBytes`/`strSpan` with a `Quote` style spec (JSON backslash escapes or
+CSV/SQL quote-doubling), on every source.
+
+**Architecture.**  Scan to the closing quote ignoring delimiters; an escape-free string is
+extracted in one piece (substring / `copyOfRange` — a clean `strBytes` never decodes).
+Escaped strings flush clean segments in bulk (per-source `blit`: getChars / arraycopy) into
+a doubling buffer in the source's native width — UTF-16 for char sources, UTF-8 for byte
+sources (escaped surrogate pairs join there, since UTF-8 encodes the joint code point; lone
+ones become U+FFFD) — with escapes decoded between flushes.  The `\u` hex decode is the
+plain routine `Grok.hex4` (select-and-add normalization: no data-dependent branches, so the
+worst case degrades gracefully), tested early in the escape dispatch since unicode is often
+not rare.  UTF-8 emission is the plain routine `Grok.putUtf8`.  Cross-width outputs convert
+once on the finished buffer (`utf8Bytes` / String's intrinsic decoder), never in the loop.
+Windowed sources pin the string start so segments stay blit-able.
+
+**Standing** (`GrokStringBench`, ops/µs whole-array parses: easy = 50 short clean words,
+esc = simple-escape-dense, uni = `\uXXXX`-dense, raw = unescaped non-ASCII; reference rows
+from same-box runs):
+
+| benchmark                  | easy  | esc   | uni   | raw   |
+|----------------------------|-------|-------|-------|-------|
+| grokStr                    | 1.24  | 0.107 | 0.065 | 0.108 |
+| grokStrBytes               | 1.18  | 0.122 | 0.048 | 0.114 |
+| grokStrBytesRaw (stay-UTF-8)| 1.54 | 0.125 | 0.065 | 0.259 |
+| grokBufStr (win 64)        | 1.00  | 0.094 | 0.038 | 0.081 |
+| grokBufCharsStr (win 64)   | 1.09  | 0.091 | 0.043 | 0.167 |
+| jacksonStreamBytes         | 1.51  | 0.20  | 0.11  | 0.14  |
+| jacksonStreamString        | 1.60  | 0.21  | 0.11  | 0.28  |
+| jsoniterScala              | 2.12  | 0.16  | 0.10  | 0.11  |
+
+Clean strings are competitive everywhere (raw: grokStr beats Jackson-String; the stay-UTF-8
+`strBytes` path is 2.3× jsoniter).  Escape-dense sits ~1.6-2× behind Jackson (down from the
+3-4× of the first working version); the byte source now beats the String source on ASCII
+escapes, and the windowed sources pay only ~10-25% over indexed.
+
+**Tried and rejected — do not redo without new evidence:**
+
+- Incremental builders (StringBuilder with substring-per-segment; a byte builder with a
+  capacity check per byte): 2-2.5× slower than bulk-blit chunking on escape-dense input.
+- Escape dispatch via lookup table (one or two cache lines): ~5% slower than the compare
+  chain.  Escapes are homogeneous within a string, so the chain predicts nearly perfectly;
+  the table puts a dependent L1 load on the critical path.  Table geometry was irrelevant.
+- Char-at-a-time building after the first escape: wins in hand-rolled isolation on clean and
+  simple-escape input, but loses 10-25% in template context and loses every mode on windowed
+  sources — the template's per-iteration overhead (mode guards, doubled test, windowed `at`)
+  lands per char instead of per segment.  Hand-rolled shape rankings do not transfer to
+  template context; decide shapes on in-template measurements.
+- Two-pass exact-span decode and whole-span preallocation: an extra scan or a large zeroed
+  allocation costs more than the room checks they remove.  These loops run at IPC ~6,
+  L1-resident: throughput is 1/instructions, so "L1-warm" re-reads are not free.
+- Hex micro-variants: serial-fold (fewer live registers) — no effect; branch-chain digit
+  normalization — equal in situ, but keeps data-dependent branches, so select-and-add wins
+  on robustness; forcing `hex4` to stay a call (`dontinline`) — 20% worse.
+- Explanations falsified by perfnorm along the way: branch prediction (miss deltas two
+  orders too small) and cache/store effects (IPC flat throughout).
+
+**The load-bearing lesson (transferable to all kse3 template code).**  Scalac `inline`
+templating does not generalize like C++ templates: pasting a compact computation into a fat
+loop body measurably degrades C2's output versus the same logic as a plain routine that C2
+inlines on its own terms (+33% on `\u`-dense input from outlining `hex4` alone, with
+identical source-level work).  Template-expand only what genuinely varies per source (the
+`at` accessor, extraction and blit lambdas); fixed computations should be plain routines
+taking already-loaded values (`hex4`, `putUtf8`, `digitsWork`).
+
+**Open:**
+- Residual ~1.6-2× to Jackson on escape-dense input: per-string op decomposition and
+  bounds-check overhead vs Jackson's array-direct text buffer; not yet isolated.  (One
+  loose end from the shape study: the per-char template build emitted ~100k instructions
+  per parse beyond source-level accounting, PrintInlining symmetric — would need
+  hsdis + perfasm to explain, but nothing rests on it now.)
+- MemBytes blits with a per-element loop (no arraycopy across the FFM boundary): expect
+  escaped-string lag on Mem until a bulk copy (MemorySegment.copy) or a parallel access
+  pattern replaces it.  No Mem row in GrokStringBench yet.
+
 ## Other open performance items (all secondary)
 
 - `Grok.Buffered` requires the total input length up front (`iZ` = totalLen drives every view
