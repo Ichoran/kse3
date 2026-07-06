@@ -17,6 +17,7 @@ class GrokTest {
   import kse.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.flow.{given, _}
+  import kse.maths.{given, _}
   import kse.eio.{given, _}
 
   given Asserter(
@@ -84,6 +85,161 @@ class GrokTest {
     T ~ Grok("1.5x", partial = true)(g => g.D)    ==== Is(1.5)
     T ~ bad(Grok("eel")(g => g.D))                ==== true
     T ~ Grok("3.25e2 x", delim = Delim.white)(g => (g.Dspan, g.tok)) ==== Is((6, "x"))
+
+  @Test
+  def grokFloatTest(): Unit =
+    T ~ Grok("1.5")(g => g.F)             ==== Is(1.5f)
+    T ~ Grok("-2.25")(g => g.F)           ==== Is(-2.25f)
+    T ~ Grok("3.14159265")(g => g.F)      ==== Is(3.14159265f)
+    T ~ Grok("6.02214076e23")(g => g.F)   ==== Is(6.02214076e23f)
+    T ~ Grok("7.038531e-26")(g => g.F)    ==== Is(7.038531e-26f)   // (double parse).toFloat is 1 ulp off: needs the true Float path
+    T ~ Grok("16777217")(g => g.F)        ==== Is(16777217f)
+    T ~ Grok("1e10")(g => g.F)            ==== Is(1e10f)
+    T ~ Grok("1e-10")(g => g.F)           ==== Is(1e-10f)
+    T ~ Grok("1e50")(g => g.F)            ==== Is(Float.PositiveInfinity)
+    T ~ Grok("9.1093837015e-31")(g => g.F) ==== Is(9.1093837015e-31f)
+    T ~ Grok("42")(g => g.F)              ==== Is(42.0f)
+    T ~ Grok("NaN")(g => g.F.isNaN)       ==== Is(true)
+    T ~ Grok("-Infinity")(g => g.F)       ==== Is(Float.NegativeInfinity)
+    T ~ bad(Grok("1.5x")(g => g.F))       ==== true
+    T ~ Grok("1.5x", partial = true)(g => g.F) ==== Is(1.5f)
+    T ~ bad(Grok("eel")(g => g.F))        ==== true
+    val checks = Array(
+      "0.1", "123456.789", "0.000001234", "1234567890123456789.5", "3.4028235e38", "3.4028236e38",
+      "1.17549435e-38", "1.4e-45", "7e-46", "-0.0", "8388608.5", "0.49999999999999999"
+    )
+    var k = 0
+    while k < checks.length do
+      T ~ Grok(checks(k))(g => g.F) ==== Is(java.lang.Float.parseFloat(checks(k)))
+      k += 1
+    T ~ Grok("1.5 -1.0", delim = Delim.white)(g => g.F_?(_ > 0f))       ==== Is(1.5f)
+    T ~ bad(Grok("-1.0")(g => g.F_?(_ > 0f)))                           ==== true
+
+  @Test
+  def grokSizedIntegerTest(): Unit =
+    T ~ Grok("100 -100", delim = Delim.white)(g => (g.B, g.B))          ==== Is((100.toByte, (-100).toByte))
+    T ~ Grok("127 -128", delim = Delim.white)(g => (g.B, g.B))          ==== Is((Byte.MaxValue, Byte.MinValue))
+    T ~ bad(Grok("128")(g => g.B))                                      ==== true
+    T ~ bad(Grok("-129")(g => g.B))                                     ==== true
+    T ~ Grok("32767 -32768", delim = Delim.white)(g => (g.S, g.S))      ==== Is((Short.MaxValue, Short.MinValue))
+    T ~ bad(Grok("32768")(g => g.S))                                    ==== true
+    T ~ bad(Grok("-32769")(g => g.S))                                   ==== true
+    T ~ Grok("000127")(g => g.B)                                        ==== Is(127.toByte)
+    T ~ bad(Grok("1234", partial = true)(g => g.B))                     ==== true
+    T ~ errText(Grok("12345678901234567890123456789")(g => g.B)).contains("Byte range")  ==== true
+    T ~ errText(Grok("12345678901234567890123456789")(g => g.S)).contains("Short range") ==== true
+    T ~ errText(Grok("-999999999999999999999999")(g => g.B)).contains("Byte range")      ==== true
+    T ~ Grok("7 8", delim = Delim.white)(g => g.B_?(_ % 2 == 1))        ==== Is(7.toByte)
+    T ~ bad(Grok("8")(g => g.B_?(_ % 2 == 1)))                          ==== true
+    T ~ Grok("300")(g => g.S_?(_ > 200))                                ==== Is(300.toShort)
+    T ~ bad(Grok("100")(g => g.S_?(_ > 200)))                           ==== true
+
+  @Test
+  def grokUnsignedTest(): Unit =
+    T ~ Grok("255")(g => g.uB)                          ==== Is(UByte.wrap(-1))
+    T ~ Grok("0")(g => g.uB)                            ==== Is(UByte.wrap(0))
+    T ~ bad(Grok("256")(g => g.uB))                     ==== true
+    T ~ bad(Grok("-1")(g => g.uB))                      ==== true
+    T ~ Grok("65535")(g => g.uS)                        ==== Is(UShort.wrap(-1))
+    T ~ bad(Grok("65536")(g => g.uS))                   ==== true
+    T ~ Grok("4294967295")(g => g.uI)                   ==== Is(UInt.wrap(-1))
+    T ~ bad(Grok("4294967296")(g => g.uI))              ==== true
+    T ~ Grok("18446744073709551615")(g => g.uL)         ==== Is(ULong.wrap(-1L))
+    T ~ Grok("18446744073709551610")(g => g.uL)         ==== Is(ULong.wrap(-6L))
+    T ~ Grok("9223372036854775808")(g => g.uL)          ==== Is(ULong.wrap(Long.MinValue))
+    T ~ bad(Grok("18446744073709551616")(g => g.uL))    ==== true
+    T ~ bad(Grok("99999999999999999999999")(g => g.uL)) ==== true
+    T ~ Grok("+123")(g => g.uL)                         ==== Is(ULong.wrap(123L))
+    T ~ bad(Grok("-0")(g => g.uL))                      ==== true
+    T ~ bad(Grok("-5")(g => g.uL))                      ==== true
+    T ~ Grok("0000000000000000000042")(g => g.uL)       ==== Is(ULong.wrap(42L))
+    T ~ Grok("0000000000042")(g => g.uB)                ==== Is(UByte.wrap(42))
+    T ~ errText(Grok("12345678901234567890123456789")(g => g.uB)).contains("UByte range")  ==== true
+    T ~ errText(Grok("12345678901234567890123456789")(g => g.uI)).contains("UInt range")   ==== true
+    T ~ errText(Grok("12345678901234567890123456789")(g => g.uL)).contains("ULong range")  ==== true
+    T ~ Grok("12 34", delim = Delim.white)(g => (g.uI, g.uI)) ==== Is((UInt.wrap(12), UInt.wrap(34)))
+    T ~ bad(Grok("12x")(g => g.uI))                     ==== true
+    T ~ Grok("12x", partial = true)(g => g.uI)          ==== Is(UInt.wrap(12))
+    T ~ bad(Grok("")(g => g.uL))                        ==== true
+    T ~ bad(Grok("+")(g => g.uL))                       ==== true
+    T ~ Grok("42")(g => g.uB_?(_.toInt < 100))          ==== Is(UByte.wrap(42))
+    T ~ bad(Grok("42")(g => g.uB_?(_.toInt > 100)))     ==== true
+    T ~ Grok("70000")(g => g.uI_?(_.toLong > 65535L))   ==== Is(UInt.wrap(70000))
+    T ~ bad(Grok("50")(g => g.uS_?(_.toInt > 100)))     ==== true
+    T ~ Grok("18446744073709551615")(g => g.uL_?(_ == ULong.MaxValue)) ==== Is(ULong.MaxValue)
+
+  @Test
+  def grokHexTest(): Unit =
+    T ~ Grok("ff")(g => g.xB)                          ==== Is((-1).toByte)
+    T ~ Grok("7f")(g => g.xB)                          ==== Is(127.toByte)
+    T ~ Grok("FF")(g => g.xB)                          ==== Is((-1).toByte)
+    T ~ Grok("0")(g => g.xB)                           ==== Is(0.toByte)
+    T ~ Grok("00ff")(g => g.xB)                        ==== Is((-1).toByte)
+    T ~ bad(Grok("100")(g => g.xB))                    ==== true
+    T ~ errText(Grok("100")(g => g.xB)).contains("hex Byte range")  ==== true
+    T ~ Grok("beef")(g => g.xS)                        ==== Is(0xBEEF.toShort)
+    T ~ Grok("Beef")(g => g.xS)                        ==== Is(0xBEEF.toShort)
+    T ~ bad(Grok("10000")(g => g.xS))                  ==== true
+    T ~ Grok("DeadBeef")(g => g.xI)                    ==== Is(0xDEADBEEF)
+    T ~ Grok("12345678")(g => g.xI)                    ==== Is(0x12345678)
+    T ~ Grok("0000000012345678")(g => g.xI)            ==== Is(0x12345678)
+    T ~ bad(Grok("123456789")(g => g.xI))              ==== true
+    T ~ errText(Grok("123456789")(g => g.xI)).contains("hex Int range")  ==== true
+    T ~ Grok("FFFFFFFFFFFFFFFF")(g => g.xL)            ==== Is(-1L)
+    T ~ Grok("123456789abcdef0")(g => g.xL)            ==== Is(0x123456789ABCDEF0L)
+    T ~ bad(Grok("12345678901234567")(g => g.xL))      ==== true
+    T ~ bad(Grok("zz")(g => g.xB))                     ==== true
+    T ~ errText(Grok("zz")(g => g.xB)).contains("hexadecimal")  ==== true
+    T ~ bad(Grok("")(g => g.xB))                       ==== true
+    T ~ bad(Grok("-1f")(g => g.xB))                    ==== true
+    T ~ bad(Grok("fg")(g => g.xB))                     ==== true
+    T ~ Grok("fg", partial = true)(g => g.xB)          ==== Is(15.toByte)
+    T ~ Grok("ff 0a", delim = Delim.white)(g => (g.xB, g.xB)) ==== Is(((-1).toByte, 10.toByte))
+    T ~ Grok("cafe babe", delim = Delim.white)(g => (g.xS, g.xS)) ==== Is((0xCAFE.toShort, 0xBABE.toShort))
+    T ~ Grok("ff")(g => g.uxB)                         ==== Is(UByte.wrap(-1))
+    T ~ Grok("ffff")(g => g.uxS)                       ==== Is(UShort.wrap(-1))
+    T ~ Grok("ffffffff")(g => g.uxI)                   ==== Is(UInt.wrap(-1))
+    T ~ Grok("ffffffffffffffff")(g => g.uxL)           ==== Is(ULong.wrap(-1L))
+    T ~ Grok("0a")(g => g.uxB)                         ==== Is(UByte.wrap(10))
+    T ~ bad(Grok("100")(g => g.uxB))                   ==== true
+    T ~ errText(Grok("100")(g => g.uxB)).contains("hex UByte range")  ==== true
+    T ~ bad(Grok("123456789")(g => g.uxI))             ==== true
+    { // all sources agree on the new hexWork machinery (window 8 forces mid-number refills)
+      val s = "deadbeef cafebabe 7fffffff 0 ffffffff"
+      val expected = Array(0xDEADBEEF, 0xCAFEBABE, 0x7FFFFFFF, 0, 0xFFFFFFFF)
+      T ~ Grok(s, delim = Delim.white)(g => Array.fill(5)(g.xI)).get                        =**= expected
+      T ~ Grok(s.getBytes, Delim.white, false, false)(g => Array.fill(5)(g.xI)).get         =**= expected
+      T ~ Grok(s.toCharArray, Delim.white, false, false)(g => Array.fill(5)(g.xI)).get      =**= expected
+      T ~ Grok(Mem of s.getBytes, Delim.white, false, false)(g => Array.fill(5)(g.xI)).get  =**= expected
+      T ~ Grok.buffered(s.getBytes, Delim.white, false, false, 8)(g => Array.fill(5)(g.xI)).get =**= expected
+    }
+
+  @Test
+  def grokDigitsFieldTest(): Unit =
+    T ~ Grok("20250706")(g => (g.digits(4), g.digits(2), g.digits(2)))  ==== Is((2025L, 7L, 6L))
+    T ~ Grok("123456")(g => (g.digits(4), g.digits(2)))                 ==== Is((1234L, 56L))
+    T ~ Grok("12ab")(g => (g.digits(2), g.C, g.C))                      ==== Is((12L, 'a', 'b'))
+    T ~ Grok("0042x", partial = true)(g => g.digits(4))                 ==== Is(42L)
+    T ~ Grok("12", partial = true)(g => g.digits(4))                    ==== Is(12L)
+    T ~ Grok("999999999999999999")(g => g.digits(18))                   ==== Is(999999999999999999L)
+    T ~ Grok("12 34", delim = Delim.white)(g => (g.digits(2), g.digits(2))) ==== Is((12L, 34L))
+    T ~ Grok("x", partial = true)(g => (g.digits(0), g.C))              ==== Is((0L, 'x'))
+    T ~ bad(Grok("x")(g => g.digits(4)))                                ==== true
+    T ~ Grok("1234")(g => g.digits(4, exact = true))                    ==== Is(1234L)
+    T ~ bad(Grok("123x")(g => g.digits(4, exact = true)))               ==== true
+    T ~ errText(Grok("123x")(g => g.digits(4, exact = true))).contains("4 digits") ==== true
+    T ~ bad(Grok("123")(g => g.digits(4, exact = true)))                ==== true
+    T ~ Grok("cafebabe")(g => (g.hexDigits(4), g.hexDigits(4)))         ==== Is((0xCAFEL, 0xBABEL))
+    T ~ Grok("CaFe")(g => g.hexDigits(4))                               ==== Is(0xCAFEL)
+    T ~ Grok("ffffffffffffffff")(g => g.hexDigits(16))                  ==== Is(-1L)
+    T ~ Grok("12", partial = true)(g => g.hexDigits(16))                ==== Is(0x12L)
+    T ~ Grok("12zz", partial = true)(g => g.hexDigits(4))               ==== Is(0x12L)
+    T ~ bad(Grok("12zz")(g => g.hexDigits(4, exact = true)))            ==== true
+    T ~ errText(Grok("12zz")(g => g.hexDigits(4, exact = true))).contains("4 hex digits") ==== true
+    T ~ bad(Grok("zz")(g => g.hexDigits(4)))                            ==== true
+    // no token boundary needed: decimal field jammed against letters where I would fail
+    T ~ bad(Grok("12ab")(g => g.I))                                     ==== true
+    T ~ Grok("12ab")(g => (g.digits(2), g.tok))                         ==== Is((12L, "ab"))
 
   @Test
   def grokTokenTest(): Unit =

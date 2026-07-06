@@ -377,3 +377,26 @@ taking already-loaded values (`hex4`, `putUtf8`, `digitsWork`).
 - `select` currently spawns a closure per alternative and uses a cross-frame break on total
   failure; inline 2-4-arity overloads would compile alternative misses to same-frame jumps.
 - ~~`doubleImpl` cc-threading~~ DONE 2026-07-03 via the digit kernel (see above).
+
+## Hex readers and the cost of width intent (2026-07-06)
+
+`xB/xS/xI/xL` = `hexImpl` kernel (shift-or accumulation, `hex4`-style select-and-add
+normalization, loop exit doubles as validity test) + base-class `smallHexWork` orchestration
+(zero-skim, one budgeted `hexWork`, digit-follows check; hex budgets fit their types exactly so
+the value needs no range check).
+
+**GrokHexBench** (100 values, taskset -c 4): hex ≈ decimal on the same numbers, ACCEPTED as-is.
+Int full-range: 0.79 vs 0.82 ops/µs (Bytes), parity on Str; Long full-range 0.43 vs 0.47;
+1-digit 2-5% behind.  The predicted char-count win (8 vs ~10.5 for Int) did not materialize:
+these loops are IPC-bound, and hex costs more µops per digit (or + two cmov-adds + two range
+compares + shift-or) than decimal (two compares + mul-add), which cancels the length advantage;
+the two virtual dispatches per number from base-class orchestration tip it slightly negative.
+(The bench's handRolledHexStr is NOT a valid ceiling — unhoisted length checks — ignore it.)
+
+**GrokWidthBench** — same 4-digit values (fit everything, hit no digit cap) via S, I, L:
+L 1.214, I 1.124, S 1.057 ops/µs.  Each abstraction layer between digit kernel and caller costs
+~6-7% at this token size: I's two range-check compares in the inline shim ≈ 0.66 ns/number;
+S's `smallLongWork` virtual orchestration (skipDelimsWork + digitsWork dispatch) ≈ 0.56 ns/number
+more.  CONFIRMS: keep `I` on `longWork` (moving it would stack both penalties); `S/B/uB/uS/uI`
+stay on `smallLongWork` (0.6 ns buys correct out-of-range errors); promote per-source only if a
+bulk-small-int workload ever appears.

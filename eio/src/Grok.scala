@@ -10,6 +10,7 @@ import scala.util.boundary.Label
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
+import kse.maths.{UByte, UShort, UInt, ULong}
 
 
 //////////////////////////
@@ -163,7 +164,8 @@ sealed abstract class Grok protected () {
   @publicInBinary protected[eio] def longWork(): Long
   @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long
   @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long
-  @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double
+  @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long
+  @publicInBinary protected[eio] def doubleWork(mode: Int): Double   // 0 = span only, 1 = Double, 2 = Float (exact in the Double)
   @publicInBinary protected[eio] def zWork(): Boolean
   @publicInBinary protected[eio] def tokWork(): String
   @publicInBinary protected[eio] def tokSpanWork(): Int
@@ -261,15 +263,153 @@ sealed abstract class Grok protected () {
       boundary.break(Alt(failErr()))
     x.toInt
 
-  /** Parse a Double (correctly rounded; also accepts NaN, Infinity, -Infinity). */
-  inline final def D[E >: Alt[Err]](using Label[E]): Double =
-    val x = doubleWork(true)
+  /** Parse a Short (same rules as `L`, plus a range check). */
+  inline final def S[E >: Alt[Err]](using Label[E]): Short =
+    val x = smallLongWork(5, "Short", true)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if x < Short.MinValue || x > Short.MaxValue then
+      eCode = 2
+      eWant = "number out of Short range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x.toShort
+
+  /** Parse a Byte (same rules as `L`, plus a range check). */
+  inline final def B[E >: Alt[Err]](using Label[E]): Byte =
+    val x = smallLongWork(3, "Byte", true)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if x < Byte.MinValue || x > Byte.MaxValue then
+      eCode = 2
+      eWant = "number out of Byte range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x.toByte
+
+  /** Parse a ULong: an unsigned decimal up to 2^64-1.  A leading `+` is allowed, `-` is not. */
+  inline final def uL[E >: Alt[Err]](using Label[E]): ULong =
+    val x = uLongWork()
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    ULong.wrap(x)
+
+  /** Parse a UInt (same rules as `uL`, plus a range check). */
+  inline final def uI[E >: Alt[Err]](using Label[E]): UInt =
+    val x = smallLongWork(10, "UInt", false)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if (x & 0xFFFFFFFF00000000L) != 0 then
+      eCode = 2
+      eWant = "number out of UInt range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    UInt.wrap(x.toInt)
+
+  /** Parse a UShort (same rules as `uL`, plus a range check). */
+  inline final def uS[E >: Alt[Err]](using Label[E]): UShort =
+    val x = smallLongWork(5, "UShort", false)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if (x & 0xFFFFFFFFFFFF0000L) != 0 then
+      eCode = 2
+      eWant = "number out of UShort range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    UShort.wrap(x.toShort)
+
+  /** Parse a UByte (same rules as `uL`, plus a range check). */
+  inline final def uB[E >: Alt[Err]](using Label[E]): UByte =
+    val x = smallLongWork(3, "UByte", false)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    if (x & 0xFFFFFFFFFFFFFF00L) != 0 then
+      eCode = 2
+      eWant = "number out of UByte range: " + x
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    UByte.wrap(x.toByte)
+
+  /** Parse a Long from up to 16 bare hex digits (case-insensitive, no `0x` prefix, no sign);
+    * the digits are the bit pattern, so e.g. `FFFFFFFFFFFFFFFF` is -1.
+    */
+  inline final def xL[E >: Alt[Err]](using Label[E]): Long =
+    val x = smallHexWork(16, "hex Long")
     if eCode != 0 then boundary.break(Alt(failErr()))
     x
 
+  /** Parse an Int from up to 8 bare hex digits (same rules as `xL`): `FFFFFFFF` is -1. */
+  inline final def xI[E >: Alt[Err]](using Label[E]): Int =
+    val x = smallHexWork(8, "hex Int")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x.toInt
+
+  /** Parse a Short from up to 4 bare hex digits (same rules as `xL`): `FFFF` is -1. */
+  inline final def xS[E >: Alt[Err]](using Label[E]): Short =
+    val x = smallHexWork(4, "hex Short")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x.toShort
+
+  /** Parse a Byte from up to 2 bare hex digits (same rules as `xL`): `FF` is -1. */
+  inline final def xB[E >: Alt[Err]](using Label[E]): Byte =
+    val x = smallHexWork(2, "hex Byte")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x.toByte
+
+  /** Parse a ULong from up to 16 bare hex digits (same rules as `xL`). */
+  inline final def uxL[E >: Alt[Err]](using Label[E]): ULong =
+    val x = smallHexWork(16, "hex ULong")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    ULong.wrap(x)
+
+  /** Parse a UInt from up to 8 bare hex digits (same rules as `xL`). */
+  inline final def uxI[E >: Alt[Err]](using Label[E]): UInt =
+    val x = smallHexWork(8, "hex UInt")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    UInt.wrap(x.toInt)
+
+  /** Parse a UShort from up to 4 bare hex digits (same rules as `xL`). */
+  inline final def uxS[E >: Alt[Err]](using Label[E]): UShort =
+    val x = smallHexWork(4, "hex UShort")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    UShort.wrap(x.toShort)
+
+  /** Parse a UByte from up to 2 bare hex digits (same rules as `xL`). */
+  inline final def uxB[E >: Alt[Err]](using Label[E]): UByte =
+    val x = smallHexWork(2, "hex UByte")
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    UByte.wrap(x.toByte)
+
+  /** Read up to `n` decimal digits as a nonnegative Long, with no sign, no leading-zero
+    * skimming, and no token boundary needed: the cursor stops after the `n`th digit even if
+    * more follow (so fixed-width fields like `20250706` read as `digits(4)`, `digits(2)`,
+    * `digits(2)`).  With `exact = true`, fewer than `n` digits is an error.  At least one
+    * digit is required unless `n` is 0 (which reads nothing).
+    */
+  inline final def digits[E >: Alt[Err]](n: 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18, exact: Boolean = false)(using Label[E]): Long =
+    val x = digitsFieldWork(n, false, exact)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x
+
+  /** Read up to `n` bare hex digits (case-insensitive) as their Long bit pattern; same
+    * cursor rules as `digits` (no token boundary needed).
+    */
+  inline final def hexDigits[E >: Alt[Err]](n: 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16, exact: Boolean = false)(using Label[E]): Long =
+    val x = digitsFieldWork(n, true, exact)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Double (correctly rounded; also accepts NaN, Infinity, -Infinity). */
+  inline final def D[E >: Alt[Err]](using Label[E]): Double =
+    val x = doubleWork(1)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Float, correctly rounded from the text (not narrowed from Double, which would
+    * double-round some inputs); also accepts NaN, Infinity, -Infinity.
+    */
+  inline final def F[E >: Alt[Err]](using Label[E]): Float =
+    val x = doubleWork(2)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    x.toFloat
+
   /** Advance past a Double without computing it; answers how many elements it occupied. */
   inline final def Dspan[E >: Alt[Err]](using Label[E]): Int =
-    doubleWork(false) __ Unit
+    doubleWork(0) __ Unit
     if eCode != 0 then boundary.break(Alt(failErr()))
     (i - vPos).toInt
 
@@ -388,6 +528,76 @@ sealed abstract class Grok protected () {
   /** Parse a Double and check it; fail with `msg` if the test does not pass. */
   inline final def D_?[E >: Alt[Err]](inline p: Double => Boolean, msg: String = "invalid value")(using Label[E]): Double =
     val x = D
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Short and check it; fail with `msg` if the test does not pass. */
+  inline final def S_?[E >: Alt[Err]](inline p: Short => Boolean, msg: String = "invalid value")(using Label[E]): Short =
+    val x = S
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Byte and check it; fail with `msg` if the test does not pass. */
+  inline final def B_?[E >: Alt[Err]](inline p: Byte => Boolean, msg: String = "invalid value")(using Label[E]): Byte =
+    val x = B
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a ULong and check it; fail with `msg` if the test does not pass. */
+  inline final def uL_?[E >: Alt[Err]](inline p: ULong => Boolean, msg: String = "invalid value")(using Label[E]): ULong =
+    val x = uL
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a UInt and check it; fail with `msg` if the test does not pass. */
+  inline final def uI_?[E >: Alt[Err]](inline p: UInt => Boolean, msg: String = "invalid value")(using Label[E]): UInt =
+    val x = uI
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a UShort and check it; fail with `msg` if the test does not pass. */
+  inline final def uS_?[E >: Alt[Err]](inline p: UShort => Boolean, msg: String = "invalid value")(using Label[E]): UShort =
+    val x = uS
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a UByte and check it; fail with `msg` if the test does not pass. */
+  inline final def uB_?[E >: Alt[Err]](inline p: UByte => Boolean, msg: String = "invalid value")(using Label[E]): UByte =
+    val x = uB
+    if !p(x) then
+      eCode = 2
+      eWant = msg
+      ePos = vPos
+      boundary.break(Alt(failErr()))
+    x
+
+  /** Parse a Float and check it; fail with `msg` if the test does not pass. */
+  inline final def F_?[E >: Alt[Err]](inline p: Float => Boolean, msg: String = "invalid value")(using Label[E]): Float =
+    val x = F
     if !p(x) then
       eCode = 2
       eWant = msg
@@ -587,6 +797,123 @@ sealed abstract class Grok protected () {
         skipped = false
         k -= 1
 
+  /** Parse an unsigned 64-bit decimal (shared by the `u`-prefixed readers).  A leading `+` is
+    * allowed, `-` is not; overflow past 2^64-1 is an error.  Orchestrates the per-source digit
+    * kernel, so no per-source code is needed: the first 18 digits go in one `digitsWork` call,
+    * and the at-most-two that can follow are taken one at a time with an unsigned overflow check.
+    */
+  @publicInBinary protected[eio] final def uLongWork(): Long =
+    if skipMode then skipDelimsWork()
+    vPos = i
+    if cc == '+' then cWork() __ Unit
+    val j0 = i
+    var x = digitsWork(i, cc, 18)
+    if i == j0 then
+      wantAt(if cc == '-' then "a nonnegative number" else "a number", i)
+      0L
+    else
+      skipped = false
+      var over = false
+      if i - j0 == 18 then
+        while cc >= '0' && cc <= '9' do
+          val d = digitsWork(i, cc, 1)
+          if x < 0 || x > 1844674407370955161L then over = true   // (2^64-1)/10: one more digit always overflows
+          else if x == 1844674407370955161L && d > 5 then over = true
+          else x = x * 10 + d
+      if over then
+        eCode = 2
+        eWant = "number out of ULong range"
+        ePos = vPos
+        0L
+      else if !partialMode && cc >= 0 && !dlm(cc) then
+        wantAt("end of number", i)
+        0L
+      else x
+
+  /** Parse a decimal that fits in `maxDigits` significant digits (shared by the readers of types
+    * smaller than Long/ULong).  Also orchestrates the per-source digit kernel with no per-source
+    * code: leading zeros are skimmed, then one budgeted `digitsWork` call reads the digits that
+    * could possibly fit; if the stashed next character is yet another digit, the number is out of
+    * `what`'s range no matter what it is, reported without reading it (so a thousand-digit input
+    * cannot produce a misleading out-of-Long-range complaint from a Byte reader).  The caller
+    * still range-checks the value it gets (budget 3 admits 999, which is not a Byte).
+    */
+  @publicInBinary protected[eio] final def smallLongWork(maxDigits: Int, what: String, signed: Boolean): Long =
+    if skipMode then skipDelimsWork()
+    vPos = i
+    if cc == '-' && !signed then
+      wantAt("a nonnegative number", i)
+      0L
+    else
+      var neg = false
+      if cc == '-' then
+        neg = true
+        cWork() __ Unit
+      else if cc == '+' then
+        cWork() __ Unit
+      val j0 = i
+      while cc == '0' do digitsWork(i, cc, 1) __ Unit   // leading zeros are not significant
+      val x = digitsWork(i, cc, maxDigits)
+      if i == j0 then
+        wantAt("a number", i)
+        0L
+      else
+        skipped = false
+        if cc >= '0' && cc <= '9' then
+          eCode = 2
+          eWant = "number out of " + what + " range"
+          ePos = vPos
+          0L
+        else if !partialMode && cc >= 0 && !dlm(cc) then
+          wantAt("end of number", i)
+          0L
+        else if neg then -x else x
+
+  /** Hex twin of `smallLongWork`: parse a bare hexadecimal (case-insensitive, no `0x` prefix,
+    * no sign) of at most `maxDigits` digits.  The hex budgets fit their types exactly (2 digits
+    * per byte), so the value needs no further range check: it is the bit pattern.
+    */
+  @publicInBinary protected[eio] final def smallHexWork(maxDigits: Int, what: String): Long =
+    if skipMode then skipDelimsWork()
+    vPos = i
+    val j0 = i
+    while cc == '0' do hexWork(i, cc, 1) __ Unit   // leading zeros are not significant
+    val x = hexWork(i, cc, maxDigits)
+    if i == j0 then
+      wantAt("a hexadecimal number", i)
+      0L
+    else
+      skipped = false
+      if Grok.hexVal(cc) >= 0 then
+        eCode = 2
+        eWant = "number out of " + what + " range"
+        ePos = vPos
+        0L
+      else if !partialMode && cc >= 0 && !dlm(cc) then
+        wantAt("end of number", i)
+        0L
+      else x
+
+  /** Fixed-field digit reader behind `digits`/`hexDigits`: up to `n` digits from the cursor,
+    * no sign, no zero-skimming, no token-boundary or delimiter check afterwards.  `n == 0`
+    * bypasses the kernels (they consume one char before checking the budget).
+    */
+  @publicInBinary protected[eio] final def digitsFieldWork(n: Int, hex: Boolean, exact: Boolean): Long =
+    if skipMode then skipDelimsWork()
+    vPos = i
+    if n == 0 then 0L
+    else
+      val x = if hex then hexWork(i, cc, n) else digitsWork(i, cc, n)
+      val consumed = i - vPos
+      if consumed > 0 then skipped = false
+      if exact && consumed != n then
+        wantAt(n.toString + (if hex then " hex digits" else " digits"), i)
+        0L
+      else if consumed == 0 then
+        wantAt(if hex then "a hexadecimal number" else "a number", i)
+        0L
+      else x
+
 
   //////////////////////////////////////////////////////////////////////////
   /// Inline worker templates: written once, instantiated per source type ///
@@ -682,6 +1009,27 @@ sealed abstract class Grok protected () {
     boundary:
       while c >= '0' && c <= '9' do
         x = x * 10 + (c - '0')
+        j += 1
+        if j >= jF then boundary.break()
+        c = at(j)
+    i = j
+    cc = if j >= jF then (if j < iZ then at(j) else -1) else c
+    x
+
+  /** Hex twin of `digitsImpl`: shift-or accumulation with the same select-and-add digit
+    * normalization as `hex4`, one char at a time (the loop exit doubles as the validity test).
+    */
+  protected inline def hexImpl(inline at: Long => Int)(j0: Long, c0: Int, budget: Int): Long =
+    var j = j0
+    var c = c0
+    var x = 0L
+    val jF = if iZ - j0 >= budget then j0 + budget else iZ
+    boundary:
+      while true do
+        var y = c | 0x20
+        y += (if y <= '9' then -'0' else 0) + (if y >= 'a' then -87 else 0)
+        if y < 0 || y > 15 then boundary.break()
+        x = (x << 4) | y
         j += 1
         if j >= jF then boundary.break()
         c = at(j)
@@ -1100,7 +1448,7 @@ sealed abstract class Grok protected () {
   // cc-threaded throughout (each char is read once), significant digits gathered by the
   // digitsWork kernel, and a single exit so windowed sources can pin vPos across the kernel's
   // eager cursor commits (the slow path re-reads [vPos, end) at the very end)
-  protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline advise: Int => Unit)(compute: Boolean): Double =
+  protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline advise: Int => Unit)(mode: Int): Double =
     if skipMode then skipDelimsImpl(at)
     advise(28)   // covers typical doubles; longer ones self-heal read by read
     vPos = i
@@ -1216,9 +1564,27 @@ sealed abstract class Grok protected () {
             eWant = "end of number"
             ePos = j
             0.0
-          else if !compute then 0.0
+          else if mode == 0 then 0.0
           else if mant == 0 then
             if neg then -0.0 else 0.0
+          else if mode == 2 then
+            if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
+              // Same exact-arithmetic fast path as the Double case; narrowing its correctly
+              // rounded result is also correct UNLESS it lands exactly on a Float rounding
+              // midpoint (low 29 mantissa bits = one half; the window keeps every result in
+              // normal Float range, so this test is exact).  Then the true value may lie on
+              // either side, so only the digits can decide: punt to the JDK.
+              var v = mant.toDouble
+              if e10 > 0 then v *= Grok.pow10(e10)
+              else if e10 < 0 then v /= Grok.pow10(-e10)
+              if (java.lang.Double.doubleToRawLongBits(v) & 0x1FFFFFFFL) == 0x10000000L then
+                java.lang.Float.parseFloat(sub(vPos, j)).toDouble
+              else
+                (if neg then -v.toFloat else v.toFloat).toDouble
+            else
+              // Hard cases go to the JDK Float parser: narrowing a correctly-rounded Double
+              // double-rounds incorrectly for some inputs (e.g. 7.038531e-26).
+              java.lang.Float.parseFloat(sub(vPos, j)).toDouble
           else if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
             // Exact-arithmetic fast path (Clinger): mantissa and power of ten are both exactly
             // representable, so the single multiply or divide rounds correctly.
@@ -1395,7 +1761,8 @@ object Grok {
 
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content.charAt(j.toInt))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content.charAt(j.toInt))(j0, c0, budget)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt), _ => ())(compute)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content.charAt(j.toInt))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt), _ => ())(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content.charAt(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content.charAt(j.toInt))
@@ -1443,11 +1810,12 @@ object Grok {
     @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt) & 0xFF, _ => ())(s)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt) & 0xFF)(x0, neg)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(compute)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt) & 0xFF)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strByteImpl(
         j => content(j.toInt) & 0xFF,
@@ -1478,7 +1846,8 @@ object Grok {
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt))(j0, c0, budget)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt), _ => ())(compute)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content(j.toInt))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt), _ => ())(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt))
@@ -1535,7 +1904,8 @@ object Grok {
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j) & 0xFF)(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j) & 0xFF)(j0, c0, budget)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b), _ => ())(compute)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content(j) & 0xFF)(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b), _ => ())(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j) & 0xFF)
@@ -1644,7 +2014,8 @@ object Grok {
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => atc(j))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => atc(j))(j0, c0, budget)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => atc(j), (a, b) => utf8(a, b), n => advc(n))(compute)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => atc(j))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => atc(j), (a, b) => utf8(a, b), n => advc(n))(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
@@ -1763,7 +2134,8 @@ object Grok {
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => atc(j))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => atc(j))(j0, c0, budget)
-    @publicInBinary protected[eio] def doubleWork(compute: Boolean): Double = doubleImpl(j => atc(j), (a, b) => sub(a, b), n => advc(n))(compute)
+    @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => atc(j))(j0, c0, budget)
+    @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => atc(j), (a, b) => sub(a, b), n => advc(n))(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => sub(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
