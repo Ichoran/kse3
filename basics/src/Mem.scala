@@ -4,7 +4,7 @@
 package kse.basics
 
 
-import java.lang.foreign.{Arena, MemorySegment}
+import java.lang.foreign.{Arena, MemorySegment, ValueLayout}
 import java.lang.foreign.ValueLayout.*
 
 import scala.annotation.targetName
@@ -38,6 +38,17 @@ object Mem {
     case _: Float   => 4L
     case _: Long    => 8L
     case _: Double  => 8L
+    case _          => error("Mem only supports primitive element types")
+
+  /** Compile-time (unaligned) value layout of one element of type `A`, e.g. for `MemorySegment.copy`. */
+  inline def layoutOf[A <: Type]: ValueLayout = inline erasedValue[A] match
+    case _: Byte    => JAVA_BYTE
+    case _: Short   => JAVA_SHORT_UNALIGNED
+    case _: Char    => JAVA_CHAR_UNALIGNED
+    case _: Int     => JAVA_INT_UNALIGNED
+    case _: Float   => JAVA_FLOAT_UNALIGNED
+    case _: Long    => JAVA_LONG_UNALIGNED
+    case _: Double  => JAVA_DOUBLE_UNALIGNED
     case _          => error("Mem only supports primitive element types")
 
   /** Allocate `n` elements of off-heap memory, reclaimed by the GC when unreachable. */
@@ -109,6 +120,28 @@ object Mem {
       case _: Long    => (m: MemorySegment).setAtIndex(JAVA_LONG_UNALIGNED, i, x.asInstanceOf[Long])
       case _: Double  => (m: MemorySegment).setAtIndex(JAVA_DOUBLE_UNALIGNED, i, x.asInstanceOf[Double])
       case _          => error("Mem only supports primitive element types")
+
+    /** Read a primitive of the stated type at element index `i`: the byte offset is `i * bytesOf[A]`,
+      * so indices stay in units of `A` no matter which type is read (unaligned, native byte order).
+      */
+    inline def getB(i: Long): Byte   = (m: MemorySegment).get(JAVA_BYTE,             i * bytesOf[A])
+    inline def getS(i: Long): Short  = (m: MemorySegment).get(JAVA_SHORT_UNALIGNED,  i * bytesOf[A])
+    inline def getC(i: Long): Char   = (m: MemorySegment).get(JAVA_CHAR_UNALIGNED,   i * bytesOf[A])
+    inline def getI(i: Long): Int    = (m: MemorySegment).get(JAVA_INT_UNALIGNED,    i * bytesOf[A])
+    inline def getF(i: Long): Float  = (m: MemorySegment).get(JAVA_FLOAT_UNALIGNED,  i * bytesOf[A])
+    inline def getL(i: Long): Long   = (m: MemorySegment).get(JAVA_LONG_UNALIGNED,   i * bytesOf[A])
+    inline def getD(i: Long): Double = (m: MemorySegment).get(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A])
+
+    /** Write a primitive of the stated type at element index `i`: the byte offset is `i * bytesOf[A]`,
+      * so indices stay in units of `A` no matter which type is written (unaligned, native byte order).
+      */
+    inline def setB(i: Long, x: Byte):   Unit = (m: MemorySegment).set(JAVA_BYTE,             i * bytesOf[A], x)
+    inline def setS(i: Long, x: Short):  Unit = (m: MemorySegment).set(JAVA_SHORT_UNALIGNED,  i * bytesOf[A], x)
+    inline def setC(i: Long, x: Char):   Unit = (m: MemorySegment).set(JAVA_CHAR_UNALIGNED,   i * bytesOf[A], x)
+    inline def setI(i: Long, x: Int):    Unit = (m: MemorySegment).set(JAVA_INT_UNALIGNED,    i * bytesOf[A], x)
+    inline def setF(i: Long, x: Float):  Unit = (m: MemorySegment).set(JAVA_FLOAT_UNALIGNED,  i * bytesOf[A], x)
+    inline def setL(i: Long, x: Long):   Unit = (m: MemorySegment).set(JAVA_LONG_UNALIGNED,   i * bytesOf[A], x)
+    inline def setD(i: Long, x: Double): Unit = (m: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A], x)
 
     /** A bounds-clipping view: out-of-range indices are silently skipped or clamped. */
     inline def clip: kse.basics.ClippedMem[A] = ClippedMem wrap m
@@ -555,6 +588,48 @@ object Mem {
         i += 1
       j - where
 
+    /** Copy elements into a caller-provided array; returns the number copied. */
+    inline def inject(that: Array[A]): Long =
+      inject(that, 0)(0L, m.length)
+    inline def inject(that: Array[A], where: Int): Long =
+      inject(that, where)(0L, m.length)
+    inline def inject(that: Array[A])(i0: Long, iN: Long): Long =
+      inject(that, 0)(i0, iN)
+    inline def inject(that: Array[A], where: Int)(i0: Long, iN: Long): Long =
+      MemorySegment.copy(m, layoutOf[A], i0 * bytesOf[A], that, where, (iN - i0).toInt)
+      iN - i0
+    inline def inject(that: Array[A])(indices: Array[Long]): Long =
+      inject(that, 0)(indices)
+    inline def inject(that: Array[A], where: Int)(indices: Array[Long]): Long =
+      var i = 0
+      var j = where
+      while i < indices.length do
+        that(j) = m(indices(i))
+        i += 1
+        j += 1
+      i
+    inline def inject(that: Array[A])(indices: LongStepper): Long =
+      inject(that, 0)(indices)
+    inline def inject(that: Array[A], where: Int)(indices: LongStepper): Long =
+      var j = where
+      while indices.hasStep do
+        that(j) = m(indices.nextStep())
+        j += 1
+      j - where
+    inline def inject(that: Array[A])(inline pick: A => Boolean): Long =
+      inject(that, 0)(pick)
+    inline def inject(that: Array[A], where: Int)(inline pick: A => Boolean): Long =
+      var i = 0L
+      val n = m.length
+      var j = where
+      while i < n do
+        val x = m(i)
+        if pick(x) then
+          that(j) = x
+          j += 1
+        i += 1
+      j - where
+
     /** Map elements into a caller-provided destination; returns the number written. */
     inline def injectOp[B <: Type](that: Mem[B])()(inline f: (A, Long) => B): Long =
       injectOp(that, 0L)(0L, m.length)(f)
@@ -624,6 +699,14 @@ object Mem {
 
     /** Zero-copy reinterpretation as another primitive (any trailing partial element is ignored by `length`). */
     inline def as[B <: Type]: Mem[B] = wrap[B](m)
+
+    /** Zero-copy view of elements `[i0, iN)`, sharing this memory and its lifetime. */
+    inline def view(i0: Long, iN: Long): Mem[A] =
+      wrap[A]((m: MemorySegment).asSlice(i0 * bytesOf[A], (iN - i0) * bytesOf[A]))
+
+    /** Zero-copy view of elements `[i0, iN)` (indices in units of `A`) reinterpreted as a `Mem[B]`. */
+    inline def viewAs[B <: Type](i0: Long, iN: Long): Mem[B] =
+      wrap[B]((m: MemorySegment).asSlice(i0 * bytesOf[A], (iN - i0) * bytesOf[A]))
   }
 }
 
@@ -649,8 +732,58 @@ object ClippedMem {
       val m = cm.unclip
       if i >= 0 && i < Mem.length(m) then Some(Mem.apply(m)(i)) else None
 
-    inline def length: Long = 
+    inline def length: Long =
       (cm: MemorySegment).byteSize / Mem.bytesOf[A]
+
+    /** Read a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`),
+      * or `None` if any byte of it would fall out of range.
+      */
+    inline def getB(i: Long): Option[Byte] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 1 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_BYTE, off)) else None
+    inline def getS(i: Long): Option[Short] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 2 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_SHORT_UNALIGNED, off)) else None
+    inline def getC(i: Long): Option[Char] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 2 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_CHAR_UNALIGNED, off)) else None
+    inline def getI(i: Long): Option[Int] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 4 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_INT_UNALIGNED, off)) else None
+    inline def getF(i: Long): Option[Float] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 4 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_FLOAT_UNALIGNED, off)) else None
+    inline def getL(i: Long): Option[Long] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 8 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_LONG_UNALIGNED, off)) else None
+    inline def getD(i: Long): Option[Double] =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 8 <= (cm: MemorySegment).byteSize then Some((cm: MemorySegment).get(JAVA_DOUBLE_UNALIGNED, off)) else None
+
+    /** Write a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`),
+      * silently doing nothing if any byte of it would fall out of range.
+      */
+    inline def setB(i: Long, x: Byte): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 1 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_BYTE, off, x)
+    inline def setS(i: Long, x: Short): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 2 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_SHORT_UNALIGNED, off, x)
+    inline def setC(i: Long, x: Char): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 2 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_CHAR_UNALIGNED, off, x)
+    inline def setI(i: Long, x: Int): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 4 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_INT_UNALIGNED, off, x)
+    inline def setF(i: Long, x: Float): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 4 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_FLOAT_UNALIGNED, off, x)
+    inline def setL(i: Long, x: Long): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 8 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_LONG_UNALIGNED, off, x)
+    inline def setD(i: Long, x: Double): Unit =
+      val off = i * Mem.bytesOf[A]
+      if off >= 0 && off + 8 <= (cm: MemorySegment).byteSize then (cm: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, off, x)
 
 
     inline def use(i: Long)(inline f: A => Unit): Unit =
@@ -906,6 +1039,52 @@ object ClippedMem {
           j += 1
         i += 1
       if where < 0 then j else j - where
+
+    inline def inject(that: Array[A]): Long =
+      inject(that, 0)(0L, cm.length)
+    inline def inject(that: Array[A], where: Int): Long =
+      inject(that, where)(0L, cm.length)
+    inline def inject(that: Array[A])(i0: Long, iN: Long): Long =
+      inject(that, 0)(i0, iN)
+    inline def inject(that: Array[A], where: Int)(i0: Long, iN: Long): Long =
+      val m = cm.unclip
+      val w = if where < 0 then 0 else where
+      val i = if i0 < 0 then 0L else i0
+      val j = if iN >= Mem.length(m) then Mem.length(m) else iN
+      if i < j && w < that.length then
+        var n = (that.length - w).toLong
+        if n > j - i then n = j - i
+        MemorySegment.copy(Mem.segment(m), Mem.layoutOf[A], i * Mem.bytesOf[A], that, w, n.toInt)
+        n
+      else 0L
+    inline def inject(that: Array[A])(indices: Array[Long]): Long =
+      inject(that, 0)(indices)
+    inline def inject(that: Array[A], where: Int)(indices: Array[Long]): Long =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      var i = 0
+      var j = if where < 0 then 0 else where
+      while i < indices.length && j < that.length do
+        val k = indices(i)
+        if k >= 0 && k < n then
+          that(j) = Mem.apply(m)(k)
+          j += 1
+        i += 1
+      (if where < 0 then j else j - where).toLong
+    inline def inject(that: Array[A])(inline pick: A => Boolean): Long =
+      inject(that, 0)(pick)
+    inline def inject(that: Array[A], where: Int)(inline pick: A => Boolean): Long =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      var i = 0L
+      var j = if where < 0 then 0 else where
+      while i < n && j < that.length do
+        val x = Mem.apply(m)(i)
+        if pick(x) then
+          that(j) = x
+          j += 1
+        i += 1
+      (if where < 0 then j else j - where).toLong
 
     inline def visitCuts(i0: Long, iN: Long)(inline cut: (A, A) => Boolean)(inline f: (Long, Long) => Unit): Unit =
       val m = cm.unclip

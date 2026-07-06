@@ -169,6 +169,50 @@ class MemTest() {
       T ~ mem.whereBkw(3)(_ == 999)          ==== -1
     }
 
+    // typed get/set (byte offset = index * bytesOf[A]; native byte order, as elsewhere in the suite)
+    def ab = Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
+    T ~ (Mem of ab).getB(1) ==== 2.toByte
+    T ~ (Mem of ab).getS(1) ==== 0x0302.toShort
+    T ~ (Mem of ab).getC(1) ==== 0x0302.toChar
+    T ~ (Mem of ab).getI(1) ==== 0x05040302
+    T ~ (Mem of ab).getL(0) ==== 0x0807060504030201L
+    T ~ (Mem of ab).getF(0) ==== java.lang.Float.intBitsToFloat(0x04030201)
+    T ~ (Mem of ab).getD(0) ==== java.lang.Double.longBitsToDouble(0x0807060504030201L)
+    T ~ (Mem of Array(0x04030201, 0x08070605)).getB(1) ==== 5.toByte
+    T ~ (Mem of Array(0x04030201, 0x08070605)).getS(1) ==== 0x0605.toShort
+    T ~ { val x = new Array[Byte](8); (Mem of x).setB(1, 2);                       x } =**= Array[Byte](0, 2, 0, 0, 0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](8); (Mem of x).setS(1, 0x0302.toShort);          x } =**= Array[Byte](0, 2, 3, 0, 0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](8); (Mem of x).setC(1, 0x0302.toChar);           x } =**= Array[Byte](0, 2, 3, 0, 0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](8); (Mem of x).setI(2, 0x04030201);              x } =**= Array[Byte](0, 0, 1, 2, 3, 4, 0, 0)
+    T ~ { val x = new Array[Byte](8); (Mem of x).setL(0, 0x0807060504030201L);     x } =**= Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
+    T ~ { val x = new Array[Byte](4); (Mem of x).setF(0, java.lang.Float.intBitsToFloat(0x04030201));           x } =**= Array[Byte](1, 2, 3, 4)
+    T ~ { val x = new Array[Byte](8); (Mem of x).setD(0, java.lang.Double.longBitsToDouble(0x0807060504030201L)); x } =**= Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
+    T ~ { val x = new Array[Int](2);  (Mem of x).setB(1, 9); x(1) } ==== 9
+
+    // view / viewAs (zero-copy slices)
+    T ~ (Mem of ai).view(1L, 4L).vec    =**= Vector(3, 5, 7)
+    T ~ (Mem of ai).view(1L, 4L).length ==== 3L
+    T ~ { val a = ai; val v = (Mem of a).view(1L, 4L); v(0) = 99; a(1) } ==== 99
+    T ~ (Mem of Array(0x04030201, 0x08070605)).viewAs[Byte](1L, 2L).vec =**= Vector[Byte](5, 6, 7, 8)
+    T ~ (Mem of ab).viewAs[Int](2L, 6L).vec                             =**= Vector(0x06050403)
+    T ~ (Mem of ab).viewAs[Short](2L, 6L).length                        ==== 2L
+
+    // inject into Array
+    inline def intoA(k: Int)(inline f: Array[Int] => Any): Array[Int] =
+      val a = new Array[Int](k)
+      f(a)
+      a
+    T ~ intoA(7)(d => (Mem of ai).inject(d))            =**= Array(2, 3, 5, 7, 11, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).inject(d, 2))         =**= Array(0, 0, 2, 3, 5, 7, 11)
+    T ~ intoA(7)(d => (Mem of ai).inject(d)(1L, 4L))    =**= Array(3, 5, 7, 0, 0, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).inject(d, 2)(1L, 4L)) =**= Array(0, 0, 3, 5, 7, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).inject(d)(ix))        =**= Array(7, 3, 11, 3, 0, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).inject(d)(st))        =**= Array(7, 3, 11, 3, 0, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).inject(d)(_ > 4))     =**= Array(5, 7, 11, 0, 0, 0, 0)
+    T ~ (Mem of ai).inject(new Array[Int](7))           ==== 5L
+    T ~ (Mem of ai).inject(new Array[Int](7))(ix)       ==== 4L
+    T ~ (Mem of ai).inject(new Array[Int](7))(_ > 4)    ==== 3L
+
     // inject
     T ~ into(7)(d => (Mem of ai).inject(d))            =**= Array(2, 3, 5, 7, 11, 0, 0)
     T ~ into(7)(d => (Mem of ai).inject(d, 2L))        =**= Array(0, 0, 2, 3, 5, 7, 11)
@@ -257,6 +301,47 @@ class MemTest() {
     T ~ into(7)(d => (Mem of ai).clip.inject(d)(1L, 99L) __ Unit) =**= Array(3, 5, 7, 11, 0, 0, 0)
     T ~ into(7)(d => (Mem of ai).clip.inject(d)(ix) __ Unit)     =**= Array(3, 7, 0, 0, 0, 0, 0)
     T ~ into(7)(d => (Mem of ai).clip.inject(d)(_ > 4) __ Unit)  =**= Array(5, 7, 11, 0, 0, 0, 0)
+
+    // typed get/set (None / silent no-op when any byte would be out of range)
+    def ab = Array[Byte](1, 2, 3, 4)
+    T ~ (Mem of ab).clip.getB(3)  ==== Some(4.toByte)
+    T ~ (Mem of ab).clip.getB(4)  ==== None
+    T ~ (Mem of ab).clip.getB(-1) ==== None
+    T ~ (Mem of ab).clip.getS(2)  ==== Some(0x0403.toShort)
+    T ~ (Mem of ab).clip.getS(3)  ==== None
+    T ~ (Mem of ab).clip.getC(2)  ==== Some(0x0403.toChar)
+    T ~ (Mem of ab).clip.getI(0)  ==== Some(0x04030201)
+    T ~ (Mem of ab).clip.getI(1)  ==== None
+    T ~ (Mem of ab).clip.getF(0)  ==== Some(java.lang.Float.intBitsToFloat(0x04030201))
+    T ~ (Mem of ab).clip.getL(0)  ==== None
+    T ~ (Mem of ab).clip.getD(0)  ==== None
+    T ~ (Mem of Array(0x04030201, 0x08070605)).clip.getL(0) ==== Some(0x0807060504030201L)
+    T ~ (Mem of Array(0x04030201, 0x08070605)).clip.getL(1) ==== None
+    T ~ (Mem of Array(0x04030201, 0x08070605)).clip.getB(1) ==== Some(5.toByte)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setI(0, 0x04030201);          x } =**= Array[Byte](1, 2, 3, 4)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setI(1, 0x04030201);          x } =**= Array[Byte](0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setB(-1, 9);                  x } =**= Array[Byte](0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setS(3, 0x0302.toShort);      x } =**= Array[Byte](0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setC(2, 0x0302.toChar);       x } =**= Array[Byte](0, 0, 2, 3)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setL(0, 1L);                  x } =**= Array[Byte](0, 0, 0, 0)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setF(0, java.lang.Float.intBitsToFloat(0x04030201)); x } =**= Array[Byte](1, 2, 3, 4)
+    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setD(0, 1.0);                 x } =**= Array[Byte](0, 0, 0, 0)
+
+    // inject into Array (clamped offsets/ranges & index-skipping)
+    inline def intoA(k: Int)(inline f: Array[Int] => Any): Array[Int] =
+      val a = new Array[Int](k)
+      f(a)
+      a
+    T ~ intoA(7)(d => (Mem of ai).clip.inject(d))           =**= Array(2, 3, 5, 7, 11, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).clip.inject(d, -5))       =**= Array(2, 3, 5, 7, 11, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).clip.inject(d)(1L, 99L))  =**= Array(3, 5, 7, 11, 0, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).clip.inject(d)(ix))       =**= Array(3, 7, 0, 0, 0, 0, 0)
+    T ~ intoA(7)(d => (Mem of ai).clip.inject(d)(_ > 4))    =**= Array(5, 7, 11, 0, 0, 0, 0)
+    T ~ intoA(3)(d => (Mem of ai).clip.inject(d))           =**= Array(2, 3, 5)
+    T ~ intoA(3)(d => (Mem of ai).clip.inject(d, 2))        =**= Array(0, 0, 2)
+    T ~ (Mem of ai).clip.inject(new Array[Int](3))          ==== 3L
+    T ~ (Mem of ai).clip.inject(new Array[Int](7))(ix)      ==== 2L
+    T ~ (Mem of ai).clip.inject(new Array[Int](2))(_ > 4)   ==== 2L
 
     // visitCuts (clamped)
     def acut = Array(1, 1, 2, 2, 2, 3)
