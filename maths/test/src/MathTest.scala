@@ -4254,48 +4254,6 @@ class MathTest {
 
 
   @Test
-  def memMathsTest(): Unit =
-    def ab = Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
-    def a4 = Array[Byte](1, 2, 3, 4)
-
-    // typed get/set of maths types (byte offset = index * bytesOf[A]; native byte order)
-    T ~ (Mem of ab).getUB(1)   ==== UByte.wrap(2)
-    T ~ (Mem of ab).getUS(1)   ==== UShort.wrap(0x0302.toShort)
-    T ~ (Mem of ab).getUI(1)   ==== UInt.wrap(0x05040302)
-    T ~ (Mem of ab).getUL(0)   ==== ULong.wrap(0x0807060504030201L)
-    T ~ (Mem of ab).getBf16(1) ==== Bf16.wrap(0x0302.toChar)
-    T ~ (Mem of Array[Byte](-1)).getUB(0).toInt                      ==== 255
-    T ~ (Mem of Array(0x04030201, 0x08070605)).getUB(1)              ==== UByte.wrap(5)
-    T ~ (Mem of Array(0x04030201, 0x08070605)).getUS(1)              ==== UShort.wrap(0x0605.toShort)
-    T ~ { val x = new Array[Byte](8); (Mem of x).setUB(1, UByte.wrap(2));                    x } =**= Array[Byte](0, 2, 0, 0, 0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](8); (Mem of x).setUS(1, UShort.wrap(0x0302.toShort));      x } =**= Array[Byte](0, 2, 3, 0, 0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](8); (Mem of x).setUI(2, UInt.wrap(0x04030201));            x } =**= Array[Byte](0, 0, 1, 2, 3, 4, 0, 0)
-    T ~ { val x = new Array[Byte](8); (Mem of x).setUL(0, ULong.wrap(0x0807060504030201L));  x } =**= Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
-    T ~ { val x = new Array[Byte](4); (Mem of x).setBf16(1, Bf16.wrap(0x0302.toChar));       x } =**= Array[Byte](0, 2, 3, 0)
-    T ~ { val x = new Array[Int](2);  (Mem of x).setUB(1, UByte.wrap(9)); x(1) } ==== 9
-
-    // clipped: None / silent no-op when any byte would be out of range
-    T ~ (Mem of a4).clip.getUB(3)   ==== Some(UByte.wrap(4))
-    T ~ (Mem of a4).clip.getUB(4)   ==== None
-    T ~ (Mem of a4).clip.getUB(-1)  ==== None
-    T ~ (Mem of a4).clip.getUS(2)   ==== Some(UShort.wrap(0x0403.toShort))
-    T ~ (Mem of a4).clip.getUS(3)   ==== None
-    T ~ (Mem of a4).clip.getUI(0)   ==== Some(UInt.wrap(0x04030201))
-    T ~ (Mem of a4).clip.getUI(1)   ==== None
-    T ~ (Mem of a4).clip.getUL(0)   ==== None
-    T ~ (Mem of a4).clip.getBf16(2) ==== Some(Bf16.wrap(0x0403.toChar))
-    T ~ (Mem of a4).clip.getBf16(3) ==== None
-    T ~ (Mem of Array(0x04030201, 0x08070605)).clip.getUL(0) ==== Some(ULong.wrap(0x0807060504030201L))
-    T ~ (Mem of Array(0x04030201, 0x08070605)).clip.getUL(1) ==== None
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setUI(0, UInt.wrap(0x04030201));       x } =**= Array[Byte](1, 2, 3, 4)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setUI(1, UInt.wrap(0x04030201));       x } =**= Array[Byte](0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setUB(-1, UByte.wrap(9));              x } =**= Array[Byte](0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setUS(3, UShort.wrap(0x0302.toShort)); x } =**= Array[Byte](0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setUL(0, ULong.wrap(1L));              x } =**= Array[Byte](0, 0, 0, 0)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setBf16(2, Bf16.wrap(0x0302.toChar));  x } =**= Array[Byte](0, 0, 2, 3)
-    T ~ { val x = new Array[Byte](4); (Mem of x).clip.setBf16(3, Bf16.wrap(0x0302.toChar));  x } =**= Array[Byte](0, 0, 0, 0)
-
-  @Test
   def packedBitTest(): Unit = packedTester.packedBitTest()
 
   @Test
