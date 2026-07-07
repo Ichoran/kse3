@@ -36,6 +36,28 @@ final class Delim private (val lo: Long, val hi: Long, val high: Boolean, sub0: 
     if c < 64 then c >= 0 && ((lo >>> c) & 1L) != 0
     else if c < 128 then ((hi >>> (c - 64)) & 1L) != 0
     else high
+
+  /** The union: characters of either delimiter delimit.  Composed delimiters have no sub
+    * chain of their own; use `over` to attach one.
+    */
+  def |(that: Delim): Delim = new Delim(lo | that.lo, hi | that.hi, high || that.high, null)
+
+  /** The intersection: only characters in both delimiters delimit. */
+  def &(that: Delim): Delim = new Delim(lo & that.lo, hi & that.hi, high && that.high, null)
+
+  /** The difference: this delimiter with `that`'s characters removed. */
+  def &~(that: Delim): Delim = new Delim(lo & ~that.lo, hi & ~that.hi, high && !that.high, null)
+
+  /** This delimiter with `finer` appended at the bottom of its sub chain (replacing an
+    * undelimited terminal), so sub-parses narrow through every level in turn:
+    * `Delim.lines over Delim.of(",")` tokenizes lines, then words within lines, then
+    * comma-fields within words.
+    */
+  def over(finer: Delim): Delim = sub0 match
+    case null => new Delim(lo, hi, high, finer)
+    case d: Delim =>
+      if d.lo == 0L && d.hi == 0L && !d.high then new Delim(lo, hi, high, finer)
+      else new Delim(lo, hi, high, d.over(finer))
 }
 object Delim {
   /** No delimiters at all: the token is everything that remains. */
@@ -46,6 +68,22 @@ object Delim {
 
   /** Line-delimited tokens; sub-tokens are whitespace-delimited. */
   val lines: Delim = of("\n\r", white)
+
+  /** A delimiter set of exactly the one character `c` (sub-tokens undelimited); non-ASCII `c`
+    * makes _every_ non-ASCII character a delimiter.
+    */
+  def one(c: Char): Delim =
+    if c < 64 then new Delim(1L << c, 0L, false, null)
+    else if c < 128 then new Delim(0L, 1L << (c - 64), false, null)
+    else new Delim(0L, 0L, true, null)
+
+  /** Normalize a delimiter specification at compile time: a Delim is itself, a Char is
+    * `Delim.one`, a String is `Delim.of`.
+    */
+  inline def from(inline spec: Delim | Char | String): Delim = inline spec match
+    case d: Delim => d
+    case c: Char => one(c)
+    case s: String => of(s)
 
   /** A delimiter set of exactly the characters in `chars`, with `sub` used within tokens.
     * Any non-ASCII character in `chars` makes _every_ non-ASCII character a delimiter.
@@ -108,8 +146,12 @@ object Quote {
   * }}}
   *
   * Token-level operations (`tok`, `str`, `< "literal"`, `grok`, `skip`, and value parses) skip
-  * leading delimiters unless the Grok was created with `exact = true`; `< (c: Char)` and `C`
-  * never skip.
+  * leading delimiters unless the Grok was created with `exact = true`.  In exact mode a
+  * delimiter is a separator: completing a token-level operation permits the next one to
+  * consume exactly one delimiter, so adjacent separators delimit empty tokens (`tok` three
+  * times on `"a,,c"` yields `"a"`, `""`, `"c"`) and iteration always makes progress.
+  * `< (c: Char)` and `C` never skip, and in exact mode taking the cursor manually revokes the
+  * separator permission.
   * Numbers and booleans must normally end at a delimiter or the end of input; with
   * `partial = true` they instead consume the longest valid prefix.
   *
@@ -153,6 +195,16 @@ sealed abstract class Grok protected () {
   @publicInBinary protected[eio] var cc = -1
   @publicInBinary protected[eio] var skipped = false
 
+  // === Separator grant (exact mode only) ===
+  // In exact mode a delimiter is a separator: each token-level op that completes grants
+  // permission (sepOk) to consume exactly one delimiter, and the next token-level op spends
+  // the grant before it reads.  An empty token between adjacent separators is thus real data,
+  // yet progress is guaranteed: an op that consumes nothing either errors or is the single
+  // ungranted-to-granted transition possible at one position.  `C` and `< char` take manual
+  // control of the cursor and revoke the grant.  Skip mode never consults it.
+
+  @publicInBinary protected[eio] var sepOk = false
+
   // === Workers, instantiated per concrete source type from the inline templates below ===
 
   @publicInBinary protected[eio] def skipDelimsWork(): Unit
@@ -169,6 +221,7 @@ sealed abstract class Grok protected () {
   @publicInBinary protected[eio] def zWork(): Boolean
   @publicInBinary protected[eio] def tokWork(): String
   @publicInBinary protected[eio] def tokSpanWork(): Int
+  @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String
   @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut
 
   // === Backtrack retention hooks ===
@@ -184,6 +237,18 @@ sealed abstract class Grok protected () {
 
   protected def rawLength: Long
   protected def rawCharAt(pos: Long): Char
+
+
+  //////////////////////////////////
+  /// Running a parse to Ask[A]  ///
+  //////////////////////////////////
+
+  /** Run a parsing block against this Grok: the block's result becomes `Is`, and any read
+    * failure, `Err` break, or caught exception becomes `Alt`.  Normally used curried with the
+    * factories, `Grok(content, ...){ g => ... }`.
+    */
+  inline final def apply[A](inline f: Label[A Or Err] ?=> this.type => A): Ask[A] =
+    Or.Nice(f(this))
 
 
   ///////////////////////////////////////////////
@@ -202,8 +267,13 @@ sealed abstract class Grok protected () {
   /** Consume any delimiters at the cursor.  Never fails. */
   final def sp: this.type = { skipDelimsWork(); this }
 
-  /** Use a different delimiter set from here on. */
-  final def delimit(d: Delim): this.type = { dlm = d; skipped = false; this }
+  /** Use a different delimiter set from here on: a Delim, or a Char or String meaning a
+    * delimiter of exactly those characters.
+    */
+  inline final def delimit(inline d: Delim | Char | String): this.type =
+    dlm = Delim.from(d)
+    skipped = false
+    this
 
   /** The character at the cursor (bytes as 0-255) without consuming it, or `alt` if no input remains. */
   inline final def peekOr(alt: Char): Char =
@@ -392,6 +462,17 @@ sealed abstract class Grok protected () {
     val x = digitsFieldWork(n, true, exact)
     if eCode != 0 then boundary.break(Alt(failErr()))
     x
+
+  /** Read up to `n` input elements as a String, regardless of delimiters — the reader for
+    * fixed-width fields, so the cursor stops after the `n`th element even if more follow.
+    * With `exact = true`, having fewer than `n` elements left is an error.  At least one
+    * element is required unless `n` is 0 (which reads nothing).  On byte-based sources the
+    * elements are bytes, decoded as UTF-8 at the end.
+    */
+  inline final def chars[E >: Alt[Err]](n: Int, exact: Boolean = false)(using Label[E]): String =
+    val s = charsWork(n, exact)
+    if eCode != 0 then boundary.break(Alt(failErr()))
+    s
 
   /** Parse a Double (correctly rounded; also accepts NaN, Infinity, -Infinity). */
   inline final def D[E >: Alt[Err]](using Label[E]): Double =
@@ -620,20 +701,27 @@ sealed abstract class Grok protected () {
   /// Structured parsing: sub-parse and alternatives ///
   //////////////////////////////////
 
-  /** Parse within the next token using a sub-parser over just that token's extent; the delimiter
-    * narrows one level (lines to words to nothing).  On success the cursor moves past the token;
-    * on failure the error is wrapped with the sub-parse's starting position as it unwinds.
+  /** Parse within the next token: the block sees this same Grok narrowed to just the token's
+    * extent, so it cannot read past the token, and the delimiter narrows one level (lines to
+    * words to nothing).  On success the cursor moves past the whole token even if the block
+    * left some of it unread (`done(value)` finishes early); on failure the error is wrapped
+    * with the sub-parse's starting position as it unwinds.
     */
-  inline final def grok[B, E >: Alt[Err]]()(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
-    grokImpl(dlm.sub)(f)
+  inline final def grok[B, E >: Alt[Err]]()(inline f: Label[B Or Err] ?=> B)(using Label[E]): B =
+    grokImpl(dlm.sub, partialMode, !skipMode)(f)
 
-  /** Parse within the next token using a sub-parser with the delimiter given explicitly. */
-  inline final def grok[B, E >: Alt[Err]](d: Delim)(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
-    grokImpl(d)(f)
+  /** Parse within the next token with the sub-parse's delimiter given explicitly — a Delim,
+    * or a Char or String meaning a delimiter of exactly those characters — and optionally its
+    * own `partial` and `exact` modes (inherited if unspecified).  So on a whitespace-delimited
+    * Grok, `g.grok(',', exact = true){ ... }` parses the next word as comma-separated fields.
+    */
+  inline final def grok[B, E >: Alt[Err]](inline d: Delim | Char | String, partial: Boolean = partialMode, exact: Boolean = !skipMode)(inline f: Label[B Or Err] ?=> B)(using Label[E]): B =
+    grokImpl(Delim.from(d), partial, exact)(f)
 
-  protected inline def grokImpl[B, E >: Alt[Err]](d: Delim)(inline f: Label[B Or Err] ?=> this.type => B)(using Label[E]): B =
-    if skipMode then skipDelimsWork()
-    if i >= iZ then
+  protected inline def grokImpl[B, E >: Alt[Err]](d: Delim, partial: Boolean, exact: Boolean)(inline f: Label[B Or Err] ?=> B)(using Label[E]): B =
+    var took = false
+    if skipMode then skipDelimsWork() else took = sepWork()
+    if i >= iZ && !took then
       eCode = 1
       eWant = "a token to parse"
       ePos = i
@@ -642,21 +730,29 @@ sealed abstract class Grok protected () {
     val a0 = iA
     val z0 = iZ
     val d0 = dlm
+    val pm0 = partialMode
+    val sm0 = skipMode
     val t0 = i
     iA = i
     iZ = e
     dlm = d
+    partialMode = partial
+    skipMode = !exact
     skipped = false
-    val r = boundary[B Or Err]{ Is(f(this)) }
+    sepOk = false   // the sub-parse starts fresh, like a whole parse
+    val r = boundary[B Or Err]{ Is(f) }
     iA = a0
     iZ = z0
     dlm = d0
+    partialMode = pm0
+    skipMode = sm0
     skipped = false
     r match
       case a: Alt[Err @unchecked] => boundary.break(Alt(subErr(t0, a.alt)))
       case _ =>
         i = e
         loadWork()
+        sepOk = true
         r.get
 
   /** Try each alternative in order; the first to succeed supplies the answer.  A failed
@@ -673,6 +769,7 @@ sealed abstract class Grok protected () {
     val sm0 = skipMode
     val cc0 = cc
     val sk0 = skipped
+    val so0 = sepOk
     val pin0 = pinWork(p0)   // windowed sources must retain from here so failed alternatives can be re-read
     var errs: List[Err] = Nil
     var found: A Or Err = Grok.declinedAlt
@@ -690,6 +787,7 @@ sealed abstract class Grok protected () {
           skipMode = sm0
           cc = cc0
           skipped = sk0
+          sepOk = so0
         case r =>
           found = r
           searching = false
@@ -701,6 +799,13 @@ sealed abstract class Grok protected () {
   /** Abandon the current `select` alternative (or, outside any select, the whole parse). */
   inline final def continue[E >: Alt[Err]]()(using Label[E]): Nothing =
     boundary.break(Grok.declinedAlt: E)
+
+  /** Finish the innermost parse, sub-parse, or select alternative early and successfully,
+    * with `value` as its result.  (A sub-parse finished early still moves the cursor past
+    * its whole token.)
+    */
+  inline final def done[B](value: B)(using Label[B Or Err]): Nothing =
+    boundary.break(Is(value))
 
 
   ///////////////////////////////
@@ -783,11 +888,24 @@ sealed abstract class Grok protected () {
     eWant = want
     ePos = pos
 
+  /** Spend the separator grant (exact mode): consume at most one delimiter at the cursor;
+    * answers whether one was consumed (so `tok` can tell a final empty field from no field).
+    */
+  @publicInBinary protected[eio] final def sepWork(): Boolean =
+    if sepOk then
+      sepOk = false
+      if cc >= 0 && dlm(cc) then
+        cWork() __ Unit
+        true
+      else false
+    else false
+
   @publicInBinary protected[eio] def skipTokWork(n: Int): Unit =
     var k = n
     while k > 0 && eCode == 0 do
-      if skipMode then skipDelimsWork()
-      if i >= iZ then
+      var took = false
+      if skipMode then skipDelimsWork() else took = sepWork()
+      if i >= iZ && !took then
         eCode = 1
         eWant = "a token"
         ePos = i
@@ -795,6 +913,7 @@ sealed abstract class Grok protected () {
         i = tokEndWork()
         loadWork()
         skipped = false
+        sepOk = true
         k -= 1
 
   /** Parse an unsigned 64-bit decimal (shared by the `u`-prefixed readers).  A leading `+` is
@@ -803,7 +922,7 @@ sealed abstract class Grok protected () {
     * and the at-most-two that can follow are taken one at a time with an unsigned overflow check.
     */
   @publicInBinary protected[eio] final def uLongWork(): Long =
-    if skipMode then skipDelimsWork()
+    if skipMode then skipDelimsWork() else sepWork() __ Unit
     vPos = i
     if cc == '+' then cWork() __ Unit
     val j0 = i
@@ -828,7 +947,9 @@ sealed abstract class Grok protected () {
       else if !partialMode && cc >= 0 && !dlm(cc) then
         wantAt("end of number", i)
         0L
-      else x
+      else
+        sepOk = true
+        x
 
   /** Parse a decimal that fits in `maxDigits` significant digits (shared by the readers of types
     * smaller than Long/ULong).  Also orchestrates the per-source digit kernel with no per-source
@@ -839,7 +960,7 @@ sealed abstract class Grok protected () {
     * still range-checks the value it gets (budget 3 admits 999, which is not a Byte).
     */
   @publicInBinary protected[eio] final def smallLongWork(maxDigits: Int, what: String, signed: Boolean): Long =
-    if skipMode then skipDelimsWork()
+    if skipMode then skipDelimsWork() else sepWork() __ Unit
     vPos = i
     if cc == '-' && !signed then
       wantAt("a nonnegative number", i)
@@ -867,14 +988,16 @@ sealed abstract class Grok protected () {
         else if !partialMode && cc >= 0 && !dlm(cc) then
           wantAt("end of number", i)
           0L
-        else if neg then -x else x
+        else
+          sepOk = true
+          if neg then -x else x
 
   /** Hex twin of `smallLongWork`: parse a bare hexadecimal (case-insensitive, no `0x` prefix,
     * no sign) of at most `maxDigits` digits.  The hex budgets fit their types exactly (2 digits
     * per byte), so the value needs no further range check: it is the bit pattern.
     */
   @publicInBinary protected[eio] final def smallHexWork(maxDigits: Int, what: String): Long =
-    if skipMode then skipDelimsWork()
+    if skipMode then skipDelimsWork() else sepWork() __ Unit
     vPos = i
     val j0 = i
     while cc == '0' do hexWork(i, cc, 1) __ Unit   // leading zeros are not significant
@@ -892,16 +1015,20 @@ sealed abstract class Grok protected () {
       else if !partialMode && cc >= 0 && !dlm(cc) then
         wantAt("end of number", i)
         0L
-      else x
+      else
+        sepOk = true
+        x
 
   /** Fixed-field digit reader behind `digits`/`hexDigits`: up to `n` digits from the cursor,
     * no sign, no zero-skimming, no token-boundary or delimiter check afterwards.  `n == 0`
     * bypasses the kernels (they consume one char before checking the budget).
     */
   @publicInBinary protected[eio] final def digitsFieldWork(n: Int, hex: Boolean, exact: Boolean): Long =
-    if skipMode then skipDelimsWork()
+    if skipMode then skipDelimsWork() else sepWork() __ Unit
     vPos = i
-    if n == 0 then 0L
+    if n == 0 then
+      sepOk = true
+      0L
     else
       val x = if hex then hexWork(i, cc, n) else digitsWork(i, cc, n)
       val consumed = i - vPos
@@ -912,7 +1039,9 @@ sealed abstract class Grok protected () {
       else if consumed == 0 then
         wantAt(if hex then "a hexadecimal number" else "a number", i)
         0L
-      else x
+      else
+        sepOk = true
+        x
 
 
   //////////////////////////////////////////////////////////////////////////
@@ -951,6 +1080,7 @@ sealed abstract class Grok protected () {
       i += 1
       cc = if i < iZ then at(i) else -1
       skipped = false
+      sepOk = false   // manual cursor control revokes the separator grant
       c.toChar
     else
       eCode = 1
@@ -963,27 +1093,31 @@ sealed abstract class Grok protected () {
       i += 1
       cc = if i < iZ then at(i) else -1
       skipped = false
+      sepOk = false   // manual cursor control revokes the separator grant
     else
       eCode = 1
       eWant = "'" + c0 + "'"
       ePos = i
 
-  protected inline def matchTokImpl(inline at: Long => Int, inline advise: Int => Unit)(s: String): Unit =
-    if skipMode then skipDelimsImpl(at)
-    advise(s.length + 1)
-    val m = s.length
+  // `lit` answers code unit k of the m-unit literal in the source's own width — chars for text
+  // sources, UTF-8 bytes for byte sources — so non-ASCII literals match what is actually in the
+  // input; `s` is only for the error report.
+  protected inline def matchTokImpl(inline at: Long => Int, inline advise: Int => Unit)(s: String, m: Int, inline lit: Int => Int): Unit =
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
+    advise(m + 1)
     var ok = iZ - i >= m
     var k = 0
     if ok && m > 0 then
-      ok = cc == s.charAt(0).toInt
+      ok = cc == lit(0)
       k = 1
     while ok && k < m do
-      if at(i + k) != s.charAt(k).toInt then ok = false
+      if at(i + k) != lit(k) then ok = false
       k += 1
     if ok then
       i += m
       cc = if i < iZ then at(i) else -1
       skipped = false
+      sepOk = true
     else
       eCode = 3
       eWant = "\"" + s + "\""
@@ -1038,7 +1172,7 @@ sealed abstract class Grok protected () {
     x
 
   protected inline def longImpl(inline at: Long => Int, inline advise: Int => Unit): Long =
-    if skipMode then skipDelimsImpl(at)
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     advise(20)
     vPos = i
     var j = i
@@ -1063,8 +1197,9 @@ sealed abstract class Grok protected () {
     else if !partialMode && cE >= 0 && !dlm(cE) then
       wantAt("end of number", i)
       0L
-    else if neg then -x
-    else x
+    else
+      sepOk = true
+      if neg then -x else x
 
 
   protected inline def longTailImpl(inline at: Long => Int)(x0: Long, neg: Boolean): Long =
@@ -1093,11 +1228,12 @@ sealed abstract class Grok protected () {
     else if !partialMode && c >= 0 && !dlm(c) then
       wantAt("end of number", j)
       0L
-    else if neg then x
-    else -x
+    else
+      sepOk = true
+      if neg then x else -x
 
   protected inline def zImpl(inline at: Long => Int, inline advise: Int => Unit): Boolean =
-    if skipMode then skipDelimsImpl(at)
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     advise(6)   // "false" + lookahead
     vPos = i
     var v = false
@@ -1124,12 +1260,15 @@ sealed abstract class Grok protected () {
         eWant = "end of boolean"
         ePos = i
         false
-      else v
+      else
+        sepOk = true
+        v
 
   protected inline def tokImpl(inline at: Long => Int, inline sub: (Long, Long) => String): String =
-    if skipMode then skipDelimsImpl(at)
+    var took = false
+    if skipMode then skipDelimsImpl(at) else took = sepWork()
     vPos = i
-    if i >= iZ then
+    if i >= iZ && !took then   // a just-consumed separator means a (final) empty field, not no field
       eCode = 1
       eWant = "a token"
       ePos = i
@@ -1140,12 +1279,14 @@ sealed abstract class Grok protected () {
       i = j
       cc = if j < iZ then at(j) else -1
       skipped = false
+      sepOk = true
       s
 
   protected inline def tokSpanImpl(inline at: Long => Int): Int =
-    if skipMode then skipDelimsImpl(at)
+    var took = false
+    if skipMode then skipDelimsImpl(at) else took = sepWork()
     vPos = i
-    if i >= iZ then
+    if i >= iZ && !took then
       eCode = 1
       eWant = "a token"
       ePos = i
@@ -1156,7 +1297,36 @@ sealed abstract class Grok protected () {
       i = j
       cc = if j < iZ then at(j) else -1
       skipped = false
+      sepOk = true
       n
+
+  // Fixed-width field: up to n raw elements regardless of delimiters; exact requires all n.
+  protected inline def charsFieldImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline advise: Int => Unit)(n: Int, exact: Boolean): String =
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
+    vPos = i
+    if n <= 0 then
+      sepOk = true
+      ""
+    else
+      advise(n)
+      val j0 = i
+      var j = i
+      var c = cc
+      while c >= 0 && j - j0 < n do
+        j += 1
+        c = if j < iZ then at(j) else -1
+      i = j
+      cc = c
+      if j > j0 then skipped = false
+      if j == j0 then
+        wantAt("a character", j)
+        ""
+      else if exact && j - j0 < n then
+        wantAt(n.toString + " characters", j)
+        ""
+      else
+        sepOk = true
+        sub(j0, j)
 
   // === Quoted-string kernels: JSON-style backslash escapes or CSV-style quote doubling ===
   // The scan runs to the closing quote ignoring delimiters entirely (raw newlines and controls
@@ -1176,7 +1346,7 @@ sealed abstract class Grok protected () {
   // reserved for non-retaining sources, which cannot re-read segments to blit and will have
   // to build as they scan.
   protected inline def strCharImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutc: (Long, Long) => Array[Char], inline blit: (Long, Long, Array[Char], Int) => Unit, inline blitOk: Boolean)(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
-    if skipMode then skipDelimsImpl(at)
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     vPos = i
     val pv = pinWork(vPos)   // windowed sources must retain the string for blit/sub extraction
     val result: Grok.StrOut =
@@ -1303,11 +1473,12 @@ sealed abstract class Grok protected () {
           cc = if i < iZ then at(i) else -1
           skipped = false
           res
+    if eCode == 0 then sepOk = true
     releaseWork(pv)
     result
 
   protected inline def strByteImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutb: (Long, Long) => Array[Byte], inline blitb: (Long, Long, Array[Byte], Int) => Unit, inline blitOk: Boolean)(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
-    if skipMode then skipDelimsImpl(at)
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     vPos = i
     val pv = pinWork(vPos)   // windowed sources must retain the string for blitb/sub extraction
     val result: Grok.StrOut =
@@ -1442,6 +1613,7 @@ sealed abstract class Grok protected () {
           cc = if i < iZ then at(i) else -1
           skipped = false
           res
+    if eCode == 0 then sepOk = true
     releaseWork(pv)
     result
 
@@ -1449,7 +1621,7 @@ sealed abstract class Grok protected () {
   // digitsWork kernel, and a single exit so windowed sources can pin vPos across the kernel's
   // eager cursor commits (the slow path re-reads [vPos, end) at the very end)
   protected inline def doubleImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline advise: Int => Unit)(mode: Int): Double =
-    if skipMode then skipDelimsImpl(at)
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     advise(28)   // covers typical doubles; longer ones self-heal read by read
     vPos = i
     val pv = pinWork(vPos)
@@ -1595,6 +1767,7 @@ sealed abstract class Grok protected () {
           else
             // Rare hard cases (>15 digits or extreme exponent): let the JDK do the correct rounding.
             java.lang.Double.parseDouble(sub(vPos, j))
+    if eCode == 0 then sepOk = true
     releaseWork(pv)
     result
 }
@@ -1718,6 +1891,12 @@ object Grok {
     v |= y
     if v < 0 || v > 15 then -1 else h | y
 
+  // ASCII literals match byte sources unit for unit; anything else must be UTF-8 encoded first.
+  private[eio] def isAscii(s: String): Boolean =
+    var k = 0
+    while k < s.length && s.charAt(k) < 128 do k += 1
+    k >= s.length
+
   private[eio] def hexVal(c: Int): Int =
     if c >= '0' && c <= '9' then c - '0'
     else
@@ -1756,7 +1935,7 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content.charAt(j.toInt))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content.charAt(j.toInt))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content.charAt(j.toInt))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content.charAt(j.toInt), _ => ())(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content.charAt(j.toInt), _ => ())(s, s.length, k => s.charAt(k).toInt)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content.charAt(j.toInt), _ => ())
 
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content.charAt(j.toInt))(x0, neg)
@@ -1766,6 +1945,7 @@ object Grok {
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content.charAt(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content.charAt(j.toInt))
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt), _ => ())(n, exact)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strCharImpl(
         j => content.charAt(j.toInt),
@@ -1776,14 +1956,24 @@ object Grok {
       )(qc, doubled, mode)
   }
 
-  /** Parse a String in direct mode; any failure jumps out as a data-bearing `Err`.
+  /** Set up a direct-mode parse of `content`, which may be a `String`, `Array[Char]`,
+    * `Array[Byte]`, or `Mem[Byte]`; byte-based sources read structure (delimiters, numbers,
+    * literals) as ASCII and decode tokens as UTF-8.  Answers the source-appropriate Grok,
+    * normally applied immediately to a parsing block: `Grok(content, ...){ g => ... }` gives
+    * an `Ask` of the block's result, with any failure as a data-bearing `Err`.
     *
     * `delim` sets the token delimiter (default: line ends).  `partial = true` lets numbers and
     * booleans stop at the first character that cannot continue them, rather than requiring a
-    * delimiter.  `exact = true` turns off the automatic skipping of leading delimiters.
+    * delimiter.  `exact = true` switches from delimiter skipping to separator semantics: each
+    * token-level read may consume at most one leading delimiter, permitted by the completion
+    * of the previous read, so empty tokens between adjacent delimiters are preserved.
     */
-  inline def apply[A](content: String, delim: Delim = Delim.lines, partial: Boolean = false, exact: Boolean = false)(inline f: Label[A Or Err] ?=> Str => A): Ask[A] =
-    Or.Nice(f(new Str(content, delim, partial, !exact)))
+  transparent inline def apply(inline content: String | Array[Char] | Array[Byte] | Mem[Byte], inline delim: Delim | Char | String = Delim.lines, partial: Boolean = false, exact: Boolean = false): Grok =
+    inline content match
+      case s: String       => new Str(s, Delim.from(delim), partial, !exact)
+      case c: Array[Char]  => new Chars(c, Delim.from(delim), partial, !exact)
+      case b: Array[Byte]  => new Bytes(b, Delim.from(delim), partial, !exact)
+      case m: Mem[Byte]    => new MemBytes(m, Delim.from(delim), partial, !exact)
 
 
   /** Groks raw bytes.  Structure (delimiters, numbers, and `<` literals) is ASCII, read as
@@ -1807,13 +1997,18 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt) & 0xFF)
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt) & 0xFF)
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt) & 0xFF)(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt) & 0xFF, _ => ())(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit =
+      if Grok.isAscii(s) then matchTokImpl(j => content(j.toInt) & 0xFF, _ => ())(s, s.length, k => s.charAt(k).toInt)
+      else
+        val b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        matchTokImpl(j => content(j.toInt) & 0xFF, _ => ())(s, b.length, k => b(k) & 0xFF)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt) & 0xFF)(x0, neg)
     @publicInBinary protected[eio] def doubleWork(mode: Int): Double = doubleImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(mode)
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt) & 0xFF)
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(n, exact)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
     @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
@@ -1842,7 +2037,7 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j.toInt))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j.toInt))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j.toInt))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt), _ => ())(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j.toInt), _ => ())(s, s.length, k => s.charAt(k).toInt)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j.toInt))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt))(j0, c0, budget)
@@ -1851,6 +2046,7 @@ object Grok {
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j.toInt), _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt))
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt), _ => ())(n, exact)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strCharImpl(
         j => content(j.toInt),
@@ -1860,16 +2056,6 @@ object Grok {
         true
       )(qc, doubled, mode)
   }
-
-  /** Parse raw bytes in direct mode; parameters as for the String form.  (Scala permits default
-    * arguments on only one overload, so this one takes all of them explicitly.)
-    */
-  inline def apply[A](content: Array[Byte], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> Bytes => A): Ask[A] =
-    Or.Nice(f(new Bytes(content, delim, partial, !exact)))
-
-  /** Parse raw bytes in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
-  inline def apply[A](content: Array[Byte])(inline f: Label[A Or Err] ?=> Bytes => A): Ask[A] =
-    apply(content, Delim.lines, false, false)(f)
 
   /** Groks raw bytes held in a `Mem[Byte]` (heap-wrapped or off-heap); semantics as for `Bytes`.
     * The Mem must stay alive and unmodified for the duration of the parse.  Create via `Grok(...)`.
@@ -1900,7 +2086,11 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => content(j) & 0xFF)
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => content(j) & 0xFF)
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => content(j) & 0xFF)(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => content(j) & 0xFF, _ => ())(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit =
+      if Grok.isAscii(s) then matchTokImpl(j => content(j) & 0xFF, _ => ())(s, s.length, k => s.charAt(k).toInt)
+      else
+        val b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        matchTokImpl(j => content(j) & 0xFF, _ => ())(s, b.length, k => b(k) & 0xFF)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => content(j) & 0xFF)(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j) & 0xFF)(j0, c0, budget)
@@ -1909,6 +2099,7 @@ object Grok {
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => content(j) & 0xFF, _ => ())
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j) & 0xFF)
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b), _ => ())(n, exact)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strByteImpl(
         j => content(j) & 0xFF,
@@ -1919,55 +2110,46 @@ object Grok {
       )(qc, doubled, mode)
   }
 
-  /** Parse bytes held in a `Mem[Byte]` in direct mode; parameters as for the String form. */
-  inline def apply[A](content: Mem[Byte], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> MemBytes => A): Ask[A] =
-    Or.Nice(f(new MemBytes(content, delim, partial, !exact)))
-
-  /** Parse bytes held in a `Mem[Byte]` in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
-  inline def apply[A](content: Mem[Byte])(inline f: Label[A Or Err] ?=> MemBytes => A): Ask[A] =
-    apply(content, Delim.lines, false, false)(f)
-
-  /** Parse an `Array[Char]` in direct mode; parameters as for the String form. */
-  inline def apply[A](content: Array[Char], delim: Delim, partial: Boolean, exact: Boolean)(inline f: Label[A Or Err] ?=> Chars => A): Ask[A] =
-    Or.Nice(f(new Chars(content, delim, partial, !exact)))
-
-  /** Parse an `Array[Char]` in direct mode with the default settings (line tokens, strict numbers, delimiter skipping). */
-  inline def apply[A](content: Array[Char])(inline f: Label[A Or Err] ?=> Chars => A): Ask[A] =
-    apply(content, Delim.lines, false, false)(f)
-
-
   /** Groks bytes pulled on demand through a sliding window, using the ordinary indexed worker
     * templates.  `index - discard` addresses the window; a read past the loaded end (or an
     * `advise(n)` that does not fit) scoots the window forward and refills from the pull
     * function.  The window retains everything from the current op's start — which is all the
     * templates ever re-read — or from the earliest live `select` mark, whose alternatives may
     * need re-reading; when retention leaves no room to advance, the window doubles.
-    * `fill(dst, off, max)` answers how many bytes it wrote (0 when it has no more); the total
-    * input length must be known up front.  Error excerpts degrade to `?` behind the window.
+    * `fill(dst, off, max)` answers how many bytes it wrote, 0 for none right now, or a negative
+    * number once the input has ended.  Pass the total input length as `totalLen` if it is known
+    * up front, or any negative number if it is not: the end of input is then wherever `fill`
+    * first answers negative.  Error excerpts degrade to `?` behind the window.
     */
   final class Buffered(fill: (Array[Byte], Int, Int) => Int, totalLen: Long, d: Delim, partial: Boolean, autoskip: Boolean, window: Int = 64) extends Grok {
     dlm = d
     partialMode = partial
     skipMode = autoskip
-    iZ = totalLen
 
     private var buf = new Array[Byte](if window < 8 then 8 else window)
     private var discard = 0L   // absolute position of buf(0)
     private var loaded = 0     // bytes of buf currently valid
     private var pinned = -1L   // earliest select mark to retain, or -1 for none
+    private var srcEnd = if totalLen < 0 then Long.MaxValue else totalLen   // where input truly ends; found via fill if not known up front
+    iZ = srcEnd
     refill()
     cc = if loaded > 0 then buf(0) & 0xFF else -1
 
-    protected def rawLength: Long = totalLen
+    protected def rawLength: Long = if srcEnd == Long.MaxValue then discard + loaded else srcEnd
     protected def rawCharAt(pos: Long): Char =
       val d = (pos - discard).toInt
       if 0 <= d && d < loaded then (buf(d) & 0xFF).toChar else '?'   // cold path: excerpts degrade outside the window
 
     private def refill(): Unit =
-      var more = true
+      var more = discard + loaded < srcEnd
       while more && loaded < buf.length do
         val n = fill(buf, loaded, buf.length - loaded)
-        if n > 0 then loaded += n else more = false
+        if n > 0 then loaded += n
+        else
+          if n < 0 then            // definitive end of input: the length is now known exactly
+            srcEnd = discard + loaded
+            if iZ > srcEnd then iZ = srcEnd
+          more = false
 
     // Off the hot path: drop everything behind the retention point (the current op's start, or
     // the earliest live select mark), double the window if that frees no room, then refill.
@@ -1982,11 +2164,20 @@ object Grok {
       if loaded == buf.length then buf = java.util.Arrays.copyOf(buf, buf.length << 1)
       refill()
 
+    // A view restore (select, sub-parse) can re-widen iZ past a discovered end; re-clamp on the
+    // next past-end read so the templates' iZ guards stay truthful.
+    private def pastEnd(): Int =
+      if iZ > srcEnd then iZ = srcEnd
+      -1
+
     private def fetched(j: Long): Int =
-      scoot()
-      val d = (j - discard).toInt
-      if 0 <= d && d < loaded then buf(d) & 0xFF
-      else throw new IllegalStateException("Grok.Buffered: cannot load position " + j + " (window at " + discard + ", " + loaded + " loaded)")
+      if j >= srcEnd then pastEnd()
+      else
+        scoot()
+        val d = (j - discard).toInt
+        if 0 <= d && d < loaded then buf(d) & 0xFF
+        else if j >= srcEnd then pastEnd()
+        else throw new IllegalStateException("Grok.Buffered: cannot load position " + j + " (window at " + discard + ", " + loaded + " loaded)")
 
     @publicInBinary protected[eio] override def pinWork(pos: Long): Long =
       val prev = pinned
@@ -2001,7 +2192,7 @@ object Grok {
       else fetched(j)
 
     private inline def advc(n: Int): Unit =
-      if i + n > discard + loaded && discard + loaded < totalLen then scoot()
+      if i + n > discard + loaded && discard + loaded < srcEnd then scoot()
 
     private def utf8(a: Long, b: Long): String = new String(buf, (a - discard).toInt, (b - a).toInt, java.nio.charset.StandardCharsets.UTF_8)
 
@@ -2010,7 +2201,11 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => atc(j))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => atc(j))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => atc(j))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => atc(j), n => advc(n))(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit =
+      if Grok.isAscii(s) then matchTokImpl(j => atc(j), n => advc(n))(s, s.length, k => s.charAt(k).toInt)
+      else
+        val b = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        matchTokImpl(j => atc(j), n => advc(n))(s, b.length, k => b(k) & 0xFF)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => atc(j))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => atc(j))(j0, c0, budget)
@@ -2019,6 +2214,7 @@ object Grok {
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => atc(j), (a, b) => utf8(a, b), m => advc(m))(n, exact)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strByteImpl(
         j => atc(j),
@@ -2029,67 +2225,83 @@ object Grok {
       )(qc, doubled, mode)
   }
 
-  /** Parse raw bytes pulled through a sliding window that starts at `window` bytes (mostly
-    * useful for testing the windowed machinery against direct indexing — prefer `Grok(bytes)`
-    * when the whole array is at hand; parameters otherwise as for the String form).
+  /** Set up to parse content pulled through a sliding window that starts at `window` elements
+    * (doubling whenever retention needs more room).  The source may be an `Array[Byte]`
+    * (mostly useful for testing the windowed machinery against direct indexing — prefer
+    * `Grok(bytes)` when the whole array is at hand), a `ByteBuffer` or `CharBuffer` (remaining
+    * contents, consumed via relative bulk `get`), or an `InputStream` or `Reader` (read as
+    * needed but never closed; the length need not be known — the end of input is wherever
+    * `read` answers -1).  Parameters and the parsing block are otherwise as for `Grok(...)`;
+    * error excerpts degrade to `?` behind the window.
     */
-  inline def buffered[A](content: Array[Byte], delim: Delim = Delim.lines, partial: Boolean = false, exact: Boolean = false, window: Int = 64)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
-    var pos = 0
-    val fill = (dst: Array[Byte], off: Int, max: Int) => {
-      val n = if content.length - pos < max then content.length - pos else max
-      if n > 0 then System.arraycopy(content, pos, dst, off, n)
-      pos += n
-      n
-    }
-    Or.Nice(f(new Buffered(fill, content.length, delim, partial, !exact, window)))
-
-  /** Parse a ByteBuffer's remaining bytes, consumed via relative bulk `get()` through a sliding
-    * window that starts at `window` bytes; parameters otherwise as for the String form.
-    */
-  inline def buffered[A](content: java.nio.ByteBuffer, delim: Delim, partial: Boolean, exact: Boolean, window: Int)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
-    val fill = (dst: Array[Byte], off: Int, max: Int) => {
-      val n = if content.remaining() < max then content.remaining() else max
-      content.get(dst, off, n) __ Unit
-      n
-    }
-    Or.Nice(f(new Buffered(fill, content.remaining(), delim, partial, !exact, window)))
-
-  /** Parse a ByteBuffer's remaining bytes with the default settings (line tokens, strict numbers,
-    * delimiter skipping, 64-byte initial window).
-    */
-  inline def buffered[A](content: java.nio.ByteBuffer)(inline f: Label[A Or Err] ?=> Buffered => A): Ask[A] =
-    buffered(content, Delim.lines, false, false, 64)(f)
+  transparent inline def buffered(inline content: Array[Byte] | java.nio.ByteBuffer | java.io.InputStream | java.nio.CharBuffer | java.io.Reader, inline delim: Delim | Char | String = Delim.lines, partial: Boolean = false, exact: Boolean = false, window: Int = 64): Grok =
+    inline content match
+      case a: Array[Byte] =>
+        var pos = 0
+        val fill = (dst: Array[Byte], off: Int, max: Int) => {
+          val n = if a.length - pos < max then a.length - pos else max
+          if n > 0 then System.arraycopy(a, pos, dst, off, n)
+          pos += n
+          n
+        }
+        new Buffered(fill, a.length, Delim.from(delim), partial, !exact, window)
+      case bb: java.nio.ByteBuffer =>
+        val fill = (dst: Array[Byte], off: Int, max: Int) => {
+          val n = if bb.remaining() < max then bb.remaining() else max
+          bb.get(dst, off, n) __ Unit
+          n
+        }
+        new Buffered(fill, bb.remaining(), Delim.from(delim), partial, !exact, window)
+      case in: java.io.InputStream =>
+        new Buffered((dst, off, max) => in.read(dst, off, max), -1L, Delim.from(delim), partial, !exact, window)
+      case cb: java.nio.CharBuffer =>
+        val fill = (dst: Array[Char], off: Int, max: Int) => {
+          val n = if cb.remaining() < max then cb.remaining() else max
+          cb.get(dst, off, n) __ Unit
+          n
+        }
+        new BufferedChars(fill, cb.remaining(), Delim.from(delim), partial, !exact, window)
+      case rd: java.io.Reader =>
+        new BufferedChars((dst, off, max) => rd.read(dst, off, max), -1L, Delim.from(delim), partial, !exact, window)
 
 
   /** Groks chars pulled on demand through a sliding window; the char-flavored twin of
     * `Buffered`, with the same retention discipline (everything from the current op's start,
     * or the earliest live pin, stays available — which is what lets the quoted-string kernel
     * bulk-copy segments out of the window).  `fill(dst, off, max)` answers how many chars it
-    * wrote (0 when it has no more); the total input length must be known up front.
+    * wrote, 0 for none right now, or a negative number once the input has ended.  Pass the
+    * total input length as `totalLen` if it is known up front, or any negative number if it is
+    * not: the end of input is then wherever `fill` first answers negative.
     */
   final class BufferedChars(fill: (Array[Char], Int, Int) => Int, totalLen: Long, d: Delim, partial: Boolean, autoskip: Boolean, window: Int = 64) extends Grok {
     dlm = d
     partialMode = partial
     skipMode = autoskip
-    iZ = totalLen
 
     private var buf = new Array[Char](if window < 8 then 8 else window)
     private var discard = 0L   // absolute position of buf(0)
     private var loaded = 0     // chars of buf currently valid
     private var pinned = -1L   // earliest pin to retain, or -1 for none
+    private var srcEnd = if totalLen < 0 then Long.MaxValue else totalLen   // where input truly ends; found via fill if not known up front
+    iZ = srcEnd
     refill()
     cc = if loaded > 0 then buf(0) else -1
 
-    protected def rawLength: Long = totalLen
+    protected def rawLength: Long = if srcEnd == Long.MaxValue then discard + loaded else srcEnd
     protected def rawCharAt(pos: Long): Char =
       val d = (pos - discard).toInt
       if 0 <= d && d < loaded then buf(d) else '?'   // cold path: excerpts degrade outside the window
 
     private def refill(): Unit =
-      var more = true
+      var more = discard + loaded < srcEnd
       while more && loaded < buf.length do
         val n = fill(buf, loaded, buf.length - loaded)
-        if n > 0 then loaded += n else more = false
+        if n > 0 then loaded += n
+        else
+          if n < 0 then            // definitive end of input: the length is now known exactly
+            srcEnd = discard + loaded
+            if iZ > srcEnd then iZ = srcEnd
+          more = false
 
     private def scoot(): Unit =
       val from = if 0 <= pinned && pinned < i then pinned else i
@@ -2102,11 +2314,20 @@ object Grok {
       if loaded == buf.length then buf = java.util.Arrays.copyOf(buf, buf.length << 1)
       refill()
 
+    // A view restore (select, sub-parse) can re-widen iZ past a discovered end; re-clamp on the
+    // next past-end read so the templates' iZ guards stay truthful.
+    private def pastEnd(): Int =
+      if iZ > srcEnd then iZ = srcEnd
+      -1
+
     private def fetched(j: Long): Int =
-      scoot()
-      val d = (j - discard).toInt
-      if 0 <= d && d < loaded then buf(d)
-      else throw new IllegalStateException("Grok.BufferedChars: cannot load position " + j + " (window at " + discard + ", " + loaded + " loaded)")
+      if j >= srcEnd then pastEnd()
+      else
+        scoot()
+        val d = (j - discard).toInt
+        if 0 <= d && d < loaded then buf(d)
+        else if j >= srcEnd then pastEnd()
+        else throw new IllegalStateException("Grok.BufferedChars: cannot load position " + j + " (window at " + discard + ", " + loaded + " loaded)")
 
     @publicInBinary protected[eio] override def pinWork(pos: Long): Long =
       val prev = pinned
@@ -2121,7 +2342,7 @@ object Grok {
       else fetched(j)
 
     private inline def advc(n: Int): Unit =
-      if i + n > discard + loaded && discard + loaded < totalLen then scoot()
+      if i + n > discard + loaded && discard + loaded < srcEnd then scoot()
 
     private def sub(a: Long, b: Long): String = new String(buf, (a - discard).toInt, (b - a).toInt)
 
@@ -2130,7 +2351,7 @@ object Grok {
     @publicInBinary protected[eio] def loadWork(): Unit = loadImpl(j => atc(j))
     @publicInBinary protected[eio] def cWork(): Char = cImpl(j => atc(j))
     @publicInBinary protected[eio] def matchCWork(c: Char): Unit = matchCImpl(j => atc(j))(c)
-    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => atc(j), n => advc(n))(s)
+    @publicInBinary protected[eio] def matchTokWork(s: String): Unit = matchTokImpl(j => atc(j), n => advc(n))(s, s.length, k => s.charAt(k).toInt)
     @publicInBinary protected[eio] def longWork(): Long = longImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def longTailWork(x0: Long, neg: Boolean): Long = longTailImpl(j => atc(j))(x0, neg)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => atc(j))(j0, c0, budget)
@@ -2139,6 +2360,7 @@ object Grok {
     @publicInBinary protected[eio] def zWork(): Boolean = zImpl(j => atc(j), n => advc(n))
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => sub(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
+    @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => atc(j), (a, b) => sub(a, b), m => advc(m))(n, exact)
     @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
       strCharImpl(
         j => atc(j),
@@ -2149,20 +2371,4 @@ object Grok {
       )(qc, doubled, mode)
   }
 
-  /** Parse a CharBuffer's remaining chars, consumed via relative bulk `get()` through a sliding
-    * window that starts at `window` chars; parameters otherwise as for the String form.
-    */
-  inline def buffered[A](content: java.nio.CharBuffer, delim: Delim, partial: Boolean, exact: Boolean, window: Int)(inline f: Label[A Or Err] ?=> BufferedChars => A): Ask[A] =
-    val fill = (dst: Array[Char], off: Int, max: Int) => {
-      val n = if content.remaining() < max then content.remaining() else max
-      content.get(dst, off, n) __ Unit
-      n
-    }
-    Or.Nice(f(new BufferedChars(fill, content.remaining(), delim, partial, !exact, window)))
-
-  /** Parse a CharBuffer's remaining chars with the default settings (line tokens, strict numbers,
-    * delimiter skipping, 64-char initial window).
-    */
-  inline def buffered[A](content: java.nio.CharBuffer)(inline f: Label[A Or Err] ?=> BufferedChars => A): Ask[A] =
-    buffered(content, Delim.lines, false, false, 64)(f)
 }

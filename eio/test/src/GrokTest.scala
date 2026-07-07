@@ -281,16 +281,121 @@ class GrokTest {
     T ~ errText(Grok("ab")(g => g.oops("gave up"))).contains("gave up")    ==== true
 
   @Test
+  def grokSeparatorTest(): Unit =
+    val c = Delim.of(",")
+    def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    // In exact mode delimiters are separators: n separators delimit n+1 fields
+    T ~ Grok(",", c, false, true)(g => (g.tok, g.tok))                        ==== Is(("", ""))
+    T ~ bad(Grok(",", c, false, true)(g => (g.tok, g.tok, g.tok)))            ==== true
+    T ~ Grok(",59,", c, false, true)(g => (g.tok, g.I, g.tok))                ==== Is(("", 59, ""))
+    T ~ Grok("123456,true", c, false, true)(g => (g.digits(2) + g.I, g.Z))    ==== Is((3468L, true))
+    T ~ Grok("a,,c", c, false, true)(g => (g.tok, g.tok, g.tok))              ==== Is(("a", "", "c"))
+    T ~ Grok("a,", c, false, true)(g => (g.tok, g.tok))                       ==== Is(("a", ""))
+    T ~ bad(Grok("a,", c, false, true)(g => { val t = g.tok; g.end; t }))     ==== true
+    T ~ Grok("a,", c, false, true)(g => { val t = (g.tok, g.tok); g.end; t }) ==== Is(("a", ""))
+    T ~ bad(Grok(",x", c, false, true)(g => g.I))                             ==== true
+    // Iteration terminates: 3 separators = 4 fields, then hasMore is false
+    T ~ Grok(",,,", c, false, true)(g => { val l = List.newBuilder[String]; while g.hasMore do l += g.tok; l.result() }) ==== Is(List("", "", "", ""))
+    // Whitespace separators are not collapsed in exact mode
+    T ~ Grok("a  b", Delim.white, false, true)(g => (g.tok, g.tok, g.tok))    ==== Is(("a", "", "b"))
+    // skip counts empty fields too
+    T ~ Grok("a,,c", c, false, true)(g => { g.skip(2); g.tok })               ==== Is("c")
+    // Literal matching participates uniformly
+    T ~ Grok("a -> b", Delim.white, false, true)(g => (g.tok, (g < "->").tok)) ==== Is(("a", "b"))
+    // C and `< char` take manual control and revoke the grant
+    T ~ Grok("a,,b", c, false, true)(g => (g.tok, g.C, g.tok, g.C, g.tok))    ==== Is(("a", ',', "", ',', "b"))
+    // chars: fixed-width fields, token semantics for single characters
+    T ~ Grok(",x,", c, false, true)(g => (g.tok, g.chars(1), g.tok))          ==== Is(("", "x", ""))
+    T ~ Grok("20250706")(g => (g.chars(4), g.chars(2), g.chars(2)))           ==== Is(("2025", "07", "06"))
+    T ~ Grok("abc")(g => g.chars(5))                                          ==== Is("abc")
+    T ~ bad(Grok("abc")(g => g.chars(5, exact = true)))                       ==== true
+    T ~ Grok("abc")(g => g.chars(0))                                          ==== Is("")
+    T ~ bad(Grok("")(g => g.chars(1)))                                        ==== true
+    T ~ Grok(b("πr"), Delim.white, false, false)(g => (g.chars(2), g.chars(1))) ==== Is(("π", "r"))
+    // select saves and restores the separator grant
+    T ~ Grok(",x", c, false, true)(g => { g.tok __ Unit; g.select(g.I.toString, g.tok) }) ==== Is("x")
+    // Sub-parses start fresh and re-grant on completion
+    T ~ Grok("x y,z", Delim.of(",", Delim.white), false, true)(g => (g.grok()((g.tok, g.tok)), g.tok)) ==== Is((("x", "y"), "z"))
+    // Separator semantics on byte and windowed sources, known and unknown length
+    T ~ Grok(b("a,,c"), c, false, true)(g => (g.tok, g.tok, g.tok))           ==== Is(("a", "", "c"))
+    T ~ Grok.buffered(b("a,,c"), c, false, true, 8)(g => (g.tok, g.tok, g.tok)) ==== Is(("a", "", "c"))
+    T ~ Grok.buffered(new java.io.ByteArrayInputStream(b(",")), c, false, true, 8)(g => (g.tok, g.tok)) ==== Is(("", ""))
+    T ~ Grok.buffered(new java.io.ByteArrayInputStream(b("a,")), c, false, true, 8)(g => (g.tok, g.tok, g.hasMore)) ==== Is(("a", "", false))
+
+  @Test
+  def grokDelimTest(): Unit =
+    // Set composition
+    T ~ (Delim.white | Delim.of(","))(',')    ==== true
+    T ~ (Delim.white | Delim.of(","))(' ')    ==== true
+    T ~ (Delim.white & Delim.of(" ,"))(' ')   ==== true
+    T ~ (Delim.white & Delim.of(" ,"))(',')   ==== false
+    T ~ (Delim.white &~ Delim.of(" "))(' ')   ==== false
+    T ~ (Delim.white &~ Delim.of(" "))('\t')  ==== true
+    T ~ Delim.one(',')(',')                   ==== true
+    T ~ Delim.one(',')('.')                   ==== false
+    // over appends at the bottom of the sub chain
+    T ~ (Delim.lines over Delim.of(",")).sub.sub(',') ==== true
+    T ~ (Delim.lines over Delim.of(",")).sub(' ')     ==== true
+    // The motivating case: a sub-grok delimited within the current token
+    T ~ Grok("the 1,2,3 count", Delim.white){ g =>
+          g < "the" __ Unit
+          val t = g.grok(',', exact = true):
+            (g.I, g.I, g.I)
+          (t, g.tok)
+        } ==== Is(((1, 2, 3), "count"))
+    // Char and String delimiter specs at every level
+    T ~ Grok("a,b", delim = ',')(g => (g.tok, g.tok))              ==== Is(("a", "b"))
+    T ~ Grok("a,b;c", delim = ",;")(g => (g.tok, g.tok, g.tok))    ==== Is(("a", "b", "c"))
+    T ~ Grok("a b")(g => (g.delimit(' ').tok, g.tok))              ==== Is(("a", "b"))
+    // The sub-parse gets its own modes; the outer modes come back afterwards
+    T ~ Grok("1,,3 x", Delim.white){ g =>
+          val t = g.grok(',', exact = true)((g.tok, g.tok, g.tok))
+          (t, g.tok)
+        } ==== Is((("1", "", "3"), "x"))
+    T ~ Grok("12ab x", Delim.white){ g =>
+          val v = g.grok(Delim.none, partial = true)(g.I)
+          (v, g.tok)
+        } ==== Is((12, "x"))
+    // Reading past the end of a sub-parse's token is an error, not a leak into the enclosing input
+    val eOff = errText(Grok("1,2 rest", Delim.white)(g => g.grok(',')((g.I, g.I, g.I))))
+    T ~ eOff.contains("in sub-parse")   ==== true
+    T ~ eOff.contains("end of section") ==== true
+    T ~ Grok("1,2 rest", Delim.white)(g => g.grok(',')((g.I, g.I, g.hasMore))) ==== Is((1, 2, false))
+    // done() finishes a sub-parse early; the cursor still passes the whole token
+    T ~ Grok("1,2,3,4,5 rest", Delim.white){ g =>
+          val sum = g.grok(','):
+            var s = 0
+            while g.hasMore do
+              val v = g.I
+              if v >= 3 then g.done(s)
+              s += v
+            s
+          (sum, g.tok)
+        } ==== Is((3, "rest"))
+
+  @Test
+  def grokFactoryTest(): Unit =
+    def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    def m(s: String): Mem[Byte] = Mem.of(b(s))
+    // One transparent factory: every source flavor takes the same named defaults
+    T ~ Grok(b("10 20"), delim = Delim.white)(g => g.I + g.I)                 ==== Is(30)
+    T ~ Grok(b("06b"), partial = true)(g => g.I)                              ==== Is(6)
+    T ~ Grok(m("a,,c"), Delim.of(","), exact = true)(g => (g.tok, g.tok, g.tok)) ==== Is(("a", "", "c"))
+    T ~ Grok("x y".toCharArray, delim = Delim.white)(g => (g.tok, g.tok))     ==== Is(("x", "y"))
+    T ~ Grok.buffered(b("10 20"), Delim.white, window = 4)(g => g.I + g.I)    ==== Is(30)
+    T ~ Grok.buffered(new java.io.ByteArrayInputStream(b("1.5 x")), delim = Delim.white)(g => (g.D, g.tok)) ==== Is((1.5, "x"))
+    T ~ Grok.buffered(java.nio.CharBuffer.wrap("7 8".toCharArray), delim = Delim.white)(g => g.I + g.I) ==== Is(15)
+
+  @Test
   def grokSubTest(): Unit =
     T ~ Grok("My name is Eel\nsecond line"){ g =>
-          val name = g.grok(): h =>
-            (h < "My" < "name" < "is") __ Unit
-            h.tok
+          val name = g.grok():
+            (g < "My" < "name" < "is") __ Unit
+            g.tok
           (name, g.tok)
         } ==== Is(("Eel", "second line"))
     val e = errText(Grok("My name is Eel\nmore"){ g =>
-      g.grok(): h =>
-        (h < "My" < "gnome").tok
+      g.grok()((g < "My" < "gnome").tok)
     })
     T ~ e.contains("in sub-parse starting at line 1, pos 1") ==== true
     T ~ e.contains("expected \"gnome\"")                     ==== true
@@ -440,9 +545,9 @@ class GrokTest {
     // A slow-path double crossing the window edge: doubleImpl pins vPos so the re-read survives
     T ~ Grok.buffered(b(" " * 55 + "9007199254740993.5 x"), Delim.white)(g => (g.D, g.tok)) ==== Is(("9007199254740993.5".toDouble, "x"))
     T ~ Grok.buffered(b("My name is Eel\nsecond line")){ g =>
-          val name = g.grok(): h =>
-            (h < "My" < "name" < "is") __ Unit
-            h.tok
+          val name = g.grok():
+            (g < "My" < "name" < "is") __ Unit
+            g.tok
           (name, g.tok)
         } ==== Is(("Eel", "second line"))
     // Long input: many scoots; sum of 60 ints crossing window edges at varied alignments
@@ -608,4 +713,49 @@ class GrokTest {
     T ~ bad(date("2025-06-25x"))                                ==== true
     T ~ Grok("wahoo")(g => g.tok_?(_.forall(_.isLetter), "letters only"))  ==== Is("wahoo")
     T ~ errText(Grok("wah00")(g => g.tok_?(_.forall(_.isLetter), "letters only"))).contains("letters only") ==== true
+
+  @Test
+  def grokUtf8LiteralTest(): Unit =
+    def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    def m(s: String): Mem[Byte] = Mem.of(b(s))
+    // Non-ASCII literals must match on every source flavor (byte flavors compare UTF-8 bytes)
+    T ~ Grok("π ≈ 3.25", Delim.white)(g => ((g < "π") < "≈").D)                              ==== Is(3.25)
+    T ~ Grok("π ≈ 3.25".toCharArray, Delim.white, false, false)(g => ((g < "π") < "≈").D)    ==== Is(3.25)
+    T ~ Grok(b("π ≈ 3.25"), Delim.white, false, false)(g => ((g < "π") < "≈").D)             ==== Is(3.25)
+    T ~ Grok(m("π ≈ 3.25"), Delim.white, false, false)(g => ((g < "π") < "≈").D)             ==== Is(3.25)
+    T ~ Grok.buffered(b("π ≈ 3.25"), Delim.white)(g => ((g < "π") < "≈").D)                  ==== Is(3.25)
+    // A long multi-byte literal straddling window refills
+    T ~ Grok.buffered(b("héllo wörld héllo wörld 42"), Delim.white, false, false, 8)(g => ((g < "héllo" < "wörld" < "héllo" < "wörld")).I) ==== Is(42)
+    // Mismatches still fail cleanly, and the report shows the literal as written
+    T ~ bad(Grok(b("πx"), Delim.white, false, false)(g => g < "πy"))                          ==== true
+    T ~ errText(Grok(b("crêpe"), Delim.white, false, false)(g => g < "crêpes")).contains("crêpes") ==== true
+    T ~ bad(Grok.buffered(b("ab"), Delim.white, false, false, 8)(g => g < "abç"))             ==== true
+
+  @Test
+  def grokUnknownLengthTest(): Unit =
+    import java.io.{ByteArrayInputStream, StringReader}
+    def bais(s: String) = new ByteArrayInputStream(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    T ~ Grok.buffered(bais("10\n20"))(g => g.I + g.I)                                         ==== Is(30)
+    T ~ Grok.buffered(bais("10 20 -5"), Delim.white, false, false, 8)(g => g.I + g.I + g.I)   ==== Is(25)
+    T ~ Grok.buffered(bais(""))(g => g.hasMore)                                               ==== Is(false)
+    T ~ bad(Grok.buffered(bais(""))(g => g.I))                                                ==== true
+    T ~ Grok.buffered(bais("3.25"))(g => (g.D, g.hasMore))                                    ==== Is((3.25, false))
+    T ~ Grok.buffered(bais("12345678901"), Delim.white, false, false, 8)(g => g.L)            ==== Is(12345678901L)
+    T ~ Grok.buffered(bais("42"), Delim.white, false, false, 8)(g => { val x = g.I; g.end; x }) ==== Is(42)
+    T ~ bad(Grok.buffered(bais("42 43"), Delim.white, false, false, 8)(g => { val x = g.I; g.end; x })) ==== true
+    T ~ bad(Grok.buffered(bais("ab"), Delim.white, false, false, 8)(g => g < "abc"))          ==== true
+    T ~ Grok.buffered(bais("ff 18446744073709551615"), Delim.white, false, false, 8)(g => (g.xB, g.uL)) ==== Is((-1: Byte, ULong.wrap(-1L)))
+    // The end discovered inside a failed select alternative must not break the restore
+    T ~ Grok.buffered(bais("12"), Delim.white, false, false, 8)(g => g.select(g.I + g.I, g.I)) ==== Is(12)
+    // Unclosed quoted string must error out, not spin on an unbounded view
+    T ~ bad(Grok.buffered(bais("\"unclosed"), Delim.white, false, false, 8)(g => g.str))      ==== true
+    T ~ Grok.buffered(bais("\"a\\tb\" done"), Delim.white, false, false, 8)(g => (g.str, g.tok)) ==== Is(("a\tb", "done"))
+    // Window growth on a token longer than the initial window
+    T ~ Grok.buffered(bais("supercalifragilisticexpialidocious!"), Delim.white, false, false, 8)(g => g.tok) ==== Is("supercalifragilisticexpialidocious!")
+    // Sub-parses narrow and restore views correctly around a discovered end
+    T ~ Grok.buffered(bais("a b\nc d"), Delim.lines, false, false, 8)(g => (g.grok()(g.tok + g.tok), g.grok()(g.tok + g.tok))) ==== Is(("ab", "cd"))
+    // Reader flavor
+    T ~ Grok.buffered(new StringReader("x 1.5e2 true"), Delim.white, false, false, 8)(g => (g.tok, g.D, g.Z)) ==== Is(("x", 150.0, true))
+    T ~ bad(Grok.buffered(new StringReader("\"unclosed"), Delim.white, false, false, 8)(g => g.str)) ==== true
+    T ~ Grok.buffered(new StringReader(""))(g => g.hasMore)                                   ==== Is(false)
 }
