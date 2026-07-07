@@ -10,7 +10,7 @@ import scala.util.boundary.Label
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
-import kse.maths.{UByte, UShort, UInt, ULong}
+import kse.maths.{UByte, UShort, UInt, ULong, EiselLemire}
 
 
 //////////////////////////
@@ -1124,8 +1124,8 @@ sealed abstract class Grok protected () {
       ePos = i
 
   // === Digit-run kernel: the shared core of number scanning ===
-  // Accumulates up to `budget` decimal digits POSITIVELY (callers negate as needed; a future
-  // 19-digit budget for Eisel-Lemire relies on unsigned interpretation of the accumulator).
+  // Accumulates up to `budget` decimal digits POSITIVELY (callers negate as needed; doubleImpl's
+  // 19-digit budget can wrap negative, which Eisel-Lemire reads as the intended u64).
   // Starts at position j0 whose already-loaded lookahead is c0.  Commits the cursor — i moves
   // to the end of the run, cc holds the guarded lookahead there — and answers the accumulated
   // value; the caller recovers the digit count as i - j0.  Instantiated per source as the
@@ -1668,7 +1668,7 @@ sealed abstract class Grok protected () {
         var droppedInt = 0
         var truncated = false
         if c >= '1' && c <= '9' then
-          mant = digitsWork(j, c, 18)
+          mant = digitsWork(j, c, 19)
           nd = (i - j).toInt
           anyDigit = true
           j = i
@@ -1688,10 +1688,10 @@ sealed abstract class Grok protected () {
               fracScale += 1
               j += 1
               c = if j < iZ then at(j) else -1
-          if nd < 18 && c >= '0' && c <= '9' then
-            val v = digitsWork(j, c, 18 - nd)
+          if nd < 19 && c >= '0' && c <= '9' then
+            val v = digitsWork(j, c, 19 - nd)
             val fd = (i - j).toInt
-            mant = mant * Grok.pow10L(fd) + v   // nd + fd <= 18, so this cannot overflow
+            mant = mant * Grok.pow10L(fd) + v   // nd + fd <= 19: may wrap negative, but only into u64 space, which Eisel-Lemire reads
             nd += fd
             fracScale += fd
             anyDigit = true
@@ -1740,33 +1740,19 @@ sealed abstract class Grok protected () {
           else if mant == 0 then
             if neg then -0.0 else 0.0
           else if mode == 2 then
-            if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
-              // Same exact-arithmetic fast path as the Double case; narrowing its correctly
-              // rounded result is also correct UNLESS it lands exactly on a Float rounding
-              // midpoint (low 29 mantissa bits = one half; the window keeps every result in
-              // normal Float range, so this test is exact).  Then the true value may lie on
-              // either side, so only the digits can decide: punt to the JDK.
-              var v = mant.toDouble
-              if e10 > 0 then v *= Grok.pow10(e10)
-              else if e10 < 0 then v /= Grok.pow10(-e10)
-              if (java.lang.Double.doubleToRawLongBits(v) & 0x1FFFFFFFL) == 0x10000000L then
-                java.lang.Float.parseFloat(sub(vPos, j)).toDouble
-              else
-                (if neg then -v.toFloat else v.toFloat).toDouble
-            else
-              // Hard cases go to the JDK Float parser: narrowing a correctly-rounded Double
-              // double-rounds incorrectly for some inputs (e.g. 7.038531e-26).
-              java.lang.Float.parseFloat(sub(vPos, j)).toDouble
-          else if !truncated && nd <= 15 && e10 >= -22 && e10 <= 22 then
-            // Exact-arithmetic fast path (Clinger): mantissa and power of ten are both exactly
-            // representable, so the single multiply or divide rounds correctly.
-            var v = mant.toDouble
-            if e10 > 0 then v *= Grok.pow10(e10)
-            else if e10 < 0 then v /= Grok.pow10(-e10)
-            if neg then -v else v
+            // The kernel punts (NaN) whenever narrowing could go wrong (subnormal Floats,
+            // narrowing midpoints, undecided Doubles); a truncated mantissa (>19 digits) is
+            // trusted only when one ulp of slop agrees, since the value is in [mant, mant+1) *
+            // 10^e10.  NaN punts compare unequal, so both tests fail into the JDK together.
+            val v = EiselLemire.toFloat(ULong.wrap(mant), e10)
+            val ok = if truncated then v == EiselLemire.toFloat(ULong.wrap(mant + 1), e10) else v == v
+            if ok then (if neg then -v else v).toDouble
+            else java.lang.Float.parseFloat(sub(vPos, j)).toDouble
           else
-            // Rare hard cases (>15 digits or extreme exponent): let the JDK do the correct rounding.
-            java.lang.Double.parseDouble(sub(vPos, j))
+            val v = EiselLemire.toDouble(ULong.wrap(mant), e10)
+            val ok = if truncated then v == EiselLemire.toDouble(ULong.wrap(mant + 1), e10) else v == v
+            if ok then (if neg then -v else v)
+            else java.lang.Double.parseDouble(sub(vPos, j))
     if eCode == 0 then sepOk = true
     releaseWork(pv)
     result
@@ -1816,15 +1802,11 @@ object Grok {
     def toThrowable: Throwable = ErrType.StringErrException(toString)
   }
 
-  @publicInBinary private[eio] val pow10: Array[Double] = Array(
-    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
-    1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22
-  )
-
   @publicInBinary private[eio] val pow10L: Array[Long] = Array(
     1L, 10L, 100L, 1000L, 10000L, 100000L, 1000000L, 10000000L, 100000000L, 1000000000L,
     10000000000L, 100000000000L, 1000000000000L, 10000000000000L, 100000000000000L,
-    1000000000000000L, 10000000000000000L, 100000000000000000L, 1000000000000000000L
+    1000000000000000L, 10000000000000000L, 100000000000000000L, 1000000000000000000L,
+    0x8AC7230489E80000L   // 10^19 as u64: indexed only when the integer part was empty, so the mantissa it scales is 0
   )
 
   @publicInBinary private[eio] val declinedAlt: Alt[Err] = Alt(Err("alternative declined"))

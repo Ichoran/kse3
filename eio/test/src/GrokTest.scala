@@ -470,12 +470,35 @@ class GrokTest {
     T ~ Grok(b("1.5x"), Delim.lines, true, false)(g => g.D)            ==== Is(1.5)
     T ~ Grok(b("1.5e+"), Delim.lines, true, false)(g => (g.D, g.C, g.C)) ==== Is((1.5, 'e', '+'))
     // Significance boundary and truncation paths
-    T ~ d2("123456789012345678")         ==== Is("123456789012345678".toDouble)     // 18 sig digits exactly
+    T ~ d2("123456789012345678")         ==== Is("123456789012345678".toDouble)     // 18 sig digits
+    T ~ d2("1234567890123456789")        ==== Is("1234567890123456789".toDouble)    // 19 sig digits: the full budget
+    T ~ d2("9999999999999999999")        ==== Is("9999999999999999999".toDouble)    // 19 nines: the u64-wrapped extreme
     T ~ d2("12345678901234567890123")    ==== Is("12345678901234567890123".toDouble) // dropped integer digits
     T ~ d2("0.00000000000000000000123")  ==== Is("0.00000000000000000000123".toDouble) // long leading-zero fraction
+    T ~ d2("0.1234567890123456789")      ==== Is("0.1234567890123456789".toDouble)  // 19 digits all in the fraction
     T ~ d2("1234567890123456789.012e-5") ==== Is("1234567890123456789.012e-5".toDouble)
     T ~ d2("0.99999999999999999999")     ==== Is("0.99999999999999999999".toDouble)  // dropped fraction digits
     T ~ d2("000000000000000000123.5")    ==== Is(123.5)                              // leading zeros don't eat significance
+    // Famously hard values: subnormal edges, midpoints, and overflow boundaries all take the
+    // punt-to-JDK path and must come out exactly right
+    T ~ d2("2.2250738585072011e-308")    ==== Is("2.2250738585072011e-308".toDouble) // just below MIN_NORMAL (the PHP hanger)
+    T ~ d2("2.2250738585072014e-308")    ==== Is(java.lang.Double.MIN_NORMAL)
+    T ~ d2("4.9406564584124654e-324")    ==== Is(java.lang.Double.MIN_VALUE)         // smallest subnormal
+    T ~ d2("2.4703282292062327e-324")    ==== Is("2.4703282292062327e-324".toDouble) // just above half the smallest subnormal
+    T ~ d2("1e-324")                     ==== Is(0.0)                                 // just below it
+    T ~ d2("9e308")                      ==== Is(Double.PositiveInfinity)
+    T ~ d2("-1e309")                     ==== Is(Double.NegativeInfinity)
+    T ~ d2("9007199254740993")           ==== Is(9007199254740992.0)                 // 2^53 + 1: round-to-even midpoint
+    T ~ d2("9007199254740993.00000001")  ==== Is(9007199254740994.0)                 // ... unless the tail breaks the tie
+    // Shortest-roundtrip representations (~17 sig digits) are the bulk real-world hard case:
+    // every one must survive the round trip exactly
+    val rr = new java.util.Random(0x5EED3)
+    var nn = 0
+    while nn < 10000 do
+      val x = java.lang.Double.longBitsToDouble(rr.nextLong())
+      if !x.isNaN && !x.isInfinite then
+        T ~ d2(x.toString) ==== Is(x)
+      nn += 1
     // Random differential against the JDK
     val r = new java.util.Random(0x5EED2)
     var n = 0
