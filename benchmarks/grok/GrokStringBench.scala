@@ -7,6 +7,11 @@
 // decoders, so we mainly want to be not-absurdly-behind on tricky while winning or tying
 // on easy — and grokStrBytesRaw shows what skipping the decode entirely buys on bytes.
 //
+// The grokCsv* rows parse the SAME content encoded CSV-style (RFC 4180: everything literal,
+// including raw controls and non-ASCII; only embedded quotes escaped, by doubling), read
+// with Quote.csv.  handCsvStr is a hand-rolled indexOf-based CSV string decoder over the
+// same text — the speed-of-light reference for the doubled-quote style.
+//
 // Build the jar first (from the repo root):   mill all.assembly
 // Then run (from the repo root):
 //   taskset -c 4 scala-cli --power run benchmarks/grok --jmh -- -f 1 -wi 6 -i 8 -w 1 -r 1 GrokStringBench
@@ -44,6 +49,10 @@ class GrokStringBench {
   var text: String = ""
   var bytes: Array[Byte] = Array.empty
   var charsArr: Array[Char] = Array.empty
+  var csvText: String = ""
+  var csvBytes: Array[Byte] = Array.empty
+  var csvCharsArr: Array[Char] = Array.empty
+  var csvMem: Mem[Byte] = null.asInstanceOf[Mem[Byte]]
 
   val jsonFactory = new JsonFactory()
 
@@ -61,6 +70,9 @@ class GrokStringBench {
       else sb.append(c)
       k += 1
     sb.append('"').toString
+
+  private def csvEnc(s: String): String =
+    "\"" + s.replace("\"", "\"\"") + "\""
 
   @Setup(Level.Trial)
   def setup(): Unit =
@@ -99,6 +111,10 @@ class GrokStringBench {
     text = content.zipWithIndex.map((s, k) => jsonEnc(s, uEscOf(k))).mkString("[", ", ", "]")
     bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8)
     charsArr = text.toCharArray
+    csvText = content.map(csvEnc).mkString("[", ", ", "]")
+    csvBytes = csvText.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    csvCharsArr = csvText.toCharArray
+    csvMem = Mem of csvBytes
     // Guard against benchmarking a wrong parse
     val check = Grok(text, delim = Delim.white, partial = true): g =>
       val xsb = Array.newBuilder[String]
@@ -111,6 +127,9 @@ class GrokStringBench {
           case _   => xsb += g.str
       xsb.result()
     if check.get.toSeq != content.toSeq then throw new AssertionError("Grok parse does not match content")
+    if grokCsvStr().toSeq != content.toSeq then throw new AssertionError("Grok CSV parse does not match content")
+    if grokBufCsvStr().toSeq != content.toSeq then throw new AssertionError("Grok buffered CSV parse does not match content")
+    if handCsvStr().toSeq != content.toSeq then throw new AssertionError("Hand-rolled CSV parse does not match content")
   @Benchmark
   def grokStr(): Array[String] =
     Grok(text, delim = Delim.white, partial = true): g =>
@@ -182,6 +201,127 @@ class GrokStringBench {
           case _   => xsb += g.str
       xsb.result()
     .get
+
+  @Benchmark
+  def grokCsvStr(): Array[String] =
+    Grok(csvText, delim = Delim.white, partial = true): g =>
+      val xsb = Array.newBuilder[String]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.str(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokCsvStrBytes(): Array[String] =
+    Grok(csvBytes, Delim.white, true, false): g =>
+      val xsb = Array.newBuilder[String]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.str(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokCsvStrBytesRaw(): Array[Array[Byte]] =
+    Grok(csvBytes, Delim.white, true, false): g =>
+      val xsb = Array.newBuilder[Array[Byte]]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.strBytes(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokCsvMemStr(): Array[String] =
+    Grok(csvMem, Delim.white, true, false): g =>
+      val xsb = Array.newBuilder[String]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.str(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokCsvMemStrBytesRaw(): Array[Array[Byte]] =
+    Grok(csvMem, Delim.white, true, false): g =>
+      val xsb = Array.newBuilder[Array[Byte]]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.strBytes(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokBufCsvStr(): Array[String] =
+    Grok.buffered(csvBytes, Delim.white, partial = true): g =>
+      val xsb = Array.newBuilder[String]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.str(Quote.csv)
+      xsb.result()
+    .get
+
+  @Benchmark
+  def grokBufCharsCsvStr(): Array[String] =
+    Grok.buffered(java.nio.CharBuffer.wrap(csvCharsArr), Delim.white, true, false, 64): g =>
+      val xsb = Array.newBuilder[String]
+      (g < '[') __ Unit
+      var more = true
+      while more do
+        g.sp.peek match
+          case ']' => more = false
+          case ',' => (g < ",") __ Unit
+          case _   => xsb += g.str(Quote.csv)
+      xsb.result()
+    .get
+
+  // Speed-of-light reference: indexOf to each quote, substring when clean, StringBuilder
+  // segments across doubled quotes.  No error handling, no generality.
+  @Benchmark
+  def handCsvStr(): Array[String] =
+    val s = csvText
+    val out = Array.newBuilder[String]
+    var p = s.indexOf('"')
+    while p >= 0 do
+      var q = s.indexOf('"', p + 1)
+      if q + 1 < s.length && s.charAt(q + 1) == '"' then
+        val sb = new java.lang.StringBuilder
+        var k = p + 1
+        while q + 1 < s.length && s.charAt(q + 1) == '"' do
+          sb.append(s, k, q + 1) __ Unit
+          k = q + 2
+          q = s.indexOf('"', k)
+        sb.append(s, k, q) __ Unit
+        out += sb.toString
+      else
+        out += s.substring(p + 1, q)
+      p = s.indexOf('"', q + 1)
+    out.result()
 
   @Benchmark
   def jsoniterScalaStr(): Array[String] =

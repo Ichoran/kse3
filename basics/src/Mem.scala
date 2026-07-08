@@ -94,6 +94,132 @@ object Mem {
       new Owned[A](arena, wrap[A](f(arena)))
   }
 
+  // === Value scans: width-specialized workers backing `whereIsFwd`/`whereIsBkw` ===
+  // Byte through Int lanes ride a 64-bit SWAR: read a long, xor with the value broadcast to
+  // every lane, and zero-test the lanes.  Forward scans use the cheap test
+  // (x - lows) & ~x & highs, which is exact at the lowest matching lane (its borrow can corrupt
+  // only lanes above a true match, beyond the answer taken); backward scans need the highest
+  // lane, so they use the exact test ~(((x & maxs) + maxs) | x | maxs), whose per-lane carries
+  // cannot escape their lane.  Little-endian hardware is ASSUMED, here as elsewhere in kse3
+  // (lane order and the borrow-direction argument both depend on it); big-endian machines are
+  // not supported.  Floating types are searched as their raw bits via the Int/Long workers
+  // (see `whereIsFwd`).
+
+  private val leLong: ValueLayout.OfLong = JAVA_LONG_UNALIGNED.withOrder(java.nio.ByteOrder.LITTLE_ENDIAN)
+
+  /** The first index in `[i0, iN)` (clamped) of `seg` holding byte `v`, or -1; backs `whereIsFwd`. */
+  def seekIsByte(seg: MemorySegment, i0: Long, iN: Long, v: Byte): Long =
+    var k = if i0 < 0 then 0L else i0
+    val n = { val z = seg.byteSize; if iN > z then z else iN }
+    val pat = 0x0101010101010101L * (v & 0xFFL)
+    var ans = -1L
+    while ans < 0 && k + 8 <= n do
+      val x = (seg.get(leLong, k): Long) ^ pat
+      val z = (x - 0x0101010101010101L) & ~x & 0x8080808080808080L
+      if z == 0L then k += 8
+      else ans = k + (java.lang.Long.numberOfTrailingZeros(z) >>> 3)
+    if ans < 0 then
+      while k < n && seg.get(JAVA_BYTE, k) != v do k += 1
+      if k < n then ans = k
+    ans
+
+  /** The first index in `[i0, iN)` (clamped) of `seg` as shorts holding `v`, or -1; backs `whereIsFwd`. */
+  def seekIsShort(seg: MemorySegment, i0: Long, iN: Long, v: Short): Long =
+    var k = if i0 < 0 then 0L else i0
+    val n = { val z = seg.byteSize >> 1; if iN > z then z else iN }
+    val pat = 0x0001000100010001L * (v & 0xFFFFL)
+    var ans = -1L
+    while ans < 0 && k + 4 <= n do
+      val x = (seg.get(leLong, k << 1): Long) ^ pat
+      val z = (x - 0x0001000100010001L) & ~x & 0x8000800080008000L
+      if z == 0L then k += 4
+      else ans = k + (java.lang.Long.numberOfTrailingZeros(z) >>> 4)
+    if ans < 0 then
+      while k < n && seg.get(JAVA_SHORT_UNALIGNED, k << 1) != v do k += 1
+      if k < n then ans = k
+    ans
+
+  /** The first index in `[i0, iN)` (clamped) of `seg` as ints holding `v`, or -1; backs `whereIsFwd`. */
+  def seekIsInt(seg: MemorySegment, i0: Long, iN: Long, v: Int): Long =
+    var k = if i0 < 0 then 0L else i0
+    val n = { val z = seg.byteSize >> 2; if iN > z then z else iN }
+    val pat = 0x0000000100000001L * (v & 0xFFFFFFFFL)
+    var ans = -1L
+    while ans < 0 && k + 2 <= n do
+      val x = (seg.get(leLong, k << 2): Long) ^ pat
+      val z = (x - 0x0000000100000001L) & ~x & 0x8000000080000000L
+      if z == 0L then k += 2
+      else ans = k + (java.lang.Long.numberOfTrailingZeros(z) >>> 5)
+    if ans < 0 then
+      while k < n && seg.get(JAVA_INT_UNALIGNED, k << 2) != v do k += 1
+      if k < n then ans = k
+    ans
+
+  /** The first index in `[i0, iN)` (clamped) of `seg` as longs holding `v`, or -1; backs `whereIsFwd`. */
+  def seekIsLong(seg: MemorySegment, i0: Long, iN: Long, v: Long): Long =
+    var k = if i0 < 0 then 0L else i0
+    val n = { val z = seg.byteSize >> 3; if iN > z then z else iN }
+    while k < n && seg.get(JAVA_LONG_UNALIGNED, k << 3) != v do k += 1
+    if k < n then k else -1L
+
+  /** The last index in `[i0, iN)` (clamped) of `seg`'s bytes holding `v`, or -1; backs `whereIsBkw`. */
+  def seekIsByteBkw(seg: MemorySegment, i0: Long, iN: Long, v: Byte): Long =
+    val k0 = if i0 < 0 then 0L else i0
+    var n = { val z = seg.byteSize; if iN > z then z else iN }
+    val pat = 0x0101010101010101L * (v & 0xFFL)
+    var ans = -1L
+    while ans < 0 && n - 8 >= k0 do
+      val x = (seg.get(leLong, n - 8): Long) ^ pat
+      val z = ~(((x & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL) | x | 0x7F7F7F7F7F7F7F7FL)
+      if z == 0L then n -= 8
+      else ans = (n - 8) + ((63 - java.lang.Long.numberOfLeadingZeros(z)) >>> 3)
+    if ans < 0 then
+      var k = n - 1
+      while k >= k0 && seg.get(JAVA_BYTE, k) != v do k -= 1
+      if k >= k0 then ans = k
+    ans
+
+  /** The last index in `[i0, iN)` (clamped) of `seg` as shorts holding `v`, or -1; backs `whereIsBkw`. */
+  def seekIsShortBkw(seg: MemorySegment, i0: Long, iN: Long, v: Short): Long =
+    val k0 = if i0 < 0 then 0L else i0
+    var n = { val z = seg.byteSize >> 1; if iN > z then z else iN }
+    val pat = 0x0001000100010001L * (v & 0xFFFFL)
+    var ans = -1L
+    while ans < 0 && n - 4 >= k0 do
+      val x = (seg.get(leLong, (n - 4) << 1): Long) ^ pat
+      val z = ~(((x & 0x7FFF7FFF7FFF7FFFL) + 0x7FFF7FFF7FFF7FFFL) | x | 0x7FFF7FFF7FFF7FFFL)
+      if z == 0L then n -= 4
+      else ans = (n - 4) + ((63 - java.lang.Long.numberOfLeadingZeros(z)) >>> 4)
+    if ans < 0 then
+      var k = n - 1
+      while k >= k0 && seg.get(JAVA_SHORT_UNALIGNED, k << 1) != v do k -= 1
+      if k >= k0 then ans = k
+    ans
+
+  /** The last index in `[i0, iN)` (clamped) of `seg` as ints holding `v`, or -1; backs `whereIsBkw`. */
+  def seekIsIntBkw(seg: MemorySegment, i0: Long, iN: Long, v: Int): Long =
+    val k0 = if i0 < 0 then 0L else i0
+    var n = { val z = seg.byteSize >> 2; if iN > z then z else iN }
+    val pat = 0x0000000100000001L * (v & 0xFFFFFFFFL)
+    var ans = -1L
+    while ans < 0 && n - 2 >= k0 do
+      val x = (seg.get(leLong, (n - 2) << 2): Long) ^ pat
+      val z = ~(((x & 0x7FFFFFFF7FFFFFFFL) + 0x7FFFFFFF7FFFFFFFL) | x | 0x7FFFFFFF7FFFFFFFL)
+      if z == 0L then n -= 2
+      else ans = (n - 2) + ((63 - java.lang.Long.numberOfLeadingZeros(z)) >>> 5)
+    if ans < 0 then
+      var k = n - 1
+      while k >= k0 && seg.get(JAVA_INT_UNALIGNED, k << 2) != v do k -= 1
+      if k >= k0 then ans = k
+    ans
+
+  /** The last index in `[i0, iN)` (clamped) of `seg` as longs holding `v`, or -1; backs `whereIsBkw`. */
+  def seekIsLongBkw(seg: MemorySegment, i0: Long, iN: Long, v: Long): Long =
+    val k0 = if i0 < 0 then 0L else i0
+    var k = { val z = seg.byteSize >> 3; if iN > z then z else iN } - 1
+    while k >= k0 && seg.get(JAVA_LONG_UNALIGNED, k << 3) != v do k -= 1
+    if k >= k0 then k else -1L
+
   extension [A <: Type](m: Mem[A]) {
     /** The underlying segment. */
     inline def segment: MemorySegment = m
@@ -544,6 +670,34 @@ object Mem {
           if f(m(j)) then boundary.break(j)
           j -= 1
         -1L
+
+    /** The first index in `[i0, iN)` (clamped) holding exactly `value`, or -1 if there is none.
+      * Byte through Int widths scan a 64-bit lane at a time, so big blocks go fast.  Floating
+      * types are matched by raw bit pattern, not IEEE `==`: NaN finds a bit-identical NaN, and
+      * 0.0 does not find -0.0.
+      */
+    inline def whereIsFwd(i0: Long, iN: Long)(value: A): Long = inline erasedValue[A] match
+      case _: Byte   => seekIsByte((m: MemorySegment), i0, iN, value.asInstanceOf[Byte])
+      case _: Short  => seekIsShort((m: MemorySegment), i0, iN, value.asInstanceOf[Short])
+      case _: Char   => seekIsShort((m: MemorySegment), i0, iN, value.asInstanceOf[Char].toShort)
+      case _: Int    => seekIsInt((m: MemorySegment), i0, iN, value.asInstanceOf[Int])
+      case _: Long   => seekIsLong((m: MemorySegment), i0, iN, value.asInstanceOf[Long])
+      case _: Float  => seekIsInt((m: MemorySegment), i0, iN, java.lang.Float.floatToRawIntBits(value.asInstanceOf[Float]))
+      case _: Double => seekIsLong((m: MemorySegment), i0, iN, java.lang.Double.doubleToRawLongBits(value.asInstanceOf[Double]))
+      case _         => error("Mem only supports primitive element types")
+
+    /** The last index in `[i0, iN)` (clamped) holding exactly `value`, or -1 if there is none;
+      * matching as for `whereIsFwd`.
+      */
+    inline def whereIsBkw(i0: Long, iN: Long)(value: A): Long = inline erasedValue[A] match
+      case _: Byte   => seekIsByteBkw((m: MemorySegment), i0, iN, value.asInstanceOf[Byte])
+      case _: Short  => seekIsShortBkw((m: MemorySegment), i0, iN, value.asInstanceOf[Short])
+      case _: Char   => seekIsShortBkw((m: MemorySegment), i0, iN, value.asInstanceOf[Char].toShort)
+      case _: Int    => seekIsIntBkw((m: MemorySegment), i0, iN, value.asInstanceOf[Int])
+      case _: Long   => seekIsLongBkw((m: MemorySegment), i0, iN, value.asInstanceOf[Long])
+      case _: Float  => seekIsIntBkw((m: MemorySegment), i0, iN, java.lang.Float.floatToRawIntBits(value.asInstanceOf[Float]))
+      case _: Double => seekIsLongBkw((m: MemorySegment), i0, iN, java.lang.Double.doubleToRawLongBits(value.asInstanceOf[Double]))
+      case _         => error("Mem only supports primitive element types")
 
     /** Copy elements into a caller-provided destination; returns the number copied. */
     inline def inject(that: Mem[A]): Long =

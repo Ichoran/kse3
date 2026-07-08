@@ -278,6 +278,25 @@ class ArraysTest() {
     T ~ car.whereInOp(1 to 6)(linc)           =**= car.whereIn(1 to 6)(_.l).copyWith(_ + 7)    
     T ~ car.whereFromOp(Array(7, 5, 3))(linc) =**= car.whereFrom(Array(7, 5, 3))(_.l).copyWith(_ + 7)
 
+    val wiz = Array(3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5)
+    T ~ wiz.whereIsFwd(0, wiz.length)(5)   ==== 4
+    T ~ wiz.whereIsFwd(5, wiz.length)(5)   ==== 8
+    T ~ wiz.whereIsFwd(0, wiz.length)(7)   ==== -1
+    T ~ wiz.whereIsFwd(Iv(5, 11))(5)       ==== 8
+    T ~ wiz.whereIsFwd(2 to 7)(1)          ==== 3
+    T ~ wiz.whereIsBkw(0, wiz.length)(5)   ==== 10
+    T ~ wiz.whereIsBkw(0, 10)(5)           ==== 8
+    T ~ wiz.whereIsBkw(0, 4)(5)            ==== -1
+    T ~ wiz.whereIsBkw(Iv(0, 10))(5)       ==== 8
+    T ~ wiz.whereIsBkw(0 to 3)(1)          ==== 3
+    T ~ wiz.clip.whereIsFwd(-5, 99)(3)     ==== 0
+    T ~ wiz.clip.whereIsFwd(4 to 33)(9)    ==== 5
+    T ~ wiz.clip.whereIsFwd(Iv(-2, 99))(6) ==== 7
+    T ~ wiz.clip.whereIsBkw(-5, 99)(3)     ==== 9
+    T ~ wiz.clip.whereIsBkw(-5, 99)(7)     ==== -1
+    T ~ wiz.clip.whereIsBkw(4 to 33)(9)    ==== 5
+    T ~ wiz.clip.whereIsBkw(Iv(-2, 99))(1) ==== 3
+
     T ~ car.dup(_() = C('x')).cs          ==== "xxxxxxxxx"
     T ~ oar.dup(_() = O(None)).os         ==== "####"
     T ~ car.dup(_() = "abcdefghi".c).cs   ==== "abcdefghi"

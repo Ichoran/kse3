@@ -303,12 +303,23 @@ Design points:
   Buffered-64 0.40→0.48 (every removed re-read also saved the window tax).  Full precision
   stays parseDouble-bound until Eisel-Lemire.
 
-## Quoted strings (kernels settled 2026-07-05)
+## Quoted strings (kernels settled 2026-07-05; styles split 2026-07-07)
 
 `str`/`strChars`/`strBytes`/`strSpan` with a `Quote` style spec (JSON backslash escapes or
 CSV/SQL quote-doubling), on every source.
 
-**Architecture.**  Scan to the closing quote ignoring delimiters; an escape-free string is
+**Architecture.**  The two styles are separate kernels: `strWork` (backslash escapes) and
+`strqWork` (quote doubling), dispatched on `Quote.doubled` in the inline readers.  They were
+one kernel with a `doubled` flag until 2026-07-07; splitting them took the CSV clean-scan
+from ~2.5x slower than JSON to slightly faster (see the style-flag finding below).  The
+doubling kernel has no escape machinery at all — it hunts for one character, so its scan is
+a per-source `seek` template hook (next quote at or after a position, or past-iZ if none in
+view): `String.indexOf` (SIMD intrinsic) on Str, `Mem.whereIsFwd` SWAR on Bytes/Chars/Mem
+(the array sources lazily wrap their arrays in a Mem), and window-chunked SWAR with
+atc-refills between windows on the buffered sources.  A doubled quote flushes the segment
+through the first of the pair and continues; only end-of-input can fail once the opening
+quote matched.  The rest applies to both: scan to the closing quote ignoring delimiters; an
+escape-free string is
 extracted in one piece (substring / `copyOfRange` — a clean `strBytes` never decodes).
 Escaped strings flush clean segments in bulk (per-source `blit`: getChars / arraycopy) into
 a doubling buffer in the source's native width — UTF-16 for char sources, UTF-8 for byte
@@ -339,6 +350,51 @@ Clean strings are competitive everywhere (raw: grokStr beats Jackson-String; the
 `strBytes` path is 2.3× jsoniter).  Escape-dense sits ~1.6-2× behind Jackson (down from the
 3-4× of the first working version); the byte source now beats the String source on ASCII
 escapes, and the windowed sources pay only ~10-25% over indexed.
+
+**CSV-style standing** (2026-07-07, kernel split + seek scan; same harness, content encoded
+RFC-4180 — everything literal, embedded quotes doubled.  easy and raw payloads are
+byte-identical to the JSON ones; esc is genuinely less work than JSON esc since only quotes
+are escaped.  handCsvStr = hand-rolled `String.indexOf` + substring/StringBuilder decoder,
+the speed-of-light bar):
+
+| benchmark            | easy  | esc   | raw   |
+|----------------------|-------|-------|-------|
+| grokCsvStr           | 1.24  | 0.246 | 0.761 |
+| grokCsvStrBytes      | 1.17  | 0.274 | 0.176 |
+| grokCsvStrBytesRaw   | 1.42  | 0.273 | 1.040 |
+| grokCsvMemStr        | 0.93  | 0.240 | 0.167 |
+| grokCsvMemStrBytesRaw| 1.27  | 0.252 | 0.949 |
+| grokBufCsvStr (win 64)| 0.89 | 0.202 | 0.142 |
+| grokBufCharsCsvStr   | 0.99  | 0.198 | 0.408 |
+| handCsvStr           | 1.49  | 0.287 | 0.836 |
+| (grokStr same run)   | 1.31  | 0.107 | 0.110 |
+
+CSV ≥ its JSON counterpart in every cell, usually by a lot: parity on easy (the seek call
+and lazy Mem-wrap cost nothing measurable), 85-96% of the hand-rolled bar on quote-dense
+esc, and long clean strings run at intrinsic/SWAR speed — grokCsvStr 0.761 is 91% of the
+hand-rolled String decoder, and the strBytes raw copy at 1.04 BEATS it (the SWAR scans UTF-8
+bytes; the String decoder scans twice as many UTF-16 chars).  grokCsvStrBytes raw (0.176) is
+now bound by the `new String` UTF-8 decode, not the scan.  Windowed sources gain 2.4-3.7x on
+long strings but stay scoot/refill-bound.  Before the seek scan (element-at-a-time template
+loop) the raw column read 0.111 / 0.114 / 0.295 / 0.059 / 0.111: the seek is worth 3-7x on
+long clean strings.
+
+**The style-flag finding (2026-07-07).**  With one kernel serving both styles via a `doubled`
+flag, CSV clean scans ran ~2.5× slower than JSON on byte-identical input (0.097 vs 0.253
+strBytesRaw/raw), confirmed by style-swap controls: the effect followed the flag, not the
+input or the benchmark.  perfnorm: +57% instructions at half the IPC with identical branch
+and load counts — the doubled-quote continue makes `c == q` not-a-loop-exit, and C2 compiles
+the whole scan worse.  A loop-invariant flag that changes loop *structure* (exit vs continue)
+is not free even when its hot-path work is unchanged; splitting the kernels fixed it and
+simplified both.
+
+**Seek scan (closed 2026-07-07).**  The strq kernel originally scanned element-at-a-time
+through the template `at`, ~3-8x behind `String.indexOf` on long clean strings.  Fixed by
+making the scan a per-source `seek` hook backed by the new `whereIsFwd`/`whereIsBkw` value
+scans in basics (SWAR memchr on `Mem`, plain loops on arrays, `String.indexOf` for Str) —
+see the standing table.  The JSON kernel still scans element-at-a-time: it hunts for two
+characters (quote or backslash), which a two-pattern SWAR could also serve — open, and only
+worth trying if JSON-style long-string throughput starts to matter.
 
 **Tried and rejected — do not redo without new evidence:**
 
@@ -375,9 +431,13 @@ taking already-loaded values (`hex4`, `putUtf8`, `digitsWork`).
   loose end from the shape study: the per-char template build emitted ~100k instructions
   per parse beyond source-level accounting, PrintInlining symmetric — would need
   hsdis + perfasm to explain, but nothing rests on it now.)
-- MemBytes blits with a per-element loop (no arraycopy across the FFM boundary): expect
-  escaped-string lag on Mem until a bulk copy (MemorySegment.copy) or a parallel access
-  pattern replaces it.  No Mem row in GrokStringBench yet.
+- MemBytes per-element blits FIXED 2026-07-08: `cut` and the string blit lambdas now use
+  `Mem.inject` (bulk `MemorySegment.copy`), which took the Mem CSV raw-extract cell from
+  2x behind the array source to within ~11% (see the CSV table's Mem rows).  Remaining Mem
+  tax is ~10-15%: FFM per-byte `at()` in the structural reads, plus `utf8()` copying out
+  before decoding (two allocations per string vs one on arrays) — that last is why Mem
+  String-output easy sits ~24% behind; fixable with a decode-from-segment path if it ever
+  matters.
 
 ## Other open performance items (all secondary)
 

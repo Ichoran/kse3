@@ -347,6 +347,84 @@ class MemTest() {
     def acut = Array(1, 1, 2, 2, 2, 3)
     T ~ n{ (Mem of acut).clip.visitCuts(1L, 5L)((x, y) => x != y)((i, j) => cuml += 1) } ==== 2
 
+  def memWhereIsTest(): Unit =
+    // Bytes: a match at every position exercises every SWAR lane plus the sub-lane tail loops
+    val ab = Array.tabulate(29)(i => (i % 7).toByte)
+    val mb = Mem of ab
+    var i = 0
+    while i < ab.length do
+      T ~ mb.whereIsFwd(i, ab.length)(ab(i)) ==== i.toLong
+      T ~ mb.whereIsBkw(0L, i + 1)(ab(i))    ==== i.toLong
+      i += 1
+    T ~ mb.whereIsFwd(0L, ab.length)(9: Byte) ==== -1L
+    T ~ mb.whereIsBkw(0L, ab.length)(9: Byte) ==== -1L
+    T ~ mb.whereIsFwd(0L, ab.length)(3: Byte) ==== 3L
+    T ~ mb.whereIsBkw(0L, ab.length)(3: Byte) ==== 24L
+    T ~ mb.whereIsFwd(4L, ab.length)(3: Byte) ==== 10L
+    T ~ mb.whereIsBkw(4L, 10L)(3: Byte)       ==== -1L
+    T ~ mb.whereIsFwd(-5L, 99L)(6: Byte)      ==== 6L    // bounds clamp
+    T ~ mb.whereIsBkw(-5L, 99L)(6: Byte)      ==== 27L
+
+    // Shorts: distinct hi/lo bytes at every position; element-aligned lanes must not see
+    // the same bit pattern straddling two elements
+    val as = Array.tabulate(21)(i => ((i << 8) | (0x40 + i)).toShort)
+    val ms = Mem of as
+    i = 0
+    while i < as.length do
+      T ~ ms.whereIsFwd(0L, as.length)(as(i)) ==== i.toLong
+      T ~ ms.whereIsBkw(0L, as.length)(as(i)) ==== i.toLong
+      i += 1
+    T ~ ms.whereIsFwd(0L, as.length)(0x4100.toShort) ==== -1L   // exists only as a straddle
+    T ~ ms.whereIsFwd(5L, 12L)(as(7)) ==== 7L
+    T ~ ms.whereIsBkw(5L, 12L)(as(7)) ==== 7L
+    T ~ ms.whereIsFwd(8L, 12L)(as(7)) ==== -1L
+    T ~ ms.whereIsBkw(5L, 7L)(as(7))  ==== -1L
+
+    // Chars ride the short lanes; non-ASCII is fine
+    val ac = "abcdefghij☃klmnopqrs".toCharArray
+    val mc = Mem of ac
+    T ~ mc.whereIsFwd(0L, ac.length)('☃') ==== 10L
+    T ~ mc.whereIsBkw(0L, ac.length)('k')      ==== 11L
+    T ~ mc.whereIsFwd(0L, ac.length)('z')      ==== -1L
+
+    // Ints: duplicates picked by direction; windows scale in elements, not bytes
+    val am = Array.tabulate(11)(k => 0x11223300 + k)
+    am(9) = am(2)
+    val mm = Mem of am
+    i = 0
+    while i < am.length do
+      if i != 9 then T ~ mm.whereIsFwd(0L, am.length)(am(i)) ==== i.toLong
+      i += 1
+    T ~ mm.whereIsBkw(0L, am.length)(am(2)) ==== 9L
+    T ~ mm.whereIsFwd(3L, am.length)(am(2)) ==== 9L
+    T ~ mm.whereIsFwd(3L, 9L)(am(2))        ==== -1L
+
+    // Longs (plain compare loop)
+    val al = Array.tabulate(9)(k => 0x0102030405060700L + k)
+    val ml = Mem of al
+    T ~ ml.whereIsFwd(0L, al.length)(al(5)) ==== 5L
+    T ~ ml.whereIsBkw(0L, al.length)(al(5)) ==== 5L
+    T ~ ml.whereIsFwd(6L, al.length)(al(5)) ==== -1L
+
+    // Floats and Doubles match raw bits: NaN finds NaN, and 0.0 does not find -0.0
+    val af = Array[Float](1.5f, Float.NaN, -0.0f, 0.0f, 1.5f)
+    val mf = Mem of af
+    T ~ mf.whereIsFwd(0L, af.length)(Float.NaN) ==== 1L
+    T ~ mf.whereIsFwd(0L, af.length)(0.0f)      ==== 3L
+    T ~ mf.whereIsBkw(0L, af.length)(1.5f)      ==== 4L
+    val ad = Array[Double](2.25, Double.NaN, -0.0, 0.0, 2.25)
+    val md = Mem of ad
+    T ~ md.whereIsFwd(0L, ad.length)(Double.NaN) ==== 1L
+    T ~ md.whereIsFwd(0L, ad.length)(0.0)        ==== 3L
+    T ~ md.whereIsBkw(0L, ad.length)(2.25)       ==== 4L
+
+    // Off-heap (native) segments take the same paths
+    val mo = Mem.alloc[Byte](40)
+    mo.set()(k => (k % 5).toByte)
+    T ~ mo.whereIsFwd(0L, 40L)(4: Byte) ==== 4L
+    T ~ mo.whereIsBkw(0L, 40L)(4: Byte) ==== 39L
+    T ~ mo.whereIsFwd(0L, 40L)(7: Byte) ==== -1L
+
   def memConstructTest(): Unit =
     // alloc (GC-managed)
     val md = Mem.alloc[Double](4)

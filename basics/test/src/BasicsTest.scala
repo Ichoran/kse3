@@ -852,6 +852,8 @@ class BasicsTest() {
 
   @Test def memClippedInlinedDataTest: Unit = memTester.memClippedInlinedDataTest()
 
+  @Test def memWhereIsTest: Unit = memTester.memWhereIsTest()
+
   @Test def memConstructTest: Unit = memTester.memConstructTest()
 }
 object BasicsTest {

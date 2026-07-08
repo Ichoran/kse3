@@ -837,6 +837,31 @@ extension [A](a: Array[A]) {
       i += 1
     ix.shrinkTo(j)
 
+  /** The first index in `[i0, iN)` holding exactly `x` (via `==`), or -1 if there is none. */
+  inline def whereIsFwd(i0: Int, iN: Int)(x: A): Int =
+    var i = i0
+    while i < iN && a(i) != x do i += 1
+    if i < iN then i else -1
+  /** The first index within `ivx` holding exactly `x`, or -1 if there is none. */
+  inline def whereIsFwd(ivx: Iv.X)(x: A): Int =
+    whereIsFwd(ivx.index0(a), ivx.indexN(a))(x)
+  /** The first index within `rg` holding exactly `x`, or -1 if there is none. */
+  inline def whereIsFwd(inline rg: Range)(x: A): Int =
+    val iv = Iv of rg
+    whereIsFwd(iv.i0, iv.iN)(x)
+  /** The last index in `[i0, iN)` holding exactly `x` (via `==`), or -1 if there is none. */
+  inline def whereIsBkw(i0: Int, iN: Int)(x: A): Int =
+    var i = iN - 1
+    while i >= i0 && a(i) != x do i -= 1
+    if i >= i0 then i else -1
+  /** The last index within `ivx` holding exactly `x`, or -1 if there is none. */
+  inline def whereIsBkw(ivx: Iv.X)(x: A): Int =
+    whereIsBkw(ivx.index0(a), ivx.indexN(a))(x)
+  /** The last index within `rg` holding exactly `x`, or -1 if there is none. */
+  inline def whereIsBkw(inline rg: Range)(x: A): Int =
+    val iv = Iv of rg
+    whereIsBkw(iv.i0, iv.iN)(x)
+
   inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
     var ix = new Array[Int](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else iN - i0)
     var i = i0
@@ -1563,6 +1588,37 @@ object ClippedArray {
       while indices.hasStep do
         val j = indices.nextStep()
         if j >= 0 && j < a.length then a(j) = indexer(j)
+
+    /** The first index in `[i0, iN)` (clipped) holding exactly `x` (via `==`), or -1 if there is none. */
+    inline def whereIsFwd(i0: Int, iN: Int)(x: A): Int =
+      val a = ca.unwrap
+      var i = if i0 < 0 then 0 else i0
+      val iM = if iN > a.length then a.length else iN
+      while i < iM && a(i) != x do i += 1
+      if i < iM then i else -1
+    /** The first index within `ivx` (clipped) holding exactly `x`, or -1 if there is none. */
+    inline def whereIsFwd(ivx: Iv.X)(x: A): Int =
+      val iv = ivx of ca.unwrap
+      whereIsFwd(iv.i0, iv.iN)(x)
+    /** The first index within `rg` (clipped) holding exactly `x`, or -1 if there is none. */
+    inline def whereIsFwd(inline rg: Range)(x: A): Int =
+      val iv = Iv of rg
+      whereIsFwd(iv.i0, iv.iN)(x)
+    /** The last index in `[i0, iN)` (clipped) holding exactly `x` (via `==`), or -1 if there is none. */
+    inline def whereIsBkw(i0: Int, iN: Int)(x: A): Int =
+      val a = ca.unwrap
+      val iZ = if i0 < 0 then 0 else i0
+      var i = (if iN > a.length then a.length else iN) - 1
+      while i >= iZ && a(i) != x do i -= 1
+      if i >= iZ then i else -1
+    /** The last index within `ivx` (clipped) holding exactly `x`, or -1 if there is none. */
+    inline def whereIsBkw(ivx: Iv.X)(x: A): Int =
+      val iv = ivx of ca.unwrap
+      whereIsBkw(iv.i0, iv.iN)(x)
+    /** The last index within `rg` (clipped) holding exactly `x`, or -1 if there is none. */
+    inline def whereIsBkw(inline rg: Range)(x: A): Int =
+      val iv = Iv of rg
+      whereIsBkw(iv.i0, iv.iN)(x)
 
     inline def whereIn(i0: Int, iN: Int)(inline pick: A => Boolean): Array[Int] =
       val a = ca.unwrap

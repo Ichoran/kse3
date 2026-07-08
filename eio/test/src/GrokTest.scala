@@ -727,6 +727,45 @@ class GrokTest {
     T ~ viaW ==== viaB
 
   @Test
+  def grokQuotedSeekTest(): Unit =
+    // The strq scan is a per-source seek (String.indexOf / SWAR / windowed SWAR); sweep string
+    // lengths so the closing quote lands at every lane offset, and doubled quotes at every
+    // position, on every source (buffered with a tiny window so seeks straddle refills)
+    val utf8 = java.nio.charset.StandardCharsets.UTF_8
+    def enc(s: String) = "\"" + s.replace("\"", "\"\"") + "\""
+    def cb(s: String) = java.nio.CharBuffer.wrap(s.toCharArray)
+    var n = 0
+    while n <= 40 do
+      val s = "abcdefghijklmnopqrstuvwxyz0123456789ABCD".substring(0, n)
+      val e = enc(s) + ",7"
+      T ~ Grok(e)(g => g.str(Quote.csv))                     ==== Is(s)
+      T ~ Grok(e.getBytes(utf8))(g => g.str(Quote.csv))      ==== Is(s)
+      T ~ Grok(e.toCharArray)(g => g.str(Quote.csv))         ==== Is(s)
+      T ~ Grok(Mem of e.getBytes(utf8))(g => g.str(Quote.csv))              ==== Is(s)
+      T ~ Grok.buffered(e.getBytes(utf8), Delim.lines, false, false, 8)(g => g.str(Quote.csv)) ==== Is(s)
+      T ~ Grok.buffered(cb(e), Delim.lines, false, false, 8)(g => g.str(Quote.csv))            ==== Is(s)
+      n += 1
+    var k = 0
+    while k <= 24 do
+      val p = "x" * k + "\"" + "y" * (24 - k)
+      val e = enc(p)
+      T ~ Grok(e)(g => g.str(Quote.csv))                     ==== Is(p)
+      T ~ Grok(e.getBytes(utf8))(g => g.str(Quote.csv))      ==== Is(p)
+      T ~ Grok(e.toCharArray)(g => g.str(Quote.csv))         ==== Is(p)
+      T ~ Grok(Mem of e.getBytes(utf8))(g => g.str(Quote.csv))              ==== Is(p)
+      T ~ Grok.buffered(e.getBytes(utf8), Delim.lines, false, false, 8)(g => g.str(Quote.csv)) ==== Is(p)
+      T ~ Grok.buffered(cb(e), Delim.lines, false, false, 8)(g => g.str(Quote.csv))            ==== Is(p)
+      k += 1
+    // Multi-byte UTF-8 content must not confuse the byte seeks
+    val uni = "π☃" * 9 + "\"" + "π"
+    T ~ Grok(enc(uni).getBytes(utf8))(g => g.str(Quote.csv)) ==== Is(uni)
+    T ~ Grok(enc(uni))(g => g.str(Quote.csv))                ==== Is(uni)
+    // Unclosed after a doubled quote still errors on every source shape
+    T ~ bad(Grok("\"ab\"\"cd")(g => g.str(Quote.csv)))                  ==== true
+    T ~ bad(Grok("\"ab\"\"cd".getBytes(utf8))(g => g.str(Quote.csv)))   ==== true
+    T ~ bad(Grok.buffered("\"ab\"\"cd".getBytes(utf8), Delim.lines, false, false, 8)(g => g.str(Quote.csv))) ==== true
+
+  @Test
   def grokBufferedCharsTest(): Unit =
     def cb(s: String) = java.nio.CharBuffer.wrap(s.toCharArray)
     T ~ Grok.buffered(cb("2025-06-25"), Delim.lines, true, false, 64)(g => (g.I, (g < '-').I, (g < '-').I)) ==== Is((2025, 6, 25))

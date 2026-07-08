@@ -222,7 +222,8 @@ sealed abstract class Grok protected () {
   @publicInBinary protected[eio] def tokWork(): String
   @publicInBinary protected[eio] def tokSpanWork(): Int
   @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String
-  @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut
+  @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut    // backslash-escape styles
+  @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut   // quote-doubling styles
 
   // === Backtrack retention hooks ===
   // Indexed sources retain everything, so these defaults do nothing; windowed sources override
@@ -521,7 +522,7 @@ sealed abstract class Grok protected () {
 
   /** Read a quoted string in the given style (e.g. `Quote.csv` for `""`-doubling). */
   inline final def str[E >: Alt[Err]](q: Quote)(using Label[E]): String =
-    val r = strWork(q.quote, q.doubled, 1)
+    val r = if q.doubled then strqWork(q.quote, 1) else strWork(q.quote, 1)
     if eCode != 0 then boundary.break(Alt(failErr()))
     r.asInstanceOf[String]
 
@@ -530,7 +531,7 @@ sealed abstract class Grok protected () {
 
   /** Read a quoted string in the given style, as its characters. */
   inline final def strChars[E >: Alt[Err]](q: Quote)(using Label[E]): Array[Char] =
-    val r = strWork(q.quote, q.doubled, 3)
+    val r = if q.doubled then strqWork(q.quote, 3) else strWork(q.quote, 3)
     if eCode != 0 then boundary.break(Alt(failErr()))
     r.asInstanceOf[Array[Char]]
 
@@ -541,7 +542,7 @@ sealed abstract class Grok protected () {
 
   /** Read a quoted string in the given style, as UTF-8 bytes. */
   inline final def strBytes[E >: Alt[Err]](q: Quote)(using Label[E]): Array[Byte] =
-    val r = strWork(q.quote, q.doubled, 2)
+    val r = if q.doubled then strqWork(q.quote, 2) else strWork(q.quote, 2)
     if eCode != 0 then boundary.break(Alt(failErr()))
     r.asInstanceOf[Array[Byte]]
 
@@ -554,7 +555,7 @@ sealed abstract class Grok protected () {
     * occupied, quotes included.
     */
   inline final def strSpan[E >: Alt[Err]](q: Quote)(using Label[E]): Int =
-    strWork(q.quote, q.doubled, 0) __ Unit
+    (if q.doubled then strqWork(q.quote, 0) else strWork(q.quote, 0)) __ Unit
     if eCode != 0 then boundary.break(Alt(failErr()))
     (i - vPos).toInt
 
@@ -1339,13 +1340,18 @@ sealed abstract class Grok protected () {
   // (utf8Bytes / String's decoder), never inside the loop.  Escaped lone surrogates become
   // U+FFFD everywhere.  The cursor commits only after the closing quote; failures commit it to
   // the failure point.
+  //
+  // The two styles get separate kernels (str* backslash, strq* doubling) rather than one with a
+  // style flag: quote doubling makes `c == q` a loop continue instead of a pure exit, and that
+  // alone compiled the shared scan ~2.5x slower on clean input (measured; GrokPerformance.md).
+  // The strq kernels have no escapes at all, so they are just scan-peek-blit.
 
   // Segment chunking and the outlined hex4 both beat the plausible alternatives only in
   // template context — the study, with rejected variants, is in GrokPerformance.md; do not
   // re-inline hex4 or switch to per-char building without re-measuring in situ.  blitOk is
   // reserved for non-retaining sources, which cannot re-read segments to blit and will have
   // to build as they scan.
-  protected inline def strCharImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutc: (Long, Long) => Array[Char], inline blit: (Long, Long, Array[Char], Int) => Unit, inline blitOk: Boolean)(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+  protected inline def strCharImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutc: (Long, Long) => Array[Char], inline blit: (Long, Long, Array[Char], Int) => Unit, inline blitOk: Boolean)(qc: Char, mode: Int): Grok.StrOut =
     if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     vPos = i
     val pv = pinWork(vPos)   // windowed sources must retain the string for blit/sub extraction
@@ -1372,19 +1378,9 @@ sealed abstract class Grok protected () {
         while more do
           val c = at(j)
           if c == q then
-            if doubled && j + 1 < iZ && at(j + 1) == q then
-              if mode != 0 then
-                val n = (j + 1 - j0).toInt          // keeps one of the two quotes
-                if n > buf.length - ib then buf = Grok.grownChars(buf, ib, n)
-                blit(j0, j + 1, buf, ib)
-                ib += n
-              j += 2
-              j0 = j
-              more = j < iZ
-            else
-              closed = true
-              more = false
-          else if c == '\\' && !doubled then
+            closed = true
+            more = false
+          else if c == '\\' then
             if mode != 0 then                       // flush the segment; ensure room for it + 1
               val n = (j - j0).toInt
               if n + 1 > buf.length - ib then buf = Grok.grownChars(buf, ib, n + 1)
@@ -1477,7 +1473,7 @@ sealed abstract class Grok protected () {
     releaseWork(pv)
     result
 
-  protected inline def strByteImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutb: (Long, Long) => Array[Byte], inline blitb: (Long, Long, Array[Byte], Int) => Unit, inline blitOk: Boolean)(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+  protected inline def strByteImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutb: (Long, Long) => Array[Byte], inline blitb: (Long, Long, Array[Byte], Int) => Unit, inline blitOk: Boolean)(qc: Char, mode: Int): Grok.StrOut =
     if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
     vPos = i
     val pv = pinWork(vPos)   // windowed sources must retain the string for blitb/sub extraction
@@ -1504,19 +1500,9 @@ sealed abstract class Grok protected () {
         while more do
           val c = at(j)
           if c == q then
-            if doubled && j + 1 < iZ && at(j + 1) == q then
-              if mode != 0 then
-                val n = (j + 1 - j0).toInt          // keeps one of the two quotes
-                if n > buf.length - ib then buf = Grok.grownBytes(buf, ib, n)
-                blitb(j0, j + 1, buf, ib)
-                ib += n
-              j += 2
-              j0 = j
-              more = j < iZ
-            else
-              closed = true
-              more = false
-          else if c == '\\' && !doubled then
+            closed = true
+            more = false
+          else if c == '\\' then
             if mode != 0 then           // flush the segment; ensure room for it + one escape (up to 4 bytes)
               val n = (j - j0).toInt
               if n + 4 > buf.length - ib then buf = Grok.grownBytes(buf, ib, n + 4)
@@ -1591,6 +1577,153 @@ sealed abstract class Grok protected () {
         if eCode != 0 then
           i = j
           cc = if j < iZ then at(j) else -1
+          skipped = false
+          null
+        else
+          val res: Grok.StrOut =
+            if mode == 0 then null
+            else if ib == 0 then                    // never built: the whole content is clean
+              if mode == 2 then cutb(jq + 1, j)     // raw copy, no decode
+              else if mode == 3 then sub(jq + 1, j).toCharArray
+              else sub(jq + 1, j)
+            else
+              val n = (j - j0).toInt                // flush the tail, exact fit
+              if n > 0 then
+                if n > buf.length - ib then buf = java.util.Arrays.copyOf(buf, ib + n)
+                blitb(j0, j, buf, ib)
+                ib += n
+              if mode == 2 then java.util.Arrays.copyOf(buf, ib)
+              else if mode == 3 then new String(buf, 0, ib, java.nio.charset.StandardCharsets.UTF_8).toCharArray
+              else new String(buf, 0, ib, java.nio.charset.StandardCharsets.UTF_8)
+          i = j + 1
+          cc = if i < iZ then at(i) else -1
+          skipped = false
+          res
+    if eCode == 0 then sepOk = true
+    releaseWork(pv)
+    result
+
+  // Quote-doubling kernels (CSV/SQL): no escapes exist, so the scan is just find-the-quote,
+  // peek one ahead — a doubled quote flushes the segment through the first of the pair and
+  // continues; anything else closes.  Only end-of-input can fail once the opening quote matched.
+  // The scan itself is the per-source `seek`: next quote at or after the given position, or
+  // anything >= iZ if none in view (String.indexOf on Str, Mem.whereIsFwd SWAR on arrays and
+  // Mem, window-chunked SWAR on buffered sources) — element-at-a-time template loops lose ~3-8x
+  // to these on long clean strings.
+  protected inline def strqCharImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutc: (Long, Long) => Array[Char], inline blit: (Long, Long, Array[Char], Int) => Unit, inline seek: Long => Long, inline blitOk: Boolean)(qc: Char, mode: Int): Grok.StrOut =
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
+    vPos = i
+    val pv = pinWork(vPos)   // windowed sources must retain the string for blit/sub extraction
+    val result: Grok.StrOut =
+      if cc != qc.toInt then
+        eCode = 1
+        eWant = "'" + qc + "'"
+        ePos = i
+        null
+      else if i + 1 >= iZ then        // cannot close; also licenses the unguarded at(j) reads below
+        eCode = 2
+        eWant = "unclosed quoted string"
+        ePos = i
+        null
+      else
+        val q = qc.toInt
+        val jq = i                    // the opening quote, for unterminated reports
+        var j = i + 1
+        var j0 = j                    // start of the pending clean segment
+        var buf = Grok.noChars
+        var ib = 0
+        var closed = false
+        var more = true
+        while more do
+          j = seek(j)                                 // next quote, or >= iZ if none in view
+          if j >= iZ then more = false                // unclosed
+          else if j + 1 < iZ && at(j + 1) == q then   // doubled quote: keep one, carry on
+            if mode != 0 then
+              val n = (j + 1 - j0).toInt
+              if n > buf.length - ib then buf = Grok.grownChars(buf, ib, n)
+              blit(j0, j + 1, buf, ib)
+              ib += n
+            j += 2
+            j0 = j
+          else
+            closed = true
+            more = false
+        if !closed then               // ran off the end without a closing quote
+          eCode = 2
+          eWant = "unclosed quoted string"
+          ePos = jq
+          i = iZ
+          cc = -1
+          skipped = false
+          null
+        else
+          val res: Grok.StrOut =
+            if mode == 0 then null
+            else if ib == 0 then                    // never built: the whole content is clean
+              if mode == 2 then Grok.utf8Bytes(sub(jq + 1, j))
+              else if mode == 3 then cutc(jq + 1, j)
+              else sub(jq + 1, j)
+            else
+              val n = (j - j0).toInt                // flush the tail, exact fit
+              if n > 0 then
+                if n > buf.length - ib then buf = java.util.Arrays.copyOf(buf, ib + n)
+                blit(j0, j, buf, ib)
+                ib += n
+              if mode == 2 then Grok.utf8Bytes(new String(buf, 0, ib))
+              else if mode == 3 then java.util.Arrays.copyOf(buf, ib)
+              else new String(buf, 0, ib)
+          i = j + 1
+          cc = if i < iZ then at(i) else -1
+          skipped = false
+          res
+    if eCode == 0 then sepOk = true
+    releaseWork(pv)
+    result
+
+  protected inline def strqByteImpl(inline at: Long => Int, inline sub: (Long, Long) => String, inline cutb: (Long, Long) => Array[Byte], inline blitb: (Long, Long, Array[Byte], Int) => Unit, inline seek: Long => Long, inline blitOk: Boolean)(qc: Char, mode: Int): Grok.StrOut =
+    if skipMode then skipDelimsImpl(at) else sepWork() __ Unit
+    vPos = i
+    val pv = pinWork(vPos)   // windowed sources must retain the string for blitb/sub extraction
+    val result: Grok.StrOut =
+      if cc != qc.toInt then
+        eCode = 1
+        eWant = "'" + qc + "'"
+        ePos = i
+        null
+      else if i + 1 >= iZ then        // cannot close; also licenses the unguarded at(j) reads below
+        eCode = 2
+        eWant = "unclosed quoted string"
+        ePos = i
+        null
+      else
+        val q = qc.toInt
+        val jq = i                    // the opening quote, for unterminated reports
+        var j = i + 1
+        var j0 = j                    // start of the pending clean segment
+        var buf = Grok.noBytes
+        var ib = 0
+        var closed = false
+        var more = true
+        while more do
+          j = seek(j)                                 // next quote, or >= iZ if none in view
+          if j >= iZ then more = false                // unclosed
+          else if j + 1 < iZ && at(j + 1) == q then   // doubled quote: keep one, carry on
+            if mode != 0 then
+              val n = (j + 1 - j0).toInt
+              if n > buf.length - ib then buf = Grok.grownBytes(buf, ib, n)
+              blitb(j0, j + 1, buf, ib)
+              ib += n
+            j += 2
+            j0 = j
+          else
+            closed = true
+            more = false
+        if !closed then               // ran off the end without a closing quote
+          eCode = 2
+          eWant = "unclosed quoted string"
+          ePos = jq
+          i = iZ
+          cc = -1
           skipped = false
           null
         else
@@ -1928,14 +2061,23 @@ object Grok {
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content.charAt(j.toInt))
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt), _ => ())(n, exact)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strCharImpl(
         j => content.charAt(j.toInt),
         (a, b) => content.substring(a.toInt, b.toInt),
         (a, b) => { val arr = new Array[Char]((b - a).toInt); content.getChars(a.toInt, b.toInt, arr, 0); arr },
         (a, b, arr, off) => content.getChars(a.toInt, b.toInt, arr, off),
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      strqCharImpl(
+        j => content.charAt(j.toInt),
+        (a, b) => content.substring(a.toInt, b.toInt),
+        (a, b) => { val arr = new Array[Char]((b - a).toInt); content.getChars(a.toInt, b.toInt, arr, 0); arr },
+        (a, b, arr, off) => content.getChars(a.toInt, b.toInt, arr, off),
+        j => { val k = content.indexOf(qc.toInt, j.toInt); if k < 0 then iZ else k.toLong },
+        true
+      )(qc, mode)
   }
 
   /** Set up a direct-mode parse of `content`, which may be a `String`, `Array[Char]`,
@@ -1993,14 +2135,26 @@ object Grok {
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b), _ => ())(n, exact)
     @publicInBinary protected[eio] def digitsWork(j0: Long, c0: Int, budget: Int): Long = digitsImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
     @publicInBinary protected[eio] def hexWork(j0: Long, c0: Int, budget: Int): Long = hexImpl(j => content(j.toInt) & 0xFF)(j0, c0, budget)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strByteImpl(
         j => content(j.toInt) & 0xFF,
         (a, b) => utf8(a, b),
         (a, b) => java.util.Arrays.copyOfRange(content, a.toInt, b.toInt),
         (a, b, arr, off) => System.arraycopy(content, a.toInt, arr, off, (b - a).toInt),
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    private var memc: Mem[Byte] = null.asInstanceOf[Mem[Byte]]   // wraps content for SWAR seeks; made on first strq use
+
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      if memc.asInstanceOf[AnyRef] eq null then memc = Mem of content
+      strqByteImpl(
+        j => content(j.toInt) & 0xFF,
+        (a, b) => utf8(a, b),
+        (a, b) => java.util.Arrays.copyOfRange(content, a.toInt, b.toInt),
+        (a, b, arr, off) => System.arraycopy(content, a.toInt, arr, off, (b - a).toInt),
+        j => { val k = memc.whereIsFwd(j, iZ)(qc.toByte); if k < 0 then iZ else k },
+        true
+      )(qc, mode)
   }
 
   /** Groks characters from an `Array[Char]`; semantics as for the String form.  Create via `Grok(...)`. */
@@ -2029,14 +2183,26 @@ object Grok {
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j.toInt))
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j.toInt), (a, b) => new String(content, a.toInt, (b - a).toInt), _ => ())(n, exact)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strCharImpl(
         j => content(j.toInt),
         (a, b) => new String(content, a.toInt, (b - a).toInt),
         (a, b) => java.util.Arrays.copyOfRange(content, a.toInt, b.toInt),
         (a, b, arr, off) => System.arraycopy(content, a.toInt, arr, off, (b - a).toInt),
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    private var memc: Mem[Char] = null.asInstanceOf[Mem[Char]]   // wraps content for SWAR seeks; made on first strq use
+
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      if memc.asInstanceOf[AnyRef] eq null then memc = Mem of content
+      strqCharImpl(
+        j => content(j.toInt),
+        (a, b) => new String(content, a.toInt, (b - a).toInt),
+        (a, b) => java.util.Arrays.copyOfRange(content, a.toInt, b.toInt),
+        (a, b, arr, off) => System.arraycopy(content, a.toInt, arr, off, (b - a).toInt),
+        j => { val k = memc.whereIsFwd(j, iZ)(qc); if k < 0 then iZ else k },
+        true
+      )(qc, mode)
   }
 
   /** Groks raw bytes held in a `Mem[Byte]` (heap-wrapped or off-heap); semantics as for `Bytes`.
@@ -2053,12 +2219,8 @@ object Grok {
     protected def rawCharAt(pos: Long): Char = (content(pos) & 0xFF).toChar
 
     private def cut(a: Long, b: Long): Array[Byte] =
-      val n = (b - a).toInt
-      val arr = new Array[Byte](n)
-      var k = 0
-      while k < n do
-        arr(k) = content(a + k)
-        k += 1
+      val arr = new Array[Byte]((b - a).toInt)
+      content.inject(arr)(a, b) __ Unit
       arr
 
     private def utf8(a: Long, b: Long): String = new String(cut(a, b), java.nio.charset.StandardCharsets.UTF_8)
@@ -2082,14 +2244,23 @@ object Grok {
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => content(j) & 0xFF)
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b), _ => ())(n, exact)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strByteImpl(
         j => content(j) & 0xFF,
         (a, b) => utf8(a, b),
         (a, b) => cut(a, b),
-        (a, b, arr, off) => { var k = 0; val n = (b - a).toInt; while k < n do { arr(off + k) = content(a + k); k += 1 } },
+        (a, b, arr, off) => content.inject(arr, off)(a, b) __ Unit,
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      strqByteImpl(
+        j => content(j) & 0xFF,
+        (a, b) => utf8(a, b),
+        (a, b) => cut(a, b),
+        (a, b, arr, off) => content.inject(arr, off)(a, b) __ Unit,
+        j => { val k = content.whereIsFwd(j, iZ)(qc.toByte); if k < 0 then iZ else k },
+        true
+      )(qc, mode)
   }
 
   /** Groks bytes pulled on demand through a sliding window, using the ordinary indexed worker
@@ -2197,14 +2368,46 @@ object Grok {
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => utf8(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => atc(j), (a, b) => utf8(a, b), m => advc(m))(n, exact)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strByteImpl(
         j => atc(j),
         (a, b) => utf8(a, b),
         (a, b) => java.util.Arrays.copyOfRange(buf, (a - discard).toInt, (b - discard).toInt),
         (a, b, arr, off) => System.arraycopy(buf, (a - discard).toInt, arr, off, (b - a).toInt),
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    private var memb: Mem[Byte] = null.asInstanceOf[Mem[Byte]]   // wraps buf for SWAR seeks; remade when buf regrows
+    private var membOf: Array[Byte] = null
+
+    // strq's quote scan: SWAR across the loaded window, refilling through atc between windows
+    private def seekq(j: Long, q: Byte): Long =
+      var k = j
+      var going = true
+      while going && k < iZ do
+        val d = k - discard
+        val lim = { val w = iZ - discard; if w < loaded then w else loaded.toLong }
+        if d >= 0 && d < lim then
+          if membOf ne buf then
+            memb = Mem of buf
+            membOf = buf
+          val f = memb.whereIsFwd(d, lim)(q)
+          if f >= 0 then
+            k = discard + f
+            going = false
+          else k = discard + lim
+        else if atc(k) == (q & 0xFF) then going = false
+        else k += 1
+      k
+
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      strqByteImpl(
+        j => atc(j),
+        (a, b) => utf8(a, b),
+        (a, b) => java.util.Arrays.copyOfRange(buf, (a - discard).toInt, (b - discard).toInt),
+        (a, b, arr, off) => System.arraycopy(buf, (a - discard).toInt, arr, off, (b - a).toInt),
+        j => seekq(j, qc.toByte),
+        true
+      )(qc, mode)
   }
 
   /** Set up to parse content pulled through a sliding window that starts at `window` elements
@@ -2343,14 +2546,46 @@ object Grok {
     @publicInBinary protected[eio] def tokWork(): String = tokImpl(j => atc(j), (a, b) => sub(a, b))
     @publicInBinary protected[eio] def tokSpanWork(): Int = tokSpanImpl(j => atc(j))
     @publicInBinary protected[eio] def charsWork(n: Int, exact: Boolean): String = charsFieldImpl(j => atc(j), (a, b) => sub(a, b), m => advc(m))(n, exact)
-    @publicInBinary protected[eio] def strWork(qc: Char, doubled: Boolean, mode: Int): Grok.StrOut =
+    @publicInBinary protected[eio] def strWork(qc: Char, mode: Int): Grok.StrOut =
       strCharImpl(
         j => atc(j),
         (a, b) => sub(a, b),
         (a, b) => java.util.Arrays.copyOfRange(buf, (a - discard).toInt, (b - discard).toInt),
         (a, b, arr, off) => System.arraycopy(buf, (a - discard).toInt, arr, off, (b - a).toInt),
         true
-      )(qc, doubled, mode)
+      )(qc, mode)
+    private var memb: Mem[Char] = null.asInstanceOf[Mem[Char]]   // wraps buf for SWAR seeks; remade when buf regrows
+    private var membOf: Array[Char] = null
+
+    // strq's quote scan: SWAR across the loaded window, refilling through atc between windows
+    private def seekq(j: Long, q: Char): Long =
+      var k = j
+      var going = true
+      while going && k < iZ do
+        val d = k - discard
+        val lim = { val w = iZ - discard; if w < loaded then w else loaded.toLong }
+        if d >= 0 && d < lim then
+          if membOf ne buf then
+            memb = Mem of buf
+            membOf = buf
+          val f = memb.whereIsFwd(d, lim)(q)
+          if f >= 0 then
+            k = discard + f
+            going = false
+          else k = discard + lim
+        else if atc(k) == q.toInt then going = false
+        else k += 1
+      k
+
+    @publicInBinary protected[eio] def strqWork(qc: Char, mode: Int): Grok.StrOut =
+      strqCharImpl(
+        j => atc(j),
+        (a, b) => sub(a, b),
+        (a, b) => java.util.Arrays.copyOfRange(buf, (a - discard).toInt, (b - discard).toInt),
+        (a, b, arr, off) => System.arraycopy(buf, (a - discard).toInt, arr, off, (b - a).toInt),
+        j => seekq(j, qc),
+        true
+      )(qc, mode)
   }
 
 
