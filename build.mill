@@ -109,8 +109,8 @@ object data extends Common {
   def moduleDeps = Seq(flow, maths, eio)
 }
 
-object jsonal extends Common {
-  def moduleDeps = Seq(flow, maths)
+object jsaun extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
 object all extends Common {
