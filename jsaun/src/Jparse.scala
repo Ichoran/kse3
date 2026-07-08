@@ -29,6 +29,7 @@ sealed abstract class Jparse protected () {
   protected var i = 0
   protected var iZ = 0
   protected var depth = 0
+  protected var exactNum = false
   protected var eErr: Err = Err("(no error)")   // meaningful only after a worker answers null/false
 
   // === Workers, instantiated per concrete source type from the inline templates below ===
@@ -137,11 +138,13 @@ sealed abstract class Jparse protected () {
       return Jarr.empty
     var vs = new Array[Json](8)
     var n = 0
+    var allD = true
     while true do
       val v = parseValue(c)
       if v eq null then return explain(s"in element $n of array started at ${posText(p0)}:")
       if n >= vs.length then vs = java.util.Arrays.copyOf(vs, vs.length * 2)
       vs(n) = v
+      if allD && !v.isInstanceOf[Jnum.D] then allD = false
       n += 1
       c = wsWork()
       if c == ',' then
@@ -150,7 +153,15 @@ sealed abstract class Jparse protected () {
       else if c == ']' then
         i += 1
         depth -= 1
-        return new Jarr.A(if n == vs.length then vs else java.util.Arrays.copyOf(vs, n), n)
+        return
+          if allD then   // pack, since element access, equality, and printing all come out identical
+            val xs = new Array[Double](n)
+            var k = 0
+            while k < n do
+              xs(k) = vs(k).asInstanceOf[Jnum.D].value
+              k += 1
+            new Jarr.D(xs, n)
+          else new Jarr.A(if n == vs.length then vs else java.util.Arrays.copyOf(vs, n), n)
       else return fail("',' or ']' in array", i)
     null
 
@@ -412,8 +423,11 @@ sealed abstract class Jparse protected () {
       else
         val v = EiselLemire.toDouble(ULong.wrap(mant), e10)
         val ok = if truncated then v == EiselLemire.toDouble(ULong.wrap(mant + 1), e10) else v == v
-        if ok then new Jnum.D(if neg then -v else v)
-        else new Jnum.D(java.lang.Double.parseDouble(sub(i0, j)))
+        val d = if ok then (if neg then -v else v) else java.lang.Double.parseDouble(sub(i0, j))
+        if !exactNum then new Jnum.D(d)
+        else
+          val text = sub(i0, j)
+          if Jnum.exactDouble(d, text) then new Jnum.D(d) else new Jnum.Big(text)
 }
 object Jparse {
 
@@ -421,8 +435,9 @@ object Jparse {
   val maxDepth = 512
 
   /** Parses JSON from a `String`.  Create one per parse. */
-  final class Str(content: String) extends Jparse {
+  final class Str(content: String, exact: Boolean = false) extends Jparse {
     iZ = content.length
+    exactNum = exact
 
     protected def rawLength: Int = content.length
     protected def rawCharAt(pos: Int): Char = content.charAt(pos)
@@ -433,5 +448,27 @@ object Jparse {
     protected def strEscWork(j0: Int, jN: Int): String | Null =
       strEscImpl(j => content.charAt(j), (a, b) => content.substring(a, b))(j0, jN)
     protected def numWork(): Json | Null = numImpl(j => content.charAt(j), (a, b) => content.substring(a, b))
+  }
+
+  /** Parses JSON from raw bytes: structure (whitespace, literals, numbers) is ASCII, read as
+    * unsigned 0-255, and strings decode their spans as UTF-8 (safe because multi-byte
+    * sequences never contain ASCII bytes).  Error positions are byte positions.  Create one
+    * per parse.
+    */
+  final class Bytes(content: Array[Byte], exact: Boolean = false) extends Jparse {
+    iZ = content.length
+    exactNum = exact
+
+    protected def rawLength: Int = content.length
+    protected def rawCharAt(pos: Int): Char = (content(pos) & 0xFF).toChar
+
+    private def utf8(a: Int, b: Int): String = new String(content, a, b - a, java.nio.charset.StandardCharsets.UTF_8)
+
+    protected def wsWork(): Int = wsImpl(j => content(j) & 0xFF)
+    protected def litWork(lit: String): Boolean = litImpl(j => content(j) & 0xFF)(lit)
+    protected def strWork(): String | Null = strImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
+    protected def strEscWork(j0: Int, jN: Int): String | Null =
+      strEscImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
+    protected def numWork(): Json | Null = numImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
   }
 }

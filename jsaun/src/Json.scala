@@ -4,6 +4,7 @@
 package kse.jsaun
 
 
+import scala.annotation.publicInBinary
 import scala.util.boundary
 import scala.util.boundary.Label
 
@@ -196,9 +197,16 @@ sealed abstract class Json protected () {
 object Json {
   /** Parse JSON text into a tree, or an `Err` detailing what went wrong and where.
     * The parser is strict (RFC 8259): no trailing commas, no leading zeros, no `NaN`, and
-    * nothing but whitespace after the value.
+    * nothing but whitespace after the value.  Byte input reads structure as ASCII and
+    * decodes strings as UTF-8 (error positions are byte positions).
+    *
+    * By default numbers become `Jnum.L` when they are integers a Long can hold and `Jnum.D`
+    * (correctly rounded) otherwise; with `exact = true`, a number whose value a Double cannot
+    * represent exactly is kept as `Jnum.Big` with its original text, so nothing is lost.
     */
-  def parse(in: String): JAny = JAny.wrap(Ask.flat{ (new Jparse.Str(in)).parseTop() })
+  inline def parse(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
+    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
 
   private[jsaun] def expectErr(what: String, j: Json): Err = Err(s"expected $what, found ${j.kind}")
 }
@@ -270,14 +278,14 @@ object Jstr {
 }
 
 
-/** A JSON number, stored as whichever of `Jnum.L` (Long) or `Jnum.D` (Double) the parser
-  * could use faithfully.  Longs and Doubles that denote the same value compare equal (and
-  * hash alike), so `Jnum(3) == Jnum(3.0)`.
+/** A JSON number, stored as whichever of `Jnum.L` (Long), `Jnum.D` (Double), or `Jnum.Big`
+  * (original text, exact-mode parsing only) represents it faithfully.  Representations that
+  * denote the same value compare equal (and hash alike), so `Jnum(3) == Jnum(3.0)`.
   */
 sealed abstract class Jnum protected () extends Json {
   def kind = "number"
 
-  /** This number as a Double (lossy for Longs beyond 2^53). */
+  /** This number as a Double (lossy for values a Double cannot hold). */
   def double: Double
 
   /** True if this number has no fractional part. */
@@ -289,6 +297,16 @@ sealed abstract class Jnum protected () extends Json {
 object Jnum {
   def apply(value: Long): Jnum = new L(value)
   def apply(value: Double): Jnum = new D(value)
+  def apply(value: BigDecimal): Jnum = new Big(value.underlying.toString)
+
+  /** Append `d` as JSON (NaN and infinities, which JSON cannot express, become null). */
+  private[jsaun] def printDbl(sb: java.lang.StringBuilder, d: Double): Unit =
+    if d.isNaN || d.isInfinite then sb.append("null") __ Unit
+    else sb.append(d) __ Unit
+
+  /** True if `d` is exactly the value that `text` denotes (cold; exact-mode parsing only). */
+  private[jsaun] def exactDouble(d: Double, text: String): Boolean =
+    !d.isInfinite && (new java.math.BigDecimal(d)).compareTo(new java.math.BigDecimal(text)) == 0
 
   /** A JSON integer that fits in a Long. */
   final class L(val value: Long) extends Jnum {
@@ -300,8 +318,9 @@ object Jnum {
     override def equals(a: Any): Boolean = a match
       case l: L => value == l.value
       case d: D => d.value == value.toDouble && d.value.toLong == value
+      case b: Big => b == this
       case _ => false
-    override def hashCode: Int = value.##   // scala.## makes this agree with D when the values are equal
+    override def hashCode: Int = value.##   // scala.## makes this agree with D and Big when the values are equal
 
     private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append(value) __ Unit
   }
@@ -323,29 +342,58 @@ object Jnum {
     override def equals(a: Any): Boolean = a match
       case d: D => value == d.value
       case l: L => value == l.value.toDouble && value.toLong == l.value
+      case b: Big => b == this
       case _ => false
     override def hashCode: Int = value.##
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit =
-      if value.isNaN || value.isInfinite then sb.append("null") __ Unit
-      else sb.append(value) __ Unit
+    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = Jnum.printDbl(sb, value)
+  }
+
+  /** A JSON number kept as its original text because a Double cannot hold it exactly (only
+    * produced by exact-mode parsing, or from a BigDecimal).  Prints verbatim, so exact-mode
+    * numbers round-trip character for character.
+    */
+  final class Big @publicInBinary() private[jsaun] (val text: String) extends Jnum {
+    lazy val big: BigDecimal = BigDecimal(new java.math.BigDecimal(text))
+    override lazy val double: Double = java.lang.Double.parseDouble(text)
+    def isWhole: Boolean = big.isWhole
+
+    override def long: Ask[Long] =
+      if big.isValidLong then Is(big.toLong)
+      else Alt(Err(s"number is not an integer Long can hold: $text"))
+    override def longOr(alt: Long): Long = if big.isValidLong then big.toLong else alt
+
+    override def equals(a: Any): Boolean = a match
+      case b: Big => big.compare(b.big) == 0
+      case l: L => big.isValidLong && big.toLong == l.value
+      case d: D => !d.value.isNaN && !d.value.isInfinite && big.compare(BigDecimal(new java.math.BigDecimal(d.value))) == 0
+      case _ => false
+    override def hashCode: Int = big.##   // scala.## on BigDecimal agrees with Long/Double ## when values coincide
+
+    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append(text) __ Unit
   }
 }
 
 
-/** A JSON array.  `Jarr.A` holds arbitrary values; packed numeric backings (e.g. all-Double)
-  * come later as further companion subclasses.
+/** A JSON array.  `Jarr.A` holds arbitrary values; `Jarr.D` packs all-Double arrays (the
+  * parser packs automatically when every element parsed as a `Jnum.D`).  The two backings
+  * are interchangeable in use and compare equal element by element.
   */
 sealed abstract class Jarr protected () extends Json {
   def kind = "array"
   override def arr: Ask[Jarr] = Is(this)
   def foreach(f: Json => Unit): Unit
+
+  /** The elements as a (copied) `Array[Double]`, if every element is a number. */
+  def dbls: Ask[Array[Double]]
 }
 object Jarr {
   def apply(values: Json*): Jarr =
     val a = new Array[Json](values.length)
     values.copyToArray(a) __ Unit
     new A(a, a.length)
+
+  def apply(values: Array[Double]): Jarr = new D(values.clone, values.length)
 
   private[jsaun] val empty: A = new A(new Array[Json](0), 0)
 
@@ -365,12 +413,31 @@ object Jarr {
         f(vs(k))
         k += 1
 
+    final def dbls: Ask[Array[Double]] =
+      val a = new Array[Double](n)
+      var k = 0
+      var bad = -1
+      while bad < 0 && k < n do
+        vs(k) match
+          case m: Jnum =>
+            a(k) = m.double
+            k += 1
+          case _ => bad = k
+      if bad < 0 then Is(a)
+      else Alt(Err(s"element $bad is not a number but ${vs(bad).kind}"))
+
     final override def equals(a: Any): Boolean = a match
       case x: A =>
         if n != x.n then false
         else
           var k = 0
           while k < n && vs(k) == x.vs(k) do k += 1
+          k == n
+      case x: D =>
+        if n != x.n then false
+        else
+          var k = 0
+          while k < n && vs(k) == Jnum(x.xs(k)) do k += 1
           k == n
       case _ => false
 
@@ -388,6 +455,52 @@ object Jarr {
       while k < n do
         if k > 0 then sb.append(',') __ Unit
         vs(k).printTo(sb)
+        k += 1
+      sb.append(']') __ Unit
+  }
+
+  /** An all-numeric JSON array packed as unboxed Doubles.  Element access materializes a
+    * `Jnum.D`; bulk numeric use should go through `dbls`.
+    */
+  sealed class D private[jsaun] (private[jsaun] var xs: Array[Double], private[jsaun] var n: Int) extends Jarr {
+    final override def size: Int = n
+
+    final override def apply(i: Int): JAny =
+      if i >= 0 && i < n then JAny(Jnum(xs(i)))
+      else JAny.err(Err(s"index $i out of bounds for array of size $n"))
+
+    final def foreach(f: Json => Unit): Unit =
+      var k = 0
+      while k < n do
+        f(Jnum(xs(k)))
+        k += 1
+
+    final def dbls: Ask[Array[Double]] = Is(java.util.Arrays.copyOf(xs, n))
+
+    final override def equals(a: Any): Boolean = a match
+      case x: D =>
+        if n != x.n then false
+        else
+          var k = 0
+          while k < n && xs(k) == x.xs(k) do k += 1
+          k == n
+      case x: A => x == this
+      case _ => false
+
+    final override def hashCode: Int =   // matches A's fold because Jnum.D(x).## == x.##
+      var h = 1
+      var k = 0
+      while k < n do
+        h = h * 31 + xs(k).##
+        k += 1
+      h
+
+    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit =
+      sb.append('[') __ Unit
+      var k = 0
+      while k < n do
+        if k > 0 then sb.append(',') __ Unit
+        Jnum.printDbl(sb, xs(k))
         k += 1
       sb.append(']') __ Unit
   }

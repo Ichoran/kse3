@@ -202,6 +202,66 @@ class JsaunTest {
       T ~ Json.parse(orig.print).ask   ==== Is(orig)
 
   @Test
+  def bytesSourceTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    val srcs = List(
+      """{"a": [1, 2.5, "x"], "b": null, "c": true}""",
+      """[0.1, -3e8, 9223372036854775807, 123456789012345678901234567890]""",
+      "  [ [ ] , { } , \"\" ]  ",
+      "{\"k\": \"caf\\u00e9 café\", \"emoji\": \"😀\", \"nl\": \"a\\nb\"}"
+    )
+    for s <- srcs do
+      T ~ Json.parse(s.getBytes(u8)).ask ==== Json.parse(s).ask
+    T ~ Json.parse("\"café\"".getBytes(u8)).str  ==== Is("café")
+    T ~ Json.parse("\"caf\\u00e9\"".getBytes(u8)).str ==== Is("café")
+    // for ASCII input, byte positions == char positions, so errors render identically
+    val badIn = """{"a": [1, 2, x]}"""
+    T ~ errText(Json.parse(badIn.getBytes(u8)).ask) ==== errText(Json.parse(badIn).ask)
+    T ~ Json.parse("[1.5, 2.5]".getBytes(u8), exact = true).ask ==== Json.parse("[1.5, 2.5]").ask
+
+  @Test
+  def exactModeTest(): Unit =
+    T ~ Json.parse("0.1", exact = true).ask.map(_.print)  ==== Is("0.1")
+    T ~ Json.parse("0.1", exact = true).dbl                ==== Is(0.1)
+    T ~ Json.parse("3.5", exact = true).ask                ==== Is(Jnum(3.5))
+    T ~ Json.parse("3.5", exact = true).ask.map(_.isInstanceOf[Jnum.D])  ==== Is(true)
+    T ~ Json.parse("1e22", exact = true).ask.map(_.isInstanceOf[Jnum.D]) ==== Is(true)   // 10^22 = 2^22 * 5^22 fits a Double
+    T ~ Json.parse("42", exact = true).ask                 ==== Is(Jnum(42))
+    T ~ Json.parse("0.30000000000000001", exact = true).ask.map(_.print) ==== Is("0.30000000000000001")
+    T ~ Json.parse("123456789012345678901234567890", exact = true).ask.map(_.print) ==== Is("123456789012345678901234567890")
+    T ~ Json.parse("123456789012345678901234567890", exact = true).dbl   ==== Is(1.2345678901234568E29)
+    T ~ Json.parse("1e400", exact = true).ask.map(_.print) ==== Is("1e400")
+    T ~ bad(Json.parse("10000000000000000001", exact = true).long)       ==== true
+    T ~ Json.parse("[0.1, 2.5, 10000000000000000001, 1.0e-3]", exact = true).ask.map(_.print) ====
+        Is("[0.1,2.5,10000000000000000001,1.0e-3]")   // 10^-3 is not dyadic, so 1.0e-3 stays textual too
+    val big = Json.parse("0.1", exact = true).jsonOr(Jnull)
+    T ~ big.isInstanceOf[Jnum.Big]  ==== true
+    T ~ (big == Jnum(0.1))          ==== false   // decimal 0.1 is not the binary 0.1 Double
+    T ~ (Jnum(BigDecimal("3")) == Jnum(3))         ==== true
+    T ~ (Jnum(BigDecimal("3")).## == Jnum(3).##)   ==== true
+    T ~ (Jnum(BigDecimal("3.5")) == Jnum(3.5))     ==== true
+    T ~ (Jnum(BigDecimal("3.5")).## == Jnum(3.5).##) ==== true
+    T ~ Jnum(BigDecimal("9007199254740993")).long  ==== Is(9007199254740993L)
+
+  @Test
+  def packedArrayTest(): Unit =
+    val packed = Json.parse("[1.5, 2.5, 3.5]").jsonOr(Jnull)
+    T ~ packed.isInstanceOf[Jarr.D]  ==== true
+    T ~ (packed == Jarr(Jnum(1.5), Jnum(2.5), Jnum(3.5)))  ==== true
+    T ~ (Jarr(Jnum(1.5), Jnum(2.5), Jnum(3.5)) == packed)  ==== true
+    T ~ (packed.## == Jarr(Jnum(1.5), Jnum(2.5), Jnum(3.5)).##)  ==== true
+    T ~ packed(1).dbl      ==== Is(2.5)
+    T ~ bad(packed(3).dbl) ==== true
+    T ~ packed.print       ==== "[1.5,2.5,3.5]"
+    T ~ Json.parse(packed.print).ask ==== Is(packed)
+    T ~ Json.parse("[1, 2.5]").ask.map(_.isInstanceOf[Jarr.D])  ==== Is(false)   // a Long element blocks packing
+    T ~ Json.parse("[]").ask.map(_.isInstanceOf[Jarr.D])        ==== Is(false)
+    T ~ Json.parse("[1.5, 2.5]").arr.flatMap(_.dbls).map(_.toList) ==== Is(List(1.5, 2.5))
+    T ~ Json.parse("[1, 2, 3]").arr.flatMap(_.dbls).map(_.toList)  ==== Is(List(1.0, 2.0, 3.0))
+    T ~ bad(Json.parse("[1, \"x\"]").arr.flatMap(_.dbls))          ==== true
+    T ~ (Jarr(Array(1.5, 2.5)) == Jarr(Jnum(1.5), Jnum(2.5)))      ==== true
+
+  @Test
   def equalityAndKindTest(): Unit =
     T ~ Jobj("a" -> Jnum(1), "b" -> Jnum(2))  ==== Jobj("b" -> Jnum(2), "a" -> Jnum(1))
     T ~ (Jobj("a" -> Jnum(1)) == Jobj("a" -> Jnum(2)))         ==== false
