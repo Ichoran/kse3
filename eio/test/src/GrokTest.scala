@@ -543,6 +543,41 @@ class GrokTest {
     T ~ bad(Grok("06b".toCharArray)(g => g.I))                                                ==== true
 
   @Test
+  def grokChunkedTest(): Unit =
+    def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    // Byte chunks with values straddling every boundary, plus an empty chunk
+    T ~ Grok.chunked(Iterator(b("123"), b("4 3.14"), b(""), b("159 tr"), b("ue x")), Delim.white)(g => (g.I, g.D, g.Z, g.tok)) ==== Is((1234, 3.14159, true, "x"))
+    // A UTF-8 character split across a byte-chunk boundary ("π" is 0xCF 0x80)
+    val pi = b("π = 3.25")
+    T ~ Grok.chunked(Iterator(pi.take(1), pi.drop(1)), Delim.white)(g => (g.tok, (g < "=").D)) ==== Is(("π", 3.25))
+    // A quoted string straddling chunks, escapes and all
+    T ~ Grok.chunked(Iterator(b("\"sal"), b("mon\\n"), b("\" 9")), Delim.white)(g => (g.str(Quote.json), g.I)) ==== Is(("salmon\n", 9))
+    // Char and String chunks parse as text
+    T ~ Grok.chunked(Iterator("2025-06-25".toCharArray.take(6), "2025-06-25".toCharArray.drop(6)), partial = true)(g => (g.I, (g < '-').I, (g < '-').I)) ==== Is((2025, 6, 25))
+    T ~ Grok.chunked(Iterator("10 2", "0 -", "5"), Delim.white)(g => g.I + g.I + g.I) ==== Is(25)
+    T ~ Grok.chunked(Iterator("9007199254740993"))(g => g.D)                          ==== Is("9007199254740993".toDouble)
+    // Window growth: a token far longer than the 8-element minimum window
+    val digits80 = "1" * 80
+    T ~ Grok.chunked(Iterator(digits80.grouped(7).toSeq*), window = 8)(g => g.tok)    ==== Is(digits80)
+    // Ends where the iterator ends; empty chunks alone are an empty input
+    T ~ bad(Grok.chunked(Iterator.empty[Array[Byte]])(g => g.I))                      ==== true
+    T ~ bad(Grok.chunked(Iterator("", "", ""))(g => g.I))                             ==== true
+    T ~ Grok.chunked(Iterator(b("7"), b(""), b("")))(g => g.I)                        ==== Is(7)
+
+  @Test
+  def grokIterateTest(): Unit =
+    def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    // Byte flavor: any A an element at a time (here bytes themselves, and ints needing conversion)
+    T ~ Grok.iterate(b("10 20 -5").iterator, (x: Byte) => x, Delim.white)(g => g.I + g.I + g.I) ==== Is(25)
+    T ~ Grok.iterate(List(51, 46, 50, 53).iterator, (x: Int) => x.toByte)(g => g.D)            ==== Is(3.25)
+    // Char flavor: a String's own iterator, and a decorated source
+    T ~ Grok.iterate("3.14159 true".iterator, (c: Char) => c, Delim.white)(g => (g.D, g.Z))    ==== Is((3.14159, true))
+    T ~ Grok.iterate(List("1x", "2y", "3z").iterator, (s: String) => s.charAt(0))(g => g.I)    ==== Is(123)
+    // UTF-8 through the byte flavor
+    T ~ Grok.iterate(b("π = -17").iterator, (x: Byte) => x, Delim.white)(g => (g.tok, (g < "=").I)) ==== Is(("π", -17))
+    T ~ bad(Grok.iterate(Iterator.empty[Char], (c: Char) => c)(g => g.I))                      ==== true
+
+  @Test
   def grokBufferedTest(): Unit =
     def b(s: String): Array[Byte] = s.getBytes(java.nio.charset.StandardCharsets.UTF_8)
     // Small inputs: fully preloaded, the window never moves

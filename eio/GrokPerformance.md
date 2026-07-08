@@ -103,6 +103,16 @@ because the failures were the informative ones:
   fixed setup (Str alloc + boundary Label + builder; Jackson keeps its equivalent at ~55 ns by
   pooling buffers in a ThreadLocal).  Individual trims now return less than measurement noise;
   next steps here need `perf` counters (`kernel.perf_event_paranoid=1`) or a structural change.
+- CORRECTION 2026-07-07: measured directly (GrokInitBench: parse one small value, so setup
+  dominates), per-parse fixed cost is far below that 158 ns estimate — the bulk of it was the
+  benchmark's own `ArrayBuilder` and measurement residue.  `Grok(s)(g => g.I)` = 7.6 ns / 80 B
+  vs `Integer.parseInt` 2.9 ns / 0 B, so the whole harness (source object + boundary Label +
+  the boxed primitive that `Ask` itself costs) is ~5 ns and two small allocations; buffered
+  adds the window array and fill closure (16.8 ns / 232 B).  `Grok(s)(g => g.D)` at 11.6 ns
+  beats bare `Double.parseDouble` (17.4 ns) outright — the Eisel-Lemire kernel more than pays
+  for the harness.  Conclusion: initialization needs no design change; the reusable/resettable
+  Grok idea (below) is retired as not worth its API surface.  For many tiny records, the right
+  tool is one Grok over the whole input with the delimiter hierarchy, not per-record instances.
 
 ## The deferred big item: Eisel-Lemire Double conversion — DONE 2026-07-07
 

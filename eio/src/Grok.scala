@@ -2353,4 +2353,110 @@ object Grok {
       )(qc, doubled, mode)
   }
 
+
+  // === Fill adapters: chunk-at-a-time and element-at-a-time inputs feed the windowed sources ===
+  // Each answers a `fill` in Buffered's contract (elements written, or negative at end of input)
+  // and never answers 0: chunk adapters skip empty chunks internally, element adapters write at
+  // least one element or report the end.
+
+  @publicInBinary private[eio] def chunkFillBytes(chunks: Iterator[Array[Byte]]): (Array[Byte], Int, Int) => Int =
+    var cur = noBytes
+    var pos = 0
+    (dst, off, max) =>
+      var live = true
+      while live && pos >= cur.length do
+        if chunks.hasNext then
+          cur = chunks.next()
+          pos = 0
+        else live = false
+      if !live then
+        cur = noBytes   // drop the last chunk; the end answer repeats harmlessly if asked again
+        -1
+      else
+        val n = if cur.length - pos < max then cur.length - pos else max
+        System.arraycopy(cur, pos, dst, off, n)
+        pos += n
+        n
+
+  @publicInBinary private[eio] def chunkFillChars(chunks: Iterator[Array[Char]]): (Array[Char], Int, Int) => Int =
+    var cur = noChars
+    var pos = 0
+    (dst, off, max) =>
+      var live = true
+      while live && pos >= cur.length do
+        if chunks.hasNext then
+          cur = chunks.next()
+          pos = 0
+        else live = false
+      if !live then
+        cur = noChars
+        -1
+      else
+        val n = if cur.length - pos < max then cur.length - pos else max
+        System.arraycopy(cur, pos, dst, off, n)
+        pos += n
+        n
+
+  @publicInBinary private[eio] def chunkFillString(chunks: Iterator[String]): (Array[Char], Int, Int) => Int =
+    var cur = ""
+    var pos = 0
+    (dst, off, max) =>
+      var live = true
+      while live && pos >= cur.length do
+        if chunks.hasNext then
+          cur = chunks.next()
+          pos = 0
+        else live = false
+      if !live then
+        cur = ""
+        -1
+      else
+        val n = if cur.length - pos < max then cur.length - pos else max
+        cur.getChars(pos, pos + n, dst, off)
+        pos += n
+        n
+
+  @publicInBinary private[eio] def elemFillBytes[A](elems: Iterator[A], f: A => Byte): (Array[Byte], Int, Int) => Int =
+    (dst, off, max) =>
+      var k = 0
+      while k < max && elems.hasNext do
+        dst(off + k) = f(elems.next())
+        k += 1
+      if k == 0 then -1 else k
+
+  @publicInBinary private[eio] def elemFillChars[A](elems: Iterator[A], f: A => Char): (Array[Char], Int, Int) => Int =
+    (dst, off, max) =>
+      var k = 0
+      while k < max && elems.hasNext do
+        dst(off + k) = f(elems.next())
+        k += 1
+      if k == 0 then -1 else k
+
+
+  /** Set up to parse input arriving one chunk at a time — `Array[Byte]`, `Array[Char]`, or
+    * `String` chunks — through the same sliding window as `buffered`.  Byte chunks parse with
+    * raw-byte semantics (like `Grok(bytes)`: structure is ASCII, `tok` decodes UTF-8); char and
+    * String chunks parse as text.  Chunk boundaries are invisible to the parse — values,
+    * literals, and quoted strings may straddle them — and empty chunks are fine.  The total
+    * length need not be known: input ends when the iterator does.  Parameters and the parsing
+    * block are otherwise as for `buffered`.
+    */
+  transparent inline def chunked(inline content: Iterator[Array[Byte]] | Iterator[Array[Char]] | Iterator[String], inline delim: Delim | Char | String = Delim.lines, partial: Boolean = false, exact: Boolean = false, window: Int = 64): Grok =
+    inline content match
+      case ib: Iterator[Array[Byte]] => new Buffered(chunkFillBytes(ib), -1L, Delim.from(delim), partial, !exact, window)
+      case ic: Iterator[Array[Char]] => new BufferedChars(chunkFillChars(ic), -1L, Delim.from(delim), partial, !exact, window)
+      case is: Iterator[String]      => new BufferedChars(chunkFillString(is), -1L, Delim.from(delim), partial, !exact, window)
+
+  /** Set up to parse elements pulled one at a time from any iterator, each converted by `f` to
+    * a `Byte` (raw-byte semantics, as for `Grok(bytes)`) or a `Char` (text semantics).  Far
+    * slower than the array, `Mem`, or `chunked` forms — one or two virtual calls per element —
+    * but works with anything that can present itself element by element.  A bare lambda cannot
+    * be elaborated against the either-flavor union, so annotate its parameter: `(b: Byte) => b`,
+    * not `_.toByte`.  Parameters and the parsing block are otherwise as for `buffered`.
+    */
+  transparent inline def iterate[A](content: Iterator[A], inline f: (A => Byte) | (A => Char), inline delim: Delim | Char | String = Delim.lines, partial: Boolean = false, exact: Boolean = false, window: Int = 64): Grok =
+    inline f match
+      case fb: (A => Byte) => new Buffered(elemFillBytes(content, fb), -1L, Delim.from(delim), partial, !exact, window)
+      case fc: (A => Char) => new BufferedChars(elemFillChars(content, fc), -1L, Delim.from(delim), partial, !exact, window)
+
 }
