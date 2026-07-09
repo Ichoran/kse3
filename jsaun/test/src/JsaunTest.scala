@@ -11,6 +11,24 @@ import org.junit.Assert._
 
 import sourcecode.{Line, given}
 
+import kse.jsaun.{Jsonize, FromJson}
+
+
+case class Pt(x: Double, y: Double) derives Jsonize, FromJson
+
+case class WithOpt(a: Int, b: Option[String]) derives Jsonize, FromJson
+
+case class Inner(z: Int)   // no derives: instances are derived on demand where needed
+
+case class Auto(i: Inner, n: Int) derives Jsonize, FromJson
+
+sealed trait Shape derives Jsonize, FromJson
+case class Circle(r: Double) extends Shape
+case class Sq(side: Double, label: String) extends Shape
+case object Dot extends Shape
+
+case class AB(a: Int, b: String) derives FromJson
+
 
 @RunWith(classOf[JUnit4])
 class JsaunTest {
@@ -470,6 +488,43 @@ class JsaunTest {
       case t: Jarr.A.M => t.add(Jnull) __ Unit
       case _ => assertTrue("array not mutable", false)
     T ~ m6.print ==== "[ { \"deep\" : [ 1 , 2 ] }, null ]"   // singleton: no separator to sample, ", " synthesized
+
+  @Test
+  def codecTest(): Unit =
+    T ~ Json(Pt(1.5, 2.5)).print                   ==== """{"x":1.5,"y":2.5}"""
+    T ~ Json.parse("""{"x":1.5,"y":2.5}""").to[Pt] ==== Is(Pt(1.5, 2.5))
+    T ~ Json(List(1, 2, 3)).print                  ==== "[1,2,3]"
+    T ~ Json(Vector("a", "b")).print               ==== """["a","b"]"""
+    T ~ Json.parse("[1,2,3]").to[List[Int]]        ==== Is(List(1, 2, 3))
+    T ~ Json.parse("[1,2,3]").to[Vector[Long]]     ==== Is(Vector(1L, 2L, 3L))
+    T ~ Json(Map("a" -> 1, "b" -> 2)).print        ==== """{"a":1,"b":2}"""
+    T ~ Json.parse("""{"a":1,"b":2}""").to[Map[String, Int]] ==== Is(Map("a" -> 1, "b" -> 2))
+    T ~ Json(Option(5)).print                      ==== "5"
+    T ~ Json(None: Option[Int]).print              ==== "null"
+    T ~ Json(Array(1.5, 2.5)).print                ==== "[1.5,2.5]"
+    T ~ Json.parse("[1.5,2.5]").to[Array[Double]].map(_.toList) ==== Is(List(1.5, 2.5))
+    T ~ Json.parse("[1.5,2.5]").to[List[Double]]   ==== Is(List(1.5, 2.5))   // packed Jarr.D path
+    T ~ Json(WithOpt(1, None)).print               ==== """{"a":1,"b":null}"""
+    T ~ Json(WithOpt(1, Some("x"))).print          ==== """{"a":1,"b":"x"}"""
+    T ~ Json.parse("""{"a":1}""").to[WithOpt]          ==== Is(WithOpt(1, None))   // absent Option field
+    T ~ Json.parse("""{"a":1,"b":null}""").to[WithOpt] ==== Is(WithOpt(1, None))
+    T ~ Json.parse("""{"a":1,"b":"x"}""").to[WithOpt]  ==== Is(WithOpt(1, Some("x")))
+    T ~ Json(Auto(Inner(3), 7)).print              ==== """{"i":{"z":3},"n":7}"""
+    T ~ Json.parse("""{"i":{"z":3},"n":7}""").to[Auto] ==== Is(Auto(Inner(3), 7))
+    val shapes: List[Shape] = List(Circle(2.0), Sq(1.0, "s"), Dot)
+    for s <- shapes do
+      T ~ Json.parse(Json(s).print).to[Shape]      ==== Is(s)
+    T ~ Json(Circle(2.0): Shape).print             ==== """{"type":"Circle","r":2.0}"""
+    T ~ Json(Dot: Shape).print                     ==== """{"type":"Dot"}"""
+    T ~ bad(Json.parse("""{"type":"Tri"}""").to[Shape]) ==== true
+    T ~ bad(Json.parse("""{"r":2.0}""").to[Shape])      ==== true   // no discriminator
+    val e = errText(Json.parse("""{"a":"x","b":5}""").to[AB])
+    T ~ e.contains("2 fields")   ==== true
+    T ~ e.contains("\"a\"")      ==== true
+    T ~ e.contains("\"b\"")      ==== true
+    T ~ errText(Json.parse("""{"a":1}""").to[AB]).contains("missing key \"b\"") ==== true
+    T ~ bad(Json.parse("[1, 2").to[List[Int]])     ==== true   // parse errors flow into decoding
+    T ~ errText(Json.parse("""[1,"x",3]""").to[List[Int]]).contains("in element 1") ==== true
 
   @Test
   def equalityAndKindTest(): Unit =

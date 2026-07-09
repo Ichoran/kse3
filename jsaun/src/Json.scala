@@ -211,6 +211,9 @@ sealed abstract class Json protected () {
   final override def toString = print(using Jstyle.compact)
 }
 object Json {
+  /** Convert any value with a `Jsonize` instance into its JSON tree: `Json(myCaseClass)`. */
+  def apply[A](a: A)(using jz: Jsonize[A]): Json = jz.jsonize(a)
+
   /** Parse JSON text into a tree, or an `Err` detailing what went wrong and where.
     * The parser is strict (RFC 8259): no trailing commas, no leading zeros, no `NaN`, and
     * nothing but whitespace after the value.  Byte input reads structure as ASCII and
