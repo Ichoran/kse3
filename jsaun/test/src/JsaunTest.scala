@@ -389,12 +389,12 @@ class JsaunTest {
       case t: Jarr.A.M => t(1) = Jstr("B")
       case _ => assertTrue("tags not mutable", false)
     T ~ m4.print ==== src.replace("42", "43").replace("\"b\"", "\"B\"")
-    // structural edit: only the edited node loses its formatting
+    // structural edit: the edited node regenerates its separators in its own inferred style
     val m5 = freshM()
     m5("tags").jsonOr(Jnull) match
       case t: Jarr.A.M => t.add(Jstr("d")) __ Unit
       case _ => assertTrue("tags not mutable", false)
-    T ~ m5.print ==== src.replace("""[ "a" , "b" , "c" ]""", """["a","b","c","d"]""")
+    T ~ m5.print ==== src.replace("""[ "a" , "b" , "c" ]""", """[ "a" , "b" , "c" , "d" ]""")
     // cross-document splice: the guest subtree keeps ITS source's formatting
     val docA = """{ "keep" : [ 1 , 2 ] , "swap" : null }"""
     val docB = """[ 7 ,   8 ]"""
@@ -407,6 +407,69 @@ class JsaunTest {
     // edits still parse back to the right tree
     T ~ Json.parse(m1.print)("count").long ==== Is(43L)
     T ~ Json.parse(m5.print)("tags")(3).str ==== Is("d")
+
+  @Test
+  def styleTest(): Unit =
+    T ~ Jarr(Jnum(1), Jnum(2)).print ==== "[1,2]"
+    T ~ Jobj("a" -> Jnum(1), "b" -> Jarr(Jnum(1), Jnum(2))).print(using Jstyle.pretty) ====
+        "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2\n  ]\n}"
+    T ~ Jarr().print(using Jstyle.pretty)  ==== "[]"
+    T ~ Jobj().print(using Jstyle.pretty)  ==== "{}"
+    T ~ Jarr(Array(1.5, 2.5)).print(using Jstyle.pretty) ==== "[\n  1.5,\n  2.5\n]"
+    // numeric policy: the shorter of rounded and exact wins, so 0.5 never grows
+    T ~ Json.parse("[0.30000000000000004, 0.5]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.3,0.5]"
+    T ~ Jnum(0.5).print(using Jstyle.compact.sig(4))                  ==== "0.5"
+    T ~ Jnum(0.30000000000000004).print(using Jstyle.compact.fixed(2)) ==== "0.3"
+    T ~ Jnum(1.2345678901234568E29).print(using Jstyle.compact.sig(4)) ==== "1.235E+29"
+    T ~ Jnum(7L).print(using Jstyle.compact.sig(2))                    ==== "7"   // Longs are already exact
+    // verbatim beats style for untouched parsed tokens
+    T ~ Json.parseFmt("[0.30000000000000004]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.30000000000000004]"
+    // ...but reprint restyles everything
+    T ~ Json.parseFmt("[ 1 , 2 ]").jsonOr(Jnull).reprint(Jstyle.compact) ==== "[1,2]"
+    T ~ Json.parseFmt("""{ "a" : 1 }""").jsonOr(Jnull).reprint(Jstyle.pretty) ==== "{\n  \"a\": 1\n}"
+    T ~ Json.parseFmt("[0.30000000000000004]").jsonOr(Jnull).reprint(Jstyle.compact.sig(4)) ==== "[0.3]"
+
+  @Test
+  def styleInferenceTest(): Unit =
+    // insertion into an indented array picks up the siblings' indentation
+    val src = "{\n  \"tags\": [\n    \"a\",\n    \"b\"\n  ],\n  \"n\": 1\n}"
+    val m = Json.M.parseFmt(src).jsonOr(Jnull)
+    m("tags").jsonOr(Jnull) match
+      case t: Jarr.A.M => t.add(Jstr("c")) __ Unit
+      case _ => assertTrue("tags not mutable", false)
+    T ~ m.print ==== src.replace("\"b\"\n  ]", "\"b\",\n    \"c\"\n  ]")
+    // inline arrays keep their inline spacing
+    val m2 = Json.M.parseFmt("""{ "xs" : [ 1 , 2 ] }""").jsonOr(Jnull)
+    m2("xs").jsonOr(Jnull) match
+      case t: Jarr.A.M => t.add(Jnum(3)) __ Unit
+      case _ => assertTrue("xs not mutable", false)
+    T ~ m2.print ==== """{ "xs" : [ 1 , 2 , 3 ] }"""
+    // removal regenerates separators uniformly in the same style
+    val m3 = Json.M.parseFmt("[ 1 , 2 , 3 ]").jsonOr(Jnull)
+    m3 match
+      case t: Jarr.A.M => t.remove(1) __ Unit
+      case _ => assertTrue("array not mutable", false)
+    T ~ m3.print ==== "[ 1 , 3 ]"
+    // a new key matches the object's own spacing (separator synthesized from a singleton)
+    val m4 = Json.M.parseFmt("""{ "a" : 1 }""").jsonOr(Jnull)
+    m4 match
+      case o: Jobj.M => o.put("b", Jnum(2)) __ Unit
+      case _ => assertTrue("object not mutable", false)
+    T ~ m4.print ==== """{ "a" : 1, "b" : 2 }"""
+    // multiline object gains a key in its own layout
+    val src5 = "{\n  \"a\": 1,\n  \"b\": 2\n}"
+    val m5 = Json.M.parseFmt(src5).jsonOr(Jnull)
+    m5 match
+      case o: Jobj.M => o.put("c", Jnum(3)) __ Unit
+      case _ => assertTrue("object not mutable", false)
+    T ~ m5.print ==== "{\n  \"a\": 1,\n  \"b\": 2,\n  \"c\": 3\n}"
+    // children of a structurally edited node still print verbatim from their source
+    val src6 = "[ { \"deep\" : [ 1 , 2 ] } ]"
+    val m6 = Json.M.parseFmt(src6).jsonOr(Jnull)
+    m6 match
+      case t: Jarr.A.M => t.add(Jnull) __ Unit
+      case _ => assertTrue("array not mutable", false)
+    T ~ m6.print ==== "[ { \"deep\" : [ 1 , 2 ] }, null ]"   // singleton: no separator to sample, ", " synthesized
 
   @Test
   def equalityAndKindTest(): Unit =

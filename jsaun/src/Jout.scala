@@ -12,6 +12,15 @@ import kse.basics.{given, _}
   * encoding, growth) lives inside each target.
   */
 abstract class Jout {
+  /** The style used for content with no preserved format (and for numeric rendering). */
+  def style: Jstyle
+
+  /** Pretty-printing depth of the node being emitted (containers push and pop it). */
+  private[jsaun] var depth: Int = 0
+
+  /** When set (by `reprint`), preserved formats are skipped and everything restyles. */
+  private[jsaun] var ignoreFmt: Boolean = false
+
   /** Append one character (Bytes targets UTF-8 encode it; a lone surrogate becomes U+FFFD). */
   def add(c: Char): Unit
 
@@ -30,7 +39,7 @@ abstract class Jout {
 object Jout {
 
   /** Builds a String (thin wrapper over a StringBuilder). */
-  final class Str(val sb: java.lang.StringBuilder = new java.lang.StringBuilder) extends Jout {
+  final class Str(val sb: java.lang.StringBuilder = new java.lang.StringBuilder, val style: Jstyle = Jstyle.compact) extends Jout {
     def add(c: Char): Unit = sb.append(c) __ Unit
     def add(s: String, i0: Int, iN: Int): Unit = sb.append(s, i0, iN) __ Unit
     def add(b: Array[Byte], i0: Int, iN: Int): Unit =
@@ -41,7 +50,7 @@ object Jout {
   }
 
   /** Builds UTF-8 bytes in a growable buffer. */
-  final class Bytes(initialSize: Int = 256) extends Jout {
+  final class Bytes(initialSize: Int = 256, val style: Jstyle = Jstyle.compact) extends Jout {
     private var buf = new Array[Byte](if initialSize < 16 then 16 else initialSize)
     private var n = 0
 

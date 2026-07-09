@@ -187,19 +187,28 @@ sealed abstract class Json protected () {
   /** Append this value as compact JSON to `out`. */
   def printTo(out: Jout): Unit
 
-  /** Render as compact JSON text (no whitespace). */
-  final def print: String =
-    val out = new Jout.Str()
+  /** Render as JSON text: preserved formatting verbatim where it exists, `st` (default
+    * compact) for everything else, including the numeric policy for fresh Doubles.
+    */
+  final def print(using st: Jstyle): String =
+    val out = new Jout.Str(style = st)
     printTo(out)
     out.result
 
-  /** Render as compact JSON in UTF-8 bytes. */
-  final def printBytes: Array[Byte] =
-    val out = new Jout.Bytes()
+  /** Render as JSON in UTF-8 bytes; same rules as `print`. */
+  final def printBytes(using st: Jstyle): Array[Byte] =
+    val out = new Jout.Bytes(style = st)
     printTo(out)
     out.result
 
-  final override def toString = print
+  /** Render entirely in `st`, ignoring all preserved formatting (the restyling escape hatch). */
+  final def reprint(st: Jstyle): String =
+    val out = new Jout.Str(style = st)
+    out.ignoreFmt = true
+    printTo(out)
+    out.result
+
+  final override def toString = print(using Jstyle.compact)
 }
 object Json {
   /** Parse JSON text into a tree, or an `Err` detailing what went wrong and where.
@@ -376,10 +385,15 @@ object Jnum {
   def apply(value: Double): Jnum = new D(value)
   def apply(value: BigDecimal): Jnum = new Big(value.underlying.toString)
 
-  /** Append `d` as JSON (NaN and infinities, which JSON cannot express, become null). */
+  /** Append `d` as JSON under the target's numeric policy (NaN and infinities, which JSON
+    * cannot express, become null).
+    */
   private[jsaun] def printDbl(out: Jout, d: Double): Unit =
     if d.isNaN || d.isInfinite then out.add("null")
-    else out.add(d)
+    else out.style.num match
+      case Jstyle.Num.Exact => out.add(d)
+      case Jstyle.Num.Sig(n) => out.add(Jstyle.sigText(d, n))
+      case Jstyle.Num.Fixed(n) => out.add(Jstyle.fixedText(d, n))
 
   /** True if `d` is exactly the value that `text` denotes (cold; exact-mode parsing only). */
   private[jsaun] def exactDouble(d: Double, text: String): Boolean =
@@ -462,6 +476,10 @@ sealed abstract class Jarr protected () extends Json {
 
   /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
   private[jsaun] var fmt: Jfmt | Null = null
+
+  /** Inferred separator style, kept when a structural edit invalidates `fmt`. */
+  private[jsaun] var sty: Jfmt.Local | Null = null
+
   def foreach(f: Json => Unit): Unit
 
   /** The elements as a (copied) `Array[Double]`, if every element is a number. */
@@ -532,16 +550,20 @@ object Jarr {
         k += 1
       h
 
-    def printTo(out: Jout): Unit = fmt match
-      case null =>
-        out.add('[')
-        var k = 0
-        while k < n do
-          if k > 0 then out.add(',')
-          vs(k).printTo(out)
-          k += 1
-        out.add(']')
-      case f =>
+    private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
+      out.add('[')
+      out.add(open)
+      var k = 0
+      while k < n do
+        if k > 0 then out.add(sep)
+        vs(k).printTo(out)
+        k += 1
+      out.add(close)
+      out.add(']')
+
+    def printTo(out: Jout): Unit =
+      val f = fmt
+      if (f ne null) && !out.ignoreFmt then
         if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
         else
           var prev = f.start
@@ -554,6 +576,16 @@ object Jarr {
             prev = Jfmt.end(sp)
             k += 1
           f.src.copyTo(out, prev, f.end)
+      else
+        val s = sty
+        if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+        else
+          val st = out.style
+          if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+          else
+            out.depth += 1
+            emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+            out.depth -= 1
   }
   object A {
     /** Growable editable general array; upcast to `Jarr.A`/`Jarr` to hand off a view with no
@@ -576,39 +608,47 @@ object Jarr {
           case null => ()
           case f => f.markDirty(i)
 
+      // Structural changes invalidate the span bookkeeping, but the layout style is inferred
+      // from it first, so edits keep matching their siblings' formatting
+      private def demoteFmt(): Unit =
+        val f = fmt
+        if f ne null then
+          sty = Jfmt.Local.ofArr(f, n)
+          fmt = null
+
       def add(v: Json): this.type =
+        demoteFmt()
         ensure(1)
         vs(n) = v
         n += 1
-        fmt = null   // structural change: preserved formatting no longer lines up
         this
 
       def insert(i: Int, v: Json): this.type =
         if i < 0 || i > n then throw new IndexOutOfBoundsException(s"insertion point $i in array of size $n")
+        demoteFmt()
         ensure(1)
         System.arraycopy(vs, i, vs, i + 1, n - i)
         vs(i) = v
         n += 1
-        fmt = null
         this
 
       /** Remove and answer element `i`, which must exist. */
       def remove(i: Int): Json =
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        demoteFmt()
         val v = vs(i)
         System.arraycopy(vs, i + 1, vs, i, n - i - 1)
         n -= 1
         vs(n) = null
-        fmt = null
         v
 
       def clear(): this.type =
+        demoteFmt()
         var k = 0
         while k < n do
           vs(k) = null
           k += 1
         n = 0
-        fmt = null
         this
     }
     object M {
@@ -655,16 +695,20 @@ object Jarr {
         k += 1
       h
 
-    def printTo(out: Jout): Unit = fmt match
-      case null =>
-        out.add('[')
-        var k = 0
-        while k < n do
-          if k > 0 then out.add(',')
-          Jnum.printDbl(out, xs(k))
-          k += 1
-        out.add(']')
-      case f =>
+    private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
+      out.add('[')
+      out.add(open)
+      var k = 0
+      while k < n do
+        if k > 0 then out.add(sep)
+        Jnum.printDbl(out, xs(k))
+        k += 1
+      out.add(close)
+      out.add(']')
+
+    def printTo(out: Jout): Unit =
+      val f = fmt
+      if (f ne null) && !out.ignoreFmt then
         if !f.anyDirty then f.src.copyTo(out, f.start, f.end)
         else
           var prev = f.start
@@ -677,6 +721,16 @@ object Jarr {
             prev = Jfmt.end(sp)
             k += 1
           f.src.copyTo(out, prev, f.end)
+      else
+        val s = sty
+        if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+        else
+          val st = out.style
+          if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+          else
+            out.depth += 1
+            emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+            out.depth -= 1
   }
   object D {
     /** Growable editable packed-Double array; upcast to `Jarr.D`/`Jarr` to hand off a view
@@ -699,34 +753,41 @@ object Jarr {
           case null => ()
           case f => f.markDirty(i)
 
+      // See Jarr.A.M.demoteFmt
+      private def demoteFmt(): Unit =
+        val f = fmt
+        if f ne null then
+          sty = Jfmt.Local.ofArr(f, n)
+          fmt = null
+
       def add(x: Double): this.type =
+        demoteFmt()
         ensure(1)
         xs(n) = x
         n += 1
-        fmt = null   // structural change: preserved formatting no longer lines up
         this
 
       def insert(i: Int, x: Double): this.type =
         if i < 0 || i > n then throw new IndexOutOfBoundsException(s"insertion point $i in array of size $n")
+        demoteFmt()
         ensure(1)
         System.arraycopy(xs, i, xs, i + 1, n - i)
         xs(i) = x
         n += 1
-        fmt = null
         this
 
       /** Remove and answer element `i`, which must exist. */
       def remove(i: Int): Double =
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        demoteFmt()
         val x = xs(i)
         System.arraycopy(xs, i + 1, xs, i, n - i - 1)
         n -= 1
-        fmt = null
         x
 
       def clear(): this.type =
+        demoteFmt()
         n = 0
-        fmt = null
         this
     }
     object M {
@@ -755,6 +816,9 @@ sealed class Jobj private[jsaun] (
 
   /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
   private[jsaun] var fmt: Jfmt | Null = null
+
+  /** Inferred separator style, kept when a structural edit invalidates `fmt`. */
+  private[jsaun] var sty: Jfmt.Local | Null = null
 
   // Built at most once per content; harmless to rebuild on a race (single-threaded use
   // expected); mutation (Jobj.M only) resets it to null
@@ -824,18 +888,22 @@ sealed class Jobj private[jsaun] (
       k += 1
     h ^ n
 
-  def printTo(out: Jout): Unit = fmt match
-    case null =>
-      out.add('{')
-      var k = 0
-      while k < n do
-        if k > 0 then out.add(',')
-        Jstr.encodeTo(out, ks(k))
-        out.add(':')
-        vs(k).printTo(out)
-        k += 1
-      out.add('}')
-    case f =>
+  private def emitWith(out: Jout, open: String, sep: String, mid: String, close: String): Unit =
+    out.add('{')
+    out.add(open)
+    var k = 0
+    while k < n do
+      if k > 0 then out.add(sep)
+      Jstr.encodeTo(out, ks(k))
+      out.add(mid)
+      vs(k).printTo(out)
+      k += 1
+    out.add(close)
+    out.add('}')
+
+  def printTo(out: Jout): Unit =
+    val f = fmt
+    if (f ne null) && !out.ignoreFmt then
       if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
       else
         var prev = f.start
@@ -852,6 +920,18 @@ sealed class Jobj private[jsaun] (
           prev = Jfmt.end(vsp)
           k += 1
         f.src.copyTo(out, prev, f.end)
+    else
+      val s = sty
+      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.mid, s.close)
+      else
+        val st = out.style
+        if st.indent.isEmpty || n == 0 then
+          emitWith(out, "", if st.spaceAfterComma then ", " else ",", if st.spaceAfterColon then ": " else ":", "")
+        else
+          out.depth += 1
+          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth),
+                   if st.spaceAfterColon then ": " else ":", Jstyle.pad(st.indent, out.depth - 1))
+          out.depth -= 1
 }
 object Jobj {
   def apply(kvs: (String, Json)*): Jobj =
@@ -879,14 +959,21 @@ object Jobj {
         ks = java.util.Arrays.copyOf(ks, m)
         vs = java.util.Arrays.copyOf(vs, m)
 
+    // See Jarr.A.M.demoteFmt
+    private def demoteFmt(): Unit =
+      val f = fmt
+      if f ne null then
+        sty = Jfmt.Local.ofObj(f, n)
+        fmt = null
+
     /** Append an entry, permitting duplicate keys. */
     def add(key: String, v: Json): this.type =
+      demoteFmt()
       ensure(1)
       ks(n) = key
       vs(n) = v
       n += 1
       index = null
-      fmt = null   // structural change: preserved formatting no longer lines up
       this
 
     /** Replace the value at `key` (the last occurrence, if duplicated), appending if absent.
@@ -908,6 +995,7 @@ object Jobj {
 
     /** Remove every entry with `key`; answers how many were removed. */
     def remove(key: String): Int =
+      if contains(key) then demoteFmt()
       var w = 0
       var k = 0
       while k < n do
@@ -926,10 +1014,10 @@ object Jobj {
           z += 1
         n = w
         index = null
-        fmt = null
       removed
 
     def clear(): this.type =
+      demoteFmt()
       var k = 0
       while k < n do
         ks(k) = null
@@ -937,7 +1025,6 @@ object Jobj {
         k += 1
       n = 0
       index = null
-      fmt = null
       this
   }
   object M {
