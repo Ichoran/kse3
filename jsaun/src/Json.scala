@@ -208,6 +208,39 @@ sealed abstract class Json protected () {
     printTo(out)
     out.result
 
+  /** Trade byte-exact preserved formatting for each collection's compact inferred style,
+    * releasing the retained source text for garbage collection.  Values are untouched, and
+    * uniformly formatted documents still print the same; only irregular spacing normalizes.
+    * The format sidecars are updated in place (they never participate in equality).
+    */
+  final def compactFormat(): this.type =
+    this match
+      case a: Jarr.A =>
+        val f = a.fmt
+        if f ne null then
+          a.sty = Jfmt.Local.ofArr(f, a.n)
+          a.fmt = null
+        var k = 0
+        while k < a.n do
+          a.vs(k).compactFormat() __ Unit
+          k += 1
+      case d: Jarr.D =>
+        val f = d.fmt
+        if f ne null then
+          d.sty = Jfmt.Local.ofArr(f, d.n)
+          d.fmt = null
+      case o: Jobj =>
+        val f = o.fmt
+        if f ne null then
+          o.sty = Jfmt.Local.ofObj(f, o.n)
+          o.fmt = null
+        var k = 0
+        while k < o.n do
+          o.vs(k).compactFormat() __ Unit
+          k += 1
+      case _ => ()
+    this
+
   final override def toString = print(using Jstyle.compact)
 }
 object Json {
@@ -223,18 +256,20 @@ object Json {
     * (correctly rounded) otherwise; with `exact = true`, a number whose value a Double cannot
     * represent exactly is kept as `Jnum.Big` with its original text, so nothing is lost.
     */
-  inline def parse(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+  inline def parse(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
+    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact)).parseTop() })
 
   /** Format-preserving parse: every collection remembers where it and its contents sat in
     * the input, so an unedited tree prints back byte-for-byte (bar whitespace outside the
     * root value), and an edited one reprints only what was touched, with verbatim source
     * around it.
     */
-  inline def parseFmt(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+  inline def parseFmt(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, fmt = true)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, fmt = true)).parseTop() })
+    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, fmt = true)).parseTop() })
 
   /** The mutable side of the JSON hierarchy: each container's editable class mixes this in
     * (`Jobj.M`, and `Jarr.M` for the array backings), so a mutable tree can be worked with
@@ -254,17 +289,19 @@ object Json {
     * mode.
     */
   object M {
-    inline def parse(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+    inline def parse(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
       case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true)).parseTop() })
       case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true)).parseTop() })
+      case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, mutable = true)).parseTop() })
 
     /** Format-preserving mutable parse: the primary editing flow.  Value replacements keep
       * the formatting around them; a structural edit drops only the edited node's own
       * preserved format (that node re-serializes fresh, everything else stays verbatim).
       */
-    inline def parseFmt(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+    inline def parseFmt(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
       case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true, fmt = true)).parseTop() })
       case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true, fmt = true)).parseTop() })
+      case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, mutable = true, fmt = true)).parseTop() })
   }
 
   private[jsaun] def expectErr(what: String, j: Json): Err = Err(s"expected $what, found ${j.kind}")
@@ -470,8 +507,10 @@ object Jnum {
 
 
 /** A JSON array.  `Jarr.A` holds arbitrary values; `Jarr.D` packs all-Double arrays (the
-  * parser packs automatically when every element parsed as a `Jnum.D`).  The two backings
-  * are interchangeable in use and compare equal element by element.
+  * parser packs automatically when every element parsed as a `Jnum.D`); `Jarr.F` and
+  * `Jarr.I` pack Floats and Ints for user-built compact numeric data (the parser never
+  * produces them).  All backings are interchangeable in use and compare (and hash) equal
+  * element by element.
   */
 sealed abstract class Jarr protected () extends Json {
   def kind = "array"
@@ -487,6 +526,33 @@ sealed abstract class Jarr protected () extends Json {
 
   /** The elements as a (copied) `Array[Double]`, if every element is a number. */
   def dbls: Ask[Array[Double]]
+
+  /** Element `k` as a Json (packed backings materialize a `Jnum`); no bounds check. */
+  private[jsaun] def elem(k: Int): Json
+
+  final override def equals(a: Any): Boolean = a match
+    case x: Jarr =>
+      if this eq x then true
+      else if size != x.size then false
+      else this match
+        case d: Jarr.D if x.isInstanceOf[Jarr.D] =>
+          val y = x.asInstanceOf[Jarr.D]
+          var k = 0
+          while k < d.n && d.xs(k) == y.xs(k) do k += 1
+          k == d.n
+        case _ =>
+          var k = 0
+          while k < size && elem(k) == x.elem(k) do k += 1
+          k == size
+    case _ => false
+
+  final override def hashCode: Int =
+    var h = 1
+    var k = 0
+    while k < size do
+      h = h * 31 + elem(k).##
+      k += 1
+    h
 }
 object Jarr {
   def apply(values: Json*): Jarr =
@@ -495,6 +561,8 @@ object Jarr {
     new A(a, a.length)
 
   def apply(values: Array[Double]): Jarr = new D(values.clone, values.length)
+  def apply(values: Array[Float]): Jarr = new F(values.clone, values.length)
+  def apply(values: Array[Int]): Jarr = new I(values.clone, values.length)
 
   private[jsaun] val empty: A = new A(new Array[Json](0), 0)
 
@@ -530,28 +598,7 @@ object Jarr {
       if bad < 0 then Is(a)
       else Alt(Err(s"element $bad is not a number but ${vs(bad).kind}"))
 
-    final override def equals(a: Any): Boolean = a match
-      case x: A =>
-        if n != x.n then false
-        else
-          var k = 0
-          while k < n && vs(k) == x.vs(k) do k += 1
-          k == n
-      case x: D =>
-        if n != x.n then false
-        else
-          var k = 0
-          while k < n && vs(k) == Jnum(x.xs(k)) do k += 1
-          k == n
-      case _ => false
-
-    final override def hashCode: Int =
-      var h = 1
-      var k = 0
-      while k < n do
-        h = h * 31 + vs(k).##
-        k += 1
-      h
+    private[jsaun] def elem(k: Int): Json = vs(k)
 
     private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
       out.add('[')
@@ -680,23 +727,7 @@ object Jarr {
 
     final def dbls: Ask[Array[Double]] = Is(java.util.Arrays.copyOf(xs, n))
 
-    final override def equals(a: Any): Boolean = a match
-      case x: D =>
-        if n != x.n then false
-        else
-          var k = 0
-          while k < n && xs(k) == x.xs(k) do k += 1
-          k == n
-      case x: A => x == this
-      case _ => false
-
-    final override def hashCode: Int =   // matches A's fold because Jnum.D(x).## == x.##
-      var h = 1
-      var k = 0
-      while k < n do
-        h = h * 31 + xs(k).##
-        k += 1
-      h
+    private[jsaun] def elem(k: Int): Json = Jnum(xs(k))
 
     private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
       out.add('[')
@@ -799,6 +830,104 @@ object Jarr {
         values.foreach(x => m.add(x) __ Unit)
         m
     }
+  }
+
+  /** An all-numeric JSON array packed as Floats, for user-built compact data (the parser
+    * never packs to Float).  Elements read as `Jnum.D` of the widened value.
+    */
+  sealed class F private[jsaun] (private[jsaun] var xs: Array[Float], private[jsaun] var n: Int) extends Jarr {
+    final override def size: Int = n
+
+    final override def apply(i: Int): JAny =
+      if i >= 0 && i < n then JAny(Jnum(xs(i).toDouble))
+      else JAny.err(Err(s"index $i out of bounds for array of size $n"))
+
+    final def foreach(f: Json => Unit): Unit =
+      var k = 0
+      while k < n do
+        f(Jnum(xs(k).toDouble))
+        k += 1
+
+    final def dbls: Ask[Array[Double]] =
+      val a = new Array[Double](n)
+      var k = 0
+      while k < n do
+        a(k) = xs(k).toDouble
+        k += 1
+      Is(a)
+
+    private[jsaun] def elem(k: Int): Json = Jnum(xs(k).toDouble)
+
+    private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
+      out.add('[')
+      out.add(open)
+      var k = 0
+      while k < n do
+        if k > 0 then out.add(sep)
+        Jnum.printDbl(out, xs(k).toDouble)
+        k += 1
+      out.add(close)
+      out.add(']')
+
+    def printTo(out: Jout): Unit =
+      val s = sty
+      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+      else
+        val st = out.style
+        if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else
+          out.depth += 1
+          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+          out.depth -= 1
+  }
+
+  /** An all-integer JSON array packed as Ints, for user-built compact data (the parser never
+    * packs to Int).  Elements read as `Jnum.L`.
+    */
+  sealed class I private[jsaun] (private[jsaun] var xs: Array[Int], private[jsaun] var n: Int) extends Jarr {
+    final override def size: Int = n
+
+    final override def apply(i: Int): JAny =
+      if i >= 0 && i < n then JAny(Jnum(xs(i).toLong))
+      else JAny.err(Err(s"index $i out of bounds for array of size $n"))
+
+    final def foreach(f: Json => Unit): Unit =
+      var k = 0
+      while k < n do
+        f(Jnum(xs(k).toLong))
+        k += 1
+
+    final def dbls: Ask[Array[Double]] =
+      val a = new Array[Double](n)
+      var k = 0
+      while k < n do
+        a(k) = xs(k).toDouble
+        k += 1
+      Is(a)
+
+    private[jsaun] def elem(k: Int): Json = Jnum(xs(k).toLong)
+
+    private def emitWith(out: Jout, open: String, sep: String, close: String): Unit =
+      out.add('[')
+      out.add(open)
+      var k = 0
+      while k < n do
+        if k > 0 then out.add(sep)
+        out.add(xs(k).toLong)
+        k += 1
+      out.add(close)
+      out.add(']')
+
+    def printTo(out: Jout): Unit =
+      val s = sty
+      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+      else
+        val st = out.style
+        if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else
+          out.depth += 1
+          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+          out.depth -= 1
   }
 }
 

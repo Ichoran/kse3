@@ -490,6 +490,28 @@ class JsaunTest {
     T ~ m6.print ==== "[ { \"deep\" : [ 1 , 2 ] }, null ]"   // singleton: no separator to sample, ", " synthesized
 
   @Test
+  def breadthTest(): Unit =
+    // packed Float/Int backings interoperate with everything else
+    T ~ Jarr(Array(1.5f, 2.5f)).print   ==== "[1.5,2.5]"
+    T ~ (Jarr(Array(1.5f, 2.5f)) == Jarr(Jnum(1.5), Jnum(2.5)))  ==== true
+    T ~ (Jarr(Array(1, 2)) == Jarr(Jnum(1), Jnum(2)))            ==== true
+    T ~ (Jarr(Array(1, 2)) == Jarr(Array(1.0, 2.0)))             ==== true
+    T ~ (Jarr(Array(1, 2)).## == Jarr(Jnum(1), Jnum(2)).##)      ==== true
+    T ~ (Jarr(Array(1.5f)).## == Jarr(Array(1.5)).##)            ==== true
+    T ~ Jarr(Array(7, 8))(1).long                 ==== Is(8L)
+    T ~ Jarr(Array(1.5f)).dbls.map(_.toList)      ==== Is(List(1.5))
+    T ~ Jarr(Array(3, 4)).print(using Jstyle.pretty) ==== "[\n  3,\n  4\n]"
+    // Array[Char] source, plain and format-preserving
+    val src = """{ "a" : [ 1 , 2.5 ] , "b" : "café" }"""
+    T ~ Json.parse(src.toCharArray).ask                 ==== Json.parse(src).ask
+    T ~ Json.parseFmt(src.toCharArray).ask.map(_.print) ==== Is(src)
+    // compactFormat keeps regular layouts, normalizes irregular ones, and releases the source
+    val uni = "{\n  \"a\": 1,\n  \"b\": 2\n}"
+    T ~ Json.parseFmt(uni).jsonOr(Jnull).compactFormat().print   ==== uni
+    T ~ Json.M.parseFmt(uni).jsonOr(Jnull).compactFormat().print ==== uni
+    T ~ Json.parseFmt("[1,   2, 3]").jsonOr(Jnull).compactFormat().print ==== "[1,   2,   3]"
+
+  @Test
   def codecTest(): Unit =
     T ~ Json(Pt(1.5, 2.5)).print                   ==== """{"x":1.5,"y":2.5}"""
     T ~ Json.parse("""{"x":1.5,"y":2.5}""").to[Pt] ==== Is(Pt(1.5, 2.5))

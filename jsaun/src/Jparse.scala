@@ -487,6 +487,26 @@ object Jparse {
     protected def numWork(): Json | Null = numImpl(j => content.charAt(j), (a, b) => content.substring(a, b))
   }
 
+  /** Parses JSON from an `Array[Char]`.  Create one per parse. */
+  final class Chars(content: Array[Char], exact: Boolean = false, mutable: Boolean = false, fmt: Boolean = false) extends Jparse {
+    iZ = content.length
+    exactNum = exact
+    asM = mutable
+    if fmt then
+      fmtMode = true
+      src = Jsrc(content)
+
+    protected def rawLength: Int = content.length
+    protected def rawCharAt(pos: Int): Char = content(pos)
+
+    protected def wsWork(): Int = wsImpl(j => content(j))
+    protected def litWork(lit: String): Boolean = litImpl(j => content(j))(lit)
+    protected def strWork(): String | Null = strImpl(j => content(j), (a, b) => new String(content, a, b - a))
+    protected def strEscWork(j0: Int, jN: Int): String | Null =
+      strEscImpl(j => content(j), (a, b) => new String(content, a, b - a))(j0, jN)
+    protected def numWork(): Json | Null = numImpl(j => content(j), (a, b) => new String(content, a, b - a))
+  }
+
   /** Parses JSON from raw bytes: structure (whitespace, literals, numbers) is ASCII, read as
     * unsigned 0-255, and strings decode their spans as UTF-8 (safe because multi-byte
     * sequences never contain ASCII bytes).  Error positions are byte positions.  Create one

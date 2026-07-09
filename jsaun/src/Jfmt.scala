@@ -12,10 +12,11 @@ import kse.basics.{given, _}
   * verbatim-printable inside another, and the source is garbage-collected exactly when no
   * node refers to it any more.
   */
-final class Jsrc private (private val content: String | Array[Byte]) {
+final class Jsrc private (private val content: String | Array[Byte] | Array[Char]) {
   def length: Int = content match
     case s: String => s.length
     case b: Array[Byte] => b.length
+    case c: Array[Char] => c.length
 
   /** Copy the raw span `[i0, iN)` into `out` exactly as it appeared (byte source to byte
     * target is a plain array copy).
@@ -23,15 +24,18 @@ final class Jsrc private (private val content: String | Array[Byte]) {
   def copyTo(out: Jout, i0: Int, iN: Int): Unit = content match
     case s: String => out.add(s, i0, iN)
     case b: Array[Byte] => out.add(b, i0, iN)
+    case c: Array[Char] => out.add(new String(c, i0, iN - i0))
 
   /** The raw span `[i0, iN)` as a String (bytes decoded as UTF-8). */
   def substring(i0: Int, iN: Int): String = content match
     case s: String => s.substring(i0, iN)
     case b: Array[Byte] => new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)
+    case c: Array[Char] => new String(c, i0, iN - i0)
 }
 object Jsrc {
   def apply(s: String): Jsrc = new Jsrc(s)
   def apply(b: Array[Byte]): Jsrc = new Jsrc(b)
+  def apply(c: Array[Char]): Jsrc = new Jsrc(c)
 }
 
 

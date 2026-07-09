@@ -173,7 +173,7 @@ object FromJson {
     case a: Jarr =>
       val get: Int => Json = a match
         case aa: Jarr.A => k => aa.vs(k)
-        case dd: Jarr.D => k => Jnum(dd.xs(k))
+        case _ => k => a.elem(k)
       val b = fac.newBuilder
       var bad = FromJson.noErr
       var badly = false
