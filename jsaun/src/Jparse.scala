@@ -31,6 +31,8 @@ sealed abstract class Jparse protected () {
   protected var depth = 0
   protected var exactNum = false
   protected var asM = false
+  protected var fmtMode = false
+  protected var src: Jsrc = null   // set exactly when fmtMode
   protected var eErr: Err = Err("(no error)")   // meaningful only after a worker answers null/false
 
   // === Workers, instantiated per concrete source type from the inline templates below ===
@@ -136,15 +138,25 @@ sealed abstract class Jparse protected () {
     if c == ']' then
       i += 1
       depth -= 1
-      return if asM then new Jarr.A.M() else Jarr.empty
+      return
+        if asM || fmtMode then
+          val node: Jarr = if asM then new Jarr.A.M() else new Jarr.A(new Array[Json](0), 0)
+          if fmtMode then node.fmt = new Jfmt(src, Jfmt.span(p0, i), new Array[Long](0))
+          node
+        else Jarr.empty
     var vs = new Array[Json](8)
+    var sp: Array[Long] = if fmtMode then new Array[Long](8) else null
     var n = 0
     var allD = true
     while true do
+      val v0 = i
       val v = parseValue(c)
       if v eq null then return explain(s"in element $n of array started at ${posText(p0)}:")
-      if n >= vs.length then vs = java.util.Arrays.copyOf(vs, vs.length * 2)
+      if n >= vs.length then
+        vs = java.util.Arrays.copyOf(vs, vs.length * 2)
+        if sp ne null then sp = java.util.Arrays.copyOf(sp, sp.length * 2)
       vs(n) = v
+      if sp ne null then sp(n) = Jfmt.span(v0, i)
       if allD && !v.isInstanceOf[Jnum.D] then allD = false
       n += 1
       c = wsWork()
@@ -154,7 +166,7 @@ sealed abstract class Jparse protected () {
       else if c == ']' then
         i += 1
         depth -= 1
-        return
+        val node: Jarr =
           if asM then new Jarr.A.M(vs, n)   // editability first: no packing, keep the slack
           else if allD then   // pack, since element access, equality, and printing all come out identical
             val xs = new Array[Double](n)
@@ -164,6 +176,8 @@ sealed abstract class Jparse protected () {
               k += 1
             new Jarr.D(xs, n)
           else new Jarr.A(if n == vs.length then vs else java.util.Arrays.copyOf(vs, n), n)
+        if sp ne null then node.fmt = new Jfmt(src, Jfmt.span(p0, i), sp)
+        return node
       else return fail("',' or ']' in array", i)
     null
 
@@ -176,25 +190,38 @@ sealed abstract class Jparse protected () {
     if c == '}' then
       i += 1
       depth -= 1
-      return if asM then new Jobj.M() else Jobj.empty
+      return
+        if asM || fmtMode then
+          val node = if asM then new Jobj.M() else new Jobj(new Array[String](0), new Array[Json](0), 0)
+          if fmtMode then node.fmt = new Jfmt(src, Jfmt.span(p0, i), new Array[Long](0))
+          node
+        else Jobj.empty
     var ks = new Array[String](8)
     var vs = new Array[Json](8)
+    var sp: Array[Long] = if fmtMode then new Array[Long](16) else null
     var n = 0
     while true do
       if c != '"' then return fail("'\"' to begin a key", i)
+      val k0 = i
       val key = strWork()
       if key eq null then return explain(s"in key $n of object started at ${posText(p0)}:")
+      val k1 = i
       c = wsWork()
       if c != ':' then return fail(s"':' after key \"$key\"", i)
       i += 1
       c = wsWork()
+      val v0 = i
       val v = parseValue(c)
       if v eq null then return explain(s"in value for key \"$key\" of object started at ${posText(p0)}:")
       if n >= ks.length then
         ks = java.util.Arrays.copyOf(ks, ks.length * 2)
         vs = java.util.Arrays.copyOf(vs, vs.length * 2)
+        if sp ne null then sp = java.util.Arrays.copyOf(sp, sp.length * 2)
       ks(n) = key
       vs(n) = v
+      if sp ne null then
+        sp(2 * n) = Jfmt.span(k0, k1)
+        sp(2 * n + 1) = Jfmt.span(v0, i)
       n += 1
       c = wsWork()
       if c == ',' then
@@ -203,13 +230,15 @@ sealed abstract class Jparse protected () {
       else if c == '}' then
         i += 1
         depth -= 1
-        return
+        val node: Jobj =
           if asM then new Jobj.M(ks, vs, n)   // keep the slack for further edits
           else new Jobj(
             if n == ks.length then ks else java.util.Arrays.copyOf(ks, n),
             if n == vs.length then vs else java.util.Arrays.copyOf(vs, n),
             n
           )
+        if sp ne null then node.fmt = new Jfmt(src, Jfmt.span(p0, i), sp)
+        return node
       else return fail("',' or '}' in object", i)
     null
 
@@ -439,10 +468,13 @@ object Jparse {
   val maxDepth = 512
 
   /** Parses JSON from a `String`.  Create one per parse. */
-  final class Str(content: String, exact: Boolean = false, mutable: Boolean = false) extends Jparse {
+  final class Str(content: String, exact: Boolean = false, mutable: Boolean = false, fmt: Boolean = false) extends Jparse {
     iZ = content.length
     exactNum = exact
     asM = mutable
+    if fmt then
+      fmtMode = true
+      src = Jsrc(content)
 
     protected def rawLength: Int = content.length
     protected def rawCharAt(pos: Int): Char = content.charAt(pos)
@@ -460,10 +492,13 @@ object Jparse {
     * sequences never contain ASCII bytes).  Error positions are byte positions.  Create one
     * per parse.
     */
-  final class Bytes(content: Array[Byte], exact: Boolean = false, mutable: Boolean = false) extends Jparse {
+  final class Bytes(content: Array[Byte], exact: Boolean = false, mutable: Boolean = false, fmt: Boolean = false) extends Jparse {
     iZ = content.length
     exactNum = exact
     asM = mutable
+    if fmt then
+      fmtMode = true
+      src = Jsrc(content)
 
     protected def rawLength: Int = content.length
     protected def rawCharAt(pos: Int): Char = (content(pos) & 0xFF).toChar

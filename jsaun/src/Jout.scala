@@ -21,6 +21,9 @@ abstract class Jout {
   /** Append all of `s`. */
   final def add(s: String): Unit = add(s, 0, s.length)
 
+  /** Append the UTF-8 bytes `[i0, iN)` (Str targets decode; Bytes targets bulk-copy). */
+  def add(b: Array[Byte], i0: Int, iN: Int): Unit
+
   def add(l: Long): Unit
   def add(d: Double): Unit
 }
@@ -30,6 +33,8 @@ object Jout {
   final class Str(val sb: java.lang.StringBuilder = new java.lang.StringBuilder) extends Jout {
     def add(c: Char): Unit = sb.append(c) __ Unit
     def add(s: String, i0: Int, iN: Int): Unit = sb.append(s, i0, iN) __ Unit
+    def add(b: Array[Byte], i0: Int, iN: Int): Unit =
+      sb.append(new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)) __ Unit
     def add(l: Long): Unit = sb.append(l) __ Unit
     def add(d: Double): Unit = sb.append(d) __ Unit
     def result: String = sb.toString
@@ -81,6 +86,11 @@ object Jout {
           i += 1
         else encode(c)
         i += 1
+
+    def add(b: Array[Byte], i0: Int, iN: Int): Unit =
+      ensure(iN - i0)
+      System.arraycopy(b, i0, buf, n, iN - i0)
+      n += iN - i0
 
     def add(l: Long): Unit = add(java.lang.Long.toString(l))
     def add(d: Double): Unit = add(java.lang.Double.toString(d))

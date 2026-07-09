@@ -340,6 +340,75 @@ class JsaunTest {
     T ~ o.size       ==== 9
 
   @Test
+  def formatPreservingTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    val srcs = List(
+      "{\"a\" : [ 1 , 2.50 , \"x\" ] ,\n\t\"b\":null,   \"c\"  :{ }}",
+      "[1,2,3]",
+      "[ ]",
+      "{ }",
+      "{\"weird\":[1e2,  0.30000000000000004],\"z\":[[],[ [] ]],\"esc\":\"a\\u0041b\"}",
+      "[ 1.50, 2.5 ]"   // packed Jarr.D keeps its formatting too
+    )
+    for src <- srcs do
+      T ~ Json.parseFmt(src).ask.map(_.print) ==== Is(src)
+      T ~ java.util.Arrays.equals(Json.parseFmt(src.getBytes(u8)).jsonOr(Jnull).printBytes, src.getBytes(u8)) ==== true
+      T ~ Json.M.parseFmt(src).ask.map(_.print) ==== Is(src)   // unedited mutable tree is verbatim too
+    T ~ Json.parseFmt("  [ 1 ]  ").ask.map(_.print) ==== Is("[ 1 ]")   // outside the root value, whitespace is not kept
+    T ~ Json.parseFmt("[1.50]").ask.map(j => Json.parse(j.print).ask == Is(j)) ==== Is(true)
+
+  @Test
+  def formatEditTest(): Unit =
+    val src = """{
+  "name": "widget",
+  "count": 42,
+  "tags": [ "a" , "b" , "c" ],
+  "nested": { "deep": [1.5, 2.5] }
+}"""
+    def freshM(): Jobj.M = Json.M.parseFmt(src).jsonOr(Jnull) match
+      case o: Jobj.M => o
+      case _ => Jobj.M()
+    // single value replacement => single-token diff
+    val m1 = freshM()
+    m1("count") = Jnum(43)
+    T ~ m1.print ==== src.replace("42", "43")
+    // deep edit: everything else verbatim
+    val m2 = freshM()
+    m2("nested")("deep").jsonOr(Jnull) match
+      case a: Jarr.A.M => a(0) = Jnum(9.5)
+      case _ => assertTrue("deep array not mutable", false)
+    T ~ m2.print ==== src.replace("1.5,", "9.5,")
+    // string replacement quotes/escapes fresh; neighbors verbatim
+    val m3 = freshM()
+    m3("name") = Jstr("gizmo")
+    T ~ m3.print ==== src.replace("\"widget\"", "\"gizmo\"")
+    // several edits in one pass
+    val m4 = freshM()
+    m4("count") = Jnum(43)
+    m4("tags").jsonOr(Jnull) match
+      case t: Jarr.A.M => t(1) = Jstr("B")
+      case _ => assertTrue("tags not mutable", false)
+    T ~ m4.print ==== src.replace("42", "43").replace("\"b\"", "\"B\"")
+    // structural edit: only the edited node loses its formatting
+    val m5 = freshM()
+    m5("tags").jsonOr(Jnull) match
+      case t: Jarr.A.M => t.add(Jstr("d")) __ Unit
+      case _ => assertTrue("tags not mutable", false)
+    T ~ m5.print ==== src.replace("""[ "a" , "b" , "c" ]""", """["a","b","c","d"]""")
+    // cross-document splice: the guest subtree keeps ITS source's formatting
+    val docA = """{ "keep" : [ 1 , 2 ] , "swap" : null }"""
+    val docB = """[ 7 ,   8 ]"""
+    val a = Json.M.parseFmt(docA).jsonOr(Jnull)
+    val b = Json.parseFmt(docB).jsonOr(Jnull)
+    a match
+      case o: Jobj.M => o("swap") = b
+      case _ => assertTrue("docA not mutable", false)
+    T ~ a.print ==== docA.replace("null", docB)
+    // edits still parse back to the right tree
+    T ~ Json.parse(m1.print)("count").long ==== Is(43L)
+    T ~ Json.parse(m5.print)("tags")(3).str ==== Is("d")
+
+  @Test
   def equalityAndKindTest(): Unit =
     T ~ Jobj("a" -> Jnum(1), "b" -> Jnum(2))  ==== Jobj("b" -> Jnum(2), "a" -> Jnum(1))
     T ~ (Jobj("a" -> Jnum(1)) == Jobj("a" -> Jnum(2)))         ==== false

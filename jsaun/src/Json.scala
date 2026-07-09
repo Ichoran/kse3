@@ -215,6 +215,15 @@ object Json {
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
 
+  /** Format-preserving parse: every collection remembers where it and its contents sat in
+    * the input, so an unedited tree prints back byte-for-byte (bar whitespace outside the
+    * root value), and an edited one reprints only what was touched, with verbatim source
+    * around it.
+    */
+  inline def parseFmt(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, fmt = true)).parseTop() })
+    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, fmt = true)).parseTop() })
+
   /** The mutable side of the JSON hierarchy: each container's editable class mixes this in
     * (`Jobj.M`, and `Jarr.M` for the array backings), so a mutable tree can be worked with
     * exhaustively in its own hierarchy just like the immutable one:
@@ -236,9 +245,41 @@ object Json {
     inline def parse(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
       case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true)).parseTop() })
       case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true)).parseTop() })
+
+    /** Format-preserving mutable parse: the primary editing flow.  Value replacements keep
+      * the formatting around them; a structural edit drops only the edited node's own
+      * preserved format (that node re-serializes fresh, everything else stays verbatim).
+      */
+    inline def parseFmt(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+      case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true, fmt = true)).parseTop() })
+      case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true, fmt = true)).parseTop() })
   }
 
   private[jsaun] def expectErr(what: String, j: Json): Err = Err(s"expected $what, found ${j.kind}")
+
+  /** True if `j` can be emitted verbatim from retained source: it has format info, nothing
+    * in it was edited, and the same holds all the way down.  Leaves are always clean (their
+    * replacement dirties the parent's slot instead).
+    */
+  private[jsaun] def cleanBelow(j: Json): Boolean = j match
+    case a: Jarr.A =>
+      val f = a.fmt
+      (f ne null) && !f.anyDirty && {
+        var k = 0
+        while k < a.n && cleanBelow(a.vs(k)) do k += 1
+        k == a.n
+      }
+    case d: Jarr.D =>
+      val f = d.fmt
+      (f ne null) && !f.anyDirty
+    case o: Jobj =>
+      val f = o.fmt
+      (f ne null) && !f.anyDirty && {
+        var k = 0
+        while k < o.n && cleanBelow(o.vs(k)) do k += 1
+        k == o.n
+      }
+    case _ => true
 }
 
 
@@ -418,6 +459,9 @@ object Jnum {
 sealed abstract class Jarr protected () extends Json {
   def kind = "array"
   override def arr: Ask[Jarr] = Is(this)
+
+  /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
+  private[jsaun] var fmt: Jfmt | Null = null
   def foreach(f: Json => Unit): Unit
 
   /** The elements as a (copied) `Array[Double]`, if every element is a number. */
@@ -488,14 +532,28 @@ object Jarr {
         k += 1
       h
 
-    def printTo(out: Jout): Unit =
-      out.add('[')
-      var k = 0
-      while k < n do
-        if k > 0 then out.add(',')
-        vs(k).printTo(out)
-        k += 1
-      out.add(']')
+    def printTo(out: Jout): Unit = fmt match
+      case null =>
+        out.add('[')
+        var k = 0
+        while k < n do
+          if k > 0 then out.add(',')
+          vs(k).printTo(out)
+          k += 1
+        out.add(']')
+      case f =>
+        if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
+        else
+          var prev = f.start
+          var k = 0
+          while k < n do
+            val sp = f.spans(k)
+            f.src.copyTo(out, prev, Jfmt.start(sp))
+            if !f.isDirty(k) && Json.cleanBelow(vs(k)) then f.src.copyTo(out, Jfmt.start(sp), Jfmt.end(sp))
+            else vs(k).printTo(out)
+            prev = Jfmt.end(sp)
+            k += 1
+          f.src.copyTo(out, prev, f.end)
   }
   object A {
     /** Growable editable general array; upcast to `Jarr.A`/`Jarr` to hand off a view with no
@@ -510,15 +568,19 @@ object Jarr {
           while m < n + k do m *= 2
           vs = java.util.Arrays.copyOf(vs, m)
 
-      /** Set element `i`, which must exist. */
+      /** Set element `i`, which must exist.  Preserved formatting around it is kept. */
       def update(i: Int, v: Json): Unit =
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
         vs(i) = v
+        fmt match
+          case null => ()
+          case f => f.markDirty(i)
 
       def add(v: Json): this.type =
         ensure(1)
         vs(n) = v
         n += 1
+        fmt = null   // structural change: preserved formatting no longer lines up
         this
 
       def insert(i: Int, v: Json): this.type =
@@ -527,6 +589,7 @@ object Jarr {
         System.arraycopy(vs, i, vs, i + 1, n - i)
         vs(i) = v
         n += 1
+        fmt = null
         this
 
       /** Remove and answer element `i`, which must exist. */
@@ -536,6 +599,7 @@ object Jarr {
         System.arraycopy(vs, i + 1, vs, i, n - i - 1)
         n -= 1
         vs(n) = null
+        fmt = null
         v
 
       def clear(): this.type =
@@ -544,6 +608,7 @@ object Jarr {
           vs(k) = null
           k += 1
         n = 0
+        fmt = null
         this
     }
     object M {
@@ -590,14 +655,28 @@ object Jarr {
         k += 1
       h
 
-    def printTo(out: Jout): Unit =
-      out.add('[')
-      var k = 0
-      while k < n do
-        if k > 0 then out.add(',')
-        Jnum.printDbl(out, xs(k))
-        k += 1
-      out.add(']')
+    def printTo(out: Jout): Unit = fmt match
+      case null =>
+        out.add('[')
+        var k = 0
+        while k < n do
+          if k > 0 then out.add(',')
+          Jnum.printDbl(out, xs(k))
+          k += 1
+        out.add(']')
+      case f =>
+        if !f.anyDirty then f.src.copyTo(out, f.start, f.end)
+        else
+          var prev = f.start
+          var k = 0
+          while k < n do
+            val sp = f.spans(k)
+            f.src.copyTo(out, prev, Jfmt.start(sp))
+            if !f.isDirty(k) then f.src.copyTo(out, Jfmt.start(sp), Jfmt.end(sp))
+            else Jnum.printDbl(out, xs(k))
+            prev = Jfmt.end(sp)
+            k += 1
+          f.src.copyTo(out, prev, f.end)
   }
   object D {
     /** Growable editable packed-Double array; upcast to `Jarr.D`/`Jarr` to hand off a view
@@ -612,15 +691,19 @@ object Jarr {
           while m < n + k do m *= 2
           xs = java.util.Arrays.copyOf(xs, m)
 
-      /** Set element `i`, which must exist. */
+      /** Set element `i`, which must exist.  Preserved formatting around it is kept. */
       def update(i: Int, x: Double): Unit =
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
         xs(i) = x
+        fmt match
+          case null => ()
+          case f => f.markDirty(i)
 
       def add(x: Double): this.type =
         ensure(1)
         xs(n) = x
         n += 1
+        fmt = null   // structural change: preserved formatting no longer lines up
         this
 
       def insert(i: Int, x: Double): this.type =
@@ -629,6 +712,7 @@ object Jarr {
         System.arraycopy(xs, i, xs, i + 1, n - i)
         xs(i) = x
         n += 1
+        fmt = null
         this
 
       /** Remove and answer element `i`, which must exist. */
@@ -637,10 +721,12 @@ object Jarr {
         val x = xs(i)
         System.arraycopy(xs, i + 1, xs, i, n - i - 1)
         n -= 1
+        fmt = null
         x
 
       def clear(): this.type =
         n = 0
+        fmt = null
         this
     }
     object M {
@@ -666,6 +752,9 @@ sealed class Jobj private[jsaun] (
   def kind = "object"
   final override def size: Int = n
   final override def obj: Ask[Jobj] = Is(this)
+
+  /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
+  private[jsaun] var fmt: Jfmt | Null = null
 
   // Built at most once per content; harmless to rebuild on a race (single-threaded use
   // expected); mutation (Jobj.M only) resets it to null
@@ -735,16 +824,34 @@ sealed class Jobj private[jsaun] (
       k += 1
     h ^ n
 
-  def printTo(out: Jout): Unit =
-    out.add('{')
-    var k = 0
-    while k < n do
-      if k > 0 then out.add(',')
-      Jstr.encodeTo(out, ks(k))
-      out.add(':')
-      vs(k).printTo(out)
-      k += 1
-    out.add('}')
+  def printTo(out: Jout): Unit = fmt match
+    case null =>
+      out.add('{')
+      var k = 0
+      while k < n do
+        if k > 0 then out.add(',')
+        Jstr.encodeTo(out, ks(k))
+        out.add(':')
+        vs(k).printTo(out)
+        k += 1
+      out.add('}')
+    case f =>
+      if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
+      else
+        var prev = f.start
+        var k = 0
+        while k < n do
+          val ksp = f.spans(2 * k)
+          val vsp = f.spans(2 * k + 1)
+          f.src.copyTo(out, prev, Jfmt.start(ksp))
+          if !f.isDirty(2 * k) then f.src.copyTo(out, Jfmt.start(ksp), Jfmt.end(ksp))
+          else Jstr.encodeTo(out, ks(k))
+          f.src.copyTo(out, Jfmt.end(ksp), Jfmt.start(vsp))
+          if !f.isDirty(2 * k + 1) && Json.cleanBelow(vs(k)) then f.src.copyTo(out, Jfmt.start(vsp), Jfmt.end(vsp))
+          else vs(k).printTo(out)
+          prev = Jfmt.end(vsp)
+          k += 1
+        f.src.copyTo(out, prev, f.end)
 }
 object Jobj {
   def apply(kvs: (String, Json)*): Jobj =
@@ -779,15 +886,21 @@ object Jobj {
       vs(n) = v
       n += 1
       index = null
+      fmt = null   // structural change: preserved formatting no longer lines up
       this
 
-    /** Replace the value at `key` (the last occurrence, if duplicated), appending if absent. */
+    /** Replace the value at `key` (the last occurrence, if duplicated), appending if absent.
+      * An in-place replacement keeps the preserved formatting around the value.
+      */
     def put(key: String, v: Json): this.type =
       var k = n - 1
       while k >= 0 && ks(k) != key do k -= 1
       if k >= 0 then
         vs(k) = v
         index = null
+        fmt match
+          case null => ()
+          case f => f.markDirty(2 * k + 1)
       else add(key, v) __ Unit
       this
 
@@ -813,6 +926,7 @@ object Jobj {
           z += 1
         n = w
         index = null
+        fmt = null
       removed
 
     def clear(): this.type =
@@ -823,6 +937,7 @@ object Jobj {
         k += 1
       n = 0
       index = null
+      fmt = null
       this
   }
   object M {
