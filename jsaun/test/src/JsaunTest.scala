@@ -262,6 +262,84 @@ class JsaunTest {
     T ~ (Jarr(Array(1.5, 2.5)) == Jarr(Jnum(1.5), Jnum(2.5)))      ==== true
 
   @Test
+  def printBytesTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    val trees = List[Json](
+      Json.parse("""{"a":[1,2.5,"x"],"b":null,"c":[true,false]}""").jsonOr(Jnull),
+      Jstr("café 😀 plain"),
+      Jstr("esc \t \"q\" \\ " + 1.toChar),
+      Jobj("k€y" -> Jarr(Jnum(1.5), Jstr("😀")), "n" -> Jnum(-7)),
+      Jnum(0.30000000000000004)
+    )
+    for j <- trees do
+      T ~ new String(j.printBytes, u8) ==== j.print
+    T ~ Json.parse(Jstr("café 😀").printBytes).str ==== Is("café 😀")
+
+  @Test
+  def mutableTreeTest(): Unit =
+    val root = Json.M.parse("""{"a": [1, 2.5], "b": {"c": true}}""").jsonOr(Jnull)
+    T ~ root.isInstanceOf[Jobj.M] ==== true
+    T ~ root.isInstanceOf[Json.M] ==== true
+    val m = root match
+      case m: Jobj.M => m
+      case _ => Jobj.M()
+    m("a").jsonOr(Jnull) match
+      case am: Jarr.A.M => am.add(Jstr("x")) __ Unit
+      case _ => assertTrue("array did not parse as mutable", false)
+    T ~ m("a").size     ==== 3
+    T ~ m("a")(2).str   ==== Is("x")
+    m("b").jsonOr(Jnull) match
+      case bm: Jobj.M => bm("c") = Jbool.False
+      case _ => assertTrue("object did not parse as mutable", false)
+    T ~ m("b")("c").bool ==== Is(false)
+    m.put("d", Jnum(4)) __ Unit
+    T ~ m("d").long ==== Is(4L)
+    T ~ m.size      ==== 3
+    m("a") = Jnull
+    T ~ m("a").isNull   ==== true
+    T ~ m.remove("a")   ==== 1
+    T ~ m.size          ==== 2
+    // the upcast view is the same object: later edits show through (no copies, ever)
+    val view: Jobj = m
+    m.put("e", Jnum(5)) __ Unit
+    T ~ view("e").long  ==== Is(5L)
+    // matching in the mutable hierarchy
+    T ~ (Json.M.parse("[1]").jsonOr(Jnull) match { case _: Jarr.M => "arr.m"; case _ => "?" }) ==== "arr.m"
+    // mutable mode does not pack numeric arrays; immutable parse has no mutable types
+    T ~ Json.M.parse("[1.5, 2.5]").ask.map(_.isInstanceOf[Jarr.D])   ==== Is(false)
+    T ~ Json.M.parse("[1.5, 2.5]").ask.map(_.isInstanceOf[Jarr.A.M]) ==== Is(true)
+    T ~ Json.parse("""{"a":[1]}""").ask.map(_.isInstanceOf[Json.M])  ==== Is(false)
+    T ~ Json.M.parse("[]").ask.map(_.isInstanceOf[Jarr.A.M])         ==== Is(true)
+    T ~ Json.M.parse("{}").ask.map(_.isInstanceOf[Jobj.M])           ==== Is(true)
+
+  @Test
+  def mutatorsTest(): Unit =
+    val a = Jarr.A.M(Jnum(1), Jnum(2))
+    a.insert(1, Jstr("mid")) __ Unit
+    T ~ a.print      ==== """[1,"mid",2]"""
+    T ~ a.remove(0)  ==== Jnum(1)
+    T ~ a.print      ==== """["mid",2]"""
+    a(0) = Jbool.True
+    T ~ a.print      ==== "[true,2]"
+    T ~ a.clear().size ==== 0
+    val d = Jarr.D.M(1.5, 2.5)
+    d.add(3.5) __ Unit
+    d(0) = 0.5
+    T ~ d.print      ==== "[0.5,2.5,3.5]"
+    T ~ d.remove(1)  ==== 2.5
+    T ~ ((d: Jarr) == Jarr(Array(0.5, 3.5))) ==== true
+    val o = Jobj.M()
+    for k <- 'a'.toInt to 'j'.toInt do o.add(k.toChar.toString, Jnum((k - 'a').toLong)) __ Unit
+    T ~ o("j").long  ==== Is(9L)     // indexed lookup (10 keys)
+    o.put("j", Jnum(99)) __ Unit     // must invalidate the index
+    T ~ o("j").long  ==== Is(99L)
+    o.add("j", Jnum(100)) __ Unit    // deliberate duplicate: last wins
+    T ~ o("j").long  ==== Is(100L)
+    T ~ o.remove("j") ==== 2
+    T ~ o.contains("j") ==== false
+    T ~ o.size       ==== 9
+
+  @Test
   def equalityAndKindTest(): Unit =
     T ~ Jobj("a" -> Jnum(1), "b" -> Jnum(2))  ==== Jobj("b" -> Jnum(2), "a" -> Jnum(1))
     T ~ (Jobj("a" -> Jnum(1)) == Jobj("a" -> Jnum(2)))         ==== false

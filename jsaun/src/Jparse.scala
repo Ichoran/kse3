@@ -30,6 +30,7 @@ sealed abstract class Jparse protected () {
   protected var iZ = 0
   protected var depth = 0
   protected var exactNum = false
+  protected var asM = false
   protected var eErr: Err = Err("(no error)")   // meaningful only after a worker answers null/false
 
   // === Workers, instantiated per concrete source type from the inline templates below ===
@@ -135,7 +136,7 @@ sealed abstract class Jparse protected () {
     if c == ']' then
       i += 1
       depth -= 1
-      return Jarr.empty
+      return if asM then new Jarr.A.M() else Jarr.empty
     var vs = new Array[Json](8)
     var n = 0
     var allD = true
@@ -154,7 +155,8 @@ sealed abstract class Jparse protected () {
         i += 1
         depth -= 1
         return
-          if allD then   // pack, since element access, equality, and printing all come out identical
+          if asM then new Jarr.A.M(vs, n)   // editability first: no packing, keep the slack
+          else if allD then   // pack, since element access, equality, and printing all come out identical
             val xs = new Array[Double](n)
             var k = 0
             while k < n do
@@ -174,7 +176,7 @@ sealed abstract class Jparse protected () {
     if c == '}' then
       i += 1
       depth -= 1
-      return Jobj.empty
+      return if asM then new Jobj.M() else Jobj.empty
     var ks = new Array[String](8)
     var vs = new Array[Json](8)
     var n = 0
@@ -201,11 +203,13 @@ sealed abstract class Jparse protected () {
       else if c == '}' then
         i += 1
         depth -= 1
-        return new Jobj(
-          if n == ks.length then ks else java.util.Arrays.copyOf(ks, n),
-          if n == vs.length then vs else java.util.Arrays.copyOf(vs, n),
-          n
-        )
+        return
+          if asM then new Jobj.M(ks, vs, n)   // keep the slack for further edits
+          else new Jobj(
+            if n == ks.length then ks else java.util.Arrays.copyOf(ks, n),
+            if n == vs.length then vs else java.util.Arrays.copyOf(vs, n),
+            n
+          )
       else return fail("',' or '}' in object", i)
     null
 
@@ -435,9 +439,10 @@ object Jparse {
   val maxDepth = 512
 
   /** Parses JSON from a `String`.  Create one per parse. */
-  final class Str(content: String, exact: Boolean = false) extends Jparse {
+  final class Str(content: String, exact: Boolean = false, mutable: Boolean = false) extends Jparse {
     iZ = content.length
     exactNum = exact
+    asM = mutable
 
     protected def rawLength: Int = content.length
     protected def rawCharAt(pos: Int): Char = content.charAt(pos)
@@ -455,9 +460,10 @@ object Jparse {
     * sequences never contain ASCII bytes).  Error positions are byte positions.  Create one
     * per parse.
     */
-  final class Bytes(content: Array[Byte], exact: Boolean = false) extends Jparse {
+  final class Bytes(content: Array[Byte], exact: Boolean = false, mutable: Boolean = false) extends Jparse {
     iZ = content.length
     exactNum = exact
+    asM = mutable
 
     protected def rawLength: Int = content.length
     protected def rawCharAt(pos: Int): Char = (content(pos) & 0xFF).toChar

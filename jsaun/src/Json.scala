@@ -184,13 +184,20 @@ sealed abstract class Json protected () {
 
   def isNull: Boolean = false
 
-  private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit
+  /** Append this value as compact JSON to `out`. */
+  def printTo(out: Jout): Unit
 
   /** Render as compact JSON text (no whitespace). */
   final def print: String =
-    val sb = new java.lang.StringBuilder
-    printTo(sb)
-    sb.toString
+    val out = new Jout.Str()
+    printTo(out)
+    out.result
+
+  /** Render as compact JSON in UTF-8 bytes. */
+  final def printBytes: Array[Byte] =
+    val out = new Jout.Bytes()
+    printTo(out)
+    out.result
 
   final override def toString = print
 }
@@ -208,6 +215,29 @@ object Json {
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
 
+  /** The mutable side of the JSON hierarchy: each container's editable class mixes this in
+    * (`Jobj.M`, and `Jarr.M` for the array backings), so a mutable tree can be worked with
+    * exhaustively in its own hierarchy just like the immutable one:
+    * {{{
+    * (j: Json) match { case a: Jarr => ... }        // any array
+    * (j: Json) match { case m: Jarr.M => ... }      // only an editable array
+    * }}}
+    * The editing contract is by upcast, with no copying, ever: edit through `.M`-typed
+    * references, and hand off the plain `Json`-typed view when done.  Whoever keeps an `.M`
+    * reference can still mutate, so losing the editing handles is the owner's responsibility.
+    */
+  sealed trait M {}
+
+  /** Mutable-tree parsing: every container comes back as its editable `.M` class, upcast --
+    * pattern-match (e.g. on `Jobj.M`) to edit.  Numeric arrays are not packed in mutable
+    * mode.
+    */
+  object M {
+    inline def parse(inline in: String | Array[Byte], exact: Boolean = false): JAny = inline in match
+      case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true)).parseTop() })
+      case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true)).parseTop() })
+  }
+
   private[jsaun] def expectErr(what: String, j: Json): Err = Err(s"expected $what, found ${j.kind}")
 }
 
@@ -216,7 +246,7 @@ object Json {
 object Jnull extends Json {
   def kind = "null"
   override def isNull = true
-  private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append("null") __ Unit
+  def printTo(out: Jout): Unit = out.add("null")
 }
 
 
@@ -226,7 +256,7 @@ sealed abstract class Jbool protected () extends Json {
   def kind = "boolean"
   override def bool: Ask[Boolean] = Is(value)
   override def boolOr(alt: Boolean): Boolean = value
-  private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append(if value then "true" else "false") __ Unit
+  def printTo(out: Jout): Unit = out.add(if value then "true" else "false")
 }
 object Jbool {
   object True extends Jbool { def value = true }
@@ -248,33 +278,39 @@ final class Jstr(val text: String) extends Json {
     case _ => false
   override def hashCode: Int = text.##
 
-  private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = Jstr.encodeTo(sb, text)
+  def printTo(out: Jout): Unit = Jstr.encodeTo(out, text)
 }
 object Jstr {
   def apply(text: String): Jstr = new Jstr(text)
   def unapply(js: Jstr): Some[String] = Some(js.text)
 
-  /** Append `s` as a quoted JSON string, escaping only what JSON requires. */
-  private[jsaun] def encodeTo(sb: java.lang.StringBuilder, s: String): Unit =
-    sb.append('"') __ Unit
+  /** Append `s` as a quoted JSON string, escaping only what JSON requires; clean runs
+    * (including all non-ASCII, which needs no escaping) go through in bulk.
+    */
+  private[jsaun] def encodeTo(out: Jout, s: String): Unit =
+    out.add('"')
+    var i0 = 0
     var i = 0
     while i < s.length do
       val c = s.charAt(i)
-      if c == '"' then sb.append("\\\"") __ Unit
-      else if c == '\\' then sb.append("\\\\") __ Unit
-      else if c >= ' ' then sb.append(c) __ Unit
-      else c match
-        case '\b' => sb.append("\\b") __ Unit
-        case '\t' => sb.append("\\t") __ Unit
-        case '\n' => sb.append("\\n") __ Unit
-        case '\f' => sb.append("\\f") __ Unit
-        case '\r' => sb.append("\\r") __ Unit
-        case _ =>
-          sb.append("\\u00") __ Unit
-          sb.append("0123456789abcdef".charAt((c >> 4) & 0xF)) __ Unit
-          sb.append("0123456789abcdef".charAt(c & 0xF)) __ Unit
+      if c == '"' || c == '\\' || c < ' ' then
+        if i > i0 then out.add(s, i0, i)
+        c match
+          case '"'  => out.add("\\\"")
+          case '\\' => out.add("\\\\")
+          case '\b' => out.add("\\b")
+          case '\t' => out.add("\\t")
+          case '\n' => out.add("\\n")
+          case '\f' => out.add("\\f")
+          case '\r' => out.add("\\r")
+          case _ =>
+            out.add("\\u00")
+            out.add("0123456789abcdef".charAt((c >> 4) & 0xF))
+            out.add("0123456789abcdef".charAt(c & 0xF))
+        i0 = i + 1
       i += 1
-    sb.append('"') __ Unit
+    if i > i0 then out.add(s, i0, i)
+    out.add('"')
 }
 
 
@@ -300,9 +336,9 @@ object Jnum {
   def apply(value: BigDecimal): Jnum = new Big(value.underlying.toString)
 
   /** Append `d` as JSON (NaN and infinities, which JSON cannot express, become null). */
-  private[jsaun] def printDbl(sb: java.lang.StringBuilder, d: Double): Unit =
-    if d.isNaN || d.isInfinite then sb.append("null") __ Unit
-    else sb.append(d) __ Unit
+  private[jsaun] def printDbl(out: Jout, d: Double): Unit =
+    if d.isNaN || d.isInfinite then out.add("null")
+    else out.add(d)
 
   /** True if `d` is exactly the value that `text` denotes (cold; exact-mode parsing only). */
   private[jsaun] def exactDouble(d: Double, text: String): Boolean =
@@ -322,7 +358,7 @@ object Jnum {
       case _ => false
     override def hashCode: Int = value.##   // scala.## makes this agree with D and Big when the values are equal
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append(value) __ Unit
+    def printTo(out: Jout): Unit = out.add(value)
   }
 
   /** A JSON number held as a Double; NaN and infinities (never produced by parsing) print as null. */
@@ -346,7 +382,7 @@ object Jnum {
       case _ => false
     override def hashCode: Int = value.##
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = Jnum.printDbl(sb, value)
+    def printTo(out: Jout): Unit = Jnum.printDbl(out, value)
   }
 
   /** A JSON number kept as its original text because a Double cannot hold it exactly (only
@@ -370,7 +406,7 @@ object Jnum {
       case _ => false
     override def hashCode: Int = big.##   // scala.## on BigDecimal agrees with Long/Double ## when values coincide
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit = sb.append(text) __ Unit
+    def printTo(out: Jout): Unit = out.add(text)
   }
 }
 
@@ -396,6 +432,9 @@ object Jarr {
   def apply(values: Array[Double]): Jarr = new D(values.clone, values.length)
 
   private[jsaun] val empty: A = new A(new Array[Json](0), 0)
+
+  /** Marker for the editable arrays (`Jarr.A.M`, `Jarr.D.M`); see `Json.M` for the contract. */
+  sealed trait M extends Json.M {}
 
   /** A general array of JSON values.  Instances reachable as `Jarr.A` are immutable; editing
     * happens only through the mutable subclass (to come), which shares this representation.
@@ -449,14 +488,70 @@ object Jarr {
         k += 1
       h
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit =
-      sb.append('[') __ Unit
+    def printTo(out: Jout): Unit =
+      out.add('[')
       var k = 0
       while k < n do
-        if k > 0 then sb.append(',') __ Unit
-        vs(k).printTo(sb)
+        if k > 0 then out.add(',')
+        vs(k).printTo(out)
         k += 1
-      sb.append(']') __ Unit
+      out.add(']')
+  }
+  object A {
+    /** Growable editable general array; upcast to `Jarr.A`/`Jarr` to hand off a view with no
+      * editing surface (no copy is made -- see `Json.M`).
+      */
+    final class M private[jsaun] (vs0: Array[Json], n0: Int) extends A(vs0, n0) with Jarr.M {
+      def this() = this(new Array[Json](8), 0)
+
+      private def ensure(k: Int): Unit =
+        if n + k > vs.length then
+          var m = vs.length * 2
+          while m < n + k do m *= 2
+          vs = java.util.Arrays.copyOf(vs, m)
+
+      /** Set element `i`, which must exist. */
+      def update(i: Int, v: Json): Unit =
+        if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        vs(i) = v
+
+      def add(v: Json): this.type =
+        ensure(1)
+        vs(n) = v
+        n += 1
+        this
+
+      def insert(i: Int, v: Json): this.type =
+        if i < 0 || i > n then throw new IndexOutOfBoundsException(s"insertion point $i in array of size $n")
+        ensure(1)
+        System.arraycopy(vs, i, vs, i + 1, n - i)
+        vs(i) = v
+        n += 1
+        this
+
+      /** Remove and answer element `i`, which must exist. */
+      def remove(i: Int): Json =
+        if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        val v = vs(i)
+        System.arraycopy(vs, i + 1, vs, i, n - i - 1)
+        n -= 1
+        vs(n) = null
+        v
+
+      def clear(): this.type =
+        var k = 0
+        while k < n do
+          vs(k) = null
+          k += 1
+        n = 0
+        this
+    }
+    object M {
+      def apply(values: Json*): M =
+        val m = new M()
+        values.foreach(v => m.add(v) __ Unit)
+        m
+    }
   }
 
   /** An all-numeric JSON array packed as unboxed Doubles.  Element access materializes a
@@ -495,14 +590,65 @@ object Jarr {
         k += 1
       h
 
-    private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit =
-      sb.append('[') __ Unit
+    def printTo(out: Jout): Unit =
+      out.add('[')
       var k = 0
       while k < n do
-        if k > 0 then sb.append(',') __ Unit
-        Jnum.printDbl(sb, xs(k))
+        if k > 0 then out.add(',')
+        Jnum.printDbl(out, xs(k))
         k += 1
-      sb.append(']') __ Unit
+      out.add(']')
+  }
+  object D {
+    /** Growable editable packed-Double array; upcast to `Jarr.D`/`Jarr` to hand off a view
+      * with no editing surface (no copy is made -- see `Json.M`).
+      */
+    final class M private[jsaun] (xs0: Array[Double], n0: Int) extends D(xs0, n0) with Jarr.M {
+      def this() = this(new Array[Double](8), 0)
+
+      private def ensure(k: Int): Unit =
+        if n + k > xs.length then
+          var m = xs.length * 2
+          while m < n + k do m *= 2
+          xs = java.util.Arrays.copyOf(xs, m)
+
+      /** Set element `i`, which must exist. */
+      def update(i: Int, x: Double): Unit =
+        if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        xs(i) = x
+
+      def add(x: Double): this.type =
+        ensure(1)
+        xs(n) = x
+        n += 1
+        this
+
+      def insert(i: Int, x: Double): this.type =
+        if i < 0 || i > n then throw new IndexOutOfBoundsException(s"insertion point $i in array of size $n")
+        ensure(1)
+        System.arraycopy(xs, i, xs, i + 1, n - i)
+        xs(i) = x
+        n += 1
+        this
+
+      /** Remove and answer element `i`, which must exist. */
+      def remove(i: Int): Double =
+        if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
+        val x = xs(i)
+        System.arraycopy(xs, i + 1, xs, i, n - i - 1)
+        n -= 1
+        x
+
+      def clear(): this.type =
+        n = 0
+        this
+    }
+    object M {
+      def apply(values: Double*): M =
+        val m = new M()
+        values.foreach(x => m.add(x) __ Unit)
+        m
+    }
   }
 }
 
@@ -521,8 +667,9 @@ sealed class Jobj private[jsaun] (
   final override def size: Int = n
   final override def obj: Ask[Jobj] = Is(this)
 
-  // Built at most once per content; harmless to rebuild on a race (single-threaded use expected)
-  private var index: java.util.HashMap[String, Json] | Null = null
+  // Built at most once per content; harmless to rebuild on a race (single-threaded use
+  // expected); mutation (Jobj.M only) resets it to null
+  private[jsaun] var index: java.util.HashMap[String, Json] | Null = null
 
   private def indexed: java.util.HashMap[String, Json] = index match
     case null =>
@@ -588,16 +735,16 @@ sealed class Jobj private[jsaun] (
       k += 1
     h ^ n
 
-  private[jsaun] def printTo(sb: java.lang.StringBuilder): Unit =
-    sb.append('{') __ Unit
+  def printTo(out: Jout): Unit =
+    out.add('{')
     var k = 0
     while k < n do
-      if k > 0 then sb.append(',') __ Unit
-      Jstr.encodeTo(sb, ks(k))
-      sb.append(':') __ Unit
-      vs(k).printTo(sb)
+      if k > 0 then out.add(',')
+      Jstr.encodeTo(out, ks(k))
+      out.add(':')
+      vs(k).printTo(out)
       k += 1
-    sb.append('}') __ Unit
+    out.add('}')
 }
 object Jobj {
   def apply(kvs: (String, Json)*): Jobj =
@@ -611,4 +758,77 @@ object Jobj {
     new Jobj(ks, vs, k)
 
   private[jsaun] val empty: Jobj = new Jobj(new Array[String](0), new Array[Json](0), 0)
+
+  /** Growable editable object; upcast to `Jobj` to hand off a view with no editing surface
+    * (no copy is made -- see `Json.M`).
+    */
+  final class M private[jsaun] (ks0: Array[String], vs0: Array[Json], n0: Int) extends Jobj(ks0, vs0, n0) with Json.M {
+    def this() = this(new Array[String](8), new Array[Json](8), 0)
+
+    private def ensure(k: Int): Unit =
+      if n + k > ks.length then
+        var m = ks.length * 2
+        while m < n + k do m *= 2
+        ks = java.util.Arrays.copyOf(ks, m)
+        vs = java.util.Arrays.copyOf(vs, m)
+
+    /** Append an entry, permitting duplicate keys. */
+    def add(key: String, v: Json): this.type =
+      ensure(1)
+      ks(n) = key
+      vs(n) = v
+      n += 1
+      index = null
+      this
+
+    /** Replace the value at `key` (the last occurrence, if duplicated), appending if absent. */
+    def put(key: String, v: Json): this.type =
+      var k = n - 1
+      while k >= 0 && ks(k) != key do k -= 1
+      if k >= 0 then
+        vs(k) = v
+        index = null
+      else add(key, v) __ Unit
+      this
+
+    def update(key: String, v: Json): Unit = put(key, v) __ Unit
+
+    /** Remove every entry with `key`; answers how many were removed. */
+    def remove(key: String): Int =
+      var w = 0
+      var k = 0
+      while k < n do
+        if ks(k) != key then
+          if w != k then
+            ks(w) = ks(k)
+            vs(w) = vs(k)
+          w += 1
+        k += 1
+      val removed = n - w
+      if removed > 0 then
+        var z = w
+        while z < n do
+          ks(z) = null
+          vs(z) = null
+          z += 1
+        n = w
+        index = null
+      removed
+
+    def clear(): this.type =
+      var k = 0
+      while k < n do
+        ks(k) = null
+        vs(k) = null
+        k += 1
+      n = 0
+      index = null
+      this
+  }
+  object M {
+    def apply(kvs: (String, Json)*): M =
+      val m = new M()
+      kvs.foreach((k, v) => m.add(k, v) __ Unit)
+      m
+  }
 }
