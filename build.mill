@@ -124,5 +124,5 @@ object all extends Common {
       mvn"com.twelvemonkeys.imageio:imageio-tiff:3.10.1"
     )
   }
-  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme)
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun)
 }

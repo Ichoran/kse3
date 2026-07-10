@@ -254,3 +254,107 @@ exactly why JMH forks multiple JVMs — to average over per-invocation compilati
 `benchOff`, which runs in the one JVM you're in, honestly reports "faster **here, now**" rather than a
 universal truth. Within any single run `benchOff` was tight and self-consistent; the variance is
 across runs. A 1.2× `benchOff` win on JIT-sensitive code may not replicate in a fresh JVM.
+
+## benchmarks/jsaun — jsaun JSON vs Jackson / jsoniter-scala / uPickle
+
+Two files, one scala-cli project.  All parsers/serializers work over the **same** shared input
+(a ~100-record array of mixed-field objects serialized once with jsoniter, so no library is fed
+its own dialect).  The reference points span the implementation spectrum: **Jackson** (Java,
+reflective tree), **jsoniter-scala** (macro-specialized, schema-aware), and **uPickle/uJson**
+(pure Scala, both tree and derived codec).
+
+`JsaunBench` — two planes:
+
+| plane | what it measures | jsaun | references |
+|---|---|---|---|
+| **tree** parse | text/bytes/chars → dynamic tree | `jsaunParse{String,Bytes,Chars}`, `jsaunParseExact` | `jacksonTree{Bytes,String}`, `ujsonParse{Bytes,String}` |
+| **tree** serialize | tree → text / UTF-8 bytes | `jsaunPrint`, `jsaunPrintBytes` | `jacksonWriteBytes`, `ujsonWriteBytes` |
+| **typed** parse | bytes → `List[GeoRecord]` | `jsaunCodecDecode` (derived `FromJson`) | `jsoniterDecode`, `upickleDecode` |
+| **typed** serialize | `List[GeoRecord]` → bytes | `jsaunCodecEncode` (derived `Jsonize`) | `jsoniterEncode`, `upickleEncode` |
+
+The tree plane is apples-to-apples (no side knows the schema); the typed plane pits jsaun's
+`derives` codec against jsoniter's compiled codec (the schema-aware ceiling) and uPickle's.
+
+`JsaunFormatBench` — **format-preserving read-modify-write**, jsaun's headline feature: parse a
+pretty-printed document, change one field, serialize.  `jsaunFmtEdit` keeps every untouched byte
+verbatim and re-emits only the edited token; `jsaunPlainEdit` is the honest in-family baseline
+(same trees, plain parse + canonical reprint, formatting *not* preserved), and `jacksonEdit` /
+`ujsonEdit` reflow the whole document because they have no format memory.  The `jsaunFmt`→`jsaunPlain`
+gap is the price of the span bookkeeping; the `jsaunPlain`→others gap is raw parser/printer speed.
+
+`JsaunMatrixBench` — an **n×n double matrix**, to exercise jsaun's **packed array backing**.
+When every element of an array is a Double, jsaun stores the row as a `Jarr.D` (a bare
+`Array[Double]`), not a `Jarr.A` of boxed `Jnum`s — so a 10×10 matrix is ten primitive arrays
+with zero per-number heap objects.  `@Setup` asserts the rows really packed (a silent fallback to
+`Jarr.A` would fail loudly, not just slow down).  The `prec` param picks short decimals ("4sig",
+fast path) vs shortest-round-trip doubles ("full", defeats it).  `jsaunSumDbls` pulls each row's
+`Array[Double]` straight back out via `.dbls` and sums it — the packed-backing payoff.
+
+Run:
+
+```
+mill all.assembly                                                   # jsaun now ships in `all`
+scala-cli --power run benchmarks/jsaun --jmh -- -f 2 -wi 5 -i 5 -w 1 -r 1
+scala-cli --power run benchmarks/jsaun --jmh -- JsaunFormatBench    # one class
+scala-cli --power run benchmarks/jsaun --jmh -- JsaunMatrixBench    # packed Jarr.D matrix
+```
+
+scala-cli's incremental compiler leaves stale JMH-generated sources when these files change;
+`rm -rf benchmarks/jsaun/.scala-build` between edits.
+
+### Findings (2026-07-10, JDK 25, i9-14900HX, `taskset -c 2,3`, `-f 2 -wi 5 -i 5 -w 1 -r 1`)
+
+Throughput in **ops/µs** (higher = faster; ± is JMH's 99.9% CI over 2 forks × 5 iterations).
+One machine, one run, GC/JIT sharing the two pinned cores — read these as **ratios**, not
+absolutes; a 1.5× gap is real, 10% is noise.
+
+**Records — 100-object mixed array (`JsaunBench`).**
+
+| op | jsaun | Jackson | uJson | jsoniter | uPickle |
+|---|---|---|---|---|---|
+| tree parse (bytes / chars) | **0.044 / 0.052** | 0.021 | 0.018 | — | — |
+| tree serialize (bytes) | 0.028 | 0.033 | 0.020 | — | — |
+| typed decode | 0.031 | — | — | **0.077** | 0.018 |
+| typed encode | 0.023 | — | — | **0.070** | 0.027 |
+
+- jsaun's **dynamic-tree parse beats both dynamic-tree references** — ~2× Jackson, ~2.4× uJson —
+  and reads `Array[Char]` fastest of all its sources (0.052).
+- On the **typed plane jsoniter's compiled codec is the ceiling** (~2.5× jsaun on decode, ~3× on
+  encode); jsaun's Mirror-derived codec lands between uPickle and jsoniter decoding, near uPickle
+  encoding.  jsaun tree-parse (0.044) actually *beats* jsaun typed-decode (0.031): the derived
+  codec's per-field boxing costs more than just building the tree.  Exact mode is ~4× slower than
+  default (0.010) — the dyadic-exactness check on every number.
+
+**10×10 double matrix — the packed `Jarr.D` payoff (`JsaunMatrixBench`), 4sig / full precision.**
+
+| op | jsaun | Jackson | uJson | jsoniter† |
+|---|---|---|---|---|
+| parse bytes → tree | **0.82 / 0.49** | 0.27 / 0.08 | 0.27 / 0.08 | 1.10 / 0.54 |
+| serialize → bytes | 0.29 / 0.18 | 0.29 / 0.22 | 0.27 / 0.24 | 0.59 / 0.43 |
+| typed decode | 0.76 / 0.47 | — | — | 1.10 / 0.54 |
+
+† jsoniter is schema-typed (`Array[Double]`), *not* a dynamic tree — shown as the ceiling for scale.
+
+- All-Double rows pack into `Jarr.D` (a bare `Array[Double]`, no boxed `Jnum`), so jsaun's
+  **dynamic parse runs 3× (4sig) to 6× (full) faster than Jackson/uJson** and reaches **~75% of
+  jsoniter's schema-specialized decode** — the dynamic tree is nearly as cheap as a typed one.
+- The **full-precision penalty is smallest for jsaun** (1.7×: 0.82→0.49) vs ~3.3× for Jackson/uJson
+  — the Eisel–Lemire number kernel digests hard doubles.
+- `jsaunSumDbls` = **11.6 ops/µs**, ~14× the parse: with the row already an `Array[Double]`, pulling
+  it back out via `.dbls` and summing is almost free.  Exact mode is ~13× slower here (0.065).
+
+**Format-preserving read-modify-write (`JsaunFormatBench`)** — parse a pretty doc, change one field,
+serialize:
+
+| | ops/µs |
+|---|---|
+| `jsaunFmtEdit` (preserves format) | **0.088** |
+| `jsaunPlainEdit` (jsaun, reflows) | 0.044 |
+| `jacksonEdit` (reflows) | 0.044 |
+| `ujsonEdit` (reflows) | 0.033 |
+
+- The headline: **format preservation is not a tax here, it's a 2× speedup.** Emitting the untouched
+  document as verbatim source spans (a bulk byte-copy) and re-serializing only the single edited
+  token beats fully re-rendering every token — so `jsaunFmtEdit` outruns both a plain jsaun
+  parse-and-reprint and Jackson, while being the only one whose output is byte-identical except for
+  the edit.
