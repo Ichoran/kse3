@@ -244,6 +244,12 @@ sealed abstract class Json protected () {
   final override def toString = print(using Jstyle.compact)
 }
 object Json {
+  /** The in-memory text sources jsaun parses directly: a `String`, UTF-8 `Array[Byte]`, or
+    * UTF-16 `Array[Char]`.  (`Mem[Byte]`/`Mem[Char]` are separate overloads -- they erase to the
+    * same type, so they cannot join a union that is dispatched by a runtime match.)
+    */
+  type Source = String | Array[Byte] | Array[Char]
+
   /** Convert any value with a `Jsonize` instance into its JSON tree: `Json(myCaseClass)`. */
   def apply[A](a: A)(using jz: Jsonize[A]): Json = jz.jsonize(a)
 
@@ -256,20 +262,49 @@ object Json {
     * (correctly rounded) otherwise; with `exact = true`, a number whose value a Double cannot
     * represent exactly is kept as `Jnum.Big` with its original text, so nothing is lost.
     */
-  inline def parse(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
+  inline def parse(inline in: Source, exact: Boolean = false): JAny = inline in match
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
     case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact)).parseTop() })
+
+  /** Parse straight from off-heap memory with no copy: `Mem[Byte]` is UTF-8, `Mem[Char]` is
+    * UTF-16.  Other element types are a compile error (they name no text encoding).
+    */
+  inline def parse[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = false).parseTop() })
+  inline def parse[A <: Mem.Type](inline mem: Mem[A]): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).parseTop() })
+
+  /** SAX-style streaming parse: walk the input once, driving `vis` (see `Jvisitor`), building
+    * no tree.  Values the visitor declines are skipped structurally.  There is no `exact` or
+    * format-preserving variant -- a single forward pass cannot revisit or retain what it skipped.
+    */
+  inline def stream(inline in: Source)(vis: Jvisitor): Ask[Unit] = inline in match
+    case s: String      => Ask.flat{ (new Jparse.Str(s)).visitTop(vis) }
+    case b: Array[Byte] => Ask.flat{ (new Jparse.Bytes(b)).visitTop(vis) }
+    case c: Array[Char] => Ask.flat{ (new Jparse.Chars(c)).visitTop(vis) }
+
+  /** SAX-style streaming parse from off-heap memory (`Mem[Byte]` UTF-8, `Mem[Char]` UTF-16). */
+  inline def stream[A <: Mem.Type](inline mem: Mem[A])(vis: Jvisitor): Ask[Unit] =
+    Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).visitTop(vis) }
 
   /** Format-preserving parse: every collection remembers where it and its contents sat in
     * the input, so an unedited tree prints back byte-for-byte (bar whitespace outside the
     * root value), and an edited one reprints only what was touched, with verbatim source
     * around it.
     */
-  inline def parseFmt(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
+  inline def parseFmt(inline in: Source, exact: Boolean = false): JAny = inline in match
     case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, fmt = true)).parseTop() })
     case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, fmt = true)).parseTop() })
     case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, fmt = true)).parseTop() })
+
+  /** Format-preserving parse from off-heap memory.  Because format preservation retains the
+    * whole source and the segment is caller-owned, the bytes/chars are snapshotted to the heap.
+    */
+  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = true).parseTop() })
+  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A]): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = true).parseTop() })
 
   /** The mutable side of the JSON hierarchy: each container's editable class mixes this in
     * (`Jobj.M`, and `Jarr.M` for the array backings), so a mutable tree can be worked with
@@ -289,19 +324,31 @@ object Json {
     * mode.
     */
   object M {
-    inline def parse(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
+    inline def parse(inline in: Source, exact: Boolean = false): JAny = inline in match
       case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true)).parseTop() })
       case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true)).parseTop() })
       case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, mutable = true)).parseTop() })
+
+    /** Mutable-tree parse straight from off-heap memory (`Mem[Byte]` UTF-8, `Mem[Char]` UTF-16). */
+    inline def parse[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
+      JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = true, fmt = false).parseTop() })
+    inline def parse[A <: Mem.Type](inline mem: Mem[A]): JAny =
+      JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = true, fmt = false).parseTop() })
 
     /** Format-preserving mutable parse: the primary editing flow.  Value replacements keep
       * the formatting around them; a structural edit drops only the edited node's own
       * preserved format (that node re-serializes fresh, everything else stays verbatim).
       */
-    inline def parseFmt(inline in: String | Array[Byte] | Array[Char], exact: Boolean = false): JAny = inline in match
+    inline def parseFmt(inline in: Source, exact: Boolean = false): JAny = inline in match
       case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, mutable = true, fmt = true)).parseTop() })
       case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, mutable = true, fmt = true)).parseTop() })
       case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, mutable = true, fmt = true)).parseTop() })
+
+    /** Format-preserving mutable parse from off-heap memory (snapshots to the heap; see `parseFmt`). */
+    inline def parseFmt[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
+      JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = true, fmt = true).parseTop() })
+    inline def parseFmt[A <: Mem.Type](inline mem: Mem[A]): JAny =
+      JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = true, fmt = true).parseTop() })
   }
 
   private[jsaun] def expectErr(what: String, j: Json): Err = Err(s"expected $what, found ${j.kind}")

@@ -5,6 +5,7 @@ package kse.jsaun
 
 
 import scala.util.boundary
+import scala.compiletime.{erasedValue, error}
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
@@ -42,6 +43,7 @@ sealed abstract class Jparse protected () {
   protected def strWork(): String | Null
   protected def strEscWork(j0: Int, jN: Int): String | Null
   protected def numWork(): Json | Null
+  protected def skipWork(): Boolean
 
   // === Cold access to raw content, for error reporting only ===
 
@@ -248,6 +250,84 @@ sealed abstract class Jparse protected () {
     if v eq null then Alt(eErr)
     else if wsWork() >= 0 then Alt(errAt("unexpected content after the JSON value", i))
     else Is(v)
+
+
+  ///////////////////////////////////////////
+  /// Visitor traversal (no tree, SAX-style) ///
+  ///////////////////////////////////////////
+
+  /** Walk one complete JSON value, driving `vis`; builds nothing.  Values the visitor declines
+    * (via a false `key`/`index`/`objStart`/`arrStart`) are scanned structurally, not decoded.
+    */
+  final def visitTop(vis: Jvisitor): Ask[Unit] =
+    val c = wsWork()
+    if c < 0 then Alt(errAt("expected a JSON value", i))
+    else if !visitValue(c, vis) then Alt(eErr)
+    else if wsWork() >= 0 then Alt(errAt("unexpected content after the JSON value", i))
+    else Is(())
+
+  private def visitValue(c: Int, vis: Jvisitor): Boolean =
+    if c == '{' then visitObj(vis)
+    else if c == '[' then visitArr(vis)
+    else if c == '"' then
+      val s = strWork()
+      if s eq null then false else { vis.str(s); true }
+    else if c == '-' || (c >= '0' && c <= '9') then
+      val jn = numWork()
+      if jn eq null then false else { vis.num(jn.asInstanceOf[Jnum]); true }
+    else if c == 't' then { if litWork("true") then { vis.bool(true); true } else false }
+    else if c == 'f' then { if litWork("false") then { vis.bool(false); true } else false }
+    else if c == 'n' then { if litWork("null") then { vis.nul(); true } else false }
+    else { fail("a JSON value", i); false }
+
+  private def visitObj(vis: Jvisitor): Boolean =
+    if !vis.objStart() then return skipWork()
+    val p0 = i
+    if depth >= Jparse.maxDepth then { failMsg(s"JSON nested more than ${Jparse.maxDepth} levels deep", p0); return false }
+    depth += 1
+    i += 1
+    var c = wsWork()
+    if c == '}' then { i += 1; depth -= 1; vis.objEnd(); return true }
+    var n = 0
+    while true do
+      if c != '"' then return { fail("'\"' to begin a key", i); false }
+      val key = strWork()
+      if key eq null then return { explain(s"in key $n of object started at ${posText(p0)}:"); false }
+      c = wsWork()
+      if c != ':' then return { fail(s"':' after key \"$key\"", i); false }
+      i += 1
+      c = wsWork()
+      val want = vis.key(key)
+      val ok = if want then visitValue(c, vis) else skipWork()
+      if !ok then
+        return { if want then explain(s"in value for key \"$key\" of object started at ${posText(p0)}:") __ Unit; false }
+      n += 1
+      c = wsWork()
+      if c == ',' then { i += 1; c = wsWork() }
+      else if c == '}' then { i += 1; depth -= 1; vis.objEnd(); return true }
+      else return { fail("',' or '}' in object", i); false }
+    false
+
+  private def visitArr(vis: Jvisitor): Boolean =
+    if !vis.arrStart() then return skipWork()
+    val p0 = i
+    if depth >= Jparse.maxDepth then { failMsg(s"JSON nested more than ${Jparse.maxDepth} levels deep", p0); return false }
+    depth += 1
+    i += 1
+    var c = wsWork()
+    if c == ']' then { i += 1; depth -= 1; vis.arrEnd(); return true }
+    var k = 0
+    while true do
+      val want = vis.index(k)
+      val ok = if want then visitValue(c, vis) else skipWork()
+      if !ok then
+        return { if want then explain(s"in element $k of array started at ${posText(p0)}:") __ Unit; false }
+      k += 1
+      c = wsWork()
+      if c == ',' then { i += 1; c = wsWork() }
+      else if c == ']' then { i += 1; depth -= 1; vis.arrEnd(); return true }
+      else return { fail("',' or ']' in array", i); false }
+    false
 
 
   ////////////////////////////////
@@ -461,6 +541,59 @@ sealed abstract class Jparse protected () {
         else
           val text = sub(i0, j)
           if Jnum.exactDouble(d, text) then new Jnum.D(d) else new Jnum.Big(text)
+
+  /** Scan one value structurally, advancing the cursor past it, decoding nothing.  Strings are
+    * respected (so brackets and quotes inside them do not miscount), escapes are stepped over,
+    * and scalars run to the next structural delimiter.  Skipped regions are not fully validated
+    * -- that is the point: a declined value is meant to be cheap to step over.
+    */
+  protected inline def skipImpl(inline at: Int => Int): Boolean =
+    val c0 = if i < iZ then at(i) else -1
+    if c0 == '{' || c0 == '[' then
+      var j = i
+      var depth = 0
+      var ok = true
+      var go = true
+      while go do
+        val c = if j < iZ then at(j) else -1
+        if c < 0 then { ok = false; go = false }
+        else if c == '"' then
+          j += 1
+          var s = true
+          while s do
+            val d = if j < iZ then at(j) else -1
+            if d < 0 then { s = false; ok = false; go = false }
+            else if d == '\\' then j += 2
+            else if d == '"' then { j += 1; s = false }
+            else j += 1
+        else if c == '{' || c == '[' then { depth += 1; j += 1 }
+        else if c == '}' || c == ']' then
+          depth -= 1
+          j += 1
+          if depth <= 0 then go = false
+        else j += 1
+      if ok then { i = j; true } else { failMsg("unterminated container", i); false }
+    else if c0 == '"' then
+      var j = i + 1
+      var s = true
+      var ok = true
+      while s do
+        val d = if j < iZ then at(j) else -1
+        if d < 0 then { s = false; ok = false }
+        else if d == '\\' then j += 2
+        else if d == '"' then { j += 1; s = false }
+        else j += 1
+      if ok then { i = j; true } else { failMsg("unterminated string", i); false }
+    else if c0 < 0 then { fail("a JSON value", i); false }
+    else
+      var j = i
+      var go = true
+      while go do
+        val c = if j < iZ then at(j) else -1
+        if c < 0 || c == ',' || c == '}' || c == ']' || c == ' ' || c == '\t' || c == '\n' || c == '\r' then go = false
+        else j += 1
+      i = j
+      true
 }
 object Jparse {
 
@@ -485,6 +618,7 @@ object Jparse {
     protected def strEscWork(j0: Int, jN: Int): String | Null =
       strEscImpl(j => content.charAt(j), (a, b) => content.substring(a, b))(j0, jN)
     protected def numWork(): Json | Null = numImpl(j => content.charAt(j), (a, b) => content.substring(a, b))
+    protected def skipWork(): Boolean = skipImpl(j => content.charAt(j))
   }
 
   /** Parses JSON from an `Array[Char]`.  Create one per parse. */
@@ -505,6 +639,7 @@ object Jparse {
     protected def strEscWork(j0: Int, jN: Int): String | Null =
       strEscImpl(j => content(j), (a, b) => new String(content, a, b - a))(j0, jN)
     protected def numWork(): Json | Null = numImpl(j => content(j), (a, b) => new String(content, a, b - a))
+    protected def skipWork(): Boolean = skipImpl(j => content(j))
   }
 
   /** Parses JSON from raw bytes: structure (whitespace, literals, numbers) is ASCII, read as
@@ -531,5 +666,85 @@ object Jparse {
     protected def strEscWork(j0: Int, jN: Int): String | Null =
       strEscImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
     protected def numWork(): Json | Null = numImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
+    protected def skipWork(): Boolean = skipImpl(j => content(j) & 0xFF)
   }
+
+  /** Parses JSON straight from an off-heap `Mem[Byte]` (UTF-8, ASCII structure) with no copy --
+    * the segment is read element by element.  Same rules as `Bytes`; error positions are byte
+    * positions.  At most `Int.MaxValue` bytes.  Create one per parse.
+    */
+  final class MemBytes(content: Mem[Byte], exact: Boolean = false, mutable: Boolean = false) extends Jparse {
+    require(content.length <= Int.MaxValue, "Mem too large to parse (over 2 GiB)")
+    iZ = content.length.toInt
+    exactNum = exact
+    asM = mutable
+
+    protected def rawLength: Int = iZ
+    protected def rawCharAt(pos: Int): Char = (content(pos.toLong) & 0xFF).toChar
+
+    private def utf8(a: Int, b: Int): String =
+      val arr = new Array[Byte](b - a)
+      content.inject(arr, 0)(a.toLong, b.toLong) __ Unit
+      new String(arr, java.nio.charset.StandardCharsets.UTF_8)
+
+    protected def wsWork(): Int = wsImpl(j => content(j.toLong) & 0xFF)
+    protected def litWork(lit: String): Boolean = litImpl(j => content(j.toLong) & 0xFF)(lit)
+    protected def strWork(): String | Null = strImpl(j => content(j.toLong) & 0xFF, (a, b) => utf8(a, b))
+    protected def strEscWork(j0: Int, jN: Int): String | Null =
+      strEscImpl(j => content(j.toLong) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
+    protected def numWork(): Json | Null = numImpl(j => content(j.toLong) & 0xFF, (a, b) => utf8(a, b))
+    protected def skipWork(): Boolean = skipImpl(j => content(j.toLong) & 0xFF)
+  }
+
+  /** Parses JSON straight from an off-heap `Mem[Char]` (UTF-16) with no copy.  Same rules as
+    * `Chars`.  At most `Int.MaxValue` chars.  Create one per parse.
+    */
+  final class MemChars(content: Mem[Char], exact: Boolean = false, mutable: Boolean = false) extends Jparse {
+    require(content.length <= Int.MaxValue, "Mem too large to parse (over 2 Gi chars)")
+    iZ = content.length.toInt
+    exactNum = exact
+    asM = mutable
+
+    protected def rawLength: Int = iZ
+    protected def rawCharAt(pos: Int): Char = content(pos.toLong)
+
+    private def substr(a: Int, b: Int): String =
+      val arr = new Array[Char](b - a)
+      content.inject(arr, 0)(a.toLong, b.toLong) __ Unit
+      new String(arr)
+
+    protected def wsWork(): Int = wsImpl(j => content(j.toLong).toInt)
+    protected def litWork(lit: String): Boolean = litImpl(j => content(j.toLong).toInt)(lit)
+    protected def strWork(): String | Null = strImpl(j => content(j.toLong).toInt, (a, b) => substr(a, b))
+    protected def strEscWork(j0: Int, jN: Int): String | Null =
+      strEscImpl(j => content(j.toLong).toInt, (a, b) => substr(a, b))(j0, jN)
+    protected def numWork(): Json | Null = numImpl(j => content(j.toLong).toInt, (a, b) => substr(a, b))
+    protected def skipWork(): Boolean = skipImpl(j => content(j.toLong).toInt)
+  }
+
+  // A format-preserving parse retains the whole source, and off-heap memory is caller-owned
+  // (it may be freed or reused after the call), so fmt mode snapshots the Mem into a heap array
+  // and parses that; plain/exact/mutable parses read the segment directly with no copy.
+  private def ofMemBytes(m: Mem[Byte], exact: Boolean, mutable: Boolean, fmt: Boolean): Jparse =
+    if fmt then
+      val arr = new Array[Byte](m.length.toInt)
+      m.inject(arr) __ Unit
+      new Bytes(arr, exact, mutable, fmt = true)
+    else new MemBytes(m, exact, mutable)
+
+  private def ofMemChars(m: Mem[Char], exact: Boolean, mutable: Boolean, fmt: Boolean): Jparse =
+    if fmt then
+      val arr = new Array[Char](m.length.toInt)
+      m.inject(arr) __ Unit
+      new Chars(arr, exact, mutable, fmt = true)
+    else new MemChars(m, exact, mutable)
+
+  /** Compile-time source selection for a `Mem[A]`: only `Mem[Byte]` (UTF-8) and `Mem[Char]`
+    * (UTF-16) name a textual encoding, so anything else is rejected at compile time.
+    */
+  inline def memParser[A <: Mem.Type](inline m: Mem[A], exact: Boolean, mutable: Boolean, fmt: Boolean): Jparse =
+    inline erasedValue[A] match
+      case _: Byte => ofMemBytes(m.asInstanceOf[Mem[Byte]], exact, mutable, fmt)
+      case _: Char => ofMemChars(m.asInstanceOf[Mem[Char]], exact, mutable, fmt)
+      case _       => error("jsaun can parse only Mem[Byte] (UTF-8) or Mem[Char] (UTF-16)")
 }

@@ -290,6 +290,16 @@ with zero per-number heap objects.  `@Setup` asserts the rows really packed (a s
 fast path) vs shortest-round-trip doubles ("full", defeats it).  `jsaunSumDbls` pulls each row's
 `Array[Double]` straight back out via `.dbls` and sums it — the packed-backing payoff.
 
+`JsaunVisitorBench` — the **SAX-style visitor** (`Json.stream`) and its **skip gates**.  The
+document is an array of records, each with two small wanted fields (`id`, `name`) and bulk we don't
+(a 20-element `data` array, `tags`, `active`).  Declining a key makes the parser skip its value
+structurally — match brackets/quotes, decode nothing, allocate nothing — so `jsaunVisitExtract`
+(pull id+name) is compared against `jsaunTreeExtract` (build the whole tree, then navigate) and
+`jacksonStreamExtract` (Jackson's streaming parser with `skipChildren`, the reference's "decline
+this value").  The full plane (`jsaunVisitSumAll` / `jsaunParseTree` / `jacksonStreamSumAll`) touches
+every number with no skipping.  `jsaunVisitExtract{,String,Chars,Mem}` also confirms `Mem[Byte]`
+drives the visitor and compares the encodings.
+
 Run:
 
 ```
@@ -297,6 +307,7 @@ mill all.assembly                                                   # jsaun now 
 scala-cli --power run benchmarks/jsaun --jmh -- -f 2 -wi 5 -i 5 -w 1 -r 1
 scala-cli --power run benchmarks/jsaun --jmh -- JsaunFormatBench    # one class
 scala-cli --power run benchmarks/jsaun --jmh -- JsaunMatrixBench    # packed Jarr.D matrix
+scala-cli --power run benchmarks/jsaun --jmh -- JsaunVisitorBench   # visitor + skip gates
 ```
 
 scala-cli's incremental compiler leaves stale JMH-generated sources when these files change;
@@ -358,3 +369,20 @@ serialize:
   token beats fully re-rendering every token — so `jsaunFmtEdit` outruns both a plain jsaun
   parse-and-reprint and Jackson, while being the only one whose output is byte-identical except for
   the edit.
+
+**Visitor + skip gates (`JsaunVisitorBench`)** — records with two wanted fields and skipped bulk:
+
+| op | jsaun | Jackson stream | jsaun tree |
+|---|---|---|---|
+| extract id+name (skip the rest) | **0.049** (chars 0.054, str 0.041, Mem 0.039) | 0.023 (`skipChildren`) | 0.020 (build+navigate) |
+| full visit / parse (touch every number) | 0.025 | 0.010 | 0.021 (`jsaunParseTree`) |
+
+- **Skipping pays.** Declining a key skips its value structurally (match brackets/quotes, decode
+  nothing, allocate nothing), so `jsaunVisitExtract` (0.049) is **~2.4× building the whole tree then
+  navigating** (0.020) and **~2× Jackson's streaming `skipChildren`** (0.023).  Against the *same*
+  visitor with no skips (`jsaunVisitSumAll`, 0.025), skipping the `data`/`tags`/`active` bulk roughly
+  **doubles** throughput.
+- Even a **full** streaming visit (0.025) beats Jackson's streaming number-sum (0.010) by ~2.5× and
+  edges out building the tree (0.021) — a no-allocation traversal.
+- `Mem[Byte]` **works as a visitor source** (0.039, ~20% under on-heap bytes — the FFM segment-access
+  cost); `Array[Char]` is fastest (0.054), as elsewhere.

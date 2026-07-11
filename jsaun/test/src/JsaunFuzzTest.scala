@@ -231,6 +231,15 @@ class JsaunFuzzTest {
       val fromChars = Json.parse(text.toCharArray).ask
       T ~ fromStr ==== fromBytes
       T ~ fromStr ==== fromChars
+      // off-heap Mem sources agree with their on-heap counterparts, plain and format-preserving
+      T ~ Json.parse(Mem.of(text.getBytes(u8))).ask ==== fromStr
+      T ~ Json.parse(Mem.of(text.toCharArray)).ask  ==== fromStr
+      T ~ unwrap(Json.parseFmt(Mem.of(text.getBytes(u8)))).print ==== text
+      // the visitor stays structurally in sync: a full visit and a skip-everything visit both
+      // consume the whole document (the latter exercises the structural skip over the entire tree)
+      def ok(a: Ask[Unit]) = a match { case Alt(_) => false; case _ => true }
+      T ~ ok(Json.stream(text)(new Jvisitor {})) ==== true
+      T ~ ok(Json.stream(text)(new Jvisitor { override def objStart() = false; override def arrStart() = false })) ==== true
       // exact mode keeps the exact decimal value: printing then re-parsing in exact
       // mode is a fixed point (a non-exact re-parse would round Jnum.Big down to Jnum.D)
       val exact = unwrap(Json.parse(text, exact = true))

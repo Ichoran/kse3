@@ -238,6 +238,106 @@ class JsaunTest {
     T ~ Json.parse("[1.5, 2.5]".getBytes(u8), exact = true).ask ==== Json.parse("[1.5, 2.5]").ask
 
   @Test
+  def memSourceTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    val srcs = List(
+      """{"a": [1, 2.5, "x"], "b": null, "c": true}""",
+      """[0.1, -3e8, 9223372036854775807, 123456789012345678901234567890]""",
+      "  [ [ ] , { } , \"\" ]  ",
+      "{\"k\": \"caf\\u00e9 café\", \"emoji\": \"😀\", \"nl\": \"a\\nb\"}"
+    )
+    for s <- srcs do
+      // off-heap Mem parses identically to the on-heap Array of the same encoding
+      T ~ Json.parse(Mem.of(s.getBytes(u8))).ask ==== Json.parse(s).ask
+      T ~ Json.parse(Mem.of(s.toCharArray)).ask  ==== Json.parse(s).ask
+    // strings decode identically from UTF-8 bytes and UTF-16 chars
+    T ~ Json.parse(Mem.of("\"café 😀\"".getBytes(u8))).str ==== Is("café 😀")
+    T ~ Json.parse(Mem.of("\"café 😀\"".toCharArray)).str  ==== Is("café 😀")
+    // exact mode works from Mem (random-access, so revisiting number text is fine)
+    T ~ Json.parse(Mem.of("0.1".getBytes(u8)), exact = true).ask.map(_.print) ==== Is("0.1")
+    T ~ Json.parse(Mem.of("0.1".toCharArray),  exact = true).ask.map(_.print) ==== Is("0.1")
+    // mutable-tree parse from Mem
+    T ~ Json.M.parse(Mem.of("[1,2,3]".getBytes(u8))).ask.map(_.isInstanceOf[Jarr.A.M]) ==== Is(true)
+    // format-preserving parse from Mem (snapshots to the heap) round-trips verbatim
+    val fmtSrc = "{\"a\" : [ 1 , 2.50 ] , \"b\":null}"
+    T ~ Json.parseFmt(Mem.of(fmtSrc.getBytes(u8))).ask.map(_.print)   ==== Is(fmtSrc)
+    T ~ Json.parseFmt(Mem.of(fmtSrc.toCharArray)).ask.map(_.print)    ==== Is(fmtSrc)
+    T ~ Json.M.parseFmt(Mem.of(fmtSrc.getBytes(u8))).ask.map(_.print) ==== Is(fmtSrc)
+    // parse errors still flow through as errors
+    T ~ bad(Json.parse(Mem.of("[1, 2".getBytes(u8))).ask) ==== true
+
+  @Test
+  def streamVisitorTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    // a visitor that records the whole event stream
+    class Rec extends Jvisitor:
+      val log = scala.collection.mutable.ArrayBuffer.empty[String]
+      override def objStart() = { log += "{"; true }
+      override def objEnd() = log += "}"
+      override def arrStart() = { log += "["; true }
+      override def arrEnd() = log += "]"
+      override def key(k: String) = { log += s"k:$k"; true }
+      override def index(i: Int) = { log += s"i:$i"; true }
+      override def str(s: String) = log += s"s:$s"
+      override def num(n: Jnum) = log += s"n:${n.print}"
+      override def bool(b: Boolean) = log += s"b:$b"
+      override def nul() = log += "z"
+    val doc = """{"a":1,"b":[true,null,"x"]}"""
+    val rec = new Rec
+    T ~ bad(Json.stream(doc)(rec))                    ==== false
+    T ~ rec.log.mkString(" ") ==== "{ k:a n:1 k:b [ i:0 b:true i:1 z i:2 s:x ] }"
+    // all four in-memory sources drive the visitor identically
+    def run(f: Rec => Any): Seq[String] = { val r = new Rec; f(r); r.log.toSeq }
+    T ~ run(r => Json.stream(doc.getBytes(u8))(r))      ==== rec.log.toSeq
+    T ~ run(r => Json.stream(doc.toCharArray)(r))       ==== rec.log.toSeq
+    T ~ run(r => Json.stream(Mem.of(doc.getBytes(u8)))(r)) ==== rec.log.toSeq
+    T ~ run(r => Json.stream(Mem.of(doc.toCharArray))(r))  ==== rec.log.toSeq
+
+    // key skip: decline every key but "b"; the declined values are never decoded
+    class PickB extends Jvisitor:
+      var got = "?"
+      var strs = 0
+      override def key(k: String) = k == "b"
+      override def str(s: String) = { got = s; strs += 1 }
+    val pb = new PickB
+    T ~ bad(Json.stream("""{"a":"nope","b":"want","c":"also"}""")(pb)) ==== false
+    T ~ pb.got  ==== "want"
+    T ~ pb.strs ==== 1
+
+    // declined values are skipped structurally: braces/brackets inside skipped strings don't miscount
+    class CountKeep extends Jvisitor:
+      var strs = 0
+      override def key(k: String) = k == "keep"
+      override def str(s: String) = strs += 1
+    val ck = new CountKeep
+    val tricky = """{"drop":{"x":[1,2,{"y":"a]b}c"}],"z":"q\"}"},"keep":"yes","also":[1,2,3]}"""
+    T ~ bad(Json.stream(tricky)(ck)) ==== false
+    T ~ ck.strs ==== 1   // only "keep":"yes" reached; "drop" object and "also" array skipped whole
+
+    // index skip: only element 1
+    class Mid extends Jvisitor:
+      val ns = scala.collection.mutable.ArrayBuffer.empty[String]
+      override def index(i: Int) = i == 1
+      override def num(n: Jnum) = ns += n.print
+    val mid = new Mid
+    Json.stream("[10,20,30]")(mid) __ Unit
+    T ~ mid.ns.mkString ==== "20"
+
+    // whole-container skip via arrStart/objStart
+    class NoArr extends Jvisitor:
+      var strs = 0
+      override def arrStart() = false
+      override def str(s: String) = strs += 1
+    val na = new NoArr
+    T ~ bad(Json.stream("""["a","b","c"]""")(na)) ==== false
+    T ~ na.strs ==== 0
+
+    // malformed input still surfaces as an error
+    T ~ bad(Json.stream("[1, 2")(new Jvisitor {}))        ==== true
+    T ~ bad(Json.stream("""{"a" 1}""")(new Jvisitor {}))  ==== true
+    T ~ bad(Json.stream("nope")(new Jvisitor {}))         ==== true
+
+  @Test
   def exactModeTest(): Unit =
     T ~ Json.parse("0.1", exact = true).ask.map(_.print)  ==== Is("0.1")
     T ~ Json.parse("0.1", exact = true).dbl                ==== Is(0.1)
