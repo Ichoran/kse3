@@ -246,6 +246,75 @@ class JsaunFuzzTest {
       T ~ Json.parse(exact.print, exact = true).ask ==== Is(exact)
       iter += 1
 
+  // An InputStream that answers at most `max` bytes per read, so refills land mid-token
+  private class DribbleIn(b: Array[Byte], max: Int) extends java.io.InputStream {
+    private var p = 0
+    def read(): Int = if p >= b.length then -1 else { val x = b(p) & 0xFF; p += 1; x }
+    override def read(dst: Array[Byte], off: Int, len: Int): Int =
+      if p >= b.length then -1
+      else
+        var n = len
+        if n > max then n = max
+        if n > b.length - p then n = b.length - p
+        System.arraycopy(b, p, dst, off, n)
+        p += n
+        n
+  }
+
+  private class DribbleRd(c: Array[Char], max: Int) extends java.io.Reader {
+    private var p = 0
+    def close(): Unit = ()
+    def read(dst: Array[Char], off: Int, len: Int): Int =
+      if p >= c.length then -1
+      else
+        var n = len
+        if n > max then n = max
+        if n > c.length - p then n = c.length - p
+        System.arraycopy(c, p, dst, off, n)
+        p += n
+        n
+  }
+
+  // Random-sized chunks (with occasional empty ones) covering `n` items via `cut`
+  private def randChunks[A](r: Pcg64, n: Int)(cut: (Int, Int) => A): Iterator[A] =
+    val chunks = ArrayBuffer.empty[A]
+    var p = 0
+    while p < n do
+      if (r % 5) == 0 then chunks += cut(p, p)   // empty chunk: must be invisible
+      val q = { val x = p + 1 + (r % 6); if x > n then n else x }
+      chunks += cut(p, q)
+      p = q
+    chunks.iterator
+
+  @Test
+  def streamedCrossSourceFuzz(): Unit =
+    val r = Pcg64(0x65A0F6L)
+    def ok(a: Ask[Unit]) = a match { case Alt(_) => false; case _ => true }
+    var iter = 0
+    while iter < 800 do
+      val sb = new java.lang.StringBuilder
+      randText(r, 4, sb, container = true)
+      val text = sb.toString
+      val ref = Json.parse(text).ask
+      val bytes = text.getBytes(u8)
+      val chars = text.toCharArray
+      // chunk iterators with random boundaries through a tiny window: every token shape
+      // eventually straddles a chunk edge, a refill, and a window slide
+      T ~ Json.parse(randChunks(r, bytes.length)((a, b) => java.util.Arrays.copyOfRange(bytes, a, b)), 16).ask ==== ref
+      T ~ Json.parse(randChunks(r, chars.length)((a, b) => java.util.Arrays.copyOfRange(chars, a, b)), 16).ask ==== ref
+      // short-read InputStream/Reader
+      T ~ Json.parse(new DribbleIn(bytes, 1 + (r % 3)), 16).ask ==== ref
+      T ~ Json.parse(new DribbleRd(chars, 1 + (r % 3)), 16).ask ==== ref
+      // line-fed: splitting on newlines reconstructs the same document through implied newlines
+      // (generated strings never contain a raw newline -- it would be illegal JSON)
+      T ~ Json.parse(text.split("\n", -1).iterator).ask ==== ref
+      // skip-everything visitor over a dribbled tiny-window stream tracks structure exactly
+      T ~ ok(Json.stream(new DribbleIn(bytes, 2), 16)(new Jvisitor {
+            override def objStart() = false
+            override def arrStart() = false
+          })) ==== true
+      iter += 1
+
   @Test
   def compactFormatFuzz(): Unit =
     val r = Pcg64(0x35A0F3L)

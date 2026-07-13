@@ -4,7 +4,7 @@
 package kse.jsaun
 
 
-import scala.annotation.publicInBinary
+import scala.annotation.{publicInBinary, targetName}
 import scala.util.boundary
 import scala.util.boundary.Label
 
@@ -26,10 +26,14 @@ import kse.flow.{given, _}
   * Structural context ("in element 2 of array started at line 1, char 5:") is layered on top
   * with the standard `ErrType.Explained` chain, so multi-level parse errors unroll level by
   * level when printed.
+  *
+  * `pos` is the offset into the input (a byte offset for byte-fed sources); for line-fed
+  * sources it instead packs (line index, offset within line) into its halves.  `line`/`col`
+  * are 1-based and always plain.
   */
 final class Jerr private[jsaun] (
   val description: String,
-  val pos: Int,
+  val pos: Long,
   val line: Int,
   val col: Int,
   val excerpt: String,
@@ -250,6 +254,25 @@ object Json {
     */
   type Source = String | Array[Byte] | Array[Char]
 
+  /** Streaming input, parsed once through a sliding window: an `InputStream` or UTF-8
+    * byte-array chunks (structure ASCII, strings UTF-8, positions byte positions), or a
+    * `Reader` or char-array chunks.  Only a window around the token in progress is retained
+    * (starting at `window` elements and doubling only when one token outgrows it), so
+    * arbitrarily large input parses in bounded memory; chunk boundaries are invisible to the
+    * parse, and empty chunks are fine.  Because the input is not retained there is no `exact`
+    * or format-preserving mode; error line/col stay exact, but excerpts degrade to `?` behind
+    * the window.  Streams and readers are read as needed but never closed.
+    */
+  type Chunked = java.io.InputStream | Iterator[Array[Byte]] | java.io.Reader | Iterator[Array[Char]]
+
+  /** Input supplied line by line (`Iterable[String]` or `Iterator[String]`), with an implied
+    * newline between consecutive elements, so no token except whitespace can span lines and
+    * only the current line is ever retained.  Positions pack (line, offset within line), so
+    * error line/col are exact at any input size; at most `Int.MaxValue` lines.  For lines
+    * embedded in other values, see `parse(in)(line)`.  No `exact` or format-preserving mode.
+    */
+  type Lined = Iterable[String] | Iterator[String]
+
   /** Convert any value with a `Jsonize` instance into its JSON tree: `Json(myCaseClass)`. */
   def apply[A](a: A)(using jz: Jsonize[A]): Json = jz.jsonize(a)
 
@@ -275,6 +298,28 @@ object Json {
   inline def parse[A <: Mem.Type](inline mem: Mem[A]): JAny =
     JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).parseTop() })
 
+  /** Parse streaming JSON pulled through a sliding window that starts at `window` elements
+    * (see `Json.Chunked`).  Exceptions from the source (e.g. an `IOException` mid-read) come
+    * back as an `Err`, like any other failure.
+    */
+  inline def parse(inline in: Chunked, window: Int): JAny =
+    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, window).parseTop() })
+
+  /** Parse streaming JSON through a default-sized sliding window (see `Json.Chunked`). */
+  inline def parse(inline in: Chunked): JAny =
+    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, Jparse.defaultWindow).parseTop() })
+
+  /** Parse JSON supplied line by line (see `Json.Lined`). */
+  @targetName("parseLined")
+  inline def parse(inline in: Lined): JAny =
+    JAny.wrap(Ask.flat{ Jparse.linedParser(in, mutable = false).parseTop() })
+
+  /** Parse JSON from lines carried inside `in`'s elements, one line per element as extracted
+    * by `line` (see `Json.Lined`).
+    */
+  def parse[A](in: Iterator[A])(line: A => String): JAny =
+    JAny.wrap(Ask.flat{ (new Jparse.Lines(in.map(line))).parseTop() })
+
   /** SAX-style streaming parse: walk the input once, driving `vis` (see `Jvisitor`), building
     * no tree.  Values the visitor declines are skipped structurally.  There is no `exact` or
     * format-preserving variant -- a single forward pass cannot revisit or retain what it skipped.
@@ -287,6 +332,27 @@ object Json {
   /** SAX-style streaming parse from off-heap memory (`Mem[Byte]` UTF-8, `Mem[Char]` UTF-16). */
   inline def stream[A <: Mem.Type](inline mem: Mem[A])(vis: Jvisitor): Ask[Unit] =
     Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).visitTop(vis) }
+
+  /** SAX-style streaming parse of streaming input (see `Json.Chunked`): the natural pair for
+    * huge documents, since neither the input nor a tree is ever held whole -- values the
+    * visitor declines are stepped over in bounded memory however large they are.
+    */
+  inline def stream(inline in: Chunked, window: Int)(vis: Jvisitor): Ask[Unit] =
+    Ask.flat{ Jparse.chunkedParser(in, mutable = false, window).visitTop(vis) }
+
+  /** SAX-style streaming parse of streaming input through a default-sized window. */
+  @targetName("streamChunked")
+  inline def stream(inline in: Chunked)(vis: Jvisitor): Ask[Unit] =
+    Ask.flat{ Jparse.chunkedParser(in, mutable = false, Jparse.defaultWindow).visitTop(vis) }
+
+  /** SAX-style streaming parse of line-fed input (see `Json.Lined`). */
+  @targetName("streamLined")
+  inline def stream(inline in: Lined)(vis: Jvisitor): Ask[Unit] =
+    Ask.flat{ Jparse.linedParser(in, mutable = false).visitTop(vis) }
+
+  /** SAX-style streaming parse of lines carried inside `in`'s elements (see `Json.Lined`). */
+  def stream[A](in: Iterator[A])(line: A => String)(vis: Jvisitor): Ask[Unit] =
+    Ask.flat{ (new Jparse.Lines(in.map(line))).visitTop(vis) }
 
   /** Format-preserving parse: every collection remembers where it and its contents sat in
     * the input, so an unedited tree prints back byte-for-byte (bar whitespace outside the
@@ -334,6 +400,21 @@ object Json {
       JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = true, fmt = false).parseTop() })
     inline def parse[A <: Mem.Type](inline mem: Mem[A]): JAny =
       JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = true, fmt = false).parseTop() })
+
+    /** Mutable-tree parse of streaming input (see `Json.Chunked`). */
+    inline def parse(inline in: Chunked, window: Int): JAny =
+      JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = true, window).parseTop() })
+    inline def parse(inline in: Chunked): JAny =
+      JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = true, Jparse.defaultWindow).parseTop() })
+
+    /** Mutable-tree parse of line-fed input (see `Json.Lined`). */
+    @targetName("parseLined")
+    inline def parse(inline in: Lined): JAny =
+      JAny.wrap(Ask.flat{ Jparse.linedParser(in, mutable = true).parseTop() })
+
+    /** Mutable-tree parse of lines carried inside `in`'s elements (see `Json.Lined`). */
+    def parse[A](in: Iterator[A])(line: A => String): JAny =
+      JAny.wrap(Ask.flat{ (new Jparse.Lines(in.map(line), mutable = true)).parseTop() })
 
     /** Format-preserving mutable parse: the primary editing flow.  Value replacements keep
       * the formatting around them; a structural edit drops only the edited node's own

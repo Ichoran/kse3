@@ -191,7 +191,7 @@ class JsaunTest {
         T ~ text.contains("in value for key \"a\"")     ==== true
         T ~ text.contains("expected a JSON value")      ==== true
         val root = rootJerr(e)
-        T ~ root.pos  ==== 13
+        T ~ root.pos  ==== 13L
         T ~ root.line ==== 1
         T ~ root.col  ==== 14
       case v => assertTrue("unexpected success: " + v, false)
@@ -265,6 +265,118 @@ class JsaunTest {
     T ~ Json.M.parseFmt(Mem.of(fmtSrc.getBytes(u8))).ask.map(_.print) ==== Is(fmtSrc)
     // parse errors still flow through as errors
     T ~ bad(Json.parse(Mem.of("[1, 2".getBytes(u8))).ask) ==== true
+
+  @Test
+  def chunkedSourceTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    val srcs = List(
+      """{"a": [1, 2.5, "x"], "b": null, "c": true}""",
+      """[0.1, -3e8, 9223372036854775807, 123456789012345678901234567890]""",
+      "  [ [ ] , { } , \"\" ]  ",
+      "{\"k\": \"caf\\u00e9 café\", \"emoji\": \"😀\", \"nl\": \"a\\nb\"}",
+      "[" + ("\"" + "x" * 100 + "\",") * 20 + "0]"   // long tokens: forces window slides and regrowth
+    )
+    for s <- srcs do
+      val ref = Json.parse(s).ask
+      // InputStream and Reader through a deliberately tiny window
+      T ~ Json.parse(new java.io.ByteArrayInputStream(s.getBytes(u8)), 16).ask ==== ref
+      T ~ Json.parse(new java.io.StringReader(s), 16).ask                      ==== ref
+      // and the default-sized window
+      T ~ Json.parse(new java.io.ByteArrayInputStream(s.getBytes(u8))).ask     ==== ref
+      // chunk iterators with awkward sizes, so tokens straddle chunk boundaries
+      T ~ Json.parse(s.getBytes(u8).grouped(3), 16).ask ==== ref
+      T ~ Json.parse(s.getBytes(u8).grouped(1), 16).ask ==== ref
+      T ~ Json.parse(s.toCharArray.grouped(3), 16).ask  ==== ref
+    // whole-window errors render exactly like the in-memory parse of the same bytes
+    val badIn = """{"a": [1, 2, x]}"""
+    T ~ errText(Json.parse(new java.io.ByteArrayInputStream(badIn.getBytes(u8))).ask) ==== errText(Json.parse(badIn).ask)
+    T ~ errText(Json.parse(new java.io.StringReader(badIn)).ask)                      ==== errText(Json.parse(badIn).ask)
+    T ~ errText(Json.parse(new java.io.StringReader("[1, 2")).ask)  ==== errText(Json.parse("[1, 2").ask)
+    T ~ errText(Json.parse(new java.io.StringReader("[\"ab")).ask)  ==== errText(Json.parse("[\"ab").ask)
+    // line/col stay exact even once newlines have slid out of a tiny window
+    val ml = "[" + " " * 100 + "\n 4,\n ?\n]"
+    Json.parse(new java.io.ByteArrayInputStream(ml.getBytes(u8)), 16).ask match
+      case Alt(e) =>
+        val root = rootJerr(e)
+        T ~ root.line ==== 3
+        T ~ root.col  ==== 2
+      case v => assertTrue("unexpected success: " + v, false)
+    // an IOException mid-stream comes back as an Err, not a throw
+    class Boom extends java.io.InputStream {
+      private var n = 0
+      def read(): Int = throw new java.io.IOException("boom")
+      override def read(dst: Array[Byte], off: Int, len: Int): Int =
+        if n == 0 then { dst(off) = '['.toByte; n = 1; 1 } else throw new java.io.IOException("boom")
+    }
+    T ~ Json.parse(new Boom).isErr ==== true
+    // mutable-tree parse from a stream
+    Json.M.parse(new java.io.ByteArrayInputStream("""{"a": 1}""".getBytes(u8))).jsonOr(Jnull) match
+      case o: Jobj.M =>
+        o("b") = Jnum(2)
+        T ~ o.size ==== 2
+      case v => assertTrue("not a Jobj.M: " + v, false)
+    // visitor over a stream: declined values skip through window slides without decoding
+    val doc = """{"skip": [1, {"deep": [true, "no"]}, 2], "take": 7}"""
+    class PickTake extends Jvisitor:
+      var want = false
+      var got = -1L
+      override def key(k: String) = { want = k == "take"; want }
+      override def num(n: Jnum) = if want then got = n.longOr(-1L)
+    val pt = new PickTake
+    T ~ bad(Json.stream(new java.io.ByteArrayInputStream(doc.getBytes(u8)), 16)(pt)) ==== false
+    T ~ pt.got ==== 7L
+    T ~ bad(Json.stream(new java.io.StringReader(doc), 16)(new Jvisitor { override def objStart() = false })) ==== false
+    // deep-nesting refusal still guards streaming input
+    T ~ errText(Json.parse(new java.io.StringReader("[" * 600)).ask).contains("512 levels") ==== true
+
+  @Test
+  def linedSourceTest(): Unit =
+    // lines are joined by an implied newline: same values as the joined text
+    val lines = List("{", "  \"a\": [1, 2.5, \"x\\n\"],", "  \"b\": null", "}")
+    val joined = lines.mkString("\n")
+    T ~ Json.parse(lines).ask               ==== Json.parse(joined).ask
+    T ~ Json.parse(lines.iterator).ask      ==== Json.parse(joined).ask
+    T ~ Json.parse(Vector("[1,", "2]")).ask ==== Is(Jarr(Jnum(1), Jnum(2)))
+    // lines carried inside other values, via an extractor
+    case class Row(id: Int, text: String)
+    val rows = List(Row(1, "["), Row(2, " 42,"), Row(3, " true"), Row(4, "]"))
+    T ~ Json.parse(rows.iterator)(_.text).ask ==== Is(Jarr(Jnum(42), Jbool.True))
+    // errors report exact (line, char within line); pos packs the pair
+    Json.parse(List("[", "  4,", "  ?", "]")).ask match
+      case Alt(e) =>
+        val root = rootJerr(e)
+        T ~ root.line ==== 3
+        T ~ root.col  ==== 3
+        T ~ root.pos  ==== ((2L << 32) | 2L)
+        T ~ e.toString.contains("^") ==== true
+      case v => assertTrue("unexpected success: " + v, false)
+    // no token can span lines: the implied newline splits it
+    T ~ Json.parse(List("[tr", "ue]")).isErr     ==== true
+    T ~ Json.parse(List("[12", "34]")).isErr     ==== true
+    T ~ Json.parse(List("[\"ab", "cd\"]")).isErr ==== true
+    // but whitespace and structure cross lines freely, and blank/empty lines are fine
+    T ~ Json.parse(List("", "  ", "[", "", "]", "  ", "")).ask ==== Is(Jarr())
+    T ~ Json.parse(List("{}")).ask           ==== Is(Jobj())
+    T ~ Json.parse(List.empty[String]).isErr ==== true
+    T ~ Json.parse(List("[1]", "x")).isErr   ==== true
+    T ~ errText(Json.parse(Iterator.fill(600)("[")).ask).contains("512 levels") ==== true
+    // visitor mode: full visits and skips both track structure across lines
+    T ~ bad(Json.stream(lines)(new Jvisitor {}))  ==== false
+    T ~ bad(Json.stream(lines)(new Jvisitor { override def objStart() = false })) ==== false
+    T ~ bad(Json.stream(rows.iterator)(_.text)(new Jvisitor {})) ==== false
+    class PickB extends Jvisitor:
+      var got = "?"
+      override def key(k: String) = k == "b"
+      override def str(s: String) = got = s
+    val pb = new PickB
+    T ~ bad(Json.stream(List("{\"a\": [1, {\"x\": 2}],", "\"b\": \"yes\",", "\"c\": 3}"))(pb)) ==== false
+    T ~ pb.got ==== "yes"
+    // mutable parse from lines
+    Json.M.parse(List("{", "\"a\": 1", "}")).jsonOr(Jnull) match
+      case o: Jobj.M =>
+        o("b") = Jnum(2)
+        T ~ o.size ==== 2
+      case v => assertTrue("not a Jobj.M: " + v, false)
 
   @Test
   def streamVisitorTest(): Unit =
