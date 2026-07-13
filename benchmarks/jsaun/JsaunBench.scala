@@ -154,6 +154,9 @@ class JsaunBench {
   def jsaunCodecEncode(): Array[Byte] = Json(model).printBytes
 
   @Benchmark
+  def jsaunCodecEncodeDirect(): Array[Byte] = Json.printBytes(model)   // jsonizeTo: no intermediate tree
+
+  @Benchmark
   def jsoniterEncode(): Array[Byte] = writeToArray(model)
 
   @Benchmark

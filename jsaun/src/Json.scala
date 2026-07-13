@@ -276,6 +276,20 @@ object Json {
   /** Convert any value with a `Jsonize` instance into its JSON tree: `Json(myCaseClass)`. */
   def apply[A](a: A)(using jz: Jsonize[A]): Json = jz.jsonize(a)
 
+  /** Serialize any value with a `Jsonize` instance straight to JSON text, without building a
+    * tree (`Json(a).print` builds one first; this is the fast path for typed encoding).
+    */
+  def print[A](a: A)(using jz: Jsonize[A], st: Jstyle): String =
+    val out = new Jout.Str(style = st)
+    jz.jsonizeTo(a, out)
+    out.result
+
+  /** Serialize any value with a `Jsonize` instance straight to UTF-8 bytes; see `print`. */
+  def printBytes[A](a: A)(using jz: Jsonize[A], st: Jstyle): Array[Byte] =
+    val out = new Jout.Bytes(style = st)
+    jz.jsonizeTo(a, out)
+    out.result
+
   /** Parse JSON text into a tree, or an `Err` detailing what went wrong and where.
     * The parser is strict (RFC 8259): no trailing commas, no leading zeros, no `NaN`, and
     * nothing but whitespace after the value.  Byte input reads structure as ASCII and

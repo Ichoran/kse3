@@ -325,16 +325,22 @@ absolutes; a 1.5× gap is real, 10% is noise.
 |---|---|---|---|---|---|
 | tree parse (bytes / chars) | **0.044 / 0.052** | 0.021 | 0.018 | — | — |
 | tree serialize (bytes) | 0.028 | 0.033 | 0.020 | — | — |
-| typed decode | 0.031 | — | — | **0.077** | 0.018 |
-| typed encode | 0.023 | — | — | **0.070** | 0.027 |
+| typed decode | 0.035 | — | — | **0.077** | 0.018 |
+| typed encode (tree / direct) | 0.023 / **0.029** | — | — | **0.069** | 0.027 |
 
 - jsaun's **dynamic-tree parse beats both dynamic-tree references** — ~2× Jackson, ~2.4× uJson —
   and reads `Array[Char]` fastest of all its sources (0.052).
-- On the **typed plane jsoniter's compiled codec is the ceiling** (~2.5× jsaun on decode, ~3× on
-  encode); jsaun's Mirror-derived codec lands between uPickle and jsoniter decoding, near uPickle
-  encoding.  jsaun tree-parse (0.044) actually *beats* jsaun typed-decode (0.031): the derived
-  codec's per-field boxing costs more than just building the tree.  Exact mode is ~4× slower than
-  default (0.010) — the dyadic-exactness check on every number.
+- On the **typed plane jsoniter's compiled codec is the ceiling** (~2.2× jsaun on decode, ~2.4× on
+  encode); jsaun's Mirror-derived codec lands between uPickle and jsoniter decoding, above uPickle
+  encoding.  (Typed rows re-pinned 2026-07-13 after a codec allocation pass: decode 0.031 → 0.035
+  via positional field matching, a direct args-Product instead of `Tuple.fromArray`, and packed
+  `Jarr.D` backings read without per-element `Jnum.D` wrappers; encode gained `jsonizeTo` direct
+  serialization — `Json.printBytes(a)` at 0.029 skips the tree and beats even tree-serialize-only
+  (0.028).  The boxing that remains in decode is one Double per record plus `List[Double]`'s own
+  element boxes, so a constructor macro would buy little; the residual gaps to jsoniter are its
+  no-tree parse on decode and its Ryū-class float printer on encode — JDK `Double.toString` is
+  the bulk of our direct-encode cost.)  Exact mode is ~4× slower than default (0.010) — the
+  dyadic-exactness check on every number.
 
 **10×10 double matrix — the packed `Jarr.D` payoff (`JsaunMatrixBench`), 4sig / full precision.**
 

@@ -19,56 +19,180 @@ import kse.flow.{given, _}
 trait Jsonize[A] {
   def jsonize(a: A): Json
 
-  /** Serialize straight to an output; override to skip building the tree. */
+  /** Serialize straight to an output; override to skip building the tree.  The built-in and
+    * derived product instances all do, so `Json.print(a)`/`Json.printBytes(a)` allocate no
+    * tree -- only sum types route through `jsonize` (the discriminator is merged into the
+    * child's object, which needs the tree in hand).
+    */
   def jsonizeTo(a: A, out: Jout): Unit = jsonize(a).printTo(out)
 }
 object Jsonize {
   def apply[A](using jz: Jsonize[A]): Jsonize[A] = jz
 
-  given Jsonize[Json] = j => j
-  given Jsonize[Boolean] = b => Jbool(b)
-  given Jsonize[Int] = i => Jnum(i.toLong)
-  given Jsonize[Long] = l => Jnum(l)
-  given Jsonize[Double] = d => Jnum(d)
-  given Jsonize[Float] = f => Jnum(f.toDouble)
-  given Jsonize[String] = s => Jstr(s)
-  given Jsonize[BigDecimal] = x => Jnum(x)
+  // === Style-faithful direct emission (mirrors the fresh-tree branch of Jarr/Jobj printTo):
+  // the opener answers the separator to reuse, and bumps/pads depth exactly as the tree does.
 
-  given [A](using jz: Jsonize[A]): Jsonize[Option[A]] = {
-    case Some(a) => jz.jsonize(a)
-    case None => Jnull
+  private[jsaun] def arrOpen(out: Jout): String =
+    val st = out.style
+    out.add('[')
+    if st.indent.isEmpty then (if st.spaceAfterComma then ", " else ",")
+    else
+      out.depth += 1
+      val pad = Jstyle.pad(st.indent, out.depth)
+      out.add(pad)
+      "," + pad
+
+  private[jsaun] def arrClose(out: Jout): Unit =
+    val st = out.style
+    if st.indent.nonEmpty then
+      out.depth -= 1
+      out.add(Jstyle.pad(st.indent, out.depth))
+    out.add(']')
+
+  private[jsaun] def objOpen(out: Jout): String =
+    val st = out.style
+    out.add('{')
+    if st.indent.isEmpty then (if st.spaceAfterComma then ", " else ",")
+    else
+      out.depth += 1
+      val pad = Jstyle.pad(st.indent, out.depth)
+      out.add(pad)
+      "," + pad
+
+  private[jsaun] def objClose(out: Jout): Unit =
+    val st = out.style
+    if st.indent.nonEmpty then
+      out.depth -= 1
+      out.add(Jstyle.pad(st.indent, out.depth))
+    out.add('}')
+
+  private[jsaun] inline def objMid(out: Jout): String = if out.style.spaceAfterColon then ": " else ":"
+
+  given Jsonize[Json] = j => j
+
+  given Jsonize[Boolean] = new Jsonize[Boolean] {
+    def jsonize(b: Boolean): Json = Jbool(b)
+    override def jsonizeTo(b: Boolean, out: Jout): Unit = out.add(if b then "true" else "false")
   }
 
-  given [A, CC[X] <: Iterable[X]](using jz: Jsonize[A]): Jsonize[CC[A]] = xs =>
-    val vs = new Array[Json](xs.size)
-    var k = 0
-    val it = xs.iterator
-    while it.hasNext do
-      vs(k) = jz.jsonize(it.next())
-      k += 1
-    new Jarr.A(vs, k)
+  given Jsonize[Int] = new Jsonize[Int] {
+    def jsonize(i: Int): Json = Jnum(i.toLong)
+    override def jsonizeTo(i: Int, out: Jout): Unit = out.add(i.toLong)
+  }
 
-  given [A](using jz: Jsonize[A]): Jsonize[Array[A]] = xs =>
-    val vs = new Array[Json](xs.length)
-    var k = 0
-    while k < xs.length do
-      vs(k) = jz.jsonize(xs(k))
-      k += 1
-    new Jarr.A(vs, k)
+  given Jsonize[Long] = new Jsonize[Long] {
+    def jsonize(l: Long): Json = Jnum(l)
+    override def jsonizeTo(l: Long, out: Jout): Unit = out.add(l)
+  }
 
-  given Jsonize[Array[Double]] = xs => Jarr(xs)
+  given Jsonize[Double] = new Jsonize[Double] {
+    def jsonize(d: Double): Json = Jnum(d)
+    override def jsonizeTo(d: Double, out: Jout): Unit = Jnum.printDbl(out, d)
+  }
 
-  given [A, MM[K, V] <: scala.collection.Map[K, V]](using jz: Jsonize[A]): Jsonize[MM[String, A]] = m =>
-    val ks = new Array[String](m.size)
-    val vs = new Array[Json](m.size)
-    var k = 0
-    val it = m.iterator
-    while it.hasNext do
-      val (key, v) = it.next()
-      ks(k) = key
-      vs(k) = jz.jsonize(v)
-      k += 1
-    new Jobj(ks, vs, k)
+  given Jsonize[Float] = new Jsonize[Float] {
+    def jsonize(f: Float): Json = Jnum(f.toDouble)
+    override def jsonizeTo(f: Float, out: Jout): Unit = Jnum.printDbl(out, f.toDouble)
+  }
+
+  given Jsonize[String] = new Jsonize[String] {
+    def jsonize(s: String): Json = Jstr(s)
+    override def jsonizeTo(s: String, out: Jout): Unit = Jstr.encodeTo(out, s)
+  }
+
+  given Jsonize[BigDecimal] = x => Jnum(x)
+
+  given [A](using jz: Jsonize[A]): Jsonize[Option[A]] = new Jsonize[Option[A]] {
+    def jsonize(oa: Option[A]): Json = oa match
+      case Some(a) => jz.jsonize(a)
+      case None => Jnull
+    override def jsonizeTo(oa: Option[A], out: Jout): Unit = oa match
+      case Some(a) => jz.jsonizeTo(a, out)
+      case None => out.add("null")
+  }
+
+  given [A, CC[X] <: Iterable[X]](using jz: Jsonize[A]): Jsonize[CC[A]] = new Jsonize[CC[A]] {
+    def jsonize(xs: CC[A]): Json =
+      val vs = new Array[Json](xs.size)
+      var k = 0
+      val it = xs.iterator
+      while it.hasNext do
+        vs(k) = jz.jsonize(it.next())
+        k += 1
+      new Jarr.A(vs, k)
+    override def jsonizeTo(xs: CC[A], out: Jout): Unit =
+      if xs.isEmpty then out.add("[]")
+      else
+        val sep = arrOpen(out)
+        var first = true
+        val it = xs.iterator
+        while it.hasNext do
+          if first then first = false else out.add(sep)
+          jz.jsonizeTo(it.next(), out)
+        arrClose(out)
+  }
+
+  given [A](using jz: Jsonize[A]): Jsonize[Array[A]] = new Jsonize[Array[A]] {
+    def jsonize(xs: Array[A]): Json =
+      val vs = new Array[Json](xs.length)
+      var k = 0
+      while k < xs.length do
+        vs(k) = jz.jsonize(xs(k))
+        k += 1
+      new Jarr.A(vs, k)
+    override def jsonizeTo(xs: Array[A], out: Jout): Unit =
+      if xs.length == 0 then out.add("[]")
+      else
+        val sep = arrOpen(out)
+        var k = 0
+        while k < xs.length do
+          if k > 0 then out.add(sep)
+          jz.jsonizeTo(xs(k), out)
+          k += 1
+        arrClose(out)
+  }
+
+  given Jsonize[Array[Double]] = new Jsonize[Array[Double]] {
+    def jsonize(xs: Array[Double]): Json = Jarr(xs)
+    override def jsonizeTo(xs: Array[Double], out: Jout): Unit =
+      if xs.length == 0 then out.add("[]")
+      else
+        val sep = arrOpen(out)
+        var k = 0
+        while k < xs.length do
+          if k > 0 then out.add(sep)
+          Jnum.printDbl(out, xs(k))
+          k += 1
+        arrClose(out)
+  }
+
+  given [A, MM[K, V] <: scala.collection.Map[K, V]](using jz: Jsonize[A]): Jsonize[MM[String, A]] = new Jsonize[MM[String, A]] {
+    def jsonize(m: MM[String, A]): Json =
+      val ks = new Array[String](m.size)
+      val vs = new Array[Json](m.size)
+      var k = 0
+      val it = m.iterator
+      while it.hasNext do
+        val (key, v) = it.next()
+        ks(k) = key
+        vs(k) = jz.jsonize(v)
+        k += 1
+      new Jobj(ks, vs, k)
+    override def jsonizeTo(m: MM[String, A], out: Jout): Unit =
+      if m.isEmpty then out.add("{}")
+      else
+        val sep = objOpen(out)
+        val mid = objMid(out)
+        var first = true
+        val it = m.iterator
+        while it.hasNext do
+          val (key, v) = it.next()
+          if first then first = false else out.add(sep)
+          Jstr.encodeTo(out, key)
+          out.add(mid)
+          jz.jsonizeTo(v, out)
+        objClose(out)
+  }
 
   /** Derivation entry point for `derives Jsonize`: products become objects keyed by field
     * name; sums add a `"type"` discriminator to the child's object (or wrap a non-object
@@ -110,6 +234,21 @@ object Jsonize {
           vs(k) = jzs(k).asInstanceOf[Jsonize[Any]].jsonize(p.productElement(k))
           k += 1
         new Jobj(labels, vs, n)   // labels shared: never mutated by an immutable Jobj
+      override def jsonizeTo(a: A, out: Jout): Unit =
+        val p = a.asInstanceOf[Product]
+        val n = labels.length
+        if n == 0 then out.add("{}")
+        else
+          val sep = objOpen(out)
+          val mid = objMid(out)
+          var k = 0
+          while k < n do
+            if k > 0 then out.add(sep)
+            Jstr.encodeTo(out, labels(k))
+            out.add(mid)
+            jzs(k).asInstanceOf[Jsonize[Any]].jsonizeTo(p.productElement(k), out)
+            k += 1
+          objClose(out)
     }
 
   private[jsaun] def sumInstance[A](labels: Array[String], elems: Array[() => Jsonize[?]], sm: Mirror.SumOf[A]): Jsonize[A] =
@@ -149,13 +288,25 @@ object FromJson {
   given FromJson[Json] = j => Is(j)
   given FromJson[Boolean] = _.bool
   given FromJson[Long] = _.long
-  given FromJson[Double] = _.dbl
   given FromJson[Float] = _.dbl.map(_.toFloat)
   given FromJson[String] = _.str
-  given FromJson[Int] = _.long.flatMap{ l =>
-    if l < Int.MinValue || l > Int.MaxValue then Alt(Err(s"integer out of Int range: $l"))
-    else Is(l.toInt)
+
+  // A stable instance, so the collection decoder can recognize it by identity and read a
+  // packed Jarr.D without materializing a Jnum.D per element
+  private val doubleInstance: FromJson[Double] = _.dbl
+  given FromJson[Double] = doubleInstance
+
+  given FromJson[Int] = {
+    case n: Jnum.L =>
+      val l = n.value
+      if l < Int.MinValue || l > Int.MaxValue then Alt(Err(s"integer out of Int range: $l"))
+      else Is(l.toInt)
+    case j => j.long.flatMap{ l =>
+      if l < Int.MinValue || l > Int.MaxValue then Alt(Err(s"integer out of Int range: $l"))
+      else Is(l.toInt)
+    }
   }
+
   given FromJson[BigDecimal] = {
     case b: Jnum.Big => Is(b.big)
     case n: Jnum.L => Is(BigDecimal(n.value))
@@ -171,21 +322,36 @@ object FromJson {
 
   given [A, C[_]](using fj: FromJson[A], fac: scala.collection.Factory[A, C[A]]): FromJson[C[A]] = {
     case a: Jarr =>
-      val get: Int => Json = a match
-        case aa: Jarr.A => k => aa.vs(k)
-        case _ => k => a.elem(k)
       val b = fac.newBuilder
       var bad = FromJson.noErr
       var badly = false
-      var k = 0
-      val n = a.size
-      while !badly && k < n do
-        fj.from(get(k)) match
-          case Alt(e) =>
-            bad = e.explainBy(s"in element $k:")
-            badly = true
-          case x => b.addOne(Is unwrap x.asInstanceOf[Is[A]]) __ Unit
-        k += 1
+      a match
+        case d: Jarr.D if fj.asInstanceOf[AnyRef] eq doubleInstance =>
+          val xs = d.xs   // element identity witnessed: A is Double, so read the packed backing
+          var k = 0
+          while k < d.n do
+            b.addOne(xs(k).asInstanceOf[A]) __ Unit
+            k += 1
+        case aa: Jarr.A =>
+          val vs = aa.vs
+          var k = 0
+          while !badly && k < aa.n do
+            fj.from(vs(k)) match
+              case Alt(e) =>
+                bad = e.explainBy(s"in element $k:")
+                badly = true
+              case x => b.addOne(Is unwrap x.asInstanceOf[Is[A]]) __ Unit
+            k += 1
+        case _ =>
+          var k = 0
+          val n = a.size
+          while !badly && k < n do
+            fj.from(a.elem(k)) match
+              case Alt(e) =>
+                bad = e.explainBy(s"in element $k:")
+                badly = true
+              case x => b.addOne(Is unwrap x.asInstanceOf[Is[A]]) __ Unit
+            k += 1
       if badly then Alt(bad) else Is(b.result())
     case x => Alt(Json.expectErr("an array", x))
   }
@@ -207,6 +373,14 @@ object FromJson {
         k += 1
       if badly then Alt(bad) else Is(b.result())
     case x => Alt(Json.expectErr("an object", x))
+  }
+
+  // A minimal Product over the decoded field values, so construction skips Tuple.fromArray's
+  // arity dispatch and copy; a Mirror only ever calls productArity/productElement.
+  private final class ArgsProduct(args: Array[Any]) extends Product {
+    def canEqual(that: Any): Boolean = false
+    def productArity: Int = args.length
+    def productElement(i: Int): Any = args(i)
   }
 
   /** Derivation entry point for `derives FromJson`: mirror of `Jsonize.derived`.  All field
@@ -240,19 +414,28 @@ object FromJson {
       def from(j: Json): Ask[A] = j match
         case o: Jobj =>
           val n = labels.length
+          // JSON written from a case class nearly always carries the fields in declaration
+          // order, so check full positional agreement once and skip the per-field lookups.
+          // Safe even under last-wins duplicate keys: labels are distinct, so all-match at
+          // equal size leaves no room for a duplicate.
+          var pos = o.n == n
+          var k = 0
+          while pos && k < n do
+            pos = o.ks(k) == labels(k)
+            k += 1
           val args = new Array[Any](n)
           var errs: List[Err] = Nil
-          var k = 0
+          k = 0
           while k < n do
             val fj = fjs(k).asInstanceOf[FromJson[Any]]
-            val v = o.get(labels(k))
+            val v = if pos then o.vs(k) else o.get(labels(k))
             val r = if v eq null then fj.missing(labels(k)) else fj.from(v)
             r match
               case Alt(e) => errs = e.explainBy(s"in field \"${labels(k)}\":") :: errs
               case x => args(k) = Is unwrap x.asInstanceOf[Is[Any]]
             k += 1
           errs match
-            case Nil => Is(pm.fromProduct(Tuple.fromArray(args.asInstanceOf[Array[Object]])))
+            case Nil => Is(pm.fromProduct(new ArgsProduct(args)))
             case e :: Nil => Alt(e)
             case es => Alt(Err(es.reverse*)(s"${es.length} fields failed to decode"))
         case x => Alt(Json.expectErr("an object", x))

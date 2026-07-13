@@ -29,6 +29,8 @@ case object Dot extends Shape
 
 case class AB(a: Int, b: String) derives FromJson
 
+case class Empty() derives Jsonize, FromJson
+
 
 @RunWith(classOf[JUnit4])
 class JsaunTest {
@@ -759,6 +761,48 @@ class JsaunTest {
     T ~ errText(Json.parse("""{"a":1}""").to[AB]).contains("missing key \"b\"") ==== true
     T ~ bad(Json.parse("[1, 2").to[List[Int]])     ==== true   // parse errors flow into decoding
     T ~ errText(Json.parse("""[1,"x",3]""").to[List[Int]]).contains("in element 1") ==== true
+
+  @Test
+  def directCodecTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    // Json.print/printBytes serialize through jsonizeTo with no tree; output must match the
+    // tree route byte-for-byte in every style
+    def check[A](a: A)(using jz: Jsonize[A]): Unit =
+      val tree = Json(a)
+      T ~ Json.print(a)                                            ==== tree.print
+      T ~ (new String(Json.printBytes(a), u8))                     ==== tree.print
+      T ~ Json.print(a)(using jz, Jstyle.pretty)                   ==== tree.print(using Jstyle.pretty)
+      T ~ (new String(Json.printBytes(a)(using jz, Jstyle.pretty), u8)) ==== tree.print(using Jstyle.pretty)
+    check(Pt(1.5, 2.5))
+    check(WithOpt(1, None))
+    check(WithOpt(1, Some("x\n\"y é😀")))
+    check(Auto(Inner(3), 7))
+    check(Empty())
+    check(List(1, 2, 3))
+    check(Nil: List[Int])
+    check(Vector("a", "é😀", ""))
+    check(Array(1.5, -2.5e300, 0.0))
+    check(Array.empty[Double])
+    check(Map("k" -> List(1.5, 2.5), "empty" -> Nil))
+    check(Map.empty[String, Int])
+    check(List(Pt(1.0, 2.0), Pt(-0.5, 3e-9)))
+    check(Option(Pt(1.0, 2.0)))
+    check(Circle(2.0): Shape)   // sums route through the tree; output still identical
+    check(Dot: Shape)
+    check(List[Shape](Circle(1.0), Sq(2.0, "s"), Dot))
+    // and the round trip through the direct printer decodes back
+    val v = Auto(Inner(3), 7)
+    T ~ Json.parse(Json.print(v)).to[Auto] ==== Is(v)
+    // decoding: field order does not matter, and the positional fast path keeps exact
+    // last-wins duplicate-key semantics
+    T ~ Json.parse("""{"y":2.5,"x":1.5}""").to[Pt]           ==== Is(Pt(1.5, 2.5))
+    T ~ Json.parse("""{"x":1.0,"x":9.0,"y":2.5}""").to[Pt]   ==== Is(Pt(9.0, 2.5))
+    T ~ bad(Json.parse("""{"x":1.0,"x":9.0}""").to[Pt])      ==== true   // dup hides a missing field
+    T ~ Json.parse("""{"x":1.5,"y":2.5,"z":0}""").to[Pt]     ==== Is(Pt(1.5, 2.5))   // extras ignored
+    T ~ Json.parse("{}").to[Empty]                           ==== Is(Empty())
+    // packed-array decode: Jarr.D reads its backing directly for Double, per-element otherwise
+    T ~ Json.parse("[1.5,2.5]").to[Vector[Double]]           ==== Is(Vector(1.5, 2.5))
+    T ~ Json.parse("[1.5,2.5]").to[List[Float]]              ==== Is(List(1.5f, 2.5f))
 
   @Test
   def equalityAndKindTest(): Unit =
