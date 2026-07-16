@@ -323,7 +323,7 @@ class JsaunTest {
       var want = false
       var got = -1L
       override def key(k: String) = { want = k == "take"; want }
-      override def num(n: Jnum) = if want then got = n.longOr(-1L)
+      override def num(l: Long) = if want then got = l
     val pt = new PickTake
     T ~ bad(Json.stream(new java.io.ByteArrayInputStream(doc.getBytes(u8)), 16)(pt)) ==== false
     T ~ pt.got ==== 7L
@@ -393,7 +393,8 @@ class JsaunTest {
       override def key(k: String) = { log += s"k:$k"; true }
       override def index(i: Int) = { log += s"i:$i"; true }
       override def str(s: String) = log += s"s:$s"
-      override def num(n: Jnum) = log += s"n:${n.print}"
+      override def num(l: Long) = log += s"n:$l"
+      override def num(d: Double) = log += s"n:$d"
       override def bool(b: Boolean) = log += s"b:$b"
       override def nul() = log += "z"
     val doc = """{"a":1,"b":[true,null,"x"]}"""
@@ -432,7 +433,7 @@ class JsaunTest {
     class Mid extends Jvisitor:
       val ns = scala.collection.mutable.ArrayBuffer.empty[String]
       override def index(i: Int) = i == 1
-      override def num(n: Jnum) = ns += n.print
+      override def num(l: Long) = ns += l.toString
     val mid = new Mid
     Json.stream("[10,20,30]")(mid) __ Unit
     T ~ mid.ns.mkString ==== "20"
@@ -450,6 +451,116 @@ class JsaunTest {
     T ~ bad(Json.stream("[1, 2")(new Jvisitor {}))        ==== true
     T ~ bad(Json.stream("""{"a" 1}""")(new Jvisitor {}))  ==== true
     T ~ bad(Json.stream("nope")(new Jvisitor {}))         ==== true
+
+  @Test
+  def builderTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    // a no-tree, no-boxing custom decoder: the builder itself is a stateless recipe (here an
+    // object, freely reused); zero() makes the per-walk state, expectations route and
+    // type-check, build(b) assembles
+    class PtState:
+      var x = Double.NaN
+      var y = Double.NaN
+      var onY = false
+    object PtBuilder extends Jbuilder[PtState, Pt]:
+      def zero() = new PtState
+      override def key(b: PtState, k: String) = k match
+        case "x" => b.onY = false; Jexpect.D
+        case "y" => b.onY = true; Jexpect.D
+        case _ => Jexpect.Skip
+      override def num(b: PtState, d: Double) = { if b.onY then b.y = d else b.x = d; Is.unit }
+      def build(b: PtState): Ask[Pt] =
+        if b.x.isNaN || b.y.isNaN then Alt(Err("missing x or y")) else Is(Pt(b.x, b.y))
+    T ~ Json.build("""{"x":1.5,"y":2.5}""")(PtBuilder)                       ==== Is(Pt(1.5, 2.5))
+    T ~ Json.build("""{"y":2.5,"junk":[{"deep":"]"}],"x":1.5}""")(PtBuilder) ==== Is(Pt(1.5, 2.5))
+    T ~ Json.build("""{"x":1,"y":2}""")(PtBuilder)                           ==== Is(Pt(1.0, 2.0))   // D widens integers
+    T ~ Json.build("""{"x":9.5,"y":8.5}""")(PtBuilder)                       ==== Is(Pt(9.5, 8.5))   // same instance, fresh state
+    // build(b) decides success: missing fields are its call, reported through the same Ask
+    T ~ errText(Json.build("""{"x":1.5}""")(PtBuilder)).contains("missing") ==== true
+    // expectation mismatches fail the walk, positioned, with key context
+    val e1 = errText(Json.build("""{"x":"oops","y":2.5}""")(PtBuilder))
+    T ~ e1.contains("expected a number")         ==== true
+    T ~ e1.contains("in value for key \"x\"")    ==== true
+    // integer expectation: whole doubles convert (like Json.long), fractions and non-numbers fail
+    class LongBox:
+      var value = -1L
+    object IdBuilder extends Jbuilder[LongBox, Long]:
+      def zero() = new LongBox
+      override def key(b: LongBox, k: String) = if k == "id" then Jexpect.L else Jexpect.Skip
+      override def num(b: LongBox, l: Long) = { b.value = l; Is.unit }
+      def build(b: LongBox): Ask[Long] = Is(b.value)
+    T ~ Json.build("""{"id": 42}""")(IdBuilder)   ==== Is(42L)
+    T ~ Json.build("""{"id": 42.0}""")(IdBuilder) ==== Is(42L)
+    T ~ errText(Json.build("""{"id": 4.5}""")(IdBuilder)).contains("expected an integer") ==== true
+    T ~ errText(Json.build("""{"id": "x"}""")(IdBuilder)).contains("expected an integer") ==== true
+    // Str/Bool/Obj/Arr expectations enforce form; null satisfies none of them
+    object Strict extends Jbuilder[Array[String], String]:
+      def zero() = Array("")
+      override def key(b: Array[String], k: String) = k match
+        case "s" => Jexpect.Str
+        case "b" => Jexpect.Bool
+        case "o" => Jexpect.Obj
+        case "a" => Jexpect.Arr
+        case _ => Jexpect.Skip
+      override def str(b: Array[String], v: String) = { b(0) = v; Is.unit }
+      def build(b: Array[String]): Ask[String] = Is(b(0))
+    T ~ Json.build("""{"s":"ok","b":true,"o":{"x":1},"a":[1]}""")(Strict) ==== Is("ok")
+    T ~ bad(Json.build("""{"b":1}""")(Strict))    ==== true
+    T ~ bad(Json.build("""{"o":[1]}""")(Strict))  ==== true
+    T ~ bad(Json.build("""{"a":{}}""")(Strict))   ==== true
+    T ~ bad(Json.build("""{"s":null}""")(Strict)) ==== true
+    // B = A: accumulate straight into the result, build is just Is(b) -- no further allocation
+    object Gather extends Jbuilder[scala.collection.mutable.ArrayBuffer[String], scala.collection.mutable.ArrayBuffer[String]]:
+      def zero() = scala.collection.mutable.ArrayBuffer.empty[String]
+      override def index(b: scala.collection.mutable.ArrayBuffer[String], i: Int) = Jexpect.Str
+      override def str(b: scala.collection.mutable.ArrayBuffer[String], s: String) =
+        b.addOne(s) __ Unit
+        Is.unit
+      def build(b: scala.collection.mutable.ArrayBuffer[String]) = Is(b)
+    T ~ Json.build("""["a","b","c"]""")(Gather).map(_.toList) ==== Is(List("a", "b", "c"))
+    // unboxed array elements via index expectations
+    class DSum:
+      var sum = 0.0
+    object SumD extends Jbuilder[DSum, Double]:
+      def zero() = new DSum
+      override def index(b: DSum, i: Int) = Jexpect.D
+      override def num(b: DSum, d: Double) = { b.sum += d; Is.unit }
+      def build(b: DSum): Ask[Double] = Is(b.sum)
+    T ~ Json.build("[1.5, 2, 0.5]")(SumD) ==== Is(4.0)
+    // builders can refuse semantically bad values in well-formed JSON, as they arrive:
+    // the walk fails right there, with the value's position and whose-key context
+    object PickyId extends Jbuilder[LongBox, Long]:
+      def zero() = new LongBox
+      override def key(b: LongBox, k: String) = if k == "id" then Jexpect.L else Jexpect.Skip
+      override def num(b: LongBox, l: Long) =
+        if l < 0 then Alt(Err(s"id must be nonnegative: $l"))
+        else { b.value = l; Is.unit }
+      def build(b: LongBox): Ask[Long] = Is(b.value)
+    T ~ Json.build("""{"id": 7}""")(PickyId) ==== Is(7L)
+    val e2 = errText(Json.build("""{"junk": true, "id": -3}""")(PickyId))
+    T ~ e2.contains("id must be nonnegative: -3")  ==== true
+    T ~ e2.contains("at line 1, char 22")          ==== true
+    T ~ e2.contains("in value for key \"id\"")     ==== true
+    // ...and can refuse a whole container from its end callback, anchored at its start
+    object Pair extends Jbuilder[DSum, Double]:
+      def zero() = new DSum
+      override def index(b: DSum, i: Int) = Jexpect.D
+      override def num(b: DSum, d: Double) = { b.sum += d; Is.unit }
+      override def arrEnd(b: DSum) = if b.sum == 0 then Alt(Err("elements sum to zero")) else Is.unit
+      def build(b: DSum): Ask[Double] = Is(b.sum)
+    T ~ Json.build("[1.0, 2.0]")(Pair)                                    ==== Is(3.0)
+    T ~ errText(Json.build("[1.0, -1.0]")(Pair)).contains("sum to zero")  ==== true
+    T ~ errText(Json.build("[1.0, -1.0]")(Pair)).contains("at line 1, char 1") ==== true
+    // the builder runs over every source kind
+    val doc = """{"x": -0.5, "y": 3.25}"""
+    T ~ Json.build(doc.getBytes(u8))(PtBuilder)          ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(doc.toCharArray)(PtBuilder)           ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(Mem.of(doc.getBytes(u8)))(PtBuilder)  ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(new java.io.ByteArrayInputStream(doc.getBytes(u8)), 16)(PtBuilder) ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(new java.io.StringReader(doc))(PtBuilder)     ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(doc.getBytes(u8).grouped(3), 16)(PtBuilder)   ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(List("{\"x\": -0.5,", "\"y\": 3.25}"))(PtBuilder) ==== Is(Pt(-0.5, 3.25))
+    T ~ Json.build(List(1, 2).iterator)(i => if i == 1 then "{\"x\": -0.5," else "\"y\": 3.25}")(PtBuilder) ==== Is(Pt(-0.5, 3.25))
 
   @Test
   def exactModeTest(): Unit =

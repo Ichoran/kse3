@@ -80,14 +80,15 @@ class JsaunVisitorBench {
     var acc = 0.0
     private var k = ""
     override def key(key: String): Boolean = { k = key; (k == "id") || (k == "name") }
-    override def num(n: Jnum): Unit = if k == "id" then acc += n.double
+    override def num(l: Long): Unit = if k == "id" then acc += l.toDouble
     override def str(s: String): Unit = if k == "name" then acc += s.length
   }
 
   // Touches every number; no skipping.
   final class SumAll extends Jvisitor {
     var acc = 0.0
-    override def num(n: Jnum): Unit = acc += n.double
+    override def num(l: Long): Unit = acc += l.toDouble
+    override def num(d: Double): Unit = acc += d
   }
 
   // === extract plane ===

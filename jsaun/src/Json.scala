@@ -368,6 +368,39 @@ object Json {
   def stream[A](in: Iterator[A])(line: A => String)(vis: Jvisitor): Ask[Unit] =
     Ask.flat{ (new Jparse.Lines(in.map(line))).visitTop(vis) }
 
+  /** Walk the input once driving a building visitor (see `Jbuilder`) around fresh state from
+    * its `zero()`, and answer what it built: the primitive for custom no-tree, no-boxing
+    * decoders.  Parse and expectation failures come back positioned; `build(b)` is consulted
+    * only if the walk succeeded.  The builder itself is stateless, so one instance serves any
+    * number of calls.
+    */
+  inline def build[B, A](inline in: Source)(vis: Jbuilder[B, A]): Ask[A] = inline in match
+    case s: String      => Ask.flat{ (new Jparse.Str(s)).buildTop(vis) }
+    case b: Array[Byte] => Ask.flat{ (new Jparse.Bytes(b)).buildTop(vis) }
+    case c: Array[Char] => Ask.flat{ (new Jparse.Chars(c)).buildTop(vis) }
+
+  /** Build from off-heap memory (`Mem[Byte]` UTF-8, `Mem[Char]` UTF-16); see `build`. */
+  inline def build[M <: Mem.Type, B, A](inline mem: Mem[M])(vis: Jbuilder[B, A]): Ask[A] =
+    Ask.flat{ Jparse.memParser[M](mem, exact = false, mutable = false, fmt = false).buildTop(vis) }
+
+  /** Build from streaming input through a sliding window (see `Json.Chunked` and `build`). */
+  inline def build[B, A](inline in: Chunked, window: Int)(vis: Jbuilder[B, A]): Ask[A] =
+    Ask.flat{ Jparse.chunkedParser(in, mutable = false, window).buildTop(vis) }
+
+  /** Build from streaming input through a default-sized window; see `build`. */
+  @targetName("buildChunked")
+  inline def build[B, A](inline in: Chunked)(vis: Jbuilder[B, A]): Ask[A] =
+    Ask.flat{ Jparse.chunkedParser(in, mutable = false, Jparse.defaultWindow).buildTop(vis) }
+
+  /** Build from line-fed input (see `Json.Lined` and `build`). */
+  @targetName("buildLined")
+  inline def build[B, A](inline in: Lined)(vis: Jbuilder[B, A]): Ask[A] =
+    Ask.flat{ Jparse.linedParser(in, mutable = false).buildTop(vis) }
+
+  /** Build from lines carried inside `in`'s elements (see `Json.Lined` and `build`). */
+  def build[X, B, A](in: Iterator[X])(line: X => String)(vis: Jbuilder[B, A]): Ask[A] =
+    Ask.flat{ (new Jparse.Lines(in.map(line))).buildTop(vis) }
+
   /** Format-preserving parse: every collection remembers where it and its contents sat in
     * the input, so an unedited tree prints back byte-for-byte (bar whitespace outside the
     * root value), and an edited one reprints only what was touched, with verbatim source

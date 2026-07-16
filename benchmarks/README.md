@@ -376,19 +376,40 @@ serialize:
   parse-and-reprint and Jackson, while being the only one whose output is byte-identical except for
   the edit.
 
-**Visitor + skip gates (`JsaunVisitorBench`)** — records with two wanted fields and skipped bulk:
+**Visitor + skip gates (`JsaunVisitorBench`)** — records with two wanted fields and skipped bulk.
+(Re-pinned 2026-07-15: numbers now arrive as raw `Long`/`Double` — no `Jnum` per visited
+number — with the boolean skip gates unchanged.  Same-run Jackson references match the 07-10
+pins, so these are comparable.)
 
 | op | jsaun | Jackson stream | jsaun tree |
 |---|---|---|---|
-| extract id+name (skip the rest) | **0.049** (chars 0.054, str 0.041, Mem 0.039) | 0.023 (`skipChildren`) | 0.020 (build+navigate) |
-| full visit / parse (touch every number) | 0.025 | 0.010 | 0.021 (`jsaunParseTree`) |
+| extract id+name (skip the rest) | **0.044** (chars 0.048, str 0.041, Mem 0.037) | 0.022 (`skipChildren`) | 0.024 (build+navigate) |
+| full visit / parse (touch every number) | 0.030 | 0.010 | 0.024 (`jsaunParseTree`) |
 
 - **Skipping pays.** Declining a key skips its value structurally (match brackets/quotes, decode
-  nothing, allocate nothing), so `jsaunVisitExtract` (0.049) is **~2.4× building the whole tree then
-  navigating** (0.020) and **~2× Jackson's streaming `skipChildren`** (0.023).  Against the *same*
-  visitor with no skips (`jsaunVisitSumAll`, 0.025), skipping the `data`/`tags`/`active` bulk roughly
-  **doubles** throughput.
-- Even a **full** streaming visit (0.025) beats Jackson's streaming number-sum (0.010) by ~2.5× and
-  edges out building the tree (0.021) — a no-allocation traversal.
-- `Mem[Byte]` **works as a visitor source** (0.039, ~20% under on-heap bytes — the FFM segment-access
-  cost); `Array[Char]` is fastest (0.054), as elsewhere.
+  nothing, allocate nothing), so `jsaunVisitExtract` (0.044) is **~1.9× building the whole tree
+  then navigating** (0.024) and **~2× Jackson's streaming `skipChildren`** (0.022).  (The 07-10
+  pin read 0.049 on identical walker code — build-to-build JIT variance; ratios hold.)
+- The unboxed number callbacks lift the **full** visit from 0.025 to **0.030** — now **3×**
+  Jackson's streaming number-sum (0.010) — since a full traversal of number-heavy data
+  allocates nothing at all.
+- `Mem[Byte]` **works as a visitor source** (0.037, ~16% under on-heap bytes — the FFM
+  segment-access cost); `Array[Char]` is fastest (0.048), as elsewhere.
+
+**Builder (`Jbuilder[B, A]`, in `JsaunBench`)** — a hand-written no-tree `GeoRecord` decoder.
+The builder is a *stateless recipe* (here an `object`, reused across calls): `zero()` makes the
+per-walk state `B`, `key`/`index` answer `Jexpect` expectations the walker type-checks with
+positioned errors, numbers arrive unboxed, and `build(b)` finishes.  Value callbacks answer
+`Ask[Unit]`, so semantically bad values in well-formed JSON can be refused as they arrive with
+the builder's own error, positioned by the walker — accepting with the prewrapped `Is.unit`
+measures free (0.038 with the check vs 0.037–0.038 without).  Same-run numbers: builder decode
+**0.038** vs derived-codec decode 0.035, tree parse alone 0.046, jsoniter 0.077.
+
+- The builder only **edges out** parse-then-convert: builder event dispatch costs nearly what
+  the tree→object conversion it avoids costs, because jsaun's tree building is already cheap.
+  Its value is bounded memory over streaming sources, custom target shapes, walker-checked
+  positioned errors, and zero per-parse setup — not raw speed on tree-friendly payloads.
+- The remaining ~2× to jsoniter is **not** the tree: it's that `key(b, k: String)` materializes
+  a decoded String per key per record, where jsoniter matches field names byte-wise in place.
+  An allocation-free key-matching variant (trie/intern handshake with the walker) is the next
+  lever if typed-decode speed ever matters enough.

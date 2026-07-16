@@ -41,6 +41,9 @@ sealed abstract class Jparse protected () {
   protected var fmtMode = false
   protected var src: Jsrc = null   // set exactly when fmtMode
   protected var eErr: Err = Err("(no error)")   // meaningful only after a worker answers null/false
+  protected var nL = 0L            // the number numWork just read, unboxed: tag 1 fills nL,
+  protected var nD = 0.0           // tag 2 fills nD, tag 3 (exact mode only) fills nBig
+  protected var nBig: String = null
 
   // === Workers, instantiated per concrete source type from the inline templates below ===
 
@@ -48,7 +51,7 @@ sealed abstract class Jparse protected () {
   protected def litWork(lit: String): Boolean
   protected def strWork(): String | Null
   protected def strEscWork(j0: Long, jN: Long): String | Null
-  protected def numWork(): Json | Null
+  protected def numWork(): Int
   protected def skipWork(): Boolean
 
   // === Cold access to raw content, for error reporting only ===
@@ -134,7 +137,12 @@ sealed abstract class Jparse protected () {
     else if c == '"' then
       val s = strWork()
       if s eq null then null else new Jstr(s)
-    else if c == '-' || (c >= '0' && c <= '9') then numWork()
+    else if c == '-' || (c >= '0' && c <= '9') then
+      numWork() match
+        case 1 => new Jnum.L(nL)
+        case 2 => new Jnum.D(nD)
+        case 3 => new Jnum.Big(nBig)
+        case _ => null
     else if c == 't' then { if litWork("true") then Jbool.True else null }
     else if c == 'f' then { if litWork("false") then Jbool.False else null }
     else if c == 'n' then { if litWork("null") then Jnull else null }
@@ -282,8 +290,10 @@ sealed abstract class Jparse protected () {
       val s = strWork()
       if s eq null then false else { vis.str(s); true }
     else if c == '-' || (c >= '0' && c <= '9') then
-      val jn = numWork()
-      if jn eq null then false else { vis.num(jn.asInstanceOf[Jnum]); true }
+      numWork() match
+        case 1 => vis.num(nL); true
+        case 2 => vis.num(nD); true
+        case _ => false   // tag 3 needs exact mode, which visiting never sets
     else if c == 't' then { if litWork("true") then { vis.bool(true); true } else false }
     else if c == 'f' then { if litWork("false") then { vis.bool(false); true } else false }
     else if c == 'n' then { if litWork("null") then { vis.nul(); true } else false }
@@ -335,6 +345,147 @@ sealed abstract class Jparse protected () {
       c = wsWork()
       if c == ',' then { i += 1; c = wsWork() }
       else if c == ']' then { i += 1; depth -= 1; vis.arrEnd(); return true }
+      else return { fail("',' or ']' in array", i); false }
+    false
+
+
+  ///////////////////////////////////////////////
+  /// Builder traversal (no tree, produces A) ///
+  ///////////////////////////////////////////////
+
+  // The Jbuilder twin of the visitor descent: the same walk, but every callback carries the
+  // builder's working state and key/index answer typed expectations that are checked here.
+  // A separate family (rather than adapting one to the other) keeps each walk monomorphic:
+  // plain visitors pay nothing for the expectation machinery.
+
+  /** Walk one complete JSON value driving `vis` around fresh state from `zero()`, then have it
+    * build the result -- only if the walk succeeded; a parse or expectation failure
+    * short-circuits.
+    */
+  final def buildTop[B, A](vis: Jbuilder[B, A]): Ask[A] =
+    val b = vis.zero()
+    val c = wsWork()
+    if c < 0 then Alt(errAt("expected a JSON value", i))
+    else if !buildValue(c, vis, b) then Alt(eErr)
+    else if wsWork() >= 0 then Alt(errAt("unexpected content after the JSON value", i))
+    else vis.build(b)
+
+  /** Record whether the builder accepted a value; a refusal becomes the walk's failure, with
+    * the builder's own error wrapped in the value's position (the caller adds whose-key
+    * context on the way out).  The happy path is one type test against the prewrapped
+    * `Is.unit`.
+    */
+  private def accept(r: Ask[Unit], v0: Long): Boolean = r match
+    case Alt(e) =>
+      eErr = e.explainBy(s"at ${posText(v0)}:")
+      false
+    case _ => true
+
+  private def buildValue[B](c: Int, vis: Jbuilder[B, ?], b: B): Boolean =
+    val v0 = i
+    if c == '{' then buildObj(vis, b)
+    else if c == '[' then buildArr(vis, b)
+    else if c == '"' then
+      val s = strWork()
+      if s eq null then false else accept(vis.str(b, s), v0)
+    else if c == '-' || (c >= '0' && c <= '9') then
+      numWork() match
+        case 1 => accept(vis.num(b, nL), v0)
+        case 2 => accept(vis.num(b, nD), v0)
+        case _ => false   // tag 3 needs exact mode, which building never sets
+    else if c == 't' then { if litWork("true") then accept(vis.bool(b, true), v0) else false }
+    else if c == 'f' then { if litWork("false") then accept(vis.bool(b, false), v0) else false }
+    else if c == 'n' then { if litWork("null") then accept(vis.nul(b), v0) else false }
+    else { fail("a JSON value", i); false }
+
+  /** Handle one value per the builder's expectation: skip it, visit it, or insist on a form
+    * and deliver it through the matching leaf callback (`Jexpect.L` takes whole numbers in
+    * Long range exactly as `Json.long` does; `Jexpect.D` widens integers).  A mismatch fails
+    * the walk here, positioned; the caller wraps in whose-key context on the way out.
+    */
+  private def buildWith[B](c: Int, want: Jexpect, vis: Jbuilder[B, ?], b: B): Boolean =
+    val v0 = i
+    want match
+      case Jexpect.Value => buildValue(c, vis, b)
+      case Jexpect.Skip => skipWork()
+      case Jexpect.L =>
+        if c == '-' || (c >= '0' && c <= '9') then
+          numWork() match
+            case 1 => accept(vis.num(b, nL), v0)
+            case 2 =>
+              // same wholeness window as Jnum.D.long: closed below, open above (2^63 rounds up)
+              if Math.rint(nD) == nD && !nD.isInfinite && nD >= -9.223372036854776E18 && nD < 9.223372036854776E18 then
+                accept(vis.num(b, nD.toLong), v0)
+              else { failMsg("expected an integer, found " + nD, v0); false }
+            case _ => false
+        else { fail("an integer", i); false }
+      case Jexpect.D =>
+        if c == '-' || (c >= '0' && c <= '9') then
+          numWork() match
+            case 1 => accept(vis.num(b, nL.toDouble), v0)
+            case 2 => accept(vis.num(b, nD), v0)
+            case _ => false
+        else { fail("a number", i); false }
+      case Jexpect.Str =>
+        if c == '"' then
+          val s = strWork()
+          if s eq null then false else accept(vis.str(b, s), v0)
+        else { fail("a string", i); false }
+      case Jexpect.Bool =>
+        if c == 't' then { if litWork("true") then accept(vis.bool(b, true), v0) else false }
+        else if c == 'f' then { if litWork("false") then accept(vis.bool(b, false), v0) else false }
+        else { fail("a boolean", i); false }
+      case Jexpect.Obj =>
+        if c == '{' then buildObj(vis, b) else { fail("an object", i); false }
+      case Jexpect.Arr =>
+        if c == '[' then buildArr(vis, b) else { fail("an array", i); false }
+
+  private def buildObj[B](vis: Jbuilder[B, ?], b: B): Boolean =
+    if !vis.objStart(b) then return skipWork()
+    val p0 = i
+    if depth >= Jparse.maxDepth then { failMsg(s"JSON nested more than ${Jparse.maxDepth} levels deep", p0); return false }
+    depth += 1
+    i += 1
+    var c = wsWork()
+    if c == '}' then { i += 1; depth -= 1; return accept(vis.objEnd(b), p0) }
+    var n = 0
+    while true do
+      if c != '"' then return { fail("'\"' to begin a key", i); false }
+      val key = strWork()
+      if key eq null then return { explain(s"in key $n of object started at ${posText(p0)}:"); false }
+      c = wsWork()
+      if c != ':' then return { fail(s"':' after key \"$key\"", i); false }
+      i += 1
+      c = wsWork()
+      val want = vis.key(b, key)
+      val ok = buildWith(c, want, vis, b)
+      if !ok then
+        return { if want != Jexpect.Skip then explain(s"in value for key \"$key\" of object started at ${posText(p0)}:") __ Unit; false }
+      n += 1
+      c = wsWork()
+      if c == ',' then { i += 1; c = wsWork() }
+      else if c == '}' then { i += 1; depth -= 1; return accept(vis.objEnd(b), p0) }
+      else return { fail("',' or '}' in object", i); false }
+    false
+
+  private def buildArr[B](vis: Jbuilder[B, ?], b: B): Boolean =
+    if !vis.arrStart(b) then return skipWork()
+    val p0 = i
+    if depth >= Jparse.maxDepth then { failMsg(s"JSON nested more than ${Jparse.maxDepth} levels deep", p0); return false }
+    depth += 1
+    i += 1
+    var c = wsWork()
+    if c == ']' then { i += 1; depth -= 1; return accept(vis.arrEnd(b), p0) }
+    var k = 0
+    while true do
+      val want = vis.index(b, k)
+      val ok = buildWith(c, want, vis, b)
+      if !ok then
+        return { if want != Jexpect.Skip then explain(s"in element $k of array started at ${posText(p0)}:") __ Unit; false }
+      k += 1
+      c = wsWork()
+      if c == ',' then { i += 1; c = wsWork() }
+      else if c == ']' then { i += 1; depth -= 1; return accept(vis.arrEnd(b), p0) }
       else return { fail("',' or ']' in array", i); false }
     false
 
@@ -453,13 +604,14 @@ sealed abstract class Jparse protected () {
       if k > k0 then sb.append(sub(k0, k)) __ Unit
       sb.toString
 
-  /** Parse the number starting at the cursor (strict JSON grammar: `-? (0|[1-9]\d*) frac? exp?`).
-    * Integers with at most 19 digits become `Jnum.L` by direct accumulation; everything else
-    * goes through the Eisel-Lemire kernel on up to 19 significant digits, with the same
-    * one-ulp agreement test on truncated mantissas and JDK fallback on the (rare) undecided
-    * cases that Grok uses.
+  /** Parse the number starting at the cursor (strict JSON grammar: `-? (0|[1-9]\d*) frac? exp?`)
+    * into the `nL`/`nD`/`nBig` fields, unboxed; the answer tags which (1/2/3), or 0 on failure.
+    * Integers with at most 19 digits fill `nL` by direct accumulation; everything else goes
+    * through the Eisel-Lemire kernel on up to 19 significant digits, with the same one-ulp
+    * agreement test on truncated mantissas and JDK fallback on the (rare) undecided cases that
+    * Grok uses.  Only exact mode ever answers 3 (`nBig` holds the text).
     */
-  protected inline def numImpl(inline at: Long => Int, inline sub: (Long, Long) => String): Json | Null =
+  protected inline def numImpl(inline at: Long => Int, inline sub: (Long, Long) => String): Int =
     val i0 = i
     var j = i
     var c = at(j)
@@ -538,23 +690,33 @@ sealed abstract class Jparse protected () {
           j += 1
           c = if j < iZ then at(j) else -1
         e10 = if esign then -ex else ex
-    if dead then null
+    if dead then 0
     else
       i = j
       e10 += droppedInt - fracScale
       // A 19-digit accumulation may wrap into u64 space, where mant < 0 as a Long; Eisel-Lemire
       // reads u64, but the Long path needs true values (plus the one u64 that IS Long.MinValue)
       if whole && droppedInt == 0 && (mant >= 0 || (neg && mant == Long.MinValue)) then
-        new Jnum.L(if neg then -mant else mant)
-      else if mant == 0 then new Jnum.D(if neg then -0.0 else 0.0)
+        nL = if neg then -mant else mant
+        1
+      else if mant == 0 then
+        nD = if neg then -0.0 else 0.0
+        2
       else
         val v = EiselLemire.toDouble(ULong.wrap(mant), e10)
         val ok = if truncated then v == EiselLemire.toDouble(ULong.wrap(mant + 1), e10) else v == v
         val d = if ok then (if neg then -v else v) else java.lang.Double.parseDouble(sub(i0, j))
-        if !exactNum then new Jnum.D(d)
+        if !exactNum then
+          nD = d
+          2
         else
           val text = sub(i0, j)
-          if Jnum.exactDouble(d, text) then new Jnum.D(d) else new Jnum.Big(text)
+          if Jnum.exactDouble(d, text) then
+            nD = d
+            2
+          else
+            nBig = text
+            3
 
   /** Scan one value structurally, advancing the cursor past it, decoding nothing.  Strings are
     * respected (so brackets and quotes inside them do not miscount), escapes are stepped over,
@@ -641,7 +803,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
+    protected def numWork(): Int = numImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     protected def skipWork(): Boolean = skipImpl(j => content.charAt(j.toInt), _ => ())
   }
 
@@ -664,7 +826,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => content(j.toInt), (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j.toInt), (a, b) => substr(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => content(j.toInt), (a, b) => substr(a, b))
+    protected def numWork(): Int = numImpl(j => content(j.toInt), (a, b) => substr(a, b))
     protected def skipWork(): Boolean = skipImpl(j => content(j.toInt), _ => ())
   }
 
@@ -691,7 +853,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
+    protected def numWork(): Int = numImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     protected def skipWork(): Boolean = skipImpl(j => content(j.toInt) & 0xFF, _ => ())
   }
 
@@ -718,7 +880,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
+    protected def numWork(): Int = numImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     protected def skipWork(): Boolean = skipImpl(j => content(j) & 0xFF, _ => ())
   }
 
@@ -744,7 +906,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => content(j).toInt, (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j).toInt, (a, b) => substr(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => content(j).toInt, (a, b) => substr(a, b))
+    protected def numWork(): Int = numImpl(j => content(j).toInt, (a, b) => substr(a, b))
     protected def skipWork(): Boolean = skipImpl(j => content(j).toInt, _ => ())
   }
 
@@ -868,7 +1030,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => utf8(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => atc(j), (a, b) => utf8(a, b))
+    protected def numWork(): Int = numImpl(j => atc(j), (a, b) => utf8(a, b))
     protected def skipWork(): Boolean = skipImpl(j => atc(j), j => i = j)
   }
   object Buffered {
@@ -1005,7 +1167,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => substr(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => atc(j), (a, b) => substr(a, b))
+    protected def numWork(): Int = numImpl(j => atc(j), (a, b) => substr(a, b))
     protected def skipWork(): Boolean = skipImpl(j => atc(j), j => i = j)
   }
   object BufferedChars {
@@ -1131,7 +1293,7 @@ object Jparse {
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => subc(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => subc(a, b))(j0, jN)
-    protected def numWork(): Json | Null = numImpl(j => atc(j), (a, b) => subc(a, b))
+    protected def numWork(): Int = numImpl(j => atc(j), (a, b) => subc(a, b))
 
     protected def skipWork(): Boolean =
       var k = (i & 0xFFFFFFFFL).toInt

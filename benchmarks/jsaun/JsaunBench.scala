@@ -37,6 +37,7 @@ import com.github.plokhotnyuk.jsoniter_scala.macros.{JsonCodecMaker, CodecMakerC
 
 import upickle.default.{ReadWriter, macroRW}
 
+import kse.basics.{given, *}
 import kse.flow.{given, *}
 import kse.jsaun.{given, *}
 
@@ -141,6 +142,54 @@ class JsaunBench {
 
   @Benchmark
   def jsaunCodecDecode(): List[GeoRecord] = Json.parse(bytes).to[List[GeoRecord]].get   // .get: a decode failure aborts the bench, never a silent fast error path
+
+  // A hand-written no-tree decoder on the Jbuilder primitive: the builder is a stateless,
+  // reusable recipe; zero() makes the per-walk state, expectations route each field, numbers
+  // arrive unboxed, records are constructed directly.  The ceiling for jsaun typed decode --
+  // what a codegen-style codec on top of the builder could reach.
+  final class GeoState {
+    val out = List.newBuilder[GeoRecord]
+    val tagsB = List.newBuilder[String]
+    val pathB = List.newBuilder[Double]
+    var id = 0
+    var name = ""
+    var active = false
+    var score = 0.0
+    var mode = 0   // 0 = record fields, 1 = tags, 2 = path
+  }
+  object GeoRecordsBuilder extends Jbuilder[GeoState, List[GeoRecord]] {
+    def zero(): GeoState = new GeoState
+    override def key(b: GeoState, k: String): Jexpect = k match
+      case "id" => Jexpect.L
+      case "name" => Jexpect.Str
+      case "active" => Jexpect.Bool
+      case "score" => Jexpect.D
+      case "tags" => b.mode = 1; Jexpect.Arr
+      case "path" => b.mode = 2; Jexpect.Arr
+      case _ => Jexpect.Skip
+    override def index(b: GeoState, i: Int): Jexpect = b.mode match
+      case 1 => Jexpect.Str
+      case 2 => Jexpect.D
+      case _ => Jexpect.Obj   // the outer array holds records
+    override def num(b: GeoState, l: Long): Ask[Unit] = { b.id = l.toInt; Is.unit }
+    override def num(b: GeoState, d: Double): Ask[Unit] =
+      if b.mode == 2 then b.pathB.addOne(d) __ Unit else b.score = d
+      Is.unit
+    override def str(b: GeoState, s: String): Ask[Unit] =
+      if b.mode == 1 then b.tagsB.addOne(s) __ Unit else b.name = s
+      Is.unit
+    override def bool(b: GeoState, v: Boolean): Ask[Unit] = { b.active = v; Is.unit }
+    override def arrEnd(b: GeoState): Ask[Unit] = { b.mode = 0; Is.unit }
+    override def objEnd(b: GeoState): Ask[Unit] =
+      b.out.addOne(GeoRecord(b.id, b.name, b.active, b.score, b.tagsB.result(), b.pathB.result())) __ Unit
+      b.tagsB.clear()
+      b.pathB.clear()
+      Is.unit
+    def build(b: GeoState): Ask[List[GeoRecord]] = Is(b.out.result())
+  }
+
+  @Benchmark
+  def jsaunBuilderDecode(): List[GeoRecord] = Json.build(bytes)(GeoRecordsBuilder).get
 
   @Benchmark
   def jsoniterDecode(): List[GeoRecord] = readFromArray[List[GeoRecord]](bytes)
