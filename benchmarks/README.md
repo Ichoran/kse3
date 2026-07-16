@@ -300,6 +300,17 @@ this value").  The full plane (`jsaunVisitSumAll` / `jsaunParseTree` / `jacksonS
 every number with no skipping.  `jsaunVisitExtract{,String,Chars,Mem}` also confirms `Mem[Byte]`
 drives the visitor and compares the encodings.
 
+`RyuBench` — the **shortest-round-trip double renderer** (`kse.maths.Ryu`) in isolation, against
+JDK `Double.toString` (what the byte path used to call, plus a String it must then re-encode) and
+`StringBuilder.append(double)` (the JDK's no-intermediate-String char path).  Output is asserted identical to the
+JDK in `@Setup`, up to kse3's deliberate lowercase exponent letter.  The `kind` axis: "full" = random finite bit patterns
+(~17 digits), "data" = milli-precision values (short decimals, many digits stripped).  Also pits
+`Ryu.fmt` — precision-limited rendering via interval widening (last-place `mag` + significant-
+figure `sig` cutoffs) — against `String.format("%.3g")` and the BigDecimal round-and-print shape
+the `Jstyle` sig/fixed styles used before they switched to `Ryu.fmt`: 38–42 ops/µs (same as
+unlimited shortest — the cutoff is free) vs 10–12 for `String.format` and 1.4 (full) – 5.3
+(data) for BigDecimal (2026-07-16, pinned as above).
+
 Run:
 
 ```
@@ -324,9 +335,9 @@ absolutes; a 1.5× gap is real, 10% is noise.
 | op | jsaun | Jackson | uJson | jsoniter | uPickle |
 |---|---|---|---|---|---|
 | tree parse (bytes / chars) | **0.044 / 0.052** | 0.021 | 0.018 | — | — |
-| tree serialize (bytes) | 0.028 | 0.033 | 0.020 | — | — |
+| tree serialize (bytes) | 0.031 | 0.033 | 0.020 | — | — |
 | typed decode | 0.035 | — | — | **0.077** | 0.018 |
-| typed encode (tree / direct) | 0.023 / **0.029** | — | — | **0.069** | 0.027 |
+| typed encode (tree / direct) | 0.025 / **0.032** | — | — | **0.069** | 0.027 |
 
 - jsaun's **dynamic-tree parse beats both dynamic-tree references** — ~2× Jackson, ~2.4× uJson —
   and reads `Array[Char]` fastest of all its sources (0.052).
@@ -337,17 +348,24 @@ absolutes; a 1.5× gap is real, 10% is noise.
   `Jarr.D` backings read without per-element `Jnum.D` wrappers; encode gained `jsonizeTo` direct
   serialization — `Json.printBytes(a)` at 0.029 skips the tree and beats even tree-serialize-only
   (0.028).  The boxing that remains in decode is one Double per record plus `List[Double]`'s own
-  element boxes, so a constructor macro would buy little; the residual gaps to jsoniter are its
-  no-tree parse on decode and its Ryū-class float printer on encode — JDK `Double.toString` is
-  the bulk of our direct-encode cost.)  Exact mode is ~4× slower than default (0.010) — the
-  dyadic-exactness check on every number.
+  element boxes, so a constructor macro would buy little; the residual gap to jsoniter on decode
+  is its no-tree parse.)  Exact mode is ~4× slower than default (0.010) — the dyadic-exactness
+  check on every number.
+- (Serialize rows re-pinned 2026-07-16 after `kse.maths.Ryu` landed: `Jout.Bytes` now renders
+  doubles with an in-house Ryu kernel straight into the byte buffer — matching JDK
+  `Double.toString` up to the deliberate lowercase exponent letter, no String allocation, no
+  re-encode loop.  Tree serialize 0.028 → 0.031,
+  direct typed encode 0.029 → 0.032 on this mixed, string-heavy payload; the number-dominated
+  matrix rows below move much more.  Same-run references matched their pins.  `RyuBench` isolates
+  the kernel: ~41 doubles/µs on both random full-precision and short data-like decimals, vs
+  34/39 for `Double.toString` — and the JDK cannot deliver bytes without a further copy.)
 
 **10×10 double matrix — the packed `Jarr.D` payoff (`JsaunMatrixBench`), 4sig / full precision.**
 
 | op | jsaun | Jackson | uJson | jsoniter† |
 |---|---|---|---|---|
 | parse bytes → tree | **0.82 / 0.49** | 0.27 / 0.08 | 0.27 / 0.08 | 1.10 / 0.54 |
-| serialize → bytes | 0.29 / 0.18 | 0.29 / 0.22 | 0.27 / 0.24 | 0.59 / 0.43 |
+| serialize → bytes | **0.38 / 0.32** | 0.28 / 0.21 | 0.27 / 0.24 | 0.59 / 0.43 |
 | typed decode | 0.76 / 0.47 | — | — | 1.10 / 0.54 |
 
 † jsoniter is schema-typed (`Array[Double]`), *not* a dynamic tree — shown as the ceiling for scale.
@@ -357,6 +375,10 @@ absolutes; a 1.5× gap is real, 10% is noise.
   jsoniter's schema-specialized decode** — the dynamic tree is nearly as cheap as a typed one.
 - The **full-precision penalty is smallest for jsaun** (1.7×: 0.82→0.49) vs ~3.3× for Jackson/uJson
   — the Eisel–Lemire number kernel digests hard doubles.
+- (Serialize row re-pinned 2026-07-16 with the Ryu double printer: 0.29/0.18 → **0.38/0.32** —
+  +30% on short decimals, +78% on full precision, the payload where rendering *is* the workload.
+  jsaun serialize now leads every dynamic-tree reference on both axes and reaches ~76% of
+  jsoniter's schema-typed full-precision encode.  Jackson re-pinned same-run: 0.28/0.21.)
 - `jsaunSumDbls` = **11.6 ops/µs**, ~14× the parse: with the row already an `Array[Double]`, pulling
   it back out via `.dbls` and summing is almost free.  Exact mode is ~13× slower here (0.065).
 

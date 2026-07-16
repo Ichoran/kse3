@@ -112,10 +112,16 @@ object Jfmt {
   * only where no preserved format exists -- preserved format always wins for untouched
   * content -- except through `reprint`, which restyles everything.
   *
-  * The numeric policy is the cure for `[0.30000000000000001, 0.5]`: under `Sig(n)` (at most
-  * `n` significant digits) or `Fixed(n)` (at most `n` decimals), each Double prints as the
-  * SHORTER of the rounded form and the exact shortest-round-trip form, so `0.5` never grows
-  * and noise digits vanish.
+  * The numeric policy is the cure for `[0.30000000000000001, 0.5]`: a `Limited` policy prints
+  * each Double as the shortest decimal within a don't-care tolerance (`kse.maths.Ryu.fmt`),
+  * so `0.5` never grows and noise digits vanish.  `mag` names the last decimal place that
+  * matters by absolute position (1 the ones digit, 2 the tens, -1 the tenths, -6 the
+  * millionths; 0 no limit); `sig` counts significant figures (positive an upper bound, the
+  * coarser of the two cutoffs winning; negative a floor keeping at least `-sig` digits when
+  * the `mag` cutoff would leave fewer; 0 no constraint).  This is deliberately not rounding:
+  * any equally short in-tolerance decimal may print, values inside the tolerance of zero
+  * print as `0`, and no cosmetic ".0" is added.  `sig(n)` and `fixed(n)` are the common
+  * one-knob cases; `limit(mag, sig)` exposes both.
   */
 final class Jstyle private (
   val indent: String,
@@ -123,16 +129,16 @@ final class Jstyle private (
   val spaceAfterComma: Boolean,
   val num: Jstyle.Num
 ) {
-  def sig(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Sig(if n < 1 then 1 else n))
-  def fixed(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Fixed(if n < 0 then 0 else n))
+  def sig(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(0, if n < 1 then 1 else n))
+  def fixed(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(if n <= 0 then 1 else -n, 0))
+  def limit(mag: Int, sig: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(mag, sig))
   def exactly: Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Exact)
   def indentBy(s: String): Jstyle = new Jstyle(s, spaceAfterColon, spaceAfterComma, num)
 }
 object Jstyle {
   enum Num {
     case Exact
-    case Sig(digits: Int)
-    case Fixed(decimals: Int)
+    case Limited(mag: Int, sig: Int)
   }
 
   /** Everything on one line, no spaces, exact numbers (the default). */
@@ -152,13 +158,4 @@ object Jstyle {
       k += 1
     sb.toString
 
-  private[jsaun] def sigText(d: Double, n: Int): String =
-    val exact = java.lang.Double.toString(d)
-    val rounded = (new java.math.BigDecimal(d)).round(new java.math.MathContext(n)).stripTrailingZeros.toString
-    if exact.length <= rounded.length then exact else rounded
-
-  private[jsaun] def fixedText(d: Double, n: Int): String =
-    val exact = java.lang.Double.toString(d)
-    val rounded = (new java.math.BigDecimal(d)).setScale(n, java.math.RoundingMode.HALF_EVEN).stripTrailingZeros.toString
-    if exact.length <= rounded.length then exact else rounded
 }

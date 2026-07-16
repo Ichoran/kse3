@@ -759,12 +759,17 @@ class JsaunTest {
     T ~ Jarr().print(using Jstyle.pretty)  ==== "[]"
     T ~ Jobj().print(using Jstyle.pretty)  ==== "{}"
     T ~ Jarr(Array(1.5, 2.5)).print(using Jstyle.pretty) ==== "[\n  1.5,\n  2.5\n]"
-    // numeric policy: the shorter of rounded and exact wins, so 0.5 never grows
+    // numeric policy: shortest within the don't-care tolerance (Ryu.fmt), so 0.5 never grows
     T ~ Json.parse("[0.30000000000000004, 0.5]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.3,0.5]"
     T ~ Jnum(0.5).print(using Jstyle.compact.sig(4))                  ==== "0.5"
     T ~ Jnum(0.30000000000000004).print(using Jstyle.compact.fixed(2)) ==== "0.3"
-    T ~ Jnum(1.2345678901234568E29).print(using Jstyle.compact.sig(4)) ==== "1.235E+29"
+    T ~ Jnum(1.2345678901234568E29).print(using Jstyle.compact.sig(4)) ==== "1.235e29"
     T ~ Jnum(7L).print(using Jstyle.compact.sig(2))                    ==== "7"   // Longs are already exact
+    T ~ Jnum(86.421).print(using Jstyle.compact.limit(2, -3))          ==== "86.4"  // mag cutoff, sig floor
+    T ~ Jnum(86.421).print(using Jstyle.compact.limit(2, 0))           ==== "90"
+    T ~ Jnum(0.049).print(using Jstyle.compact.fixed(1))               ==== "0"     // swallowed by the tolerance
+    T ~ Jnum(86.0).print(using Jstyle.compact.sig(4))                  ==== "86"    // no cosmetic .0 under a limit
+    T ~ Jarr(Array(0.30000000000000004, 12345.6789)).print(using Jstyle.compact.limit(-2, 0)) ==== "[0.3,12345.68]"
     // verbatim beats style for untouched parsed tokens
     T ~ Json.parseFmt("[0.30000000000000004]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.30000000000000004]"
     // ...but reprint restyles everything

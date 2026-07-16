@@ -607,8 +607,7 @@ object Jnum {
     if d.isNaN || d.isInfinite then out.add("null")
     else out.style.num match
       case Jstyle.Num.Exact => out.add(d)
-      case Jstyle.Num.Sig(n) => out.add(Jstyle.sigText(d, n))
-      case Jstyle.Num.Fixed(n) => out.add(Jstyle.fixedText(d, n))
+      case Jstyle.Num.Limited(mag, sig) => out.add(d, mag, sig)
 
   /** True if `d` is exactly the value that `text` denotes (cold; exact-mode parsing only). */
   private[jsaun] def exactDouble(d: Double, text: String): Boolean =

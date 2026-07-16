@@ -5,6 +5,7 @@ package kse.jsaun
 
 
 import kse.basics.{given, _}
+import kse.maths.Ryu
 
 
 /** A JSON output target.  Serialization is append-dominated and at most two implementations
@@ -35,6 +36,11 @@ abstract class Jout {
 
   def add(l: Long): Unit
   def add(d: Double): Unit
+
+  /** Append `d` precision-limited per `Ryu.fmt`: the shortest decimal within the don't-care
+    * tolerance named by `mag` (last absolute place kept) and `sig` (significant figures).
+    */
+  def add(d: Double, mag: Int, sig: Int): Unit
 }
 object Jout {
 
@@ -45,7 +51,8 @@ object Jout {
     def add(b: Array[Byte], i0: Int, iN: Int): Unit =
       sb.append(new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)) __ Unit
     def add(l: Long): Unit = sb.append(l) __ Unit
-    def add(d: Double): Unit = sb.append(d) __ Unit
+    def add(d: Double): Unit = sb.append(Ryu.string(d)) __ Unit   // not sb.append(d): both targets emit the same text, lowercase exponent included
+    def add(d: Double, mag: Int, sig: Int): Unit = sb.append(Ryu.fmt(d, mag, sig)) __ Unit
     def result: String = sb.toString
   }
 
@@ -102,7 +109,12 @@ object Jout {
       n += iN - i0
 
     def add(l: Long): Unit = add(java.lang.Long.toString(l))
-    def add(d: Double): Unit = add(java.lang.Double.toString(d))
+    def add(d: Double): Unit =
+      ensure(24)
+      n = Ryu.append(buf, n, d)
+    def add(d: Double, mag: Int, sig: Int): Unit =
+      ensure(24)
+      n = Ryu.fmt(buf, n, d, mag, sig)
 
     def result: Array[Byte] = java.util.Arrays.copyOf(buf, n)
   }
