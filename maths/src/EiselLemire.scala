@@ -4,7 +4,10 @@
 package kse.maths
 
 
+import scala.annotation.targetName
 import scala.util.boundary
+
+import kse.basics.Mem
 
 
 /** Correctly rounded decimal-to-binary floating point conversion: Clinger's exact-arithmetic
@@ -17,9 +20,19 @@ import scala.util.boundary
   * value of `w * 10^q10` for an unsigned mantissa `w`, or NaN for the rare inputs the fast paths
   * cannot decide, which the caller must send to an exact (slow) parser.  Sign, digit gathering,
   * and NaN/Infinity literals are the caller's business: this is the numeric core shared by text
-  * parsers, not itself a parser.  A caller holding more than 19 significant digits passes the
-  * 19-digit truncation `w` and accepts `toDouble(w, q)` only when it equals `toDouble(w+1, q)` —
-  * the true value lies between the two, and NaN punts compare unequal automatically.
+  * parsers, not itself a full parser.  A caller holding more than 19 significant digits passes
+  * the 19-digit truncation `w` and accepts `toDouble(w, q)` only when it equals `toDouble(w+1, q)`
+  * — the true value lies between the two, and NaN punts compare unequal automatically.
+  *
+  * For callers who simply hold one complete numeric token in a buffer, however, whole-range
+  * parsers are provided alongside: `parseDouble` and `parseFloat` read exactly one number
+  * (Java/JSON-style: optional sign, digits with optional point, optional exponent, or the
+  * `NaN`/`Infinity` literals -- no whitespace, no suffixes, no hex) spanning all of `[i0, iN)`
+  * of a `String`, `Array[Byte]`, `Array[Char]`, `Mem[Byte]`, or `Mem[Char]`, with no allocation
+  * on the fast path.  Failure -- bad syntax, or trailing junk within the range -- answers a
+  * reserved quiet-NaN payload distinct from the canonical NaN that the literal `NaN` parses to;
+  * test it with `failed` on the direct result (any arithmetic on a NaN, including passing it
+  * through generic code, may recanonicalize it and lose the marker).
   */
 object EiselLemire {
 
@@ -136,4 +149,234 @@ object EiselLemire {
         eb += 1
       if eb <= 0 || eb >= 2047 then boundary.break(Double.NaN)   // subnormal or overflow edge
       java.lang.Double.longBitsToDouble((eb.toLong << 52) | (m & 0x000FFFFFFFFFFFFFL))
+
+
+  //////////////////////////////////////
+  /// Whole-range text parsing       ///
+  //////////////////////////////////////
+
+  private inline val failBitsD = 0x7FF800000000DEADL
+  private inline val failBitsF = 0x7FC0DEAD
+
+  /** The quiet NaN `parseDouble` answers on failure: same value as NaN, different payload. */
+  val parseFailD: Double = java.lang.Double.longBitsToDouble(failBitsD)
+
+  /** The quiet NaN `parseFloat` answers on failure: same value as NaN, different payload. */
+  val parseFailF: Float = java.lang.Float.intBitsToFloat(failBitsF)
+
+  /** Whether `d` is `parseDouble`'s failure marker (a parsed `"NaN"` is canonical and is not). */
+  inline def failed(d: Double): Boolean = java.lang.Double.doubleToRawLongBits(d) == failBitsD
+
+  /** Whether `f` is `parseFloat`'s failure marker (a parsed `"NaN"` is canonical and is not). */
+  inline def failed(f: Float): Boolean = java.lang.Float.floatToRawIntBits(f) == failBitsF
+
+  /** The parsing engine, templated over character access so each buffer type gets a monomorphic
+    * instance: gather sign, literal, digits, and exponent; feed the (possibly 19-digit-truncated)
+    * mantissa to the kernel; accept a truncated answer only when one ulp of mantissa slop agrees;
+    * fall back to the JDK (via `sub`, the only allocation, roughly one case in 10^7) when the
+    * kernel punts.  The whole of `[i0, iN)` must be exactly one number, which is what lets the
+    * result stand alone -- no consumed-length side channel is needed.  In float mode the value
+    * is answered exactly in a Double, with the Double failure marker; the public wrapper narrows.
+    */
+  private inline def parseImpl(inline at: Long => Int, inline sub: (Long, Long) => String)(i0: Long, iN: Long, asFloat: Boolean): Double =
+    var j = i0
+    var c = if j < iN then at(j) else -1
+    var neg = false
+    if c == '-' then
+      neg = true
+      j += 1
+      c = if j < iN then at(j) else -1
+    else if c == '+' then
+      j += 1
+      c = if j < iN then at(j) else -1
+    if c == 'N' then
+      if iN - j == 3 && at(j+1) == 'a' && at(j+2) == 'N' then Double.NaN
+      else parseFailD
+    else if c == 'I' then
+      if iN - j == 8 && at(j+1)=='n' && at(j+2)=='f' && at(j+3)=='i' && at(j+4)=='n' && at(j+5)=='i' && at(j+6)=='t' && at(j+7)=='y' then
+        if neg then Double.NegativeInfinity else Double.PositiveInfinity
+      else parseFailD
+    else
+      var anyDigit = false
+      while c == '0' do   // leading integer zeros are not significant
+        anyDigit = true
+        j += 1
+        c = if j < iN then at(j) else -1
+      var mant = 0L
+      var nd = 0
+      var droppedInt = 0
+      var truncated = false
+      while c >= '0' && c <= '9' && nd < 19 do
+        mant = mant * 10 + (c - '0')   // 19 digits may wrap negative, but only into u64 space, which the kernel reads
+        nd += 1
+        anyDigit = true
+        j += 1
+        c = if j < iN then at(j) else -1
+      while c >= '0' && c <= '9' do   // significance exhausted: count dropped integer digits
+        droppedInt += 1
+        if c != '0' then truncated = true
+        j += 1
+        c = if j < iN then at(j) else -1
+      var fracScale = 0
+      if c == '.' then
+        j += 1
+        c = if j < iN then at(j) else -1
+        if nd == 0 then
+          while c == '0' do   // leading fraction zeros scale the value but are not significant
+            anyDigit = true
+            fracScale += 1
+            j += 1
+            c = if j < iN then at(j) else -1
+        while c >= '0' && c <= '9' && nd < 19 do
+          mant = mant * 10 + (c - '0')
+          nd += 1
+          fracScale += 1
+          anyDigit = true
+          j += 1
+          c = if j < iN then at(j) else -1
+        while c >= '0' && c <= '9' do   // dropped fraction digits: only roundability matters
+          if c != '0' then truncated = true
+          j += 1
+          c = if j < iN then at(j) else -1
+      if !anyDigit then parseFailD
+      else
+        var e10 = droppedInt - fracScale
+        if c == 'e' || c == 'E' then
+          var k = j + 1
+          var esign = false
+          var cq = if k < iN then at(k) else -1
+          if cq == '+' || cq == '-' then
+            esign = cq == '-'
+            k += 1
+            cq = if k < iN then at(k) else -1
+          if cq >= '0' && cq <= '9' then
+            var ex = 0
+            while cq >= '0' && cq <= '9' do
+              if ex < 100000000 then ex = ex * 10 + (cq - '0')
+              k += 1
+              cq = if k < iN then at(k) else -1
+            e10 += (if esign then -ex else ex)
+            j = k
+        if j != iN then parseFailD   // a malformed exponent strands its 'e' here and fails too
+        else if mant == 0 then
+          if neg then -0.0 else 0.0
+        else if asFloat then
+          val v = toFloat(ULong.wrap(mant), e10)
+          val ok = if truncated then v == toFloat(ULong.wrap(mant + 1), e10) else v == v
+          if ok then (if neg then -v else v).toDouble
+          else java.lang.Float.parseFloat(sub(i0, iN)).toDouble
+        else
+          val v = toDouble(ULong.wrap(mant), e10)
+          val ok = if truncated then v == toDouble(ULong.wrap(mant + 1), e10) else v == v
+          if ok then (if neg then -v else v)
+          else java.lang.Double.parseDouble(sub(i0, iN))
+
+  private def parseStr(s: String, i0: Int, iN: Int, asFloat: Boolean): Double =
+    parseImpl(j => s.charAt(j.toInt), (a, b) => s.substring(a.toInt, b.toInt))(i0, iN, asFloat)
+
+  private def parseArrB(ab: Array[Byte], i0: Int, iN: Int, asFloat: Boolean): Double =
+    parseImpl(j => ab(j.toInt) & 0xFF, (a, b) => new String(ab, a.toInt, (b - a).toInt, java.nio.charset.StandardCharsets.ISO_8859_1))(i0, iN, asFloat)
+
+  private def parseArrC(ac: Array[Char], i0: Int, iN: Int, asFloat: Boolean): Double =
+    parseImpl(j => ac(j.toInt), (a, b) => new String(ac, a.toInt, (b - a).toInt))(i0, iN, asFloat)
+
+  private def parseMemB(mb: Mem[Byte], i0: Long, iN: Long, asFloat: Boolean): Double =
+    parseImpl(
+      j => mb.getB(j) & 0xFF,
+      (a, b) =>
+        val tmp = new Array[Byte]((b - a).toInt)
+        var i = 0
+        while i < tmp.length do
+          tmp(i) = mb.getB(a + i)
+          i += 1
+        new String(tmp, java.nio.charset.StandardCharsets.ISO_8859_1)
+    )(i0, iN, asFloat)
+
+  private def parseMemC(mc: Mem[Char], i0: Long, iN: Long, asFloat: Boolean): Double =
+    parseImpl(
+      j => mc.getC(j),
+      (a, b) =>
+        val tmp = new Array[Char]((b - a).toInt)
+        var i = 0
+        while i < tmp.length do
+          tmp(i) = mc.getC(a + i)
+          i += 1
+        new String(tmp)
+    )(i0, iN, asFloat)
+
+  private inline def narrow(d: Double): Float =
+    if failed(d) then parseFailF else d.toFloat
+
+  /** The `Double` whose decimal rendering occupies exactly `[i0, iN)` of `s`, correctly rounded;
+    * `parseFailD` (test with `failed`) if that range is not exactly one number.
+    */
+  def parseDouble(s: String, i0: Int, iN: Int): Double = parseStr(s, i0, iN, false)
+
+  /** The `Double` whose decimal rendering is exactly `s`, correctly rounded; `parseFailD` if not a number. */
+  inline def parseDouble(s: String): Double = parseDouble(s, 0, s.length)
+
+  /** As the String `parseDouble`, over ASCII bytes. */
+  def parseDouble(ab: Array[Byte], i0: Int, iN: Int): Double = parseArrB(ab, i0, iN, false)
+
+  /** As the String `parseDouble`, over a whole ASCII byte array. */
+  inline def parseDouble(ab: Array[Byte]): Double = parseDouble(ab, 0, ab.length)
+
+  /** As the String `parseDouble`, over chars. */
+  def parseDouble(ac: Array[Char], i0: Int, iN: Int): Double = parseArrC(ac, i0, iN, false)
+
+  /** As the String `parseDouble`, over a whole char array. */
+  inline def parseDouble(ac: Array[Char]): Double = parseDouble(ac, 0, ac.length)
+
+  /** As the String `parseDouble`, over ASCII bytes in memory. */
+  @targetName("parseDoubleMemByte")
+  def parseDouble(mb: Mem[Byte], i0: Long, iN: Long): Double = parseMemB(mb, i0, iN, false)
+
+  /** As the String `parseDouble`, over all the ASCII bytes in memory. */
+  @targetName("parseDoubleMemByteAll")
+  inline def parseDouble(mb: Mem[Byte]): Double = parseDouble(mb, 0L, mb.length)
+
+  /** As the String `parseDouble`, over chars in memory; positions index chars, not bytes. */
+  @targetName("parseDoubleMemChar")
+  def parseDouble(mc: Mem[Char], i0: Long, iN: Long): Double = parseMemC(mc, i0, iN, false)
+
+  /** As the String `parseDouble`, over all the chars in memory. */
+  @targetName("parseDoubleMemCharAll")
+  inline def parseDouble(mc: Mem[Char]): Double = parseDouble(mc, 0L, mc.length)
+
+  /** The `Float` whose decimal rendering occupies exactly `[i0, iN)` of `s`, correctly rounded
+    * in one step (never double-rounded through a Double); `parseFailF` (test with `failed`) if
+    * that range is not exactly one number.
+    */
+  def parseFloat(s: String, i0: Int, iN: Int): Float = narrow(parseStr(s, i0, iN, true))
+
+  /** The `Float` whose decimal rendering is exactly `s`, correctly rounded; `parseFailF` if not a number. */
+  inline def parseFloat(s: String): Float = parseFloat(s, 0, s.length)
+
+  /** As the String `parseFloat`, over ASCII bytes. */
+  def parseFloat(ab: Array[Byte], i0: Int, iN: Int): Float = narrow(parseArrB(ab, i0, iN, true))
+
+  /** As the String `parseFloat`, over a whole ASCII byte array. */
+  inline def parseFloat(ab: Array[Byte]): Float = parseFloat(ab, 0, ab.length)
+
+  /** As the String `parseFloat`, over chars. */
+  def parseFloat(ac: Array[Char], i0: Int, iN: Int): Float = narrow(parseArrC(ac, i0, iN, true))
+
+  /** As the String `parseFloat`, over a whole char array. */
+  inline def parseFloat(ac: Array[Char]): Float = parseFloat(ac, 0, ac.length)
+
+  /** As the String `parseFloat`, over ASCII bytes in memory. */
+  @targetName("parseFloatMemByte")
+  def parseFloat(mb: Mem[Byte], i0: Long, iN: Long): Float = narrow(parseMemB(mb, i0, iN, true))
+
+  /** As the String `parseFloat`, over all the ASCII bytes in memory. */
+  @targetName("parseFloatMemByteAll")
+  inline def parseFloat(mb: Mem[Byte]): Float = parseFloat(mb, 0L, mb.length)
+
+  /** As the String `parseFloat`, over chars in memory; positions index chars, not bytes. */
+  @targetName("parseFloatMemChar")
+  def parseFloat(mc: Mem[Char], i0: Long, iN: Long): Float = narrow(parseMemC(mc, i0, iN, true))
+
+  /** As the String `parseFloat`, over all the chars in memory. */
+  @targetName("parseFloatMemCharAll")
+  inline def parseFloat(mc: Mem[Char]): Float = parseFloat(mc, 0L, mc.length)
 }

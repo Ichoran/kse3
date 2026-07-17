@@ -51,8 +51,8 @@ object Jout {
     def add(b: Array[Byte], i0: Int, iN: Int): Unit =
       sb.append(new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)) __ Unit
     def add(l: Long): Unit = sb.append(l) __ Unit
-    def add(d: Double): Unit = sb.append(Ryu.string(d)) __ Unit   // not sb.append(d): both targets emit the same text, lowercase exponent included
-    def add(d: Double, mag: Int, sig: Int): Unit = sb.append(Ryu.fmt(d, mag, sig)) __ Unit
+    def add(d: Double): Unit = Ryu.append(MkStr.wrap(sb), d)   // not sb.append(d): both targets emit the same text, lowercase exponent included
+    def add(d: Double, mag: Int, sig: Int): Unit = Ryu.fmt(MkStr.wrap(sb), d, mag, sig)
     def result: String = sb.toString
   }
 

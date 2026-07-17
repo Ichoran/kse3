@@ -4,28 +4,42 @@
 package kse.maths
 
 
-/** Shortest correctly-rounding decimal rendering of `Double`, after the Ryu algorithm
-  * (Ulf Adams, "Ryu: Fast Float-to-String Conversion", PLDI 2018), reimplemented from the
-  * algorithm's principles rather than ported; the correctness conditions are derived in the
+import scala.annotation.targetName
+
+import kse.basics.{Mem, MkStr}
+
+
+/** Shortest correctly-rounding decimal rendering of `Double` and `Float`, after the Ryu
+  * algorithm (Ulf Adams, "Ryu: Fast Float-to-String Conversion", PLDI 2018), reimplemented from
+  * the algorithm's principles rather than ported; the correctness conditions are derived in the
   * comments, and the table precision is verified exactly (not sampled) in the test suite.
   *
-  * The output is character-identical to `java.lang.Double.toString` on JDK 19+ (which renders
-  * the same shortest decimal via a different route) except that the exponent letter is a
-  * lowercase 'e' -- deliberately, since the x-height break reads as a separator where Java's
-  * capital E does not; compare against the JDK case-insensitively.  The point of this version
-  * is that it writes ASCII bytes straight into a caller-supplied buffer with no allocation at
-  * all, which is what a serializer wants.  The longest possible rendering is 24 bytes.
+  * The output is character-identical to `java.lang.Double.toString` / `Float.toString` on
+  * JDK 19+ (which render the same shortest decimal via a different route) except that the
+  * exponent letter is a lowercase 'e' -- deliberately, since the x-height break reads as a
+  * separator where Java's capital E does not; compare against the JDK case-insensitively.
+  * The point of this version is that it writes ASCII straight into a caller-supplied buffer
+  * with no allocation at all, which is what a serializer wants.  The buffer can be `Array[Byte]`,
+  * `Array[Char]`, `Mem[Byte]`, `Mem[Char]`, or (appending at the end) a `MkStr`: the engine is
+  * a single fixed computation shared by everything, and only the final digit-laying layer is
+  * instantiated per target, via an inline character sink.  The longest possible rendering is
+  * 24 bytes for a `Double` and 16 for a `Float`.
   *
-  * The shape of the algorithm: a finite double `v = m2 * 2^e2` is reproduced by parsing a
+  * The shape of the algorithm: a finite value `v = m2 * 2^e2` is reproduced by parsing a
   * decimal `d` iff `d` lies within v's rounding interval, which stretches halfway to each
-  * neighboring double (inclusive iff `m2` is even, by round-half-even).  Scaling by 4 makes
-  * the interval ends integers times `2^(e2-2)`: `(4*m2 - 1 - mmShift, 4*m2, 4*m2 + 2)` for
-  * lower / value / upper, where `mmShift` is 0 at a power-of-two boundary (the gap below is
+  * neighboring representable value (inclusive iff `m2` is even, by round-half-even).  Scaling
+  * by 4 makes the interval ends integers times `2^(e2-2)`: `(4*m2 - 1 - mmShift, 4*m2, 4*m2 + 2)`
+  * for lower / value / upper, where `mmShift` is 0 at a power-of-two boundary (the gap below is
   * half the gap above) and 1 otherwise.  One 64x128-bit multiply per endpoint converts all
   * three to a common decimal scale `10^e10` chosen so they land near 2^55; then a loop strips
   * trailing decimal digits while the shortened value still lies inside the interval, and the
   * last stripped digit rounds the result.  Divisibility flags track whether anything nonzero
   * was ever discarded, which is what decides exact-boundary hits and .5000... ties.
+  *
+  * `Float` runs through the identical engine: its (m2, e2) ranges are strict subsets of the
+  * Double ranges on both exponent branches (e2 in [-151, 102] against [-1076, 969], mantissas
+  * under 2^24 against 2^53), so the table coverage and the per-exponent exactness proofs carry
+  * over a fortiori.
   */
 object Ryu {
 
@@ -229,51 +243,69 @@ object Ryu {
       out = vr + (if vr == vm || up then 1 else 0)
     (removed.toLong << 58) | out
 
-  /** Digits of `v` written most-significant-first into `[p, p+t)`, where `t` is v's length. */
-  private def digits(buf: Array[Byte], p: Int, t: Int, v0: Long): Unit =
-    var v = v0
-    var q = p + t
-    while v >= 100 do
-      val r = ((v % 100) << 1).toInt
-      v /= 100
-      q -= 2
-      buf(q) = pairs(r)
-      buf(q + 1) = pairs(r + 1)
-    if v >= 10 then
-      val r = (v << 1).toInt
-      buf(q - 2) = pairs(r)
-      buf(q - 1) = pairs(r + 1)
-    else buf(q - 1) = ('0' + v).toByte
-
-  /** Renders `d` as `java.lang.Double.toString` would (but with a lowercase exponent letter)
-    * into `buf` starting at `at`, and answers the index just past the last byte written.  The
-    * caller must supply at least 24 bytes of room; nothing is checked.
+  /** Strip plus (when `redo` is set) the toString single-digit quirk, answering the final
+    * `(removed << 58) | digits`.  `redo` gives value parity with `Double.toString` and
+    * `Float.toString`; without it the genuinely shortest answer stands (what `fmt` wants).
     */
-  def append(buf: Array[Byte], at: Int, d: Double): Int =
-    val bits = java.lang.Double.doubleToRawLongBits(d)
-    val ieeeE = ((bits >>> 52) & 0x7FF).toInt
-    val mant = bits & 0x000FFFFFFFFFFFFFL
-    var p = at
-    if ieeeE == 2047 then
-      if mant != 0 then
-        buf(p) = 'N'; buf(p+1) = 'a'; buf(p+2) = 'N'
-        return p + 3
-      if bits < 0 then { buf(p) = '-'; p += 1 }
-      buf(p) = 'I'; buf(p+1) = 'n'; buf(p+2) = 'f'; buf(p+3) = 'i'
-      buf(p+4) = 'n'; buf(p+5) = 'i'; buf(p+6) = 't'; buf(p+7) = 'y'
-      return p + 8
-    if bits < 0 then { buf(p) = '-'; p += 1 }
-    if (bits & 0x7FFFFFFFFFFFFFFFL) == 0 then
-      buf(p) = '0'; buf(p+1) = '.'; buf(p+2) = '0'
-      return p + 3
+  private def shorten(mv: Long, thi: Long, tlo: Long, tj: Int,
+                      vr: Long, vp: Long, vm: Long, vmTZ: Boolean, vrTZ: Boolean, even: Boolean,
+                      redo: Boolean): Long =
+    val packed = strip(vr, vp, vm, vmTZ, vrTZ, even, 99)
+    var out = packed & 0x03FFFFFFFFFFFFFFL
+    var removed = (packed >>> 58).toInt
+    if redo && out < 10 then
+      // java.lang.Double.toString quirk: when the minimal length is 1, two-digit decimals
+      // also compete on closeness to v (so the smallest double prints as 4.9E-324, not
+      // 5.0E-324).  The best two-digit candidate sits where the scaled value has two integer
+      // digits: normally one strip back, but two when the single digit came from a round-up
+      // carry across a decade (99ish -> 9.9ish -> 1), which is recognizable as the one-strip
+      // redo answering exactly 10.  A capped redo that strips nothing has no rounding digit,
+      // so its nearest value is recovered from one extra half-scale multiply instead; that
+      // can only happen at the very bottom of the subnormals (the initial scaled value is
+      // under 1000 only for tiny mv), where the value is never an exact half (mv has at
+      // most a few factors of 2 against the huge power in the scale) and both round targets
+      // sit 20-deep inside the interval, so plain round-half-up is exact and unclamped.
+      // (The two-digit scale never sits below the initial one: the initial scaled value is
+      // 40 or more, since mv >= 4 and the scale factor exceeds 10.)  A redo answer that is a
+      // multiple of ten is really a one-digit decimal, and Java renders it in that canonical
+      // form.
+      val half = mulShift(mv, thi, tlo, tj - 1)
+      val rB0 = (half >>> 1) + (half & 1)
+      val pk = strip(vr, vp, vm, vmTZ, vrTZ, even, removed - 1)
+      var o2 = if (pk >>> 58) == 0L then rB0 else pk & 0x03FFFFFFFFFFFFFFL
+      var rem2 = (pk >>> 58).toInt
+      if o2 == 10 then
+        val pk3 = strip(vr, vp, vm, vmTZ, vrTZ, even, removed - 2)
+        val o3 = if (pk3 >>> 58) == 0L then rB0 else pk3 & 0x03FFFFFFFFFFFFFFL
+        if o3 < 100 && o3 % 10 != 0 then
+          o2 = o3
+          rem2 = (pk3 >>> 58).toInt
+      if o2 % 10 == 0 then
+        out = o2 / 10
+        removed = rem2 + 1
+      else
+        out = o2
+        removed = rem2
+    (removed.toLong << 58) | out
 
-    var m2 = 0L
-    var e2 = 0
-    if ieeeE == 0 then { m2 = mant; e2 = -1076 }
-    else { m2 = mant | 0x0010000000000000L; e2 = ieeeE - 1077 }
+  /** The whole fixed engine for one finite nonzero value `(mv/4) * 2^(e2+2)` -- i.e. `m2` is
+    * the (implicit-bit-restored) significand with the x4 interval scaling not yet applied, and
+    * `e2` is the binary exponent less 2 to fold that scaling in.  Converts the rounding
+    * interval to decimal scale, in fmt mode widens it to the don't-care interval named by
+    * `mag` and `sig` (see `fmt`), strips, and answers `(removed << 58) | digits` -- or, in fmt
+    * mode, -1 when the don't-care interval swallows zero, in which case "0" is the entire
+    * rendering.  Instantiated exactly twice, as the plain routines `coreAppend` and `coreFmt`
+    * below: plain, so the engine is the same machine code no matter which buffer type the
+    * caller is filling; twice, so the two modes keep their own branch profiles (append never
+    * widens, fmt never redoes, and a shared copy serves both callers worse than either).
+    *
+    * The divisibility caps within are stated for Double and hold a fortiori for Float's smaller
+    * mantissas; they only skip provably-false checks, so looseness costs a comparison, never
+    * correctness.
+    */
+  private inline def coreImpl(m2: Long, e2: Int, mmShift: Int, mag: Int, sig: Int, inline fmtMode: Boolean): Long =
     val even = (m2 & 1) == 0
     val mv = m2 << 2
-    val mmShift = if mant != 0 || ieeeE <= 1 then 1 else 0
     val mm = mv - 1 - mmShift
 
     // Convert interval ends to scale 10^e10.  e10 is one less than the largest power of ten
@@ -339,127 +371,378 @@ object Ryu {
         // vr = (odd * 5^i - 1)/2 == 0 (mod 5), but that quantity is 2 mod 5.
         vrTZ = (mv & ((1L << q) - 1)) == 0
 
-    finish(buf, p, mv, thi, tlo, tj, vr, vp, vm, vmTZ, vrTZ, even, e10, redo = true, pad = true)
+    inline if fmtMode then
+      // The last place that matters, from mag and sig; Int.MinValue marks no limit at all.
+      var swallowed = false
+      var cut = Int.MinValue
+      if mag != 0 then cut = if mag > 0 then mag - 1 else mag
+      if sig > 0 then
+        val ps = e10 + decLen(vr) - 1 - sig + 1   // lead digit place - (sig - 1)
+        if ps > cut then cut = ps
+      else if sig < 0 && cut != Int.MinValue then
+        val pf = e10 + decLen(vr) - 1 + sig + 1
+        if pf < cut then cut = pf
+      if cut != Int.MinValue then
+        // Widen the interval to v +- 10^cut / 2 (in scaled units, 5*10^(cut-e10-1)) wherever
+        // that is wider than round-trip; if it swallows zero, zero is the shortest answer.
+        val k = cut - e10 - 1
+        if k >= 0 then
+          val hu = if k > 18 then Long.MaxValue else 5L * pow10(k)
+          if hu >= vr then swallowed = true
+          else
+            if vr - hu < vm then
+              vm = vr - hu
+              vmTZ = false
+            if vr + hu > vp then vp = vr + hu
+      if swallowed then -1L
+      else shorten(mv, thi, tlo, tj, vr, vp, vm, vmTZ, vrTZ, even, redo = false)
+    else shorten(mv, thi, tlo, tj, vr, vp, vm, vmTZ, vrTZ, even, redo = true)
 
-  /** The shared back half of `append` and `fmt`: strip, round, and lay out the digits.
-    * `redo` enables the Double.toString single-digit quirk below (value parity with toString
-    * needs it; `fmt` wants the genuinely shortest answer instead); `pad` writes the Java-style
-    * ".0" after integer-valued output and after a lone digit in scientific notation (`fmt`
-    * omits both -- a precision-limited "86" should not grow a fake tenths digit).
+  /** Shortest round-trip mode: toString redo quirk on, no interval widening. */
+  private def coreAppend(m2: Long, e2: Int, mmShift: Int): Long =
+    coreImpl(m2, e2, mmShift, 0, 0, fmtMode = false)
+
+  /** Precision-limited mode: don't-care widening on (with -1 for a swallowed zero), no redo. */
+  private def coreFmt(m2: Long, e2: Int, mmShift: Int, mag: Int, sig: Int): Long =
+    coreImpl(m2, e2, mmShift, mag, sig, fmtMode = true)
+
+  /** The decimal scale exponent the core chose, recomputed from e2 alone (a multiply and a
+    * shift); the digits' true magnitude is this plus the packed `removed` count.
     */
-  private def finish(buf: Array[Byte], at: Int, mv: Long, thi: Long, tlo: Long, tj: Int,
-                     vr: Long, vp: Long, vm: Long, vmTZ: Boolean, vrTZ: Boolean, even: Boolean,
-                     e10: Int, redo: Boolean, pad: Boolean): Int =
-    var p = at
-    val packed = strip(vr, vp, vm, vmTZ, vrTZ, even, 99)
-    var out = packed & 0x03FFFFFFFFFFFFFFL
-    var removed = (packed >>> 58).toInt
-    if redo && out < 10 then
-      // java.lang.Double.toString quirk: when the minimal length is 1, two-digit decimals
-      // also compete on closeness to v (so the smallest double prints as 4.9E-324, not
-      // 5.0E-324).  The best two-digit candidate sits where the scaled value has two integer
-      // digits: normally one strip back, but two when the single digit came from a round-up
-      // carry across a decade (99ish -> 9.9ish -> 1), which is recognizable as the one-strip
-      // redo answering exactly 10.  A capped redo that strips nothing has no rounding digit,
-      // so its nearest value is recovered from one extra half-scale multiply instead; that
-      // can only happen at the very bottom of the subnormals (the initial scaled value is
-      // under 1000 only for mv <= 96), where the value is never an exact half (mv has at
-      // most six factors of 2 against 2^751) and both round targets sit 20-deep inside the
-      // interval, so plain round-half-up is exact and unclamped.  (The two-digit scale never
-      // sits below the initial one: the initial scaled value is 40 or more, since mv >= 4
-      // and the scale factor exceeds 10.)  A redo answer that is a multiple of ten is really
-      // a one-digit decimal, and Java renders it in that canonical form.
-      val half = mulShift(mv, thi, tlo, tj - 1)
-      val rB0 = (half >>> 1) + (half & 1)
-      val pk = strip(vr, vp, vm, vmTZ, vrTZ, even, removed - 1)
-      var o2 = if (pk >>> 58) == 0L then rB0 else pk & 0x03FFFFFFFFFFFFFFL
-      var rem2 = (pk >>> 58).toInt
-      if o2 == 10 then
-        val pk3 = strip(vr, vp, vm, vmTZ, vrTZ, even, removed - 2)
-        val o3 = if (pk3 >>> 58) == 0L then rB0 else pk3 & 0x03FFFFFFFFFFFFFFL
-        if o3 < 100 && o3 % 10 != 0 then
-          o2 = o3
-          rem2 = (pk3 >>> 58).toInt
-      if o2 % 10 == 0 then
-        out = o2 / 10
-        removed = rem2 + 1
-      else
-        out = o2
-        removed = rem2
+  private inline def e10Of(e2: Int): Int =
+    if e2 >= 0 then
+      val q = log10pow2(e2) - 1
+      if q < 0 then 0 else q
+    else
+      val q = log10pow5(-e2) - 1
+      e2 + (if q < 0 then 0 else q)
 
-    // Lay the digits out as java.lang.Double.toString does: plain decimal iff the value is
-    // in [10^-3, 10^7), else d.ddd E x, always with at least one digit on each side of the
-    // point, no exponent sign when positive, and no exponent leading zeros.
-    val t = decLen(out)
-    val k = e10 + removed
+  /** The digits of `v0` written most-significant-first, ENDING just before position `end`
+    * (so they occupy `[end - decLen(v0), end)`), answering the leading digit (read off the
+    * pair table, so the value-driven loop never divides for the final one or two digits --
+    * most of the work for short outputs).  The scientific layout leans on the answer: it lays
+    * all the digits contiguously, copies the head digit one slot left from the return value
+    * (never reading the buffer back), and overwrites the original with the decimal point.
+    *
+    * Every divisor here and in `digitsNImpl` is a compile-time constant, which the JIT turns
+    * into multiply-shift; dividing by a looked-up power of ten instead costs a genuine
+    * hardware divide (~25 cycles) and is carefully avoided.  These emitters are handed to
+    * `layout` as compact per-target routines rather than being expanded inline at each call
+    * site: a rendering only runs one layout case, and multiply-expanded digit loops cost more
+    * in code size than they save in call overhead.
+    */
+  private inline def digitsImpl(inline put: (Long, Int) => Unit)(end: Long, v0: Long): Int =
+    var v = v0
+    var q = end
+    while v >= 100 do
+      val r = ((v % 100) << 1).toInt
+      v /= 100
+      q -= 2
+      put(q, pairs(r))
+      put(q + 1, pairs(r + 1))
+    if v >= 10 then
+      val r = (v << 1).toInt
+      put(q - 2, pairs(r))
+      put(q - 1, pairs(r + 1))
+      pairs(r) - '0'
+    else
+      put(q - 1, '0' + v.toInt)
+      v.toInt
+
+  /** Exactly `n0 >= 1` low decimal digits of `v0`, most-significant-first, into
+    * `[end - n0, end)` (zero-filled on the left as needed), answering the undigested high
+    * part `v0 / 10^n0`.  This is how the point-inside layout splits a value at the decimal
+    * point without a non-constant division: peel the fraction field digit by digit and the
+    * quotient left over IS the integer part.
+    */
+  private inline def digitsNImpl(inline put: (Long, Int) => Unit)(end: Long, v0: Long, n0: Int): Long =
+    var v = v0
+    var q = end
+    var n = n0
+    while n >= 2 do
+      val r = ((v % 100) << 1).toInt
+      v /= 100
+      put(q - 2, pairs(r))
+      put(q - 1, pairs(r + 1))
+      q -= 2
+      n -= 2
+    if n == 1 then
+      put(q - 1, '0' + (v % 10).toInt)
+      v /= 10
+    v
+
+  // The per-target digit emitters: two compact compiled routines per render target.
+  private def digitsAB(buf: Array[Byte], end: Int, v: Long): Int =
+    digitsImpl((j, c) => buf(j.toInt) = c.toByte)(end, v)
+  private def digitsAC(buf: Array[Char], end: Int, v: Long): Int =
+    digitsImpl((j, c) => buf(j.toInt) = c.toChar)(end, v)
+  private def digitsMB(mem: Mem[Byte], end: Long, v: Long): Int =
+    digitsImpl((j, c) => mem.setB(j, c.toByte))(end, v)
+  private def digitsMC(mem: Mem[Char], end: Long, v: Long): Int =
+    digitsImpl((j, c) => mem.setC(j, c.toChar))(end, v)
+  private def digitsSB(sb: java.lang.StringBuilder, end: Int, v: Long): Int =
+    digitsImpl((j, c) => sb.setCharAt(j.toInt, c.toChar))(end, v)
+  private def digitsNAB(buf: Array[Byte], end: Int, v: Long, n: Int): Long =
+    digitsNImpl((j, c) => buf(j.toInt) = c.toByte)(end, v, n)
+  private def digitsNAC(buf: Array[Char], end: Int, v: Long, n: Int): Long =
+    digitsNImpl((j, c) => buf(j.toInt) = c.toChar)(end, v, n)
+  private def digitsNMB(mem: Mem[Byte], end: Long, v: Long, n: Int): Long =
+    digitsNImpl((j, c) => mem.setB(j, c.toByte))(end, v, n)
+  private def digitsNMC(mem: Mem[Char], end: Long, v: Long, n: Int): Long =
+    digitsNImpl((j, c) => mem.setC(j, c.toChar))(end, v, n)
+  private def digitsNSB(sb: java.lang.StringBuilder, end: Int, v: Long, n: Int): Long =
+    digitsNImpl((j, c) => sb.setCharAt(j.toInt, c.toChar))(end, v, n)
+
+  /** Lay the digits out as `java.lang.Double.toString` does: plain decimal iff the value is
+    * in [10^-3, 10^7), else d.ddd e x, always with at least one digit on each side of the
+    * point, no exponent sign when positive, and no exponent leading zeros.  `t` is `decLen(out)`
+    * and `k` the decimal exponent of out's last digit; `pad` writes the Java-style ".0" after
+    * integer-valued output and after a lone digit in scientific notation (`fmt` omits both -- a
+    * precision-limited "86" should not grow a fake tenths digit).  `digits` is the per-target
+    * whole-value emitter (relative end position, value, answering the lead digit) and `digitsN`
+    * the exact-field emitter (relative end, value, width, answering the rest).  Everything
+    * lands within `[at, at + t + 8)` or so -- inside the room the caller must supply -- but
+    * not left to right, and scratch just past the returned end may be dirtied (the scientific
+    * form lays its head digit twice and overwrites one copy with the point).
+    */
+  private inline def layout(inline put: (Int, Int) => Unit, inline digits: (Int, Long) => Int, inline digitsN: (Int, Long, Int) => Long)(at: Int, out: Long, t: Int, k: Int, pad: Boolean): Int =
     val x = t + k - 1
+    var p = at
     if x >= -3 && x < 7 then
       if k >= 0 then
-        digits(buf, p, t, out)
+        val _ = digits(p + t, out)
         var q = p + t
         val qN = q + k
         while q < qN do
-          buf(q) = '0'
+          put(q, '0')
           q += 1
         if pad then
-          buf(qN) = '.'
-          buf(qN + 1) = '0'
+          put(qN, '.')
+          put(qN + 1, '0')
           p = qN + 2
         else p = qN
       else if x >= 0 then
-        digits(buf, p + 1, t, out)
-        System.arraycopy(buf, p + 1, buf, p, x + 1)
-        buf(p + x + 1) = '.'
+        // The point sits inside the digits: peel the -k-digit fraction field (it keeps out's
+        // nonzero last digit but may lead with zeros), and the quotient is the integer part.
+        val ip = digitsN(p + t + 1, out, -k)
+        put(p + x + 1, '.')
+        val _ = digits(p + x + 1, ip)
         p = p + t + 1
       else
-        buf(p) = '0'
-        buf(p + 1) = '.'
+        put(p, '0')
+        put(p + 1, '.')
         var q = p + 2
-        val qN = q - x - 1
+        val qN = p + 1 - x
         while q < qN do
-          buf(q) = '0'
+          put(q, '0')
           q += 1
-        digits(buf, qN, t, out)
+        val _ = digits(qN + t, out)
         p = qN + t
     else
-      digits(buf, p + 1, t, out)
-      buf(p) = buf(p + 1)
+      // Scientific: all t digits go down contiguously at p+1, and the returned head digit is
+      // re-laid at p; the point then overwrites the head's original slot.  (For t = 1 without
+      // padding, the slot at p+1 is left dirtied just past the returned end.)
+      val lead = digits(p + t + 1, out)
+      put(p, '0' + lead)
       if t == 1 then
         if pad then
-          buf(p + 1) = '.'
-          buf(p + 2) = '0'
+          put(p + 1, '.')
+          put(p + 2, '0')
           p += 3
         else p += 1
       else
-        buf(p + 1) = '.'
+        put(p + 1, '.')
         p += t + 1
-      buf(p) = 'e'   // always lowercase: the x-height break is a natural separator; capital E is not
+      put(p, 'e')   // always lowercase: the x-height break is a natural separator; capital E is not
       p += 1
       var xm = x
       if xm < 0 then
-        buf(p) = '-'
+        put(p, '-')
         p += 1
         xm = -xm
       if xm >= 100 then
-        buf(p) = ('0' + xm / 100).toByte
+        put(p, '0' + xm / 100)
         val r = (xm % 100) << 1
-        buf(p + 1) = pairs(r)
-        buf(p + 2) = pairs(r + 1)
+        put(p + 1, pairs(r))
+        put(p + 2, pairs(r + 1))
         p += 3
       else if xm >= 10 then
         val r = xm << 1
-        buf(p) = pairs(r)
-        buf(p + 1) = pairs(r + 1)
+        put(p, pairs(r))
+        put(p + 1, pairs(r + 1))
         p += 2
       else
-        buf(p) = ('0' + xm).toByte
+        put(p, '0' + xm)
         p += 1
     p
+
+  /** The per-target rendering glue for Double: specials, sign, one `core` call, layout.
+    * `full` (compile-time) selects toString semantics -- redo quirk, ".0" padding, "0.0"
+    * zeros -- against fmt semantics (genuinely shortest, bare "0" zeros, possible swallow
+    * into unsigned "0").  Answers the count of chars written; all writes land within the
+    * room the caller reserved, but not in left-to-right order, and scratch just past the
+    * answered count may be dirtied.
+    */
+  private inline def doubleImpl(inline put: (Int, Int) => Unit, inline digits: (Int, Long) => Int, inline digitsN: (Int, Long, Int) => Long)(d: Double, mag: Int, sig: Int, inline full: Boolean): Int =
+    val bits = java.lang.Double.doubleToRawLongBits(d)
+    val ieeeE = ((bits >>> 52) & 0x7FF).toInt
+    if ieeeE == 2047 then
+      if (bits & 0x000FFFFFFFFFFFFFL) != 0L then
+        put(0, 'N'); put(1, 'a'); put(2, 'N')
+        3
+      else if bits < 0 then
+        put(0, '-'); put(1, 'I'); put(2, 'n'); put(3, 'f'); put(4, 'i'); put(5, 'n'); put(6, 'i'); put(7, 't'); put(8, 'y')
+        9
+      else
+        put(0, 'I'); put(1, 'n'); put(2, 'f'); put(3, 'i'); put(4, 'n'); put(5, 'i'); put(6, 't'); put(7, 'y')
+        8
+    else if (bits & 0x7FFFFFFFFFFFFFFFL) == 0L then
+      var p = 0
+      if bits < 0 then { put(0, '-'); p = 1 }
+      put(p, '0')
+      inline if full then
+        put(p + 1, '.')
+        put(p + 2, '0')
+        p + 3
+      else p + 1
+    else
+      val mant = bits & 0x000FFFFFFFFFFFFFL
+      var m2 = 0L
+      var e2 = 0
+      if ieeeE == 0 then { m2 = mant; e2 = -1076 }
+      else { m2 = mant | 0x0010000000000000L; e2 = ieeeE - 1077 }
+      val mmShift = if mant != 0L || ieeeE <= 1 then 1 else 0
+      val packed = inline if full then coreAppend(m2, e2, mmShift) else coreFmt(m2, e2, mmShift, mag, sig)
+      if packed < 0L then
+        put(0, '0')   // entirely inside the don't-care region: unsigned "0" (never on the full path)
+        1
+      else
+        var p = 0
+        if bits < 0 then { put(0, '-'); p = 1 }
+        val out = packed & 0x03FFFFFFFFFFFFFFL
+        layout(put, digits, digitsN)(p, out, decLen(out), e10Of(e2) + (packed >>> 58).toInt, pad = full)
+
+  /** The per-target rendering glue for Float; as `doubleImpl` with Float's field widths.
+    * Value = m2 * 2^(ieeeE - 150) (bias 127, 23 mantissa bits), so the x4-folded exponent is
+    * ieeeE - 152, and the subnormals sit at -151; both branches then land inside the ranges
+    * already proven for Double.
+    */
+  private inline def floatImpl(inline put: (Int, Int) => Unit, inline digits: (Int, Long) => Int, inline digitsN: (Int, Long, Int) => Long)(f: Float, mag: Int, sig: Int, inline full: Boolean): Int =
+    val bits = java.lang.Float.floatToRawIntBits(f)
+    val ieeeE = (bits >>> 23) & 0xFF
+    if ieeeE == 255 then
+      if (bits & 0x007FFFFF) != 0 then
+        put(0, 'N'); put(1, 'a'); put(2, 'N')
+        3
+      else if bits < 0 then
+        put(0, '-'); put(1, 'I'); put(2, 'n'); put(3, 'f'); put(4, 'i'); put(5, 'n'); put(6, 'i'); put(7, 't'); put(8, 'y')
+        9
+      else
+        put(0, 'I'); put(1, 'n'); put(2, 'f'); put(3, 'i'); put(4, 'n'); put(5, 'i'); put(6, 't'); put(7, 'y')
+        8
+    else if (bits & 0x7FFFFFFF) == 0 then
+      var p = 0
+      if bits < 0 then { put(0, '-'); p = 1 }
+      put(p, '0')
+      inline if full then
+        put(p + 1, '.')
+        put(p + 2, '0')
+        p + 3
+      else p + 1
+    else
+      val mant = bits & 0x007FFFFF
+      var m2 = 0L
+      var e2 = 0
+      if ieeeE == 0 then { m2 = mant.toLong; e2 = -151 }
+      else { m2 = (mant | 0x00800000).toLong; e2 = ieeeE - 152 }
+      val mmShift = if mant != 0 || ieeeE <= 1 then 1 else 0
+      val packed = inline if full then coreAppend(m2, e2, mmShift) else coreFmt(m2, e2, mmShift, mag, sig)
+      if packed < 0L then
+        put(0, '0')
+        1
+      else
+        var p = 0
+        if bits < 0 then { put(0, '-'); p = 1 }
+        val out = packed & 0x03FFFFFFFFFFFFFFL
+        layout(put, digits, digitsN)(p, out, decLen(out), e10Of(e2) + (packed >>> 58).toInt, pad = full)
+
+
+  //////////////////////////////////////////////////
+  /// Shortest round-trip rendering (toString'y) ///
+  //////////////////////////////////////////////////
+
+  /** Renders `d` as `java.lang.Double.toString` would (but with a lowercase exponent letter)
+    * into `buf` starting at `at`, and answers the index just past the last byte written.  The
+    * caller must supply at least 24 bytes of room (which may be dirtied past the answer);
+    * nothing is checked.
+    */
+  def append(buf: Array[Byte], at: Int, d: Double): Int =
+    at + doubleImpl((i, c) => buf(at + i) = c.toByte, (e, v) => digitsAB(buf, at + e, v), (e, v, n) => digitsNAB(buf, at + e, v, n))(d, 0, 0, full = true)
+
+  /** As the byte-array `append`, into a char array (at least 24 chars of room). */
+  def append(buf: Array[Char], at: Int, d: Double): Int =
+    at + doubleImpl((i, c) => buf(at + i) = c.toChar, (e, v) => digitsAC(buf, at + e, v), (e, v, n) => digitsNAC(buf, at + e, v, n))(d, 0, 0, full = true)
+
+  /** As the byte-array `append`, into byte memory (at least 24 bytes of room past `at`). */
+  @targetName("appendMemByteDouble")
+  def append(mem: Mem[Byte], at: Long, d: Double): Long =
+    at + doubleImpl((i, c) => mem.setB(at + i, c.toByte), (e, v) => digitsMB(mem, at + e, v), (e, v, n) => digitsNMB(mem, at + e, v, n))(d, 0, 0, full = true)
+
+  /** As the byte-array `append`, into char memory; `at` indexes chars, not bytes. */
+  @targetName("appendMemCharDouble")
+  def append(mem: Mem[Char], at: Long, d: Double): Long =
+    at + doubleImpl((i, c) => mem.setC(at + i, c.toChar), (e, v) => digitsMC(mem, at + e, v), (e, v, n) => digitsNMC(mem, at + e, v, n))(d, 0, 0, full = true)
+
+  /** As the byte-array `append`, added at the end of a string builder. */
+  def append(ms: MkStr, d: Double): Unit =
+    val sb = ms.unwrap
+    val n0 = sb.length
+    sb.setLength(n0 + 24)
+    sb.setLength(n0 + doubleImpl((i, c) => sb.setCharAt(n0 + i, c.toChar), (e, v) => digitsSB(sb, n0 + e, v), (e, v, n) => digitsNSB(sb, n0 + e, v, n))(d, 0, 0, full = true))
 
   /** The string `java.lang.Double.toString` would produce (lowercase exponent), via `append`. */
   def string(d: Double): String =
     val b = new Array[Byte](24)
     new String(b, 0, append(b, 0, d), java.nio.charset.StandardCharsets.ISO_8859_1)
+
+  /** Renders `f` as `java.lang.Float.toString` would (but with a lowercase exponent letter)
+    * into `buf` starting at `at`, and answers the index just past the last byte written.  The
+    * caller must supply at least 16 bytes of room (which may be dirtied past the answer);
+    * nothing is checked.
+    */
+  def append(buf: Array[Byte], at: Int, f: Float): Int =
+    at + floatImpl((i, c) => buf(at + i) = c.toByte, (e, v) => digitsAB(buf, at + e, v), (e, v, n) => digitsNAB(buf, at + e, v, n))(f, 0, 0, full = true)
+
+  /** As the byte-array `append`, into a char array (at least 16 chars of room). */
+  def append(buf: Array[Char], at: Int, f: Float): Int =
+    at + floatImpl((i, c) => buf(at + i) = c.toChar, (e, v) => digitsAC(buf, at + e, v), (e, v, n) => digitsNAC(buf, at + e, v, n))(f, 0, 0, full = true)
+
+  /** As the byte-array `append`, into byte memory (at least 16 bytes of room past `at`). */
+  @targetName("appendMemByteFloat")
+  def append(mem: Mem[Byte], at: Long, f: Float): Long =
+    at + floatImpl((i, c) => mem.setB(at + i, c.toByte), (e, v) => digitsMB(mem, at + e, v), (e, v, n) => digitsNMB(mem, at + e, v, n))(f, 0, 0, full = true)
+
+  /** As the byte-array `append`, into char memory; `at` indexes chars, not bytes. */
+  @targetName("appendMemCharFloat")
+  def append(mem: Mem[Char], at: Long, f: Float): Long =
+    at + floatImpl((i, c) => mem.setC(at + i, c.toChar), (e, v) => digitsMC(mem, at + e, v), (e, v, n) => digitsNMC(mem, at + e, v, n))(f, 0, 0, full = true)
+
+  /** As the byte-array `append`, added at the end of a string builder. */
+  def append(ms: MkStr, f: Float): Unit =
+    val sb = ms.unwrap
+    val n0 = sb.length
+    sb.setLength(n0 + 16)
+    sb.setLength(n0 + floatImpl((i, c) => sb.setCharAt(n0 + i, c.toChar), (e, v) => digitsSB(sb, n0 + e, v), (e, v, n) => digitsNSB(sb, n0 + e, v, n))(f, 0, 0, full = true))
+
+  /** The string `java.lang.Float.toString` would produce (lowercase exponent), via `append`. */
+  def string(f: Float): String =
+    val b = new Array[Byte](16)
+    new String(b, 0, append(b, 0, f), java.nio.charset.StandardCharsets.ISO_8859_1)
+
+
+  ///////////////////////////////////////
+  /// Precision-limited rendering     ///
+  ///////////////////////////////////////
 
   /** Renders `d` with limited precision: the shortest decimal within the widest of the
     * round-trip interval and the don't-care interval `d +- 10^p / 2`, where `p` is the last
@@ -479,116 +762,65 @@ object Ryu {
     * A value entirely inside the don't-care region prints as an unsigned "0"; NaN and the
     * infinities print as in `append`; the zeros print as "0" and "-0".  With `mag` and `sig`
     * both 0 the output parses back bit-identically to `d` (it is `append`'s rendering minus
-    * the ".0").  The caller must supply at least 24 bytes of room; nothing is checked.
+    * the ".0").  The caller must supply at least 24 bytes of room (which may be dirtied past
+    * the answer); nothing is checked.
     */
   def fmt(buf: Array[Byte], at: Int, d: Double, mag: Int, sig: Int): Int =
-    val bits = java.lang.Double.doubleToRawLongBits(d)
-    val ieeeE = ((bits >>> 52) & 0x7FF).toInt
-    val mant = bits & 0x000FFFFFFFFFFFFFL
-    var p = at
-    if ieeeE == 2047 then
-      if mant != 0 then
-        buf(p) = 'N'; buf(p+1) = 'a'; buf(p+2) = 'N'
-        return p + 3
-      if bits < 0 then { buf(p) = '-'; p += 1 }
-      buf(p) = 'I'; buf(p+1) = 'n'; buf(p+2) = 'f'; buf(p+3) = 'i'
-      buf(p+4) = 'n'; buf(p+5) = 'i'; buf(p+6) = 't'; buf(p+7) = 'y'
-      return p + 8
-    if (bits & 0x7FFFFFFFFFFFFFFFL) == 0 then
-      if bits < 0 then { buf(p) = '-'; p += 1 }
-      buf(p) = '0'
-      return p + 1
-
-    var m2 = 0L
-    var e2 = 0
-    if ieeeE == 0 then { m2 = mant; e2 = -1076 }
-    else { m2 = mant | 0x0010000000000000L; e2 = ieeeE - 1077 }
-    val even = (m2 & 1) == 0
-    val mv = m2 << 2
-    val mmShift = if mant != 0 || ieeeE <= 1 then 1 else 0
-    val mm = mv - 1 - mmShift
-
-    var vr = 0L
-    var vp = 0L
-    var vm = 0L
-    var e10 = 0
-    var vmTZ = false
-    var vrTZ = false
-    var thi = 0L
-    var tlo = 0L
-    var tj = 0
-    if e2 >= 0 then
-      var q = log10pow2(e2) - 1
-      if q < 0 then q = 0
-      e10 = q
-      val h = q << 1
-      thi = inv5(h)
-      tlo = inv5(h + 1)
-      tj = pow5bits(q) - 1 + B - (e2 - q)
-      vr = mulShift(mv, thi, tlo, tj)
-      vp = mulShift(mv + 2, thi, tlo, tj)
-      vm = mulShift(mm, thi, tlo, tj)
-      if q <= 23 then
-        if mv % 5 == 0 then vrTZ = mult5(mv, q)
-        else if even then vmTZ = mult5(mm, q)
-        else if mult5(mv + 2, q) then vp -= 1
-    else
-      var q = log10pow5(-e2) - 1
-      if q < 0 then q = 0
-      e10 = e2 + q
-      val i = -e2 - q
-      val h = i << 1
-      thi = pow5(h)
-      tlo = pow5(h + 1)
-      tj = q - pow5bits(i) + B
-      vr = mulShift(mv, thi, tlo, tj)
-      vp = mulShift(mv + 2, thi, tlo, tj)
-      vm = mulShift(mm, thi, tlo, tj)
-      if q <= 1 then
-        vrTZ = true
-        if even then vmTZ = mmShift == 1
-        else vp -= 1
-      else if q <= 54 then
-        vrTZ = (mv & ((1L << q) - 1)) == 0
-
-    // The last place that matters, from mag and sig; Int.MinValue marks no limit at all.
-    var cut = Int.MinValue
-    if mag != 0 then cut = if mag > 0 then mag - 1 else mag
-    if sig > 0 then
-      val ps = e10 + decLen(vr) - 1 - sig + 1   // lead digit place - (sig - 1)
-      if ps > cut then cut = ps
-    else if sig < 0 && cut != Int.MinValue then
-      val pf = e10 + decLen(vr) - 1 + sig + 1
-      if pf < cut then cut = pf
-    if cut != Int.MinValue then
-      // Widen the interval to d +- 10^cut / 2 (in scaled units, 5*10^(cut-e10-1)) wherever
-      // that is wider than round-trip; if it swallows zero, zero is the shortest answer.
-      val k = cut - e10 - 1
-      if k >= 0 then
-        val hu = if k > 18 then Long.MaxValue else 5L * pow10(k)
-        if hu >= vr then
-          buf(p) = '0'
-          return p + 1
-        if vr - hu < vm then
-          vm = vr - hu
-          vmTZ = false
-        if vr + hu > vp then vp = vr + hu
-
-    if bits < 0 then { buf(p) = '-'; p += 1 }
-    finish(buf, p, mv, thi, tlo, tj, vr, vp, vm, vmTZ, vrTZ, even, e10, redo = false, pad = false)
+    at + doubleImpl((i, c) => buf(at + i) = c.toByte, (e, v) => digitsAB(buf, at + e, v), (e, v, n) => digitsNAB(buf, at + e, v, n))(d, mag, sig, full = false)
 
   /** As the byte-buffer `fmt`, but into a char array (at least 24 chars of room). */
   def fmt(buf: Array[Char], at: Int, d: Double, mag: Int, sig: Int): Int =
-    val b = new Array[Byte](24)
-    val n = fmt(b, 0, d, mag, sig)
-    var i = 0
-    while i < n do
-      buf(at + i) = (b(i) & 0xFF).toChar
-      i += 1
-    at + n
+    at + doubleImpl((i, c) => buf(at + i) = c.toChar, (e, v) => digitsAC(buf, at + e, v), (e, v, n) => digitsNAC(buf, at + e, v, n))(d, mag, sig, full = false)
+
+  /** As the byte-buffer `fmt`, into byte memory (at least 24 bytes of room past `at`). */
+  @targetName("fmtMemByteDouble")
+  def fmt(mem: Mem[Byte], at: Long, d: Double, mag: Int, sig: Int): Long =
+    at + doubleImpl((i, c) => mem.setB(at + i, c.toByte), (e, v) => digitsMB(mem, at + e, v), (e, v, n) => digitsNMB(mem, at + e, v, n))(d, mag, sig, full = false)
+
+  /** As the byte-buffer `fmt`, into char memory; `at` indexes chars, not bytes. */
+  @targetName("fmtMemCharDouble")
+  def fmt(mem: Mem[Char], at: Long, d: Double, mag: Int, sig: Int): Long =
+    at + doubleImpl((i, c) => mem.setC(at + i, c.toChar), (e, v) => digitsMC(mem, at + e, v), (e, v, n) => digitsNMC(mem, at + e, v, n))(d, mag, sig, full = false)
+
+  /** As the byte-buffer `fmt`, added at the end of a string builder. */
+  def fmt(ms: MkStr, d: Double, mag: Int, sig: Int): Unit =
+    val sb = ms.unwrap
+    val n0 = sb.length
+    sb.setLength(n0 + 24)
+    sb.setLength(n0 + doubleImpl((i, c) => sb.setCharAt(n0 + i, c.toChar), (e, v) => digitsSB(sb, n0 + e, v), (e, v, n) => digitsNSB(sb, n0 + e, v, n))(d, mag, sig, full = false))
 
   /** As the byte-buffer `fmt`, but answering a String. */
   def fmt(d: Double, mag: Int, sig: Int): String =
     val b = new Array[Byte](24)
     new String(b, 0, fmt(b, 0, d, mag, sig), java.nio.charset.StandardCharsets.ISO_8859_1)
+
+  /** As the Double `fmt`, for a Float (at least 16 bytes of room). */
+  def fmt(buf: Array[Byte], at: Int, f: Float, mag: Int, sig: Int): Int =
+    at + floatImpl((i, c) => buf(at + i) = c.toByte, (e, v) => digitsAB(buf, at + e, v), (e, v, n) => digitsNAB(buf, at + e, v, n))(f, mag, sig, full = false)
+
+  /** As the byte-buffer Float `fmt`, but into a char array (at least 16 chars of room). */
+  def fmt(buf: Array[Char], at: Int, f: Float, mag: Int, sig: Int): Int =
+    at + floatImpl((i, c) => buf(at + i) = c.toChar, (e, v) => digitsAC(buf, at + e, v), (e, v, n) => digitsNAC(buf, at + e, v, n))(f, mag, sig, full = false)
+
+  /** As the byte-buffer Float `fmt`, into byte memory (at least 16 bytes of room past `at`). */
+  @targetName("fmtMemByteFloat")
+  def fmt(mem: Mem[Byte], at: Long, f: Float, mag: Int, sig: Int): Long =
+    at + floatImpl((i, c) => mem.setB(at + i, c.toByte), (e, v) => digitsMB(mem, at + e, v), (e, v, n) => digitsNMB(mem, at + e, v, n))(f, mag, sig, full = false)
+
+  /** As the byte-buffer Float `fmt`, into char memory; `at` indexes chars, not bytes. */
+  @targetName("fmtMemCharFloat")
+  def fmt(mem: Mem[Char], at: Long, f: Float, mag: Int, sig: Int): Long =
+    at + floatImpl((i, c) => mem.setC(at + i, c.toChar), (e, v) => digitsMC(mem, at + e, v), (e, v, n) => digitsNMC(mem, at + e, v, n))(f, mag, sig, full = false)
+
+  /** As the byte-buffer Float `fmt`, added at the end of a string builder. */
+  def fmt(ms: MkStr, f: Float, mag: Int, sig: Int): Unit =
+    val sb = ms.unwrap
+    val n0 = sb.length
+    sb.setLength(n0 + 16)
+    sb.setLength(n0 + floatImpl((i, c) => sb.setCharAt(n0 + i, c.toChar), (e, v) => digitsSB(sb, n0 + e, v), (e, v, n) => digitsNSB(sb, n0 + e, v, n))(f, mag, sig, full = false))
+
+  /** As the byte-buffer Float `fmt`, but answering a String. */
+  def fmt(f: Float, mag: Int, sig: Int): String =
+    val b = new Array[Byte](16)
+    new String(b, 0, fmt(b, 0, f, mag, sig), java.nio.charset.StandardCharsets.ISO_8859_1)
 }

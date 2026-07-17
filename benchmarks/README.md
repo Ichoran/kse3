@@ -307,9 +307,21 @@ JDK in `@Setup`, up to kse3's deliberate lowercase exponent letter.  The `kind` 
 (~17 digits), "data" = milli-precision values (short decimals, many digits stripped).  Also pits
 `Ryu.fmt` — precision-limited rendering via interval widening (last-place `mag` + significant-
 figure `sig` cutoffs) — against `String.format("%.3g")` and the BigDecimal round-and-print shape
-the `Jstyle` sig/fixed styles used before they switched to `Ryu.fmt`: 38–42 ops/µs (same as
-unlimited shortest — the cutoff is free) vs 10–12 for `String.format` and 1.4 (full) – 5.3
-(data) for BigDecimal (2026-07-16, pinned as above).
+the `Jstyle` sig/fixed styles used before they switched to `Ryu.fmt`: 40–43 ops/µs (same as
+unlimited shortest — the cutoff is free) vs 10.8–12.3 for `String.format` and 1.4 (full) – 5.2
+(data) for BigDecimal (re-pinned 2026-07-16 post-generality, as above).
+
+With the 2026-07-16 generality pass, `RyuBench` also covers the other render targets
+(`Array[Char]`, `Mem[Byte]`, and `MkStr` against the JDK's `StringBuilder.append(double)`),
+the Float kernel (`ryuAppendFloat` vs `Float.toString`), and whole-range parsing back to bits
+(`EiselLemire.parseDouble` from raw bytes and from String vs JDK `Double.parseDouble`).
+Idle-machine pins (2026-07-16, protocol as above; full / data kinds, ops/µs): bytes 37.9 / 41.3
+— the pre-refactor kernel measured 36.2 / 40.7 in the same session, so generality came out
+slightly ahead — chars 37.5 / 41.1, `Mem[Byte]` 35.7 / 35.0, `MkStr` 21.4 / 25.8 (StringBuilder's
+own checks dominate; the JDK's `sb.append(double)` gets 39.5 / 45.3 there), Float 175 / 49 vs
+179 / 38.6 for `Float.toString`.  Parsing: 53.9 / 106.2 from bytes and 44.2 / 94.2 from String
+vs 5.5 / 32.0 for `Double.parseDouble` — the whole-range parser turns shortest renderings back
+into bits ~9.7× / 3.3× faster than the JDK, with no String in sight.
 
 Run:
 
@@ -357,8 +369,9 @@ absolutes; a 1.5× gap is real, 10% is noise.
   re-encode loop.  Tree serialize 0.028 → 0.031,
   direct typed encode 0.029 → 0.032 on this mixed, string-heavy payload; the number-dominated
   matrix rows below move much more.  Same-run references matched their pins.  `RyuBench` isolates
-  the kernel: ~41 doubles/µs on both random full-precision and short data-like decimals, vs
-  34/39 for `Double.toString` — and the JDK cannot deliver bytes without a further copy.)
+  the kernel: 37.9/41.3 doubles/µs on random full-precision / short data-like decimals
+  (re-pinned post-generality), vs 32.4/39.1 for `Double.toString` — and the JDK cannot deliver
+  bytes without a further copy.)
 
 **10×10 double matrix — the packed `Jarr.D` payoff (`JsaunMatrixBench`), 4sig / full precision.**
 

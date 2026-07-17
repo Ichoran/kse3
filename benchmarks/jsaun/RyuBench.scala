@@ -26,7 +26,8 @@ import java.util.concurrent.TimeUnit
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
 
-import kse.maths.Ryu
+import kse.basics.{Mem, MkStr}
+import kse.maths.{Ryu, EiselLemire}
 
 
 @State(Scope.Thread)
@@ -37,7 +38,12 @@ class RyuBench {
   var kind: String = ""
 
   var ds: Array[Double] = Array.empty
+  var fs: Array[Float] = Array.empty
+  var ss: Array[String] = Array.empty
+  var bss: Array[Array[Byte]] = Array.empty
   val buf = new Array[Byte](32)
+  val cbuf = new Array[Char](32)
+  val mbuf: Mem[Byte] = Mem of new Array[Byte](32)
   val sb = new java.lang.StringBuilder(32)
 
   @Setup(Level.Trial)
@@ -52,11 +58,20 @@ class RyuBench {
         }
       case _ =>
         Array.fill(1000)((r.nextInt(2000001) - 1000000) * 0.001)
+    fs = ds.map(_.toFloat)
+    ss = ds.map(Ryu.string)
+    bss = ss.map(_.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1))
     // Cross-check while we are here: identical output up to the deliberate lowercase exponent
     for d <- ds do
       val n = Ryu.append(buf, 0, d)
       val s = new String(buf, 0, n, java.nio.charset.StandardCharsets.ISO_8859_1)
       assert(s.equalsIgnoreCase(java.lang.Double.toString(d)), s"$s != $d")
+    for f <- fs do
+      val n = Ryu.append(buf, 0, f)
+      val s = new String(buf, 0, n, java.nio.charset.StandardCharsets.ISO_8859_1)
+      assert(s.equalsIgnoreCase(java.lang.Float.toString(f)), s"$s != $f")
+    for (s, d) <- ss.zip(ds) do
+      assert(java.lang.Double.doubleToRawLongBits(EiselLemire.parseDouble(s)) == java.lang.Double.doubleToRawLongBits(d), s"parse $s != $d")
 
   @Benchmark
   @OperationsPerInvocation(1000)
@@ -81,6 +96,78 @@ class RyuBench {
     while i < ds.length do
       sb.setLength(0)
       bh.consume(sb.append(ds(i)).length)
+      i += 1
+
+  // The other render targets: identical engine, different inline sink; and the Float kernel.
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def ryuAppendChars(bh: Blackhole): Unit =
+    var i = 0
+    while i < ds.length do
+      bh.consume(Ryu.append(cbuf, 0, ds(i)))
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def ryuAppendMem(bh: Blackhole): Unit =
+    var i = 0
+    while i < ds.length do
+      bh.consume(Ryu.append(mbuf, 0L, ds(i)))
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def ryuAppendMkStr(bh: Blackhole): Unit =
+    val ms = MkStr.wrap(sb)
+    var i = 0
+    while i < ds.length do
+      sb.setLength(0)
+      Ryu.append(ms, ds(i))
+      bh.consume(sb.length)
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def ryuAppendFloat(bh: Blackhole): Unit =
+    var i = 0
+    while i < fs.length do
+      bh.consume(Ryu.append(buf, 0, fs(i)))
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def jdkFloatToString(bh: Blackhole): Unit =
+    var i = 0
+    while i < fs.length do
+      bh.consume(java.lang.Float.toString(fs(i)))
+      i += 1
+
+  // Whole-range parsing of the shortest renderings back to bits: the EiselLemire-backed
+  // parser from bytes (no String in sight) and from String, against the JDK.
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def elParseBytes(bh: Blackhole): Unit =
+    var i = 0
+    while i < bss.length do
+      bh.consume(EiselLemire.parseDouble(bss(i)))
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def elParseString(bh: Blackhole): Unit =
+    var i = 0
+    while i < ss.length do
+      bh.consume(EiselLemire.parseDouble(ss(i)))
+      i += 1
+
+  @Benchmark
+  @OperationsPerInvocation(1000)
+  def jdkParseDouble(bh: Blackhole): Unit =
+    var i = 0
+    while i < ss.length do
+      bh.consume(java.lang.Double.parseDouble(ss(i)))
       i += 1
 
   // Precision-limited rendering (3 significant figures) three ways: the Ryu interval-widening

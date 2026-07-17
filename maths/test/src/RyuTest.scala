@@ -376,4 +376,265 @@ class RyuTest {
       i += 1
     T ~ mismatch ==== null
     T ~ (count > 2000000) ==== true
+
+  @Test
+  def floatKnownValuesTest(): Unit =
+    T ~ Ryu.string(0.0f)                    ==== "0.0"
+    T ~ Ryu.string(-0.0f)                   ==== "-0.0"
+    T ~ Ryu.string(Float.NaN)               ==== "NaN"
+    T ~ Ryu.string(java.lang.Float.intBitsToFloat(0xFFC00123)) ==== "NaN"
+    T ~ Ryu.string(Float.PositiveInfinity)  ==== "Infinity"
+    T ~ Ryu.string(Float.NegativeInfinity)  ==== "-Infinity"
+    T ~ Ryu.string(1.0f)                    ==== "1.0"
+    T ~ Ryu.string(-1.0f)                   ==== "-1.0"
+    T ~ Ryu.string(0.1f)                    ==== "0.1"
+    T ~ Ryu.string(1.5f)                    ==== "1.5"
+    T ~ Ryu.string(100.0f)                  ==== "100.0"
+    T ~ Ryu.string(3.14159f)                ==== "3.14159"
+    T ~ Ryu.string(0.001f)                  ==== "0.001"
+    T ~ Ryu.string(-0.001f)                 ==== "-0.001"
+    T ~ Ryu.string(1e-4f)                   ==== "1.0e-4"
+    T ~ Ryu.string(9999999.0f)              ==== "9999999.0"
+    T ~ Ryu.string(1e7f)                    ==== "1.0e7"
+    T ~ Ryu.string(Float.MaxValue)          ==== "3.4028235e38"
+    T ~ Ryu.string(Float.MinPositiveValue)  ==== "1.4e-45"
+    T ~ Ryu.string(java.lang.Float.MIN_NORMAL) ==== "1.1754944e-38"
+    // The two-digit-quirk redo path in Float's subnormal basement
+    T ~ Ryu.string(java.lang.Float.intBitsToFloat(2)) ==== "2.8e-45"
+    // append writes at the given offset, leaves everything else alone, returns the end
+    val b = Array.fill(16 + 6)('x'.toByte)
+    val n = Ryu.append(b, 5, -123.456f)
+    T ~ n ==== 5 + 8
+    T ~ (new String(b, 5, n - 5, java.nio.charset.StandardCharsets.ISO_8859_1)) ==== "-123.456"
+    T ~ b(4) ==== 'x'.toByte
+    T ~ b(n) ==== 'x'.toByte
+
+  @Test
+  def floatDifferentialTest(): Unit =
+    // Same oracle as the Double differential test: on JDK 19+, Float.toString is the shortest
+    // round-tripping decimal, so case-insensitive equality plus exact parse-back is complete.
+    var mismatch: String = null
+    var count = 0
+    def check(f: Float): Unit =
+      count += 1
+      val mine = Ryu.string(f)
+      if !mine.equalsIgnoreCase(java.lang.Float.toString(f)) && mismatch == null then
+        mismatch = s"bits ${Integer.toHexString(java.lang.Float.floatToRawIntBits(f))}: jdk ${java.lang.Float.toString(f)} vs ryu $mine"
+      if !f.isNaN && java.lang.Float.floatToRawIntBits(java.lang.Float.parseFloat(mine)) != java.lang.Float.floatToRawIntBits(f) && mismatch == null then
+        mismatch = s"round trip failure: $f vs $mine"
+    var e = -149
+    while e <= 127 do
+      val f = java.lang.Math.scalb(1.0f, e)
+      check(f); check(-f); check(java.lang.Math.nextUp(f)); check(java.lang.Math.nextDown(f))
+      e += 1
+    e = -45
+    while e <= 38 do
+      val f = java.lang.Float.parseFloat("1e" + e)
+      check(f); check(java.lang.Math.nextUp(f)); check(java.lang.Math.nextDown(f))
+      e += 1
+    var m = 1
+    while m <= 30000 do
+      check(m.toFloat); check(1.0f / m); check(-m * 0.001f)
+      m += 1
+    var k = -30
+    while k <= 30 do
+      m = 1
+      while m <= 500 do
+        val f = java.lang.Float.parseFloat(s"${m}e$k")
+        check(f); check(java.lang.Math.nextUp(f)); check(java.lang.Math.nextDown(f))
+        m += 1
+      k += 1
+    // Mantissa trailing-zero structure across every exponent (the exactness-flag paths)
+    val r = new java.util.Random(0x12BADA55L)
+    var ieeeE = 0
+    while ieeeE <= 254 do
+      check(java.lang.Float.intBitsToFloat(ieeeE << 23))
+      var tz = 0
+      while tz <= 23 do
+        val mm = ((r.nextInt() | 1) << tz) & 0x7FFFFF
+        check(java.lang.Float.intBitsToFloat((ieeeE << 23) | mm))
+        tz += 2
+      ieeeE += 1
+    // Mantissas divisible by powers of 5 (exact decimal boundaries)
+    var p5 = 5
+    while p5 <= 1953125 do   // 5^9; 5^10 exceeds the 23-bit mantissa
+      var trial = 0
+      while trial < 200 do
+        val lo = (1 << 23) / p5 + 1
+        val m2 = (lo + r.nextInt(((1 << 24) / p5 - lo) max 1)) * p5
+        if (m2 >>> 23) == 1 then
+          val bits = ((1 + r.nextInt(254)) << 23) | (m2 & 0x7FFFFF)
+          val f = java.lang.Float.intBitsToFloat(bits)
+          check(f); check(java.lang.Math.nextUp(f)); check(java.lang.Math.nextDown(f))
+        trial += 1
+      p5 *= 5
+    // Random bit patterns, including subnormals
+    var i = 0
+    while i < 1000000 do
+      val f = java.lang.Float.intBitsToFloat(r.nextInt())
+      if !f.isNaN then check(f)
+      check(java.lang.Float.intBitsToFloat(r.nextInt() >>> 9))
+      i += 1
+    T ~ mismatch ==== null
+    T ~ (count > 2000000) ==== true
+
+  @Test
+  def floatExhaustiveTest(): Unit =
+    // Every single Float bit pattern against the JDK -- the gold standard, but a few minutes
+    // of work, so it only runs when asked for: -Dkse.ryu.exhaustive (run it after any change
+    // to the kernel).  The sampled differential test above covers the same paths by structure.
+    if System.getProperty("kse.ryu.exhaustive") != null then
+      val mismatch = new java.util.concurrent.atomic.AtomicReference[String](null)
+      val next = new java.util.concurrent.atomic.AtomicInteger(0)
+      val threads = Array.fill(Runtime.getRuntime.availableProcessors max 1)(new Thread(() => {
+        var chunk = next.getAndIncrement()
+        while chunk < 4096 && mismatch.get() == null do
+          var i = chunk.toLong << 20
+          val iN = i + (1L << 20)
+          while i < iN do
+            val bits = i.toInt
+            val f = java.lang.Float.intBitsToFloat(bits)
+            val mine = Ryu.string(f)
+            if !mine.equalsIgnoreCase(java.lang.Float.toString(f)) then
+              val _ = mismatch.compareAndSet(null, s"bits ${Integer.toHexString(bits)}: jdk ${java.lang.Float.toString(f)} vs ryu $mine")
+            else if !f.isNaN && java.lang.Float.floatToRawIntBits(java.lang.Float.parseFloat(mine)) != bits then
+              val _ = mismatch.compareAndSet(null, s"round trip failure at bits ${Integer.toHexString(bits)}: $mine")
+            i += 1
+          chunk = next.getAndIncrement()
+      }))
+      threads.foreach(_.start())
+      threads.foreach(_.join())
+      T ~ mismatch.get() ==== null
+
+  @Test
+  def floatFmtToleranceTest(): Unit =
+    // The Float twin of fmtToleranceTest: exact BigDecimal model (a Float widens exactly),
+    // parse-back must be bit-identical when no cutoff bites, within the tolerance otherwise.
+    val r = new java.util.Random(0xF337F10AL)
+    var worst: String = null
+    var n = 0
+    while n < 60000 do
+      val f = (n % 3) match
+        case 0 =>
+          var x = java.lang.Float.intBitsToFloat(r.nextInt())
+          while x.isNaN || x.isInfinite do x = java.lang.Float.intBitsToFloat(r.nextInt())
+          x
+        case 1 => (r.nextInt(2000001) - 1000000) * 0.001f
+        case _ => ((r.nextFloat() - 0.5f) * math.pow(10, r.nextInt(13) - 6)).toFloat
+      val mag = r.nextInt(31) - 15
+      val sig = r.nextInt(12) - 4
+      val s = Ryu.fmt(f, mag, sig)
+      if worst == null then
+        val bd = new java.math.BigDecimal(f.toDouble)
+        val lead = bd.abs.precision - bd.scale - 1
+        var cut = Int.MinValue
+        if mag != 0 then cut = if mag > 0 then mag - 1 else mag
+        if sig > 0 then { val ps = lead - sig + 1; if ps > cut then cut = ps }
+        else if sig < 0 && cut != Int.MinValue then { val pf = lead + sig + 1; if pf < cut then cut = pf }
+        val pf = java.lang.Float.parseFloat(s)
+        val exact = java.lang.Float.floatToRawIntBits(pf) == java.lang.Float.floatToRawIntBits(f)
+        if cut == Int.MinValue then
+          if !exact then worst = s"no-cutoff round trip failed: $f -> $s -> $pf"
+        else if !exact then
+          val tol = new java.math.BigDecimal(java.math.BigInteger.valueOf(5), 1 - cut)   // 10^cut / 2
+          val diff = new java.math.BigDecimal(s).subtract(bd).abs
+          if diff.compareTo(tol.multiply(new java.math.BigDecimal("1.03"))) > 0 then
+            worst = s"tolerance exceeded: fmt($f, $mag, $sig) = $s (diff $diff > tol $tol)"
+        if worst == null && sig > 0 && s != "0" then
+          val digits = new java.math.BigDecimal(s).stripTrailingZeros.precision
+          if digits > sig then worst = s"sig overflow: fmt($f, $mag, $sig) = $s has $digits digits"
+      n += 1
+    T ~ worst ==== null
+
+  @Test
+  def targetParityTest(): Unit =
+    // Every render target must produce identical characters: Array[Byte] is the reference,
+    // and Array[Char], Mem[Byte], Mem[Char], MkStr (appended after existing content), and the
+    // String forms must all agree, at nonzero offsets, for append and fmt, Double and Float.
+    val r = new java.util.Random(0x7A26E7L)
+    val ab = new Array[Byte](48)
+    val ac = new Array[Char](48)
+    val amb = new Array[Byte](48)
+    val amc = new Array[Char](48)
+    val mb = Mem of amb
+    val mc = Mem of amc
+    var worst: String = null
+    def checkD(d: Double, mag: Int, sig: Int, full: Boolean): Unit =
+      val at = r.nextInt(8)
+      val nb = if full then Ryu.append(ab, at, d) else Ryu.fmt(ab, at, d, mag, sig)
+      val s = new String(ab, at, nb - at, java.nio.charset.StandardCharsets.ISO_8859_1)
+      val nc = if full then Ryu.append(ac, at, d) else Ryu.fmt(ac, at, d, mag, sig)
+      val sc = new String(ac, at, nc - at)
+      val nmb = if full then Ryu.append(mb, at.toLong, d) else Ryu.fmt(mb, at.toLong, d, mag, sig)
+      val smb = new String(amb, at, (nmb - at).toInt, java.nio.charset.StandardCharsets.ISO_8859_1)
+      val nmc = if full then Ryu.append(mc, at.toLong, d) else Ryu.fmt(mc, at.toLong, d, mag, sig)
+      val smc = new String(amc, at, (nmc - at).toInt)
+      val ms = MkStr.ofSize(32)
+      ms += "p:"
+      if full then Ryu.append(ms, d) else Ryu.fmt(ms, d, mag, sig)
+      val sms = ms.str()
+      val ss = if full then Ryu.string(d) else Ryu.fmt(d, mag, sig)
+      if worst == null then
+        if      sc != s          then worst = s"chars $sc != $s for $d"
+        else if smb != s         then worst = s"mem bytes $smb != $s for $d"
+        else if smc != s         then worst = s"mem chars $smc != $s for $d"
+        else if sms != ("p:" + s) then worst = s"mkstr $sms != p:$s for $d"
+        else if ss != s          then worst = s"string $ss != $s for $d"
+    def checkF(f: Float, mag: Int, sig: Int, full: Boolean): Unit =
+      val at = r.nextInt(8)
+      val nb = if full then Ryu.append(ab, at, f) else Ryu.fmt(ab, at, f, mag, sig)
+      val s = new String(ab, at, nb - at, java.nio.charset.StandardCharsets.ISO_8859_1)
+      val nc = if full then Ryu.append(ac, at, f) else Ryu.fmt(ac, at, f, mag, sig)
+      val sc = new String(ac, at, nc - at)
+      val nmb = if full then Ryu.append(mb, at.toLong, f) else Ryu.fmt(mb, at.toLong, f, mag, sig)
+      val smb = new String(amb, at, (nmb - at).toInt, java.nio.charset.StandardCharsets.ISO_8859_1)
+      val nmc = if full then Ryu.append(mc, at.toLong, f) else Ryu.fmt(mc, at.toLong, f, mag, sig)
+      val smc = new String(amc, at, (nmc - at).toInt)
+      val ms = MkStr.ofSize(32)
+      ms += "p:"
+      if full then Ryu.append(ms, f) else Ryu.fmt(ms, f, mag, sig)
+      val sms = ms.str()
+      val ss = if full then Ryu.string(f) else Ryu.fmt(f, mag, sig)
+      if worst == null then
+        if      sc != s          then worst = s"chars $sc != $s for $f"
+        else if smb != s         then worst = s"mem bytes $smb != $s for $f"
+        else if smc != s         then worst = s"mem chars $smc != $s for $f"
+        else if sms != ("p:" + s) then worst = s"mkstr $sms != p:$s for $f"
+        else if ss != s          then worst = s"string $ss != $s for $f"
+    for d <- Array(0.0, -0.0, Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity,
+                   Double.MaxValue, Double.MinPositiveValue, java.lang.Double.MIN_NORMAL,
+                   1.0, -1.0, 123.456, 1e-4, 9999999.0, 1e7, 0.001, 86.421) do
+      checkD(d, 0, 0, full = true)
+      checkD(d, 0, 0, full = false)
+      checkD(d, 2, -3, full = false)
+      checkD(d, 1, 0, full = false)   // swallow case renders "0" everywhere
+    for f <- Array(0.0f, -0.0f, Float.NaN, Float.PositiveInfinity, Float.NegativeInfinity,
+                   Float.MaxValue, Float.MinPositiveValue, java.lang.Float.MIN_NORMAL,
+                   1.0f, -1.0f, 123.456f, 1e-4f, 9999999.0f, 1e7f, 0.001f, 86.421f) do
+      checkF(f, 0, 0, full = true)
+      checkF(f, 0, 0, full = false)
+      checkF(f, 2, -3, full = false)
+      checkF(f, 1, 0, full = false)
+    var n = 0
+    while n < 20000 do
+      val d = (n % 3) match
+        case 0 =>
+          var x = java.lang.Double.longBitsToDouble(r.nextLong())
+          while x.isNaN || x.isInfinite do x = java.lang.Double.longBitsToDouble(r.nextLong())
+          x
+        case 1 => (r.nextInt(2000001) - 1000000) * 0.001
+        case _ => (r.nextDouble() - 0.5) * math.pow(10, r.nextInt(17) - 8)
+      checkD(d, 0, 0, full = true)
+      checkD(d, r.nextInt(41) - 20, r.nextInt(14) - 5, full = false)
+      val f = (n % 3) match
+        case 0 =>
+          var x = java.lang.Float.intBitsToFloat(r.nextInt())
+          while x.isNaN || x.isInfinite do x = java.lang.Float.intBitsToFloat(r.nextInt())
+          x
+        case 1 => (r.nextInt(2000001) - 1000000) * 0.001f
+        case _ => ((r.nextFloat() - 0.5f) * math.pow(10, r.nextInt(13) - 6)).toFloat
+      checkF(f, 0, 0, full = true)
+      checkF(f, r.nextInt(31) - 15, r.nextInt(12) - 4, full = false)
+      n += 1
+    T ~ worst ==== null
 }
