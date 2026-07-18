@@ -727,17 +727,56 @@ object TheilSen {
 }
 
 
-final case class Circle2D(x: Double, y: Double, r: Double) {}
+/** A circle with center `(x, y)` and radius `r`. */
+final case class Circle2D(x: Double, y: Double, r: Double) {
+  inline def c: Vc = Vc.D(x, y)
+
+  /** Signed radial miss distance of a point: negative inside the circle, positive outside. */
+  def radialError(px: Double, py: Double): Double =
+    jm.sqrt((px - x).sq + (py - y).sq) - r
+  inline def radialError(v: Vc): Double = radialError(v.x, v.y)
+
+  /** Squared radial miss distance of a point. */
+  def sqError(px: Double, py: Double): Double = radialError(px, py).sq
+  inline def sqError(v: Vc): Double = sqError(v.x, v.y)
+
+  /** Angular position of a point as seen from the center, in radians from the +x axis. */
+  def arcCoord(px: Double, py: Double): Double = jm.atan2(py - y, px - x)
+  inline def arcCoord(v: Vc): Double = arcCoord(v.x, v.y)
+}
 
 sealed abstract class FitCirc() extends Fit2D() {
+  def samples: Long
+
+  /** The best-fit circle.  Radius (and center) are infinite or NaN if the data
+    * is degenerate (collinear, coincident, or fewer than three points).
+    */
+  def circle: Circle2D
+
+  /** The mean squared radial deviation of the data from the fit circle (the generalized
+    * eigenvalue of the fit); NaN if there are fewer than three points.  Near-perfect fits
+    * may report values a rounding error below zero.
+    */
+  def mse: Double
+
+  def estX: Est
+  def estY: Est
+  def mutableCopy: FitCirc
 }
 object FitCirc {
   def apply(): FitCirc = new Impl()
 
-  /** Circle fitting using algorithm in Al-Sharadqah & Chernov, Euro J Stats 3:886 (2009)
+  /** Circle fitting with the Hyper algebraic fit of Al-Sharadqah & Chernov, Electronic
+    * Journal of Statistics 3:886-911 (2009): among non-iterative moment-based fits it is
+    * uniquely unbiased to second order, with leading-order variance at the theoretical
+    * (KCR) bound.  The generalized eigenproblem is solved analytically: data is kept as
+    * centered moments (so the characteristic quartic has no cubic term), the eigenvalue
+    * comes from `Roots.quartic`, and the eigenvector from cross products of the reduced
+    * 3x3 system's rows.  Moments are rescaled to unit RMS radius before solving, so
+    * conditioning does not depend on the scale of the data.
     */
   final class Impl() extends FitCirc() {
-    var n = 0
+    var n = 0L
     var Ox = 0.0
     var Oy = 0.0
     var Dxx = 0.0
@@ -749,14 +788,101 @@ object FitCirc {
 
     private var cached = 0
 
-    private val params = new Array[Double](8)
+    private val qroots = new Array[Double](4)
 
-    private var cx = 0.0
-    private var cy = 0.0
-    private var r = 0.0
-    private var mse = 0.0
+    private var fcx = Double.NaN
+    private var fcy = Double.NaN
+    private var fcr = Double.NaN
+    private var feta = Double.NaN
 
-    def +=(x: Double, y: Double): Unit =
+    private def fitImpl(): Unit =
+      if (cached & 1) != 1 then
+        cached |= 1
+        val scl2 = (Dxx + Dyy)/n   // mean squared distance from the centroid
+        if n < 3 || !(scl2 > 0) then
+          fcx = Double.NaN
+          fcy = Double.NaN
+          fcr = Double.NaN
+          feta = Double.NaN
+        else
+          // Moments normalized by count and rescaled to unit RMS radius (q = x^2 + y^2)
+          val ni = 1.0/n
+          val u1 = 1.0/scl2
+          val us = jm.sqrt(u1)
+          val mxx = Dxx*ni*u1
+          val myy = Dyy*ni*u1
+          val mxy = Dxy*ni*u1
+          val mxq = Dxq*ni*u1*us
+          val myq = Dyq*ni*u1*us
+          val mqq = Dqq*ni*u1*u1
+          val mq  = mxx + myy   // == 1 up to rounding, kept as computed for consistency
+          // Characteristic quartic of the Hyper pencil in centered moments (cubic term
+          // vanishes identically): h^4 + c2 h^2 + c1 h + c0 = 0
+          val c2 = -mxy.sq - 0.25*(3*mxx.sq + 2*mxx*myy + 3*myy.sq + mqq)
+          val c1 = 0.25*(mq*(mqq - (mxx - myy).sq) - mxq.sq - myq.sq) - mxy.sq*mq
+          val c0 = 0.25*(myq.sq*mxx - 2*mxy*mxq*myq + mxq.sq*myy + (mxy.sq - mxx*myy)*(mqq - mq.sq))
+          val k = Roots.quartic(c0, c1, c2, 0.0, 1.0, qroots, 0)
+          // Exactly one eigenvalue is negative; the fit is the smallest of the others
+          var h = if k > 0 then qroots(0) else Double.NaN
+          if k > 1 && h < 0 then h = qroots(1)
+          feta = h*scl2
+          // Null vector of the reduced 3x3 pencil: the largest cross product of row pairs,
+          // rows r1 = (g, mxq, myq), r2 = (mxq, xh, mxy), r3 = (myq, mxy, yh)
+          val g = mqq - mq.sq - 4*h*(mq + h)
+          val xh = mxx - h
+          val yh = myy - h
+          var va = xh*yh - mxy.sq
+          var vb = mxy*myq - mxq*yh
+          var vc = mxq*mxy - xh*myq
+          var norm = va.sq + vb.sq + vc.sq
+          var t1 = mxq*yh - myq*mxy
+          var t2 = myq.sq - g*yh
+          var t3 = g*mxy - mxq*myq
+          var best = t1.sq + t2.sq + t3.sq
+          if best > norm then
+            va = t1; vb = t2; vc = t3
+            norm = best
+          t1 = mxq*mxy - myq*xh
+          t2 = myq*mxq - g*mxy
+          t3 = g*xh - mxq.sq
+          best = t1.sq + t2.sq + t3.sq
+          if best > norm then
+            va = t1; vb = t2; vc = t3
+          // Circle a*q + b*x + c*y + d = 0, with d pinned by the pencil's last row
+          val vd = (2*h - mq)*va
+          val s = 0.5/va
+          val sig = jm.sqrt(scl2)
+          fcx = Ox - vb*s*sig
+          fcy = Oy - vc*s*sig
+          fcr = jm.sqrt(vb.sq + vc.sq - 4*va*vd) * jm.abs(s) * sig
+
+    def samples: Long = n
+
+    def circle: Circle2D =
+      fitImpl()
+      Circle2D(fcx, fcy, fcr)
+
+    def mse: Double =
+      fitImpl()
+      feta
+
+    def estX: Est = Est.M(n.toDouble, Ox, Dxx)
+    def estY: Est = Est.M(n.toDouble, Oy, Dyy)
+
+    def mutableCopy: FitCirc.Impl =
+      val fc = new Impl()
+      fc.n = n
+      fc.Ox = Ox
+      fc.Oy = Oy
+      fc.Dxx = Dxx
+      fc.Dyy = Dyy
+      fc.Dxy = Dxy
+      fc.Dxq = Dxq
+      fc.Dyq = Dyq
+      fc.Dqq = Dqq
+      fc
+
+    def +=(x: Double, y: Double): Unit = if !(x + y).nan then
       cached = 0
       val inv = 1.0/(n+1)
       val dx = (x - Ox) * inv
@@ -777,7 +903,7 @@ object FitCirc {
       Ox  += dx
       n   += 1
 
-    def -=(x: Double, y: Double): Unit =
+    def -=(x: Double, y: Double): Unit = if !(x + y).nan then
       cached = 0
       n -= 1
       if n <= 0 then reset()
@@ -897,6 +1023,7 @@ object FitCirc {
         Dqq = nqq
 
     def reset(): Unit =
+      cached = 0
       n = 0
       Ox = 0
       Oy = 0
@@ -907,229 +1034,7 @@ object FitCirc {
       Dyq = 0
       Dqq = 0
 
-
-    override def toString = f"$n\n  $Ox, $Oy\n    $Dxx, $Dyy, $Dxy\n    $Dxq, $Dyq, $Dqq\n"
+    override def toString = s"Circle fit centered at [$Ox, $Oy], n=$n"
   }
-
-  /*
-  def direct(xs: Array[Double])(ys: Array[Double]): FitCirc =
-    if ys.length != xs.length then throw new ArrayIndexOutOfBoundsException(s"Mismatch in paired array lengths: ${xs.length} and ${ys.length}")
-    val fc = new FitCirc.Impl()
-    if xs.length > 0 then
-      var x0 = xs.gather(0.0)()((s, x, _) => s + x)/xs.length
-      var y0 = ys.gather(0.0)()((s, y, _) => s + y)/ys.length
-      var sxx = 0.0
-      var syy = 0.0
-      var sxy = 0.0
-      var sxq = 0.0
-      var syq = 0.0
-      var sqq = 0.0
-      xs.length.visit: i =>
-        val x = xs(i) - x0
-        val y = ys(i) - y0
-        val q = x*x + y*y
-        sxx += x*x
-        syy += y*y
-        sxy += x*y
-        sxq += x*q
-        syq += y*q
-        sqq += q*q
-      fc.n = xs.length
-      fc.Ox = x0
-      fc.Oy = y0
-      fc.Dxx = sxx
-      fc.Dyy = syy
-      fc.Dxy = sxy
-      fc.Dxq = sxq
-      fc.Dyq = syq
-      fc.Dqq = sqq
-    fc
-  */
-}
-
-/*
-object SmallEigensolver {
-  def rowReduce(matrix: Array[Double], rowLen: Int, index: Int, order: Array[Int] Or Unit = Alt.unit): Boolean =
-    order.foreach{ o =>
-      var i = -1
-      var v = 0.0
-      o.visit(index to End){ (k, j) =>
-        val x = matrix(rowLen*k + index)
-        if x.abs > v then
-          i = j
-          x = v
-      }
-      if i >= 0 && i != index then
-        val temp = o(index)
-        o(index) = o(i)
-        o(i) = temp
-    }
-    val m = rowLen*order(index) + index
-    val x = 1.0/matrix(m)
-    if !x.finite || x == 0 then false
-    else
-      matrix(m) = 1.0
-      if m+1 < rowLen then
-        val iv = (m+1) to (m+rowLen-index-1)
-        matrix.set((m+1) to (m+rowLen-index-1)){ _ * x }
-        order.foreachThem{ o =>
-        }{ _ =>
-        }
-
-    
-}
-*/
-
-
-
-object RealRoots {
-  private def roundTowardsZero(a: Double, b: Double)(answer: Double): Double =
-    import java.lang.Math.{max, abs, ulp}
-    val scale = max(1.0, max(abs(a), abs(b)))
-    if abs(answer) >= 100*ulp(scale) then answer
-    else 0
-
-  // private def roundTowardsZero(a: Double, b: Double, c: Double)(answer: Double): Double =
-  //   import java.lang.Math.{max, abs, ulp}
-  //   val scale = max( max(1.0, abs(a)), max(abs(b), abs(c)) )
-  //   if abs(answer) >= 100*ulp(scale) then answer
-  //   else 0
-
-  private inline def zeroize(a: Double, b: Double)(inline f: (Double, Double) => Double): Double =
-    roundTowardsZero(a, b)(f(a, b))
-
-  // private inline def zeroize(a: Double, b: Double, c: Double)(inline f: (Double, Double, Double) => Double): Double =
-  //   roundTowardsZero(a, b, c)(f(a, b, c))
-
-  private def one_answer(x0: Double)(result: Array[Double], offset: Int): Int =
-    if x0.finite then
-      result(offset) = x0
-      1
-    else 0
-
-  private def two_answers(x0: Double, x1: Double)(result: Array[Double], offset: Int): Int =
-    if x0.finite && x1.finite then
-      result(offset) = x0
-      result(offset + 1) = x1
-      2
-    else 0
-
-  private def three_answers(x0: Double, x1: Double, x2: Double)(result: Array[Double], offset: Int): Int =
-    if x0.finite && x1.finite && x2.finite then
-      result(offset) = x0
-      result(offset + 1) = x1
-      result(offset + 2) = x2
-      3
-    else 0
-
-  private def four_answers(x0: Double, x1: Double, x2: Double, x3: Double)(result: Array[Double], offset: Int): Int =
-    if x0.finite && x1.finite && x2.finite && x3.finite then
-      result(offset) = x0
-      result(offset + 1) = x1
-      result(offset + 2) = x2
-      result(offset + 3) = x3
-      4
-    else 0
-
-  def linear(a0: Double, a1: Double, result: Array[Double], offset: Int = 0): Int =
-    if a1 == 0 then 0
-    else one_answer(-a0/a1)(result, offset)
-
-  def quadratic(a0: Double, a1: Double, a2: Double, result: Array[Double], offset: Int = 0): Int =
-    if a2 == 0 then linear(a0, a1, result, offset)
-    else if a0 == 0 then
-      val n = linear(a1, a2, result, offset)
-      if n == 1 && result(offset) == 0.0 then n
-      else
-        result(offset + n) = 0.0
-        n + 1
-    else
-      val v2 = zeroize(a1 * a1, 4 * a0 * a2)(_ - _)
-      if v2 < 0 then 0
-      else if v2 == 0 then one_answer(-a1 / (2*a2))(result, offset)
-      else
-        val v = math.sqrt(v2)
-        two_answers((v - a1)/(2*a2), -(v + a1)/(2*a2))(result, offset)
-
-  def cubic(a0: Double, a1: Double, a2: Double, a3: Double, result: Array[Double], offset: Int = 0): Int =
-    import java.lang.Math.{sqrt, cbrt, cos, acos}
-    if a3 == 0 then quadratic(a0, a1, a2, result, offset)
-    else if a0 == 0 then
-      val n = quadratic(a1, a2, a3, result, offset)
-      if (n >= 1 && result(offset) == 0) || (n > 1 && result(offset+1) == 0) then n
-      else
-        result(offset + n) = 0.0
-        n + 1
-    else
-      // Convert to depressed cubic form
-      val r = a2/(3.0 * a3)
-      val p = zeroize(a1/a3, 3*r*r)(_ - _)
-      val q = 2*r*r*r + (3*a0*a3 - a1*a2)/(3*a3*a3)
-      println(s"$r $p $q")
-      if p == 0 then one_answer(cbrt(q) - r)(result, offset)
-      else zeroize(27 * q * q,  4 * p * p * p)(_ + _) match
-        case 0 =>
-          // Two distinct roots
-          val f = q/p
-          two_answers(3*f - r, -1.5*f - r)(result, offset)
-        case v if v < 0 =>
-          // One real root
-          val u = sqrt(-(108.0*v))
-          one_answer(cbrt(-0.5*q + u) + cbrt(-0.5*q - u) - r)(result, offset)
-        case _ =>
-          // Three distinct real roots
-          val pre = 2*sqrt(-p/3)
-          val inv = acos(3*q/(p*pre))/3
-          println(s"$pre $inv")
-          three_answers(
-            pre * cos(inv),
-            pre * cos(inv - NumericConstants.TwoThirdsPi),
-            pre * cos(inv - NumericConstants.FourThirdsPi)
-          )(result, offset)
-
-  /*
-  private def simplified_limited_cubic(p0: Double, p1: Double, limit: Double, result: Array[Double], offset: Int = 0): Int =
-    val v2 = p0 * p0 -~~- (-(p1 * p1 * p1))
-    if v2 > 0 then
-      val v = math.sqrt(v2)
-      one_answer(math.cbrt(p0 + v) + math.cbrt(p0 - v), result, offset)
-    else if v2 == 0 then
-      val x0 = 2 * math.sqrt(-p1)
-      two_answers(x0, -0.5*x0, result, offset)
-    else
-      val s = math.sqrt(-p1)
-      val t = math.cos(math.acos(p0 / (s*s*s)) / 3.0)
-      val x0 = 2 * s * t
-      if x0 > limit then one_answer(x0, result, offset)
-      else
-        val w = NumericConstants.SqrtThree * s * math.sqrt(1.0 - t*t)
-        three_answers(x0, -0.5*x0 + w, -0.5*x0 - w, result, offset)
-
-  private def simplified_cubic(h0: Double, h1: Double, result: Array[Double], offset: Int = 0): Int =
-    simplified_limited_cubic(h0 / 3.0, h1 * -0.5, Double.PositiveInfinity, result, offset)
-
-  private def cubic_impl(a0: Double, a1: Double, a2: Double, a3: Double, abbreviated: Boolean, result: Array[Double], offset: Int = 0): Int =
-    if a3 == 0 then quadratic(a0, a1, a2)
-    else if a0 == 0 then
-      val n = quadratic(a1, a2, a3)
-      if n > 0 || (a1.finite && a2.finite && a3.finite) then
-        result(offset + n) = 0.0
-        n + 1
-      else 0
-    else
-      var b0 = a0
-      var b1 = a1
-      var b2 = a2
-      if a3 != 1 then
-        b0 /= a3
-        b1 /= a3
-        b2 /= a3
-      b2 /= 3.0
-      b0 = b2 * (0.5*b1 - b2*b2) - 0.5*b0
-      b1 = b1/3.0 - b2*b2
-
-  def cubic(a0: Double, a1: Double, a2: Double, a3: Double, result: Array[Double], offset: Int = 0): Int =
-    cubic_impl(a0, a1, a3, a3, false, result, offset)
-  */
 }
 

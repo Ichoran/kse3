@@ -23,6 +23,7 @@ import sourcecode.{Line, given}
 
 @RunWith(classOf[JUnit4])
 class MathTest {
+  import java.lang.{Math => jm}
   import java.nio.ByteBuffer
   import java.nio.ByteOrder
 
@@ -4229,6 +4230,289 @@ class MathTest {
     T ~ fln.orthV(lln.c)                 =~~= fln.c
 
     fittingErrorsTest()
+
+
+  @Test
+  def rootsTest(): Unit =
+    given Approximation[Double] = Approximation.OfDouble(1e-8, 1e-4, 1e-10)
+    val res = new Array[Double](4)
+
+    var worstTri = 0.0
+    var ti = -1000
+    while ti <= 1000 do
+      val t = ti*0.001
+      val err = (Roots.trisectCosine(t) - jm.cos(jm.acos(t)/3)).abs
+      if err > worstTri then worstTri = err
+      ti += 1
+    T ~ (worstTri < 1e-13) ==== true
+
+    T ~ Roots.linear(6, -2, res)        ==== 1
+    T ~ res(0)                          ==== 3.0
+    T ~ Roots.linear(1, 0, res)         ==== 0
+    T ~ Roots.linear(0, 5, res)         ==== 1
+    T ~ res(0)                          ==== 0.0
+
+    T ~ Roots.quadratic(-21, 4, 1, res) ==== 2    // (x+7)(x-3)
+    T ~ res(0)                          ==== -7.0
+    T ~ res(1)                          ==== 3.0
+    T ~ Roots.quadratic(4, -4, 1, res)  ==== 1    // (x-2)^2
+    T ~ res(0)                          ==== 2.0
+    T ~ Roots.quadratic(1, 0, 1, res)   ==== 0    // x^2 + 1
+    T ~ Roots.quadratic(0, -2, 2, res)  ==== 2    // 2x(x-1)
+    T ~ res(0)                          ==== 0.0
+    T ~ res(1)                          ==== 1.0
+    T ~ Roots.quadratic(0, 0, 3, res)   ==== 1    // 3x^2
+    T ~ res(0)                          ==== 0.0
+    T ~ Roots.quadratic(8, 4, 0, res)   ==== 1    // degenerates to linear
+    T ~ res(0)                          ==== -2.0
+
+    res(0) = 99
+    res(1) = 99
+    T ~ Roots.quadratic(-21, 4, 1, res, 2) ==== 2
+    T ~ res(0)                             ==== 99.0
+    T ~ res(1)                             ==== 99.0
+    T ~ res(2)                             ==== -7.0
+    T ~ res(3)                             ==== 3.0
+
+    T ~ Roots.cubic(-6, 11, -6, 1, res) ==== 3    // (x-1)(x-2)(x-3)
+    T ~ res(0)                          =~~= 1.0
+    T ~ res(1)                          =~~= 2.0
+    T ~ res(2)                          =~~= 3.0
+    T ~ Roots.cubic(-1, 3, -3, 1, res)  ==== 1    // (x-1)^3
+    T ~ res(0)                          =~~= 1.0
+    T ~ Roots.cubic(3, -5, 1, 1, res)   ==== 2    // (x-1)^2(x+3)
+    T ~ res(0)                          =~~= -3.0
+    T ~ res(1)                          =~~= 1.0
+    T ~ Roots.cubic(-3, 1, -3, 1, res)  ==== 1    // (x^2+1)(x-3)
+    T ~ res(0)                          =~~= 3.0
+    T ~ Roots.cubic(0, 8, -6, 1, res)   ==== 3    // x(x-2)(x-4)
+    T ~ res(0)                          ==== 0.0
+    T ~ res(1)                          =~~= 2.0
+    T ~ res(2)                          =~~= 4.0
+    T ~ Roots.cubic(-6e-8, 11e-8, -6e-8, 1e-8, res) ==== 3
+    T ~ res(0)                          =~~= 1.0
+    T ~ res(2)                          =~~= 3.0
+    T ~ Roots.cubic(-6e8, 11e8, -6e8, 1e8, res)     ==== 3
+    T ~ res(0)                          =~~= 1.0
+    T ~ res(2)                          =~~= 3.0
+
+    T ~ Roots.quartic(24, -50, 35, -10, 1, res) ==== 4   // (x-1)(x-2)(x-3)(x-4)
+    T ~ res(0)                          =~~= 1.0
+    T ~ res(1)                          =~~= 2.0
+    T ~ res(2)                          =~~= 3.0
+    T ~ res(3)                          =~~= 4.0
+    T ~ Roots.quartic(6, -17, 17, -7, 1, res)   ==== 3   // (x-1)^2(x-2)(x-3)
+    T ~ res(0)                          =~~= 1.0
+    T ~ res(1)                          =~~= 2.0
+    T ~ res(2)                          =~~= 3.0
+    T ~ Roots.quartic(1, 0, -2, 0, 1, res)      ==== 2   // (x^2-1)^2
+    T ~ res(0)                          =~~= -1.0
+    T ~ res(1)                          =~~= 1.0
+    T ~ Roots.quartic(1, -4, 6, -4, 1, res)     ==== 1   // (x-1)^4
+    T ~ res(0)                          =~~= 1.0
+    T ~ Roots.quartic(1, 0, 2, 0, 1, res)       ==== 0   // (x^2+1)^2
+    T ~ Roots.quartic(2, 0, 3, 0, 1, res)       ==== 0   // (x^2+1)(x^2+2)
+    T ~ Roots.quartic(-4, 0, -3, 0, 1, res)     ==== 2   // (x^2-4)(x^2+1)
+    T ~ res(0)                          =~~= -2.0
+    T ~ res(1)                          =~~= 2.0
+    T ~ Roots.quartic(0, -6, 11, -6, 1, res)    ==== 4   // x(x-1)(x-2)(x-3)
+    T ~ res(0)                          ==== 0.0
+    T ~ res(3)                          =~~= 3.0
+    T ~ Roots.quartic(0, 0, -1, 0, 1, res)      ==== 3   // x^2(x^2-1)
+    T ~ res(0)                          =~~= -1.0
+    T ~ res(1)                          ==== 0.0
+    T ~ res(2)                          =~~= 1.0
+    T ~ Roots.quartic(0, 0, 0, 0, 1, res)       ==== 1   // x^4
+    T ~ res(0)                          ==== 0.0
+    T ~ Roots.quartic(-3, 1, 0, 0, 0, res)      ==== 1   // degenerates to linear
+    T ~ res(0)                          ==== 3.0
+
+    // Fuzz: recover known random roots; solver must find all of them, sorted, accurately
+    val rng = Pcg64(8675309L)
+    val known = new Array[Double](4)
+    def build(deg: Int): Array[Double] =
+      val coef = new Array[Double](deg + 1)
+      coef(0) = 1.0
+      var nc = 0
+      while nc < deg do
+        known(nc) = rng.D*20 - 10
+        var j = nc + 1
+        coef(j) = coef(j - 1)
+        j -= 1
+        while j > 0 do
+          coef(j) = coef(j - 1) - known(nc)*coef(j)
+          j -= 1
+        coef(0) = -known(nc)*coef(0)
+        nc += 1
+      coef
+    var badCount = 0
+    var worstRel = 0.0
+    var trial = 0
+    while trial < 2000 do
+      var deg = 3
+      while deg <= 4 do
+        val coef = build(deg)
+        val n =
+          if deg == 3 then Roots.cubic(coef(0), coef(1), coef(2), coef(3), res)
+          else Roots.quartic(coef(0), coef(1), coef(2), coef(3), coef(4), res)
+        if n != deg then badCount += 1
+        else
+          java.util.Arrays.sort(known, 0, deg)
+          var i = 0
+          while i < deg do
+            val rel = (res(i) - known(i)).abs / jm.max(1.0, known(i).abs)
+            if rel > worstRel then worstRel = rel
+            i += 1
+        deg += 1
+      trial += 1
+    T ~ badCount           ==== 0
+    T ~ (worstRel < 1e-8)  ==== true
+
+
+  @Test
+  def circleFitTest(): Unit =
+    given Approximation[Double] = Approximation.OfDouble(1e-9, 1e-6, 1e-9)
+    given Approximation[PlusMinus] = new Approximation[PlusMinus] {
+      def approx(pma: PlusMinus, pmb: PlusMinus) =
+        Approximation.defaultFloatApprox.approx(pma.value, pmb.value) &&
+        Approximation.defaultFloatApprox.approx(pma.error, pmb.error)
+    }
+
+    // Exact circle from three points
+    val f3 = FitCirc()
+    f3 += (0, 1)
+    f3 += (1, 0)
+    f3 += (0.5.sqrt, 0.5.sqrt)
+    T ~ f3.samples          ==== 3
+    T ~ f3.circle.x         =~~= 0.0
+    T ~ f3.circle.y         =~~= 0.0
+    T ~ f3.circle.r         =~~= 1.0
+    T ~ (f3.mse.abs < 1e-12) ==== true
+
+    // Too few points for a circle
+    val f2 = FitCirc()
+    f2 += (0, 1)
+    f2 += (1, 0)
+    T ~ f2.circle.r.nan     ==== true
+    T ~ f2.mse.nan          ==== true
+
+    // Pinned reference: Hyper fit computed at 50-digit precision in Mathematica
+    val px = Array(1.72, 1.9, 1.62, 0.98, 0.2, -0.02, 0.18, 0.9)
+    val py = Array(0.28, 1.02, 1.8, 2.28, 2.1, 1.4, 0.62, 0.08)
+    val fp = FitCirc()
+    fp ++= (px, py)
+    T ~ fp.samples          ==== 8
+    T ~ fp.circle.x         =~~= 0.93812429455500315
+    T ~ fp.circle.y         =~~= 1.17289535443463769
+    T ~ fp.circle.r         =~~= 1.04481589092691345
+    T ~ fp.mse              =~~= 0.0099968269332317902
+
+    // Same shape scaled up 1e6: fit scales exactly with the data
+    val fbig = FitCirc()
+    px.visit()((x, i) => fbig += (1e6*x, 1e6*py(i)))
+    T ~ fbig.circle.x       =~~= 0.93812429455500315e6
+    T ~ fbig.circle.y       =~~= 1.17289535443463769e6
+    T ~ fbig.circle.r       =~~= 1.04481589092691345e6
+    T ~ fbig.mse            =~~= 0.0099968269332317902e12
+
+    // Same shape at 1e-6 scale, far from the origin: still resolved
+    val ftiny = FitCirc()
+    px.visit()((x, i) => ftiny += (1e-6*x + 1000, 1e-6*py(i) - 1000))
+    T ~ (((ftiny.circle.x - 1000)*1e6 - 0.938124294555).abs < 1e-6) ==== true
+    T ~ (((ftiny.circle.y + 1000)*1e6 - 1.172895354435).abs < 1e-6) ==== true
+    T ~ ((ftiny.circle.r*1e6 - 1.04481589092691345).abs < 1e-5) ==== true   // ulp(1000) limits the geometry to ~1e-7 relative
+
+    // Perfect circle: near-exact recovery, near-zero mse
+    val fperf = FitCirc()
+    var i = 0
+    while i < 30 do
+      fperf += (2 + 5*jm.cos(i*0.21), -3 + 5*jm.sin(i*0.21))
+      i += 1
+    T ~ fperf.circle.x      =~~= 2.0
+    T ~ fperf.circle.y      =~~= -3.0
+    T ~ fperf.circle.r      =~~= 5.0
+    T ~ (fperf.mse.abs < 1e-12) ==== true
+
+    // Collinear data: infinite radius, perfect "fit"
+    val fl = FitCirc()
+    fl += (-1, -1)
+    fl += (0, 0)
+    fl += (1, 1)
+    fl += (2, 2)
+    T ~ fl.circle.r.finite  ==== false
+    T ~ (fl.mse.abs < 1e-12) ==== true
+
+    // Sliding window matches a fresh fit of the same points
+    val N = 60
+    val sx = new Array[Double](N)
+    val sy = new Array[Double](N)
+    i = 0
+    while i < N do
+      sx(i) = 5 + 3*jm.cos(i*0.15) + 0.02*jm.sin(37.0*i)
+      sy(i) = -2 + 3*jm.sin(i*0.15) + 0.02*jm.sin(53.0*i)
+      i += 1
+    val slide = FitCirc()
+    i = 0
+    while i < N do
+      slide += (sx(i), sy(i))
+      if i >= 20 then slide -= (sx(i - 20), sy(i - 20))
+      i += 1
+    val fresh = FitCirc()
+    fresh.addRange(sx, N-20, N)(sy, N-20, N)
+    T ~ slide.samples       ==== 20
+    T ~ slide.circle.x      =~~= fresh.circle.x
+    T ~ slide.circle.y      =~~= fresh.circle.y
+    T ~ slide.circle.r      =~~= fresh.circle.r
+    T ~ slide.mse           =~~= fresh.mse
+
+    // Vc entry points match the same data fed pointwise (Vc coordinates are Floats)
+    val vs = Array.tabulate(px.length)(i => Vc.D(px(i), py(i)))
+    val fv = FitCirc()
+    fv ++= vs
+    val ff = FitCirc()
+    px.visit()((x, i) => ff += (x.toFloat.toDouble, py(i).toFloat.toDouble))
+    T ~ fv.circle.x         =~~= ff.circle.x
+    T ~ fv.circle.y         =~~= ff.circle.y
+    T ~ fv.circle.r         =~~= ff.circle.r
+
+    // NaN points are ignored on the way in and on the way out
+    val before = fp.circle
+    fp += (Double.NaN, 1.0)
+    fp += (1.0, Double.NaN)
+    fp -= (Double.NaN, 1.0)
+    T ~ fp.samples          ==== 8
+    T ~ fp.circle.x         ==== before.x
+    T ~ fp.circle.r         ==== before.r
+
+    // mutableCopy is independent; -= inverts +=; reset clears the cached fit
+    val fc = fp.mutableCopy
+    T ~ fc.circle.r         =~~= fp.circle.r
+    fc += (10, 10)
+    fc -= (10, 10)
+    T ~ fc.samples          ==== 8
+    T ~ fc.circle.x         =~~= fp.circle.x
+    T ~ fc.circle.r         =~~= fp.circle.r
+    fc.reset()
+    T ~ fc.samples          ==== 0
+    T ~ fc.circle.r.nan     ==== true
+    fc += (0, 1)
+    fc += (1, 0)
+    fc += (0.5.sqrt, 0.5.sqrt)
+    T ~ fc.circle.r         =~~= 1.0
+
+    // Moment estimates match direct per-axis statistics
+    T ~ fp.estX.pmSD        =~~= px.est().pmSD
+    T ~ fp.estY.pmSD        =~~= py.est().pmSD
+
+    // Circle2D geometry helpers
+    val c = Circle2D(1, 2, 3)
+    T ~ c.radialError(5, 2) ==== 1.0
+    T ~ c.radialError(1, 2) ==== -3.0
+    T ~ c.sqError(5, 2)     ==== 1.0
+    T ~ c.arcCoord(5, 2)    ==== 0.0
+    T ~ c.arcCoord(1, 5)    =~~= (jm.PI/2)
+    T ~ c.c.x               ==== 1f
+    T ~ c.c.y               ==== 2f
 
 
   @Test
