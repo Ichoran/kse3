@@ -94,7 +94,7 @@ class JsaunTest {
     T ~ Json.parse("20").ask.map(_.print)        ==== Is("20")
     T ~ Jnum(3)                                  ==== Jnum(3.0)
     T ~ (Jnum(9007199254740993L) == Jnum(9007199254740992.0)) ==== false
-    T ~ Jnum(Double.NaN).print                   ==== "null"
+    T ~ Jnum(Double.NaN).print                   ==== "NaN"   // non-finite policy: see nonFiniteTest
 
   @Test
   def stringEscapeTest(): Unit =
@@ -171,7 +171,7 @@ class JsaunTest {
     T ~ bad(Json.parse("-").ask)         ==== true
     T ~ bad(Json.parse("1e").ask)        ==== true
     T ~ bad(Json.parse("1e+").ask)       ==== true
-    T ~ bad(Json.parse("NaN").ask)       ==== true
+    T ~ Json.parse("NaN").dbl.map(_.isNaN) ==== Is(true)   // the ONE deliberate extension; see nonFiniteTest
     T ~ bad(Json.parse("truu").ask)      ==== true
     T ~ bad(Json.parse("tru").ask)       ==== true
     T ~ bad(Json.parse("\"ab").ask)      ==== true
@@ -683,6 +683,231 @@ class JsaunTest {
     T ~ o.size       ==== 9
 
   @Test
+  def objectIndexEditTest(): Unit =
+    // interleaved keyed edits and lookups on a big object: the index is maintained across
+    // edits, and removal punches holes that printing, iteration, and equality all skip
+    val o = Jobj.M()
+    var i = 0
+    while i < 26 do
+      o.add(('a' + i).toChar.toString, Jnum(i.toLong)) __ Unit
+      i += 1
+    T ~ o("z").long ==== Is(25L)
+    i = 0
+    while i < 26 do
+      if (i & 1) == 1 then o.remove(('a' + i).toChar.toString) __ Unit
+      i += 1
+    T ~ o.size          ==== 13
+    T ~ o("a").long     ==== Is(0L)
+    T ~ o.contains("b") ==== false
+    T ~ o.iterator.map(_._1).mkString ==== "acegikmoqsuwy"
+    o.put("c", Jnum(99)) __ Unit     // in-place replacement keeps position
+    T ~ o("c").long ==== Is(99L)
+    o.put("b", Jnum(1)) __ Unit      // absent again, so it appends
+    T ~ o.iterator.map(_._1).mkString ==== "acegikmoqsuwyb"
+    // a hole-y object equals (and hashes and prints like) its freshly built equivalent
+    val fresh = Jobj(o.iterator.toSeq*)
+    T ~ ((o: Jobj) == fresh)     ==== true
+    T ~ ((o: Jobj).## == fresh.##) ==== true
+    T ~ o.print                  ==== fresh.print
+    // removal-heavy objects print correctly in every style
+    val p = Jobj.M()
+    p.add("a", Jnum(1)).add("b", Jnum(2)).add("c", Jnum(3)) __ Unit
+    p.remove("b") __ Unit
+    T ~ p.print ==== """{"a":1,"c":3}"""
+    T ~ p.print(using Jstyle.pretty) ==== "{\"a\": 1, \"c\": 3}"
+    T ~ p.print(using Jstyle.pretty.fitTo(0)) ==== "{\n  \"a\": 1,\n  \"c\": 3\n}"
+    p.remove("a") __ Unit
+    p.remove("c") __ Unit
+    T ~ p.print ==== "{}"
+    T ~ p.print(using Jstyle.pretty) ==== "{}"
+    // when a quarter of the capacity is holes, adding at the frontier compacts instead of growing
+    val q = Jobj.M()
+    i = 0
+    while i < 8 do
+      q.add(i.toString, Jnum(i.toLong)) __ Unit
+      i += 1
+    q.remove("0") __ Unit
+    q.remove("1") __ Unit
+    q.add("8", Jnum(8)) __ Unit
+    T ~ q.size ==== 7
+    T ~ q.iterator.map(_._1).mkString ==== "2345678"
+    T ~ q("8").long ==== Is(8L)
+    // sortKeys: lexicographic, stable for duplicates, last-wins lookup unaffected
+    val s = Jobj.M()
+    s.add("b", Jnum(1)).add("a", Jnum(2)).add("b", Jnum(3)).add("c", Jnum(4)) __ Unit
+    T ~ s("b").long ==== Is(3L)
+    s.sortKeys() __ Unit
+    T ~ s.print ==== """{"a":2,"b":1,"b":3,"c":4}"""
+    T ~ s("b").long ==== Is(3L)
+    // sorting a hole-y indexed object updates the index positions
+    val t = Jobj.M()
+    i = 0
+    while i < 12 do
+      t.add(('a' + (11 - i)).toChar.toString, Jnum(i.toLong)) __ Unit
+      i += 1
+    T ~ t("a").long ==== Is(11L)
+    t.remove("f") __ Unit
+    t.sortKeys() __ Unit
+    T ~ t.iterator.map(_._1).mkString ==== "abcdeghijkl"
+    T ~ t("a").long ==== Is(11L)
+    T ~ t("l").long ==== Is(0L)
+    // removing from a format-preserved object demotes to the inferred separator style
+    val f = Json.M.parseFmt("""{ "a" : 1 , "b" : 2 , "c" : 3 }""").jsonOr(Jnull)
+    f match
+      case fo: Jobj.M => fo.remove("b") __ Unit
+      case _ => assertTrue("did not parse as a mutable object", false)
+    T ~ f.print ==== """{ "a" : 1 , "c" : 3 }"""
+
+  @Test
+  def nonFiniteTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    def no[A](a: Ask[A]): Boolean = a match
+      case Alt(_) => true
+      case _ => false
+    // canonical scalar writing: the Double.toString / Python json / JSON5 spellings
+    // (packed double ARRAYS quote non-finite instead -- see packModesTest)
+    T ~ Jnum(Double.NaN).print              ==== "NaN"
+    T ~ Jnum(Double.PositiveInfinity).print ==== "Infinity"
+    T ~ Jnum(Double.NegativeInfinity).print ==== "-Infinity"
+    T ~ Jarr(Array(Double.NaN, Double.PositiveInfinity, 1.5)).print ==== "[\"NaN\",\"Infinity\",1.5]"
+    T ~ (new String(Jarr(Array(Double.NegativeInfinity)).printBytes, u8)) ==== "[\"-Infinity\"]"
+    T ~ Jnum(Double.NaN).print(using Jstyle.compact.sig(4))                ==== "NaN"   // precision limits leave specials alone
+    T ~ Jnum(Double.PositiveInfinity).print(using Jstyle.compact.fixed(2)) ==== "Infinity"
+    // reading is liberal: optional sign, any case, inf or infinity
+    T ~ Json.parse("NaN").dbl.map(_.isNaN)  ==== Is(true)
+    T ~ Json.parse("nan").dbl.map(_.isNaN)  ==== Is(true)
+    T ~ Json.parse("-NaN").dbl.map(_.isNaN) ==== Is(true)   // NaN flavors are not preserved
+    T ~ Json.parse("Infinity").dbl  ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("+Infinity").dbl ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("-Infinity").dbl ==== Is(Double.NegativeInfinity)
+    T ~ Json.parse("inf").dbl       ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("-INF").dbl      ==== Is(Double.NegativeInfinity)
+    T ~ Json.parse("iNfInItY").dbl  ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("NaN", exact = true).dbl.map(_.isNaN) ==== Is(true)   // exact mode: a plain Jnum.D, never Big
+    T ~ Json.parse("""{"x": Infinity}""").jsonOr(Jnull)("x").dbl ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("[NaN, -inf, 2.5]").jsonOr(Jnull).isInstanceOf[Jarr.D] ==== false   // numbers, but not our array format: boxed (see packModesTest)
+    // near misses are still errors, and wholly so
+    T ~ no(Json.parse("Infinit").ask)  ==== true
+    T ~ no(Json.parse("Infinite").ask) ==== true
+    T ~ no(Json.parse("nana").ask)     ==== true
+    T ~ no(Json.parse("infx").ask)     ==== true
+    T ~ no(Json.parse("+1").ask)       ==== true   // the sign extension is for non-finite names only
+    T ~ no(Json.parse("-").ask)        ==== true
+    // round-trip, with one NaN equal to another
+    T ~ (Jnum(Double.NaN) == Jnum(Double.NaN)) ==== true
+    T ~ (Jnum(Double.NaN) == Jnum(1.0))        ==== false
+    val t = Jarr(Array(Double.NaN, Double.NegativeInfinity, 0.5))
+    T ~ Json.parse(t.print).ask ==== Is(t: Json)
+    // typed encode/decode, including protobuf-style quoted names (but not quoted numbers)
+    T ~ Json.print(Double.NaN)                         ==== "NaN"
+    T ~ Json.print(List(1.5, Double.PositiveInfinity)) ==== "[1.5,Infinity]"
+    T ~ Json.parse("NaN").to[Double].map(_.isNaN)      ==== Is(true)
+    T ~ Json.parse("[1.5, Infinity]").to[Array[Double]].map(_(1)) ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("\"NaN\"").to[Double].map(_.isNaN)  ==== Is(true)
+    T ~ Json.parse("\"-Infinity\"").to[Double]         ==== Is(Double.NegativeInfinity)
+    T ~ Json.parse("\"inf\"").to[Float]                ==== Is(Float.PositiveInfinity)
+    T ~ no(Json.parse("\"1.5\"").to[Double])           ==== true
+    T ~ no(Json.parse("\"nana\"").to[Double])          ==== true
+    // format preservation keeps the original spelling; reprint canonicalizes
+    T ~ Json.parseFmt("[ inf , 2.0 ]").jsonOr(Jnull).print ==== "[ inf , 2.0 ]"
+    T ~ Json.parseFmt("[ inf ]").jsonOr(Jnull).reprint(Jstyle.compact) ==== "[Infinity]"
+    // streaming and line-fed sources take the same tokens
+    T ~ Json.parse(new java.io.StringReader("[-inf, NaN, 1.5]")).ask ==== Json.parse("[-inf, NaN, 1.5]").ask
+    T ~ Json.parse(List("[NaN,", " inf]")).ask ==== Json.parse("[NaN, inf]").ask
+    // the visitor descent delivers non-finite through the unboxed Double callback
+    var seen = 0.0
+    val vis = new Jvisitor {
+      override def num(value: Double): Unit = seen += (if value.isNaN then 1.0 else if value.isInfinite then 2.0 else 0.5)
+    }
+    T ~ no(Json.stream("[NaN, inf, -Infinity, 1.5]")(vis)) ==== false
+    T ~ seen ==== 5.5
+    // a double-EXPECTING context reads null as NaN (JS's JSON.stringify writes null for
+    // every non-finite); the tree itself keeps the null, and Option[Double] still sees None
+    T ~ Json.parse("null").to[Double].map(_.isNaN)  ==== Is(true)
+    T ~ Json.parse("null").to[Float].map(_.isNaN)   ==== Is(true)
+    T ~ Json.parse("null").to[Option[Double]]       ==== Is(None)
+    T ~ Json.parse("[1.5, null]").to[Array[Double]].map(_(1).isNaN) ==== Is(true)
+    T ~ Json.parse("[1.5, null]").to[List[Double]].map(_(1).isNaN)  ==== Is(true)
+    T ~ Json.parse("[1.5, null]").jsonOr(Jnull).arr.flatMap(_.dbls).map(_(1).isNaN) ==== Is(true)
+    T ~ Json.parse("[1.5, null]").jsonOr(Jnull).isInstanceOf[Jarr.D] ==== false   // null is not our array format: boxed, so it prints as itself
+    T ~ Json.parse("[1.5, null]").jsonOr(Jnull).print ==== "[1.5,null]"
+    T ~ no(Json.parse("null").to[Long])             ==== true   // integers have no NaN analogue
+    class DSum:
+      var sum = 0.0
+    object SumD extends Jbuilder[DSum, Double]:
+      def zero() = new DSum
+      override def index(b: DSum, i: Int) = Jexpect.D
+      override def num(b: DSum, d: Double) = { b.sum += d; Is.unit }
+      def build(b: DSum): Ask[Double] = Is(b.sum)
+    T ~ Json.build("[1.5, null, inf]")(SumD).map(_.isNaN) ==== Is(true)   // Jexpect.D takes both
+    // quoted non-finite names work in every doubles context too, arrays included --
+    // but quoted finite numbers stay errors everywhere
+    T ~ Json.parse("[1.5, \"Infinity\"]").to[Array[Double]].map(_(1)) ==== Is(Double.PositiveInfinity)
+    T ~ Json.parse("[1.5, \"NaN\"]").to[List[Double]].map(_(1).isNaN) ==== Is(true)
+    T ~ Json.parse("[1.5, \"-inf\"]").jsonOr(Jnull).arr.flatMap(_.dbls).map(_(1)) ==== Is(Double.NegativeInfinity)
+    T ~ no(Json.parse("[1.5, \"2.5\"]").to[Array[Double]]) ==== true
+    T ~ no(Json.parse("[1.5, \"true\"]").to[List[Double]]) ==== true
+    T ~ Json.build("[1.5, \"inf\", \"NaN\"]")(SumD).map(_.isNaN) ==== Is(true)
+    T ~ no(Json.build("[1.5, \"2.5\"]")(SumD)) ==== true
+    T ~ Json.parse("[1.5, \"Infinity\"]").jsonOr(Jnull).print ==== "[1.5,\"Infinity\"]"   // packs (our array format) and reprints as it arrived
+
+  @Test
+  def packModesTest(): Unit =
+    def kindOf(text: String)(using Jarr.Pack): String = Json.parse(text).jsonOr(Jnull) match
+      case _: Jarr.D => "D"
+      case _: Jarr.A => "A"
+      case _ => "?"
+    def rt(text: String)(using Jarr.Pack): String = Json.parse(text).jsonOr(Jnull).print
+    // our array-of-doubles format: finite numbers bare, non-finite as the quoted exact names
+    T ~ Jarr(Array(1.5, Double.NaN, Double.PositiveInfinity)).print ==== "[1.5,\"NaN\",\"Infinity\"]"
+    // Standard (the default): pack exactly what we would have written, so it reprints as it arrived
+    T ~ kindOf("[1.5, 2.5]")                   ==== "D"
+    T ~ kindOf("""[1.5, "NaN"]""")             ==== "D"
+    T ~ rt("""[1.5, "NaN"]""")                 ==== "[1.5,\"NaN\"]"
+    T ~ kindOf("""["Infinity", "Infinity"]""") ==== "D"   // packs even if they were meant as strings...
+    T ~ rt("""["Infinity", "Infinity"]""")     ==== "[\"Infinity\",\"Infinity\"]"   // ...because it reprints faithfully
+    T ~ Json.parse("""["Infinity", "Infinity"]""").jsonOr(Jnull).arr.flatMap(_.dbls).map(_.toList) ====
+        Is(List(Double.PositiveInfinity, Double.PositiveInfinity))
+    // the round trip that motivates the default: our own serialized Array[Double] comes back packed
+    T ~ Json.parse(Jarr(Array(1.5, Double.NaN)).print).jsonOr(Jnull).isInstanceOf[Jarr.D] ==== true
+    // everything else stays unpacked, and so prints as itself: bare non-finite tokens,
+    // nulls, lenient spellings, plain strings, exact integers
+    T ~ kindOf("[1.5, NaN]")         ==== "A"
+    T ~ rt("[1.5, NaN]")             ==== "[1.5,NaN]"
+    T ~ kindOf("[1.5, null]")        ==== "A"
+    T ~ rt("[1.5, null]")            ==== "[1.5,null]"
+    T ~ kindOf("""["inf", "inf"]""") ==== "A"
+    T ~ rt("""["inf", "inf"]""")     ==== "[\"inf\",\"inf\"]"
+    T ~ kindOf("""["NaN", "x"]""")   ==== "A"
+    T ~ kindOf("[1, 2]")             ==== "A"   // integers keep their exact Jnum.L, as always
+    // packed-with-quotes equals its boxed twin: equality is value-level either way
+    T ~ (Json.parse("""[1.5, "NaN"]""").jsonOr(Jnull) == Jarr(Jnum(1.5), Jnum(Double.NaN))) ==== true
+    // Faithful: JSON-as-JSON; only plain finite numbers pack
+    locally {
+      given Jarr.Pack = Jarr.Pack.Faithful
+      T ~ kindOf("[1.5, 2.5]")       ==== "D"
+      T ~ kindOf("""[1.5, "NaN"]""") ==== "A"
+      T ~ rt("""[1.5, "NaN"]""")     ==== "[1.5,\"NaN\"]"   // the string stays a string
+    }
+    // IfPossible: any workable Double interpretation packs (same rules as typed decode);
+    // output canonicalizes to our format
+    locally {
+      given Jarr.Pack = Jarr.Pack.IfPossible
+      T ~ kindOf("""[NaN, null, "inf", 1.5]""") ==== "D"
+      T ~ rt("""[NaN, null, "inf", 1.5]""")     ==== "[\"NaN\",\"NaN\",\"Infinity\",1.5]"
+      T ~ kindOf("""["hello"]""")               ==== "A"   // still only numbers-in-disguise
+    }
+    // format preservation is orthogonal: verbatim reprint regardless of packing
+    T ~ Json.parseFmt("""[ 1.5 , "NaN" ]""").jsonOr(Jnull).isInstanceOf[Jarr.D] ==== true
+    T ~ Json.parseFmt("""[ 1.5 , "NaN" ]""").jsonOr(Jnull).print ==== """[ 1.5 , "NaN" ]"""
+    T ~ Json.parseFmt("""[ 1.5 , "NaN" ]""").jsonOr(Jnull).reprint(Jstyle.compact) ==== "[1.5,\"NaN\"]"
+    // the fit-aware pretty printer speaks the format too
+    T ~ Json.parse("""[1.5, "NaN", 2.5]""").jsonOr(Jnull).print(using Jstyle.pretty) ==== "[1.5, \"NaN\", 2.5]"
+    // typed decode reads any of it, boxed or packed
+    T ~ Json.parse("[1.5, null, 2.5]").to[Array[Double]].map(_(1).isNaN) ==== Is(true)
+    T ~ Json.parse("""[1.5, "NaN"]""").to[Array[Double]].map(_(1).isNaN) ==== Is(true)
+
+  @Test
   def formatPreservingTest(): Unit =
     val u8 = java.nio.charset.StandardCharsets.UTF_8
     val srcs = List(
@@ -755,10 +980,13 @@ class JsaunTest {
   def styleTest(): Unit =
     T ~ Jarr(Jnum(1), Jnum(2)).print ==== "[1,2]"
     T ~ Jobj("a" -> Jnum(1), "b" -> Jarr(Jnum(1), Jnum(2))).print(using Jstyle.pretty) ====
-        "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2\n  ]\n}"
+        "{\"a\": 1, \"b\": [1, 2]}"   // fits at width 100, so one line it is
+    T ~ Jobj("a" -> Jnum(1), "b" -> Jarr(Jnum(1), Jnum(2))).print(using Jstyle.pretty.fitTo(0)) ====
+        "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2\n  ]\n}"   // fitTo(0) is the classic one-per-line layout
     T ~ Jarr().print(using Jstyle.pretty)  ==== "[]"
     T ~ Jobj().print(using Jstyle.pretty)  ==== "{}"
-    T ~ Jarr(Array(1.5, 2.5)).print(using Jstyle.pretty) ==== "[\n  1.5,\n  2.5\n]"
+    T ~ Jarr(Array(1.5, 2.5)).print(using Jstyle.pretty) ==== "[1.5, 2.5]"
+    T ~ Jarr(Array(1.5, 2.5)).print(using Jstyle.pretty.fitTo(0)) ==== "[\n  1.5,\n  2.5\n]"
     // numeric policy: shortest within the don't-care tolerance (Ryu.fmt), so 0.5 never grows
     T ~ Json.parse("[0.30000000000000004, 0.5]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.3,0.5]"
     T ~ Jnum(0.5).print(using Jstyle.compact.sig(4))                  ==== "0.5"
@@ -774,8 +1002,47 @@ class JsaunTest {
     T ~ Json.parseFmt("[0.30000000000000004]").jsonOr(Jnull).print(using Jstyle.compact.sig(4)) ==== "[0.30000000000000004]"
     // ...but reprint restyles everything
     T ~ Json.parseFmt("[ 1 , 2 ]").jsonOr(Jnull).reprint(Jstyle.compact) ==== "[1,2]"
-    T ~ Json.parseFmt("""{ "a" : 1 }""").jsonOr(Jnull).reprint(Jstyle.pretty) ==== "{\n  \"a\": 1\n}"
+    T ~ Json.parseFmt("""{ "a" : 1 }""").jsonOr(Jnull).reprint(Jstyle.pretty) ==== "{\"a\": 1}"
+    T ~ Json.parseFmt("""{ "a" : 1 }""").jsonOr(Jnull).reprint(Jstyle.pretty.fitTo(0)) ==== "{\n  \"a\": 1\n}"
     T ~ Json.parseFmt("[0.30000000000000004]").jsonOr(Jnull).reprint(Jstyle.compact.sig(4)) ==== "[0.3]"
+
+  @Test
+  def fitTest(): Unit =
+    val u8 = java.nio.charset.StandardCharsets.UTF_8
+    // collections that fit the page width stay on one line; those that don't break one child
+    // per line, and children that fit stay inline
+    val mat = Json.parse("[[1,2,3],[4,5,6],[7,8,9]]").jsonOr(Jnull)
+    T ~ mat.print(using Jstyle.pretty)          ==== "[[1, 2, 3], [4, 5, 6], [7, 8, 9]]"
+    T ~ mat.print(using Jstyle.pretty.fitTo(12)) ==== "[\n  [1, 2, 3],\n  [4, 5, 6],\n  [7, 8, 9]\n]"
+    val doc = Json.parse("""{"name":"x","data":[1,2,3],"note":"hello"}""").jsonOr(Jnull)
+    T ~ doc.print(using Jstyle.pretty)          ==== "{\"name\": \"x\", \"data\": [1, 2, 3], \"note\": \"hello\"}"
+    T ~ doc.print(using Jstyle.pretty.fitTo(24)) ====
+        "{\n  \"name\": \"x\",\n  \"data\": [1, 2, 3],\n  \"note\": \"hello\"\n}"
+    // a value that cannot fit after its key breaks beneath it
+    T ~ Json.parse("""{"k":[100000,200000,300000]}""").jsonOr(Jnull).print(using Jstyle.pretty.fitTo(16)) ====
+        "{\n  \"k\": [\n    100000,\n    200000,\n    300000\n  ]\n}"
+    // all-scalar arrays too long for one line wrap into columns, numbers right-aligned
+    T ~ Jarr(Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)).print(using Jstyle.pretty.fitTo(16)) ====
+        "[\n   1,  2,  3,  4,\n   5,  6,  7,  8,\n   9, 10, 11, 12\n]"
+    // ...strings left-aligned
+    T ~ Jarr(Jstr("a"), Jstr("bb"), Jstr("ccc"), Jstr("d")).print(using Jstyle.pretty.fitTo(17)) ====
+        "[\n  \"a\",   \"bb\",\n  \"ccc\", \"d\"\n]"
+    // numeric policy applies inside reflow just like anywhere else
+    T ~ Jarr(Array(0.30000000000000004, 0.5)).print(using Jstyle.pretty.sig(4)) ==== "[0.3, 0.5]"
+    // preserved format still wins for print; reprint restyles through the reflow
+    T ~ Json.parseFmt("[ 1 ,\n2 ]").jsonOr(Jnull).print(using Jstyle.pretty)   ==== "[ 1 ,\n2 ]"
+    T ~ Json.parseFmt("[ 1 ,\n2 ]").jsonOr(Jnull).reprint(Jstyle.pretty)       ==== "[1, 2]"
+    // a preserved multi-line guest inside a fresh tree passes through verbatim, never "fits"
+    val guest = Json.parseFmt("[ 7 ,\n  8 ]").jsonOr(Jnull)
+    T ~ Jarr(Jnum(1), guest, Jnum(2)).print(using Jstyle.pretty) ====
+        "[\n  1,\n  [ 7 ,\n  8 ],\n  2\n]"
+    // Str and Bytes targets produce identical text
+    val big = Json.parse("""{"a":[1,2,3,4,5,6,7,8,9,10],"b":"x"}""").jsonOr(Jnull)
+    T ~ (new String(big.printBytes(using Jstyle.pretty.fitTo(20)), u8)) ==== big.print(using Jstyle.pretty.fitTo(20))
+    // the typed fast path routes through the tree when reflowing
+    val jzm = summon[Jsonize[Array[Array[Int]]]]
+    T ~ Json.print(Array(Array(1, 2, 3), Array(4, 5, 6)))(using jzm, Jstyle.pretty.fitTo(12)) ====
+        "[\n  [1, 2, 3],\n  [4, 5, 6]\n]"
 
   @Test
   def styleInferenceTest(): Unit =
@@ -830,7 +1097,8 @@ class JsaunTest {
     T ~ (Jarr(Array(1.5f)).## == Jarr(Array(1.5)).##)            ==== true
     T ~ Jarr(Array(7, 8))(1).long                 ==== Is(8L)
     T ~ Jarr(Array(1.5f)).dbls.map(_.toList)      ==== Is(List(1.5))
-    T ~ Jarr(Array(3, 4)).print(using Jstyle.pretty) ==== "[\n  3,\n  4\n]"
+    T ~ Jarr(Array(3, 4)).print(using Jstyle.pretty) ==== "[3, 4]"
+    T ~ Jarr(Array(3, 4)).print(using Jstyle.pretty.fitTo(0)) ==== "[\n  3,\n  4\n]"
     // Array[Char] source, plain and format-preserving
     val src = """{ "a" : [ 1 , 2.5 ] , "b" : "café" }"""
     T ~ Json.parse(src.toCharArray).ask                 ==== Json.parse(src).ask
@@ -889,6 +1157,9 @@ class JsaunTest {
       T ~ (new String(Json.printBytes(a), u8))                     ==== tree.print
       T ~ Json.print(a)(using jz, Jstyle.pretty)                   ==== tree.print(using Jstyle.pretty)
       T ~ (new String(Json.printBytes(a)(using jz, Jstyle.pretty), u8)) ==== tree.print(using Jstyle.pretty)
+      // fitTo(0) keeps the direct emitter on the hook (fit-aware styles route through the tree)
+      T ~ Json.print(a)(using jz, Jstyle.pretty.fitTo(0))          ==== tree.print(using Jstyle.pretty.fitTo(0))
+      T ~ (new String(Json.printBytes(a)(using jz, Jstyle.pretty.fitTo(0)), u8)) ==== tree.print(using Jstyle.pretty.fitTo(0))
     check(Pt(1.5, 2.5))
     check(WithOpt(1, None))
     check(WithOpt(1, Some("x\n\"y é😀")))
@@ -898,6 +1169,7 @@ class JsaunTest {
     check(Nil: List[Int])
     check(Vector("a", "é😀", ""))
     check(Array(1.5, -2.5e300, 0.0))
+    check(Array(1.5, Double.NaN, Double.NegativeInfinity))   // packed-array format: quoted non-finite
     check(Array.empty[Double])
     check(Map("k" -> List(1.5, 2.5), "empty" -> Nil))
     check(Map.empty[String, Int])

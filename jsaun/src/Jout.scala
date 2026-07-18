@@ -41,6 +41,21 @@ abstract class Jout {
     * tolerance named by `mag` (last absolute place kept) and `sig` (significant figures).
     */
   def add(d: Double, mag: Int, sig: Int): Unit
+
+  // === Span plumbing for fit-aware pretty printing (Jpretty), in the target's own units
+  // (chars for Str, bytes for Bytes) ===
+
+  /** How much has been written so far. */
+  private[jsaun] def pos: Int
+
+  /** Length of the current (last) line. */
+  private[jsaun] def column: Int
+
+  /** Copy the span `[i0, iN)` of this target onto `out` (bulk copy between like targets). */
+  private[jsaun] def copyTo(out: Jout, i0: Int, iN: Int): Unit
+
+  /** True if the span `[i0, iN)` contains a newline. */
+  private[jsaun] def containsNewline(i0: Int, iN: Int): Boolean
 }
 object Jout {
 
@@ -53,6 +68,20 @@ object Jout {
     def add(l: Long): Unit = sb.append(l) __ Unit
     def add(d: Double): Unit = Ryu.append(MkStr.wrap(sb), d)   // not sb.append(d): both targets emit the same text, lowercase exponent included
     def add(d: Double, mag: Int, sig: Int): Unit = Ryu.fmt(MkStr.wrap(sb), d, mag, sig)
+
+    private[jsaun] def pos: Int = sb.length
+    private[jsaun] def column: Int =
+      var k = sb.length - 1
+      while k >= 0 && sb.charAt(k) != '\n' do k -= 1
+      sb.length - 1 - k
+    private[jsaun] def copyTo(out: Jout, i0: Int, iN: Int): Unit = out match
+      case s: Str => s.sb.append(sb, i0, iN) __ Unit
+      case _ => out.add(sb.substring(i0, iN))
+    private[jsaun] def containsNewline(i0: Int, iN: Int): Boolean =
+      var k = i0
+      while k < iN && sb.charAt(k) != '\n' do k += 1
+      k < iN
+
     def result: String = sb.toString
   }
 
@@ -115,6 +144,17 @@ object Jout {
     def add(d: Double, mag: Int, sig: Int): Unit =
       ensure(24)
       n = Ryu.fmt(buf, n, d, mag, sig)
+
+    private[jsaun] def pos: Int = n
+    private[jsaun] def column: Int =
+      var k = n - 1
+      while k >= 0 && buf(k) != 10 do k -= 1
+      n - 1 - k
+    private[jsaun] def copyTo(out: Jout, i0: Int, iN: Int): Unit = out.add(buf, i0, iN)
+    private[jsaun] def containsNewline(i0: Int, iN: Int): Boolean =
+      var k = i0
+      while k < iN && buf(k) != 10 do k += 1   // '\n' is never part of a multibyte sequence
+      k < iN
 
     def result: Array[Byte] = java.util.Arrays.copyOf(buf, n)
   }

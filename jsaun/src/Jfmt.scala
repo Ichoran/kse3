@@ -108,9 +108,16 @@ object Jfmt {
 }
 
 
-/** Serialization style: indentation, spacing, and how Doubles are rendered.  A style applies
-  * only where no preserved format exists -- preserved format always wins for untouched
-  * content -- except through `reprint`, which restyles everything.
+/** Serialization style: indentation, page width, spacing, and how Doubles are rendered.  A
+  * style applies only where no preserved format exists -- preserved format always wins for
+  * untouched content -- except through `reprint`, which restyles everything.
+  *
+  * When `indent` is nonempty, `width` picks between two multi-line layouts.  Zero is the
+  * classic one-element-per-line form.  Positive is fit-aware (see `Jpretty`): a collection
+  * that fits on the rest of the line stays on one line, one that does not breaks with each
+  * child on its own line, and an all-scalar array too long for one line wraps into aligned
+  * columns instead (numbers right-aligned).  Width is a soft target measured in the output's
+  * own units (chars or UTF-8 bytes), so an unbreakable token can still overrun it.
   *
   * The numeric policy is the cure for `[0.30000000000000001, 0.5]`: a `Limited` policy prints
   * each Double as the shortest decimal within a don't-care tolerance (`kse.maths.Ryu.fmt`),
@@ -125,15 +132,19 @@ object Jfmt {
   */
 final class Jstyle private (
   val indent: String,
+  val width: Int,
   val spaceAfterColon: Boolean,
   val spaceAfterComma: Boolean,
   val num: Jstyle.Num
 ) {
-  def sig(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(0, if n < 1 then 1 else n))
-  def fixed(n: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(if n <= 0 then 1 else -n, 0))
-  def limit(mag: Int, sig: Int): Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(mag, sig))
-  def exactly: Jstyle = new Jstyle(indent, spaceAfterColon, spaceAfterComma, Jstyle.Num.Exact)
-  def indentBy(s: String): Jstyle = new Jstyle(s, spaceAfterColon, spaceAfterComma, num)
+  def sig(n: Int): Jstyle = new Jstyle(indent, width, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(0, if n < 1 then 1 else n))
+  def fixed(n: Int): Jstyle = new Jstyle(indent, width, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(if n <= 0 then 1 else -n, 0))
+  def limit(mag: Int, sig: Int): Jstyle = new Jstyle(indent, width, spaceAfterColon, spaceAfterComma, Jstyle.Num.Limited(mag, sig))
+  def exactly: Jstyle = new Jstyle(indent, width, spaceAfterColon, spaceAfterComma, Jstyle.Num.Exact)
+  def indentBy(s: String): Jstyle = new Jstyle(s, width, spaceAfterColon, spaceAfterComma, num)
+
+  /** Fit-aware layout targeting `n` columns; `fitTo(0)` restores one-element-per-line. */
+  def fitTo(n: Int): Jstyle = new Jstyle(indent, if n < 0 then 0 else n, spaceAfterColon, spaceAfterComma, num)
 }
 object Jstyle {
   enum Num {
@@ -142,10 +153,10 @@ object Jstyle {
   }
 
   /** Everything on one line, no spaces, exact numbers (the default). */
-  val compact: Jstyle = new Jstyle("", false, false, Num.Exact)
+  val compact: Jstyle = new Jstyle("", 0, false, false, Num.Exact)
 
-  /** Two-space indentation, spaced separators, exact numbers. */
-  val pretty: Jstyle = new Jstyle("  ", true, true, Num.Exact)
+  /** Two-space indentation, spaced separators, exact numbers, fit-aware at 78 columns. */
+  val pretty: Jstyle = new Jstyle("  ", 78, true, true, Num.Exact)
 
   given default: Jstyle = compact
 

@@ -240,7 +240,8 @@ sealed abstract class Json protected () {
           o.fmt = null
         var k = 0
         while k < o.n do
-          o.vs(k).compactFormat() __ Unit
+          val v = o.vs(k)
+          if v ne null then v.compactFormat() __ Unit   // null = removed-entry hole
           k += 1
       case _ => ()
     this
@@ -278,61 +279,70 @@ object Json {
 
   /** Serialize any value with a `Jsonize` instance straight to JSON text, without building a
     * tree (`Json(a).print` builds one first; this is the fast path for typed encoding).
+    * Fit-aware styles (positive `width`) are the exception: they measure before they break,
+    * so they go through the tree.
     */
   def print[A](a: A)(using jz: Jsonize[A], st: Jstyle): String =
     val out = new Jout.Str(style = st)
-    jz.jsonizeTo(a, out)
+    if st.width > 0 && st.indent.nonEmpty then jz.jsonize(a).printTo(out)
+    else jz.jsonizeTo(a, out)
     out.result
 
   /** Serialize any value with a `Jsonize` instance straight to UTF-8 bytes; see `print`. */
   def printBytes[A](a: A)(using jz: Jsonize[A], st: Jstyle): Array[Byte] =
     val out = new Jout.Bytes(style = st)
-    jz.jsonizeTo(a, out)
+    if st.width > 0 && st.indent.nonEmpty then jz.jsonize(a).printTo(out)
+    else jz.jsonizeTo(a, out)
     out.result
 
   /** Parse JSON text into a tree, or an `Err` detailing what went wrong and where.
-    * The parser is strict (RFC 8259): no trailing commas, no leading zeros, no `NaN`, and
-    * nothing but whitespace after the value.  Byte input reads structure as ASCII and
-    * decodes strings as UTF-8 (error positions are byte positions).
+    * The parser is strict (RFC 8259): no trailing commas, no leading zeros, and nothing but
+    * whitespace after the value.  The one deliberate extension is non-finite numbers, so
+    * doubles round-trip: an optional sign then case-insensitive `nan`, `inf`, or `infinity`
+    * reads as the matching Double (we print `NaN` / `Infinity` / `-Infinity`).  Byte input
+    * reads structure as ASCII and decodes strings as UTF-8 (error positions are byte
+    * positions).
     *
     * By default numbers become `Jnum.L` when they are integers a Long can hold and `Jnum.D`
     * (correctly rounded) otherwise; with `exact = true`, a number whose value a Double cannot
     * represent exactly is kept as `Jnum.Big` with its original text, so nothing is lost.
+    * Whether numeric-looking arrays pack into unboxed Doubles is set by the `Jarr.Pack`
+    * given in scope (default `Standard`).
     */
-  inline def parse(inline in: Source, exact: Boolean = false): JAny = inline in match
-    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).parseTop() })
-    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).parseTop() })
-    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact)).parseTop() })
+  inline def parse(inline in: Source, exact: Boolean = false)(using pk: Jarr.Pack): JAny = inline in match
+    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact)).packing(pk).parseTop() })
+    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact)).packing(pk).parseTop() })
+    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact)).packing(pk).parseTop() })
 
   /** Parse straight from off-heap memory with no copy: `Mem[Byte]` is UTF-8, `Mem[Char]` is
     * UTF-16.  Other element types are a compile error (they name no text encoding).
     */
-  inline def parse[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
-    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = false).parseTop() })
-  inline def parse[A <: Mem.Type](inline mem: Mem[A]): JAny =
-    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).parseTop() })
+  inline def parse[A <: Mem.Type](inline mem: Mem[A], exact: Boolean)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = false).packing(pk).parseTop() })
+  inline def parse[A <: Mem.Type](inline mem: Mem[A])(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = false).packing(pk).parseTop() })
 
   /** Parse streaming JSON pulled through a sliding window that starts at `window` elements
     * (see `Json.Chunked`).  Exceptions from the source (e.g. an `IOException` mid-read) come
     * back as an `Err`, like any other failure.
     */
-  inline def parse(inline in: Chunked, window: Int): JAny =
-    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, window).parseTop() })
+  inline def parse(inline in: Chunked, window: Int)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, window).packing(pk).parseTop() })
 
   /** Parse streaming JSON through a default-sized sliding window (see `Json.Chunked`). */
-  inline def parse(inline in: Chunked): JAny =
-    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, Jparse.defaultWindow).parseTop() })
+  inline def parse(inline in: Chunked)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.chunkedParser(in, mutable = false, Jparse.defaultWindow).packing(pk).parseTop() })
 
   /** Parse JSON supplied line by line (see `Json.Lined`). */
   @targetName("parseLined")
-  inline def parse(inline in: Lined): JAny =
-    JAny.wrap(Ask.flat{ Jparse.linedParser(in, mutable = false).parseTop() })
+  inline def parse(inline in: Lined)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.linedParser(in, mutable = false).packing(pk).parseTop() })
 
   /** Parse JSON from lines carried inside `in`'s elements, one line per element as extracted
     * by `line` (see `Json.Lined`).
     */
-  def parse[A](in: Iterator[A])(line: A => String): JAny =
-    JAny.wrap(Ask.flat{ (new Jparse.Lines(in.map(line))).parseTop() })
+  def parse[A](in: Iterator[A])(line: A => String)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ (new Jparse.Lines(in.map(line))).packing(pk).parseTop() })
 
   /** SAX-style streaming parse: walk the input once, driving `vis` (see `Jvisitor`), building
     * no tree.  Values the visitor declines are skipped structurally.  There is no `exact` or
@@ -406,18 +416,18 @@ object Json {
     * root value), and an edited one reprints only what was touched, with verbatim source
     * around it.
     */
-  inline def parseFmt(inline in: Source, exact: Boolean = false): JAny = inline in match
-    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, fmt = true)).parseTop() })
-    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, fmt = true)).parseTop() })
-    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, fmt = true)).parseTop() })
+  inline def parseFmt(inline in: Source, exact: Boolean = false)(using pk: Jarr.Pack): JAny = inline in match
+    case s: String      => JAny.wrap(Ask.flat{ (new Jparse.Str(s, exact, fmt = true)).packing(pk).parseTop() })
+    case b: Array[Byte] => JAny.wrap(Ask.flat{ (new Jparse.Bytes(b, exact, fmt = true)).packing(pk).parseTop() })
+    case c: Array[Char] => JAny.wrap(Ask.flat{ (new Jparse.Chars(c, exact, fmt = true)).packing(pk).parseTop() })
 
   /** Format-preserving parse from off-heap memory.  Because format preservation retains the
     * whole source and the segment is caller-owned, the bytes/chars are snapshotted to the heap.
     */
-  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A], exact: Boolean): JAny =
-    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = true).parseTop() })
-  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A]): JAny =
-    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = true).parseTop() })
+  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A], exact: Boolean)(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact, mutable = false, fmt = true).packing(pk).parseTop() })
+  inline def parseFmt[A <: Mem.Type](inline mem: Mem[A])(using pk: Jarr.Pack): JAny =
+    JAny.wrap(Ask.flat{ Jparse.memParser[A](mem, exact = false, mutable = false, fmt = true).packing(pk).parseTop() })
 
   /** The mutable side of the JSON hierarchy: each container's editable class mixes this in
     * (`Jobj.M`, and `Jarr.M` for the array backings), so a mutable tree can be worked with
@@ -600,14 +610,41 @@ object Jnum {
   def apply(value: Double): Jnum = new D(value)
   def apply(value: BigDecimal): Jnum = new Big(value.underlying.toString)
 
-  /** Append `d` as JSON under the target's numeric policy (NaN and infinities, which JSON
-    * cannot express, become null).
+  /** Append `d` as JSON under the target's numeric policy.  Non-finite values print as
+    * `NaN` / `Infinity` / `-Infinity` -- the `Double.toString` spellings, shared with
+    * Python's json and JSON5 -- so every Double round-trips (the parser reads these back,
+    * and more).  Ryu emits the same spellings under both policies.
     */
   private[jsaun] def printDbl(out: Jout, d: Double): Unit =
-    if d.isNaN || d.isInfinite then out.add("null")
-    else out.style.num match
+    out.style.num match
       case Jstyle.Num.Exact => out.add(d)
       case Jstyle.Num.Limited(mag, sig) => out.add(d, mag, sig)
+
+  /** Append one element of a packed numeric array (`Jarr.D`/`Jarr.F`): finite values per
+    * the numeric policy, non-finite ones as the quoted names `"NaN"` / `"Infinity"` /
+    * `"-Infinity"` -- the array format we call ours, which keeps output valid JSON and reads
+    * back packed under `Jarr.Pack.Standard`.  (Non-finite scalars print as bare tokens.)
+    */
+  private[jsaun] def printDblArr(out: Jout, d: Double): Unit =
+    if d == d && !d.isInfinite then printDbl(out, d)
+    else out.add(if d != d then "\"NaN\"" else if d > 0 then "\"Infinity\"" else "\"-Infinity\"")
+
+  /** The non-finite Double named by `text` -- optional sign, then case-insensitive `nan`,
+    * `inf`, or `infinity` -- or 0.0 (which is finite, so unambiguous) if it names none.
+    */
+  private[jsaun] def nonFiniteNamed(text: String): Double =
+    var j = 0
+    var neg = false
+    if text.length > 0 && (text.charAt(0) == '-' || text.charAt(0) == '+') then
+      neg = text.charAt(0) == '-'
+      j = 1
+    val m = text.length - j
+    inline def lc(k: Int): Int = text.charAt(j + k) | 0x20
+    if m == 3 && lc(0) == 'n' && lc(1) == 'a' && lc(2) == 'n' then Double.NaN
+    else if (m == 3 || m == 8) && lc(0) == 'i' && lc(1) == 'n' && lc(2) == 'f' &&
+            (m == 3 || (lc(3) == 'i' && lc(4) == 'n' && lc(5) == 'i' && lc(6) == 't' && lc(7) == 'y')) then
+      if neg then Double.NegativeInfinity else Double.PositiveInfinity
+    else 0.0
 
   /** True if `d` is exactly the value that `text` denotes (cold; exact-mode parsing only). */
   private[jsaun] def exactDouble(d: Double, text: String): Boolean =
@@ -630,7 +667,10 @@ object Jnum {
     def printTo(out: Jout): Unit = out.add(value)
   }
 
-  /** A JSON number held as a Double; NaN and infinities (never produced by parsing) print as null. */
+  /** A JSON number held as a Double.  NaN and the infinities print as `NaN` / `Infinity` /
+    * `-Infinity` (which the parser also reads), and all NaNs are one value: they compare
+    * equal to each other and to themselves.
+    */
   final class D(val value: Double) extends Jnum {
     def double = value
     def isWhole = Math.rint(value) == value && !value.isInfinite
@@ -645,11 +685,11 @@ object Jnum {
       else alt
 
     override def equals(a: Any): Boolean = a match
-      case d: D => value == d.value
+      case d: D => value == d.value || (value != value && d.value != d.value)   // any NaN equals any NaN
       case l: L => value == l.value.toDouble && value.toLong == l.value
       case b: Big => b == this
       case _ => false
-    override def hashCode: Int = value.##
+    override def hashCode: Int = value.##   // doubleToLongBits canonicalizes NaN, so the hash agrees
 
     def printTo(out: Jout): Unit = Jnum.printDbl(out, value)
   }
@@ -698,7 +738,12 @@ sealed abstract class Jarr protected () extends Json {
 
   def foreach(f: Json => Unit): Unit
 
-  /** The elements as a (copied) `Array[Double]`, if every element is a number. */
+  /** The elements as a (copied) `Array[Double]`, if every element is a number -- or one of
+    * the emitter dialects for a non-finite value, which this doubles-expecting context reads
+    * back: JSON null (JS writes null for every non-finite) becomes NaN, and a quoted
+    * non-finite name like `"NaN"` or `"-Infinity"` (protobuf style) becomes its value.
+    * Quoted finite numbers are still errors, and the tree itself keeps the original forms.
+    */
   def dbls: Ask[Array[Double]]
 
   /** Element `k` as a Json (packed backings materialize a `Jnum`); no bounds check. */
@@ -712,7 +757,7 @@ sealed abstract class Jarr protected () extends Json {
         case d: Jarr.D if x.isInstanceOf[Jarr.D] =>
           val y = x.asInstanceOf[Jarr.D]
           var k = 0
-          while k < d.n && d.xs(k) == y.xs(k) do k += 1
+          while k < d.n && (d.xs(k) == y.xs(k) || (d.xs(k) != d.xs(k) && y.xs(k) != y.xs(k))) do k += 1
           k == d.n
         case _ =>
           var k = 0
@@ -743,6 +788,35 @@ object Jarr {
   /** Marker for the editable arrays (`Jarr.A.M`, `Jarr.D.M`); see `Json.M` for the contract. */
   sealed trait M extends Json.M {}
 
+  /** Whether parsing may pack a numeric-looking array into unboxed Doubles (`Jarr.D`).
+    * JSON has no encoding for non-finite values, so emitters improvise; the array format we
+    * call ours is finite numbers plus the quoted names `"NaN"` / `"Infinity"` /
+    * `"-Infinity"` (valid JSON, protobuf-style), and packed arrays always print that way.
+    * This knob is what may be read BACK as packed -- it matters for bulk data, where a 30MB
+    * timeseries should not box every element.
+    *
+    * - `Faithful`: JSON-as-JSON.  Only arrays of plain finite numbers pack; nothing is ever
+    *   reinterpreted.
+    * - `Standard` (the default): pack exactly what we would have written -- finite numbers
+    *   and the exactly-quoted names.  Such arrays reprint as they arrived, so the text
+    *   round-trips whether or not it was really meant to be doubles; anything else (bare
+    *   non-finite tokens, nulls, lenient spellings like `"inf"`) stays unpacked and prints
+    *   as itself.
+    * - `IfPossible`: pack whenever every element has a Double interpretation, by the same
+    *   rules typed decoding uses (bare non-finite, null as NaN, any quoted non-finite
+    *   spelling); output canonicalizes to our format, so exotic inputs may not reprint
+    *   identically.
+    *
+    * Supply as a given to override the default: `given Jarr.Pack = Jarr.Pack.Faithful`.
+    * Mutable-mode parsing (`Json.M`) never packs, whatever the mode.
+    */
+  enum Pack {
+    case Faithful, Standard, IfPossible
+  }
+  object Pack {
+    given default: Pack = Standard
+  }
+
   /** A general array of JSON values.  Instances reachable as `Jarr.A` are immutable; editing
     * happens only through the mutable subclass (to come), which shares this representation.
     */
@@ -768,6 +842,15 @@ object Jarr {
           case m: Jnum =>
             a(k) = m.double
             k += 1
+          case Jnull =>
+            a(k) = Double.NaN   // a doubles context reads null as NaN (JS writes null for non-finite)
+            k += 1
+          case s: Jstr =>
+            val d = Jnum.nonFiniteNamed(s.text)   // ...and quoted non-finite names (protobuf style); nothing else
+            if d == 0.0 then bad = k
+            else
+              a(k) = d
+              k += 1
           case _ => bad = k
       if bad < 0 then Is(a)
       else Alt(Err(s"element $bad is not a number but ${vs(bad).kind}"))
@@ -806,6 +889,7 @@ object Jarr {
         else
           val st = out.style
           if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+          else if st.width > 0 then Jpretty.printTo(this, out)
           else
             out.depth += 1
             emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
@@ -909,7 +993,7 @@ object Jarr {
       var k = 0
       while k < n do
         if k > 0 then out.add(sep)
-        Jnum.printDbl(out, xs(k))
+        Jnum.printDblArr(out, xs(k))
         k += 1
       out.add(close)
       out.add(']')
@@ -925,7 +1009,7 @@ object Jarr {
             val sp = f.spans(k)
             f.src.copyTo(out, prev, Jfmt.start(sp))
             if !f.isDirty(k) then f.src.copyTo(out, Jfmt.start(sp), Jfmt.end(sp))
-            else Jnum.printDbl(out, xs(k))
+            else Jnum.printDblArr(out, xs(k))
             prev = Jfmt.end(sp)
             k += 1
           f.src.copyTo(out, prev, f.end)
@@ -935,6 +1019,7 @@ object Jarr {
         else
           val st = out.style
           if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+          else if st.width > 0 then Jpretty.printTo(this, out)
           else
             out.depth += 1
             emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
@@ -1038,7 +1123,7 @@ object Jarr {
       var k = 0
       while k < n do
         if k > 0 then out.add(sep)
-        Jnum.printDbl(out, xs(k).toDouble)
+        Jnum.printDblArr(out, xs(k).toDouble)
         k += 1
       out.add(close)
       out.add(']')
@@ -1049,6 +1134,7 @@ object Jarr {
       else
         val st = out.style
         if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else if st.width > 0 then Jpretty.printTo(this, out)
         else
           out.depth += 1
           emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
@@ -1098,6 +1184,7 @@ object Jarr {
       else
         val st = out.style
         if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else if st.width > 0 then Jpretty.printTo(this, out)
         else
           out.depth += 1
           emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
@@ -1107,9 +1194,13 @@ object Jarr {
 
 
 /** A JSON object: insertion-ordered keys with values, duplicates retained.  Lookup answers
-  * the last occurrence of a duplicated key (as `JSON.parse` does); a hash index is built
-  * lazily once the object is large enough for linear scans to hurt.  Instances reachable as
-  * `Jobj` are immutable; editing happens only through the mutable subclass (to come).
+  * the last occurrence of a duplicated key (as `JSON.parse` does); a positional hash index
+  * is built lazily once the object is large enough for linear scans to hurt, and from then
+  * on is MAINTAINED by edits rather than invalidated, so lookup-edit cycles on big objects
+  * never rebuild it.  Removal punches holes in the entry arrays (compaction is deferred to
+  * operations that touch the whole array anyway), so entries have no reliable numeric
+  * position: walk them with `foreach` or `iterator`.  Instances reachable as `Jobj` are
+  * immutable; editing happens only through the mutable subclass `Jobj.M`.
   */
 sealed class Jobj private[jsaun] (
   private[jsaun] var ks: Array[String],
@@ -1117,7 +1208,7 @@ sealed class Jobj private[jsaun] (
   private[jsaun] var n: Int
 ) extends Json {
   def kind = "object"
-  final override def size: Int = n
+  final override def size: Int = n - gaps
   final override def obj: Ask[Jobj] = Is(this)
 
   /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
@@ -1126,61 +1217,97 @@ sealed class Jobj private[jsaun] (
   /** Inferred separator style, kept when a structural edit invalidates `fmt`. */
   private[jsaun] var sty: Jfmt.Local | Null = null
 
-  // Built at most once per content; harmless to rebuild on a race (single-threaded use
-  // expected); mutation (Jobj.M only) resets it to null
-  private[jsaun] var index: java.util.HashMap[String, Json] | Null = null
+  /** Removed-entry holes (null `ks` slots) below `n`.  Holes imply `fmt` is gone: removal
+    * is a structural edit, so the span bookkeeping never has to describe them.
+    */
+  private[jsaun] var gaps: Int = 0
 
-  private def indexed: java.util.HashMap[String, Json] = index match
+  // Key -> position of its last live occurrence, sign bit set when an earlier duplicate
+  // exists (so unique keys -- the normal case -- remove in O(1) and only duplicated ones
+  // rescan).  Built at most once, then kept current by Jobj.M's edits; single-threaded use
+  // expected, harmless to rebuild on a race.
+  private[jsaun] var index: java.util.HashMap[String, Mu.MuInt] | Null = null
+
+  private def indexed: java.util.HashMap[String, Mu.MuInt] = index match
     case null =>
-      val m = new java.util.HashMap[String, Json]
+      val m = new java.util.HashMap[String, Mu.MuInt]
       var k = 0
       while k < n do
-        m.put(ks(k), vs(k)) __ Unit   // forward fill: later duplicates overwrite, so last wins
+        val key = ks(k)
+        if key ne null then
+          val prev = m.get(key)
+          if prev eq null then m.put(key, new Mu.MuInt(k)) __ Unit
+          else prev.myValue = k | Int.MinValue   // the previous occurrence is now known-earlier
         k += 1
       index = m
       m
     case m => m
 
+  /** Position of the last live entry with `key`, or -1 if absent. */
+  private[jsaun] final def find(key: String): Int =
+    if (index eq null) && n < 8 then
+      var k = n - 1
+      while k >= 0 && ks(k) != key do k -= 1   // holes have null keys and just mismatch
+      k
+    else
+      val mu = indexed.get(key)
+      if mu eq null then -1 else mu.myValue & Int.MaxValue
+
   /** The value at `key` (the last one, if duplicated), or `null` if absent. */
   final def get(key: String): Json | Null =
-    if n < 8 then
-      var k = n - 1
-      while k >= 0 && ks(k) != key do k -= 1
-      if k >= 0 then vs(k) else null
-    else indexed.get(key)
+    val k = find(key)
+    if k < 0 then null else vs(k)
 
   final override def apply(key: String): JAny =
     val j = get(key)
     if j eq null then JAny.err(Err(s"no key \"$key\" in object"))
     else JAny(j)
 
-  final def contains(key: String): Boolean = get(key) ne null
+  final def contains(key: String): Boolean = find(key) >= 0
 
   final def foreach(f: (String, Json) => Unit): Unit =
     var k = 0
     while k < n do
-      f(ks(k), vs(k))
+      val key = ks(k)
+      if key ne null then f(key, vs(k))
       k += 1
+
+  /** The entries in order.  Do not edit the object while iterating. */
+  final def iterator: Iterator[(String, Json)] = new scala.collection.AbstractIterator[(String, Json)] {
+    private var k = 0
+    private def settle(): Unit =
+      while k < n && (ks(k) eq null) do k += 1
+    settle()
+    def hasNext: Boolean = k < n
+    def next(): (String, Json) =
+      if k >= n then Iterator.empty.next()
+      else
+        val r = (ks(k), vs(k))
+        k += 1
+        settle()
+        r
+  }
 
   // Order-insensitive multiset equality (duplicate keys must pair up); O(n^2) worst case,
   // which equality-of-objects use doesn't care about
   final override def equals(a: Any): Boolean = a match
     case o: Jobj =>
-      (this eq o) || (n == o.n && {
-        if n == 0 then true
+      (this eq o) || (size == o.size && {
+        if size == 0 then true
         else
-          val used = new Array[Boolean](n)
+          val used = new Array[Boolean](o.n)
           var good = true
           var i = 0
           while good && i < n do
-            var j = 0
-            var found = false
-            while !found && j < n do
-              if !used(j) && ks(i) == o.ks(j) && vs(i) == o.vs(j) then
-                used(j) = true
-                found = true
-              j += 1
-            good = found
+            if ks(i) ne null then
+              var j = 0
+              var found = false
+              while !found && j < o.n do
+                if !used(j) && (o.ks(j) ne null) && ks(i) == o.ks(j) && vs(i) == o.vs(j) then
+                  used(j) = true
+                  found = true
+                j += 1
+              good = found
             i += 1
           good
       })
@@ -1190,19 +1317,23 @@ sealed class Jobj private[jsaun] (
     var h = 0
     var k = 0
     while k < n do
-      h += ks(k).## ^ (vs(k).## * 31)   // commutative, to match order-insensitive equality
+      if ks(k) ne null then h += ks(k).## ^ (vs(k).## * 31)   // commutative, to match order-insensitive equality
       k += 1
-    h ^ n
+    h ^ size
 
   private def emitWith(out: Jout, open: String, sep: String, mid: String, close: String): Unit =
     out.add('{')
     out.add(open)
+    var first = true
     var k = 0
     while k < n do
-      if k > 0 then out.add(sep)
-      Jstr.encodeTo(out, ks(k))
-      out.add(mid)
-      vs(k).printTo(out)
+      val key = ks(k)
+      if key ne null then
+        if !first then out.add(sep)
+        first = false
+        Jstr.encodeTo(out, key)
+        out.add(mid)
+        vs(k).printTo(out)
       k += 1
     out.add(close)
     out.add('}')
@@ -1231,8 +1362,9 @@ sealed class Jobj private[jsaun] (
       if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.mid, s.close)
       else
         val st = out.style
-        if st.indent.isEmpty || n == 0 then
+        if st.indent.isEmpty || size == 0 then
           emitWith(out, "", if st.spaceAfterComma then ", " else ",", if st.spaceAfterColon then ": " else ":", "")
+        else if st.width > 0 then Jpretty.printTo(this, out)
         else
           out.depth += 1
           emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth),
@@ -1258,12 +1390,44 @@ object Jobj {
   final class M private[jsaun] (ks0: Array[String], vs0: Array[Json], n0: Int) extends Jobj(ks0, vs0, n0) with Json.M {
     def this() = this(new Array[String](8), new Array[Json](8), 0)
 
+    // Compact live entries to the front, order kept, updating index positions in place.  A
+    // key's box moves only when it pointed at the entry being moved, so earlier duplicate
+    // occurrences never disturb the last-wins position.
+    private def compact(): Unit =
+      val ix = index
+      var w = 0
+      var k = 0
+      while k < n do
+        val key = ks(k)
+        if key ne null then
+          if w != k then
+            ks(w) = key
+            vs(w) = vs(k)
+            if ix ne null then
+              val mu = ix.get(key)
+              if (mu ne null) && (mu.myValue & Int.MaxValue) == k then
+                mu.myValue = w | (mu.myValue & Int.MinValue)
+          w += 1
+        k += 1
+      var z = w
+      while z < n do
+        ks(z) = null
+        vs(z) = null
+        z += 1
+      n = w
+      gaps = 0
+
     private def ensure(k: Int): Unit =
       if n + k > ks.length then
-        var m = ks.length * 2
-        while m < n + k do m *= 2
-        ks = java.util.Arrays.copyOf(ks, m)
-        vs = java.util.Arrays.copyOf(vs, m)
+        // Compact instead of growing only when a quarter of the capacity comes back --
+        // recovering a couple of slots would buy a full compaction per handful of adds
+        if gaps >= (ks.length >> 2) then compact()
+        if n + k > ks.length then
+          if gaps > 0 then compact()   // reallocating anyway, so the O(n) is already paid
+          var m = ks.length * 2
+          while m < n + k do m *= 2
+          ks = java.util.Arrays.copyOf(ks, m)
+          vs = java.util.Arrays.copyOf(vs, m)
 
     // See Jarr.A.M.demoteFmt
     private def demoteFmt(): Unit =
@@ -1278,49 +1442,95 @@ object Jobj {
       ensure(1)
       ks(n) = key
       vs(n) = v
+      index match
+        case null => ()
+        case ix =>
+          val mu = ix.get(key)
+          if mu eq null then ix.put(key, new Mu.MuInt(n)) __ Unit
+          else mu.myValue = n | Int.MinValue   // the old occurrence is now an earlier duplicate
       n += 1
-      index = null
       this
 
     /** Replace the value at `key` (the last occurrence, if duplicated), appending if absent.
       * An in-place replacement keeps the preserved formatting around the value.
       */
     def put(key: String, v: Json): this.type =
-      var k = n - 1
-      while k >= 0 && ks(k) != key do k -= 1
+      val k = find(key)
       if k >= 0 then
         vs(k) = v
-        index = null
         fmt match
           case null => ()
-          case f => f.markDirty(2 * k + 1)
+          case f => f.markDirty(2 * k + 1)   // holes cannot coexist with fmt, so k is the entry ordinal
       else add(key, v) __ Unit
       this
 
     def update(key: String, v: Json): Unit = put(key, v) __ Unit
 
-    /** Remove every entry with `key`; answers how many were removed. */
+    /** Remove every entry with `key`; answers how many were removed.  Removal punches holes
+      * rather than shifting entries; the arrays compact when growth would otherwise occur.
+      */
     def remove(key: String): Int =
-      if contains(key) then demoteFmt()
-      var w = 0
+      val k = find(key)
+      if k < 0 then 0
+      else
+        demoteFmt()
+        val ix = index
+        val mu = if ix eq null then null else ix.get(key)
+        var removed = 0
+        if (mu ne null) && mu.myValue >= 0 then
+          ks(k) = null   // unique key: one hole, O(1)
+          vs(k) = null
+          removed = 1
+        else
+          var j = 0   // duplicated (or unindexed): every occurrence is at or before the last
+          while j <= k do
+            if ks(j) == key then
+              ks(j) = null
+              vs(j) = null
+              removed += 1
+            j += 1
+        if ix ne null then ix.remove(key) __ Unit
+        gaps += removed
+        removed
+
+    /** Sort entries by key (lexicographic by char; stable, so duplicate keys keep their
+      * order and last-wins lookup is unaffected).  A structural edit: preserved formatting
+      * demotes to the inferred separator style, and the arrays compact as a side effect.
+      */
+    def sortKeys(): this.type =
+      demoteFmt()
+      val live = size
+      val idx = new Array[Integer](live)
       var k = 0
+      var w = 0
       while k < n do
-        if ks(k) != key then
-          if w != k then
-            ks(w) = ks(k)
-            vs(w) = vs(k)
+        if ks(k) ne null then
+          idx(w) = Integer.valueOf(k)
           w += 1
         k += 1
-      val removed = n - w
-      if removed > 0 then
-        var z = w
-        while z < n do
-          ks(z) = null
-          vs(z) = null
-          z += 1
-        n = w
-        index = null
-      removed
+      java.util.Arrays.sort(idx, (a, b) => {
+        val c = ks(a.intValue).compareTo(ks(b.intValue))
+        if c != 0 then c else Integer.compare(a.intValue, b.intValue)   // position tiebreak forces stability
+      })
+      val ks2 = new Array[String](ks.length)
+      val vs2 = new Array[Json](vs.length)
+      val ix = index
+      k = 0
+      while k < live do
+        val p = idx(k).intValue
+        val key = ks(p)
+        ks2(k) = key
+        vs2(k) = vs(p)
+        if ix ne null then
+          val mu = ix.get(key)
+          if (mu ne null) && (mu.myValue & Int.MaxValue) == p then
+            mu.myValue = k | (mu.myValue & Int.MinValue)
+        k += 1
+      ks = ks2
+      vs = vs2
+      n = live
+      gaps = 0
+      this
 
     def clear(): this.type =
       demoteFmt()
@@ -1330,7 +1540,8 @@ object Jobj {
         vs(k) = null
         k += 1
       n = 0
-      index = null
+      gaps = 0
+      index = null   // cheaper to rebuild than to empty box by box
       this
   }
   object M {

@@ -119,7 +119,13 @@ class JsaunFuzzTest {
     pick match
       case 0 => Jnull
       case 1 => Jbool(r.Z)
-      case 2 => if r.Z then Jnum(r.L) else Jnum(randFiniteDouble(r))
+      case 2 =>
+        if r.Z then Jnum(r.L)
+        else r % 12 match   // occasional non-finite: the round trip must survive them too
+          case 0 => Jnum(Double.NaN)
+          case 1 => Jnum(Double.PositiveInfinity)
+          case 2 => Jnum(Double.NegativeInfinity)
+          case _ => Jnum(randFiniteDouble(r))
       case 3 => Jstr(randString(r, 6))
       case 4 => Jstr("")
       case 5 =>
@@ -353,7 +359,7 @@ class JsaunFuzzTest {
       val ops = 30
       while op < ops do
         val k = keys(r % keys.length)
-        r % 4 match
+        r % 6 match
           case 0 | 1 =>
             val v = randTree(r, 2)
             m.put(k, v) __ Unit
@@ -361,6 +367,9 @@ class JsaunFuzzTest {
           case 2 =>
             m.remove(k) __ Unit
             modelRemove(k)
+          case 3 =>
+            m.sortKeys() __ Unit
+            model.sortInPlaceBy(_._1) __ Unit
           case _ =>
             m(k) = Jnum(op.toLong)
             modelPut(k, Jnum(op.toLong))
@@ -371,9 +380,28 @@ class JsaunFuzzTest {
       // the edited tree prints to something that parses back to the reference object
       val expected: Json = Jobj(model.toSeq*)
       T ~ Json.parse(m.print).ask ==== Is(expected)
+      // entry ORDER matches too (multiset equality above cannot see it), holes and all
+      T ~ m.print ==== expected.print
+      T ~ m.iterator.toList ==== model.toList
+      T ~ m.## ==== expected.##
+      // and the fit-aware reflow walks the holes correctly
+      T ~ Json.parse(m.reprint(Jstyle.pretty)).ask ==== Is(expected)
       // view aliasing: upcast sees the same state, no copy
       val view: Jobj = m
       T ~ (view: Json) ==== (expected: Json)
+      trial += 1
+
+  @Test
+  def standardPackFuzz(): Unit =
+    // The Standard contract: parsing may repack an array into unboxed doubles, but only
+    // when the packed form reprints the text exactly; and reparse of the reprint is stable
+    val r = Pcg64(0x99A0F9L)
+    var trial = 0
+    while trial < 300 do
+      val text = randTree(r, 3).print
+      val once = Json.parse(text).jsonOr(Jnull)
+      T ~ once.print ==== text
+      T ~ Json.parse(once.print).ask ==== Is(once)
       trial += 1
 
   @Test

@@ -22,7 +22,8 @@ trait Jsonize[A] {
   /** Serialize straight to an output; override to skip building the tree.  The built-in and
     * derived product instances all do, so `Json.print(a)`/`Json.printBytes(a)` allocate no
     * tree -- only sum types route through `jsonize` (the discriminator is merged into the
-    * child's object, which needs the tree in hand).
+    * child's object, which needs the tree in hand), and fit-aware styles (positive `width`)
+    * route the whole value through it (reflow measures before it breaks; see `Jpretty`).
     */
   def jsonizeTo(a: A, out: Jout): Unit = jsonize(a).printTo(out)
 }
@@ -161,7 +162,7 @@ object Jsonize {
         var k = 0
         while k < xs.length do
           if k > 0 then out.add(sep)
-          Jnum.printDbl(out, xs(k))
+          Jnum.printDblArr(out, xs(k))   // packed-array format: non-finite as quoted names
           k += 1
         arrClose(out)
   }
@@ -258,13 +259,24 @@ object Jsonize {
         val ord = sm.ordinal(a)
         jzs(ord).asInstanceOf[Jsonize[Any]].jsonize(a) match
           case o: Jobj =>
-            val ks = new Array[String](o.n + 1)
-            val vs = new Array[Json](o.n + 1)
+            val live = o.size
+            val ks = new Array[String](live + 1)
+            val vs = new Array[Json](live + 1)
             ks(0) = "type"
             vs(0) = Jstr(labels(ord))
-            System.arraycopy(o.ks, 0, ks, 1, o.n)
-            System.arraycopy(o.vs, 0, vs, 1, o.n)
-            new Jobj(ks, vs, o.n + 1)
+            if o.gaps == 0 then
+              System.arraycopy(o.ks, 0, ks, 1, o.n)
+              System.arraycopy(o.vs, 0, vs, 1, o.n)
+            else
+              var k = 0
+              var w = 1
+              while k < o.n do
+                if o.ks(k) ne null then
+                  ks(w) = o.ks(k)
+                  vs(w) = o.vs(k)
+                  w += 1
+                k += 1
+            new Jobj(ks, vs, live + 1)
           case other => Jobj("type" -> Jstr(labels(ord)), "value" -> other)
     }
 }
@@ -288,13 +300,23 @@ object FromJson {
   given FromJson[Json] = j => Is(j)
   given FromJson[Boolean] = _.bool
   given FromJson[Long] = _.long
-  given FromJson[Float] = _.dbl.map(_.toFloat)
   given FromJson[String] = _.str
 
   // A stable instance, so the collection decoder can recognize it by identity and read a
-  // packed Jarr.D without materializing a Jnum.D per element
-  private val doubleInstance: FromJson[Double] = _.dbl
+  // packed Jarr.D without materializing a Jnum.D per element.  Quoted non-finite names
+  // ("NaN", "-Infinity", ...) decode too -- the protobuf-JSON convention -- but only those:
+  // ordinary numbers in strings stay errors.  And null reads as NaN, because JS's
+  // JSON.stringify writes null for every non-finite: a bare Double swallows it, while
+  // Option[Double] still sees None (it tests for null before delegating here).
+  private val doubleInstance: FromJson[Double] = {
+    case s: Jstr =>
+      val d = Jnum.nonFiniteNamed(s.text)
+      if d == 0.0 then Alt(Json.expectErr("a number", s)) else Is(d)
+    case Jnull => Is(Double.NaN)
+    case j => j.dbl
+  }
   given FromJson[Double] = doubleInstance
+  given FromJson[Float] = j => doubleInstance.from(j).map(_.toFloat)
 
   given FromJson[Int] = {
     case n: Jnum.L =>
@@ -365,11 +387,12 @@ object FromJson {
       var badly = false
       var k = 0
       while !badly && k < o.n do
-        fj.from(o.vs(k)) match
-          case Alt(e) =>
-            bad = e.explainBy(s"in value for key \"${o.ks(k)}\":")
-            badly = true
-          case x => b.addOne(o.ks(k) -> (Is unwrap x.asInstanceOf[Is[A]])) __ Unit
+        if o.ks(k) ne null then   // null = removed-entry hole
+          fj.from(o.vs(k)) match
+            case Alt(e) =>
+              bad = e.explainBy(s"in value for key \"${o.ks(k)}\":")
+              badly = true
+            case x => b.addOne(o.ks(k) -> (Is unwrap x.asInstanceOf[Is[A]])) __ Unit
         k += 1
       if badly then Alt(bad) else Is(b.result())
     case x => Alt(Json.expectErr("an object", x))
@@ -417,8 +440,9 @@ object FromJson {
           // JSON written from a case class nearly always carries the fields in declaration
           // order, so check full positional agreement once and skip the per-field lookups.
           // Safe even under last-wins duplicate keys: labels are distinct, so all-match at
-          // equal size leaves no room for a duplicate.
-          var pos = o.n == n
+          // equal size leaves no room for a duplicate.  Removed-entry holes break the
+          // position-equals-ordinal premise, so they take the lookup path.
+          var pos = o.gaps == 0 && o.n == n
           var k = 0
           while pos && k < n do
             pos = o.ks(k) == labels(k)

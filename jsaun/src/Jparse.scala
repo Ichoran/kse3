@@ -39,6 +39,7 @@ sealed abstract class Jparse protected () {
   protected var exactNum = false
   protected var asM = false
   protected var fmtMode = false
+  protected var packMode: Jarr.Pack = Jarr.Pack.Standard
   protected var src: Jsrc = null   // set exactly when fmtMode
   protected var eErr: Err = Err("(no error)")   // meaningful only after a worker answers null/false
   protected var nL = 0L            // the number numWork just read, unboxed: tag 1 fills nL,
@@ -47,11 +48,17 @@ sealed abstract class Jparse protected () {
 
   // === Workers, instantiated per concrete source type from the inline templates below ===
 
+  /** Choose how numeric arrays may pack (see `Jarr.Pack`); answers this parser. */
+  private[jsaun] def packing(pk: Jarr.Pack): this.type =
+    packMode = pk
+    this
+
   protected def wsWork(): Int
   protected def litWork(lit: String): Boolean
   protected def strWork(): String | Null
   protected def strEscWork(j0: Long, jN: Long): String | Null
   protected def numWork(): Int
+  protected def nonfinWork(): Int
   protected def skipWork(): Boolean
 
   // === Cold access to raw content, for error reporting only ===
@@ -142,10 +149,15 @@ sealed abstract class Jparse protected () {
         case 1 => new Jnum.L(nL)
         case 2 => new Jnum.D(nD)
         case 3 => new Jnum.Big(nBig)
-        case _ => null
+        case _ => if c == '-' && nonfinWork() == 2 then new Jnum.D(nD) else null   // -Infinity etc.
     else if c == 't' then { if litWork("true") then Jbool.True else null }
     else if c == 'f' then { if litWork("false") then Jbool.False else null }
-    else if c == 'n' then { if litWork("null") then Jnull else null }
+    else if c == 'n' then
+      if litWork("null") then Jnull
+      else if nonfinWork() == 2 then new Jnum.D(nD)   // nan; litWork left the cursor alone
+      else null
+    else if c == 'N' || c == 'I' || c == 'i' || c == '+' then
+      if nonfinWork() == 2 then new Jnum.D(nD) else fail("a JSON value", i)
     else fail("a JSON value", i)
 
   protected final def parseArr(): Json | Null =
@@ -166,7 +178,12 @@ sealed abstract class Jparse protected () {
     var vs = new Array[Json](8)
     var sp: Array[Long] = if fmtMode then new Array[Long](8) else null
     var n = 0
-    var allD = true
+    var strange = false   // some element no packed Double could stand for in any mode
+    var hasFin = false    // a plain finite number (Jnum.D)
+    var bareNF = false    // a bare non-finite token: a number, but not how we write arrays
+    var nul = false       // JSON null (JS writes null for non-finite)
+    var qex = false       // strings spelled exactly "NaN"/"Infinity"/"-Infinity": our array format
+    var qlen = false      // strings only the lenient non-finite reading recognizes
     while true do
       val v0 = i
       val v = parseValue(c)
@@ -176,7 +193,15 @@ sealed abstract class Jparse protected () {
         if sp ne null then sp = java.util.Arrays.copyOf(sp, sp.length * 2)
       vs(n) = v
       if sp ne null then sp(n) = Jfmt.span(v0.toInt, i.toInt)
-      if allD && !v.isInstanceOf[Jnum.D] then allD = false
+      v match
+        case dv: Jnum.D =>
+          if dv.value == dv.value && !dv.value.isInfinite then hasFin = true else bareNF = true
+        case Jnull => nul = true
+        case s: Jstr =>
+          if s.text == "NaN" || s.text == "Infinity" || s.text == "-Infinity" then qex = true
+          else if Jnum.nonFiniteNamed(s.text) != 0.0 then qlen = true
+          else strange = true
+        case _ => strange = true
       n += 1
       c = wsWork()
       if c == ',' then
@@ -187,14 +212,23 @@ sealed abstract class Jparse protected () {
         depth -= 1
         val node: Jarr =
           if asM then new Jarr.A.M(vs, n)   // editability first: no packing, keep the slack
-          else if allD then   // pack, since element access, equality, and printing all come out identical
-            val xs = new Array[Double](n)
-            var k = 0
-            while k < n do
-              xs(k) = vs(k).asInstanceOf[Jnum.D].value
-              k += 1
-            new Jarr.D(xs, n)
-          else new Jarr.A(if n == vs.length then vs else java.util.Arrays.copyOf(vs, n), n)
+          else
+            // Pack to unboxed Doubles per the mode's contract (see Jarr.Pack)
+            val pack = !strange && (packMode match
+              case Jarr.Pack.Faithful   => hasFin && !bareNF && !nul && !qex && !qlen
+              case Jarr.Pack.Standard   => !bareNF && !nul && !qlen
+              case Jarr.Pack.IfPossible => true)
+            if pack then
+              val xs = new Array[Double](n)
+              var k = 0
+              while k < n do
+                xs(k) = vs(k) match
+                  case dv: Jnum.D => dv.value
+                  case s: Jstr => Jnum.nonFiniteNamed(s.text)
+                  case _ => Double.NaN   // Jnull
+                k += 1
+              new Jarr.D(xs, n)
+            else new Jarr.A(if n == vs.length then vs else java.util.Arrays.copyOf(vs, n), n)
         if sp ne null then node.fmt = new Jfmt(src, Jfmt.span(p0.toInt, i.toInt), sp)
         return node
       else return fail("',' or ']' in array", i)
@@ -293,10 +327,16 @@ sealed abstract class Jparse protected () {
       numWork() match
         case 1 => vis.num(nL); true
         case 2 => vis.num(nD); true
-        case _ => false   // tag 3 needs exact mode, which visiting never sets
+        case _ =>   // tag 3 needs exact mode, which visiting never sets
+          if c == '-' && nonfinWork() == 2 then { vis.num(nD); true } else false
     else if c == 't' then { if litWork("true") then { vis.bool(true); true } else false }
     else if c == 'f' then { if litWork("false") then { vis.bool(false); true } else false }
-    else if c == 'n' then { if litWork("null") then { vis.nul(); true } else false }
+    else if c == 'n' then
+      if litWork("null") then { vis.nul(); true }
+      else if nonfinWork() == 2 then { vis.num(nD); true }
+      else false
+    else if c == 'N' || c == 'I' || c == 'i' || c == '+' then
+      if nonfinWork() == 2 then { vis.num(nD); true } else { fail("a JSON value", i); false }
     else { fail("a JSON value", i); false }
 
   private def visitObj(vis: Jvisitor): Boolean =
@@ -392,16 +432,23 @@ sealed abstract class Jparse protected () {
       numWork() match
         case 1 => accept(vis.num(b, nL), v0)
         case 2 => accept(vis.num(b, nD), v0)
-        case _ => false   // tag 3 needs exact mode, which building never sets
+        case _ =>   // tag 3 needs exact mode, which building never sets
+          if c == '-' && nonfinWork() == 2 then accept(vis.num(b, nD), v0) else false
     else if c == 't' then { if litWork("true") then accept(vis.bool(b, true), v0) else false }
     else if c == 'f' then { if litWork("false") then accept(vis.bool(b, false), v0) else false }
-    else if c == 'n' then { if litWork("null") then accept(vis.nul(b), v0) else false }
+    else if c == 'n' then
+      if litWork("null") then accept(vis.nul(b), v0)
+      else if nonfinWork() == 2 then accept(vis.num(b, nD), v0)
+      else false
+    else if c == 'N' || c == 'I' || c == 'i' || c == '+' then
+      if nonfinWork() == 2 then accept(vis.num(b, nD), v0) else { fail("a JSON value", i); false }
     else { fail("a JSON value", i); false }
 
   /** Handle one value per the builder's expectation: skip it, visit it, or insist on a form
     * and deliver it through the matching leaf callback (`Jexpect.L` takes whole numbers in
-    * Long range exactly as `Json.long` does; `Jexpect.D` widens integers).  A mismatch fails
-    * the walk here, positioned; the caller wraps in whose-key context on the way out.
+    * Long range exactly as `Json.long` does; `Jexpect.D` widens integers, and reads null as
+    * NaN -- JS emitters write null for non-finite).  A mismatch fails the walk here,
+    * positioned; the caller wraps in whose-key context on the way out.
     */
   private def buildWith[B](c: Int, want: Jexpect, vis: Jbuilder[B, ?], b: B): Boolean =
     val v0 = i
@@ -424,7 +471,18 @@ sealed abstract class Jparse protected () {
           numWork() match
             case 1 => accept(vis.num(b, nL.toDouble), v0)
             case 2 => accept(vis.num(b, nD), v0)
-            case _ => false
+            case _ => if c == '-' && nonfinWork() == 2 then accept(vis.num(b, nD), v0) else false
+        else if (c == 'N' || c == 'I' || c == 'i' || c == 'n' || c == '+') && nonfinWork() == 2 then
+          accept(vis.num(b, nD), v0)
+        else if c == 'n' && litWork("null") then
+          accept(vis.num(b, Double.NaN), v0)   // a double was demanded: null is a JS-emitted non-finite
+        else if c == '"' then
+          val s = strWork()   // protobuf-style emitters quote non-finite names; nothing else hides in strings
+          if s eq null then false
+          else
+            val d = Jnum.nonFiniteNamed(s)
+            if d == 0.0 then { failMsg(s"expected a number, found the string \"$s\"", v0); false }
+            else accept(vis.num(b, d), v0)
         else { fail("a number", i); false }
       case Jexpect.Str =>
         if c == '"' then
@@ -523,6 +581,35 @@ sealed abstract class Jparse protected () {
     if ok then i += n
     else fail("'" + lit + "'", i) __ Unit
     ok
+
+  /** Match a non-finite number token at the cursor: an optional sign, then case-insensitive
+    * `nan`, `inf`, or `infinity`, not running into further letters.  Fills `nD` and answers
+    * 2 (`numWork`'s Double tag) with the cursor advanced, or answers 0 with the cursor
+    * unmoved and no error recorded, so callers can fall back to their usual failure.  Not
+    * RFC 8259, but the de-facto interchange family (Java's `Double.toString`, Python's json,
+    * JSON5): we print `NaN` / `Infinity` / `-Infinity` and read the wider set, so any
+    * reasonable non-finite input round-trips.
+    */
+  protected inline def nonfinImpl(inline at: Long => Int): Int =
+    def lc(p: Long): Int = if p < iZ then at(p) | 0x20 else -1   // ASCII case fold; end markers stay < 0
+    var j = i
+    val c0 = if j < iZ then at(j) else -1
+    if c0 == '-' || c0 == '+' then j += 1
+    var r = 0
+    if lc(j) == 'n' then
+      if lc(j + 1) == 'a' && lc(j + 2) == 'n' && !(lc(j + 3) >= 'a' && lc(j + 3) <= 'z') then
+        nD = Double.NaN   // sign dropped: NaN flavors are not preserved
+        i = j + 3
+        r = 2
+    else if lc(j) == 'i' then
+      if lc(j + 1) == 'n' && lc(j + 2) == 'f' then
+        var e = j + 3
+        if lc(e) == 'i' && lc(e + 1) == 'n' && lc(e + 2) == 'i' && lc(e + 3) == 't' && lc(e + 4) == 'y' then e += 5
+        if !(lc(e) >= 'a' && lc(e) <= 'z') then   // partial words like Infinite are wholly rejected
+          nD = if c0 == '-' then Double.NegativeInfinity else Double.PositiveInfinity
+          i = e
+          r = 2
+    r
 
   /** Read the string whose opening quote is at the cursor.  The body is scanned for the
     * closing quote first: clean spans become one `sub` call, and only escaped ones pay for
@@ -800,6 +887,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => content.charAt(j.toInt), _ => ())
     protected def litWork(lit: String): Boolean = litImpl(j => content.charAt(j.toInt))(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => content.charAt(j.toInt))
     protected def strWork(): String | Null = strImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content.charAt(j.toInt), (a, b) => content.substring(a.toInt, b.toInt))(j0, jN)
@@ -823,6 +911,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => content(j.toInt), _ => ())
     protected def litWork(lit: String): Boolean = litImpl(j => content(j.toInt))(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => content(j.toInt))
     protected def strWork(): String | Null = strImpl(j => content(j.toInt), (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j.toInt), (a, b) => substr(a, b))(j0, jN)
@@ -850,6 +939,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => content(j.toInt) & 0xFF, _ => ())
     protected def litWork(lit: String): Boolean = litImpl(j => content(j.toInt) & 0xFF)(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => content(j.toInt) & 0xFF)
     protected def strWork(): String | Null = strImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j.toInt) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
@@ -877,6 +967,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => content(j) & 0xFF, _ => ())
     protected def litWork(lit: String): Boolean = litImpl(j => content(j) & 0xFF)(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => content(j) & 0xFF)
     protected def strWork(): String | Null = strImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j) & 0xFF, (a, b) => utf8(a, b))(j0, jN)
@@ -903,6 +994,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => content(j).toInt, _ => ())
     protected def litWork(lit: String): Boolean = litImpl(j => content(j).toInt)(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => content(j).toInt)
     protected def strWork(): String | Null = strImpl(j => content(j).toInt, (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => content(j).toInt, (a, b) => substr(a, b))(j0, jN)
@@ -1027,6 +1119,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => atc(j), j => i = j)
     protected def litWork(lit: String): Boolean = litImpl(j => atc(j))(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => atc(j))
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => utf8(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => utf8(a, b))(j0, jN)
@@ -1164,6 +1257,7 @@ object Jparse {
 
     protected def wsWork(): Int = wsImpl(j => atc(j), j => i = j)
     protected def litWork(lit: String): Boolean = litImpl(j => atc(j))(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => atc(j))
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => substr(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => substr(a, b))(j0, jN)
@@ -1290,6 +1384,7 @@ object Jparse {
       c
 
     protected def litWork(lit: String): Boolean = litImpl(j => atc(j))(lit)
+    protected def nonfinWork(): Int = nonfinImpl(j => atc(j))
     protected def strWork(): String | Null = strImpl(j => atc(j), (a, b) => subc(a, b))
     protected def strEscWork(j0: Long, jN: Long): String | Null =
       strEscImpl(j => atc(j), (a, b) => subc(a, b))(j0, jN)
