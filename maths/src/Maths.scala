@@ -2451,6 +2451,14 @@ object Vc {
     inline def X(f: Float, g: Float): Double = v.x*g - v.y*f
     inline def X(u: kse.maths.Vc): Double = v.x*u.y - v.y*u.x
 
+    inline def T: kse.maths.Vct = Vct.wrap(v)
+    @targetName("outer_Vct")
+    def *(ut: kse.maths.Vct): kse.maths.Mat22F =
+      Mat22F.wrap(Array(v.x*ut.x, v.y*ut.x, v.x*ut.y, v.y*ut.y))
+    @targetName("outer_Vec3Ft")
+    def *(ut: kse.maths.Vec3Ft): kse.maths.Mat23F =
+      Mat23F.wrap(Array(v.x*ut.x, v.y*ut.x, v.x*ut.y, v.y*ut.y, v.x*ut.z, v.y*ut.z))
+
     def proj(f: Float, g: Float): kse.maths.Vc =
       val a = v.x
       val b = v.y
@@ -2562,6 +2570,12 @@ extension (value: Float) {
   // +(Vc) in OverloadedExtensions
   // -(Vc) in OverloadedExtensions
   // *(Vc) in OverloadedExtensions
+}
+extension (value: Double) {
+  inline def ~>(y: Double): kse.maths.Vec2D = Vec2D(value, y)
+}
+extension (v: kse.maths.Vc) {
+  inline def ~>(z: Float): kse.maths.Vec3F = Vec3F(v.x, v.y, z)
 }
 
 

@@ -253,22 +253,25 @@ extension (value: Float) {
   //////////////////////////////////////////////////////  types but also an overload shared with Double (or anything??)
 
   @targetName("Float_add_Vc_PM_Bf16")
-  transparent inline def +(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  transparent inline def +(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
     case bf: kse.maths.Bf16 => value + bf.toFloat
     case v: kse.maths.Vc => Vc(value + v.x, value + v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value + pm.value)
+    case w: kse.maths.Vec3F => kse.maths.Vec3F(value + w.x, value + w.y, value + w.z)
 
   @targetName("Float_sub_Vc_PM_Bf16")
-  transparent inline def -(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  transparent inline def -(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
     case bf: kse.maths.Bf16 => value - bf.toFloat
     case v: kse.maths.Vc => Vc(value - v.x, value - v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value - pm.value)
+    case w: kse.maths.Vec3F => kse.maths.Vec3F(value - w.x, value - w.y, value - w.z)
 
   @targetName("Float_mul_Vc_PM_Bf16")
-  transparent inline def *(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus) = inline that match
+  transparent inline def *(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
     case bf: kse.maths.Bf16 => value * bf.toFloat
     case v: kse.maths.Vc => Vc(value * v.x, value * v.y)
     case pm: kse.maths.PlusMinus => PlusMinus(value * pm.value, value * pm.error)
+    case w: kse.maths.Vec3F => kse.maths.Vec3F(value * w.x, value * w.y, value * w.z)
 
   @targetName("Float_div_PlusMinus_Bf16")
   transparent inline def /(inline that: kse.maths.Bf16 | kse.maths.PlusMinus) = inline that match
@@ -355,6 +358,29 @@ extension (value: Double) {
     val v = pm.value.toDouble
     val r = 1.0/v
     PlusMinus.D(value*r, pm.error.toDouble*value*r*r)
+
+
+  //////////////////////////////////////////////////////
+  // Double _ Vec2D and Vec3D Operators (Vec.scala)   //
+  //////////////////////////////////////////////////////
+
+  @targetName("Double_add_Vec2D")
+  inline def +(v: kse.maths.Vec2D): kse.maths.Vec2D = kse.maths.Vec2D(value + v.x, value + v.y)
+
+  @targetName("Double_add_Vec3D")
+  inline def +(v: kse.maths.Vec3D): kse.maths.Vec3D = kse.maths.Vec3D(value + v.x, value + v.y, value + v.z)
+
+  @targetName("Double_sub_Vec2D")
+  inline def -(v: kse.maths.Vec2D): kse.maths.Vec2D = kse.maths.Vec2D(value - v.x, value - v.y)
+
+  @targetName("Double_sub_Vec3D")
+  inline def -(v: kse.maths.Vec3D): kse.maths.Vec3D = kse.maths.Vec3D(value - v.x, value - v.y, value - v.z)
+
+  @targetName("Double_mul_Vec2D")
+  inline def *(v: kse.maths.Vec2D): kse.maths.Vec2D = kse.maths.Vec2D(value * v.x, value * v.y)
+
+  @targetName("Double_mul_Vec3D")
+  inline def *(v: kse.maths.Vec3D): kse.maths.Vec3D = kse.maths.Vec3D(value * v.x, value * v.y, value * v.z)
 }
 
 

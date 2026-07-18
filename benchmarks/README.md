@@ -448,3 +448,38 @@ measures free (0.038 with the check vs 0.037–0.038 without).  Same-run numbers
   a decoded String per key per record, where jsoniter matches field names byte-wise in place.
   An allocation-free key-matching variant (trie/intern handshake with the walker) is the next
   lever if typed-decode speed ever matters enough.
+
+## benchmarks/geom — little matrices/vectors vs ojAlgo
+
+`GeomBench` pits the kse.maths fixed-size geometry types (`Mat22D`/`Mat33D`/`Vec3D`/`Xform3D`,
+opaque over raw arrays) against **ojAlgo** on the tiny operations they're designed for.  ojAlgo
+appears at two levels: `MatrixR064` is its user-facing immutable API (allocates a result per op,
+same contract as kse), and `R064Store` with preallocated targets is its best case (zero
+allocation, mutable — not how casual code is written).  All operands hold identical values.
+ojAlgo is a general-purpose library, so this measures small-size overhead, not BLAS-scale skill:
+the goal was "not embarrassing," not victory.
+
+### Findings (2026-07-19, JDK 25, i9-14900HX, `taskset -c 4`, `-f 2 -wi 5 -i 5 -r 1 -w 1`, ojAlgo 57.0.0)
+
+| op (ns/op, avgt) | kse | ojAlgo `MatrixR064` | ojAlgo `R064Store` prealloc |
+|---|---|---|---|
+| 2x2 * 2x2        | **4.37** | 15.71 | 4.35 |
+| 3x3 * 3x3        | 8.65 | 18.55 | **7.65** |
+| 2x3 * 3x2        | **4.73** | 16.07 | — |
+| AᵀA (3x3 gram)   | **8.48** | 26.75 | — |
+| 3x3 * vec3       | **3.83** | 16.94 | 7.09 |
+| vec3 dot         | **0.78** | — | 1.70 |
+| det 3x3          | **1.25** | 2.79 | — |
+| inv 3x3          | **7.83** | 21.15 | — |
+| Xform3D point    | **3.92** | — | — |
+
+- **Like-for-like (immutable API vs immutable API): kse is 2.2–4.4x faster everywhere.**
+- Against ojAlgo's zero-allocation store path, kse still wins matrix-vector (1.9x), dot (2.2x),
+  and ties 2x2 multiply *while allocating a fresh result each call*.  The one loss is 3x3
+  multiply (8.65 vs 7.65 ns), which is roughly the cost of allocating the 72-byte result —
+  an API-contract difference, not arithmetic.
+- The relabeling transpose earns its keep: `a.T * a` costs the same as `a * b` for kse (8.48 vs
+  8.65 ns), while ojAlgo's `transpose().multiply` pays for a transposed copy (26.7 ns, its most
+  lopsided line at 3.2x).
+- `det` is ojAlgo's best showing (2.79 ns, they special-case tiny determinants) but the
+  cofactor expansion still runs 2.2x faster.

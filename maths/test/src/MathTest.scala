@@ -43,6 +43,7 @@ class MathTest {
 
   val packedTester   = new PackedTest()
   val temporalTester = new TemporalTest()
+  val geomTester     = new GeomTest()
 
 
   def nlen(s: String) = if s eq null then -1 else s.length
@@ -4545,6 +4546,18 @@ class MathTest {
 
   @Test
   def packedPrimitiveTest(): Unit = packedTester.packedPrimitiveTest()
+
+  @Test
+  def geomTestVectors(): Unit = geomTester.testVectors()
+
+  @Test
+  def geomTestMatD(): Unit = geomTester.testMatD()
+
+  @Test
+  def geomTestMatF(): Unit = geomTester.testMatF()
+
+  @Test
+  def geomTestXforms(): Unit = geomTester.testXforms()
 
   @Test
   def temporalTestCreation(): Unit = temporalTester.testCreation()
