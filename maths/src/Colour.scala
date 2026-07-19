@@ -244,6 +244,11 @@ object Argb {
 opaque type Ergb = Long
 object Ergb {
   inline def wrap(l: Long): Ergb = l
+
+  /** Packs red, green, blue, each as a 21-bit float on the display scale: 1.0 is full SDR
+    * brightness (quantizing to 255); larger values are overbright, redistributed by the
+    * `HaloModel` on conversion to `Rgb`.
+    */
   inline def apply(r: Float, g: Float, b: Float): Ergb = Colour.pack_floats(r, g, b)
 
   extension (color: Ergb) {
@@ -296,6 +301,12 @@ object Ergb {
 opaque type Ehsv = Long
 object Ehsv {
   inline def wrap(l: Long): Ehsv = l
+
+  /** Packs hue, saturation, and value, each as a 21-bit float.  Hue is a turn fraction —
+    * red at 0, green at 1/3, blue at 2/3 — and any value is accepted, wrapping mod 1 on
+    * conversion.  Saturation is nominally in [0, 1].  Value is nonnegative, with 1.0 full
+    * SDR brightness (quantizing to 255) and larger values overbright.
+    */
   inline def apply(h: Float, s: Float, v: Float): Ehsv = Colour.pack_floats(h, s, v)
 
   /** Hexcone HSV from red, green, blue.  Hue is a turn fraction in [0, 1): red at 0,
@@ -319,21 +330,30 @@ object Ehsv {
   /** Hexcone HSV of an 8-bit colour, computed on its stored (gamma-encoded) channels. */
   def from(rgb: Rgb): Ehsv = from(Rgb.rF(rgb), Rgb.gF(rgb), Rgb.bF(rgb))
 
+  /** Hexcone HSV of an extended RGB colour, preserving overbright values. */
   def from(ergb: Ergb): Ehsv = Colour.packed_float_fn(ergb)((r, g, b) => from(r, g, b))
 
   extension (color: Ehsv) {
     inline def unwrap: Long = color
 
+    /** Hue as a turn fraction, as stored (not wrapped into [0, 1)); NaN if invalid. */
     def h: Float =
       val x: Long = color
       if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 42).toInt)
+
+    /** Saturation, nominally in [0, 1]; NaN if invalid. */
     def s: Float =
       val x: Long = color
       if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)
+
+    /** Value, with 1.0 full SDR brightness and larger values overbright; NaN if invalid. */
     def v: Float =
       val x: Long = color
       if x < 0 then Float.NaN else Colour.bits_to_float((x & 0x1FFFFF).toInt)
 
+    /** Hexcone reconstruction: passes red, green, blue to `rgbf`, hue wrapped mod 1 and
+      * channels on the value scale so overbright passes through; all NaN if invalid.
+      */
     inline def rgbFn[A](inline rgbf: (Float, Float, Float) => A): A =
       val x: Long = color
       var r, g, b = Float.NaN
@@ -362,6 +382,7 @@ object Ehsv {
       Ehsv.rgbFn(color)((r, g, b) =>
         halo.quantize(Colour.float_to_u8plus(r), Colour.float_to_u8plus(g), Colour.float_to_u8plus(b)))
 
+    /** The same colour as extended RGB, without quantization. */
     def ergb: Ergb = Ehsv.rgbFn(color)((r, g, b) => Ergb(r, g, b))
 
     def pr: String =

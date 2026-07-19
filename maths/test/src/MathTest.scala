@@ -4669,6 +4669,8 @@ class MathTest {
     for r <- qs; g <- qs; b <- qs do
       val c = Rgb.wrap((r << 16) | (g << 8) | b)
       T ~ Ehsv.from(c).rgb ==== c
+      T ~ Ehsv.from(c).ergb.rgb ==== c
+      T ~ Ehsv.from(Ehsv.from(c).ergb).rgb ==== c
 }
 object MathsTest {
   // @BeforeClass
