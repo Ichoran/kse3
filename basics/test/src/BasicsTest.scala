@@ -855,6 +855,12 @@ class BasicsTest() {
   @Test def memWhereIsTest: Unit = memTester.memWhereIsTest()
 
   @Test def memConstructTest: Unit = memTester.memConstructTest()
+
+  @Test def memAsInlinedDataTest: Unit = memTester.memAsInlinedDataTest()
+
+  @Test def memAsClippedTest: Unit = memTester.memAsClippedTest()
+
+  @Test def memAoSTest: Unit = memTester.memAoSTest()
 }
 object BasicsTest {
   // @BeforeClass

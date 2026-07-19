@@ -2563,6 +2563,8 @@ object Vc {
         sb += fmt.format(v.y)
         sb += ']'
   }
+
+  given Translucent[Vc, Long] with {}
 }
 extension (value: Float) {
   inline def ~>(y: Float): kse.maths.Vc = Vc(value, y)
