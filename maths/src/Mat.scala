@@ -230,6 +230,10 @@ object Vct {
       Vec3Ft.wrap(Vec3F(vt.x*p(0) + vt.y*p(1), vt.x*p(2) + vt.y*p(3), vt.x*p(4) + vt.y*p(5)))
     def *(v: kse.maths.Vc): Double = vt.x*v.x + vt.y*v.y
   }
+
+  given Sayable[Vct] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Vec3Ft = Vec3F
@@ -259,6 +263,10 @@ object Vec3Ft {
       ))
     def *(v: Vec3F): Double = vt.x*v.x + vt.y*v.y + vt.z*v.z
   }
+
+  given Sayable[Vec3Ft] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Vec2Dt = Vec2D
@@ -283,6 +291,10 @@ object Vec2Dt {
       Vec3Dt.wrap(Vec3D(vt.x*p(0) + vt.y*p(1), vt.x*p(2) + vt.y*p(3), vt.x*p(4) + vt.y*p(5)))
     def *(v: Vec2D): Double = vt.x*v.x + vt.y*v.y
   }
+
+  given Sayable[Vec2Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Vec3Dt = Vec3D
@@ -312,6 +324,10 @@ object Vec3Dt {
       ))
     def *(v: Vec3D): Double = vt.x*v.x + vt.y*v.y + vt.z*v.z
   }
+
+  given Sayable[Vec3Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 
@@ -366,6 +382,8 @@ object Mat22F {
       val p = m.unwrap
       prFmt(2, 2)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Mat22F] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat22Ft = Array[Float]
@@ -387,6 +405,10 @@ object Mat22Ft {
       val p = m.unwrap
       Vc.F(p(0)*v.x + p(1)*v.y, p(2)*v.x + p(3)*v.y)
   }
+
+  given Sayable[Mat22Ft] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat23F = Array[Float]
@@ -427,6 +449,8 @@ object Mat23F {
       val p = m.unwrap
       prFmt(2, 3)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Mat23F] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat23Ft = Array[Float]
@@ -448,6 +472,10 @@ object Mat23Ft {
       val p = m.unwrap
       Vc.F(p(0)*v.x + p(1)*v.y + p(2)*v.z, p(3)*v.x + p(4)*v.y + p(5)*v.z)
   }
+
+  given Sayable[Mat23Ft] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat32F = Array[Float]
@@ -488,6 +516,8 @@ object Mat32F {
       val p = m.unwrap
       prFmt(3, 2)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Mat32F] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat32Ft = Array[Float]
@@ -509,6 +539,10 @@ object Mat32Ft {
       val p = m.unwrap
       Vec3F(p(0)*v.x + p(1)*v.y, p(2)*v.x + p(3)*v.y, p(4)*v.x + p(5)*v.y)
   }
+
+  given Sayable[Mat32Ft] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat33F = Array[Float]
@@ -562,6 +596,8 @@ object Mat33F {
       val p = m.unwrap
       prFmt(3, 3)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Mat33F] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat33Ft = Array[Float]
@@ -587,6 +623,10 @@ object Mat33Ft {
         p(6)*v.x + p(7)*v.y + p(8)*v.z
       )
   }
+
+  given Sayable[Mat33Ft] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 
@@ -640,6 +680,8 @@ object Mat22D {
       val p = m.unwrap
       prFmt(2, 2)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Mat22D] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat22Dt = Array[Double]
@@ -661,6 +703,10 @@ object Mat22Dt {
       val p = m.unwrap
       Vec2D(p(0)*v.x + p(1)*v.y, p(2)*v.x + p(3)*v.y)
   }
+
+  given Sayable[Mat22Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat23D = Array[Double]
@@ -699,6 +745,8 @@ object Mat23D {
       val p = m.unwrap
       prFmt(2, 3)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Mat23D] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat23Dt = Array[Double]
@@ -720,6 +768,10 @@ object Mat23Dt {
       val p = m.unwrap
       Vec2D(p(0)*v.x + p(1)*v.y + p(2)*v.z, p(3)*v.x + p(4)*v.y + p(5)*v.z)
   }
+
+  given Sayable[Mat23Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat32D = Array[Double]
@@ -758,6 +810,8 @@ object Mat32D {
       val p = m.unwrap
       prFmt(3, 2)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Mat32D] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat32Dt = Array[Double]
@@ -779,6 +833,10 @@ object Mat32Dt {
       val p = m.unwrap
       Vec3D(p(0)*v.x + p(1)*v.y, p(2)*v.x + p(3)*v.y, p(4)*v.x + p(5)*v.y)
   }
+
+  given Sayable[Mat32Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 opaque type Mat33D = Array[Double]
@@ -830,6 +888,8 @@ object Mat33D {
       val p = m.unwrap
       prFmt(3, 3)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Mat33D] = (x, m, _) => m += x.pr
 }
 
 opaque type Mat33Dt = Array[Double]
@@ -855,6 +915,10 @@ object Mat33Dt {
         p(6)*v.x + p(7)*v.y + p(8)*v.z
       )
   }
+
+  given Sayable[Mat33Dt] = (x, m, _) =>
+    m += x.T.pr
+    m += 'ᵀ'
 }
 
 
@@ -924,6 +988,8 @@ object Xform2D {
       val p = x.unwrap
       prFmt(2, 3)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Xform2D] = (x, m, _) => m += x.pr
 }
 
 opaque type Xform2F = Array[Float]
@@ -988,6 +1054,8 @@ object Xform2F {
       val p = x.unwrap
       prFmt(2, 3)((r, c) => fmt.format(p(r + 2*c)))
   }
+
+  given Sayable[Xform2F] = (x, m, _) => m += x.pr
 }
 
 opaque type Xform3D = Array[Double]
@@ -1064,6 +1132,8 @@ object Xform3D {
       val p = x.unwrap
       prFmt(3, 4)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Xform3D] = (x, m, _) => m += x.pr
 }
 
 opaque type Xform3F = Array[Float]
@@ -1145,4 +1215,6 @@ object Xform3F {
       val p = x.unwrap
       prFmt(3, 4)((r, c) => fmt.format(p(r + 3*c)))
   }
+
+  given Sayable[Xform3F] = (x, m, _) => m += x.pr
 }

@@ -528,3 +528,44 @@ for n <- 3 to 22 do
   mkFnTup(n)
 
 */
+
+
+def sayOneExpr(a: Expr[Any], m: Expr[kse.basics.MkStr], st: Expr[kse.basics.Say.Style])(using qt: Quotes): Expr[Unit] =
+  import qt.reflect.*
+  a.asTerm.tpe.widen.asType match
+    case '[t] =>
+      Expr.summon[kse.basics.Sayable[t]] match
+        case Some(sy) => '{ $sy.say(${ a.asExprOf[t] }, $m, $st) }
+        case None     => report.errorAndAbort("No Sayable instance available for " + Type.show[t], a)
+
+def sayInterpolationExpr(sc: Expr[StringContext], args: Expr[Seq[Any]])(using qt: Quotes): Expr[String] =
+  import qt.reflect.*
+  val parts: Seq[String] = deinliner(sc) match
+    case '{ StringContext(${Varargs(ps)}*) } => ps.map(_.valueOrAbort)
+    case _ => report.errorAndAbort("say interpolation requires literal string parts")
+  val escaped =
+    try parts.map(StringContext.processEscapes)
+    catch case e: StringContext.InvalidEscapeException => report.errorAndAbort(e.getMessage)
+  val as: Seq[Expr[Any]] = deinliner(args).asExprOf[Seq[Any]] match
+    case Varargs(es) => es
+    case _ => report.errorAndAbort("say interpolation requires an inline argument list")
+  if escaped.length != as.length + 1 then report.errorAndAbort("say interpolation part/argument mismatch")
+  if as.isEmpty then Expr(escaped.head)
+  else
+    val st = Expr.summon[kse.basics.Say.Style] match
+      case Some(e) => e
+      case None    => report.errorAndAbort("No given kse.basics.Say.Style available (Say.Style.default should be in implicit scope)")
+    val cap = escaped.foldLeft(16 * as.length)(_ + _.length)
+    '{
+      val m = kse.basics.MkStr.ofSize(${ Expr(cap) })
+      ${
+        val stmts = List.newBuilder[Expr[Any]]
+        if escaped.head.nonEmpty then stmts += '{ m += ${ Expr(escaped.head) } }
+        var i = 0
+        while i < as.length do
+          stmts += sayOneExpr(as(i), 'm, st)
+          if escaped(i+1).nonEmpty then stmts += '{ m += ${ Expr(escaped(i+1)) } }
+          i += 1
+        Expr.block(stmts.result(), '{ m.str() })
+      }
+    }

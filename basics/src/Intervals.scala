@@ -488,4 +488,6 @@ object Iv extends Translucent.Companion[Iv, Long] {
   type X = Iv | R
 
   type Y = Iv | R2
+
+  given Sayable[Iv] = (x, m, _) => m += x.pr
 }

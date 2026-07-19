@@ -1687,6 +1687,8 @@ object UByte {
     def compare(i: kse.maths.UByte, j: kse.maths.UByte): Int = java.lang.Integer.compare(i.signed & 0xFF, j.signed & 0xFF)
 
   given Translucent[UByte, Byte] with {}
+
+  given Sayable[UByte] = (x, m, _) => m += x.pr
 }
 
 
@@ -1828,6 +1830,8 @@ object UShort {
     def compare(i: kse.maths.UShort, j: kse.maths.UShort): Int = java.lang.Integer.compare(i.signed & 0xFFFF, j.signed & 0xFFFF)
 
   given Translucent[UShort, Short] with {}
+
+  given Sayable[UShort] = (x, m, _) => m += x.pr
 }
 
 
@@ -1984,6 +1988,8 @@ object UInt {
     def compare(i: kse.maths.UInt, j: kse.maths.UInt): Int = java.lang.Integer.compareUnsigned(i.signed, j.signed)
 
   given Translucent[UInt, Int] with {}
+
+  given Sayable[UInt] = (x, m, _) => m += x.pr
 }
 
 
@@ -2172,6 +2178,8 @@ object ULong {
     def compare(i: kse.maths.ULong, j: kse.maths.ULong): Int = java.lang.Long.compareUnsigned(i.signed, j.signed)
   
   given Translucent[ULong, Long] with {}
+
+  given Sayable[ULong] = (x, m, _) => m += x.pr
 }
 
 
@@ -2334,6 +2342,8 @@ object Bf16 {
       else java.lang.Float.compare(toFloat(f), toFloat(g))
 
   given Translucent[Bf16, Char] with {}
+
+  given Sayable[Bf16] = (x, m, _) => m += x.pr
 }
 
 
@@ -2565,6 +2575,8 @@ object Vc {
   }
 
   given Translucent[Vc, Long] with {}
+
+  given Sayable[Vc] = (x, m, _) => m += x.pr
 }
 extension (value: Float) {
   inline def ~>(y: Float): kse.maths.Vc = Vc(value, y)
@@ -2703,6 +2715,8 @@ object PlusMinus {
         sb += " +- "
         sb += fmt.format(pm.error)
   }
+
+  given Sayable[PlusMinus] = (x, m, _) => m += x.pr
 }
 extension (value: Float | Double) {
   inline def +-(inline error: Float | Double): kse.maths.PlusMinus = inline value match
@@ -3102,6 +3116,8 @@ object Frac {
       val vq = value / d
       val vr = value - vq*d
       (vq *! n) +! ((vr * n)/d)
+
+  given Sayable[Frac] = (x, m, _) => m += x.pr
 
   given Ordering[kse.maths.Frac] = new {
     def compare(f: kse.maths.Frac, g: kse.maths.Frac) =

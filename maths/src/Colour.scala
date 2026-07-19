@@ -10,7 +10,7 @@ import java.lang.{Math => jm}
 
 import scala.annotation.targetName
 
-import kse.basics.Translucent
+import kse.basics.{Translucent, Sayable}
 
 import kse.maths._
 
@@ -146,6 +146,8 @@ object Rgb {
   }
 
   given Translucent[Rgb, Int] {}
+
+  given Sayable[Rgb] = (x, m, _) => m += x.pr
 }
 
 
@@ -221,6 +223,8 @@ object Argb {
   }
 
   given Translucent[Argb, Int] with {}
+
+  given Sayable[Argb] = (x, m, _) => m += x.pr
 }
 
 
@@ -232,6 +236,11 @@ object Ergb {
     def rgb(using halo: HaloModel): Rgb = ???
      // if ((color: Long) & F80003C0001E0000L) == 0 then
      //   val scaled = ((color: Long) >> 8) - (((color: Long) & 0x))
+
+
+    def pr: String =
+      Colour.packed_float_fn(color): (r, g, b) =>
+        f"Ergb[$r%.3f $g%.3f $b%.3f]"
   }
 
   trait HaloModel {
@@ -258,12 +267,24 @@ object Ergb {
   }
 
   given Translucent[Ergb, Long] with {}
+
+  given Sayable[Ergb] = (x, m, _) => m += x.pr
 }
 
 
 opaque type Ehsv = Long
 object Ehsv {
+  inline def wrap(l: Long): Ehsv = l
+
+  extension (color: Ehsv) {
+    def pr: String =
+      Colour.packed_float_fn(color): (h, s, v) =>
+        f"Ehsv[$h%.3f $s%.3f $v%.3f]"
+  }
+
   given Translucent[Ehsv, Long] with {}
+
+  given Sayable[Ehsv] = (x, m, _) => m += x.pr
 }
 
 opaque type Oklab = Long
@@ -387,6 +408,8 @@ object Oklab {
       Colour.packed_float_fn(color): (l, a, b) =>
         f"Oklab[$l%.3f $a%.3f $b%.3f]"
   }
+
+  given Sayable[Oklab] = (x, m, _) => m += x.pr
 }
 
 extension (f: Float)

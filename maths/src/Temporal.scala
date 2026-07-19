@@ -13,7 +13,7 @@ import java.nio.file.attribute.FileTime
 
 import scala.annotation.targetName
 
-import kse.basics.Translucent
+import kse.basics.{Translucent, Sayable}
 
 import kse.maths._
 
@@ -379,6 +379,8 @@ object NanoDuration {
   }
 
   given Translucent[NanoDuration, Long] with {}
+
+  given Sayable[NanoDuration] = (x, m, _) => m += x.pr
 }
 
 
@@ -742,6 +744,8 @@ object DoubleDuration {
   }
 
   given Translucent[DoubleDuration, Double] with {}
+
+  given Sayable[DoubleDuration] = (x, m, _) => m += x.pr
 }
 
 
@@ -1545,6 +1549,8 @@ object NanoInstant {
   }
 
   given Translucent[NanoInstant, Long] with {}
+
+  given Sayable[NanoInstant] = (x, m, _) => m += x.pr
 }
 
 
@@ -1789,6 +1795,8 @@ object DoubleInstant {
   }
 
   given Translucent[DoubleInstant, Double] with {}
+
+  given Sayable[DoubleInstant] = (x, m, _) => m += x.pr
 }
 
 

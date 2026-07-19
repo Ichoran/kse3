@@ -861,6 +861,61 @@ class BasicsTest() {
   @Test def memAsClippedTest: Unit = memTester.memAsClippedTest()
 
   @Test def memAoSTest: Unit = memTester.memAoSTest()
+
+  @Test
+  def sayInterpolationTest(): Unit =
+    T ~ say"" ==== ""
+    T ~ say"salmon" ==== "salmon"
+    T ~ say"a\tb\n" ==== "a\tb\n"
+    T ~ say"${1} + ${2} = ${1 + 2}" ==== "1 + 2 = 3"
+    T ~ say"${'c'}${"od"}" ==== "cod"
+    T ~ say"${true} ${2.toByte} ${3.toShort} ${4L}" ==== "true 2 3 4"
+    T ~ say"${1.5}" ==== "1.5"
+    T ~ say"${1e100}" ==== "1.0e100"
+    T ~ say"${3e8f}" ==== "3.0e8"
+    T ~ say"${Double.NaN}" ==== "NaN"
+    T ~ say"${null}" ==== "null"
+
+    T ~ say"${Array(1, 2, 3)}" ==== "[1, 2, 3]"
+    T ~ say"${Array(1.0, 2e-9)}" ==== "[1.0, 2.0e-9]"
+    T ~ say"${Array(1f, 2f)}" ==== "[1.0, 2.0]"
+    T ~ say"${Array(true, false)}" ==== "[true, false]"
+    T ~ say"${Array(1.toByte)} ${Array(2.toShort)} ${Array(3L)}" ==== "[1] [2] [3]"
+    T ~ say"${Array('c', 'o', 'd')}" ==== "[c, o, d]"
+    T ~ say"${Array("eel", "cod")}" ==== "[eel, cod]"
+    T ~ say"${Array(Array(1, 2), Array(3))}" ==== "[[1, 2], [3]]"
+
+    T ~ say"${CodePoint(0x1F41F)}" ==== "🐟"
+    T ~ s"${CodePoint(0x1F41F)}"   ==== "128031"
+
+    T ~ say"${Iv(2, 7)}" ==== "2..7"
+
+    T ~ say"${List(1, 2)}" ==== "List(1, 2)"
+
+    class Fish(val name: String) {}
+    given Sayable[Fish] = (f, m, _) => m += f.name.toUpperCase
+    val bass = new Fish("bass")
+    T ~ say"$bass" ==== "BASS"
+    T ~ bass.say() ==== "BASS"
+
+    val m = MkStr.empty()
+    7.sayInto(m)
+    ' '.sayInto(m)
+    bass.sayInto(m)
+    T ~ m.str() ==== "7 BASS"
+
+    locally {
+      given Say.Style = new Say.Style() {
+        override def sep = "; "
+        override def open = "{"
+        override def close = "}"
+      }
+      T ~ say"${Array(1, 2, 3)}" ==== "{1; 2; 3}"
+      T ~ Array(4.0, 5e5).say() ==== "{4.0; 500000.0}"
+      T ~ say"$bass" ==== "BASS"
+    }
+
+    T ~ cc("""{ val x = StringContext("a", "b"); x.say(1) }""") ==== false
 }
 object BasicsTest {
   // @BeforeClass

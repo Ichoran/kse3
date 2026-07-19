@@ -513,64 +513,192 @@ object MkStr {
 }
 
 
-trait Say[A] {
-  def apply(a: A)(using fmt: Say.Format): String
-  def into(a: A)(stb: StB)(using fmt: Say.Format): Say.Anchor
-}
+//////////////////////////////////////////////////
+/// Sayable typeclass and the say interpolator ///
+//////////////////////////////////////////////////
+
+
+/** Namespace for customization of `Sayable` rendering. */
 object Say {
-  opaque type Anchor = Int
-  object Anchor {
-    inline def wrap(i: Int): Anchor = i
-    extension (a: Anchor)
-      inline def unwrap: Int = a
-  }
+  /** Customization hooks consulted by `Sayable` instances.
+    *
+    * The `say` interpolator (and `.say()` extension) summon the `Style` in scope at each
+    * use site and hand it to every instance, so output can be customized locally by
+    * providing a given that overrides whichever hooks are relevant.  More hooks are
+    * expected to appear here as needed; instances unaware of a hook simply ignore it.
+    */
+  class Style() {
+    /** Separator between successive elements of an array or collection. */
+    def sep: String = ", "
 
-  class Format(final val columns: Int = Int.MaxValue, final val rows: Int = 1, final val digits: Float = Float.NaN) {}
-  object Format {
-    given default: Format = new Format()
-  }
+    /** Text that opens an array or collection. */
+    def open: String = "["
 
-  trait Plainly[A] extends Say[A] {
-    final def into(a: A)(stb: StB)(using fmt: Say.Format): Say.Anchor =
-      stb append apply(a)(using fmt)
-      Anchor.wrap(Int.MaxValue)
+    /** Text that closes an array or collection. */
+    def close: String = "]"
   }
-  trait Into[A] extends Say[A] {
-    final def apply(a: A)(using fmt: Say.Format): String =
-      val stb = new StB()
-      into(a)(stb)(using fmt) __ Unit
-      stb.toString
+  object Style {
+    given default: Style = new Style()
   }
-
-  trait Me {
-    def into(stb: StB): Unit
-  }
-
-  given Say[AnyRef] = new Plainly[AnyRef]:
-    def apply(a: AnyRef)(using fmt: Format): String = a.toString
 }
 
 
-given instantiateSayMe[A](using fmt: Say.Format, aSay: Say[A]) : Conversion[A, Say.Me] with
-  def apply(a: A): Say.Me = new:
-    def into(stb: StB): Unit = aSay.into(a)(stb)(using fmt) __ Unit
+/** Typeclass to render a value of type `A` into a `MkStr`; powers the `say` interpolator.
+  *
+  * Unlike `toString`-based interpolation, the instance is chosen at compile time from the
+  * static type of each argument, so arrays and opaque types can print sensibly.  The
+  * `Say.Style` in scope at the use site is passed to every instance as a customization hook.
+  */
+trait Sayable[A] {
+  def say(a: A, m: MkStr, style: Say.Style): Unit
+}
+
+trait SayableLowPriority {
+  /** Anything without a more specific instance renders as `String.valueOf` would. */
+  given sayAnything: [A] => Sayable[A] = (a, m, _) => m += String.valueOf(a.asInstanceOf[AnyRef])
+}
+
+trait SayableGenericPriority extends SayableLowPriority {
+  /** Arrays render element by element from the element's instance, e.g. `[1, 2, 3]`. */
+  given sayArray: [A] => (sy: Sayable[A]) => Sayable[Array[A]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      sy.say(xs(i), m, st)
+      i += 1
+    m += st.close
+}
+
+object Sayable extends SayableGenericPriority {
+  // JDK floating-point text uses 'E'; house style is lowercase, so fix up appended text
+  private def lowerE(sb: StB, n0: Int): Unit =
+    var i = sb.length - 1
+    while i > n0 && sb.charAt(i) != 'E' do i -= 1
+    if i > n0 then sb.setCharAt(i, 'e')
+
+  given sayBoolean: Sayable[Boolean] = (b, m, _) => m += b
+  given sayByte:    Sayable[Byte]    = (b, m, _) => m += b.toInt
+  given sayShort:   Sayable[Short]   = (s, m, _) => m += s.toInt
+  given sayChar:    Sayable[Char]    = (c, m, _) => m += c
+  given sayInt:     Sayable[Int]     = (i, m, _) => m += i
+  given sayLong:    Sayable[Long]    = (l, m, _) => m += l
+  given sayString:  Sayable[String]  = (s, m, _) => m += s
+
+  // NOT `m += c`: within this file CodePoint is transparently Int, so the Addable
+  // inline match would take the Int branch and print digits instead of the character
+  given sayCodePoint: Sayable[CodePoint] = (c, m, _) => m.unwrap.appendCodePoint(c.value): Unit
+
+  given sayFloat: Sayable[Float] = (f, m, _) =>
+    val sb = m.unwrap
+    val n = sb.length
+    sb.append(f): Unit
+    lowerE(sb, n)
+
+  given sayDouble: Sayable[Double] = (d, m, _) =>
+    val sb = m.unwrap
+    val n = sb.length
+    sb.append(d): Unit
+    lowerE(sb, n)
+
+  given sayArrayBoolean: Sayable[Array[Boolean]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i)
+      i += 1
+    m += st.close
+
+  given sayArrayByte: Sayable[Array[Byte]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i).toInt
+      i += 1
+    m += st.close
+
+  given sayArrayShort: Sayable[Array[Short]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i).toInt
+      i += 1
+    m += st.close
+
+  given sayArrayChar: Sayable[Array[Char]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i)
+      i += 1
+    m += st.close
+
+  given sayArrayInt: Sayable[Array[Int]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i)
+      i += 1
+    m += st.close
+
+  given sayArrayLong: Sayable[Array[Long]] = (xs, m, st) =>
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      m += xs(i)
+      i += 1
+    m += st.close
+
+  given sayArrayFloat: Sayable[Array[Float]] = (xs, m, st) =>
+    val sb = m.unwrap
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      val n = sb.length
+      sb.append(xs(i)): Unit
+      lowerE(sb, n)
+      i += 1
+    m += st.close
+
+  given sayArrayDouble: Sayable[Array[Double]] = (xs, m, st) =>
+    val sb = m.unwrap
+    m += st.open
+    var i = 0
+    while i < xs.length do
+      if i > 0 then m += st.sep
+      val n = sb.length
+      sb.append(xs(i)): Unit
+      lowerE(sb, n)
+      i += 1
+    m += st.close
+}
 
 
 extension [A](a: A)
-  inline def say()(using fmt: Say.Format, aSay: Say[A]): String = aSay(a)(using fmt)
-  inline def sayInto(stb: StB)(using fmt: Say.Format, aSay: Say[A]): Say.Anchor = aSay.into(a)(stb)(using fmt)
+  /** Renders this value to a `String` via its `Sayable` instance and the ambient `Say.Style`. */
+  inline def say()(using sy: Sayable[A], st: Say.Style): String =
+    MkStr: m =>
+      sy.say(a, m, st)
 
-extension (stb: StB)
-  inline infix def hear[A](a: A)(using fmt: Say.Format, aSay: Say[A]): Say.Anchor =
-    aSay.into(a)(stb)(using fmt)
+  /** Appends this value to a `MkStr` via its `Sayable` instance and the ambient `Say.Style`. */
+  inline def sayInto(m: MkStr)(using sy: Sayable[A], st: Say.Style): Unit =
+    sy.say(a, m, st)
 
-extension (sc: StringContext)
-  inline def say(inline sms: Say.Me*): String =
-    val stb = new StB()
-    var i = 0
-    while i < sms.length do
-      stb append sc.parts(i)
-      sms(i).into(stb)
-      i += 1
-    if i < sc.parts.length then stb append sc.parts(i) __ Unit
-    stb.toString
+
+extension (inline sc: StringContext)
+  /** Say-interpolator: like `s"..."`, but each argument is rendered by the `Sayable`
+    * instance for its static type into a single `MkStr`, so arrays and opaque types
+    * print sensibly.  Customize output by providing a `Say.Style` given at the use site.
+    *
+    * The result is assembled by straight-line code generated at compile time: no varargs
+    * `Seq`, no wrapper objects, and typeclass instances are resolved statically.
+    */
+  inline def say(inline args: Any*): String =
+    ${ basicsMacroImpl.sayInterpolationExpr('sc, 'args) }

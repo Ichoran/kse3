@@ -4594,6 +4594,43 @@ class MathTest {
 
   @Test
   def tempralTestCal(): Unit = temporalTester.testCal()
+
+  @Test
+  def sayableTest(): Unit =
+    import kse.maths.colours.{Rgb, Oklab, Ergb, Ehsv, Colour}
+    val vc = Vc(1.5f, 2.5f)
+    val pm = 1.5f +- 0.1f
+    val fr = 3 over 4
+    val ub = UByte(200)
+    val ui = UInt(-1)
+    val bf = Bf16(1.5f)
+    val nd = NanoDuration(123456789L)
+    val di = DoubleInstant(1.5e9)
+    val rgb = Rgb(255, 0, 100)
+    val lab = Oklab(0.5f, 0.1f, -0.1f)
+    val m22 = Mat22D(1.0, 2.0)(3.0, 4.0)
+    T ~ say"$vc"  ==== vc.pr
+    T ~ say"$pm"  ==== pm.pr
+    T ~ say"$fr"  ==== fr.pr
+    T ~ say"$ub"  ==== ub.pr
+    T ~ say"$ui"  ==== ui.pr
+    T ~ say"$bf"  ==== bf.pr
+    T ~ say"$nd"  ==== nd.pr
+    T ~ say"$di"  ==== di.pr
+    T ~ say"$rgb" ==== rgb.pr
+    T ~ say"$lab" ==== lab.pr
+    T ~ say"$m22" ==== m22.pr
+    T ~ say"v = $vc / $fr!" ==== s"v = ${vc.pr} / ${fr.pr}!"
+    T ~ vc.say() ==== vc.pr
+
+    val er = Ergb.wrap(Colour.pack_floats(0.25f, 0.5f, 1f))
+    val eh = Ehsv.wrap(Colour.pack_floats(0.125f, 1f, 0.75f))
+    T ~ say"$er" ==== "Ergb[0.250 0.500 1.000]"
+    T ~ say"$eh" ==== "Ehsv[0.125 1.000 0.750]"
+
+    T ~ say"${m22.T}" ==== m22.pr + "ᵀ"
+    T ~ say"${Vct.wrap(vc)}" ==== vc.pr + "ᵀ"
+    T ~ say"${Vec2Dt.wrap(Vec2D(1.5, 2.5))}" ==== Vec2D(1.5, 2.5).pr + "ᵀ"
 }
 object MathsTest {
   // @BeforeClass
