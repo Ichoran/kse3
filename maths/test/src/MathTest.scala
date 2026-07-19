@@ -4641,6 +4641,34 @@ class MathTest {
     T ~ Ergb(-1f, 0.5f, 0.25f).rgb ==== Rgb(0, 128, 64)
     T ~ Ergb.wrap(-1L).rgb ==== Rgb(0, 0, 0)
     T ~ Rgb(64, 128, 255).f21.rgb ==== Rgb(64, 128, 255)
+
+  @Test
+  def ehsvTest(): Unit =
+    import kse.maths.colours.{Rgb, Ergb, Ehsv}
+    T ~ say"${Ehsv.from(Rgb(255, 0, 0))}" ==== "Ehsv[0.000 1.000 1.000]"
+    T ~ say"${Ehsv.from(Rgb(0, 255, 0))}" ==== "Ehsv[0.333 1.000 1.000]"
+    T ~ say"${Ehsv.from(Rgb(0, 0, 255))}" ==== "Ehsv[0.667 1.000 1.000]"
+    T ~ say"${Ehsv.from(Rgb(128, 128, 128))}" ==== "Ehsv[0.000 0.000 0.502]"
+
+    T ~ Ehsv(0.5f, 0.25f, 2f).h ==== 0.5f
+    T ~ Ehsv(0.5f, 0.25f, 2f).s ==== 0.25f
+    T ~ Ehsv(0.5f, 0.25f, 2f).v ==== 2f
+
+    T ~ Ehsv(0f, 1f, 1f).rgb ==== Rgb(255, 0, 0)
+    T ~ Ehsv(1f/3, 1f, 1f).rgb ==== Rgb(0, 255, 0)
+    T ~ Ehsv(0.5f, 1f, 1f).rgb ==== Rgb(0, 255, 255)
+    T ~ Ehsv(1.5f, 1f, 1f).rgb ==== Ehsv(0.5f, 1f, 1f).rgb
+    T ~ Ehsv(-0.5f, 1f, 1f).rgb ==== Ehsv(0.5f, 1f, 1f).rgb
+    T ~ Ehsv(0f, 1f, 2f).rgb ==== Rgb(255, 1, 0)
+    T ~ Ehsv.wrap(-1L).rgb ==== Rgb(0, 0, 0)
+
+    T ~ Ehsv(0f, 1f, 1f).ergb.rgb ==== Rgb(255, 0, 0)
+    T ~ say"${Ehsv.from(Ergb(0.5f, 0.5f, 0.5f))}" ==== "Ehsv[0.000 0.000 0.500]"
+
+    val qs = Array(0, 17, 64, 128, 200, 255)
+    for r <- qs; g <- qs; b <- qs do
+      val c = Rgb.wrap((r << 16) | (g << 8) | b)
+      T ~ Ehsv.from(c).rgb ==== c
 }
 object MathsTest {
   // @BeforeClass

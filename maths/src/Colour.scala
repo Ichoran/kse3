@@ -296,8 +296,74 @@ object Ergb {
 opaque type Ehsv = Long
 object Ehsv {
   inline def wrap(l: Long): Ehsv = l
+  inline def apply(h: Float, s: Float, v: Float): Ehsv = Colour.pack_floats(h, s, v)
+
+  /** Hexcone HSV from red, green, blue.  Hue is a turn fraction in [0, 1): red at 0,
+    * green at 1/3, blue at 2/3; grey (and black) take hue 0.  Value is the max channel,
+    * so overbright inputs give v > 1 rather than clamping.
+    */
+  def from(r: Float, g: Float, b: Float): Ehsv =
+    val max = if r >= g then (if r >= b then r else b) else (if g >= b then g else b)
+    val min = if r <= g then (if r <= b then r else b) else (if g <= b then g else b)
+    val c = max - min
+    val h =
+      if !(c > 0) then 0f
+      else if max == r then
+        val t = (g - b) / (6 * c)
+        if t < 0 then t + 1f else t
+      else if max == g then (b - r) / (6 * c) + 1f/3
+      else                  (r - g) / (6 * c) + 2f/3
+    val s = if max > 0 then c / max else 0f
+    Colour.pack_floats(h, s, max)
+
+  /** Hexcone HSV of an 8-bit colour, computed on its stored (gamma-encoded) channels. */
+  def from(rgb: Rgb): Ehsv = from(Rgb.rF(rgb), Rgb.gF(rgb), Rgb.bF(rgb))
+
+  def from(ergb: Ergb): Ehsv = Colour.packed_float_fn(ergb)((r, g, b) => from(r, g, b))
 
   extension (color: Ehsv) {
+    inline def unwrap: Long = color
+
+    def h: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 42).toInt)
+    def s: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)
+    def v: Float =
+      val x: Long = color
+      if x < 0 then Float.NaN else Colour.bits_to_float((x & 0x1FFFFF).toInt)
+
+    inline def rgbFn[A](inline rgbf: (Float, Float, Float) => A): A =
+      val x: Long = color
+      var r, g, b = Float.NaN
+      if x >= 0 then
+        val H = Colour.bits_to_float((x >>> 42).toInt)
+        val S = Colour.bits_to_float((x >>> 21).toInt & 0x1FFFFF)
+        val V = Colour.bits_to_float((x & 0x1FFFFF).toInt)
+        var t = (H % 1f) * 6
+        if t < 0 then t += 6
+        val i = t.toInt
+        val f = t - i
+        val p = V * (1 - S)
+        val q = V * (1 - S * f)
+        val u = V * (1 - S * (1 - f))
+        i match
+          case 0 => r = V; g = u; b = p
+          case 1 => r = q; g = V; b = p
+          case 2 => r = p; g = V; b = u
+          case 3 => r = p; g = q; b = V
+          case 4 => r = u; g = p; b = V
+          case _ => r = V; g = p; b = q
+      rgbf(r, g, b)
+
+    /** Quantizes to 8-bit `Rgb` via the ambient `HaloModel`, like `Ergb.rgb`. */
+    def rgb(using halo: Ergb.HaloModel): Rgb =
+      Ehsv.rgbFn(color)((r, g, b) =>
+        halo.quantize(Colour.float_to_u8plus(r), Colour.float_to_u8plus(g), Colour.float_to_u8plus(b)))
+
+    def ergb: Ergb = Ehsv.rgbFn(color)((r, g, b) => Ergb(r, g, b))
+
     def pr: String =
       Colour.packed_float_fn(color): (h, s, v) =>
         f"Ehsv[$h%.3f $s%.3f $v%.3f]"
