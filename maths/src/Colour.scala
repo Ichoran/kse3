@@ -25,7 +25,20 @@ object Colour {
   def u8_to_packed(u8: Int): Int =
     (526345 * (u8 & 0xFF)) >>> 11
 
-  def packed_to_u(packed: Int): Int = ???
+  /** Converts one 21-bit packed channel to the u8plus integer scale (255 = 1.0), rounding
+    * half-up with exact integer math; negatives give 0, and the infinity encoding gives
+    * the same 8355713 cap as `float_to_u8plus`.
+    */
+  def packed_to_u(packed: Int): Int =
+    if (packed & 0x100000) != 0 then 0
+    else
+      val m = packed & 0xFFFF
+      val e = (packed & 0xF0000) >>> 16
+      if e == 0 then (m * 255 + 0x8000) >>> 16
+      else if e == 15 && m == 0xFFFF then 8355713
+      else
+        val s = 17 - e
+        ((0x10000 | m) * 255 + (1 << (s-1))) >>> s
 
   def bits_to_float(packed: Int): Float =
     val m = packed & 0xFFFF
@@ -231,12 +244,20 @@ object Argb {
 opaque type Ergb = Long
 object Ergb {
   inline def wrap(l: Long): Ergb = l
+  inline def apply(r: Float, g: Float, b: Float): Ergb = Colour.pack_floats(r, g, b)
 
   extension (color: Ergb) {
-    def rgb(using halo: HaloModel): Rgb = ???
-     // if ((color: Long) & F80003C0001E0000L) == 0 then
-     //   val scaled = ((color: Long) >> 8) - (((color: Long) & 0x))
-
+    /** Quantizes to 8-bit `Rgb` via the ambient `HaloModel`: 1.0 maps to 255, overbright
+      * channels bleed into their neighbors per the model, negative channels clamp to
+      * zero, and the NaN sentinel gives black.
+      */
+    def rgb(using halo: HaloModel): Rgb =
+      if (color: Long) < 0 then Rgb.wrap(0)
+      else halo.quantize(
+        Colour.packed_to_u((((color: Long) >>> 42)           ).toInt),
+        Colour.packed_to_u((((color: Long) >>> 21) & 0x1FFFFF).toInt),
+        Colour.packed_to_u((( color: Long)         & 0x1FFFFF).toInt)
+      )
 
     def pr: String =
       Colour.packed_float_fn(color): (r, g, b) =>
@@ -247,7 +268,7 @@ object Ergb {
     def quantize(red: Int, green: Int, blue: Int): Rgb
   }
   object HaloModel {
-    val default: HaloModel = new:
+    given default: HaloModel = new:
       def quantize(red: Int, green: Int, blue: Int): Rgb =
         var r = if red   < 0 then 0 else if red   > 0xFFFF then 0xFFFF else red
         var g = if green < 0 then 0 else if green > 0xFFFF then 0xFFFF else green

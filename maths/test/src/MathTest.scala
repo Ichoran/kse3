@@ -4631,6 +4631,16 @@ class MathTest {
     T ~ say"${m22.T}" ==== m22.pr + "ᵀ"
     T ~ say"${Vct.wrap(vc)}" ==== vc.pr + "ᵀ"
     T ~ say"${Vec2Dt.wrap(Vec2D(1.5, 2.5))}" ==== Vec2D(1.5, 2.5).pr + "ᵀ"
+
+  @Test
+  def ergbTest(): Unit =
+    import kse.maths.colours.{Rgb, Ergb}
+    T ~ Ergb(0.25f, 0.5f, 1f).rgb ==== Rgb(64, 128, 255)
+    T ~ Ergb(0f, 2f, 0f).rgb ==== Rgb(1, 255, 1)
+    T ~ Ergb(300f, 300f, 300f).rgb ==== Rgb(255, 255, 255)
+    T ~ Ergb(-1f, 0.5f, 0.25f).rgb ==== Rgb(0, 128, 64)
+    T ~ Ergb.wrap(-1L).rgb ==== Rgb(0, 0, 0)
+    T ~ Rgb(64, 128, 255).f21.rgb ==== Rgb(64, 128, 255)
 }
 object MathsTest {
   // @BeforeClass
