@@ -3,6 +3,7 @@
 
 package kse.loom
 
+import java.lang.{Math => jm}
 import java.util.concurrent.{ConcurrentLinkedQueue, LinkedTransferQueue, Semaphore}
 import java.util.concurrent.locks.ReentrantLock
 
@@ -633,7 +634,7 @@ object Percolate {
     def draw(atMost: Int = Int.MaxValue): Drawn[W] = synchronized:
       if items contains (lastIndex + 1) then
         val b = Array.newBuilder[W]
-        var n = math.max(1, atMost)
+        var n = jm.max(1, atMost)
         while n > 0 && items.remove(lastIndex + 1).map(b += _).isDefined do { lastIndex += 1; n -= 1 }
         val ws = b.result()
         stored.zap(_ - ws.length)
@@ -660,7 +661,7 @@ object Percolate {
         val buf = baskets.getOrElseUpdate(b, new ArrayBuffer[A])
         buf += a
         stored.++
-        if buf.length >= math.max(1, needed(b)) then
+        if buf.length >= jm.max(1, needed(b)) then
           baskets -= b
           ready.enqueue(b -> buf.toArray)
         Is.unit
@@ -672,7 +673,7 @@ object Percolate {
 
     def draw(atMost: Int = Int.MaxValue): Drawn[(B, Array[A])] = synchronized:
       if ready.nonEmpty then
-        val k = math.max(1, atMost) min ready.length
+        val k = jm.max(1, atMost) min ready.length
         val out = new Array[(B, Array[A])](k)
         var i = 0
         while i < k do
@@ -703,7 +704,7 @@ object Percolate {
         val (z0, c0) = acc.getOrElse(b, (fresh(), 0))
         val z1 = fold(z0, a)
         val c1 = c0 + 1
-        if c1 >= math.max(1, needed(b)) then { acc -= b; ready.enqueue(z1); stored.++ }
+        if c1 >= jm.max(1, needed(b)) then { acc -= b; ready.enqueue(z1); stored.++ }
         else acc(b) = (z1, c1)
         Is.unit
 
@@ -711,7 +712,7 @@ object Percolate {
 
     def draw(atMost: Int = Int.MaxValue): Drawn[Z] = synchronized:
       if ready.nonEmpty then
-        val k = math.max(1, atMost) min ready.length
+        val k = jm.max(1, atMost) min ready.length
         val out = new Array[Z](k)
         var i = 0
         while i < k do { out(i) = ready.dequeue(); i += 1 }

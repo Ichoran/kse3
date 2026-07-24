@@ -241,7 +241,7 @@ object Line2D {
   final case class Immutable(cx: Double, cy: Double, ux: Double, uy: Double) extends Line2D {
     val c = Vc.D(cx, cy)
     val u = Vc.D(ux, uy)
-    def theta = math.atan2(uy, ux)
+    def theta = jm.atan2(uy, ux)
 
     def centered =
       if cx == 0 && cy == 0 then this
@@ -409,9 +409,9 @@ object FitLine {
             ex = 1
             ey = 0
           else
-            th = 0.5 * math.atan2(2*Sxy, Sxx - Syy)
-            ex = math.cos(th)
-            ey = math.sin(th)
+            th = 0.5 * jm.atan2(2*Sxy, Sxx - Syy)
+            ex = jm.cos(th)
+            ey = jm.sin(th)
         else
           ex = Double.NaN
           ey = Double.NaN

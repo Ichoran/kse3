@@ -148,7 +148,7 @@ object Parsley {
   // `timeOff "both"`: two contemporaneous channels with regimes detected on their ratio.
   private final class PairEntry(aLabel: String, bLabel: String, cfg: SegCfg) extends Entry {
     private val mp = MultiRadwin(Array(aLabel, bLabel))(
-      "ratio", xs => xs(1) / math.max(xs(0), 1e-9),
+      "ratio", xs => xs(1) / java.lang.Math.max(xs(0), 1e-9),
       cfg.alpha, cfg.effect, cfg.cadence, cfg.capacity, cfg.minSeg
     )
     def add(a: Double, b: Double): Unit = mp.add(Array(a, b))

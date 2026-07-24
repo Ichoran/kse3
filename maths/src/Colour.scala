@@ -433,7 +433,7 @@ object Oklab {
       val l2 = Colour.bits_to_float((x2 >>> 42).toInt)
       val l = l1*w1 + l2*w2
       if l >= 0 then
-        val d = 1.0f / (if w1*w2 < 0 then math.max(w1.abs, w2.abs) else (w1 + w2).abs)
+        val d = 1.0f / (if w1*w2 < 0 then jm.max(w1.abs, w2.abs) else (w1 + w2).abs)
         val u1 = w1*d
         val u2 = w2*d
         val a1 = Colour.bits_to_float((x1 >>> 21).toInt & 0x1FFFFF)
@@ -460,8 +460,8 @@ object Oklab {
       val b2 = Colour.bits_to_float((x2 & 0x1FFFFF).toInt)
       val c1 = (a1.sq + b1.sq).sqrt.toFloat
       val c2 = (a2.sq + b2.sq).sqrt.toFloat
-      val h1 = math.atan2(b1, a1).toFloat
-      val h2 = { val v = math.atan2(b2, a2); if v < h1 then v + NumericConstants.TwoPi else v }.toFloat
+      val h1 = jm.atan2(b1, a1).toFloat
+      val h2 = { val v = jm.atan2(b2, a2); if v < h1 then v + NumericConstants.TwoPi else v }.toFloat
       Oklab.lch(l1*p + l2*q, c1*p + c2*q, h1*p + h2*q)
 
   extension (color: Oklab) {

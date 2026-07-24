@@ -259,6 +259,24 @@ extension (the_path: Path) {
       Files.write(the_path, PathsHelper.javaIterable(coll), StandardOpenOption.CREATE_NEW) __ Unit
       true
 
+  /** Writes the content only if it differs byte-for-byte from what is already there (or the
+    * file is absent); answers whether a write happened.  Unchanged files keep their times,
+    * so downstream timestamp-based rebuilds stay quiet. */
+  def update(data: Array[Byte]): Ask[Boolean] = Ask:
+    if PathsHelper.sameBytes(the_path, data) then false
+    else
+      Files.write(the_path, data) __ Unit
+      true
+
+  /** Writes the lines only if they differ from the lines already in the file (or the file
+    * is absent); answers whether a write happened.  Line separators are not compared. */
+  def updateLines(coll: scala.collection.IterableOnce[String]): Ask[Boolean] = Ask:
+    val novel = coll.iterator.toArray
+    if PathsHelper.sameLines(the_path, novel) then false
+    else
+      Files.write(the_path, PathsHelper.javaIterable(novel)) __ Unit
+      true
+
 
   def openRead(bufferSize: Int = 8192)(using Tidy.Nice[InputStream]): Ask[InputStream] = Ask:
     if !Files.exists(the_path) then Err ?# s"$the_path not found"
@@ -389,234 +407,6 @@ extension (the_path: Path) {
 }
 
 
-/*
-extension (underlying: File) {
-  def name = underlying.getName
-
-  HERE -- TODO -- HERE
-
-  def nameTo(s: String) = underlying resolveSibling s
-
-  def nameFn(f: String => String) = underlying resolveSibling f(underlying.getFileName.toString)
-
-  def ext =
-    val n = underlying.getName
-    val i = n.lastIndexOf('.')
-    if (i < 1) "" else n.substring(i+1)
-  
-  def extTo(x: String) =
-    val n = underlying.getFileName.toString
-    val i = n.lastIndexOf('.')
-    if (i < 1) {
-      if (x.isEmpty) underlying
-      else underlying resolveSibling n + "." + x
-    }
-    else {
-      if (x.isEmpty) underlying resolveSibling n.substring(0, i)
-      else underlying resolveSibling n.substring(0, i+1) + x
-    }
-  
-  def extFn(f: String => String) =
-    val n = underlying.getFileName.toString
-    val i = n.lastIndexOf('.')
-    val e = if (i < 1) "" else n.substring(i+1)
-    val x = f(e)
-    if (x == e) underlying
-    else if (i < 1) underlying resolveSibling n + "." + x
-    else if (x.isEmpty) underlying resolveSibling n.substring(0, i)
-    else underlying resolveSibling n.substring(0, i+1) + x
-  
-  def base =
-    val n = underlying.getFileName.toString
-    val i = n.lastIndexOf('.')
-    if (i < 1) n else n.substring(0, i)
-  
-  def baseTo(b: String) = 
-    val n = underlying.getFileName.toString
-    val i = n.lastIndexOf('.')
-    if (i < 1) {
-      if (n == b) underlying
-      else underlying resolveSibling b
-    }
-    else {
-      if (i == b.length && n.substring(0, i) == b) underlying
-      else underlying resolveSibling b + n.substring(i)
-    }
-  
-  def baseFn(f: String => String) =
-    val n = underlying.getFileName.toString
-    val i = n.lastIndexOf('.')
-    val b = if (i < 1) n else n.substring(0, i)
-    val x = f(b)
-    if (b == x) underlying
-    else if (i < 1) underlying resolveSibling x
-    else underlying resolveSibling x+n.substring(i)
-  
-  def parentName = underlying.getParent match { case null => ""; case p => p.getFileName.toString }
-
-  def namesIterator = Iterator.iterate(underlying)(_.getParent).takeWhile(_ != null).map(_.getFileName.toString)
-
-  def pathsIterator = Iterator.iterate(underlying)(_.getParent).takeWhile(_ != null)
-
-  def parentOption = Option(underlying.getParent)
-
-  def absolute = underlying.toAbsolutePath()
-
-  def real =
-    var abs = underlying.toAbsolutePath().normalize()
-    var tail: Path = null
-    var found = false
-    while (abs != null && !{ found = Files exists abs; found }) {
-      tail = if (tail eq null) abs.getFileName else abs.getFileName resolve tail
-      abs = abs.getParent
-    }
-    val trunk = if (found) abs.toRealPath() else abs
-    if (tail eq null) trunk else trunk resolve tail
-  
-  def file = underlying.toFile
-
-  def /(that: String) = underlying resolve that
-
-  def /(that: Path) = underlying resolve that
-
-  def `..` = underlying.getParent match { case null => underlying; case p => p }
-
-  def sib(that: String) = underlying resolveSibling that
-
-  def sib(that: Path) = underlying resolveSibling that
-
-  def reroot(oldRoot: Path, newRoot: Path): Option[Path] =
-    if (underlying startsWith oldRoot) Some(newRoot resolve oldRoot.relativize(underlying))
-    else None
-
-  def reroot(roots: (Path, Path)): Option[Path] = reroot(roots._1, roots._2)
-
-  def prune(child: Path): Option[Path] =
-    if (child startsWith underlying) Some(underlying relativize child)
-    else None
-
-  def exists = Files exists underlying
-
-  def isDirectory = Files isDirectory underlying
-
-  def isSymbolic = Files isSymbolicLink underlying
-
-  def size = Files size underlying
-
-  def safely = new PathShouldSafelyDoThis(underlying)
-
-  def t: FileTime = Files getLastModifiedTime underlying
-
-  def t_=(ft: FileTime): Unit =
-    Files.setLastModifiedTime(underlying, ft)
-  
-  def mkdir() = Files createDirectory underlying
-
-  def mkdirs() = Files createDirectories underlying
-
-  def delete() = Files delete underlying
-
-  def touch(): Unit =
-    if (Files exists underlying) Files.setLastModifiedTime(underlying, FileTime from Instant.now)
-    else Files.write(underlying, new Array[Byte](0))
-
-  def paths =
-    if (!(Files exists underlying)) PathsHelper.emptyPathArray
-    else if (!(Files isDirectory underlying)) PathsHelper.emptyPathArray
-    else safe{ 
-      val list = Files.list(underlying)
-      val ans = list.toArray(i => new Array[Path](i))
-      list.close
-      ans
-    }.yesOr(_ => PathsHelper.emptyPathArray)
-
-  def slurp: Ok[String, Array[String]] = safe {
-    val s = Files lines underlying
-    val vb = Array.newBuilder[String]
-    s.forEach(vb += _)
-    s.close
-    vb.result
-  }.mapNo(_.explain())
-
-  def gulp: Ok[String, Array[Byte]] = safe {
-    Files readAllBytes underlying
-  }.mapNo(_.explain())
-
-  /*
-  // TODO -- evaluate whether it's better to use a ZipFileSystem to do this
-  def unzipMap[A](selector: ZipEntry => Option[Array[Byte] => A]): Ok[String, List[A]] = safe{
-    (new InputStreamShouldDoThis(Files newInputStream underlying)).unzipMap(selector).mapNo(e => s"Error while unzipping $underlying\n$e")
-  }.mapNo(e => s"Could not open path $underlying\n${e.explain()}").flatten
-  */
-
-  def copyTo(to: Path): Unit =
-    Files.copy(underlying, to, StandardCopyOption.REPLACE_EXISTING)
-
-  def moveTo(to: Path): Unit =
-    Files.move(underlying, to, StandardCopyOption.REPLACE_EXISTING)
-
-  def atomicCopy(to: Path): Unit =
-    val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
-    Files.copy(underlying, temp, StandardCopyOption.REPLACE_EXISTING)
-    Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-
-  def atomicMove(to: Path): Unit =
-    val up = to.getParent
-    if (up != null) {
-      if (!Files.exists(up)) Files.createDirectories(up)
-    }
-    if (up != null && Files.getFileStore(underlying) == Files.getFileStore(up))
-      Files.move(underlying, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    else {        
-      val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-      to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
-      Files.copy(underlying, temp, StandardCopyOption.REPLACE_EXISTING)
-      Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-      Files.delete(underlying)
-    }
-
-  def atomicZipCopy(to: Path, compression: Option[Int] = None, maxDirectoryDepth: Int = 10): Unit =
-    val temp = to.resolveSibling(to.getFileName.toString + ".atomic")
-    to.getParent.tap{ gp => if (gp ne null) { if (!Files.exists(gp)) Files.createDirectories(gp) }}
-    val zos = new ZipOutputStream(new FileOutputStream(temp.toFile))
-    compression.foreach(zos.setLevel)
-    if (Files.isDirectory(underlying)) {
-      val base = underlying.getParent.fn{ fp => if (fp eq null) FileSystems.getDefault.getPath("") else fp }
-      def recurse(current: Path, maxDepth: Int): Unit = {
-        val stable = current.paths
-        val (directories, files) = stable.sortBy(_.getFileName.toString).partition(x => Files.isDirectory(x))
-        files.foreach{ fi =>
-          val rel = base relativize fi
-          val ze = new ZipEntry(rel.toString)
-          ze.setLastModifiedTime(Files.getLastModifiedTime(fi))
-          zos.putNextEntry(ze)
-          Files.copy(fi, zos)
-          zos.closeEntry
-        }
-        if (maxDepth > 1) directories.foreach(d => recurse(d, maxDepth-1))
-      }
-      recurse(underlying, maxDirectoryDepth)
-    }
-    else {
-      val ze = new ZipEntry(underlying.getFileName.toString)
-      ze.setLastModifiedTime(Files.getLastModifiedTime(underlying))
-      zos.putNextEntry(ze)
-      Files.copy(underlying, zos)
-      zos.closeEntry
-    }
-    zos.close
-    Files.move(temp, to, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-
-  def recursively = new PathsHelper.RootedRecursion(underlying, underlying)
-
-  def recurseIn(inside: Path) =
-    if (underlying startsWith inside) new PathsHelper.RootedRecursion(inside, underlying)
-    else throw new IOException(s"Trying recursive operation in $inside but started outside at $underlying")
-}
-*/
-
-
 object PathsHelper {
   val emptyPathArray = new Array[Path](0)
 
@@ -661,16 +451,96 @@ object PathsHelper {
     }
   }
 
+  private[eio] def sameBytes(p: Path, data: Array[Byte]): Boolean =
+    Files.exists(p) && java.util.Arrays.equals(Files.readAllBytes(p), data)
+
+  private[eio] def sameLines(p: Path, novel: Array[String]): Boolean =
+    Files.exists(p) && {
+      val old = Files.readAllLines(p)
+      old.size == novel.length && {
+        var i = 0
+        var same = true
+        while same && i < novel.length do
+          same = old.get(i) == novel(i)
+          i += 1
+        same
+      }
+    }
+
+  private[eio] def lineBytes(coll: scala.collection.IterableOnce[String]): Array[Byte] =
+    val sb = new java.lang.StringBuilder
+    val i = coll.iterator
+    while i.hasNext do
+      sb append i.next()
+      sb append System.lineSeparator __ Unit
+    sb.toString.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+
 
   opaque type AtomicPathOps = Path
   object AtomicPathOps {
     inline def apply(the_path: Path): kse.eio.PathsHelper.AtomicPathOps = the_path
+
+    // Content goes to a same-directory temp (so the move never crosses a mount point) and is
+    // forced to disk before an atomic rename-replace onto the target.  Where the filesystem
+    // cannot atomically replace an existing name, fall back to three renames--target aside to
+    // .atomic.old, temp into place, remove .atomic.old--accepting a brief missing-name window.
+    private def replace(target: Path, data: Array[Byte], cleanup: Boolean): Unit =
+      val name = target.getFileName.toString
+      val tempNew = target.resolveSibling(name + ".atomic.new")
+      val tempOld = target.resolveSibling(name + ".atomic.old")
+      if !cleanup && (Files.exists(tempNew) || Files.exists(tempOld)) then
+        throw new IOException(s"Atomic temp file already exists for $target")
+      target.getParent.fn{ gp => if gp ne null then { if !Files.exists(gp) then Files.createDirectories(gp) __ Unit } }
+      val fc = FileChannel.open(tempNew, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+      try
+        val bb = java.nio.ByteBuffer.wrap(data)
+        while bb.hasRemaining do fc.write(bb) __ Unit
+        fc.force(true)
+      finally fc.close()
+      try Files.move(tempNew, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) __ Unit
+      catch case e: IOException =>
+        if Files.exists(target) then
+          Files.deleteIfExists(tempOld) __ Unit
+          Files.move(target, tempOld, StandardCopyOption.ATOMIC_MOVE) __ Unit
+          Files.move(tempNew, target, StandardCopyOption.ATOMIC_MOVE) __ Unit
+          Files.deleteIfExists(tempOld) __ Unit
+        else throw e
 
     extension (the_path: AtomicPathOps)
       inline def underlying: Path = the_path
 
     extension (the_path: kse.eio.PathsHelper.AtomicPathOps) {
       def tempPath: Path = the_path.underlying.resolveSibling(the_path.underlying.getFileName.toString + ".atomic")
+
+      /** Atomically replaces this file's content: the bytes are written to a same-directory
+        * temp file, forced to disk, and atomically renamed into place, so readers see either
+        * the old content or the new, never a partial file.  A stale temp file is overwritten
+        * unless `cleanup` is false, in which case it is an error. */
+      def write(data: Array[Byte], cleanup: Boolean = true): Ask[Unit] =
+        nice{ replace(the_path.underlying, data, cleanup) }
+
+      /** Atomically replaces this file's content with the given lines; see `write`. */
+      def writeLines(coll: scala.collection.IterableOnce[String], cleanup: Boolean = true): Ask[Unit] =
+        nice{ replace(the_path.underlying, PathsHelper.lineBytes(coll), cleanup) }
+
+      /** Atomically replaces this file's content only if the bytes differ from what is
+        * already there (or the file is absent); answers whether a write happened.
+        * Unchanged files keep their times.  See `write` for atomicity and `cleanup`. */
+      def update(data: Array[Byte], cleanup: Boolean = true): Ask[Boolean] = Ask:
+        if PathsHelper.sameBytes(the_path.underlying, data) then false
+        else
+          replace(the_path.underlying, data, cleanup)
+          true
+
+      /** Atomically replaces this file's content only if the lines differ from the lines
+        * already in the file (line separators are not compared); answers whether a write
+        * happened.  See `write` for atomicity and `cleanup`. */
+      def updateLines(coll: scala.collection.IterableOnce[String], cleanup: Boolean = true): Ask[Boolean] = Ask:
+        val novel = coll.iterator.toArray
+        if PathsHelper.sameLines(the_path.underlying, novel) then false
+        else
+          replace(the_path.underlying, PathsHelper.lineBytes(novel), cleanup)
+          true
 
       def copyTo(to: Path): Unit =
         val temp = apply(to).tempPath

@@ -18,7 +18,6 @@ import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
-import sourcecode.{Line, given}
 
 
 class PackedTest() {

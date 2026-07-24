@@ -18,7 +18,6 @@ import scala.util.control.ControlThrowable
 import scala.util.boundary
 import scala.util.boundary.break
 
-import sourcecode.{Line, given}
 
 
 class TuplesTest() {

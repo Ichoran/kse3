@@ -51,9 +51,6 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
 
 object testutilities extends Base with PublishKse3 {
   override def publicationName = "kse3-testing"
-  def mvnDeps = Seq(
-    mvn"com.lihaoyi::sourcecode:0.3.1"
-  )
 }
 
 trait Common extends Base {
@@ -62,11 +59,7 @@ trait Common extends Base {
 
   object test extends ScalaTests with TestModule.Junit4 {
     override def mvnDeps = Task {
-      super.mvnDeps() ++
-      Seq(
-        mvn"com.lihaoyi::sourcecode:0.3.1"
-      ) ++
-      extraTestIvy()
+      super.mvnDeps() ++ extraTestIvy()
     }
     def moduleDeps = Seq(testutilities) ++ extraTestDeps ++ super.moduleDeps
   }
@@ -99,14 +92,6 @@ object eio extends Common with PublishKse3 {
   override def extraTestIvy = Task { Seq(
     mvn"com.github.marschall:memoryfilesystem:2.5.0"
   ) }
-}
-
-object data extends Common {
-  override def mvnDeps = Task {
-    super.mvnDeps() ++
-    Seq(mvn"org.ojalgo:ojalgo:51.4.1")
-  }
-  def moduleDeps = Seq(flow, maths, eio)
 }
 
 object jsaun extends Common with PublishKse3 {

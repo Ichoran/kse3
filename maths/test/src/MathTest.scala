@@ -18,7 +18,6 @@ import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
-import sourcecode.{Line, given}
 
 
 @RunWith(classOf[JUnit4])
@@ -4671,6 +4670,244 @@ class MathTest {
       T ~ Ehsv.from(c).rgb ==== c
       T ~ Ehsv.from(c).ergb.rgb ==== c
       T ~ Ehsv.from(Ehsv.from(c).ergb).rgb ==== c
+
+  @Test
+  def semanticOrderTest(): Unit =
+    import kse.maths.stringmaths.SemanticOrder
+
+    def cs(o: Ordering[String])(a: String, b: String): Int =
+      val x = o.compare(a, b)
+      if x < 0 then -1 else if x > 0 then 1 else 0
+
+    T ~ SemanticOrder.compare("", "")          ==== 0
+    T ~ cs(SemanticOrder)("", "a")             ==== -1
+    T ~ cs(SemanticOrder)("file2", "file10")   ==== -1
+    T ~ cs(SemanticOrder)("v0.7.3", "v0.12.1") ==== -1
+    T ~ cs(SemanticOrder)("v1.2", "v1.2.1")    ==== -1
+    T ~ cs(SemanticOrder)("7", "007")          ==== -1
+    T ~ cs(SemanticOrder)("7a", "007a")        ==== -1
+    T ~ cs(SemanticOrder)("x7y", "x007z")      ==== -1
+    T ~ cs(SemanticOrder)("x7z", "x007y")      ==== 1
+    T ~ cs(SemanticOrder)("A1", "a1")          ==== -1
+    T ~ cs(SemanticOrder)("abc", "ab~")        ==== -1
+    T ~ cs(SemanticOrder)("ab", "abc")         ==== -1
+    T ~ cs(SemanticOrder)("x2", "xb")          ==== -1
+    T ~ cs(SemanticOrder)("a-3", "a-5")        ==== -1
+    T ~ List("v0.12.1", "v0.7.3", "v0.7.10").sorted(using SemanticOrder) ==== List("v0.7.3", "v0.7.10", "v0.12.1")
+
+    T ~ cs(SemanticOrder.signed)("a-5", "a-3") ==== -1
+    T ~ cs(SemanticOrder.signed)("-5", "3")    ==== -1
+    T ~ cs(SemanticOrder.signed)("5-3", "5-4") ==== -1
+    T ~ cs(SemanticOrder.signed)("0", "-0")    ==== -1
+    T ~ cs(SemanticOrder.signed)("5", "+5")    ==== -1
+
+    T ~ cs(SemanticOrder.decimal)("1.09", "1.1")   ==== -1
+    T ~ cs(SemanticOrder)("1.1", "1.09")           ==== -1
+    T ~ cs(SemanticOrder.decimal)("1.0", "1.000")  ==== -1
+    T ~ cs(SemanticOrder.decimal)("2.50", "2.5")   ==== 1
+    T ~ cs(SemanticOrder.decimal)("x.5", "x.06")   ==== -1
+
+    T ~ cs(SemanticOrder.scientific)("500", "1e3")     ==== -1
+    T ~ cs(SemanticOrder.scientific)("3e1", "2E2")     ==== -1
+    T ~ cs(SemanticOrder.scientific)("10", "1e1")      ==== -1
+    T ~ cs(SemanticOrder.scientific)("149.9", "1.5e2") ==== -1
+    T ~ cs(SemanticOrder.scientific)("1e-2", "0.5")    ==== -1
+    T ~ cs(SemanticOrder.scientific)("3e", "22e")      ==== -1
+
+    val chain = List("1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0")
+    T ~ chain.reverse.sorted(using SemanticOrder.version) ==== chain
+    T ~ cs(SemanticOrder.version)("1.0.0-alpha", "1.0.0")   ==== -1
+    T ~ cs(SemanticOrder.version)("1.0.0-1", "1.0.0-alpha") ==== -1
+    T ~ cs(SemanticOrder.version)("1.0.0", "1.0.0+build")   ==== -1
+    T ~ cs(SemanticOrder.semVer)("1.0.0+a", "1.0.0+b")      ==== 0
+    T ~ cs(SemanticOrder.semVer)("1.0.0+x", "1.0.0")        ==== 0
+    T ~ cs(SemanticOrder.semVer)("1.0.0-a+x", "1.0.0-a")    ==== 0
+    T ~ cs(SemanticOrder.semVer)("1.0.0-a", "1.0.0+x")      ==== -1
+    T ~ cs(SemanticOrder.semVer)("1.0.0-beta.2", "1.0.0-beta.11") ==== -1
+
+    val ci = SemanticOrder(new SemanticOrder.Judge {
+      def claim(s: String, i: Int) = SemanticOrder.run(s, i)
+      def judge(a: String, ai: Iv, b: String, bi: Iv): Int =
+        import SemanticOrder.Judge.{Same, Hard, Ragged}
+        if ai.i0 == ai.iN then -Hard
+        else if bi.i0 == bi.iN then Hard
+        else
+          val la = ai.iN - ai.i0
+          val lb = bi.iN - bi.i0
+          val n = if la < lb then la else lb
+          var x = 0
+          var c = 0
+          while c == 0 && x < n do
+            c = Character.toLowerCase(a.charAt(ai.i0 + x)) - Character.toLowerCase(b.charAt(bi.i0 + x))
+            x += 1
+          if c < 0 then -Hard else if c > 0 then Hard
+          else if la == lb then Same
+          else Ragged
+    })
+    T ~ cs(ci)("Hello7World", "hello7world") ==== 0
+    T ~ cs(ci)("aB", "Ac")                   ==== -1
+
+    // Total-order contract fuzz: antisymmetry, transitivity, substitutability
+    val rng = Pcg64(918375611L)
+    val abc = "00123579..ae-+xB~E"
+    def rstr(): String =
+      val n = rng % 10
+      val sb = new java.lang.StringBuilder
+      var x = 0
+      while x < n do
+        sb append abc.charAt(rng % abc.length)
+        x += 1
+      sb.toString
+    val ords = List(SemanticOrder, SemanticOrder.signed, SemanticOrder.decimal, SemanticOrder.scientific, SemanticOrder.version, SemanticOrder.semVer)
+    var bad = ""
+    var trial = 0
+    while bad.isEmpty && trial < 2000 do
+      val a = rstr()
+      val b = rstr()
+      val c = rstr()
+      var oi = 0
+      while bad.isEmpty && oi < ords.length do
+        val o = ords(oi)
+        val ab = cs(o)(a, b)
+        val ba = cs(o)(b, a)
+        val bc = cs(o)(b, c)
+        val ac = cs(o)(a, c)
+        val ok =
+          cs(o)(a, a) == 0 && ab == -ba &&
+          (!(ab <= 0 && bc <= 0) || ac <= 0) &&
+          (ab != 0 || bc == ac)
+        if !ok then bad = s"ordering #$oi with \"$a\" \"$b\" \"$c\""
+        oi += 1
+      trial += 1
+    T ~ bad ==== ""
+    for o <- ords do
+      val sorted = Array.fill(300)(rstr()).sorted(using o)
+      var mono = true
+      var x = 1
+      while x < sorted.length do
+        if cs(o)(sorted(x - 1), sorted(x)) > 0 then mono = false
+        x += 1
+      T ~ mono ==== true
+
+  @Test
+  def spokenRomanOrderTest(): Unit =
+    import kse.maths.stringmaths.{SemanticOrder, SpokenNumber, RomanNumber}
+
+    def cs(o: Ordering[String])(a: String, b: String): Int =
+      val x = o.compare(a, b)
+      if x < 0 then -1 else if x > 0 then 1 else 0
+
+    T ~ SpokenNumber.find("three-hundred-and-five", 0)                    ==== Iv(0, 22)
+    T ~ SpokenNumber.valueOf("three-hundred-and-five", Iv(0, 22)).signed ==== 305L
+    T ~ SpokenNumber.find("draft-one", 6)                                ==== Iv(6, 9)
+    T ~ SpokenNumber.valueOf("draft-one", Iv(6, 9)).signed               ==== 1L
+    T ~ SpokenNumber.valueOf("Draft-One", SpokenNumber.find("Draft-One", 6)).signed ==== 1L
+    T ~ SpokenNumber.find("oneself", 0)                                  ==== Iv(0, 0)
+    T ~ SpokenNumber.find("twenty-one-b", 0)                             ==== Iv(0, 10)
+    T ~ SpokenNumber.find("three-and-out", 0)                            ==== Iv(0, 5)
+    T ~ SpokenNumber.valueOf("fifty-six", Iv(0, 9)).signed               ==== 56L
+    T ~ SpokenNumber.find("nineteen-quintillion", 0)                     ==== Iv(0, 8)
+    T ~ SpokenNumber.find("eighteen-quintillion", 0)                     ==== Iv(0, 20)
+    T ~ SpokenNumber.valueOf("eighteen-quintillion", Iv(0, 20)).signed   ==== -446744073709551616L  // 18e18 wrapped
+
+    T ~ SpokenNumber.text(ULong(56392L))                  ==== "fifty-six thousand three hundred and ninety-two"
+    T ~ SpokenNumber.text(ULong(305L))                    ==== "three hundred and five"
+    T ~ SpokenNumber.text(ULong(305L), bindAll = true)    ==== "three-hundred-and-five"
+    T ~ SpokenNumber.text(ULong(1005L))                   ==== "one thousand and five"
+    T ~ SpokenNumber.text(ULong(0L))                      ==== "zero"
+    T ~ SpokenNumber.text(ULong(90L))                     ==== "ninety"
+    T ~ SpokenNumber.text(ULong(2100L))                   ==== "two thousand one hundred"
+
+    val rng = Pcg64(77441122L)
+    var rt = ""
+    var n = 0
+    while rt.isEmpty && n < 1000 do
+      val v = rng.L
+      val t1 = SpokenNumber.text(ULong(v))
+      val f1 = SpokenNumber.find(t1, 0, ' ')
+      if f1 != Iv(0, t1.length) || SpokenNumber.valueOf(t1, f1, ' ').signed != v then rt = s"conventional $v -> $t1"
+      else
+        val t2 = SpokenNumber.text(ULong(v), '-', bindAll = true)
+        val f2 = SpokenNumber.find(t2, 0)
+        if f2 != Iv(0, t2.length) || SpokenNumber.valueOf(t2, f2).signed != v then rt = s"bound $v -> $t2"
+      n += 1
+    T ~ rt ==== ""
+
+    T ~ RomanNumber.find("MMXXVI", 0)                     ==== Iv(0, 6)
+    T ~ RomanNumber.valueOf("MMXXVI", Iv(0, 6)).signed    ==== 2026L
+    T ~ RomanNumber.find("mix", 0)                        ==== Iv(0, 3)
+    T ~ RomanNumber.valueOf("mix", Iv(0, 3)).signed       ==== 1009L
+    T ~ RomanNumber.find("Mix", 0)                        ==== Iv(0, 1)
+    T ~ RomanNumber.text(3999)                            ==== "MMMCMXCIX"
+    T ~ RomanNumber.text(4, lower = true)                 ==== "iv"
+    T ~ RomanNumber.text(0)                               ==== ""
+    var rr = 0
+    var k = 1
+    while rr == 0 && k < 4000 do
+      val up = RomanNumber.text(k)
+      val lo = RomanNumber.text(k, lower = true)
+      if RomanNumber.find(up, 0) != Iv(0, up.length) || RomanNumber.valueOf(up, Iv(0, up.length)).signed != k then rr = k
+      if rr == 0 && (RomanNumber.find(lo, 0) != Iv(0, lo.length) || RomanNumber.valueOf(lo, Iv(0, lo.length)).signed != k) then rr = -k
+      k += 1
+    T ~ rr ==== 0
+
+    T ~ cs(SemanticOrder.prose)("draft-2", "draft-three")   ==== -1
+    T ~ cs(SemanticOrder.prose)("draft-one", "draft-2")     ==== -1
+    T ~ cs(SemanticOrder.prose)("draft-ten", "draft-9")     ==== 1
+    T ~ cs(SemanticOrder.prose)("86,400", "3600")           ==== 1
+    T ~ cs(SemanticOrder)("86,400", "3600")                 ==== -1
+    T ~ cs(SemanticOrder.prose)("3", "three")               ==== -1
+    T ~ cs(SemanticOrder.prose)("two", "three")             ==== -1
+    T ~ cs(SemanticOrder.outline)("V.1", "IX.2")            ==== -1
+    T ~ cs(SemanticOrder)("V.1", "IX.2")                    ==== 1
+    T ~ cs(SemanticOrder.outline)("iv", "IV")               ==== 1
+    T ~ cs(SemanticOrder.of(decimals = true, commas = true))("1,234.5", "1,234.06") ==== 1
+    T ~ List("III.3.A.iv.2.b", "IV.2", "III.3.A.iv.2.a", "IX.1").sorted(using SemanticOrder.outline) ====
+        List("III.3.A.iv.2.a", "III.3.A.iv.2.b", "IV.2", "IX.1")
+
+    // Equal values order by notation, Arabic < Roman < spoken, alphabetic within one notation
+    val mixedOrd = SemanticOrder.of(spoken = true, roman = true)
+    val chain2 = List("9", "ix", "10", "x", "11", "xi", "12", "xii")
+    T ~ chain2.reverse.sorted(using mixedOrd) ==== chain2
+    T ~ List("ix", "IX", "9").sorted(using mixedOrd) ==== List("9", "IX", "ix")
+    T ~ cs(mixedOrd)("x", "ten")   ==== -1
+    T ~ cs(mixedOrd)("ten", "x")   ==== 1
+    T ~ cs(mixedOrd)("1e1", "ten") ==== -1
+
+    // Contract fuzz over word-flavored strings
+    val pool = Array("0", "1", "3", "7", "9", "07", ".", ",", "-", "e", "E", "+", "~", "x", "B", "one", "two",
+                     "twenty", "three", "hundred", "thousand", "and", "zero", "mix", "iv", "IX", "V", "i", "draft", "100", "005")
+    def rp(): String =
+      val m = rng % 5
+      val sb = new java.lang.StringBuilder
+      var y = 0
+      while y < m do
+        sb append pool(rng % pool.length)
+        y += 1
+      sb.toString
+    val ords = List(SemanticOrder.prose, SemanticOrder.outline,
+                    SemanticOrder.of(negatives = true, decimals = true, exponents = true, commas = true, spoken = true, roman = true))
+    var bad = ""
+    var trial = 0
+    while bad.isEmpty && trial < 2000 do
+      val a = rp()
+      val b = rp()
+      val c = rp()
+      var oi = 0
+      while bad.isEmpty && oi < ords.length do
+        val o = ords(oi)
+        val ab = cs(o)(a, b)
+        val ba = cs(o)(b, a)
+        val bc = cs(o)(b, c)
+        val ac = cs(o)(a, c)
+        val ok =
+          cs(o)(a, a) == 0 && ab == -ba &&
+          (!(ab <= 0 && bc <= 0) || ac <= 0) &&
+          (ab != 0 || bc == ac)
+        if !ok then bad = s"ordering #$oi with \"$a\" \"$b\" \"$c\""
+        oi += 1
+      trial += 1
+    T ~ bad ==== ""
 }
 object MathsTest {
   // @BeforeClass

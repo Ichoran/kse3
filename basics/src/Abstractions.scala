@@ -326,7 +326,7 @@ object shortcut {
 final case class SourceLine(path: String, line: Int, column: Int) {
   /** The bare file name (the path after the last `/` or `\`). */
   def file: String =
-    val i = math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    val i = java.lang.Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
     if i >= 0 then path.substring(i + 1) else path
 
   /** The compact `file:line` identity. */

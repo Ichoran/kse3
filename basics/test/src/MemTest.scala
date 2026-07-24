@@ -15,7 +15,6 @@ import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 
-import sourcecode.{Line, given}
 
 
 class MemTest() {

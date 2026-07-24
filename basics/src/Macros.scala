@@ -151,7 +151,7 @@ def sourcelinePos(using Quotes): (String, Int, Int) =
   (pos.sourceFile.path, pos.startLine + 1, pos.startColumn + 1)   // reflect lines/columns are 0-based
 
 def sourcelineFile(path: String): String =
-  val i = math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  val i = java.lang.Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
   if i >= 0 then path.substring(i + 1) else path
 
 def sourcelineRecordImpl(using Quotes): Expr[kse.basics.SourceLine] =

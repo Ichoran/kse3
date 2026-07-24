@@ -6,6 +6,7 @@ package kse.eio
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
+import java.lang.{Math => jm}
 import java.io._
 import java.nio._
 import java.nio.file._
@@ -1360,7 +1361,7 @@ final class SeekableByteChannelRotatingBuffer(val sbc: SeekableByteChannel, buff
       val b = buffer().
         flatMap(buf => if buf.length >= 1024 || buf.length >= remaining then Is(buf) else Alt.unit).
         getOrElse{ _ =>
-          var n = math.min(bufferSize, Int.MaxValue - 7)
+          var n = jm.min(bufferSize, Int.MaxValue - 7)
           if remaining <= n then n = remaining.toInt
           else if (remaining + 7)/2 < n then n = ((remaining + 7)/2).toInt
           new Array[Byte](n)        
@@ -1428,7 +1429,7 @@ final class InputStreamRotatingBuffer(input: InputStream, bufferSize: Int = 1638
       val b = buffer().
         flatMap(buf => if buf.length >= 1024 || (av > 0 && buf.length >= av) then Is(buf) else Alt.unit).
         getOrElse{ _ =>
-          var n = math.min(bufferSize, Int.MaxValue - 7)
+          var n = jm.min(bufferSize, Int.MaxValue - 7)
           if av > 0 && av < n then n = av.toInt
           new Array[Byte](n)
         }

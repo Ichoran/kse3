@@ -717,18 +717,6 @@ object Dist {
 }
 
 
-/*
-object Ranks {
-  def order(a: Array[Double], i0: Int, iN: Int)(b: Array[Double], j0: Int, jN: Int): Array[Int] =
-    if iN > i0 && (i0 < 0 || iN >= a.length) then throw new NoSuchElementException(s"Bounds $i0 and $iN do not fit in array of length ${a.length}")
-    if jN > j0 && (j0 < 0 || jN >= j.length) then throw new NoSuchElementException(s"Bounds $j0 and $jN do not fit in array of length ${a.length}")
-    val ni = if i0 < iN then iN - i0 else 0
-    val nj = if j0 < jN then jN - j0 else 0
-
-}
-*/
-
-
 ////////////////////////////////////////////////////////
 /// Quantiles, medians, and robust spread of raw data  ///
 ////////////////////////////////////////////////////////

@@ -23,3 +23,7 @@ DEADJOE
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+
+# Local-only publishing commands and scratch directory.
+howto.publish.txt
+clutter/

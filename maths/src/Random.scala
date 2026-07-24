@@ -501,12 +501,12 @@ sealed abstract class Prng {
     val ans = new Array[Int](k)
     ans.set()(i => i)
     var i = k
-    var w = math.exp(math.log(this.D)/k)
+    var w = jm.exp(jm.log(this.D)/k)
     while i <= n do
-      i += 1 + math.floor(math.log(this.D)/math.log(1-w)).toInt
+      i += 1 + jm.floor(jm.log(this.D)/jm.log(1-w)).toInt
       if i <= n then
         ans(this % ans.length) = i - 1
-        w *= math.exp(math.log(this.D)/k)
+        w *= jm.exp(jm.log(this.D)/k)
     ans
 
   final def chooseIndices(n: Int, k: Int, sorted: Boolean = false): Array[Int] =
@@ -691,15 +691,15 @@ sealed abstract class Prng {
         n += 1
       if n == k then   
         // Li algorithmL in unknown length mode
-        var w = math.exp(math.log(D)/k)
+        var w = jm.exp(jm.log(D)/k)
         while i.hasNext do
-          var h = math.floor(math.log(D)/math.log(1-w)).toInt
+          var h = jm.floor(jm.log(D)/jm.log(1-w)).toInt
           while h > 0 && i.hasNext do
             i.next() __ Unit
             h -= 1
           if i.hasNext then
             a(this % a.length) = i.next().asInstanceOf[AnyRef]
-            w *= math.exp(math.log(D)/k)
+            w *= jm.exp(jm.log(D)/k)
         shuffle(a)
         a.use()(x => b += x.asInstanceOf[A])
       else
@@ -720,7 +720,7 @@ sealed abstract class Prng {
     else
       val m = letters.length
       var i = n
-      MkStr(math.max(0, n)): sb =>
+      MkStr(jm.max(0, n)): sb =>
         if m == 1 then
           val c = letters charAt 0
           while i > 0 do
@@ -749,13 +749,13 @@ sealed abstract class Prng {
     stringFrom(Prng.TextCharacters, n)
 
   final def asciiString(n: Int): String =
-    MkStr(math.max(0, n)): sb =>
+    MkStr(jm.max(0, n)): sb =>
       var i = n
       while i > 0 do
         sb += (B & 0x7F).toChar
         i -= 1
   final def validString(n: Int): String =
-    MkStr(math.max(0, n)): sb =>
+    MkStr(jm.max(0, n)): sb =>
       var i = n
       while i > 0 do
         val c = C
@@ -1050,7 +1050,7 @@ extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
       var a = i.next()
       var w = rng.D
       while i.hasNext do
-        var h = math.floor(math.log(rng.D)/math.log(1-w)).toInt
+        var h = jm.floor(jm.log(rng.D)/jm.log(1-w)).toInt
         while h > 0 && i.hasNext do
           i.next() __ Unit
           h -= 1

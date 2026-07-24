@@ -5,6 +5,8 @@ package kse.testutilities
 
 import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
+import java.lang.{Math => jm}
+
 import scala.collection.generic.IsIterable
 import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
@@ -44,8 +46,8 @@ object TestUtilities {
         (a0 == a1) ||
         (a0.isNaN && a1.isNaN) ||
         {
-          val delta = math.abs(a0 - a1)
-          val a = math.abs(a0) max math.abs(a1)
+          val delta = jm.abs(a0 - a1)
+          val a = jm.abs(a0) max jm.abs(a1)
           if a > thresh then delta < eps*a
           else delta < tol
         }
@@ -56,8 +58,8 @@ object TestUtilities {
         (a0 == a1) ||
         (a0.isNaN && a1.isNaN) ||
         {
-          val delta = math.abs(a0 - a1)
-          val a = math.abs(a0) max math.abs(a1)
+          val delta = jm.abs(a0 - a1)
+          val a = jm.abs(a0) max jm.abs(a1)
           val ans =
             if a > thresh then delta < eps*a
             else delta < tol
@@ -93,7 +95,7 @@ object TestUtilities {
     def mline: String
   }
 
-  class Labeled[A](val mline: String, val value: () => A)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {
+  class Labeled[A](val mline: String, val value: () => A)(using asr: Asserter, ln: Line, fl: FileName) extends Messaging {
     import asr._
 
     override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
@@ -139,7 +141,7 @@ object TestUtilities {
       if !apx.approx(va, vb) then assertEquals(message, va, vb)
   }
 
-  class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName) extends Messaging {
+  class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: Line, fl: FileName) extends Messaging {
     import asr._
 
     override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
@@ -201,13 +203,13 @@ object TestUtilities {
 
     def message: String
 
-    def ~[A](a: => A)(using asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): Labeled[A] =
+    def ~[A](a: => A)(using asr: Asserter, ln: Line, fl: FileName): Labeled[A] =
       Labeled(message, () => a)
 
-    def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, ln: sourcecode.Line, fl: sourcecode.FileName): LabeledCollection[A, ii.type] =
+    def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, ln: Line, fl: FileName): LabeledCollection[A, ii.type] =
       LabeledCollection[A, ii.type](message, () => a, ii)
 
-    inline def !(inline code: String)(using Asserter, sourcecode.Line, sourcecode.FileName): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
+    inline def !(inline code: String)(using Asserter, Line, FileName): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
   }
 
   object T extends GenLabeled {

@@ -9,7 +9,6 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
-import sourcecode.{Line, given}
 
 
 @RunWith(classOf[JUnit4])

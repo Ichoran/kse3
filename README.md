@@ -21,7 +21,7 @@ using virtual threading and foreign memory segments.**
 
 ## How do I get it?
 
-Only kse3-basics, kse3-flow, kse3-maths and some of kse3-eio (and kse3-testing) are available presently.
+The modules available in kse3 presently are listed below.
 You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala

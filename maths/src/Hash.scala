@@ -10,6 +10,7 @@ package kse.maths
 
 import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
+import java.lang.{Math => jm}
 import java.lang.Integer.{rotateLeft => rotl32, rotateRight => rotr32 }
 import java.lang.Long.{rotateLeft => rotl64, rotateRight => rotr64 }
 import java.nio.{ByteBuffer, ByteOrder}
@@ -316,7 +317,7 @@ final class XxHash32() extends Hash32 {
 
   def append(s: String, i0: Int, iN: Int): this.type =
     var i = if i0 < 0 then 0 else i0
-    val j = math.min(iN, s.length)
+    val j = jm.min(iN, s.length)
     if (myBuffer ne null) && myBuffer.position > 0 then
       if (myBuffer.position % 2) != 0 then
         while i < j do
@@ -631,7 +632,7 @@ final class XxHash64() extends Hash64 {
 
   def append(s: String, i0: Int, iN: Int): this.type =
     var i = if i0 < 0 then 0 else i0
-    val j = math.min(iN, s.length)
+    val j = jm.min(iN, s.length)
     if (myBuffer ne null) && myBuffer.position > 0 then
       if (myBuffer.position % 2) != 0 then
         while i < j do
@@ -787,9 +788,9 @@ object XxHash extends FullHash32 with FullHash64 {
   inline val Prime64_5 = 0x27d4eb2f165667c5L //  2870177450012600261L
 
   def hash32(seed: Int, a: Array[Byte], i0: Int, iN: Int): Int =
-    val iM = math.min(a.length, iN)
-    var i = math.max(0, i0)
-    val len = math.max(iM - i, 0)
+    val iM = jm.min(a.length, iN)
+    var i = jm.max(0, i0)
+    val len = jm.max(iM - i, 0)
     var h32 =
       if i > iM - 16 then seed + Prime32_5
       else
@@ -833,9 +834,9 @@ object XxHash extends FullHash32 with FullHash64 {
     h32 ^ (h32 >>> 16)
 
   def hash32(seed: Int, s: String, i0: Int, iN: Int): Int =
-    val iM = math.min(s.length, iN)
-    var i = math.max(0, i0)
-    val len = math.max(iM - i, 0)
+    val iM = jm.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val len = jm.max(iM - i, 0)
     var h32 =
       if iM - i < 8 then seed + Prime32_5
       else
@@ -969,9 +970,9 @@ object XxHash extends FullHash32 with FullHash64 {
     h64 ^ (h64 >>> 32)
 
   def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long = 
-    val iM = math.min(ab.length, iN)
-    var i = math.max(0, i0)
-    val len = math.max(iM - i, 0)
+    val iM = jm.min(ab.length, iN)
+    var i = jm.max(0, i0)
+    val len = jm.max(iM - i, 0)
     var h64 =
       if iM - i < 32 then seed + Prime64_5
       else
@@ -1032,9 +1033,9 @@ object XxHash extends FullHash32 with FullHash64 {
     h64 ^ (h64 >>> 32)
 
   def hash64(seed: Long, s: String, i0: Int, iN: Int): Long = 
-    val iM = math.min(s.length, iN)
-    var i = math.max(0, i0)
-    val len = math.max(iM - i, 0)
+    val iM = jm.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val len = jm.max(iM - i, 0)
     var h64 =
       if iM - i < 16 then seed + Prime64_5
       else
@@ -1183,8 +1184,8 @@ final class MurmurHash32() extends Hash32 {
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
         appendChar(s charAt i)
@@ -1394,8 +1395,8 @@ final class MurmurHash128() extends Hash128 with IncrementalHash[HashCode128, Ha
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if partialN > 0 then
       if (partialN % 2) != 0 then
         while i < iM do
@@ -1634,8 +1635,8 @@ final class SumHash32() extends Hash32 {
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
         appendChar(s charAt i)
@@ -1770,8 +1771,8 @@ final class SumHash64() extends Hash64 {
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
         appendChar(s charAt i)
@@ -1960,8 +1961,8 @@ final class XorHash32() extends Hash32 {
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
         appendChar(s charAt i)
@@ -2097,8 +2098,8 @@ final class XorHash64() extends Hash64 {
     this
 
   def append(s: String, i0: Int, iN: Int): this.type =
-    var i = math.max(0, i0)
-    val iM = math.min(s.length, iN)
+    var i = jm.max(0, i0)
+    val iM = jm.min(s.length, iN)
     if (partialN % 2) != 0 then
       while i < iM do
         appendChar(s charAt i)
