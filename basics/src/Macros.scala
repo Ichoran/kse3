@@ -538,11 +538,43 @@ def sayOneExpr(a: Expr[Any], m: Expr[kse.basics.MkStr], st: Expr[kse.basics.Say.
         case Some(sy) => '{ $sy.say(${ a.asExprOf[t] }, $m, $st) }
         case None     => report.errorAndAbort("No Sayable instance available for " + Type.show[t], a)
 
+def sayPluralExpr(a: Expr[Any], m: Expr[kse.basics.MkStr], st: Expr[kse.basics.Say.Style], pre: Option[(String, String)], post: Option[(String, String)])(using qt: Quotes): Expr[Unit] =
+  import qt.reflect.*
+  a.asTerm.tpe.widen.asType match
+    case '[t] =>
+      val sy = Expr.summon[kse.basics.Sayable[t]] match
+        case Some(e) => e
+        case None    => report.errorAndAbort("No Sayable instance available for " + Type.show[t], a)
+      val pl = Expr.summon[kse.basics.PluralizeBy[t]] match
+        case Some(e) => e
+        case None    => report.errorAndAbort("No PluralizeBy instance available for " + Type.show[t] + ", required by singular/plural form", a)
+      def add(text: String): Expr[Unit] = if text.isEmpty then '{ () } else '{ $m += ${ Expr(text) } }
+      def pick(p: Expr[Boolean], choice: Option[(String, String)]): Expr[Unit] = choice match
+        case Some((one, many)) => if one == many then add(one) else '{ if $p then ${ add(many) } else ${ add(one) } }
+        case None              => '{ () }
+      val varies = pre.exists(pq => pq._1 != pq._2) || post.exists(pq => pq._1 != pq._2)
+      if !varies then
+        val before = pre.fold("")(_._1)
+        val after  = post.fold("")(_._1)
+        (before.isEmpty, after.isEmpty) match
+          case (true,  true)  => '{ $sy.say(${ a.asExprOf[t] }, $m, $st) }
+          case (false, true)  => '{ $m += ${ Expr(before) }; $sy.say(${ a.asExprOf[t] }, $m, $st) }
+          case (true,  false) => '{ $sy.say(${ a.asExprOf[t] }, $m, $st); $m += ${ Expr(after) } }
+          case (false, false) => '{ $m += ${ Expr(before) }; $sy.say(${ a.asExprOf[t] }, $m, $st); $m += ${ Expr(after) } }
+      else '{
+        val x = ${ a.asExprOf[t] }
+        val p = $pl.isPlural(x)
+        ${ pick('p, pre) }
+        $sy.say(x, $m, $st)
+        ${ pick('p, post) }
+      }
+
 def sayInterpolationExpr(sc: Expr[StringContext], args: Expr[Seq[Any]])(using qt: Quotes): Expr[String] =
   import qt.reflect.*
-  val parts: Seq[String] = deinliner(sc) match
-    case '{ StringContext(${Varargs(ps)}*) } => ps.map(_.valueOrAbort)
+  val partExprs: Seq[Expr[String]] = deinliner(sc) match
+    case '{ StringContext(${Varargs(ps)}*) } => ps
     case _ => report.errorAndAbort("say interpolation requires literal string parts")
+  val parts: Seq[String] = partExprs.map(_.valueOrAbort)
   val escaped =
     try parts.map(StringContext.processEscapes)
     catch case e: StringContext.InvalidEscapeException => report.errorAndAbort(e.getMessage)
@@ -555,16 +587,63 @@ def sayInterpolationExpr(sc: Expr[StringContext], args: Expr[Seq[Any]])(using qt
     val st = Expr.summon[kse.basics.Say.Style] match
       case Some(e) => e
       case None    => report.errorAndAbort("No given kse.basics.Say.Style available (Say.Style.default should be in implicit scope)")
-    val cap = escaped.foldLeft(16 * as.length)(_ + _.length)
+    // A part opening with # right after an argument is #prefix/singular/plural# (#//# = a literal #);
+    // a part closing with <# right before an argument is #singular/plural/suffix<# (#//<# = a literal <#),
+    // pluralized by the argument that follows.  The closing form is recognized first and the opening
+    // form parsed from what remains, so one part can serve the arguments on both of its sides.
+    val texts = new Array[String](escaped.length)
+    val pres  = Array.fill[Option[(String, String)]](as.length)(None)
+    val posts = Array.fill[Option[(String, String)]](as.length)(None)
+    var k = 0
+    while k < escaped.length do
+      var r = escaped(k)
+      var tail = ""
+      if k < as.length && r.endsWith("<#") then
+        val sB = r.lastIndexOf('/', r.length - 3)
+        val sA = if sB < 0 then -1 else r.lastIndexOf('/', sB - 1)
+        val open = if sA < 0 then -1 else r.lastIndexOf('#', sA - 1)
+        if open < 0 then report.errorAndAbort("say interpolation: '<#' right before an argument must close #singular/plural/suffix<# (use #//<# for a literal <#)", partExprs(k))
+        if open == r.length - 5 then
+          tail = "<#"
+          r = r.substring(0, open)
+        else
+          val suffix = r.substring(sB + 1, r.length - 2)
+          pres(k) = Some((r.substring(open + 1, sA) + suffix, r.substring(sA + 1, sB) + suffix))
+          r = r.substring(0, open)
+      if k > 0 && r.startsWith("#") then
+        val s1 = r.indexOf('/', 1)
+        val s2 = if s1 < 0 then -1 else r.indexOf('/', s1 + 1)
+        val close = if s2 < 0 then -1 else r.indexOf('#', s2 + 1)
+        if close < 0 then report.errorAndAbort("say interpolation: '#' right after an argument must open #prefix/singular/plural# (use #//# for a literal #)", partExprs(k))
+        val rest = r.substring(close + 1)
+        if close == 3 then r = "#" + rest
+        else
+          val prefix = r.substring(1, s1)
+          posts(k - 1) = Some((prefix + r.substring(s1 + 1, s2), prefix + r.substring(s2 + 1, close)))
+          r = rest
+      texts(k) = r + tail
+      k += 1
+    var cap = 16 * as.length
+    k = 0
+    while k < texts.length do
+      cap += texts(k).length
+      k += 1
+    k = 0
+    while k < as.length do
+      pres(k).foreach(pq => cap += java.lang.Math.max(pq._1.length, pq._2.length))
+      posts(k).foreach(pq => cap += java.lang.Math.max(pq._1.length, pq._2.length))
+      k += 1
     '{
       val m = kse.basics.MkStr.ofSize(${ Expr(cap) })
       ${
         val stmts = List.newBuilder[Expr[Any]]
-        if escaped.head.nonEmpty then stmts += '{ m += ${ Expr(escaped.head) } }
+        if texts(0).nonEmpty then stmts += '{ m += ${ Expr(texts(0)) } }
         var i = 0
         while i < as.length do
-          stmts += sayOneExpr(as(i), 'm, st)
-          if escaped(i+1).nonEmpty then stmts += '{ m += ${ Expr(escaped(i+1)) } }
+          stmts += ((pres(i), posts(i)) match
+            case (None, None) => sayOneExpr(as(i), 'm, st)
+            case (pre, post)  => sayPluralExpr(as(i), 'm, st, pre, post))
+          if texts(i+1).nonEmpty then stmts += '{ m += ${ Expr(texts(i+1)) } }
           i += 1
         Expr.block(stmts.result(), '{ m.str() })
       }

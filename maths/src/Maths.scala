@@ -1689,6 +1689,10 @@ object UByte {
   given Translucent[UByte, Byte] with {}
 
   given Sayable[UByte] = (x, m, _) => m += x.pr
+
+  given PluralizeBy[UByte] = x => x.signed != 1
+
+  given Speakable[UByte] = (x, m, _) => m += stringmaths.SpokenNumber.text(ULong(x.signed & 0xFF))
 }
 
 
@@ -1832,6 +1836,10 @@ object UShort {
   given Translucent[UShort, Short] with {}
 
   given Sayable[UShort] = (x, m, _) => m += x.pr
+
+  given PluralizeBy[UShort] = x => x.signed != 1
+
+  given Speakable[UShort] = (x, m, _) => m += stringmaths.SpokenNumber.text(ULong(x.signed & 0xFFFF))
 }
 
 
@@ -1990,6 +1998,10 @@ object UInt {
   given Translucent[UInt, Int] with {}
 
   given Sayable[UInt] = (x, m, _) => m += x.pr
+
+  given PluralizeBy[UInt] = x => x.signed != 1
+
+  given Speakable[UInt] = (x, m, _) => m += stringmaths.SpokenNumber.text(ULong(x.signed))
 }
 
 
@@ -2180,7 +2192,23 @@ object ULong {
   given Translucent[ULong, Long] with {}
 
   given Sayable[ULong] = (x, m, _) => m += x.pr
+
+  given PluralizeBy[ULong] = x => x.signed != 1L
+
+  given Speakable[ULong] = (x, m, _) => m += stringmaths.SpokenNumber.text(x)
 }
+
+
+private def speakSigned(l: Long, m: MkStr): Unit =
+  if l < 0 then
+    m += "negative "
+    m += stringmaths.SpokenNumber.text(ULong.wrap(-l))
+  else m += stringmaths.SpokenNumber.text(ULong.wrap(l))
+
+given speakableByte:  Speakable[Byte]  = (x, m, _) => speakSigned(x.toLong, m)
+given speakableShort: Speakable[Short] = (x, m, _) => speakSigned(x.toLong, m)
+given speakableInt:   Speakable[Int]   = (x, m, _) => speakSigned(x.toLong, m)
+given speakableLong:  Speakable[Long]  = (x, m, _) => speakSigned(x, m)
 
 
 opaque type Bf16 = Char

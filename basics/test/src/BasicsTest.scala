@@ -915,6 +915,56 @@ class BasicsTest() {
     }
 
     T ~ cc("""{ val x = StringContext("a", "b"); x.say(1) }""") ==== false
+
+    val one = 1
+    val six = 6
+    T ~ say"You have $one# tr/y/ies# left" ==== "You have 1 try left"
+    T ~ say"You have $six# tr/y/ies# left" ==== "You have 6 tries left"
+    T ~ say"${0}# item//s#, ${-1}# item//s#" ==== "0 items, -1 items"
+    T ~ say"$one#«/»/s»# and $six#«/»/s»#" ==== "1«» and 6«s»"
+    T ~ say"${1.toByte}# egg//s#; ${1.toShort}# egg//s#; ${1L}# egg//s#; ${BigInt(1)}# egg//s#" ==== "1 egg; 1 egg; 1 egg; 1 egg"
+    T ~ say"${2.toByte}# egg//s#; ${0.toShort}# egg//s#; ${-1L}# egg//s#; ${BigInt(7)}# egg//s#" ==== "2 eggs; 0 eggs; -1 eggs; 7 eggs"
+    T ~ say"$one#//# of a kind" ==== "1# of a kind"
+    T ~ say"#not a directive $one" ==== "#not a directive 1"
+    T ~ say"$six# do/es/nes# # so" ==== "6 dones # so"
+    T ~ say"$six#///#" ==== "6/"
+    var effects = 0
+    def counted(): Int = { effects += 1; six }
+    T ~ say"${counted()}# tr/y/ies#" ==== "6 tries"
+    T ~ effects ==== 1
+    T ~ cc("""{ val s = say"${ 1.5 }# item//s#"; s }""") ==== false
+    T ~ cc("""{ val s = say"${ "eel" }# item//s#"; s }""") ==== false
+    T ~ cc("""{ val s = say"${ 1 }# item//s#"; s }""") ==== true
+    T ~ cc("""{ val s = say"${ 1 }#oops"; s }""") ==== false
+
+    T ~ say"There #is/are/ <#$one# egg//s#" ==== "There is 1 egg"
+    T ~ say"There #is/are/ <#$six# egg//s#" ==== "There are 6 eggs"
+    T ~ say"There #is/are/ <#$one# egg//s# and #is/are/ not <#$six# eel//s#." ==== "There is 1 egg and are not 6 eels."
+    T ~ say"#This/These/ <#$one fish" ==== "This 1 fish"
+    T ~ say"#This/These/ <#$six fish" ==== "These 6 fish"
+    T ~ say"Look at #$one" ==== "Look at #1"
+    T ~ say"literal #//<#$one" ==== "literal <#1"
+    T ~ say"$one #is/are/<#$six" ==== "1 are6"
+    effects = 0
+    T ~ say"#is/are/ <#${counted()}# tr/y/ies#" ==== "are 6 tries"
+    T ~ effects ==== 1
+    T ~ cc("""{ val s = say"bad <#${ 1 }"; s }""") ==== false
+    T ~ cc("""{ val s = say"#is/are/ <#${ 1.5 }"; s }""") ==== false
+    T ~ cc("""{ val s = say"#is/are/ <#${ 1 }"; s }""") ==== true
+
+    given Speakable[Int] = (i, m, _) => m += (i match
+      case 1 => "one"
+      case 6 => "six"
+      case _ => i.toString)
+    T ~ say"#I am/We are/<#${silently(one)} doing great!" ==== "I am doing great!"
+    T ~ say"#I am/We are/<#${silently(six)} doing great!" ==== "We are doing great!"
+    T ~ say"${silently(six)}count hidden" ==== "count hidden"
+    T ~ say"There #is/are/ <#${spoken(one)}" ==== "There is one"
+    T ~ say"There #is/are/ <#${spoken(six)}" ==== "There are six"
+    T ~ say"${Spoken(six)}# day//s# ago, I saw eels." ==== "Six days ago, I saw eels."
+    T ~ say"${Spoken(one)}# day//s# ago" ==== "One day ago"
+    T ~ cc("""{ val s = silently(1.5); s }""") ==== false
+    T ~ cc("""{ val s = spoken("eel"); s }""") ==== false
 }
 object BasicsTest {
   // @BeforeClass

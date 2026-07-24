@@ -681,6 +681,76 @@ object Sayable extends SayableGenericPriority {
 }
 
 
+/** Typeclass to decide whether a count of type `N` is plural; powers the `say` interpolator's
+  * `#prefix/singular/plural#` and `#singular/plural/suffix<#` pluralization forms.
+  *
+  * The English convention is followed: exactly one is singular, everything else (including
+  * zero and negative counts) is plural.  Instances for the standard integer types are
+  * provided here; other numeric types can supply their own instance.
+  */
+trait PluralizeBy[N] {
+  def isPlural(n: N): Boolean
+}
+object PluralizeBy {
+  given byByte:   PluralizeBy[Byte]   = b => b != 1
+  given byShort:  PluralizeBy[Short]  = s => s != 1
+  given byInt:    PluralizeBy[Int]    = i => i != 1
+  given byLong:   PluralizeBy[Long]   = l => l != 1L
+  given byBigInt: PluralizeBy[BigInt] = b => b != BigInt(1)
+}
+
+
+/** Typeclass to render a value of type `A` in spoken words; powers the `say` interpolator's
+  * `spoken`/`Spoken` wrappers, which print e.g. `2` as `two`.  Instances should produce
+  * entirely lowercase text (`Spoken` capitalizes the first character itself); kse.maths
+  * provides instances for the standard integer types.
+  */
+trait Speakable[A] {
+  def speak(a: A, m: MkStr, style: Say.Style): Unit
+}
+
+
+/** A pluralization count that renders as nothing: `silently(n)` drives singular/plural
+  * choices in the `say` interpolator exactly as `n` would, but prints no number, so
+  * `say"#I am/We are/<#${silently(n)} doing great!"` mentions no count.
+  */
+opaque type Silently = Boolean
+object Silently {
+  inline def wrap(plural: Boolean): Silently = plural
+  extension (s: Silently)
+    inline def unwrap: Boolean = s
+  given pluralizeSilently: PluralizeBy[Silently] = s => s
+  given saySilently: Sayable[Silently] = (_, _, _) => ()
+}
+
+/** Wraps a count so that it pluralizes like `a` but prints nothing in `say` interpolation. */
+inline def silently[A](a: A)(using pb: PluralizeBy[A]): Silently = Silently.wrap(pb.isPlural(a))
+
+
+/** A count that prints in spoken words via its `Speakable` instance but pluralizes like the
+  * underlying number, so `say"There #is/are/ <#${spoken(n)}"` can give `There are two`.
+  * `spoken(n)` is lowercase; `Spoken(n)` capitalizes the first letter for sentence starts.
+  */
+opaque type Spoken[A] = (A, Boolean)
+object Spoken {
+  /** A spoken form with its first letter capitalized, e.g. to start a sentence. */
+  inline def apply[A](a: A)(using Speakable[A]): Spoken[A] = (a, true)
+  inline def wrap[A](a: A, capitalized: Boolean): Spoken[A] = (a, capitalized)
+  extension [A](s: Spoken[A])
+    inline def value: A = s._1
+    inline def capitalized: Boolean = s._2
+  given pluralizeSpoken: [A] => (pb: PluralizeBy[A]) => PluralizeBy[Spoken[A]] = s => pb.isPlural(s._1)
+  given saySpoken: [A] => (sp: Speakable[A]) => Sayable[Spoken[A]] = (s, m, st) =>
+    val sb = m.unwrap
+    val n0 = sb.length
+    sp.speak(s._1, m, st)
+    if s._2 && sb.length > n0 then sb.setCharAt(n0, java.lang.Character.toUpperCase(sb.charAt(n0)))
+}
+
+/** Wraps a number to print as lowercase spoken words in `say` interpolation. */
+inline def spoken[A](a: A)(using Speakable[A]): Spoken[A] = Spoken.wrap(a, false)
+
+
 extension [A](a: A)
   /** Renders this value to a `String` via its `Sayable` instance and the ambient `Say.Style`. */
   inline def say()(using sy: Sayable[A], st: Say.Style): String =
@@ -696,6 +766,23 @@ extension (inline sc: StringContext)
   /** Say-interpolator: like `s"..."`, but each argument is rendered by the `Sayable`
     * instance for its static type into a single `MkStr`, so arrays and opaque types
     * print sensibly.  Customize output by providing a `Say.Style` given at the use site.
+    *
+    * If the text immediately after an argument starts with `#`, it is a pluralization
+    * directive `#prefix/singular/plural#`: the prefix plus the singular or plural form is
+    * appended, chosen by the argument's `PluralizeBy` instance (all standard integer types
+    * including `BigInt` have one; it is a compile error if the argument's type does not).
+    * For example, `say"You have $n# tr/y/ies# left"` gives `You have 1 try left` or
+    * `You have 2 tries left`.  Text immediately before an argument may likewise end with
+    * `#singular/plural/suffix<#`, chosen by the argument that follows, so
+    * `say"There #is/are/ <#$n# egg//s#"` gives `There is 1 egg` or `There are 15 eggs`.
+    * The degenerate forms `#//#` and `#//<#` emit a literal `#` and `<#` respectively; a
+    * `#` anywhere else is always literal (a part must actually end with `<#` to close the
+    * before-argument form, so a bare trailing `#` is safe).  One part may carry directives
+    * at both ends: the closing `...<#` form is recognized first and the opening form is
+    * parsed from what remains.  The fields themselves cannot contain `/` or `#`.
+    * `silently(n)` drives such choices while printing nothing, and `spoken(n)` / `Spoken(n)`
+    * print the count in lowercase / Capitalized words via its `Speakable` instance
+    * (kse.maths provides these for the standard integer types).
     *
     * The result is assembled by straight-line code generated at compile time: no varargs
     * `Seq`, no wrapper objects, and typeclass instances are resolved statically.

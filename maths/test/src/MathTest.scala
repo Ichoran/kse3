@@ -4631,6 +4631,20 @@ class MathTest {
     T ~ say"${Vct.wrap(vc)}" ==== vc.pr + "ᵀ"
     T ~ say"${Vec2Dt.wrap(Vec2D(1.5, 2.5))}" ==== Vec2D(1.5, 2.5).pr + "ᵀ"
 
+    T ~ say"${UByte(1)}# egg//s#; ${UShort(1)}# egg//s#; ${UInt(1)}# egg//s#; ${ULong(1L)}# egg//s#" ==== "1 egg; 1 egg; 1 egg; 1 egg"
+    T ~ say"${UByte(200)}# egg//s#; ${UShort(0)}# egg//s#; ${UInt(-1)}# egg//s#; ${ULong(-1L)}# egg//s#" ==== "200 eggs; 0 eggs; 4294967295 eggs; 18446744073709551615 eggs"
+
+    T ~ say"${spoken(0)}# egg//s#" ==== "zero eggs"
+    T ~ say"There #is/are/ <#${spoken(1)}# egg//s#" ==== "There is one egg"
+    T ~ say"There #is/are/ <#${spoken(2L)}# egg//s#" ==== "There are two eggs"
+    T ~ say"${Spoken(21)}# egg//s#" ==== "Twenty-one eggs"
+    T ~ say"${spoken(3.toByte)}, ${spoken(4.toShort)}, ${spoken(UByte(200))}, ${spoken(UShort(300))}" ==== "three, four, two hundred, three hundred"
+    T ~ say"${spoken(-42)}" ==== "negative forty-two"
+    T ~ say"${spoken(392)}" ==== "three hundred and ninety-two"
+    T ~ say"${spoken(UInt(-1))}" ==== "four billion two hundred and ninety-four million nine hundred and sixty-seven thousand two hundred and ninety-five"
+    T ~ say"${spoken(Long.MinValue)}" ==== "negative nine quintillion two hundred and twenty-three quadrillion three hundred and seventy-two trillion thirty-six billion eight hundred and fifty-four million seven hundred and seventy-five thousand eight hundred and eight"
+    T ~ say"#is/are/ <#${silently(ULong(1L))}here" ==== "is here"
+
   @Test
   def ergbTest(): Unit =
     import kse.maths.colours.{Rgb, Ergb}
