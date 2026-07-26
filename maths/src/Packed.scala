@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-23, 2026 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
 
 package kse.maths.packed
 
@@ -9,6 +9,8 @@ package kse.maths.packed
 import java.lang.{Math => jm}
 
 import scala.annotation.targetName
+
+import kse.basics.{Translucent, Sayable, MkStr}
 
 
 type Bit = 0|1
@@ -1977,4 +1979,251 @@ extension (z64: Long) {
 
   inline def floatTo(index: IntIndices.L)(value: Float): Long =
     (z64 & ~(0xFFFFFFFFL << 32*index)) | ((java.lang.Float.floatToRawIntBits(value) & 0xFFFFFFFFL) << 32*index)
+}
+
+
+//////////////////////////////////////////////
+/// Explicitly packed groups of primitives ///
+//////////////////////////////////////////////
+
+opaque type Bx2 = Short
+object Bx2 {
+  inline def wrap(s: Short): Bx2 = s
+  inline def apply(b0: Byte, b1: Byte): Bx2 = Pack.S(b0, b1)
+
+  extension (packed: Bx2) {
+    inline def unwrap: Short = packed
+    inline def apply(index: ByteIndices.S): Byte = (packed: Short).byte(index)
+    inline def set(index: ByteIndices.S)(value: Byte): Bx2 = (packed: Short).byteTo(index)(value)
+    inline def setOp(index: ByteIndices.S)(inline f: Byte => Byte): Bx2 = (packed: Short).byteTo(index)(f((packed: Short).byte(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        sb += packed(0).toInt
+        sb += ' '
+        sb += packed(1).toInt
+        sb += ']'
+  }
+
+  given Translucent[Bx2, Short] {}
+
+  given Sayable[Bx2] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Bx4 = Int
+object Bx4 {
+  inline def wrap(i: Int): Bx4 = i
+  inline def apply(b0: Byte, b1: Byte, b2: Byte, b3: Byte): Bx4 = Pack.I(b0, b1, b2, b3)
+
+  extension (packed: Bx4) {
+    inline def unwrap: Int = packed
+    inline def apply(index: ByteIndices.I): Byte = (packed: Int).byte(index)
+    inline def set(index: ByteIndices.I)(value: Byte): Bx4 = (packed: Int).byteTo(index)(value)
+    inline def setOp(index: ByteIndices.I)(inline f: Byte => Byte): Bx4 = (packed: Int).byteTo(index)(f((packed: Int).byte(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        var v = (packed: Int)
+        var i = 0
+        while i < 4 do
+          if i > 0 then sb += ' '
+          sb += (v & 0xFF).toByte.toInt
+          v = v >>> 8
+          i += 1
+        sb += ']'
+  }
+
+  given Translucent[Bx4, Int] {}
+
+  given Sayable[Bx4] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Bx8 = Long
+object Bx8 {
+  inline def wrap(l: Long): Bx8 = l
+  inline def apply(b0: Byte, b1: Byte, b2: Byte, b3: Byte, b4: Byte, b5: Byte, b6: Byte, b7: Byte): Bx8 =
+    Pack.L(b0, b1, b2, b3, b4, b5, b6, b7)
+
+  extension (packed: Bx8) {
+    inline def unwrap: Long = packed
+    inline def apply(index: ByteIndices.L): Byte = (packed: Long).byte(index)
+    inline def set(index: ByteIndices.L)(value: Byte): Bx8 = (packed: Long).byteTo(index)(value)
+    inline def setOp(index: ByteIndices.L)(inline f: Byte => Byte): Bx8 = (packed: Long).byteTo(index)(f((packed: Long).byte(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        var v = (packed: Long)
+        var i = 0
+        while i < 8 do
+          if i > 0 then sb += ' '
+          sb += (v & 0xFF).toByte.toInt
+          v = v >>> 8
+          i += 1
+        sb += ']'
+  }
+
+  given Translucent[Bx8, Long] {}
+
+  given Sayable[Bx8] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Sx2 = Int
+object Sx2 {
+  inline def wrap(i: Int): Sx2 = i
+  inline def apply(s0: Short, s1: Short): Sx2 = Pack.I(s0, s1)
+
+  extension (packed: Sx2) {
+    inline def unwrap: Int = packed
+    inline def apply(index: ShortIndices.I): Short = (packed: Int).short(index)
+    inline def set(index: ShortIndices.I)(value: Short): Sx2 = (packed: Int).shortTo(index)(value)
+    inline def setOp(index: ShortIndices.I)(inline f: Short => Short): Sx2 = (packed: Int).shortTo(index)(f((packed: Int).short(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        sb += packed(0).toInt
+        sb += ' '
+        sb += packed(1).toInt
+        sb += ']'
+  }
+
+  given Translucent[Sx2, Int] {}
+
+  given Sayable[Sx2] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Sx4 = Long
+object Sx4 {
+  inline def wrap(l: Long): Sx4 = l
+  inline def apply(s0: Short, s1: Short, s2: Short, s3: Short): Sx4 = Pack.L(s0, s1, s2, s3)
+
+  extension (packed: Sx4) {
+    inline def unwrap: Long = packed
+    inline def apply(index: ShortIndices.L): Short = (packed: Long).short(index)
+    inline def set(index: ShortIndices.L)(value: Short): Sx4 = (packed: Long).shortTo(index)(value)
+    inline def setOp(index: ShortIndices.L)(inline f: Short => Short): Sx4 = (packed: Long).shortTo(index)(f((packed: Long).short(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        var v = (packed: Long)
+        var i = 0
+        while i < 4 do
+          if i > 0 then sb += ' '
+          sb += (v & 0xFFFF).toShort.toInt
+          v = v >>> 16
+          i += 1
+        sb += ']'
+  }
+
+  given Translucent[Sx4, Long] {}
+
+  given Sayable[Sx4] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Cx2 = Int
+object Cx2 {
+  inline def wrap(i: Int): Cx2 = i
+  inline def apply(c0: Char, c1: Char): Cx2 = Pack.I(c0, c1)
+
+  extension (packed: Cx2) {
+    inline def unwrap: Int = packed
+    inline def apply(index: CharIndices.I): Char = (packed: Int).char(index)
+    inline def set(index: CharIndices.I)(value: Char): Cx2 = (packed: Int).charTo(index)(value)
+    inline def setOp(index: CharIndices.I)(inline f: Char => Char): Cx2 = (packed: Int).charTo(index)(f((packed: Int).char(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        sb += packed(0)
+        sb += ' '
+        sb += packed(1)
+        sb += ']'
+  }
+
+  given Translucent[Cx2, Int] {}
+
+  given Sayable[Cx2] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Cx4 = Long
+object Cx4 {
+  inline def wrap(l: Long): Cx4 = l
+  inline def apply(c0: Char, c1: Char, c2: Char, c3: Char): Cx4 = Pack.L(c0, c1, c2, c3)
+
+  extension (packed: Cx4) {
+    inline def unwrap: Long = packed
+    inline def apply(index: CharIndices.L): Char = (packed: Long).char(index)
+    inline def set(index: CharIndices.L)(value: Char): Cx4 = (packed: Long).charTo(index)(value)
+    inline def setOp(index: CharIndices.L)(inline f: Char => Char): Cx4 = (packed: Long).charTo(index)(f((packed: Long).char(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        var v = (packed: Long)
+        var i = 0
+        while i < 4 do
+          if i > 0 then sb += ' '
+          sb += (v & 0xFFFF).toChar
+          v = v >>> 16
+          i += 1
+        sb += ']'
+  }
+
+  given Translucent[Cx4, Long] {}
+
+  given Sayable[Cx4] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Ix2 = Long
+object Ix2 {
+  inline def wrap(l: Long): Ix2 = l
+  inline def apply(i0: Int, i1: Int): Ix2 = Pack.L(i0, i1)
+
+  extension (packed: Ix2) {
+    inline def unwrap: Long = packed
+    inline def apply(index: IntIndices.L): Int = (packed: Long).int(index)
+    inline def set(index: IntIndices.L)(value: Int): Ix2 = (packed: Long).intTo(index)(value)
+    inline def setOp(index: IntIndices.L)(inline f: Int => Int): Ix2 = (packed: Long).intTo(index)(f((packed: Long).int(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        sb += packed(0)
+        sb += ' '
+        sb += packed(1)
+        sb += ']'
+  }
+
+  given Translucent[Ix2, Long] {}
+
+  given Sayable[Ix2] = (x, m, _) => m += x.pr
+}
+
+
+opaque type Fx2 = Long
+object Fx2 {
+  inline def wrap(l: Long): Fx2 = l
+  inline def apply(f0: Float, f1: Float): Fx2 =
+    Pack.L(java.lang.Float.floatToRawIntBits(f0), java.lang.Float.floatToRawIntBits(f1))
+
+  extension (packed: Fx2) {
+    inline def unwrap: Long = packed
+    inline def apply(index: IntIndices.L): Float = (packed: Long).float(index)
+    inline def set(index: IntIndices.L)(value: Float): Fx2 = (packed: Long).floatTo(index)(value)
+    inline def setOp(index: IntIndices.L)(inline f: Float => Float): Fx2 = (packed: Long).floatTo(index)(f((packed: Long).float(index)))
+    def pr: String =
+      MkStr: sb =>
+        sb += '['
+        sb += packed(0)
+        sb += ' '
+        sb += packed(1)
+        sb += ']'
+  }
+
+  given Translucent[Fx2, Long] {}
+
+  given Sayable[Fx2] = (x, m, _) => m += x.pr
 }

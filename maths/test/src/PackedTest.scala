@@ -1,5 +1,5 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-23 Rex Kerr and Calico Life Sciences LLC.
+// Copyright (c) 2022-23, 2026 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
 
 package kse.test.maths
 
@@ -1608,4 +1608,114 @@ class PackedTest() {
     T ~ lp.float(1) ==== -5.9577414e11f
     T ~ lp.floatTo(0)(1.115f) ==== 0xD30AB6E83F8EB852L
     T ~ lp.floatTo(1)(-97e9f) ==== 0xD1B4AD342CF54917L
+
+
+  def packedGroupsTest(): Unit =
+    val b2 = Bx2(0x17: Byte, 0xC4.toByte)
+    T ~ b2 ==== Bx2.wrap(0xC417.toShort)
+    T ~ b2.unwrap ==== 0xC417.toShort
+    T ~ b2(0) ==== (0x17: Byte)
+    T ~ b2(1) ==== 0xC4.toByte
+    T ~ b2.set(0)(0x5E: Byte) ==== Bx2.wrap(0xC45E.toShort)
+    T ~ b2.set(1)(0x5E: Byte) ==== Bx2.wrap(0x5E17.toShort)
+    T ~ b2.setOp(0)(b => (b+1).toByte) ==== Bx2.wrap(0xC418.toShort)
+    T ~ b2.setOp(1)(b => (b+1).toByte) ==== Bx2.wrap(0xC517.toShort)
+    T ~ b2.pr ==== "[23 -60]"
+    T ! """b2(2)"""
+    T ! """b2(-1)"""
+
+    val b4 = Bx4(0x17: Byte, 0xC4.toByte, 0x65: Byte, 0xAB.toByte)
+    T ~ b4 ==== Bx4.wrap(0xAB65C417)
+    T ~ b4.unwrap ==== 0xAB65C417
+    T ~ b4(0) ==== (0x17: Byte)
+    T ~ b4(1) ==== 0xC4.toByte
+    T ~ b4(2) ==== (0x65: Byte)
+    T ~ b4(3) ==== 0xAB.toByte
+    T ~ b4.set(2)(0x5E: Byte) ==== Bx4.wrap(0xAB5EC417)
+    T ~ b4.setOp(3)(b => (b+1).toByte) ==== Bx4.wrap(0xAC65C417)
+    T ~ b4.pr ==== "[23 -60 101 -85]"
+    T ! """b4(4)"""
+
+    val b8 = Bx8(0x17: Byte, 0xC4.toByte, 0x65: Byte, 0xAB.toByte, 0x07: Byte, 0x3C: Byte, 0x9F.toByte, 0xDE.toByte)
+    T ~ b8 ==== Bx8.wrap(0xDE9F3C07AB65C417L)
+    T ~ b8.unwrap ==== 0xDE9F3C07AB65C417L
+    T ~ b8(0) ==== (0x17: Byte)
+    T ~ b8(1) ==== 0xC4.toByte
+    T ~ b8(2) ==== (0x65: Byte)
+    T ~ b8(3) ==== 0xAB.toByte
+    T ~ b8(4) ==== (0x07: Byte)
+    T ~ b8(5) ==== (0x3C: Byte)
+    T ~ b8(6) ==== 0x9F.toByte
+    T ~ b8(7) ==== 0xDE.toByte
+    T ~ b8.set(5)(0x5E: Byte) ==== Bx8.wrap(0xDE9F5E07AB65C417L)
+    T ~ b8.setOp(6)(b => (b ^ 0x11).toByte) ==== Bx8.wrap(0xDE8E3C07AB65C417L)
+    T ~ b8.pr ==== "[23 -60 101 -85 7 60 -97 -34]"
+    T ! """b8(8)"""
+
+    val s2 = Sx2(0xC417.toShort, 0xAB65.toShort)
+    T ~ s2 ==== Sx2.wrap(0xAB65C417)
+    T ~ s2.unwrap ==== 0xAB65C417
+    T ~ s2(0) ==== 0xC417.toShort
+    T ~ s2(1) ==== 0xAB65.toShort
+    T ~ s2.set(1)(0x3C07: Short) ==== Sx2.wrap(0x3C07C417)
+    T ~ s2.setOp(0)(s => (s+1).toShort) ==== Sx2.wrap(0xAB65C418)
+    T ~ s2.pr ==== "[-15337 -21659]"
+    T ! """s2(2)"""
+
+    val s4 = Sx4(0xC417.toShort, 0xAB65.toShort, 0x3C07: Short, 0xDE9F.toShort)
+    T ~ s4 ==== Sx4.wrap(0xDE9F3C07AB65C417L)
+    T ~ s4.unwrap ==== 0xDE9F3C07AB65C417L
+    T ~ s4(0) ==== 0xC417.toShort
+    T ~ s4(1) ==== 0xAB65.toShort
+    T ~ s4(2) ==== (0x3C07: Short)
+    T ~ s4(3) ==== 0xDE9F.toShort
+    T ~ s4.set(2)(0x1234: Short) ==== Sx4.wrap(0xDE9F1234AB65C417L)
+    T ~ s4.setOp(3)(s => (s+1).toShort) ==== Sx4.wrap(0xDEA03C07AB65C417L)
+    T ~ s4.pr ==== "[-15337 -21659 15367 -8545]"
+    T ! """s4(4)"""
+
+    val c2 = Cx2(0xC417.toChar, 0xAB65.toChar)
+    T ~ c2 ==== Cx2.wrap(0xAB65C417)
+    T ~ c2.unwrap ==== 0xAB65C417
+    T ~ c2(0) ==== 0xC417.toChar
+    T ~ c2(1) ==== 0xAB65.toChar
+    T ~ c2.set(0)('m') ==== Cx2.wrap(0xAB65006D)
+    T ~ c2.setOp(1)(c => (c+1).toChar) ==== Cx2.wrap(0xAB66C417)
+    T ~ Cx2('h', 'i').pr ==== "[h i]"
+    T ! """c2(2)"""
+
+    val c4 = Cx4(0xC417.toChar, 0xAB65.toChar, 0x3C07.toChar, 0xDE9F.toChar)
+    T ~ c4 ==== Cx4.wrap(0xDE9F3C07AB65C417L)
+    T ~ c4.unwrap ==== 0xDE9F3C07AB65C417L
+    T ~ c4(0) ==== 0xC417.toChar
+    T ~ c4(1) ==== 0xAB65.toChar
+    T ~ c4(2) ==== 0x3C07.toChar
+    T ~ c4(3) ==== 0xDE9F.toChar
+    T ~ c4.set(3)('m') ==== Cx4.wrap(0x006D3C07AB65C417L)
+    T ~ c4.setOp(0)(c => (c+1).toChar) ==== Cx4.wrap(0xDE9F3C07AB65C418L)
+    T ~ Cx4('a', 'b', 'c', 'd').pr ==== "[a b c d]"
+    T ! """c4(4)"""
+
+    val i2 = Ix2(0xAB65C417, 0xDE9F3C07)
+    T ~ i2 ==== Ix2.wrap(0xDE9F3C07AB65C417L)
+    T ~ i2.unwrap ==== 0xDE9F3C07AB65C417L
+    T ~ i2(0) ==== 0xAB65C417
+    T ~ i2(1) ==== 0xDE9F3C07
+    T ~ i2.set(0)(0x2CF54917) ==== Ix2.wrap(0xDE9F3C072CF54917L)
+    T ~ i2.setOp(1)(i => i + 1) ==== Ix2.wrap(0xDE9F3C08AB65C417L)
+    T ~ Ix2(7, -9).pr ==== "[7 -9]"
+    T ! """i2(2)"""
+
+    val f2 = Fx2(6.9714334e-12f, -5.9577414e11f)
+    T ~ f2 ==== Fx2.wrap(0xD30AB6E82CF54917L)
+    T ~ f2.unwrap ==== 0xD30AB6E82CF54917L
+    T ~ f2(0) ==== 6.9714334e-12f
+    T ~ f2(1) ==== -5.9577414e11f
+    T ~ f2.set(0)(1.115f) ==== Fx2.wrap(0xD30AB6E83F8EB852L)
+    T ~ f2.set(1)(-97e9f) ==== Fx2.wrap(0xD1B4AD342CF54917L)
+    T ~ f2.setOp(0)(x => -x) ==== Fx2(-6.9714334e-12f, -5.9577414e11f)
+    T ~ Fx2(1.5f, -2.25f).pr ==== "[1.5 -2.25]"
+    T ! """f2(2)"""
+
+    T ~ say"$b2 ${Cx2('h', 'i')} ${Ix2(7, -9)}" ==== "[23 -60] [h i] [7 -9]"
 }

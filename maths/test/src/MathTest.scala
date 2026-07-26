@@ -4547,6 +4547,9 @@ class MathTest {
   def packedPrimitiveTest(): Unit = packedTester.packedPrimitiveTest()
 
   @Test
+  def packedGroupsTest(): Unit = packedTester.packedGroupsTest()
+
+  @Test
   def geomTestVectors(): Unit = geomTester.testVectors()
 
   @Test
