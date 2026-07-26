@@ -13,7 +13,7 @@ import org.junit.Assert._
 
 @RunWith(classOf[JUnit4])
 class GrokTest {
-  import kse.testutilities.TestUtilities.{given, _}
+  import kse.basics.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.maths.{given, _}

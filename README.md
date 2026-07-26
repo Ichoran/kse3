@@ -578,7 +578,7 @@ This enables a very succinct but delightfully powerful testing framework, where 
 T ~ myTestFunction ==== myExpectedValue --: typed[MyExpectedType]
 ```
 
-For one-liner tests, it's incredibly effective.  All the tests for `kse` use `kse.testutilities` (the package name is
+For one-liner tests, it's incredibly effective.  All the tests for `kse` use `kse.basics.testutilities` (the package name is
 longer because it's nice to reserve `testing` for other use).
 
 ## Naming Conventions

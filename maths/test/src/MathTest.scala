@@ -26,7 +26,7 @@ class MathTest {
   import java.nio.ByteBuffer
   import java.nio.ByteOrder
 
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{given, _}
   import kse.basics.intervals.{Iv, End}
   import kse.flow.{_, given}

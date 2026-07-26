@@ -22,7 +22,7 @@ import kse.jsaun.{Jsonize, FromJson}
 // whitespace, numeric forms, and edit sequences that hand-written cases can't reach.
 @RunWith(classOf[JUnit4])
 class JsaunFuzzTest {
-  import kse.testutilities.TestUtilities.{given, _}
+  import kse.basics.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.jsaun.{given, _}

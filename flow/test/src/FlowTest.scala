@@ -23,7 +23,7 @@ import scala.util.boundary.break
 
 @RunWith(classOf[JUnit4])
 class FlowTest {
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{given, _}
   import kse.basics.intervals.*
   import kse.flow.{_, given}

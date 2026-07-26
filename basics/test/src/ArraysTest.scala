@@ -21,7 +21,7 @@ import scala.util.boundary.break
 
 
 class ArraysTest() {
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
   import kse.basics.intervals._
 
@@ -2488,7 +2488,7 @@ class ArraysTest() {
 
 
 class StringsTest() {
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
   import kse.basics.intervals._
 

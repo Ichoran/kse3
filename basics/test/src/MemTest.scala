@@ -18,7 +18,7 @@ import scala.util.{Try, Success, Failure}
 
 
 class MemTest() {
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
 
   given Asserter(

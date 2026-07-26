@@ -136,7 +136,7 @@ object BytecodeCheck {
 @RunWith(classOf[JUnit4])
 class BasicsTest() {
   import compiletime.testing.{typeChecks => cc}
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
   import kse.basics.intervals._
   import kse.basics.labels.{_, given}

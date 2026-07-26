@@ -23,7 +23,7 @@ import scala.util.boundary.break
 class TuplesTest() {
   import compiletime.testing.{typeChecks => cc}
 
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
   import kse.basics.{_, given}
   import kse.basics.intervals._
   import kse.basics.labels._

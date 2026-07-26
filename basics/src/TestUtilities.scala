@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
-// Copyright (c) 2022-25 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
+// Copyright (c) 2022-26 Rex Kerr, Calico Life Sciences LLC, and UCSF (Kato Lab).
 
-package kse.testutilities
+package kse.basics.testutilities
 
 import scala.language.`3.6-migration` // tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
@@ -12,6 +12,8 @@ import scala.reflect.{ClassTag, TypeTest}
 import scala.util.{Try, Success, Failure}
 import scala.util.control.ControlThrowable
 
+import kse.basics.SourceLine
+
 
 /** This provides a way to write unit tests.
   *
@@ -20,7 +22,7 @@ import scala.util.control.ControlThrowable
   * Unfortunately, it doesn't have any documentation at all.
   * You can read the unit tests for kse.flow etc. to see how it is used.
   * 
-  * See build.sc for how to include it in your own tests.
+  * It ships with kse.basics, so no extra dependency is needed to use it in your own tests.
   */
 object TestUtilities {
   class Asserter(
@@ -95,10 +97,10 @@ object TestUtilities {
     def mline: String
   }
 
-  class Labeled[A](val mline: String, val value: () => A)(using asr: Asserter, ln: Line, fl: FileName) extends Messaging {
+  class Labeled[A](val mline: String, val value: () => A)(using asr: Asserter, sl: SourceLine.Text) extends Messaging {
     import asr._
 
-    override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
+    override def message = s"error at $sl\n" + super.message
 
     def isEqual[B](b: => B): Unit =
       val ta = Try{ value() }
@@ -141,10 +143,10 @@ object TestUtilities {
       if !apx.approx(va, vb) then assertEquals(message, va, vb)
   }
 
-  class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, ln: Line, fl: FileName) extends Messaging {
+  class LabeledCollection[C, I <: IsIterable[C]](val mline: String, val value: () => C, val ii: I)(using asr: Asserter, sl: SourceLine.Text) extends Messaging {
     import asr._
 
-    override def message = s"error at ${fl.value}:${ln.value}\n" + super.message
+    override def message = s"error at $sl\n" + super.message
 
     private def pickMoreElements[A](count: Int, index: Int, it: Iterator[A], acc: List[String] = Nil): List[String] =
       if count <= 0 || ! it.hasNext then
@@ -203,13 +205,13 @@ object TestUtilities {
 
     def message: String
 
-    def ~[A](a: => A)(using asr: Asserter, ln: Line, fl: FileName): Labeled[A] =
+    def ~[A](a: => A)(using asr: Asserter, sl: SourceLine.Text): Labeled[A] =
       Labeled(message, () => a)
 
-    def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, ln: Line, fl: FileName): LabeledCollection[A, ii.type] =
+    def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, sl: SourceLine.Text): LabeledCollection[A, ii.type] =
       LabeledCollection[A, ii.type](message, () => a, ii)
 
-    inline def !(inline code: String)(using Asserter, Line, FileName): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
+    inline def !(inline code: String)(using Asserter, SourceLine.Text): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
   }
 
   object T extends GenLabeled {

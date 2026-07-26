@@ -359,25 +359,26 @@ object SourceLine {
     * `String` is expected. */
   opaque type Text <: String = String
   object Text {
-    private inline def pack(inline s: String): Text = s
+    // Both the direct macro splice and `transparent` are load-bearing: helper-inline
+    // indirection or a non-transparent opaque result type each make the inliner emit
+    // dead prefix-proxy locals at every summon site, growing the local-variable frame
+    // without bound and bloating assertion-heavy methods past the JVM bytecode limit.
 
     /** This call site's `file:line` identity as a compile-time string constant. */
-    inline def apply: Text = pack(SourceLine.text)
+    inline def apply: Text = ${ basicsMacroImpl.sourcelineTextImpl }
 
     /** Captures the call site's `file:line` identity wherever a `(using SourceLine.Text)` is needed. */
-    inline given Text = pack(SourceLine.text)
+    transparent inline given Text = ${ basicsMacroImpl.sourcelineTextImpl }
   }
 
   /** A call site's full source path, carried as the literal `String` itself (see [[Text]]). */
   opaque type Path <: String = String
   object Path {
-    private inline def pack(inline s: String): Path = s
-
     /** This call site's full source path as a compile-time string constant. */
-    inline def apply: Path = pack(SourceLine.pathname)
+    inline def apply: Path = ${ basicsMacroImpl.sourcelinePathImpl }
 
     /** Captures the call site's source path wherever a `(using SourceLine.Path)` is needed. */
-    inline given Path = pack(SourceLine.pathname)
+    transparent inline given Path = ${ basicsMacroImpl.sourcelinePathImpl }
   }
 }
 

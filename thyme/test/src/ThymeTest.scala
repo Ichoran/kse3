@@ -16,7 +16,7 @@ import kse.thyme.{given, _}
 
 @RunWith(classOf[JUnit4])
 class ThymeTest {
-  import kse.testutilities.TestUtilities.{_, given}
+  import kse.basics.testutilities.TestUtilities.{_, given}
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),

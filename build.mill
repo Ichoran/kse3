@@ -49,10 +49,6 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
 }
 
 
-object testutilities extends Base with PublishKse3 {
-  override def publicationName = "kse3-testing"
-}
-
 trait Common extends Base {
   def extraTestDeps: Seq[ScalaModule] = Seq.empty
   def extraTestIvy: T[Seq[Dep]] = Task{ Seq.empty[Dep] }
@@ -61,7 +57,7 @@ trait Common extends Base {
     override def mvnDeps = Task {
       super.mvnDeps() ++ extraTestIvy()
     }
-    def moduleDeps = Seq(testutilities) ++ extraTestDeps ++ super.moduleDeps
+    def moduleDeps = extraTestDeps ++ super.moduleDeps
   }
 }
 
@@ -99,7 +95,7 @@ object jsaun extends Common with PublishKse3 {
 }
 
 object foundation extends Common {
-  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun, testutilities)
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun)
 }
 
 object all extends Common {

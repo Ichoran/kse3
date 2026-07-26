@@ -30,7 +30,7 @@ import scala.util.boundary.break
 
 @RunWith(classOf[JUnit4])
 class EioTest {
-  import kse.testutilities.TestUtilities.{given, _}
+  import kse.basics.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.basics.intervals._
   import kse.basics.labels._

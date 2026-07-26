@@ -33,7 +33,7 @@ case class Empty() derives Jsonize, FromJson
 
 @RunWith(classOf[JUnit4])
 class JsaunTest {
-  import kse.testutilities.TestUtilities.{given, _}
+  import kse.basics.testutilities.TestUtilities.{given, _}
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.jsaun.{given, _}
