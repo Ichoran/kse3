@@ -13,7 +13,7 @@ import publish._
 
 
 trait Base extends ScalaModule {
-  def scalaVersion = "3.8.3"
+  def scalaVersion = "3.8.4"
 
   def scalacOptions = Seq(
     "-deprecation",
@@ -34,7 +34,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.7.1"
+  def publishVersion = "0.7.2"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -98,6 +98,10 @@ object jsaun extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
+object foundation extends Common {
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun, testutilities)
+}
+
 object all extends Common {
   override def mvnDeps = Task {
     super.mvnDeps() ++
@@ -109,5 +113,5 @@ object all extends Common {
       mvn"com.twelvemonkeys.imageio:imageio-tiff:3.10.1"
     )
   }
-  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun)
+  def moduleDeps = Seq(foundation)
 }

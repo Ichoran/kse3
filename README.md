@@ -25,32 +25,32 @@ The modules available in kse3 presently are listed below.
 You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala
-def scalaVersion = "3.8.3"
+def scalaVersion = "3.8.4"
 ```
 
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.7.1"
-mvn"com.github.ichoran::kse3-flow:0.7.1"
-mvn"com.github.ichoran::kse3-maths:0.7.1"
-mvn"com.github.ichoran::kse3-loom:0.7.1"
-mvn"com.github.ichoran::kse3-thyme:0.7.1"
-mvn"com.github.ichoran::kse3-eio:0.7.1"
-mvn"com.github.ichoran::kse3-jsaun:0.7.1"
+mvn"com.github.ichoran::kse3-basics:0.7.2"
+mvn"com.github.ichoran::kse3-flow:0.7.2"
+mvn"com.github.ichoran::kse3-maths:0.7.2"
+mvn"com.github.ichoran::kse3-loom:0.7.2"
+mvn"com.github.ichoran::kse3-thyme:0.7.2"
+mvn"com.github.ichoran::kse3-eio:0.7.2"
+mvn"com.github.ichoran::kse3-jsaun:0.7.2"
 ```
 
 to try it out.  Or, the scala-cli header equivalent:
 
 ```scala
-//> using scala 3.8.3
-//> using dep com.github.ichoran::kse3-basics:0.7.1
-//> using dep com.github.ichoran::kse3-flow:0.7.1
-//> using dep com.github.ichoran::kse3-maths:0.7.1
-//> using dep com.github.ichoran::kse3-loom:0.7.1
-//> using dep com.github.ichoran::kse3-thyme:0.7.1
-//> using dep com.github.ichoran::kse3-eio:0.7.1
-//> using dep com.github.ichoran::kse3-jsaun:0.7.1
+//> using scala 3.8.4
+//> using dep com.github.ichoran::kse3-basics:0.7.2
+//> using dep com.github.ichoran::kse3-flow:0.7.2
+//> using dep com.github.ichoran::kse3-maths:0.7.2
+//> using dep com.github.ichoran::kse3-loom:0.7.2
+//> using dep com.github.ichoran::kse3-thyme:0.7.2
+//> using dep com.github.ichoran::kse3-eio:0.7.2
+//> using dep com.github.ichoran::kse3-jsaun:0.7.2
 ```
 
 Because scala-cli does not by default use the default JVM and does not use Java 25 by default,
