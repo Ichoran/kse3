@@ -1998,11 +1998,11 @@ object Bx2 {
     inline def setOp(index: ByteIndices.S)(inline f: Byte => Byte): Bx2 = (packed: Short).byteTo(index)(f((packed: Short).byte(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         sb += packed(0).toInt
         sb += ' '
         sb += packed(1).toInt
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Bx2, Short] {}
@@ -2023,7 +2023,7 @@ object Bx4 {
     inline def setOp(index: ByteIndices.I)(inline f: Byte => Byte): Bx4 = (packed: Int).byteTo(index)(f((packed: Int).byte(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         var v = (packed: Int)
         var i = 0
         while i < 4 do
@@ -2031,7 +2031,7 @@ object Bx4 {
           sb += (v & 0xFF).toByte.toInt
           v = v >>> 8
           i += 1
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Bx4, Int] {}
@@ -2053,7 +2053,7 @@ object Bx8 {
     inline def setOp(index: ByteIndices.L)(inline f: Byte => Byte): Bx8 = (packed: Long).byteTo(index)(f((packed: Long).byte(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         var v = (packed: Long)
         var i = 0
         while i < 8 do
@@ -2061,7 +2061,7 @@ object Bx8 {
           sb += (v & 0xFF).toByte.toInt
           v = v >>> 8
           i += 1
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Bx8, Long] {}
@@ -2082,11 +2082,11 @@ object Sx2 {
     inline def setOp(index: ShortIndices.I)(inline f: Short => Short): Sx2 = (packed: Int).shortTo(index)(f((packed: Int).short(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         sb += packed(0).toInt
         sb += ' '
         sb += packed(1).toInt
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Sx2, Int] {}
@@ -2107,7 +2107,7 @@ object Sx4 {
     inline def setOp(index: ShortIndices.L)(inline f: Short => Short): Sx4 = (packed: Long).shortTo(index)(f((packed: Long).short(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         var v = (packed: Long)
         var i = 0
         while i < 4 do
@@ -2115,7 +2115,7 @@ object Sx4 {
           sb += (v & 0xFFFF).toShort.toInt
           v = v >>> 16
           i += 1
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Sx4, Long] {}
@@ -2136,11 +2136,11 @@ object Cx2 {
     inline def setOp(index: CharIndices.I)(inline f: Char => Char): Cx2 = (packed: Int).charTo(index)(f((packed: Int).char(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         sb += packed(0)
         sb += ' '
         sb += packed(1)
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Cx2, Int] {}
@@ -2161,7 +2161,7 @@ object Cx4 {
     inline def setOp(index: CharIndices.L)(inline f: Char => Char): Cx4 = (packed: Long).charTo(index)(f((packed: Long).char(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         var v = (packed: Long)
         var i = 0
         while i < 4 do
@@ -2169,7 +2169,7 @@ object Cx4 {
           sb += (v & 0xFFFF).toChar
           v = v >>> 16
           i += 1
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Cx4, Long] {}
@@ -2190,11 +2190,11 @@ object Ix2 {
     inline def setOp(index: IntIndices.L)(inline f: Int => Int): Ix2 = (packed: Long).intTo(index)(f((packed: Long).int(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         sb += packed(0)
         sb += ' '
         sb += packed(1)
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Ix2, Long] {}
@@ -2216,11 +2216,11 @@ object Fx2 {
     inline def setOp(index: IntIndices.L)(inline f: Float => Float): Fx2 = (packed: Long).floatTo(index)(f((packed: Long).float(index)))
     def pr: String =
       MkStr: sb =>
-        sb += '['
+        sb += '<'
         sb += packed(0)
         sb += ' '
         sb += packed(1)
-        sb += ']'
+        sb += '>'
   }
 
   given Translucent[Fx2, Long] {}
