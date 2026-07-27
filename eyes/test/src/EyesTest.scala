@@ -252,6 +252,92 @@ class EyesTest {
     T ~ s.contains("Regions") ==== true
 
   @Test
+  def titlesTest(): Unit =
+    val fig = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) +
+        title("Top") + axis.horz.title("day") + axis.vert.title("rev")
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ s.contains(">Top<") ==== true
+    T ~ s.contains(">day<") ==== true
+    T ~ s.contains(">rev<") ==== true
+    T ~ s.contains("rotate(-90") ==== true  // the y-axis title is vertical
+
+  @Test
+  def freeScalesTest(): Unit =
+    val xs6 = Array(1.0, 2.0, 3.0, 1.0, 2.0, 3.0)
+    val ys6 = Array(0.2, 0.4, 0.6, 120.0, 160.0, 200.0)
+    val cc = Array("A", "A", "A", "B", "B", "B")
+    val shared = Fig(f => f.data(x = xs6, y = ys6, col = cc) * f.visual(f.Scatter))
+    val free = Fig(f => f.data(x = xs6, y = ys6, col = cc) * f.visual(f.Scatter) + f.axis.vert.free)
+    val ss = shared.svg().get
+    val fs = free.svg().get
+    // shared: one big domain, so no fine-grained labels for the small panel
+    T ~ ss.contains(">0.4<") ==== false
+    // free: each panel labels its own domain
+    T ~ fs.contains(">0.4<") ==== true
+    T ~ fs.contains(">160<") ==== true
+
+  @Test
+  def eachLabeledTest(): Unit =
+    def build(extra: Boolean) = Fig: f =>
+      import f.*
+      val base = data.from(sales)(s => (x = s.date, y = s.revenue)) *
+        visual(Scatter) * facet(col = sales.map(_.channel))
+      if extra then base + panels.eachLabeled else base + legend("x")
+    val plain = build(false).svg().get
+    val each = build(true).svg().get
+    T ~ (plain.split(">10<").length - 1) ==== 1
+    T ~ (each.split(">10<").length - 1) ==== 2
+
+  @Test
+  def panelGapTest(): Unit =
+    def build(g: Double) = Fig: f =>
+      import f.*
+      data.from(sales)(s => (x = s.date, y = s.revenue)) *
+        visual(Scatter) * facet(col = sales.map(_.channel)) + panels.gap(g)
+    val tight = build(2.0).svg().get
+    val loose = build(40.0).svg().get
+    T ~ (tight == loose) ==== false
+
+  @Test
+  def boardTest(): Unit =
+    def tiny(t: String) = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Scatter) + f.title(t))
+    val a = tiny("AA")
+    val b = tiny("BB")
+    val c = tiny("CC")
+    // flattening: | and / associate into single rows/stacks
+    (a | b | c) match
+      case Board.Beside(items) => T ~ items.length ==== 3
+      case other               => assertTrue(s"expected Beside, got $other", false)
+    val board = (a | b) / c
+    board match
+      case Board.Above(items) => T ~ items.length ==== 2
+      case other              => assertTrue(s"expected Above, got $other", false)
+    val r = board.svg(800, 600)
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ (s.split("<svg").length - 1) ==== 1
+    T ~ s.contains(">AA<") ==== true
+    T ~ s.contains(">BB<") ==== true
+    T ~ s.contains(">CC<") ==== true
+
+  @Test
+  def insetTest(): Unit =
+    val mini = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Line) + f.title("MINI"))
+    val fig = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) + inset(mini, 0.55, 0.05, 0.4, 0.38)
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ s.contains(">MINI<") ==== true
+    // background rect plus the inset's backing box
+    T ~ (s.split("<rect").length - 1) ==== 2
+
+  @Test
   def scaleKindTest(): Unit =
     T ~ summon[ScaleOf[Double]].kind ==== ScaleKind.Continuous
     T ~ summon[ScaleOf[Int]].kind ==== ScaleKind.Continuous

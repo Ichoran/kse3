@@ -231,13 +231,50 @@ object Parts:
   /** Config fragment stub; the typed-key cascade (DESIGN 7) replaces this as it grows. */
   enum Config:
     case LegendTitle(title: String)
+    case FigTitle(title: String)
+    case AxisTitle(axis: Axis, title: String)
     case AxisLimit(axis: Axis, min: Double, max: Double)  // NaN = unset
+    case FreeAxis(horz: Boolean, vert: Boolean)
+    case PanelGap(horz: Double, vert: Double)
+    case EachLabeled
+    case Inset(fig: Figure, x: Double, y: Double, w: Double, h: Double)
 
 
 /** An interpreted figure.  For now just the normalized spec; scene, layout, and rendering
-  * attach here as they are built.
+  * attach here as they are built.  Whole figures compose onto one canvas with `|` (beside)
+  * and `/` (above), each keeping its own scales, legend, and titles.
   */
-final case class Figure(parts: Parts)
+final case class Figure(parts: Parts):
+  def |(that: Figure): Board = Board.One(this) | that
+  def |(that: Board): Board = Board.One(this) | that
+  def /(that: Figure): Board = Board.One(this) / that
+  def /(that: Board): Board = Board.One(this) / that
+
+
+/** A canvas of independent figures: `a | b` puts figures beside each other, `a / b` stacks
+  * them.  `/` binds tighter than `|`, so `a | b / c` is a beside a b-over-c stack; use
+  * parentheses for the other reading.  Rows and stacks flatten, so `a | b | c` is one
+  * three-across row.
+  */
+enum Board:
+  case One(fig: Figure)
+  case Beside(items: List[Board])
+  case Above(items: List[Board])
+
+  def |(that: Figure): Board = this | Board.One(that)
+  def /(that: Figure): Board = this / Board.One(that)
+
+  def |(that: Board): Board = (this, that) match
+    case (Board.Beside(a), Board.Beside(b)) => Board.Beside(a ::: b)
+    case (Board.Beside(a), b)               => Board.Beside(a :+ b)
+    case (a, Board.Beside(b))               => Board.Beside(a :: b)
+    case (a, b)                             => Board.Beside(a :: b :: Nil)
+
+  def /(that: Board): Board = (this, that) match
+    case (Board.Above(a), Board.Above(b)) => Board.Above(a ::: b)
+    case (Board.Above(a), b)              => Board.Above(a :+ b)
+    case (a, Board.Above(b))              => Board.Above(a :: b)
+    case (a, b)                           => Board.Above(a :: b :: Nil)
 
 
 //////////////////////////////
@@ -273,10 +310,24 @@ final class DataWord private[eyes] ():
 final class AxisWords private[eyes] (which: Parts.Axis):
   def limit(min: Double = Double.NaN, max: Double = Double.NaN): Parts =
     Parts(Nil, Parts.Config.AxisLimit(which, min, max) :: Nil)
+  def title(text: String): Parts =
+    Parts(Nil, Parts.Config.AxisTitle(which, text) :: Nil)
+  /** This axis fits each facet panel's own data instead of the shared domain. */
+  def free: Parts =
+    Parts(Nil, Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert) :: Nil)
 
 final class AxisVocab private[eyes] ():
   val horz: AxisWords = AxisWords(Parts.Axis.Horz)
   val vert: AxisWords = AxisWords(Parts.Axis.Vert)
+  /** Both axes free: every facet panel fits its own data. */
+  def free: Parts = Parts(Nil, Parts.Config.FreeAxis(true, true) :: Nil)
+
+/** Panel-arrangement words for facet grids. */
+final class PanelsVocab private[eyes] ():
+  def gap(both: Double): Parts = gap(both, both)
+  def gap(horz: Double, vert: Double): Parts = Parts(Nil, Parts.Config.PanelGap(horz, vert) :: Nil)
+  /** Every panel gets its own tick labels (scales still shared unless axes are free). */
+  def eachLabeled: Parts = Parts(Nil, Parts.Config.EachLabeled :: Nil)
 
 
 /** The spec-building words.  Everything is a method on some object (`Fig`, or the scope
@@ -303,7 +354,17 @@ trait Vocabulary:
 
   def legend(title: String): Parts = Parts(Nil, Parts.Config.LegendTitle(title) :: Nil)
 
+  def title(text: String): Parts = Parts(Nil, Parts.Config.FigTitle(text) :: Nil)
+
+  /** A miniature figure floated over the panel area, in fractions of it: `x`, `y` locate
+    * the inset's top-left, `w`, `h` its size.
+    */
+  def inset(fig: Figure, x: Double, y: Double, w: Double, h: Double): Parts =
+    Parts(Nil, Parts.Config.Inset(fig, x, y, w, h) :: Nil)
+
   val axis: AxisVocab = AxisVocab()
+
+  val panels: PanelsVocab = PanelsVocab()
 
   /** Placeholder recipe: a line look.  Becomes a real recipe (default x = index, scales,
     * style) once interpretation exists.

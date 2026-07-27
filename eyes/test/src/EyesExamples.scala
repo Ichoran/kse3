@@ -47,10 +47,30 @@ object EyesExamples:
     val fig2 = Fig: f =>
       import f.*
       val base = data.from(rows)(s => (x = s.day, y = s.revenue, color = s.region))
-      base * (visual(Scatter) + visual(Line) * smooth(Loess())) * facet(col = halves) + legend("Revenue by region")
+      base * (visual(Scatter) + visual(Line) * smooth(Loess())) * facet(col = halves) +
+        legend("Revenue by region") + axis.horz.title("day") + axis.vert.title("revenue (k$)")
     write(dir, "sketch2.svg", fig2)
 
-  private def write(dir: java.nio.file.Path, name: String, fig: Figure): Unit =
+    // Sketch 3: a board of independent figures, one carrying a mini-graph inset
+    val diffs = Array.tabulate(series.length - 1)(i => series(i + 1) - series(i))
+    val mini = Fig: f =>
+      import f.*
+      data((y = diffs)) * visual(Line) + title("day-over-day")
+    val big = Fig: f =>
+      import f.*
+      data((y = series)) * timeseries + title("Signal") + inset(mini, 0.52, 0.06, 0.44, 0.4)
+    val west = rows.filter(_.region == "west")
+    val scat = Fig: f =>
+      import f.*
+      data.from(west)(s => (x = s.day, y = s.revenue)) * visual(Scatter) +
+        title("West raw") + axis.horz.title("day")
+    val fit = Fig: f =>
+      import f.*
+      data.from(west)(s => (x = s.day, y = s.revenue)) * (visual(Scatter) + visual(Line) * smooth(Fit(1))) +
+        title("West + linear fit") + axis.horz.title("day")
+    write(dir, "sketch3.svg", (scat | fit) / big)
+
+  private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =
     fig.svg().fold{ s =>
       val p = dir.resolve(name)
       val _ = Files.writeString(p, s)

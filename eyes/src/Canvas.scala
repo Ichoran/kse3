@@ -43,7 +43,7 @@ enum Glyph:
   case Polyline(xs: Array[Double], ys: Array[Double], stroke: String, w: Double)
   case Disc(x: Double, y: Double, r: Double, fill: String)
   case Box(x: Double, y: Double, w: Double, h: Double, fill: String)
-  case Txt(x: Double, y: Double, text: String, size: Double, fill: String, anchor: Glyph.Anchor, bold: Boolean = false)
+  case Txt(x: Double, y: Double, text: String, size: Double, fill: String, anchor: Glyph.Anchor, bold: Boolean = false, rotate: Double = 0)
 
 object Glyph:
   enum Anchor:
@@ -89,13 +89,14 @@ object Svg:
       case Glyph.Box(x, y, w, h, fill) =>
         emit(s"""<rect x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}" fill="$fill"/>""")
         emit("\n")
-      case Glyph.Txt(x, y, text, size, fill, anchor, bold) =>
+      case Glyph.Txt(x, y, text, size, fill, anchor, bold, rotate) =>
         val anch = anchor match
           case Glyph.Anchor.Start  => ""
           case Glyph.Anchor.Middle => """ text-anchor="middle""""
           case Glyph.Anchor.End    => """ text-anchor="end""""
         val wt = if bold then """ font-weight="bold"""" else ""
-        emit(s"""<text x="${num(x)}" y="${num(y)}" font-family="sans-serif" font-size="${num(size)}" fill="$fill"$anch$wt>${esc(text)}</text>""")
+        val rot = if rotate == 0 then "" else s""" transform="rotate(${num(rotate)} ${num(x)} ${num(y)})""""
+        emit(s"""<text x="${num(x)}" y="${num(y)}" font-family="sans-serif" font-size="${num(size)}" fill="$fill"$anch$wt$rot>${esc(text)}</text>""")
         emit("\n")
     emit("</svg>\n")
     sb.toString

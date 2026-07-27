@@ -217,7 +217,7 @@ object Render:
     showLeft: Boolean, showBottom: Boolean,
     colStrip: String | Null, rowStrip: String | Null,
     m: Measurer
-  ) extends Block:
+  ) extends GlyphBlock:
     private def xTicks(w: Double): Ticks = ticksIn(x0, x1, jm.max(2, jm.min(8, (w / 90).toInt)))
     private def yTicks(h: Double): Ticks = ticksIn(y0, y1, jm.max(2, jm.min(8, (h / 70).toInt)))
 
@@ -287,7 +287,7 @@ object Render:
                     put(Glyph.Polyline(idx.map(i => sx(s.xs(i))).toArray, idx.map(i => sy(s.ys(i))).toArray, palette(lv % palette.length), 1.8))
                   lv += 1
 
-  private final class LegendBlock(title: String | Null, levels: Array[String], m: Measurer) extends Block:
+  private final class LegendBlock(title: String | Null, levels: Array[String], m: Measurer) extends GlyphBlock:
     private def innerWidth: Double =
       val titleW = if title == null then 0.0 else m.width(title, labSz)
       levels.foldLeft(titleW)((w, s) => jm.max(w, 11 + 6 + m.width(s, labSz))) + 16
@@ -306,30 +306,86 @@ object Render:
         ly += 17
         lv += 1
 
-  private final class TitleBlock(text: String, m: Measurer) extends Block:
+  private final class TitleBlock(text: String, m: Measurer) extends GlyphBlock:
     override def heightPref: Size = Size.Fixed(m.lineHeight(titleSz) + 6)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
       put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(titleSz) + 2, text, titleSz, "#222222", Glyph.Anchor.Middle, bold = true))
 
-  def figureSvg(fig: Figure, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
+  private final class XTitleBlock(text: String, m: Measurer) extends GlyphBlock:
+    override def heightPref: Size = Size.Fixed(m.lineHeight(labSz) + 4)
+    def protrusions(w: Double, h: Double): Prot = Prot.zero
+    def glyphs(rect: Rect, put: Glyph => Unit): Unit =
+      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(labSz) + 2, text, labSz, "#222222", Glyph.Anchor.Middle))
+
+  private final class YTitleBlock(text: String, m: Measurer) extends GlyphBlock:
+    override def widthPref: Size = Size.Fixed(m.lineHeight(labSz) + 2)
+    def protrusions(w: Double, h: Double): Prot = Prot.zero
+    def glyphs(rect: Rect, put: Glyph => Unit): Unit =
+      put(Glyph.Txt(rect.x + m.ascent(labSz) + 2, rect.y + rect.h / 2, text, labSz, "#222222", Glyph.Anchor.Middle, rotate = -90))
+
+  private def axisSpan(lo0: Double, hi0: Double, cfgLo: Double, cfgHi: Double): (Double, Double) =
+    var lo = lo0
+    var hi = hi0
+    if hi == lo then
+      lo -= jm.max(1.0, jm.abs(lo) * 0.05)
+      hi += jm.max(1.0, jm.abs(hi) * 0.05)
+    val pad = 0.04 * (hi - lo)
+    (if cfgLo.isNaN then lo - pad else cfgLo, if cfgHi.isNaN then hi + pad else cfgHi)
+
+  private def freeSpan(slices: List[Slice], horz: Boolean, cfgLo: Double, cfgHi: Double, fb0: Double, fb1: Double): (Double, Double) =
+    var lo = Double.PositiveInfinity
+    var hi = Double.NegativeInfinity
+    slices.foreach: s =>
+      val a = if horz then s.xs else s.ys
+      var i = 0
+      while i < a.length do
+        if a(i) < lo then lo = a(i)
+        if a(i) > hi then hi = a(i)
+        i += 1
+    if !(lo <= hi) then (fb0, fb1) else axisSpan(lo, hi, cfgLo, cfgHi)
+
+  /** Builds a figure's full block tree — facet grid of panels, legend, titles, insets —
+    * rooted in one outer grid, ready to solve at any size.
+    */
+  private def buildFigure(fig: Figure)(using m: Measurer): Ask[Grid] = Ask:
     val layers = fig.parts.layers
     if layers.isEmpty then Err.break("figure has no layers")
 
-    var xLo = Double.NaN
-    var xHi = Double.NaN
-    var yLo = Double.NaN
-    var yHi = Double.NaN
-    var title: String | Null = null
+    var xLoC = Double.NaN
+    var xHiC = Double.NaN
+    var yLoC = Double.NaN
+    var yHiC = Double.NaN
+    var legTitle: String | Null = null
+    var figTitle: String | Null = null
+    var xTitle: String | Null = null
+    var yTitle: String | Null = null
+    var freeX = false
+    var freeY = false
+    var gapH = 12.0
+    var gapV = 12.0
+    var everyLabel = false
+    val insets = collection.mutable.ArrayBuffer.empty[Parts.Config.Inset]
     fig.parts.config.foreach:
-      case Parts.Config.LegendTitle(t) => title = t
+      case Parts.Config.LegendTitle(t) => legTitle = t
+      case Parts.Config.FigTitle(t)    => figTitle = t
+      case Parts.Config.AxisTitle(a, t) =>
+        if a == Parts.Axis.Horz then xTitle = t else yTitle = t
       case Parts.Config.AxisLimit(a, lo, hi) =>
         if a == Parts.Axis.Horz then
-          if !lo.isNaN then xLo = lo
-          if !hi.isNaN then xHi = hi
+          if !lo.isNaN then xLoC = lo
+          if !hi.isNaN then xHiC = hi
         else
-          if !lo.isNaN then yLo = lo
-          if !hi.isNaN then yHi = hi
+          if !lo.isNaN then yLoC = lo
+          if !hi.isNaN then yHiC = hi
+      case Parts.Config.FreeAxis(h, v) =>
+        freeX |= h
+        freeY |= v
+      case Parts.Config.PanelGap(h, v) =>
+        gapH = h
+        gapV = v
+      case Parts.Config.EachLabeled => everyLabel = true
+      case ins: Parts.Config.Inset  => val _ = insets.addOne(ins)
 
     val levels = collection.mutable.ArrayBuffer.empty[String]
 
@@ -386,14 +442,8 @@ object Render:
         if p.ys(i) > dyHi then dyHi = p.ys(i)
         i += 1
     if !(dxLo <= dxHi && dyLo <= dyHi) then Err.break("figure has no data points")
-    if dxHi == dxLo then { dxLo -= jm.max(1.0, jm.abs(dxLo) * 0.05); dxHi += jm.max(1.0, jm.abs(dxHi) * 0.05) }
-    if dyHi == dyLo then { dyLo -= jm.max(1.0, jm.abs(dyLo) * 0.05); dyHi += jm.max(1.0, jm.abs(dyHi) * 0.05) }
-    val xPad = 0.04 * (dxHi - dxLo)
-    val yPad = 0.04 * (dyHi - dyLo)
-    val fx0 = if xLo.isNaN then dxLo - xPad else xLo
-    val fx1 = if xHi.isNaN then dxHi + xPad else xHi
-    val fy0 = if yLo.isNaN then dyLo - yPad else yLo
-    val fy1 = if yHi.isNaN then dyHi + yPad else yHi
+    val (fx0, fx1) = axisSpan(dxLo, dxHi, xLoC, xHiC)
+    val (fy0, fy1) = axisSpan(dyLo, dyHi, yLoC, yHiC)
 
     // facet levels, first appearance in layer order; null level = the unfaceted dimension
     def levelsFor(get: Prep => Array[String] | Null): Array[String | Null] =
@@ -411,8 +461,7 @@ object Render:
     val nC = colLevels.length
     val nR = rowLevels.length
 
-    val facetGrid = Grid(nR, nC, colGap = 12, rowGap = 12, pad = 6)
-    val panels = collection.mutable.ArrayBuffer.empty[Panel]
+    val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 6)
     var r = 0
     while r < nR do
       var c = 0
@@ -420,59 +469,97 @@ object Render:
         val cl = colLevels(c)
         val rl = rowLevels(r)
         val slices = prepped.map(p => sliceFor(p, cl, rl))
+        val (px0, px1) = if freeX then freeSpan(slices, true, xLoC, xHiC, fx0, fx1) else (fx0, fx1)
+        val (py0, py1) = if freeY then freeSpan(slices, false, yLoC, yHiC, fy0, fy1) else (fy0, fy1)
         val pan = Panel(
-          slices, fx0, fx1, fy0, fy1,
+          slices, px0, px1, py0, py1,
           anyColourScale = levels.nonEmpty,
-          showLeft = c == 0, showBottom = r == nR - 1,
+          showLeft = freeY || everyLabel || c == 0,
+          showBottom = freeX || everyLabel || r == nR - 1,
           colStrip = if r == 0 then cl else null,
           rowStrip = if c == nC - 1 then rl else null,
           m
         )
-        val _ = panels.addOne(pan)
         val _ = facetGrid.put(r, c)(pan)
         c += 1
       r += 1
 
-    val legendB = if levels.nonEmpty then LegendBlock(title, levels.toArray, m) else null
-    val titleB = if levels.isEmpty && title != null then TitleBlock(title, m) else null
+    val legendB = if levels.nonEmpty then LegendBlock(legTitle, levels.toArray, m) else null
+    // legend(...) doubles as the figure title when no legend is drawn; title(...) always wins
+    val topText: String | Null = if figTitle != null then figTitle else if levels.isEmpty then legTitle else null
+    val titleB = if topText != null then TitleBlock(topText, m) else null
+    val xtB = if xTitle != null then XTitleBlock(xTitle, m) else null
+    val ytB = if yTitle != null then YTitleBlock(yTitle, m) else null
 
+    val rT = if titleB != null then 1 else 0
+    val rX = if xtB != null then 1 else 0
+    val cY = if ytB != null then 1 else 0
+    val cL = if legendB != null then 1 else 0
+    val outer = Grid(rT + 1 + rX, cY + 1 + cL, colGap = 0, rowGap = 0, pad = 0)
+    if titleB != null then { val _ = outer.put(0, 0, 0, cY + cL)(titleB) }
+    if ytB != null then { val _ = outer.put(rT, 0)(ytB) }
+    val _ = outer.put(rT, cY)(facetGrid)
+    if legendB != null then { val _ = outer.put(rT, cY + 1)(legendB) }
+    if xtB != null then { val _ = outer.put(rT + 1, cY)(xtB) }
+    insets.foreach: ins =>
+      val sub = buildFigure(ins.fig).?
+      val _ = outer.putFloat(facetGrid)(ins.x, ins.y, ins.w, ins.h)(sub)
+    outer
+
+  private def emitGrid(g: Grid, lay: Grid.Layout, put: Glyph => Unit): Unit =
+    var i = 0
+    while i < g.blockCount do
+      g.blockAt(i) match
+        case sub: Grid =>
+          val sl = lay.sub(i)
+          if sl != null then emitGrid(sub, sl, put)
+        case e: GlyphBlock => e.glyphs(lay.content(i), put)
+        case _ => ()
+      i += 1
+    i = 0
+    while i < g.floatCount do
+      val fr = lay.floatRects(i)
+      put(Glyph.Box(fr.x, fr.y, fr.w, fr.h, "#FFFFFF"))
+      g.floatBlockAt(i) match
+        case sub: Grid =>
+          val sl = lay.floatSub(i)
+          if sl != null then emitGrid(sub, sl, put)
+        case e: GlyphBlock => e.glyphs(fr, put)
+        case _ => ()
+      i += 1
+
+  private def solveAndRender(root: Grid, width: Double, height: Double): String =
+    val lay = root.solve(width, height)
     val gs = List.newBuilder[Glyph]
     def put(g: Glyph): Unit = { gs += g; () }
-
-    // outer composition: content cell plus optional legend column / title row
-    if legendB != null then
-      val outer = Grid(1, 2, colGap = 0, rowGap = 0, pad = 0)
-      val _ = outer.put(0, 0)(facetGrid).put(0, 1)(legendB)
-      val lay = outer.solve(width, height)
-      val fl = lay.sub(0)
-      if fl == null then Err.break("internal: facet grid did not solve")
-      var i = 0
-      while i < panels.length do
-        panels(i).glyphs(fl.content(i), put)
-        i += 1
-      legendB.glyphs(lay.content(1), put)
-    else if titleB != null then
-      val outer = Grid(2, 1, colGap = 0, rowGap = 0, pad = 0)
-      val _ = outer.put(0, 0)(titleB).put(1, 0)(facetGrid)
-      val lay = outer.solve(width, height)
-      val fl = lay.sub(1)
-      if fl == null then Err.break("internal: facet grid did not solve")
-      titleB.glyphs(lay.content(0), put)
-      var i = 0
-      while i < panels.length do
-        panels(i).glyphs(fl.content(i), put)
-        i += 1
-    else
-      val fl = facetGrid.solve(width, height)
-      var i = 0
-      while i < panels.length do
-        panels(i).glyphs(fl.content(i), put)
-        i += 1
-
+    emitGrid(root, lay, put)
     Svg.render(width, height, gs.result())
 
+  def figureSvg(fig: Figure, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
+    solveAndRender(buildFigure(fig).?, width, height)
 
-extension (fig: Figure)
-  /** Renders the figure to SVG text; see `Render` for what is interpreted so far. */
-  def svg(width: Double = 640, height: Double = 480)(using Measurer): Ask[String] =
-    Render.figureSvg(fig, width, height)
+  private def buildBoard(b: Board)(using m: Measurer): Ask[Grid] = Ask:
+    b match
+      case Board.One(f) => buildFigure(f).?
+      case Board.Beside(items) =>
+        val g = Grid(1, items.length, colGap = 4, rowGap = 4, pad = 0)
+        items.zipWithIndex.foreach: (it, i) =>
+          val _ = g.put(0, i)(buildBoard(it).?)
+        g
+      case Board.Above(items) =>
+        val g = Grid(items.length, 1, colGap = 4, rowGap = 4, pad = 0)
+        items.zipWithIndex.foreach: (it, i) =>
+          val _ = g.put(i, 0)(buildBoard(it).?)
+        g
+
+  def boardSvg(b: Board, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
+    solveAndRender(buildBoard(b).?, width, height)
+
+
+extension (fb: Figure | Board)
+  /** Renders a figure or a figure composition to SVG text; see `Render` for what is
+    * interpreted so far.
+    */
+  def svg(width: Double = 640, height: Double = 480)(using Measurer): Ask[String] = fb match
+    case f: Figure => Render.figureSvg(f, width, height)
+    case b: Board  => Render.boardSvg(b, width, height)

@@ -48,6 +48,11 @@ trait Block:
   def protrusions(w: Double, h: Double): Prot
 
 
+/** A block that can render itself into its solved content rect. */
+trait GlyphBlock extends Block:
+  def glyphs(rect: Rect, put: Glyph => Unit): Unit
+
+
 /** A protrusion-aligning grid of blocks; itself a Block, so grids nest (a nested grid is
   * self-contained: its decorations stay inside its cell).
   *
@@ -83,6 +88,11 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     this
 
   def protrusions(w: Double, h: Double): Prot = Prot.zero
+
+  private[eyes] def blockCount: Int = entries.length
+  private[eyes] def blockAt(i: Int): Block = entries(i).block
+  private[eyes] def floatCount: Int = floats.length
+  private[eyes] def floatBlockAt(i: Int): Block = floats(i).block
 
   def solve(w: Double, h: Double, margin: Double = 0.08, maxPasses: Int = 4): Layout =
     solveAt(0.0, 0.0, w, h, margin, maxPasses)
@@ -229,14 +239,20 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
       i += 1
 
     val floatRects = new Array[Rect](floats.length)
+    val floatSub = Array.fill[Layout | Null](floats.length)(null)
     i = 0
     while i < floats.length do
       val f = floats(i)
       val hr = content(f.host)
       floatRects(i) = Rect(hr.x + f.rx * hr.w, hr.y + f.ry * hr.h, f.rw * hr.w, f.rh * hr.h)
+      f.block match
+        case g: Grid =>
+          val fr = floatRects(i)
+          floatSub(i) = g.solveAt(fr.x, fr.y, fr.w, fr.h, margin, maxPasses)
+        case _ => ()
       i += 1
 
-    Layout(content, floatRects, colW, rowH, colGut, rowGut, sub, passes, converged, cramped)
+    Layout(content, floatRects, colW, rowH, colGut, rowGut, sub, floatSub, passes, converged, cramped)
 
   private def prefFor(isCol: Boolean, k: Int): Size =
     // strongest requirement among single-track blocks; spanning blocks don't constrain
@@ -273,10 +289,10 @@ object Grid:
       j += 1
     ok
 
-  /** A solved grid.  `content` follows `put` order; `sub` holds layouts of nested grids
-    * (null elsewhere).  `converged` false means the pass cap was hit and the last
-    * allocation went unverified; `cramped` means decorations were clamped to preserve a
-    * usable content share.
+  /** A solved grid.  `content` follows `put` order; `sub` and `floatSub` hold layouts of
+    * nested grids (null elsewhere).  `converged` false means the pass cap was hit and the
+    * last allocation went unverified; `cramped` means decorations were clamped to preserve
+    * a usable content share.
     */
   final case class Layout(
     content: Array[Rect],
@@ -286,6 +302,7 @@ object Grid:
     colGutters: Array[Double],
     rowGutters: Array[Double],
     sub: Array[Layout | Null],
+    floatSub: Array[Layout | Null],
     passes: Int,
     converged: Boolean,
     cramped: Boolean
