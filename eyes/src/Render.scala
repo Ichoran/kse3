@@ -110,6 +110,101 @@ object Render:
         i += 1
       Slice(xs, ys, ci, p.kind, p.layerIdx)
 
+  private def grid(lo: Double, hi: Double, n: Int): Array[Double] =
+    if hi <= lo then Array(lo)
+    else Array.tabulate(n)(i => lo + (hi - lo) * i / (n - 1).toDouble)
+
+  private def statted(p: Prep, stats: List[Stat]): Prep =
+    stats.foldLeft(p): (q, st) =>
+      st match
+        case Smooth(how) => smoothPrep(q, how)
+
+  private def applySmoother(how: Smoother, sx: Array[Double], sy: Array[Double]): (Array[Double], Array[Double]) =
+    if sx.length < 2 then (sx, sy)
+    else how match
+      case Loess(span, deg, rob) =>
+        val ex = grid(sx(0), sx(sx.length - 1), 80)
+        (ex, kse.maths.Smoothing.loessAt(sx, sy, ex, span, deg, rob))
+      case Kernel(bw, shape, deg) =>
+        val ex = grid(sx(0), sx(sx.length - 1), 80)
+        val sh = shape match
+          case Kernel.Shape.Gaussian     => kse.maths.Smoothing.Shape.Gaussian
+          case Kernel.Shape.Epanechnikov => kse.maths.Smoothing.Shape.Epanechnikov
+          case Kernel.Shape.Tricube      => kse.maths.Smoothing.Shape.Tricube
+        (ex, kse.maths.Smoothing.kernelAt(sx, sy, ex, bw, sh, deg))
+      case Fit(d) =>
+        val ex = grid(sx(0), sx(sx.length - 1), 80)
+        (ex, kse.maths.Smoothing.polyFitAt(sx, sy, ex, d))
+      case Rolling(w)       => (sx, kse.maths.Smoothing.rollingMean(sy, w))
+      case RollingMedian(w) => (sx, kse.maths.Smoothing.rollingMedian(sy, w))
+
+  /** Applies a smoother per group — one group per (colour level × facet cell), the stat
+    * contract in action: grouped, cardinality-changing, grouping columns passed through
+    * so colour and facet assignments stay consistent on the smoothed output.
+    */
+  private def smoothPrep(p: Prep, how: Smoother): Prep =
+    val n = p.xs.length
+    if n == 0 then return p
+    val keyCi = collection.mutable.ArrayBuffer.empty[Int]
+    val keyCl = collection.mutable.ArrayBuffer.empty[String | Null]
+    val keyRl = collection.mutable.ArrayBuffer.empty[String | Null]
+    val members = collection.mutable.ArrayBuffer.empty[collection.mutable.ArrayBuffer[Int]]
+    var i = 0
+    while i < n do
+      val ci = p.colorIdx match { case null => -1; case a => a(i) }
+      val cl: String | Null = p.colLabs match { case null => null; case a => a(i) }
+      val rl: String | Null = p.rowLabs match { case null => null; case a => a(i) }
+      var found = -1
+      var g = 0
+      while found < 0 && g < keyCi.length do
+        if keyCi(g) == ci && keyCl(g) == cl && keyRl(g) == rl then found = g
+        g += 1
+      if found < 0 then
+        found = keyCi.length
+        val _ = keyCi.addOne(ci)
+        val _ = keyCl.addOne(cl)
+        val _ = keyRl.addOne(rl)
+        val _ = members.addOne(collection.mutable.ArrayBuffer.empty[Int])
+      val _ = members(found).addOne(i)
+      i += 1
+    val gx = new Array[Array[Double]](members.length)
+    val gy = new Array[Array[Double]](members.length)
+    var g = 0
+    while g < members.length do
+      val order = members(g).toArray.sortBy(p.xs(_))
+      val sx = order.map(p.xs(_))
+      val sy = order.map(p.ys(_))
+      val (ex, ey) = applySmoother(how, sx, sy)
+      gx(g) = ex
+      gy(g) = ey
+      g += 1
+    var total = 0
+    g = 0
+    while g < gx.length do
+      total += gx(g).length
+      g += 1
+    val xs2 = new Array[Double](total)
+    val ys2 = new Array[Double](total)
+    val ci2 = if p.colorIdx == null then null else new Array[Int](total)
+    val cl2 = if p.colLabs == null then null else new Array[String](total)
+    val rl2 = if p.rowLabs == null then null else new Array[String](total)
+    var o = 0
+    g = 0
+    while g < gx.length do
+      val ex = gx(g)
+      val ey = gy(g)
+      var k = 0
+      while k < ex.length do
+        xs2(o) = ex(k)
+        ys2(o) = ey(k)
+        if ci2 != null then ci2(o) = keyCi(g)
+        if cl2 != null then cl2(o) = keyCl(g)
+        if rl2 != null then rl2(o) = keyRl(g)
+        o += 1
+        k += 1
+      g += 1
+    Prep(xs2, ys2, ci2, p.kind, p.layerIdx, cl2, rl2)
+
   /** One data panel: axis decorations and facet strips are protrusions; the content rect
     * is pure data area.  Tick density adapts to the granted size, so panels degrade
     * gracefully when small; equal panel sizes plus shared domains give identical ticks
@@ -239,8 +334,6 @@ object Render:
     val levels = collection.mutable.ArrayBuffer.empty[String]
 
     val prepped = layers.zipWithIndex.map: (layer, li) =>
-      if layer.look.stats.nonEmpty then
-        Err.break(s"layer ${li + 1}: stats are not interpreted yet (${layer.look.stats.mkString(", ")})")
       val kind = layer.look.visual match
         case null      => Visual.Kind.Scatter
         case v: Visual => v.kind
@@ -275,7 +368,9 @@ object Render:
       val rowLabs = layer.data.fields.find(_.name == "row") match
         case Some(f) => labelsOf(f.column, s"layer ${li + 1} facet 'row'").?
         case None    => null
-      Prep(xs, ys, colorIdx, kind, li, colLabs, rowLabs)
+      val raw = Prep(xs, ys, colorIdx, kind, li, colLabs, rowLabs)
+      // stats run upstream of scale resolution, so domains cover the transformed data
+      if layer.look.stats.isEmpty then raw else statted(raw, layer.look.stats)
 
     // shared scales: one x and one y domain across every panel
     var dxLo = Double.PositiveInfinity

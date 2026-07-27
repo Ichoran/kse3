@@ -206,10 +206,31 @@ class EyesTest {
       }{ e => T ~ e.toString.contains(part) ==== true }
     failsWith(Fig(f => f.data((x = ts)) * f.visual(f.Line)), "needs aesthetic 'y'")
     failsWith(Fig(f => f.data(x = labs, y = vs)), "continuous or temporal")
-    failsWith(Fig(f => f.data(x = ts, y = vs) * f.smooth(f.Loess(0.5))), "stats are not interpreted yet")
     failsWith(Fig(f => f.data(x = ts, y = vs, col = ts2) * f.visual(f.Scatter)), "needs a discrete column")
+    failsWith(Fig(f => f.data(x = ts, y = vs) * f.smooth(f.Loess(span = -1.0))), "span must be positive")
 
   def ts2 = Array(1.0, 2.0, 3.0)
+
+  @Test
+  def renderSmoothTest(): Unit =
+    val n = 30
+    val sx = Array.tabulate(n)(i => i.toDouble)
+    val sy = sx.map(x => 2.0 * x + 1.0)
+    // ungrouped loess: one smoothed line
+    val fig = Fig: f =>
+      import f.*
+      data(x = sx, y = sy) * visual(Line) * smooth(Loess(0.6))
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    T ~ (r.get.split("<polyline").length - 1) ==== 1
+    // grouped: rolling mean per colour level, one line each
+    val grp = Array.tabulate(n)(i => if i % 2 == 0 then "a" else "b")
+    val fig2 = Fig: f =>
+      import f.*
+      data(x = sx, y = sy, color = grp) * visual(Line) * smooth(Rolling(5)) + legend("g")
+    val r2 = fig2.svg()
+    T ~ r2.isIs ==== true
+    T ~ (r2.get.split("<polyline").length - 1) ==== 2
 
   @Test
   def renderFacetTest(): Unit =

@@ -111,8 +111,20 @@ sealed trait Stat
 
 final case class Smooth(how: Smoother) extends Stat
 
+/** The smoother family; kernels live in `kse.maths.Smoothing` (dependency-free by policy —
+  * anything needing real linear algebra waits for an analytics module).  Curve smoothers
+  * (Loess/Kernel/Fit) evaluate on an even grid per group; rolling smoothers evaluate at
+  * the data, ordered by x.
+  */
 sealed trait Smoother
-final case class Loess(span: Double) extends Smoother
+final case class Loess(span: Double = 0.75, degree: Int = 1, robust: Int = 0) extends Smoother
+final case class Kernel(bandwidth: Double, shape: Kernel.Shape = Kernel.Shape.Gaussian, degree: Int = 1) extends Smoother
+object Kernel:
+  enum Shape:
+    case Gaussian, Epanechnikov, Tricube
+final case class Rolling(window: Int) extends Smoother
+final case class RollingMedian(window: Int) extends Smoother
+final case class Fit(degree: Int = 1) extends Smoother
 
 
 /** Typed-key attribute store stub (DESIGN 7).  Rightmost entry wins at lookup; the cascade
@@ -303,6 +315,14 @@ trait Vocabulary:
 
   type Loess = kse.eyes.Loess
   final val Loess = kse.eyes.Loess
+  type Kernel = kse.eyes.Kernel
+  final val Kernel = kse.eyes.Kernel
+  type Rolling = kse.eyes.Rolling
+  final val Rolling = kse.eyes.Rolling
+  type RollingMedian = kse.eyes.RollingMedian
+  final val RollingMedian = kse.eyes.RollingMedian
+  type Fit = kse.eyes.Fit
+  final val Fit = kse.eyes.Fit
 
 
 /** Figure entry point:

@@ -29,7 +29,7 @@ object EyesExamples:
       p.axis.vert.limit(min = 0.0)
     write(dir, "sketch1.svg", fig1)
 
-    // Sketch 2 (minus smooth for now): scatter + line by region, faceted by half-year
+    // Sketch 2, the full shape: scatter by region + loess-smoothed lines, faceted
     val rows =
       val b = List.newBuilder[Rev]
       var i = 0
@@ -42,7 +42,7 @@ object EyesExamples:
     val fig2 = Fig: f =>
       import f.*
       val base = data.from(rows)(s => (x = s.day, y = s.revenue, color = s.region))
-      base * (visual(Scatter) + visual(Line)) * facet(col = halves) + legend("Revenue by region")
+      base * (visual(Scatter) + visual(Line) * smooth(Loess(0.4))) * facet(col = halves) + legend("Revenue by region")
     write(dir, "sketch2.svg", fig2)
 
   private def write(dir: java.nio.file.Path, name: String, fig: Figure): Unit =
