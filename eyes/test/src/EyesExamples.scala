@@ -29,7 +29,7 @@ object EyesExamples:
       p.axis.vert.limit(min = 0.0)
     write(dir, "sketch1.svg", fig1)
 
-    // Sketch 2 (minus smooth/facet for now): scatter + line, coloured by region
+    // Sketch 2 (minus smooth for now): scatter + line by region, faceted by half-year
     val rows =
       val b = List.newBuilder[Rev]
       var i = 0
@@ -38,10 +38,11 @@ object EyesExamples:
         b += Rev(i.toDouble, 14.0 + 1.3 * i + 5.0 * jm.sin(i * 0.4 + 2.0), "east")
         i += 1
       b.result().toArray
+    val halves = rows.map(s => if s.day < 20 then "H1" else "H2")
     val fig2 = Fig: f =>
       import f.*
       val base = data.from(rows)(s => (x = s.day, y = s.revenue, color = s.region))
-      base * (visual(Scatter) + visual(Line)) + legend("Revenue by region")
+      base * (visual(Scatter) + visual(Line)) * facet(col = halves) + legend("Revenue by region")
     write(dir, "sketch2.svg", fig2)
 
   private def write(dir: java.nio.file.Path, name: String, fig: Figure): Unit =

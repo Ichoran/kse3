@@ -207,7 +207,28 @@ class EyesTest {
     failsWith(Fig(f => f.data((x = ts)) * f.visual(f.Line)), "needs aesthetic 'y'")
     failsWith(Fig(f => f.data(x = labs, y = vs)), "continuous or temporal")
     failsWith(Fig(f => f.data(x = ts, y = vs) * f.smooth(f.Loess(0.5))), "stats are not interpreted yet")
-    failsWith(Fig(f => f.data(x = ts, y = vs) * f.facet(col = labs)), "facets are not interpreted yet")
+    failsWith(Fig(f => f.data(x = ts, y = vs, col = ts2) * f.visual(f.Scatter)), "needs a discrete column")
+
+  def ts2 = Array(1.0, 2.0, 3.0)
+
+  @Test
+  def renderFacetTest(): Unit =
+    val fig = Fig: f =>
+      import f.*
+      data.from(sales)(s => (x = s.date, y = s.revenue, color = s.region)) *
+        visual(Scatter) * facet(col = sales.map(_.channel)) +
+      legend("Regions")
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    // one panel per channel level, strips labeled, both points present
+    T ~ (s.split("<circle").length - 1) ==== 2
+    T ~ s.contains(">web<") ==== true
+    T ~ s.contains(">store<") ==== true
+    // shared scales, outer-edge labels only: y tick labels appear once (left column),
+    // x tick labels once per column (bottom row is every panel here)
+    T ~ (s.split(">10<").length - 1) ==== 1
+    T ~ s.contains("Regions") ==== true
 
   @Test
   def scaleKindTest(): Unit =
