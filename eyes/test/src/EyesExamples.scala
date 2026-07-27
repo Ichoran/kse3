@@ -30,19 +30,24 @@ object EyesExamples:
     write(dir, "sketch1.svg", fig1)
 
     // Sketch 2, the full shape: scatter by region + loess-smoothed lines, faceted
+    // deterministic pseudo-noise so the scatter reads as noise around a trend
+    def noise(i: Int, salt: Long): Double =
+      val h = i * 2654435761L + salt * 0x9E3779B97F4A7C15L
+      val mixed = h ^ (h >>> 33)
+      (mixed & 0xFFFF).toDouble / 0xFFFF.toDouble - 0.5
     val rows =
       val b = List.newBuilder[Rev]
       var i = 0
       while i < 40 do
-        b += Rev(i.toDouble, 20.0 + 0.9 * i + 6.0 * jm.sin(i * 0.5), "west")
-        b += Rev(i.toDouble, 14.0 + 1.3 * i + 5.0 * jm.sin(i * 0.4 + 2.0), "east")
+        b += Rev(i.toDouble, 20.0 + 0.9 * i + 2.0 * jm.sin(i * 0.5) + 7.0 * noise(i, 1), "west")
+        b += Rev(i.toDouble, 14.0 + 1.3 * i + 1.5 * jm.sin(i * 0.4 + 2.0) + 7.0 * noise(i, 2), "east")
         i += 1
       b.result().toArray
     val halves = rows.map(s => if s.day < 20 then "H1" else "H2")
     val fig2 = Fig: f =>
       import f.*
       val base = data.from(rows)(s => (x = s.day, y = s.revenue, color = s.region))
-      base * (visual(Scatter) + visual(Line) * smooth(Loess(0.4))) * facet(col = halves) + legend("Revenue by region")
+      base * (visual(Scatter) + visual(Line) * smooth(Loess())) * facet(col = halves) + legend("Revenue by region")
     write(dir, "sketch2.svg", fig2)
 
   private def write(dir: java.nio.file.Path, name: String, fig: Figure): Unit =

@@ -116,8 +116,10 @@ object Smoothing {
   /** Cleveland-style LOESS evaluated at `evalX` (both `x` and `evalX` ascending).
     * `span` is the fraction of points in each local window; `degree` 0, 1, or 2;
     * `robustIters` > 0 downweights outliers by bisquare of scaled residuals.
+    * Defaults follow R's `loess` (span 0.75, degree 2): local quadratics support wide
+    * windows without bias, which reads smoother than narrow local lines.
     */
-  def loessAt(x: Array[Double], y: Array[Double], evalX: Array[Double], span: Double = 0.75, degree: Int = 1, robustIters: Int = 0): Array[Double] =
+  def loessAt(x: Array[Double], y: Array[Double], evalX: Array[Double], span: Double = 0.75, degree: Int = 2, robustIters: Int = 0): Array[Double] =
     checkPaired(x, y)
     if !(span > 0) then throw new IllegalArgumentException(s"span must be positive, got $span")
     if degree < 0 || degree > 2 then throw new IllegalArgumentException(s"degree must be 0 to 2, got $degree")

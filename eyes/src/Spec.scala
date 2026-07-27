@@ -117,7 +117,7 @@ final case class Smooth(how: Smoother) extends Stat
   * the data, ordered by x.
   */
 sealed trait Smoother
-final case class Loess(span: Double = 0.75, degree: Int = 1, robust: Int = 0) extends Smoother
+final case class Loess(span: Double = 0.75, degree: Int = 2, robust: Int = 0) extends Smoother
 final case class Kernel(bandwidth: Double, shape: Kernel.Shape = Kernel.Shape.Gaussian, degree: Int = 1) extends Smoother
 object Kernel:
   enum Shape:
