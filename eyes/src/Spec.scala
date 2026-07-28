@@ -243,6 +243,13 @@ enum Place:
   case Auto(w: Double, h: Double)
 
 
+/** What a callout arrow points at, in data coordinates: a point, or a value on one axis. */
+enum NoteAt:
+  case Point(x: Double, y: Double)
+  case OnX(x: Double)
+  case OnY(y: Double)
+
+
 /////////////////////////////////////
 /// The figure-level Parts monoid ///
 /////////////////////////////////////
@@ -274,6 +281,7 @@ object Parts:
     case PanelGap(horz: Double, vert: Double)
     case EachLabeled
     case Inset(fig: Figure, place: Place)
+    case Note(text: String, at: NoteAt)
 
 
 /** An interpreted figure.  For now just the normalized spec; scene, layout, and rendering
@@ -366,6 +374,24 @@ final class PanelsVocab private[eyes] ():
   def eachLabeled: Parts = Parts(Nil, Parts.Config.EachLabeled :: Nil)
 
 
+/** The `note` words: callouts — a short label with an arrow pointing at a spot, the label
+  * placed automatically in relatively clear space (measured from the geometry actually
+  * drawn; notes are placed in spec order, later notes avoiding earlier ones).
+  * {{{
+  * note("peak demand", x = 31.0, y = 55.2)   // points at a data-space location
+  * note.x("launch", 20.0)                    // points at a spot on the horizontal axis
+  * note.y("threshold", 4.5)                  // points at a spot on the vertical axis
+  * }}}
+  * Note targets are included when axis domains are fit.  In a faceted figure the note
+  * appears in every panel whose scales contain its target; if no panel does (pinned axis
+  * limits, free scales), rendering fails loudly rather than dropping the annotation.
+  */
+final class NoteWord private[eyes] ():
+  def apply(text: String, x: Double, y: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.Point(x, y)) :: Nil)
+  def x(text: String, at: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.OnX(at)) :: Nil)
+  def y(text: String, at: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.OnY(at)) :: Nil)
+
+
 /** The spec-building words.  Everything is a method on some object (`Fig`, or the scope
   * passed to a `Fig` block), so bare-name use is one `import` away.
   */
@@ -434,6 +460,8 @@ trait Vocabulary:
   val axis: AxisVocab = AxisVocab()
 
   val panels: PanelsVocab = PanelsVocab()
+
+  val note: NoteWord = NoteWord()
 
   /** Placeholder recipe: a line look.  Becomes a real recipe (default x = index, scales,
     * style) once interpretation exists.

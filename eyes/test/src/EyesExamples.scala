@@ -99,7 +99,9 @@ object EyesExamples:
       data(x = fx, ylow = Array.tabulate(fx.length)(i => fy(i) - half(i)),
                    yhigh = Array.tabulate(fx.length)(i => fy(i) + half(i))) * visual(Band) * steel +
         data(x = fx, y = fy) * visual(Line) * steel +
-        title("Projection with widening uncertainty") + axis.horz.title("day")
+        title("Projection with widening uncertainty") + axis.horz.title("day") +
+        note("last firm estimate", x = 40.0, y = fy(40)) +
+        note.x("projection begins", 40.0)
     write(dir, "sketch5.svg", fig5)
 
     // Sketch 6: continuous colour on a scatter, with its colorbar

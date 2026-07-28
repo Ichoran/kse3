@@ -492,6 +492,64 @@ class EyesTest {
     T ~ (s.split("#336699").length - 1) ==== 2
 
   @Test
+  def noteTest(): Unit =
+    val fig = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) + note("the middle one", x = 2.0, y = 20.0)
+    val once = fig.svg()
+    T ~ once.isIs ==== true
+    val s = once.get
+    T ~ s.contains(">the middle one<") ==== true
+    T ~ s.contains("paint-order") ==== true   // haloed label stays legible over anything
+    T ~ s.contains("<polygon") ==== true      // the arrowhead
+    T ~ fig.svg() ==== once                   // placement is deterministic
+    // axis-target forms render too, arrow and all
+    val ax = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Line) + note.x("here", 2.0) + note.y("level", 20.0)
+    val s2 = ax.svg().get
+    T ~ s2.contains(">here<") ==== true
+    T ~ s2.contains(">level<") ==== true
+    T ~ (s2.split("<polygon").length - 1) ==== 2
+
+  @Test
+  def noteFacetTest(): Unit =
+    // shared scales contain the target in both panels, so the note appears in each
+    val fig = Fig: f =>
+      import f.*
+      data.from(sales)(s => (x = s.date, y = s.revenue)) * visual(Scatter) *
+        facet(col = sales.map(_.channel)) + note("flag", x = 1.5, y = 15.0)
+    val s = fig.svg().get
+    T ~ (s.split(">flag<").length - 1) ==== 2
+
+  @Test
+  def notePlacementTest(): Unit =
+    // a dense wall of points sits up and to the right of the target; clear space is on
+    // the left, so placement must override its up-right taste and go left
+    val n = 300
+    val wx = Array.tabulate(n)(i => 10.2 + 3.8 * ((i * 7) % n) / n.toDouble)
+    val wy = Array.tabulate(n)(i => 2.0 + 6.0 * ((i * 13) % n) / n.toDouble)
+    val fig = Fig: f =>
+      import f.*
+      data(x = wx, y = wy) * visual(Scatter) +
+        axis.horz.limit(min = 0.0) + note("peaky", x = 10.0, y = 5.0)
+    val s = fig.svg().get
+    val mt = """<text x="([0-9.-]+)" y="([0-9.-]+)"[^>]*>peaky<""".r.findFirstMatchIn(s)
+    T ~ mt.isDefined ==== true
+    // the target maps to ~x=448; the label must sit clear of the wall, left of the target
+    T ~ (mt.get.group(1).toDouble < 444) ==== true
+
+  @Test
+  def noteRefusalTest(): Unit =
+    val fig = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) +
+        axis.horz.limit(max = 5.0) + note("far away", x = 10.0, y = 20.0)
+    fig.svg().fold{ _ =>
+      assertTrue("expected the out-of-view note to refuse", false)
+    }{ e => T ~ e.toString.contains("points outside every panel") ==== true }
+
+  @Test
   def scaleKindTest(): Unit =
     T ~ summon[ScaleOf[Double]].kind ==== ScaleKind.Continuous
     T ~ summon[ScaleOf[Int]].kind ==== ScaleKind.Continuous
