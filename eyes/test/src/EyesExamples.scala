@@ -72,6 +72,47 @@ object EyesExamples:
         title("West + linear fit") + axis.horz.title("day")
     write(dir, "sketch3.svg", (scat | fit) / big)
 
+    // Sketch 4: distributions — dodged histogram beside per-group density curves
+    def sample(n: Int, center: Double, spread: Double, salt: Long): Array[Double] =
+      Array.tabulate(n)(i => center + spread * (noise(i, salt) + noise(i + 1000, salt + 1) + noise(i + 2000, salt + 2)))
+    val control = sample(150, 10.0, 6.0, 11)
+    val treated = sample(150, 14.5, 9.0, 21)
+    val pooled = control ++ treated
+    val arm = Array.tabulate(pooled.length)(i => if i < control.length then "control" else "treated")
+    val histo = Fig: f =>
+      import f.*
+      data(x = pooled, color = arm) * histogram(18) +
+        title("Response counts") + axis.horz.title("response") + axis.vert.title("count")
+    val dens = Fig: f =>
+      import f.*
+      data(x = pooled, color = arm) * density() +
+        legend("Arm") + axis.horz.title("response") + axis.vert.title("density")
+    write(dir, "sketch4.svg", histo | dens)
+
+    // Sketch 5: a projection with widening uncertainty — band and line share a styled hue
+    val fx = Array.tabulate(61)(i => i.toDouble)
+    val fy = fx.map(x => 5.0 + 0.15 * x + 1.2 * jm.sin(x * 0.3))
+    val half = fx.map(x => 0.7 + (if x > 40 then (x - 40) * 0.15 else 0.0))
+    val fig5 = Fig: f =>
+      import f.*
+      val steel = color("#0072B2")
+      data(x = fx, ylow = Array.tabulate(fx.length)(i => fy(i) - half(i)),
+                   yhigh = Array.tabulate(fx.length)(i => fy(i) + half(i))) * visual(Band) * steel +
+        data(x = fx, y = fy) * visual(Line) * steel +
+        title("Projection with widening uncertainty") + axis.horz.title("day")
+    write(dir, "sketch5.svg", fig5)
+
+    // Sketch 6: continuous colour on a scatter, with its colorbar
+    val n6 = 90
+    val s6x = Array.tabulate(n6)(i => 5.0 + 10.0 * noise(i, 31))
+    val s6y = Array.tabulate(n6)(i => 4.0 + 8.0 * noise(i, 41))
+    val heat = Array.tabulate(n6)(i => s6x(i) + s6y(i) + 3.0 * noise(i, 51))
+    val fig6 = Fig: f =>
+      import f.*
+      data(x = s6x, y = s6y, color = heat) * visual(Scatter) +
+        legend("x + y + noise") + axis.horz.title("x") + axis.vert.title("y")
+    write(dir, "sketch6.svg", fig6)
+
   private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =
     fig.svg().fold{ s =>
       val p = dir.resolve(name)

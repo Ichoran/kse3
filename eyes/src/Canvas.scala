@@ -43,6 +43,7 @@ enum Glyph:
   case Polyline(xs: Array[Double], ys: Array[Double], stroke: String, w: Double)
   case Disc(x: Double, y: Double, r: Double, fill: String)
   case Box(x: Double, y: Double, w: Double, h: Double, fill: String)
+  case Poly(xs: Array[Double], ys: Array[Double], fill: String, alpha: Double = 1.0)
   case Txt(x: Double, y: Double, text: String, size: Double, fill: String, anchor: Glyph.Anchor, bold: Boolean = false, rotate: Double = 0)
 
 object Glyph:
@@ -67,21 +68,24 @@ object Svg:
     emit("\n")
     emit(s"""<rect x="0" y="0" width="${num(width)}" height="${num(height)}" fill="#FFFFFF"/>""")
     emit("\n")
+    def pts(xs: Array[Double], ys: Array[Double]): String =
+      val b = new java.lang.StringBuilder
+      var i = 0
+      while i < xs.length do
+        if i > 0 then { b.append(' '); () }
+        val _ = b.append(num(xs(i))).append(',').append(num(ys(i)))
+        i += 1
+      b.toString
     glyphs.foreach:
       case Glyph.Segment(x1, y1, x2, y2, stroke, w) =>
         emit(s"""<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" stroke="$stroke" stroke-width="${num(w)}"/>""")
         emit("\n")
       case Glyph.Polyline(xs, ys, stroke, w) =>
-        val pts = new java.lang.StringBuilder
-        def grow(s: String): Unit = { pts.append(s); () }
-        var i = 0
-        while i < xs.length do
-          if i > 0 then grow(" ")
-          grow(num(xs(i)))
-          grow(",")
-          grow(num(ys(i)))
-          i += 1
-        emit(s"""<polyline points="$pts" fill="none" stroke="$stroke" stroke-width="${num(w)}" stroke-linejoin="round" stroke-linecap="round"/>""")
+        emit(s"""<polyline points="${pts(xs, ys)}" fill="none" stroke="$stroke" stroke-width="${num(w)}" stroke-linejoin="round" stroke-linecap="round"/>""")
+        emit("\n")
+      case Glyph.Poly(xs, ys, fill, alpha) =>
+        val op = if alpha >= 1 then "" else s""" fill-opacity="${num(alpha)}""""
+        emit(s"""<polygon points="${pts(xs, ys)}" fill="$fill"$op/>""")
         emit("\n")
       case Glyph.Disc(x, y, r, fill) =>
         emit(s"""<circle cx="${num(x)}" cy="${num(y)}" r="${num(r)}" fill="$fill"/>""")

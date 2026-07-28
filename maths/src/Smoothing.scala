@@ -8,7 +8,8 @@ import java.lang.{Math => jm}
 
 
 /** Data-in, data-out smoothing kernels: LOESS (Cleveland-style, with optional robustness
-  * iterations), kernel regression, rolling mean/median, and global polynomial fits.
+  * iterations), kernel regression, kernel density estimation, rolling mean/median, and
+  * global polynomial fits.
   *
   * Everything here is dependency-free by design: local fits of degree at most two use
   * closed-form solves, and the global polynomial fit uses a small pivoted elimination on a
@@ -179,6 +180,67 @@ object Smoothing {
           i += 1
         out(e) = y(best)
       else out(e) = localFit(x, y, w, 0, n, x0, degree)
+      e += 1
+    out
+
+  /** Silverman's rule-of-thumb bandwidth for kernel density estimation (R's `bw.nrd0`):
+    * `0.9 min(sd, IQR/1.34) n^(-1/5)`, with R's fallback chain — sd, then `|x0|`, then 1 —
+    * when a scale estimate degenerates on (near-)constant data.
+    */
+  def silvermanBandwidth(x: Array[Double]): Double =
+    val n = x.length
+    if n == 0 then throw new IllegalArgumentException("no data")
+    var s = 0.0
+    var i = 0
+    while i < n do
+      s += x(i)
+      i += 1
+    val mean = s / n
+    var v = 0.0
+    i = 0
+    while i < n do
+      val d = x(i) - mean
+      v += d * d
+      i += 1
+    val sd = if n > 1 then jm.sqrt(v / (n - 1)) else 0.0
+    val a = java.util.Arrays.copyOf(x, n)
+    java.util.Arrays.sort(a)
+    def quartile(p: Double): Double =
+      // R's type-7 quantile, the interpolation bw.nrd0 itself uses
+      val h = (n - 1) * p
+      val lo = jm.floor(h).toInt
+      val hi = jm.min(n - 1, lo + 1)
+      a(lo) + (h - lo) * (a(hi) - a(lo))
+    val iqr = quartile(0.75) - quartile(0.25)
+    var scale = jm.min(sd, iqr / 1.34)
+    if scale == 0 then scale = sd
+    if scale == 0 then scale = jm.abs(x(0))
+    if scale == 0 then scale = 1.0
+    0.9 * scale * jm.pow(n, -0.2)
+
+  /** Kernel density estimate at `evalX`: the average of kernel bumps centered on the data,
+    * normalized so the estimate integrates to one.  A NaN bandwidth means Silverman's rule
+    * of thumb.  Neither array needs to be sorted.
+    */
+  def kdeAt(x: Array[Double], evalX: Array[Double], bandwidth: Double = Double.NaN, shape: Shape = Shape.Gaussian): Array[Double] =
+    if x.length == 0 then throw new IllegalArgumentException("no data")
+    val h = if bandwidth.isNaN then silvermanBandwidth(x) else bandwidth
+    if !(h > 0) then throw new IllegalArgumentException(s"bandwidth must be positive, got $h")
+    val norm = (shape match
+      case Shape.Gaussian     => 0.3989422804014327   // 1/sqrt(2 pi); shapeWeight is unnormalized
+      case Shape.Epanechnikov => 1.0                  // 3/4 (1 - u^2) already integrates to 1
+      case Shape.Tricube      => 70.0 / 81.0
+    ) / (x.length * h)
+    val out = new Array[Double](evalX.length)
+    var e = 0
+    while e < evalX.length do
+      val x0 = evalX(e)
+      var s = 0.0
+      var i = 0
+      while i < x.length do
+        s += shapeWeight(shape, (x(i) - x0) / h)
+        i += 1
+      out(e) = s * norm
       e += 1
     out
 

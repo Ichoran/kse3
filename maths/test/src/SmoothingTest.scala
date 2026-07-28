@@ -80,6 +80,33 @@ class SmoothingTest {
     T ~ far(0) ==== lin(24)
 
   @Test
+  def kdeTest(): Unit =
+    val invSqrt2Pi = 0.3989422804014327
+    // a single point's estimate is the kernel itself
+    val one = Array(2.0)
+    T ~ (jm.abs(Smoothing.kdeAt(one, Array(2.0), 1.0)(0) - invSqrt2Pi) < 1e-15) ==== true
+    T ~ (jm.abs(Smoothing.kdeAt(one, Array(3.0), 1.0)(0) - invSqrt2Pi * jm.exp(-0.5)) < 1e-15) ==== true
+    T ~ (jm.abs(Smoothing.kdeAt(one, Array(2.5), 1.0, Smoothing.Shape.Epanechnikov)(0) - 0.75 * (1 - 0.25)) < 1e-15) ==== true
+    T ~ Smoothing.kdeAt(one, Array(4.0), 1.0, Smoothing.Shape.Epanechnikov)(0) ==== 0.0
+    // bandwidth scaling: kde_h(x) = kde_1((x - x0)/h)/h
+    T ~ (jm.abs(Smoothing.kdeAt(one, Array(3.0), 2.0)(0) - invSqrt2Pi * jm.exp(-0.125) / 2.0) < 1e-15) ==== true
+    // the estimate integrates to one (trapezoid over a wide grid)
+    val data = Array(0.0, 0.5, 1.5, 2.0, 4.0)
+    val grid = Array.tabulate(4001)(i => -10.0 + i * 0.006)
+    val dens = Smoothing.kdeAt(data, grid, 0.8)
+    var area = 0.0
+    var i = 1
+    while i < grid.length do
+      area += 0.5 * (dens(i) + dens(i - 1)) * (grid(i) - grid(i - 1))
+      i += 1
+    T ~ (jm.abs(area - 1.0) < 1e-6) ==== true
+    // Silverman on 1..5: IQR/1.34 < sd, so h = 0.9 (IQR/1.34) 5^(-1/5)
+    val five = Array(1.0, 2.0, 3.0, 4.0, 5.0)
+    T ~ (jm.abs(Smoothing.silvermanBandwidth(five) - 0.9 * (2.0 / 1.34) * jm.pow(5.0, -0.2)) < 1e-12) ==== true
+    // constant data falls back through the chain to |x0|
+    T ~ (jm.abs(Smoothing.silvermanBandwidth(Array(3.0, 3.0)) - 0.9 * 3.0 * jm.pow(2.0, -0.2)) < 1e-12) ==== true
+
+  @Test
   def rollingTest(): Unit =
     val y = Array(1.0, 2.0, 3.0, 4.0, 5.0)
     T ~ Smoothing.rollingMean(y, 3).toList ==== List(1.5, 2.0, 3.0, 4.0, 4.5)
@@ -121,6 +148,8 @@ class SmoothingTest {
     T ~ throws(Smoothing.loessAt(Array(1.0, 2.0), Array(1.0), Array(1.0))) ==== true
     T ~ throws(Smoothing.loessAt(Array(1.0, 2.0), Array(1.0, 2.0), Array(1.0), span = 0.0)) ==== true
     T ~ throws(Smoothing.kernelAt(Array(1.0), Array(1.0), Array(1.0), bandwidth = 0.0)) ==== true
+    T ~ throws(Smoothing.kdeAt(Array(1.0), Array(1.0), bandwidth = -1.0)) ==== true
+    T ~ throws(Smoothing.kdeAt(Array[Double](), Array(1.0))) ==== true
     T ~ throws(Smoothing.rollingMean(Array(1.0), 0)) ==== true
     T ~ throws(Smoothing.polyFitAt(Array(1.0), Array(1.0), Array(1.0), degree = 9)) ==== true
 }

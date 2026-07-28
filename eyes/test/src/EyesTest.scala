@@ -376,6 +376,122 @@ class EyesTest {
     T ~ typeChecks("""val m = kse.eyes.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.eyes.Fig.inset(m, "qq")""") ==== false
 
   @Test
+  def histogramTest(): Unit =
+    // 1.0 x3, 2.0 x2, 5.0 x1 over nice 0.1-wide bins: three nonzero bars plus background
+    val vals = Array(1.0, 1.0, 1.0, 2.0, 2.0, 5.0)
+    val fig = Fig(f => f.data((x = vals)) * f.histogram())
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ (s.split("<rect").length - 1) ==== 4
+    T ~ (s.contains(">0<") || s.contains(">0.0<")) ==== true  // bars are grounded: the y domain includes zero
+    // bin() alone defaults the visual to Bar
+    T ~ Fig(f => f.data((x = vals)) * f.bin()).svg() ==== r
+
+  @Test
+  def dodgeTest(): Unit =
+    // two colour levels, two occupied bins each: four bars, two legend swatches, background
+    val xs6 = Array(1.0, 1.0, 2.0, 1.0, 2.0, 2.0)
+    val grp = Array("a", "a", "a", "b", "b", "b")
+    val fig = Fig(f => f.data(x = xs6, color = grp) * f.histogram() + f.legend("g"))
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    T ~ (r.get.split("<rect").length - 1) ==== 7
+
+  @Test
+  def countTest(): Unit =
+    val vals = Array(1.0, 2.0, 1.0, 3.0, 1.0)
+    val fig = Fig(f => f.data((x = vals)) * f.count)
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    T ~ (r.get.split("<rect").length - 1) ==== 4  // three distinct values, background
+
+  @Test
+  def densityTest(): Unit =
+    val vals = Array(1.0, 1.5, 2.0, 2.5, 3.0, 5.0, 5.5, 6.0)
+    // density() alone defaults to Area: a filled polygon under a top edge line
+    val area = Fig(f => f.data((x = vals)) * f.density()).svg()
+    T ~ area.isIs ==== true
+    T ~ area.get.contains("<polygon") ==== true
+    T ~ area.get.contains("fill-opacity") ==== true
+    // an explicit Line visual draws just the curve
+    val line = Fig(f => f.data((x = vals)) * f.visual(f.Line) * f.density()).svg()
+    T ~ line.isIs ==== true
+    T ~ line.get.contains("<polygon") ==== false
+    T ~ (line.get.split("<polyline").length - 1) ==== 1
+
+  @Test
+  def bandTest(): Unit =
+    val bx = Array(1.0, 2.0, 3.0, 4.0)
+    val lo = Array(0.5, 1.0, 1.5, 2.0)
+    val hi = Array(1.5, 2.5, 3.0, 4.0)
+    val fig = Fig(f => f.data(x = bx, ylow = lo, yhigh = hi) * f.visual(f.Band))
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ s.contains("<polygon") ==== true
+    T ~ s.contains("<polyline") ==== false
+    // the y domain covers the whole band, not just one edge
+    T ~ (s.contains(">4<") || s.contains(">4.0<")) ==== true
+
+  @Test
+  def statMisuseTest(): Unit =
+    def failsWith(fig: Figure, part: String): Unit =
+      fig.svg().fold{ _ =>
+        assertTrue(s"expected failure mentioning '$part' but the figure rendered", false)
+      }{ e => T ~ e.toString.contains(part) ==== true }
+    failsWith(Fig(f => f.data(x = ts, y = vs) * f.histogram()), "computes 'y' from the x values")
+    failsWith(Fig(f => f.data((y = vs)) * f.histogram()), "bin() needs aesthetic 'x'")
+    failsWith(Fig(f => f.data(x = ts, ylow = vs) * f.visual(f.Band)), "needs aesthetics 'ylow' and 'yhigh'")
+
+  @Test
+  def continuousColourTest(): Unit =
+    val cv = Array(0.0, 5.0, 10.0)
+    val fig = Fig(f => f.data(x = ts, y = vs, color = cv) * f.visual(f.Scatter) + f.legend("heat"))
+    val r = fig.svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ (s.split("<circle").length - 1) ==== 3
+    // domain endpoints and midpoint hit the exact viridis anchors
+    T ~ s.contains("#440154") ==== true
+    T ~ s.contains("#21918C") ==== true
+    T ~ s.contains("#FDE725") ==== true
+    // the colorbar: 64 gradient slabs plus the background rect
+    T ~ (s.split("<rect").length - 1) ==== 65
+    T ~ s.contains(">heat<") ==== true
+
+  @Test
+  def colourScaleClashTest(): Unit =
+    def failsWith(fig: Figure, part: String): Unit =
+      fig.svg().fold{ _ =>
+        assertTrue(s"expected failure mentioning '$part' but the figure rendered", false)
+      }{ e => T ~ e.toString.contains(part) ==== true }
+    val cv = Array(0.0, 5.0, 10.0)
+    failsWith(
+      Fig(f => f.data(x = ts, y = vs, color = cv) * f.visual(f.Scatter) + f.data(x = ts, y = vs, color = labs) * f.visual(f.Scatter)),
+      "one colour scale per figure")
+    failsWith(Fig(f => f.data(x = ts, y = vs, color = cv) * f.visual(f.Line)), "Scatter only")
+    failsWith(Fig(f => f.data(x = ts, y = vs, color = cv) * f.smooth(f.Fit(1))), "cannot carry continuous colour")
+
+  @Test
+  def styledColourTest(): Unit =
+    // a styled constant beats the layer-index default...
+    val plain = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Scatter) * f.color("#123456")).svg().get
+    T ~ plain.contains("#123456") ==== true
+    // ...but a mapped colour column beats the styled constant
+    val mapped = Fig(f => f.data(x = ts, y = vs, color = labs) * f.visual(f.Scatter) * f.color("#123456") + f.legend("g")).svg().get
+    T ~ mapped.contains("#123456") ==== false
+    // band and line sharing one styled hue: both draw in it
+    val bx = Array(1.0, 2.0, 3.0)
+    val fig = Fig: f =>
+      import f.*
+      val steel = color("#336699")
+      data(x = bx, ylow = Array(0.0, 1.0, 2.0), yhigh = Array(2.0, 3.0, 4.0)) * visual(Band) * steel +
+        data(x = bx, y = Array(1.0, 2.0, 3.0)) * visual(Line) * steel
+    val s = fig.svg().get
+    T ~ (s.split("#336699").length - 1) ==== 2
+
+  @Test
   def scaleKindTest(): Unit =
     T ~ summon[ScaleOf[Double]].kind ==== ScaleKind.Continuous
     T ~ summon[ScaleOf[Int]].kind ==== ScaleKind.Continuous

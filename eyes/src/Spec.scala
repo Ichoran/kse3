@@ -95,12 +95,16 @@ object Data:
 
 /** How a layer's geometry is drawn.  Just the kind for now; per-visual style hooks in when
   * the styling layer is built.
+  *
+  * `Band` fills between the `ylow` and `yhigh` aesthetics (both resolve through the y
+  * scale slot); `Area` fills from the y values down to zero; `Bar` draws bars from zero to
+  * y, dodging side-by-side within a discrete colour scale.
   */
 final case class Visual(kind: Visual.Kind)
 
 object Visual:
   enum Kind:
-    case Scatter, Line
+    case Scatter, Line, Band, Area, Bar
 
 
 /** A statistical transform applied to a layer's columns before its visual.  The real
@@ -126,6 +130,17 @@ final case class Rolling(window: Int) extends Smoother
 final case class RollingMedian(window: Int) extends Smoother
 final case class Fit(degree: Int = 1) extends Smoother
 
+/** Distribution stats: these consume a layer's x values (the layer must not map y — the
+  * stat computes it) and emit new columns, one output set per (colour level × facet cell)
+  * group.  `Bin` counts into shared round-edged bins (`bins` is a target; the width snaps
+  * to a nice step so edges land on round numbers, and all groups share the same edges so
+  * dodged bars align).  `Density` is a kernel density estimate on a shared grid (NaN
+  * bandwidth = Silverman's rule).  `Count` tallies occurrences of each distinct x value.
+  */
+final case class Bin(bins: Int = 30) extends Stat
+final case class Density(bandwidth: Double = Double.NaN) extends Stat
+case object Count extends Stat
+
 
 /** Typed-key attribute store stub (DESIGN 7).  Rightmost entry wins at lookup; the cascade
   * and the real key vocabulary come later.  Constants live here, not in Data: a mapped
@@ -141,6 +156,8 @@ object Style:
   final class Key[V](val name: String):
     override def toString = name
   val empty: Style = Style(Nil)
+  /** The styled-constant colour key; `color("#0072B2")` in the vocabulary sets it. */
+  val Color: Key[String] = new Key[String]("color")
 
 
 /** The data-free part of a layer: visual, stats, style.  `visual(...)`, `smooth(...)`, and
@@ -359,6 +376,29 @@ trait Vocabulary:
 
   def smooth(how: Smoother): Look = Look(null, Smooth(how) :: Nil, Style.empty)
 
+  /** Counts the layer's x values into bins as y; `bins` is a target count (edges snap to
+    * round numbers).  Do not map y — the stat computes it.
+    */
+  def bin(bins: Int = 30): Look = Look(null, Bin(bins) :: Nil, Style.empty)
+
+  /** Kernel density estimate of the layer's x values as y; NaN bandwidth = Silverman's
+    * rule of thumb.  Do not map y — the stat computes it.
+    */
+  def density(bandwidth: Double = Double.NaN): Look = Look(null, Density(bandwidth) :: Nil, Style.empty)
+
+  /** Occurrence count of each distinct x value as y.  Do not map y — the stat computes it. */
+  def count: Look = Look(null, Count :: Nil, Style.empty)
+
+  /** A styled constant colour for this look's layers (any SVG colour string).  Per
+    * attribute the resolution order is mapped column ▸ styled constant ▸ default, so a
+    * colour *column* in the data still wins, but layers with no colour mapping — a band
+    * and the line through it, say — can share one hue instead of cycling the palette.
+    */
+  def color(c: String): Look = Look(null, Nil, Style((Style.Color, c) :: Nil))
+
+  /** Binned bars of the x distribution: `visual(Bar) * bin(bins)`. */
+  def histogram(bins: Int = 30): Look = visual(Visual.Kind.Bar) * bin(bins)
+
   /** Facet by discrete columns; `col` and `row` are the reserved facet slots, stored as
     * columns like any other aesthetic.  Lengths must match the layer's data when merged.
     */
@@ -402,6 +442,9 @@ trait Vocabulary:
 
   final val Scatter = Visual.Kind.Scatter
   final val Line = Visual.Kind.Line
+  final val Band = Visual.Kind.Band
+  final val Area = Visual.Kind.Area
+  final val Bar = Visual.Kind.Bar
 
   type Loess = kse.eyes.Loess
   final val Loess = kse.eyes.Loess
