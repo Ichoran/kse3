@@ -207,6 +207,23 @@ final case class Layers(terms: List[Layer]):
   def +(parts: Parts): Parts = Parts.of(this) + parts
 
 
+/** Compass directions for anchored placement — checked string literals, so no names are
+  * added to the namespace and typos fail to compile.
+  */
+type Compass = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
+
+
+/** Where a floated mini-figure goes, in fractions of the host panel area (y down from the
+  * top-left).  `At` anchors to a compass point; with `reserve` the interpretation also
+  * expands the cheaper axis so the anchored spot is genuinely data-free.  `Auto` scores
+  * the corners by data occupancy and takes the least obstructed.
+  */
+enum Place:
+  case Exact(x: Double, y: Double, w: Double, h: Double)
+  case At(compass: Compass, w: Double, h: Double, reserve: Boolean)
+  case Auto(w: Double, h: Double)
+
+
 /////////////////////////////////////
 /// The figure-level Parts monoid ///
 /////////////////////////////////////
@@ -237,7 +254,7 @@ object Parts:
     case FreeAxis(horz: Boolean, vert: Boolean)
     case PanelGap(horz: Double, vert: Double)
     case EachLabeled
-    case Inset(fig: Figure, x: Double, y: Double, w: Double, h: Double)
+    case Inset(fig: Figure, place: Place)
 
 
 /** An interpreted figure.  For now just the normalized spec; scene, layout, and rendering
@@ -356,11 +373,20 @@ trait Vocabulary:
 
   def title(text: String): Parts = Parts(Nil, Parts.Config.FigTitle(text) :: Nil)
 
-  /** A miniature figure floated over the panel area, in fractions of it: `x`, `y` locate
-    * the inset's top-left, `w`, `h` its size.
+  /** A miniature figure floated over the panel area.  Placement:
+    * {{{
+    * inset(mini)                        // automatic: the least-obstructed corner
+    * inset(mini, "ne")                  // compass anchor: "nw","n","ne","e","se","s","sw","w"
+    * inset(mini, "ne", reserve = true)  // also expand an axis so the spot is data-free
+    * inset(mini, 0.55, 0.05, 0.4, 0.3)  // explicit rect in panel fractions
+    * }}}
     */
+  def inset(fig: Figure): Parts =
+    Parts(Nil, Parts.Config.Inset(fig, Place.Auto(0.38, 0.35)) :: Nil)
+  def inset(fig: Figure, at: Compass, w: Double = 0.38, h: Double = 0.35, reserve: Boolean = false): Parts =
+    Parts(Nil, Parts.Config.Inset(fig, Place.At(at, w, h, reserve)) :: Nil)
   def inset(fig: Figure, x: Double, y: Double, w: Double, h: Double): Parts =
-    Parts(Nil, Parts.Config.Inset(fig, x, y, w, h) :: Nil)
+    Parts(Nil, Parts.Config.Inset(fig, Place.Exact(x, y, w, h)) :: Nil)
 
   val axis: AxisVocab = AxisVocab()
 

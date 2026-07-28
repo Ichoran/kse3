@@ -472,8 +472,12 @@ object Render:
         if p.ys(i) > dyHi then dyHi = p.ys(i)
         i += 1
     if !(dxLo <= dxHi && dyLo <= dyHi) then Err.break("figure has no data points")
-    val (fx0, fx1) = axisSpan(dxLo, dxHi, xLoC, xHiC)
-    val (fy0, fy1) = axisSpan(dyLo, dyHi, yLoC, yHiC)
+    val (fxA, fxB) = axisSpan(dxLo, dxHi, xLoC, xHiC)
+    val (fyA, fyB) = axisSpan(dyLo, dyHi, yLoC, yHiC)
+    var fx0 = fxA
+    var fx1 = fxB
+    var fy0 = fyA
+    var fy1 = fyB
 
     // facet levels, first appearance in layer order; null level = the unfaceted dimension
     def levelsFor(get: Prep => Array[String] | Null): Array[String | Null] =
@@ -490,6 +494,100 @@ object Render:
     val rowLevels = levelsFor(_.rowLabs)
     val nC = colLevels.length
     val nR = rowLevels.length
+
+    // resolve inset placements before panels capture the spans: exact rects pass through;
+    // compass anchors compute their rect, optionally reserving field by expanding whichever
+    // axis clears the spot with the least span growth (never touching user-pinned limits);
+    // auto placement scores the corners by data occupancy and takes the emptiest
+    val mgIn = 0.025
+    val gapIn = 0.02
+    val placedInsets = collection.mutable.ArrayBuffer.empty[(Figure, Double, Double, Double, Double)]
+
+    def compassRect(cp: Compass, w: Double, h: Double): (Double, Double) = cp match
+      case "nw" => (mgIn, mgIn)
+      case "n"  => ((1 - w) / 2, mgIn)
+      case "ne" => (1 - w - mgIn, mgIn)
+      case "e"  => (1 - w - mgIn, (1 - h) / 2)
+      case "se" => (1 - w - mgIn, 1 - h - mgIn)
+      case "s"  => ((1 - w) / 2, 1 - h - mgIn)
+      case "sw" => (mgIn, 1 - h - mgIn)
+      case "w"  => (mgIn, (1 - h) / 2)
+
+    def insetOccupancy(rx: Double, ry: Double, rw: Double, rh: Double): Double =
+      var s = 0.0
+      placedInsets.foreach: (_, px, py, pw, ph) =>
+        if rx < px + pw && px < rx + rw && ry < py + ph && py < ry + rh then s += 1e9
+      prepped.foreach: p =>
+        var i = 0
+        while i < p.xs.length do
+          val xf = (p.xs(i) - fx0) / (fx1 - fx0)
+          val yf = 1 - (p.ys(i) - fy0) / (fy1 - fy0)
+          val c0 = if p.colLabs == null then 0 else jm.max(0, colLevels.indexOf(p.colLabs(i)))
+          val c1 = if p.colLabs == null then nC - 1 else c0
+          val r0 = if p.rowLabs == null then 0 else jm.max(0, rowLevels.indexOf(p.rowLabs(i)))
+          val r1 = if p.rowLabs == null then nR - 1 else r0
+          var cc = c0
+          while cc <= c1 do
+            var rr = r0
+            while rr <= r1 do
+              val gx = (cc + xf) / nC
+              val gy = (rr + yf) / nR
+              if gx >= rx && gx <= rx + rw && gy >= ry && gy <= ry + rh then s += 1
+              rr += 1
+            cc += 1
+          i += 1
+      s
+
+    def reserveFor(cp: Compass, w: Double, h: Double): Unit =
+      val topBand = cp == "nw" || cp == "n" || cp == "ne"
+      val botBand = cp == "sw" || cp == "s" || cp == "se"
+      val leftBand = cp == "nw" || cp == "w" || cp == "sw"
+      val rightBand = cp == "ne" || cp == "e" || cp == "se"
+      var vCost = Double.PositiveInfinity
+      var vNew = 0.0
+      val vFree = 1 - (mgIn + h + gapIn)
+      if topBand && yHiC.isNaN && vFree > 0.05 then
+        vNew = fy0 + (dyHi - fy0) / vFree
+        vCost = (vNew - fy0) / (fy1 - fy0)
+      else if botBand && yLoC.isNaN && vFree > 0.05 then
+        vNew = fy1 - (fy1 - dyLo) / vFree
+        vCost = (fy1 - vNew) / (fy1 - fy0)
+      var hCost = Double.PositiveInfinity
+      var hNew = 0.0
+      val hFree = 1 - (mgIn + w + gapIn)
+      if rightBand && xHiC.isNaN && hFree > 0.05 then
+        hNew = fx0 + (dxHi - fx0) / hFree
+        hCost = (hNew - fx0) / (fx1 - fx0)
+      else if leftBand && xLoC.isNaN && hFree > 0.05 then
+        hNew = fx1 - (fx1 - dxLo) / hFree
+        hCost = (fx1 - hNew) / (fx1 - fx0)
+      if vCost <= hCost && vCost < Double.PositiveInfinity then
+        if topBand then fy1 = jm.max(fy1, vNew) else fy0 = jm.min(fy0, vNew)
+      else if hCost < Double.PositiveInfinity then
+        if rightBand then fx1 = jm.max(fx1, hNew) else fx0 = jm.min(fx0, hNew)
+
+    insets.foreach: ins =>
+      ins.place match
+        case Place.Exact(x, y, w, h) =>
+          val _ = placedInsets.addOne((ins.fig, x, y, w, h))
+        case Place.At(cp, w, h, res) =>
+          if res then reserveFor(cp, w, h)
+          val (x, y) = compassRect(cp, w, h)
+          val _ = placedInsets.addOne((ins.fig, x, y, w, h))
+        case Place.Auto(w, h) =>
+          val cands: List[Compass] = List("nw", "ne", "sw", "se")
+          var best: Compass = "nw"
+          var bestScore = Double.PositiveInfinity
+          var k = 0
+          cands.foreach: cp =>
+            val (cx, cy) = compassRect(cp, w, h)
+            val sc = insetOccupancy(cx, cy, w, h) + k * 1e-6
+            if sc < bestScore then
+              bestScore = sc
+              best = cp
+            k += 1
+          val (x, y) = compassRect(best, w, h)
+          val _ = placedInsets.addOne((ins.fig, x, y, w, h))
 
     val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 6)
     var r = 0
@@ -532,9 +630,9 @@ object Render:
     val _ = outer.put(rT, cY)(facetGrid)
     if legendB != null then { val _ = outer.put(rT, cY + 1)(legendB) }
     if xtB != null then { val _ = outer.put(rT + 1, cY)(xtB) }
-    insets.foreach: ins =>
-      val sub = buildFigure(ins.fig, estW * ins.w, estH * ins.h).?
-      val _ = outer.putFloat(facetGrid)(ins.x, ins.y, ins.w, ins.h)(sub)
+    placedInsets.foreach: (sfig, x, y, w, h) =>
+      val sub = buildFigure(sfig, estW * w, estH * h).?
+      val _ = outer.putFloat(facetGrid)(x, y, w, h)(sub)
     outer
 
   private def emitGrid(g: Grid, lay: Grid.Layout, put: Glyph => Unit): Unit =

@@ -58,7 +58,7 @@ object EyesExamples:
       data((y = diffs)) * visual(Line) + title("day-over-day")
     val big = Fig: f =>
       import f.*
-      data((y = series)) * timeseries + title("Signal") + inset(mini, 0.52, 0.06, 0.44, 0.4)
+      data((y = series)) * timeseries + title("Signal") + inset(mini, "ne", w = 0.44, h = 0.4, reserve = true)
     val west = rows.filter(_.region == "west")
     val scat = Fig: f =>
       import f.*
