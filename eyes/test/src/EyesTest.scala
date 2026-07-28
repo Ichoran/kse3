@@ -325,6 +325,16 @@ class EyesTest {
     T ~ s.contains(">CC<") ==== true
 
   @Test
+  def fontScaleTest(): Unit =
+    val fig = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Scatter) + f.title("T"))
+    val big = fig.svg().get
+    val small = fig.svg(220, 160).get
+    // full size uses full-size type; a quarter-size figure scales it down by ~sqrt
+    T ~ big.contains("font-size=\"12\"") ==== true
+    T ~ small.contains("font-size=\"12\"") ==== false
+    T ~ small.contains("font-size=\"14\"") ==== false
+
+  @Test
   def insetTest(): Unit =
     val mini = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Line) + f.title("MINI"))
     val fig = Fig: f =>

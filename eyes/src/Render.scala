@@ -29,6 +29,16 @@ object Render:
   private val titleSz = 14.0
   private val tickLen = 4.0
 
+  /** Type size scale for a figure granted (w, h): an n-fold smaller figure gets sqrt(n)
+    * smaller type, with the two dimension ratios combined by RMS so the larger dimension
+    * dominates when shrinkage is uneven.  Clamped for legibility.
+    */
+  private def fontScale(w: Double, h: Double): Double =
+    val sx = w / 640.0
+    val sy = h / 480.0
+    val s = jm.sqrt((sx * sx + sy * sy) / 2)
+    jm.min(1.4, jm.max(0.5, jm.sqrt(s)))
+
   private final case class Ticks(step: Double, values: Array[Double]):
     def labels: Array[String] =
       val dec = jm.max(0, -jm.floor(jm.log10(step)).toInt)
@@ -216,18 +226,33 @@ object Render:
     anyColourScale: Boolean,
     showLeft: Boolean, showBottom: Boolean,
     colStrip: String | Null, rowStrip: String | Null,
+    fs: Double,
     m: Measurer
   ) extends GlyphBlock:
-    private def xTicks(w: Double): Ticks = ticksIn(x0, x1, jm.max(2, jm.min(8, (w / 90).toInt)))
-    private def yTicks(h: Double): Ticks = ticksIn(y0, y1, jm.max(2, jm.min(8, (h / 70).toInt)))
+    private val lab = labSz * fs
+    private val tick = tickLen * fs
+
+    // ticks aim for a pleasing density but are hard-capped so labels cannot collide even
+    // on a very short axis; a zero-centered domain keeps -x, 0, +x at the cap
+    private def fitTicks(lo: Double, hi: Double, target: Int, cap: Int): Ticks =
+      var t = jm.max(1, jm.min(target, cap))
+      var ts = ticksIn(lo, hi, t)
+      while ts.values.length > jm.max(2, cap) && t > 1 do
+        t -= 1
+        ts = ticksIn(lo, hi, t)
+      ts
+    private def xTicks(w: Double): Ticks =
+      fitTicks(x0, x1, jm.max(2, jm.min(8, (w / (lab * 7.5)).toInt)), jm.max(2, (w / (lab * 4.5)).toInt))
+    private def yTicks(h: Double): Ticks =
+      fitTicks(y0, y1, jm.max(2, jm.min(8, (h / (m.lineHeight(lab) * 4.5)).toInt)), jm.max(2, (h / (m.lineHeight(lab) * 1.5)).toInt))
 
     def protrusions(w: Double, h: Double): Prot =
       val left =
-        if showLeft then yTicks(h).labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, labSz))) + tickLen + 8
+        if showLeft then yTicks(h).labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, lab))) + tick + 8 * fs
         else 0.0
-      val bottom = if showBottom then m.lineHeight(labSz) + tickLen + 6 else 0.0
-      val top = if colStrip != null then m.lineHeight(labSz) + 4 else 0.0
-      val right = if rowStrip != null then m.width(rowStrip, labSz) + 8 else 0.0
+      val bottom = if showBottom then m.lineHeight(lab) + tick + 6 * fs else 0.0
+      val top = if colStrip != null then m.lineHeight(lab) + 4 * fs else 0.0
+      val right = if rowStrip != null then m.width(rowStrip, lab) + 8 * fs else 0.0
       Prot(left, right, top, bottom)
 
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
@@ -244,21 +269,21 @@ object Render:
         var i = 0
         while i < xt.values.length do
           val px = sx(xt.values(i))
-          put(Glyph.Segment(px, rect.bottom, px, rect.bottom + tickLen, "#555555", 1))
-          put(Glyph.Txt(px, rect.bottom + tickLen + m.ascent(labSz) + 2, xL(i), labSz, "#333333", Glyph.Anchor.Middle))
+          put(Glyph.Segment(px, rect.bottom, px, rect.bottom + tick, "#555555", 1))
+          put(Glyph.Txt(px, rect.bottom + tick + m.ascent(lab) + 2, xL(i), lab, "#333333", Glyph.Anchor.Middle))
           i += 1
       if showLeft then
         val yL = yt.labels
         var i = 0
         while i < yt.values.length do
           val py = sy(yt.values(i))
-          put(Glyph.Segment(rect.x - tickLen, py, rect.x, py, "#555555", 1))
-          put(Glyph.Txt(rect.x - tickLen - 4, py + m.ascent(labSz) * 0.38, yL(i), labSz, "#333333", Glyph.Anchor.End))
+          put(Glyph.Segment(rect.x - tick, py, rect.x, py, "#555555", 1))
+          put(Glyph.Txt(rect.x - tick - 4, py + m.ascent(lab) * 0.38, yL(i), lab, "#333333", Glyph.Anchor.End))
           i += 1
       if colStrip != null then
-        put(Glyph.Txt(rect.x + rect.w / 2, rect.y - 5, colStrip, labSz, "#222222", Glyph.Anchor.Middle, bold = true))
+        put(Glyph.Txt(rect.x + rect.w / 2, rect.y - 5 * fs, colStrip, lab, "#222222", Glyph.Anchor.Middle, bold = true))
       if rowStrip != null then
-        put(Glyph.Txt(rect.right + 6, rect.y + rect.h / 2 + m.ascent(labSz) * 0.38, rowStrip, labSz, "#222222", Glyph.Anchor.Start, bold = true))
+        put(Glyph.Txt(rect.right + 6, rect.y + rect.h / 2 + m.ascent(lab) * 0.38, rowStrip, lab, "#222222", Glyph.Anchor.Start, bold = true))
       slices.foreach: s =>
         val flat = if anyColourScale then neutral else palette(s.layerIdx % palette.length)
         s.kind match
@@ -268,12 +293,12 @@ object Render:
               val fill = s.colorIdx match
                 case null => flat
                 case ci   => palette(ci(i) % palette.length)
-              put(Glyph.Disc(sx(s.xs(i)), sy(s.ys(i)), 3.5, fill))
+              put(Glyph.Disc(sx(s.xs(i)), sy(s.ys(i)), 3.5 * fs, fill))
               i += 1
           case Visual.Kind.Line =>
             s.colorIdx match
               case null =>
-                if s.xs.length >= 2 then put(Glyph.Polyline(s.xs.map(sx), s.ys.map(sy), flat, 1.8))
+                if s.xs.length >= 2 then put(Glyph.Polyline(s.xs.map(sx), s.ys.map(sy), flat, jm.max(0.8, 1.8 * fs)))
               case ci =>
                 var maxLv = -1
                 var i = 0
@@ -284,45 +309,49 @@ object Render:
                 while lv <= maxLv do
                   val idx = (0 until s.xs.length).filter(i => ci(i) == lv)
                   if idx.length >= 2 then
-                    put(Glyph.Polyline(idx.map(i => sx(s.xs(i))).toArray, idx.map(i => sy(s.ys(i))).toArray, palette(lv % palette.length), 1.8))
+                    put(Glyph.Polyline(idx.map(i => sx(s.xs(i))).toArray, idx.map(i => sy(s.ys(i))).toArray, palette(lv % palette.length), jm.max(0.8, 1.8 * fs)))
                   lv += 1
 
-  private final class LegendBlock(title: String | Null, levels: Array[String], m: Measurer) extends GlyphBlock:
+  private final class LegendBlock(title: String | Null, levels: Array[String], fs: Double, m: Measurer) extends GlyphBlock:
+    private val lab = labSz * fs
     private def innerWidth: Double =
-      val titleW = if title == null then 0.0 else m.width(title, labSz)
-      levels.foldLeft(titleW)((w, s) => jm.max(w, 11 + 6 + m.width(s, labSz))) + 16
+      val titleW = if title == null then 0.0 else m.width(title, lab)
+      levels.foldLeft(titleW)((w, s) => jm.max(w, 11 * fs + 6 + m.width(s, lab))) + 16 * fs
     override def widthPref: Size = Size.Fixed(innerWidth)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
       val lx = rect.x + 4
       var ly = rect.y + 2
       if title != null then
-        put(Glyph.Txt(lx, ly + m.ascent(labSz), title, labSz, "#222222", Glyph.Anchor.Start, bold = true))
-        ly += m.lineHeight(labSz) + 2
+        put(Glyph.Txt(lx, ly + m.ascent(lab), title, lab, "#222222", Glyph.Anchor.Start, bold = true))
+        ly += m.lineHeight(lab) + 2
       var lv = 0
       while lv < levels.length do
-        put(Glyph.Box(lx, ly + 2, 11, 11, palette(lv % palette.length)))
-        put(Glyph.Txt(lx + 11 + 6, ly + 2 + m.ascent(labSz) * 0.95, levels(lv), labSz, "#333333", Glyph.Anchor.Start))
-        ly += 17
+        put(Glyph.Box(lx, ly + 2, 11 * fs, 11 * fs, palette(lv % palette.length)))
+        put(Glyph.Txt(lx + 11 * fs + 6, ly + 2 + m.ascent(lab) * 0.95, levels(lv), lab, "#333333", Glyph.Anchor.Start))
+        ly += 17 * fs
         lv += 1
 
-  private final class TitleBlock(text: String, m: Measurer) extends GlyphBlock:
-    override def heightPref: Size = Size.Fixed(m.lineHeight(titleSz) + 6)
+  private final class TitleBlock(text: String, fs: Double, m: Measurer) extends GlyphBlock:
+    private val ttl = titleSz * fs
+    override def heightPref: Size = Size.Fixed(m.lineHeight(ttl) + 6 * fs)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(titleSz) + 2, text, titleSz, "#222222", Glyph.Anchor.Middle, bold = true))
+      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(ttl) + 2, text, ttl, "#222222", Glyph.Anchor.Middle, bold = true))
 
-  private final class XTitleBlock(text: String, m: Measurer) extends GlyphBlock:
-    override def heightPref: Size = Size.Fixed(m.lineHeight(labSz) + 4)
+  private final class XTitleBlock(text: String, fs: Double, m: Measurer) extends GlyphBlock:
+    private val lab = labSz * fs
+    override def heightPref: Size = Size.Fixed(m.lineHeight(lab) + 4 * fs)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(labSz) + 2, text, labSz, "#222222", Glyph.Anchor.Middle))
+      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(lab) + 2, text, lab, "#222222", Glyph.Anchor.Middle))
 
-  private final class YTitleBlock(text: String, m: Measurer) extends GlyphBlock:
-    override def widthPref: Size = Size.Fixed(m.lineHeight(labSz) + 2)
+  private final class YTitleBlock(text: String, fs: Double, m: Measurer) extends GlyphBlock:
+    private val lab = labSz * fs
+    override def widthPref: Size = Size.Fixed(m.lineHeight(lab) + 2 * fs)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      put(Glyph.Txt(rect.x + m.ascent(labSz) + 2, rect.y + rect.h / 2, text, labSz, "#222222", Glyph.Anchor.Middle, rotate = -90))
+      put(Glyph.Txt(rect.x + m.ascent(lab) + 2, rect.y + rect.h / 2, text, lab, "#222222", Glyph.Anchor.Middle, rotate = -90))
 
   private def axisSpan(lo0: Double, hi0: Double, cfgLo: Double, cfgHi: Double): (Double, Double) =
     var lo = lo0
@@ -348,7 +377,8 @@ object Render:
   /** Builds a figure's full block tree — facet grid of panels, legend, titles, insets —
     * rooted in one outer grid, ready to solve at any size.
     */
-  private def buildFigure(fig: Figure)(using m: Measurer): Ask[Grid] = Ask:
+  private def buildFigure(fig: Figure, estW: Double, estH: Double)(using m: Measurer): Ask[Grid] = Ask:
+    val fs = fontScale(estW, estH)
     val layers = fig.parts.layers
     if layers.isEmpty then Err.break("figure has no layers")
 
@@ -478,18 +508,19 @@ object Render:
           showBottom = freeX || everyLabel || r == nR - 1,
           colStrip = if r == 0 then cl else null,
           rowStrip = if c == nC - 1 then rl else null,
+          fs,
           m
         )
         val _ = facetGrid.put(r, c)(pan)
         c += 1
       r += 1
 
-    val legendB = if levels.nonEmpty then LegendBlock(legTitle, levels.toArray, m) else null
+    val legendB = if levels.nonEmpty then LegendBlock(legTitle, levels.toArray, fs, m) else null
     // legend(...) doubles as the figure title when no legend is drawn; title(...) always wins
     val topText: String | Null = if figTitle != null then figTitle else if levels.isEmpty then legTitle else null
-    val titleB = if topText != null then TitleBlock(topText, m) else null
-    val xtB = if xTitle != null then XTitleBlock(xTitle, m) else null
-    val ytB = if yTitle != null then YTitleBlock(yTitle, m) else null
+    val titleB = if topText != null then TitleBlock(topText, fs, m) else null
+    val xtB = if xTitle != null then XTitleBlock(xTitle, fs, m) else null
+    val ytB = if yTitle != null then YTitleBlock(yTitle, fs, m) else null
 
     val rT = if titleB != null then 1 else 0
     val rX = if xtB != null then 1 else 0
@@ -502,7 +533,7 @@ object Render:
     if legendB != null then { val _ = outer.put(rT, cY + 1)(legendB) }
     if xtB != null then { val _ = outer.put(rT + 1, cY)(xtB) }
     insets.foreach: ins =>
-      val sub = buildFigure(ins.fig).?
+      val sub = buildFigure(ins.fig, estW * ins.w, estH * ins.h).?
       val _ = outer.putFloat(facetGrid)(ins.x, ins.y, ins.w, ins.h)(sub)
     outer
 
@@ -536,24 +567,26 @@ object Render:
     Svg.render(width, height, gs.result())
 
   def figureSvg(fig: Figure, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
-    solveAndRender(buildFigure(fig).?, width, height)
+    solveAndRender(buildFigure(fig, width, height).?, width, height)
 
-  private def buildBoard(b: Board)(using m: Measurer): Ask[Grid] = Ask:
+  private def buildBoard(b: Board, estW: Double, estH: Double)(using m: Measurer): Ask[Grid] = Ask:
     b match
-      case Board.One(f) => buildFigure(f).?
+      case Board.One(f) => buildFigure(f, estW, estH).?
       case Board.Beside(items) =>
         val g = Grid(1, items.length, colGap = 4, rowGap = 4, pad = 0)
+        val cw = jm.max(40.0, (estW - 4 * (items.length - 1)) / items.length)
         items.zipWithIndex.foreach: (it, i) =>
-          val _ = g.put(0, i)(buildBoard(it).?)
+          val _ = g.put(0, i)(buildBoard(it, cw, estH).?)
         g
       case Board.Above(items) =>
         val g = Grid(items.length, 1, colGap = 4, rowGap = 4, pad = 0)
+        val ch = jm.max(40.0, (estH - 4 * (items.length - 1)) / items.length)
         items.zipWithIndex.foreach: (it, i) =>
-          val _ = g.put(i, 0)(buildBoard(it).?)
+          val _ = g.put(i, 0)(buildBoard(it, estW, ch).?)
         g
 
   def boardSvg(b: Board, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
-    solveAndRender(buildBoard(b).?, width, height)
+    solveAndRender(buildBoard(b, width, height).?, width, height)
 
 
 extension (fb: Figure | Board)
