@@ -376,19 +376,6 @@ class EyesTest {
     T ~ typeChecks("""val m = kse.eyes.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.eyes.Fig.inset(m, "qq")""") ==== false
 
   @Test
-  def insetReserveTest(): Unit =
-    val mini = Fig(f => f.data(x = ts, y = vs) * f.visual(f.Line))
-    val rising = Array.tabulate(40)(i => i.toDouble)
-    def maxYLabel(s: String): Double =
-      """text-anchor="end"[^>]*>([0-9.-]+)<""".r.findAllMatchIn(s).map(_.group(1).toDouble).max
-    val plain = Fig(f => f.data(x = rising, y = rising) * f.visual(f.Scatter))
-    val reserved = Fig(f => f.data(x = rising, y = rising) * f.visual(f.Scatter) + f.inset(mini, "ne", reserve = true))
-    val pm = maxYLabel(plain.svg().get)
-    val rm = maxYLabel(reserved.svg().get)
-    // reserving the ne corner expands an axis; here the y axis grows to push data down
-    T ~ (rm >= pm + 10) ==== true
-
-  @Test
   def scaleKindTest(): Unit =
     T ~ summon[ScaleOf[Double]].kind ==== ScaleKind.Continuous
     T ~ summon[ScaleOf[Int]].kind ==== ScaleKind.Continuous

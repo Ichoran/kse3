@@ -214,13 +214,15 @@ type Compass = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
 
 
 /** Where a floated mini-figure goes, in fractions of the host panel area (y down from the
-  * top-left).  `At` anchors to a compass point; with `reserve` the interpretation also
-  * expands the cheaper axis so the anchored spot is genuinely data-free.  `Auto` scores
-  * the corners by data occupancy and takes the least obstructed.
+  * top-left).  `At` anchors to a compass point; `Auto` scores the corners by data occupancy
+  * and takes the least obstructed.  There is deliberately no automatic space *reservation*:
+  * blanking field by axis manipulation cannot be done well without render-and-inspect
+  * feedback, and a bad automatic is worse than none — set the axis limit yourself and
+  * anchor the inset in the space you made.
   */
 enum Place:
   case Exact(x: Double, y: Double, w: Double, h: Double)
-  case At(compass: Compass, w: Double, h: Double, reserve: Boolean)
+  case At(compass: Compass, w: Double, h: Double)
   case Auto(w: Double, h: Double)
 
 
@@ -377,14 +379,15 @@ trait Vocabulary:
     * {{{
     * inset(mini)                        // automatic: the least-obstructed corner
     * inset(mini, "ne")                  // compass anchor: "nw","n","ne","e","se","s","sw","w"
-    * inset(mini, "ne", reserve = true)  // also expand an axis so the spot is data-free
     * inset(mini, 0.55, 0.05, 0.4, 0.3)  // explicit rect in panel fractions
     * }}}
+    * To guarantee the spot is data-free, make the space explicitly — e.g.
+    * `axis.vert.limit(max = ...) + inset(mini, "ne")`.
     */
   def inset(fig: Figure): Parts =
     Parts(Nil, Parts.Config.Inset(fig, Place.Auto(0.38, 0.35)) :: Nil)
-  def inset(fig: Figure, at: Compass, w: Double = 0.38, h: Double = 0.35, reserve: Boolean = false): Parts =
-    Parts(Nil, Parts.Config.Inset(fig, Place.At(at, w, h, reserve)) :: Nil)
+  def inset(fig: Figure, at: Compass, w: Double = 0.38, h: Double = 0.35): Parts =
+    Parts(Nil, Parts.Config.Inset(fig, Place.At(at, w, h)) :: Nil)
   def inset(fig: Figure, x: Double, y: Double, w: Double, h: Double): Parts =
     Parts(Nil, Parts.Config.Inset(fig, Place.Exact(x, y, w, h)) :: Nil)
 

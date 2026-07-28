@@ -58,7 +58,9 @@ object EyesExamples:
       data((y = diffs)) * visual(Line) + title("day-over-day")
     val big = Fig: f =>
       import f.*
-      data((y = series)) * timeseries + title("Signal") + inset(mini, "ne", w = 0.44, h = 0.4, reserve = true)
+      // the explicit idiom for a guaranteed-clear inset spot: make the headroom yourself
+      data((y = series)) * timeseries + title("Signal") +
+        axis.vert.limit(max = 15) + inset(mini, "ne", w = 0.44, h = 0.4)
     val west = rows.filter(_.region == "west")
     val scat = Fig: f =>
       import f.*
