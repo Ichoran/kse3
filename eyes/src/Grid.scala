@@ -53,8 +53,13 @@ trait GlyphBlock extends Block:
   def glyphs(rect: Rect, put: Glyph => Unit): Unit
 
 
-/** A protrusion-aligning grid of blocks; itself a Block, so grids nest (a nested grid is
-  * self-contained: its decorations stay inside its cell).
+/** A protrusion-aligning grid of blocks; itself a Block, so grids nest.  A nested grid
+  * REPORTS its outer decoration needs as protrusions — its own pad plus whatever its edge
+  * cells protrude — so a parent grid aligns nested *content*, not bounding boxes: a cell
+  * holding a grid is granted the grid's content footprint (internal gutters included),
+  * and the grid's outer decorations live in the parent's gutters like any other block's.
+  * Floats are the exception: a floated grid is a self-contained overlay, everything
+  * inside its box.
   *
   * Solving is estimate-verify-retry: measure protrusions at estimated content sizes,
   * allocate gutters with a safety `margin` of headroom, distribute the remaining space,
@@ -87,7 +92,12 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     val _ = floats.addOne(Floater(b, hi, rx, ry, rw, rh))
     this
 
-  def protrusions(w: Double, h: Double): Prot = Prot.zero
+  /** What this grid needs outside a content footprint of (w, h): its own pad plus the
+    * protrusions of its edge cells, measured by the same estimate loop the solver uses.
+    */
+  def protrusions(w: Double, h: Double): Prot =
+    val s = settle(w, h, 0.08, 4, footprint = true)
+    Prot(pad + s.cNeed(0), pad + s.cNeed(cols), pad + s.rNeed(0), pad + s.rNeed(rows))
 
   private[eyes] def blockCount: Int = entries.length
   private[eyes] def blockAt(i: Int): Block = entries(i).block
@@ -97,15 +107,35 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
   def solve(w: Double, h: Double, margin: Double = 0.08, maxPasses: Int = 4): Layout =
     solveAt(0.0, 0.0, w, h, margin, maxPasses)
 
-  private[eyes] def solveAt(x0: Double, y0: Double, w: Double, h: Double, margin: Double, maxPasses: Int): Layout =
+  /** The estimate-verify-retry loop, shared by `solveAt` and `protrusions`.  In
+    * `footprint` mode (w, h) is the content span alone: outer gutters cost nothing here
+    * (they live outside, reported as protrusions) while `cNeed`/`rNeed` still carry the
+    * raw measured needs at every boundary, outer ones included.
+    */
+  private def settle(w: Double, h: Double, margin: Double, maxPasses: Int, footprint: Boolean): Settled =
     val n = entries.length
 
     val colPref = Array.tabulate(cols)(c => prefFor(true, c))
     val rowPref = Array.tabulate(rows)(r => prefFor(false, r))
 
     // gutter base spacing: outer boundaries get pad, internal ones the gap
-    def baseC(j: Int): Double = if j == 0 || j == cols then pad else colGap
-    def baseR(j: Int): Double = if j == 0 || j == rows then pad else rowGap
+    def baseC(j: Int): Double =
+      if j == 0 || j == cols then (if footprint then 0.0 else pad) else colGap
+    def baseR(j: Int): Double =
+      if j == 0 || j == rows then (if footprint then 0.0 else pad) else rowGap
+
+    // in footprint mode the outer boundaries are the parent's problem: zero them in the
+    // budgeted copies so allocation and the convergence check see internal needs only
+    def trimC(a: Array[Double]): Array[Double] =
+      if footprint then
+        a(0) = 0.0
+        a(cols) = 0.0
+      a
+    def trimR(a: Array[Double]): Array[Double] =
+      if footprint then
+        a(0) = 0.0
+        a(rows) = 0.0
+      a
 
     // raw decoration needs per boundary: adjacent protrusions stack (an axis ending at a
     // boundary and one starting there both get their space)
@@ -168,7 +198,9 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     // initial content-size estimate: distribute with base spacing only
     var colW = distribute(w, Array.tabulate(cols + 1)(baseC), colPref)
     var rowH = distribute(h, Array.tabulate(rows + 1)(baseR), rowPref)
-    var (cNeed, rNeed) = needs(colW, rowH)
+    var (cFull, rFull) = needs(colW, rowH)
+    var cNeed = trimC(cFull.clone)
+    var rNeed = trimR(rFull.clone)
     var colGut = alloc(cNeed, baseC)
     var rowGut = alloc(rNeed, baseR)
 
@@ -180,7 +212,11 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
       rowGut = alloc(rNeed, baseR)
       colW = distribute(w, colGut, colPref)
       rowH = distribute(h, rowGut, rowPref)
-      val (c2, r2) = needs(colW, rowH)
+      val (c2f, r2f) = needs(colW, rowH)
+      cFull = c2f
+      rFull = r2f
+      val c2 = trimC(c2f.clone)
+      val r2 = trimR(r2f.clone)
       if fits(c2, cNeed, margin) && fits(r2, rNeed, margin) then converged = true
       else
         cNeed = c2
@@ -191,6 +227,18 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
       rowGut = alloc(rNeed, baseR)
       colW = distribute(w, colGut, colPref)
       rowH = distribute(h, rowGut, rowPref)
+    Settled(colW, rowH, colGut, rowGut, cFull, rFull, passes, converged, cramped)
+
+  private[eyes] def solveAt(x0: Double, y0: Double, w: Double, h: Double, margin: Double, maxPasses: Int, footprint: Boolean = false): Layout =
+    val n = entries.length
+    val s = settle(w, h, margin, maxPasses, footprint)
+    val colW = s.colW
+    val rowH = s.rowH
+    val colGut = s.colGut
+    val rowGut = s.rowGut
+    val passes = s.passes
+    val converged = s.converged
+    val cramped = s.cramped
 
     // geometry: accumulate positions; spans absorb their internal gutters
     val colX = new Array[Double](cols + 1)
@@ -233,8 +281,10 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     while i < n do
       entries(i).block match
         case g: Grid =>
+          // the cell is the nested grid's content footprint; its outer decorations were
+          // reserved in this grid's gutters via the protrusions it reported
           val rct = content(i)
-          sub(i) = g.solveAt(rct.x, rct.y, rct.w, rct.h, margin, maxPasses)
+          sub(i) = g.solveAt(rct.x, rct.y, rct.w, rct.h, margin, maxPasses, footprint = true)
         case _ => ()
       i += 1
 
@@ -272,6 +322,17 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
 object Grid:
   private final case class Entry(block: Block, r0: Int, r1: Int, c0: Int, c1: Int)
   private final case class Floater(block: Block, host: Int, rx: Double, ry: Double, rw: Double, rh: Double)
+
+  /** The settled track sizes and gutters; `cNeed`/`rNeed` are the raw measured needs at
+    * every boundary (outer entries preserved even when the budgeted gutters were zeroed
+    * in footprint mode, so `protrusions` can report them).
+    */
+  private final case class Settled(
+    colW: Array[Double], rowH: Array[Double],
+    colGut: Array[Double], rowGut: Array[Double],
+    cNeed: Array[Double], rNeed: Array[Double],
+    passes: Int, converged: Boolean, cramped: Boolean
+  )
 
   private def sumOf(a: Array[Double], i0: Int, i1: Int): Double =
     var s = 0.0

@@ -141,6 +141,26 @@ class GridTest {
     T ~ (s.content(1).bottom <= cell.bottom + 1e-6) ==== true
 
   @Test
+  def nestedProtrusionTest(): Unit =
+    // a nested grid reports its outer needs (pad + edge-cell protrusions); the parent
+    // reserves them in its gutters and grants the content footprint, so the column
+    // alignment property holds THROUGH the nesting
+    val inner = Grid(1, 1, pad = 4)
+    val _ = inner.put(0, 0)(Steady(30, b = 12))
+    val p = inner.protrusions(200, 100)
+    T ~ close(p.left, 4 + 30) ==== true
+    T ~ close(p.bottom, 4 + 12) ==== true
+    T ~ close(p.right, 4) ==== true
+    val outer = Grid(2, 1, pad = 6)
+    val lay = (outer.put(0, 0)(Steady(30)).put(1, 0)(inner)).solve(400, 400)
+    T ~ close(lay.content(0).x, lay.content(1).x) ==== true
+    T ~ (lay.content(1).x >= 6 + 34 - 1e-6) ==== true
+    // the granted cell IS the inner content footprint: inner content starts right at it
+    val sub = lay.sub(1).asInstanceOf[Grid.Layout]
+    T ~ close(sub.content(0).x, lay.content(1).x) ==== true
+    T ~ close(sub.content(0).y, lay.content(1).y) ==== true
+
+  @Test
   def floatTest(): Unit =
     val g = Grid(1, 1)
     val host = Steady(20)

@@ -167,6 +167,11 @@ object Style:
   val Curve: Key[Double] = new Key[Double]("curve")
   /** Stroke opacity for layer geometry; `arrowStyle(alpha = ...)` sets it. */
   val Alpha: Key[Double] = new Key[Double]("alpha")
+  /** How far short of the aim point an `Arrow` layer's head stops (px, pre type-scale);
+    * NaN = automatic — a tip aimed exactly where a marker is drawn stops at the marker's
+    * edge rather than under it.  `arrowStyle(backoff = ...)` sets it.
+    */
+  val Backoff: Key[Double] = new Key[Double]("backoff")
 
 
 /** The data-free part of a layer: visual, stats, style.  `visual(...)`, `smooth(...)`, and
@@ -299,6 +304,7 @@ object Parts:
     case FigTitle(title: String)
     case AxisTitle(axis: Axis, title: String)
     case AxisLimit(axis: Axis, min: Double, max: Double)  // NaN = unset
+    case AxisTicks(axis: Axis, target: Int)
     case FreeAxis(horz: Boolean, vert: Boolean)
     case PanelGap(horz: Double, vert: Double)
     case EachLabeled
@@ -380,6 +386,12 @@ final class AxisWords private[eyes] (which: Parts.Axis):
     Parts(Vector.empty, Vector(Parts.Config.AxisLimit(which, min, max)))
   def title(text: String): Parts =
     Parts(Vector.empty, Vector(Parts.Config.AxisTitle(which, text)))
+  /** Ask for about this many ticks instead of the density the panel's size suggests.
+    * Nice steps quantize what is actually delivered, and the collision cap still has the
+    * last word: labels never touch, however many were requested.
+    */
+  def ticks(target: Int): Parts =
+    Parts(Vector.empty, Vector(Parts.Config.AxisTicks(which, target)))
   /** This axis fits each facet panel's own data instead of the shared domain. */
   def free: Parts =
     Parts(Vector.empty, Vector(Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert)))
@@ -455,10 +467,12 @@ trait Vocabulary:
 
   /** Styles `Segment`/`Arrow` layer geometry: head and shaft shape, radius of curvature
     * (positive bows to the traveler's left; the head stays straight and the bend starts
-    * behind it), and stroke opacity — useful when thousands of edges overlap.
+    * behind it), stroke opacity — useful when thousands of edges overlap — and head
+    * backoff (px short of the aim point; NaN = automatic, where a tip aimed exactly at a
+    * drawn marker stops at the marker's edge instead of disappearing under it).
     */
-  def arrowStyle(shape: ArrowShape = ArrowShape(), curve: Double = Double.NaN, alpha: Double = 1.0): Look =
-    Look(null, Nil, Style((Style.Arrow, shape) :: (Style.Curve, curve) :: (Style.Alpha, alpha) :: Nil))
+  def arrowStyle(shape: ArrowShape = ArrowShape(), curve: Double = Double.NaN, alpha: Double = 1.0, backoff: Double = Double.NaN): Look =
+    Look(null, Nil, Style((Style.Arrow, shape) :: (Style.Curve, curve) :: (Style.Alpha, alpha) :: (Style.Backoff, backoff) :: Nil))
 
   /** Binned bars of the x distribution: `visual(Bar) * bin(bins)`. */
   def histogram(bins: Int = 30): Look = visual(Visual.Kind.Bar) * bin(bins)

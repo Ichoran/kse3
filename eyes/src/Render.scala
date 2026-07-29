@@ -5,7 +5,6 @@ package kse.eyes
 
 
 import java.lang.{Math => jm}
-import java.util.Locale
 
 import kse.flow.{given, _}
 
@@ -55,9 +54,16 @@ object Render:
     case Arrowed(label: String, x1: Double, y1: Double, x2: Double, y2: Double,
                  backoff: Double, radius: Double, colour: String, alpha: Double, shape: ArrowShape)
 
+  // The type scale: a major-third ladder (steps of 1.25x) on the tick-label base — the
+  // same proportions as ggplot2's defaults (axis titles 1.25x tick text, figure title
+  // ~1.56x = 1.25 squared).  The half-step rung 1.25^1.5 ~ 1.4x is reserved for
+  // subtitles when they land.  Hierarchy lives in these ratios, not absolute sizes, so
+  // it survives fontScale shrinking figures up and down.
   private val labSz = 12.0
-  private val titleSz = 14.0
+  private val axisTitleSz = labSz * 1.25
+  private val titleSz = labSz * 1.5625
   private val tickLen = 4.0
+  private val dotRad = 3.5
 
   /** Type size scale for a figure granted (w, h): an n-fold smaller figure gets sqrt(n)
     * smaller type, with the two dimension ratios combined by RMS so the larger dimension
@@ -68,22 +74,6 @@ object Render:
     val sy = h / 480.0
     val s = jm.sqrt((sx * sx + sy * sy) / 2)
     jm.min(1.4, jm.max(0.5, jm.sqrt(s)))
-
-  private final case class Ticks(step: Double, values: Array[Double]):
-    def labels: Array[String] =
-      val dec = jm.max(0, -jm.floor(jm.log10(step)).toInt)
-      values.map(v => String.format(Locale.ROOT, "%." + dec + "f", v))
-
-  private def niceStep(raw: Double): Double =
-    val mag = jm.pow(10, jm.floor(jm.log10(raw)))
-    val frac = raw / mag
-    (if frac < 1.5 then 1.0 else if frac < 3 then 2.0 else if frac < 7 then 5.0 else 10.0) * mag
-
-  private def ticksIn(lo: Double, hi: Double, target: Int): Ticks =
-    val step = niceStep((hi - lo) / jm.max(1, target))
-    val t0 = jm.ceil(lo / step - 1e-9) * step
-    val n = jm.max(0, ((hi + step * 1e-9 - t0) / step).toInt + 1)
-    Ticks(step, Array.tabulate(n)(i => t0 + i * step))
 
   private def numbersOf(c: Column, what: String): Ask[Array[Double]] = Ask:
     val n = c.length
@@ -140,9 +130,9 @@ object Render:
   )
 
   /** Resolved per-layer geometry style for Segment/Arrow layers. */
-  private final case class EdgeStyle(shape: ArrowShape, curve: Double, alpha: Double)
+  private final case class EdgeStyle(shape: ArrowShape, curve: Double, alpha: Double, backoff: Double)
 
-  private val plainEdge = EdgeStyle(ArrowShape(), Double.NaN, 1.0)
+  private val plainEdge = EdgeStyle(ArrowShape(), Double.NaN, 1.0, Double.NaN)
 
   private def sliceFor(p: Prep, cl: String | Null, rl: String | Null): Slice =
     inline def keep(i: Int): Boolean =
@@ -313,7 +303,7 @@ object Render:
       if v > hi then hi = v
       i += 1
     if !(lo <= hi) then return p
-    val width = if hi > lo then niceStep((hi - lo) / jm.max(1, bins)) else jm.max(1.0, jm.abs(lo) * 0.01)
+    val width = if hi > lo then Ticks.step((hi - lo) / jm.max(1, bins)) else jm.max(1.0, jm.abs(lo) * 0.01)
     val e0 = jm.floor(lo / width + 1e-9) * width
     val nb = jm.max(1, jm.ceil((hi - e0) / width - 1e-9).toInt)
     val centers = Array.tabulate(nb)(b => e0 + (b + 0.5) * width)
@@ -453,6 +443,7 @@ object Render:
     hue: Hue,
     showLeft: Boolean, showBottom: Boolean,
     colStrip: String | Null, rowStrip: String | Null,
+    xTickN: Int, yTickN: Int,
     marks: List[Mark],
     fs: Double,
     m: Measurer
@@ -460,27 +451,61 @@ object Render:
     private val lab = labSz * fs
     private val tick = tickLen * fs
 
+    // data positions this panel draws as marker discs: an arrow tip aimed bit-exactly at
+    // one of these backs off to the disc's edge by default rather than vanishing under it
+    private val dotted: collection.Set[(Long, Long)] =
+      if !slices.exists(s => s.kind == Visual.Kind.Arrow && s.xEnd != null) then Set.empty
+      else
+        val b = collection.mutable.HashSet.empty[(Long, Long)]
+        slices.foreach: s =>
+          if s.kind == Visual.Kind.Scatter then
+            var i = 0
+            while i < s.xs.length do
+              b += ((java.lang.Double.doubleToLongBits(s.xs(i)), java.lang.Double.doubleToLongBits(s.ys(i))))
+              i += 1
+        b
+
     // ticks aim for a pleasing density but are hard-capped so labels cannot collide even
     // on a very short axis; a zero-centered domain keeps -x, 0, +x at the cap
     private def fitTicks(lo: Double, hi: Double, target: Int, cap: Int): Ticks =
       var t = jm.max(1, jm.min(target, cap))
-      var ts = ticksIn(lo, hi, t)
+      var ts = Ticks.linear(lo, hi, t)
       while ts.values.length > jm.max(2, cap) && t > 1 do
         t -= 1
-        ts = ticksIn(lo, hi, t)
+        ts = Ticks.linear(lo, hi, t)
       ts
     private def xTicks(w: Double): Ticks =
-      fitTicks(x0, x1, jm.max(2, jm.min(8, (w / (lab * 7.5)).toInt)), jm.max(2, (w / (lab * 4.5)).toInt))
+      val t = if xTickN > 0 then xTickN else jm.max(2, jm.min(8, (w / (lab * 7.5)).toInt))
+      fitTicks(x0, x1, t, jm.max(2, (w / (lab * 4.5)).toInt))
     private def yTicks(h: Double): Ticks =
-      fitTicks(y0, y1, jm.max(2, jm.min(8, (h / (m.lineHeight(lab) * 4.5)).toInt)), jm.max(2, (h / (m.lineHeight(lab) * 1.5)).toInt))
+      val t = if yTickN > 0 then yTickN else jm.max(2, jm.min(8, (h / (m.lineHeight(lab) * 4.5)).toInt))
+      fitTicks(y0, y1, t, jm.max(2, (h / (m.lineHeight(lab) * 1.5)).toInt))
 
     def protrusions(w: Double, h: Double): Prot =
-      val left =
-        if showLeft then yTicks(h).labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, lab))) + tick + 8 * fs
+      val yt = if showLeft then yTicks(h) else null
+      val xt = if showBottom then xTicks(w) else null
+      val yLabels =
+        if yt != null then yt.labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, lab))) + tick + 8 * fs
         else 0.0
-      val bottom = if showBottom then m.lineHeight(lab) + tick + 6 * fs else 0.0
-      val top = if colStrip != null then m.lineHeight(lab) + 4 * fs else 0.0
-      val right = if rowStrip != null then m.width(rowStrip, lab) + 8 * fs else 0.0
+      // centered x tick labels overhang the content rect at its corners; reporting the
+      // real overhang as protrusion keeps them on canvas (and out of neighbor panels)
+      def atX(v: Double): Double = if x1 > x0 then (v - x0) / (x1 - x0) * w else 0.0
+      var xLeft = 0.0
+      var xRight = 0.0
+      if xt != null && xt.length > 0 then
+        xLeft = jm.max(0.0, m.width(xt.labels(0), lab) / 2 - atX(xt.values(0)))
+        xRight = jm.max(0.0, atX(xt.values(xt.length - 1)) + m.width(xt.labels(xt.length - 1), lab) / 2 - w)
+      // and the topmost y label's cap can poke about half a line above the content top
+      var yTop = 0.0
+      if yt != null && yt.length > 0 then
+        val dTop = if y1 > y0 then h * (1.0 - (yt.values(yt.length - 1) - y0) / (y1 - y0)) else h
+        yTop = jm.max(0.0, m.lineHeight(lab) / 2 - dTop)
+      val left = jm.max(yLabels, xLeft)
+      val right = jm.max(if rowStrip != null then m.width(rowStrip, lab) + 8 * fs else 0.0, xRight)
+      val top = jm.max(if colStrip != null then m.lineHeight(lab) + 4 * fs else 0.0, yTop)
+      // exactly the labels' extent (drawn at bottom + tick + 2 within a line box); any
+      // extra here reads as dead space between the labels and the axis title below
+      val bottom = if showBottom then m.lineHeight(lab) + tick + 2 * fs else 0.0
       Prot(left, right, top, bottom)
 
     private def levelCount: Int = hue match
@@ -531,8 +556,8 @@ object Render:
           while i < s.xs.length do
             val px = sx(s.xs(i))
             val py = sy(s.ys(i))
-            put(Glyph.Disc(px, py, 3.5 * fs, pointColour(s, i)))
-            if occ != null then occ.markDisc(px, py, 3.5 * fs + 2)
+            put(Glyph.Disc(px, py, dotRad * fs, pointColour(s, i)))
+            if occ != null then occ.markDisc(px, py, dotRad * fs + 2)
             i += 1
         case Visual.Kind.Line =>
           inline def polyline(idx: IndexedSeq[Int], colour: String): Unit =
@@ -626,8 +651,12 @@ object Render:
             val qy = sy(s.yEnd(i))
             val colour = pointColour(s, i)
             if headed then
+              val backPx =
+                if !s.edge.backoff.isNaN then s.edge.backoff * fs
+                else if dotted.contains((java.lang.Double.doubleToLongBits(s.xEnd(i)), java.lang.Double.doubleToLongBits(s.yEnd(i)))) then (dotRad + 1.0) * fs
+                else 0.0
               Arrow.outline(px, py, qx, qy, sh.headLength * fs, sh.headHalfWidth * fs, sh.barb,
-                            jm.max(0.6, sh.shaftWidth * fs), radPx) match
+                            jm.max(0.6, sh.shaftWidth * fs), radPx, backPx) match
                 case null => ()
                 case o: Arrow.Outline => put(Glyph.Poly(o.xs, o.ys, colour, s.edge.alpha))
             else
@@ -820,8 +849,9 @@ object Render:
 
   private final class LegendBlock(title: String | Null, levels: Array[String], fs: Double, m: Measurer) extends GlyphBlock:
     private val lab = labSz * fs
+    private val ttl = axisTitleSz * fs
     private def innerWidth: Double =
-      val titleW = if title == null then 0.0 else m.width(title, lab)
+      val titleW = if title == null then 0.0 else m.width(title, ttl)
       levels.foldLeft(titleW)((w, s) => jm.max(w, 11 * fs + 6 + m.width(s, lab))) + 16 * fs
     override def widthPref: Size = Size.Fixed(innerWidth)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
@@ -829,8 +859,8 @@ object Render:
       val lx = rect.x + 4
       var ly = rect.y + 2
       if title != null then
-        put(Glyph.Txt(lx, ly + m.ascent(lab), title, lab, "#222222", Glyph.Anchor.Start, bold = true))
-        ly += m.lineHeight(lab) + 2
+        put(Glyph.Txt(lx, ly + m.ascent(ttl), title, ttl, "#222222", Glyph.Anchor.Start, bold = true))
+        ly += m.lineHeight(ttl) + 2
       var lv = 0
       while lv < levels.length do
         put(Glyph.Box(lx, ly + 2, 11 * fs, 11 * fs, palette(lv % palette.length)))
@@ -841,11 +871,12 @@ object Render:
   /** Continuous colour guide: a vertical viridis gradient with ticks, high values up. */
   private final class ColorbarBlock(title: String | Null, lo: Double, hi: Double, fs: Double, m: Measurer) extends GlyphBlock:
     private val lab = labSz * fs
+    private val ttl = axisTitleSz * fs
     private val barW = 12.0 * fs
-    private def ticks: Ticks = ticksIn(lo, hi, 5)
+    private def ticks: Ticks = Ticks.linear(lo, hi, 5)
     private def innerWidth: Double =
       val labelW = if hi > lo then ticks.labels.foldLeft(0.0)((w, s) => jm.max(w, m.width(s, lab))) else 0.0
-      val titleW = if title == null then 0.0 else m.width(title, lab)
+      val titleW = if title == null then 0.0 else m.width(title, ttl)
       jm.max(barW + tickLen * fs + 7 + labelW, titleW) + 16 * fs
     override def widthPref: Size = Size.Fixed(innerWidth)
     def protrusions(w: Double, h: Double): Prot = Prot.zero
@@ -853,8 +884,8 @@ object Render:
       val lx = rect.x + 4
       var ty = rect.y + 2
       if title != null then
-        put(Glyph.Txt(lx, ty + m.ascent(lab), title, lab, "#222222", Glyph.Anchor.Start, bold = true))
-        ty += m.lineHeight(lab) + 4
+        put(Glyph.Txt(lx, ty + m.ascent(ttl), title, ttl, "#222222", Glyph.Anchor.Start, bold = true))
+        ty += m.lineHeight(ttl) + 4
       val bh = jm.max(20.0, rect.bottom - 6 - ty)
       val n = 64
       var k = 0
@@ -885,19 +916,25 @@ object Render:
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
       put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(ttl) + 2, text, ttl, "#222222", Glyph.Anchor.Middle, bold = true))
 
-  private final class XTitleBlock(text: String, fs: Double, m: Measurer) extends GlyphBlock:
-    private val lab = labSz * fs
-    override def heightPref: Size = Size.Fixed(m.lineHeight(lab) + 4 * fs)
-    def protrusions(w: Double, h: Double): Prot = Prot.zero
+  /** The panel grid with its axis titles attached.  Titles are part of the axis: they
+    * join the protrusion stack just outside the panels' own decorations, and they center
+    * on the content span — not on any grid cell — so "day" sits snug under the tick
+    * labels and dead-center on the data area it names.
+    */
+  private final class AxesBlock(inner: Grid, xTitle: String | Null, yTitle: String | Null, fs: Double, m: Measurer) extends GlyphBlock:
+    private val ttl = axisTitleSz * fs
+    private val lead = 2 * fs
+    private def stack(t: String | Null): Double = if t == null then 0.0 else m.lineHeight(ttl) + lead
+    def protrusions(w: Double, h: Double): Prot =
+      val p = inner.protrusions(w, h)
+      Prot(p.left + stack(yTitle), p.right, p.top, p.bottom + stack(xTitle))
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      put(Glyph.Txt(rect.x + rect.w / 2, rect.y + m.ascent(lab) + 2, text, lab, "#222222", Glyph.Anchor.Middle))
-
-  private final class YTitleBlock(text: String, fs: Double, m: Measurer) extends GlyphBlock:
-    private val lab = labSz * fs
-    override def widthPref: Size = Size.Fixed(m.lineHeight(lab) + 2 * fs)
-    def protrusions(w: Double, h: Double): Prot = Prot.zero
-    def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      put(Glyph.Txt(rect.x + m.ascent(lab) + 2, rect.y + rect.h / 2, text, lab, "#222222", Glyph.Anchor.Middle, rotate = -90))
+      emitGrid(inner, inner.solveAt(rect.x, rect.y, rect.w, rect.h, 0.08, 4, footprint = true), put)
+      val p = inner.protrusions(rect.w, rect.h)
+      if xTitle != null then
+        put(Glyph.Txt(rect.x + rect.w / 2, rect.bottom + p.bottom + lead + m.ascent(ttl), xTitle, ttl, "#222222", Glyph.Anchor.Middle))
+      if yTitle != null then
+        put(Glyph.Txt(rect.x - p.left - lead - m.lineHeight(ttl) + m.ascent(ttl), rect.y + rect.h / 2, yTitle, ttl, "#222222", Glyph.Anchor.Middle, rotate = -90))
 
   ////////////////////////////
   /// Figure interpretation ///
@@ -954,6 +991,8 @@ object Render:
     var yTitle: String | Null = null
     var freeX = false
     var freeY = false
+    var xTickC = 0
+    var yTickC = 0
     var gapH = 12.0
     var gapV = 12.0
     var everyLabel = false
@@ -975,6 +1014,8 @@ object Render:
         else
           if !lo.isNaN then yLoC = lo
           if !hi.isNaN then yHiC = hi
+      case Parts.Config.AxisTicks(a, n) =>
+        if a == Parts.Axis.Horz then xTickC = jm.max(1, n) else yTickC = jm.max(1, n)
       case Parts.Config.FreeAxis(h, v) =>
         freeX |= h
         freeY |= v
@@ -1054,6 +1095,7 @@ object Render:
         if k eq Style.Arrow then edge = edge.copy(shape = v.asInstanceOf[ArrowShape])
         else if k eq Style.Curve then edge = edge.copy(curve = v.asInstanceOf[Double])
         else if k eq Style.Alpha then edge = edge.copy(alpha = v.asInstanceOf[Double])
+        else if k eq Style.Backoff then edge = edge.copy(backoff = v.asInstanceOf[Double])
       val raw = Prep(xs, ys, yLo, yHi, xEnd, yEnd, colorIdx, colorVal, styled, edge, kind, li, colLabs, rowLabs)
       // stats run upstream of scale resolution, so domains cover the transformed data
       val p = if layer.look.stats.isEmpty then raw else statted(raw, layer.look.stats, li).?
@@ -1226,7 +1268,9 @@ object Render:
           val (x, y) = compassRect(best, w, h)
           val _ = placedInsets.addOne((ins.fig, x, y, w, h))
 
-    val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 6)
+    // pad 0: the facet grid's outer decorations ARE its protrusions now, and the canvas
+    // breathing room comes from the outer grid's pad instead of dead space in here
+    val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 0)
     val markHits = new Array[Int](marks.length)
     var r = 0
     while r < nR do
@@ -1261,6 +1305,7 @@ object Render:
           showBottom = freeX || everyLabel || r == nR - 1,
           colStrip = if r == 0 then cl else null,
           rowStrip = if c == nC - 1 then rl else null,
+          xTickN = xTickC, yTickN = yTickC,
           panMarks.result(),
           fs,
           m
@@ -1284,22 +1329,17 @@ object Render:
     // legend(...) doubles as the figure title when no guide is drawn; title(...) always wins
     val topText: String | Null = if figTitle != null then figTitle else if legendB == null then legTitle else null
     val titleB = if topText != null then TitleBlock(topText, fs, m) else null
-    val xtB = if xTitle != null then XTitleBlock(xTitle, fs, m) else null
-    val ytB = if yTitle != null then YTitleBlock(yTitle, fs, m) else null
+    val axes = AxesBlock(facetGrid, xTitle, yTitle, fs, m)
 
     val rT = if titleB != null then 1 else 0
-    val rX = if xtB != null then 1 else 0
-    val cY = if ytB != null then 1 else 0
     val cL = if legendB != null then 1 else 0
-    val outer = Grid(rT + 1 + rX, cY + 1 + cL, colGap = 0, rowGap = 0, pad = 0)
-    if titleB != null then { val _ = outer.put(0, 0, 0, cY + cL)(titleB) }
-    if ytB != null then { val _ = outer.put(rT, 0)(ytB) }
-    val _ = outer.put(rT, cY)(facetGrid)
-    if legendB != null then { val _ = outer.put(rT, cY + 1)(legendB) }
-    if xtB != null then { val _ = outer.put(rT + 1, cY)(xtB) }
+    val outer = Grid(rT + 1, 1 + cL, colGap = 0, rowGap = 0, pad = 6)
+    if titleB != null then { val _ = outer.put(0, 0, 0, cL)(titleB) }
+    val _ = outer.put(rT, 0)(axes)
+    if legendB != null then { val _ = outer.put(rT, 1)(legendB) }
     placedInsets.foreach: (sfig, x, y, w, h) =>
       val sub = buildFigure(sfig, estW * w, estH * h).?
-      val _ = outer.putFloat(facetGrid)(x, y, w, h)(sub)
+      val _ = outer.putFloat(axes)(x, y, w, h)(sub)
     outer
 
   private def emitGrid(g: Grid, lay: Grid.Layout, put: Glyph => Unit): Unit =

@@ -152,6 +152,40 @@ object EyesExamples:
       title("Directed network: 900 arrows + 180 undirected links")
     writeAt(dir, "sketch7.svg", net, 760, 760)
 
+    // Sketch 8: the tick gallery — decimal-exact labels across regimes.  Every panel is
+    // the same simple wave; only the ranges (and two explicit density requests) differ.
+    def waveXY(xlo: Double, xhi: Double, ylo: Double, yhi: Double, salt: Long): (Array[Double], Array[Double]) =
+      val n = 72
+      (Array.tabulate(n)(i => xlo + (xhi - xlo) * i / (n - 1.0)),
+       Array.tabulate(n)(i => ylo + (yhi - ylo) * (0.5 + 0.38 * jm.sin(i * 0.19 + salt) + 0.24 * noise(i, salt))))
+    def graph(xlo: Double, xhi: Double, ylo: Double, yhi: Double, ttl: String, salt: Long): Figure =
+      val (xs, ys) = waveXY(xlo, xhi, ylo, yhi, salt)
+      Fig: f =>
+        import f.*
+        data(x = xs, y = ys) * visual(Line) + title(ttl)
+    val sciBoth = Fig: f =>
+      import f.*
+      val (xs, ys) = waveXY(5e4, 1.15e6, 2e-5, 1.8e-4, 3)
+      data(x = xs, y = ys) * visual(Line) + axis.vert.ticks(4) +
+        title("long labels go scientific, on both axes")
+    val dense = Fig: f =>
+      import f.*
+      val (xs, ys) = waveXY(0.2, 9.8, 0.5, 5.8, 7)
+      data(x = xs, y = ys) * visual(Line) +
+        axis.horz.limit(min = 0.0, max = 10.0) + axis.horz.ticks(24) +
+        title("dense by request: axis.horz.ticks(24), still collision-capped")
+    val gallery =
+      (graph(1.0115, 1.0245, 0.0, 1.0, "fine decimals: the 0.002 grid passes through 1.02", 1) |
+       graph(-0.028, 0.066, -5.0, 5.0, "through zero: the origin is just \"0\"", 2)) /
+      (sciBoth |
+       graph(1.2e-5, 8.8e-5, 0.0, 1.0, "tiny values: 2e-5 beats 0.00002", 4)) /
+      (graph(999100.0, 1000900.0, 0.0, 1.0, "fine grid far from zero: plain wins", 5) |
+       graph(0.03, 0.97, 0.0, 240.0, "the everyday axis", 6)) /
+      dense /
+      (graph(0.0, 3.0, 0.0, 1.0, "0 to 3", 7) | graph(41.0, 89.0, 0.0, 1.0, "41 to 89", 8) |
+       graph(0.4, 2.6, 0.0, 1.0, "0.4 to 2.6", 9) | graph(-1.2, 1.2, 0.0, 1.0, "spanning zero", 10))
+    writeAt(dir, "sketch8.svg", gallery, 1800, 1250)
+
   private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =
     writeAt(dir, name, fig, 640, 480)
 

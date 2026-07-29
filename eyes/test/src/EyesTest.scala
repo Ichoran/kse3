@@ -688,6 +688,119 @@ class EyesTest {
     T ~ s.contains("NaN") ==== false
 
   @Test
+  def arrowBackoffTest(): Unit =
+    // an arrow aimed bit-exactly at a drawn marker stops at the disc's edge by default
+    // instead of disappearing under it; explicit backoff overrides; no marker, no backoff
+    val ex = Array(0.0); val ey = Array(0.0)
+    val tx = Array(10.0); val ty = Array(5.0)
+    val nx = Array(0.0, 10.0); val ny = Array(0.0, 5.0)
+    def tipX(s: String): Double =
+      val pts = s.split("<polygon points=\"")(1).split("\"")(0)
+      pts.split(" ").map(p => p.split(",")(0).toDouble).max
+    val bare = Fig: f =>
+      import f.*
+      data(x = ex, y = ey, xend = tx, yend = ty) * visual(Arrow)
+    val marked = Fig: f =>
+      import f.*
+      data(x = ex, y = ey, xend = tx, yend = ty) * visual(Arrow) +
+        data(x = nx, y = ny) * visual(Scatter)
+    val manual = Fig: f =>
+      import f.*
+      data(x = ex, y = ey, xend = tx, yend = ty) * visual(Arrow) * arrowStyle(backoff = 20.0) +
+        data(x = nx, y = ny) * visual(Scatter)
+    val b = tipX(bare.svg().get)
+    val d = tipX(marked.svg().get)
+    val m = tipX(manual.svg().get)
+    T ~ (d < b - 2) ==== true
+    T ~ (m < d - 2) ==== true
+
+  @Test
+  def axisTickDensityTest(): Unit =
+    // axis.*.ticks(n) asks for about n ticks; nice steps quantize delivery and the
+    // collision cap still has the last word, so a wide panel really gets 21 labels
+    val xs = Array.tabulate(50)(i => 0.2 + 9.6 * i / 49.0)
+    val ys = Array.tabulate(50)(i => (i % 7).toDouble)
+    def fig(dense: Boolean) = Fig: f =>
+      import f.*
+      val base = data(x = xs, y = ys) * visual(Line) + axis.horz.limit(min = 0.0, max = 10.0)
+      if dense then base + axis.horz.ticks(24) else base
+    val plain = fig(false).svg(1900, 340).get
+    val dense = fig(true).svg(1900, 340).get
+    T ~ plain.contains(">0.5<") ==== false
+    var k = 0
+    var all = true
+    while k <= 20 do
+      val v = k * 0.5
+      val s = if v == jm.rint(v) then v.toLong.toString else v.toString
+      all &= dense.contains(">" + s + "<")
+      k += 1
+    T ~ all ==== true
+    // and the knob turns the other way: fewer than the panel would have chosen
+    val fewY = Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) + axis.vert.ticks(3)
+    val fy = fewY.svg().get
+    T ~ fy.contains(">5<") ==== false
+    T ~ fy.contains(">4<") ==== true
+
+  @Test
+  def edgeLabelsOnCanvasTest(): Unit =
+    // a label centered under the last tick must not leak off the canvas: the panel
+    // reports edge-label overhang as protrusion, so the layout reserves room for it
+    val xs = Array.tabulate(50)(i => 0.2 + 9.6 * i / 49.0)
+    val ys = Array.tabulate(50)(i => (i % 5).toDouble)
+    val fig = Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) +
+        axis.horz.limit(min = 0.0, max = 10.0) + axis.horz.ticks(24)
+    val s = fig.svg(1900, 340).get
+    T ~ s.contains(">10<") ==== true
+    val mzr = Measurer.approx
+    val cent = """<text x="([-0-9.]+)"[^>]*font-size="([-0-9.]+)"[^>]*text-anchor="middle"[^>]*>([^<]+)</text>""".r
+    var found = 0
+    cent.findAllMatchIn(s).foreach: mm =>
+      val x = mm.group(1).toDouble
+      val sz = mm.group(2).toDouble
+      val t = mm.group(3)
+      T ~ (x + mzr.width(t, sz) / 2 <= 1900.5) ==== true
+      T ~ (x - mzr.width(t, sz) / 2 >= -0.5) ==== true
+      found += 1
+    T ~ (found >= 21) ==== true
+
+  @Test
+  def axisTitleAttachmentTest(): Unit =
+    // the x-axis title is part of the axis: centered on the data area (not on a grid
+    // cell that also contains the y-label gutter) and snug below the tick labels
+    val xs = Array.tabulate(40)(i => i * 0.25)
+    val ys = Array.tabulate(40)(i => 3.0 + (i % 7))
+    val fig = Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) + axis.horz.title("day") + axis.vert.title("value")
+    val s = fig.svg().get
+    val frameRx = """<line x1="([-0-9.]+)" y1="([-0-9.]+)" x2="([-0-9.]+)" y2="([-0-9.]+)" stroke="#555555"""".r
+    var fx1 = 0.0
+    var fx2 = 0.0
+    var fy = 0.0
+    frameRx.findAllMatchIn(s).foreach: mm =>
+      val x1 = mm.group(1).toDouble
+      val y1 = mm.group(2).toDouble
+      val x2 = mm.group(3).toDouble
+      val y2 = mm.group(4).toDouble
+      if y1 == y2 && x2 - x1 > 100 then
+        fx1 = x1
+        fx2 = x2
+        fy = y1
+    val dm = """<text x="([-0-9.]+)" y="([-0-9.]+)"[^>]*>day</text>""".r.findFirstMatchIn(s).get
+    val dx = dm.group(1).toDouble
+    val dy = dm.group(2).toDouble
+    T ~ (jm.abs(dx - (fx1 + fx2) / 2) < 0.6) ==== true
+    val mzr = Measurer.approx
+    val labelBase = fy + 4 + mzr.ascent(12) + 2
+    val capTop = dy - mzr.ascent(15)
+    T ~ (capTop - labelBase > 3) ==== true
+    T ~ (capTop - labelBase < 11) ==== true
+
+  @Test
   def edgeMisuseTest(): Unit =
     def failsWith(fig: Figure, part: String): Unit =
       fig.svg().fold{ _ =>
