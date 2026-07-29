@@ -123,8 +123,9 @@ object Render:
   private final case class Prep(
     xs: Array[Double], ys: Array[Double] | Null,
     yLo: Array[Double] | Null, yHi: Array[Double] | Null,
+    xEnd: Array[Double] | Null, yEnd: Array[Double] | Null,
     colorIdx: Array[Int] | Null, colorVal: Array[Double] | Null,
-    styled: String | Null,
+    styled: String | Null, edge: EdgeStyle,
     kind: Visual.Kind, layerIdx: Int,
     colLabs: Array[String] | Null, rowLabs: Array[String] | Null
   )
@@ -132,10 +133,16 @@ object Render:
   private final case class Slice(
     xs: Array[Double], ys: Array[Double] | Null,
     yLo: Array[Double] | Null, yHi: Array[Double] | Null,
+    xEnd: Array[Double] | Null, yEnd: Array[Double] | Null,
     colorIdx: Array[Int] | Null, colorVal: Array[Double] | Null,
-    styled: String | Null,
+    styled: String | Null, edge: EdgeStyle,
     kind: Visual.Kind, layerIdx: Int
   )
+
+  /** Resolved per-layer geometry style for Segment/Arrow layers. */
+  private final case class EdgeStyle(shape: ArrowShape, curve: Double, alpha: Double)
+
+  private val plainEdge = EdgeStyle(ArrowShape(), Double.NaN, 1.0)
 
   private def sliceFor(p: Prep, cl: String | Null, rl: String | Null): Slice =
     inline def keep(i: Int): Boolean =
@@ -147,7 +154,7 @@ object Render:
     while i < n do
       if keep(i) then cnt += 1
       i += 1
-    if cnt == n then Slice(p.xs, p.ys, p.yLo, p.yHi, p.colorIdx, p.colorVal, p.styled, p.kind, p.layerIdx)
+    if cnt == n then Slice(p.xs, p.ys, p.yLo, p.yHi, p.xEnd, p.yEnd, p.colorIdx, p.colorVal, p.styled, p.edge, p.kind, p.layerIdx)
     else
       inline def pick(src: Array[Double]): Array[Double] =
         val a = new Array[Double](cnt)
@@ -163,6 +170,8 @@ object Render:
       val ys = if p.ys == null then null else pick(p.ys)
       val lo = if p.yLo == null then null else pick(p.yLo)
       val hi = if p.yHi == null then null else pick(p.yHi)
+      val xe = if p.xEnd == null then null else pick(p.xEnd)
+      val ye = if p.yEnd == null then null else pick(p.yEnd)
       val cv = if p.colorVal == null then null else pick(p.colorVal)
       val ci = if p.colorIdx == null then null else
         val a = new Array[Int](cnt)
@@ -174,7 +183,7 @@ object Render:
             j += 1
           k += 1
         a
-      Slice(xs, ys, lo, hi, ci, cv, p.styled, p.kind, p.layerIdx)
+      Slice(xs, ys, lo, hi, xe, ye, ci, cv, p.styled, p.edge, p.kind, p.layerIdx)
 
   private def grid(lo: Double, hi: Double, n: Int): Array[Double] =
     if hi <= lo then Array(lo)
@@ -242,7 +251,7 @@ object Render:
         o += 1
         k += 1
       g += 1
-    Prep(xs2, ys2, lo2, hi2, ci2, null, p.styled, p.kind, p.layerIdx, cl2, rl2)
+    Prep(xs2, ys2, lo2, hi2, null, null, ci2, null, p.styled, p.edge, p.kind, p.layerIdx, cl2, rl2)
 
   private def applySmoother(how: Smoother, sx: Array[Double], sy: Array[Double]): (Array[Double], Array[Double]) =
     if sx.length < 2 then (sx, sy)
@@ -414,6 +423,8 @@ object Render:
   private def statted(p: Prep, stats: List[Stat], li: Int): Ask[Prep] = Ask:
     var q = p
     stats.foreach: st =>
+      if q.xEnd != null || q.yEnd != null then
+        Err.break(s"layer ${li + 1}: ${statName(st)} cannot transform edge geometry ('xend'/'yend'); compute the endpoints yourself")
       if q.colorVal != null then
         Err.break(s"layer ${li + 1}: ${statName(st)} cannot carry continuous colour through; use discrete colour to group the output")
       st match
@@ -437,7 +448,7 @@ object Render:
     * across a facet grid.
     */
   private final class Panel(
-    slices: List[Slice],
+    slices: Seq[Slice],
     x0: Double, x1: Double, y0: Double, y1: Double,
     hue: Hue,
     showLeft: Boolean, showBottom: Boolean,
@@ -601,6 +612,35 @@ object Render:
                     occ.markColumn(px(i - 1) + (px(i) - px(i - 1)) * t, py(i - 1) + (py(i) - py(i - 1)) * t, base, 0.5)
                     k += 1
                   i += 1
+        case Visual.Kind.Segment | Visual.Kind.Arrow =>
+          // one row per connection: this is the shape edge sets want, and it keeps
+          // thousands of connections as columns rather than figure-level annotations
+          val sh = s.edge.shape
+          val radPx = if s.edge.curve.isNaN || s.edge.curve == 0 then Double.NaN else s.edge.curve * fs
+          val headed = s.kind == Visual.Kind.Arrow
+          var i = 0
+          while i < s.xs.length do
+            val px = sx(s.xs(i))
+            val py = sy(s.ys(i))
+            val qx = sx(s.xEnd(i))
+            val qy = sy(s.yEnd(i))
+            val colour = pointColour(s, i)
+            if headed then
+              Arrow.outline(px, py, qx, qy, sh.headLength * fs, sh.headHalfWidth * fs, sh.barb,
+                            jm.max(0.6, sh.shaftWidth * fs), radPx) match
+                case null => ()
+                case o: Arrow.Outline => put(Glyph.Poly(o.xs, o.ys, colour, s.edge.alpha))
+            else
+              // headless edges stroke rather than fill: cheaper to encode, and there is no
+              // head for the shaft to meet, so nothing needs a single composited outline
+              val wdt = jm.max(0.6, sh.shaftWidth * fs)
+              if radPx.isNaN then put(Glyph.Segment(px, py, qx, qy, colour, wdt, s.edge.alpha))
+              else
+                Arrow.arc(px, py, qx, qy, radPx) match
+                  case null      => put(Glyph.Segment(px, py, qx, qy, colour, wdt, s.edge.alpha))
+                  case (ax, ay)  => put(Glyph.Polyline(ax, ay, colour, wdt, s.edge.alpha))
+            if occ != null then occ.markSegment(px, py, qx, qy, sh.headHalfWidth * fs)
+            i += 1
         case Visual.Kind.Bar =>
           val distinct = s.xs.distinct.sorted
           var gap = Double.PositiveInfinity
@@ -872,7 +912,7 @@ object Render:
     val pad = 0.04 * (hi - lo)
     (if cfgLo.isNaN then lo - pad else cfgLo, if cfgHi.isNaN then hi + pad else cfgHi)
 
-  private def freeSpan(slices: List[Slice], horz: Boolean, cfgLo: Double, cfgHi: Double, fb0: Double, fb1: Double): (Double, Double) =
+  private def freeSpan(slices: Seq[Slice], horz: Boolean, cfgLo: Double, cfgHi: Double, fb0: Double, fb1: Double): (Double, Double) =
     var lo = Double.PositiveInfinity
     var hi = Double.NegativeInfinity
     inline def sweep(a: Array[Double] | Null): Unit =
@@ -883,11 +923,14 @@ object Render:
           if a(i) > hi then hi = a(i)
           i += 1
     slices.foreach: s =>
-      if horz then sweep(s.xs)
+      if horz then
+        sweep(s.xs)
+        sweep(s.xEnd)
       else
         sweep(s.ys)
         sweep(s.yLo)
         sweep(s.yHi)
+        sweep(s.yEnd)
         if s.kind == Visual.Kind.Bar || s.kind == Visual.Kind.Area then
           if lo > 0 then lo = 0.0
           if hi < 0 then hi = 0.0
@@ -961,6 +1004,8 @@ object Render:
       val ys = channel("y")
       val yLo = channel("ylow")
       val yHi = channel("yhigh")
+      val xEnd = channel("xend")
+      val yEnd = channel("yend")
       val xs = channel("x") match
         case a: Array[Double] => a
         case null =>
@@ -1004,7 +1049,12 @@ object Render:
       var styled: String | Null = null
       layer.look.style.entries.foreach: (k, v) =>
         if k eq Style.Color then styled = v.asInstanceOf[String]
-      val raw = Prep(xs, ys, yLo, yHi, colorIdx, colorVal, styled, kind, li, colLabs, rowLabs)
+      var edge = plainEdge
+      layer.look.style.entries.foreach: (k, v) =>
+        if k eq Style.Arrow then edge = edge.copy(shape = v.asInstanceOf[ArrowShape])
+        else if k eq Style.Curve then edge = edge.copy(curve = v.asInstanceOf[Double])
+        else if k eq Style.Alpha then edge = edge.copy(alpha = v.asInstanceOf[Double])
+      val raw = Prep(xs, ys, yLo, yHi, xEnd, yEnd, colorIdx, colorVal, styled, edge, kind, li, colLabs, rowLabs)
       // stats run upstream of scale resolution, so domains cover the transformed data
       val p = if layer.look.stats.isEmpty then raw else statted(raw, layer.look.stats, li).?
       // aesthetic completeness per visual, checked after stats have had their say
@@ -1014,6 +1064,9 @@ object Render:
             Err.break(s"layer ${li + 1} with visual Band needs aesthetics 'ylow' and 'yhigh'; it has [${names.mkString(", ")}]")
         case k =>
           if p.ys == null then Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
+          if k == Visual.Kind.Segment || k == Visual.Kind.Arrow then
+            if p.xEnd == null || p.yEnd == null then
+              Err.break(s"layer ${li + 1} with visual $k needs aesthetics 'xend' and 'yend'; it has [${names.mkString(", ")}]")
       if p.colorVal != null && p.kind != Visual.Kind.Scatter then
         Err.break(s"layer ${li + 1}: continuous colour is interpreted on Scatter only so far; use discrete colour for ${p.kind}")
       p
@@ -1049,15 +1102,20 @@ object Render:
           if a(i) < dyLo then dyLo = a(i)
           if a(i) > dyHi then dyHi = a(i)
           i += 1
+    inline def dxSweep(a: Array[Double] | Null): Unit =
+      if a != null then
+        var i = 0
+        while i < a.length do
+          if a(i) < dxLo then dxLo = a(i)
+          if a(i) > dxHi then dxHi = a(i)
+          i += 1
     prepped.foreach: p =>
-      var i = 0
-      while i < p.xs.length do
-        if p.xs(i) < dxLo then dxLo = p.xs(i)
-        if p.xs(i) > dxHi then dxHi = p.xs(i)
-        i += 1
+      dxSweep(p.xs)
+      dxSweep(p.xEnd)
       dySweep(p.ys)
       dySweep(p.yLo)
       dySweep(p.yHi)
+      dySweep(p.yEnd)
       if p.kind == Visual.Kind.Bar || p.kind == Visual.Kind.Area then
         if dyLo > 0 then dyLo = 0.0
         if dyHi < 0 then dyHi = 0.0

@@ -98,13 +98,16 @@ object Data:
   *
   * `Band` fills between the `ylow` and `yhigh` aesthetics (both resolve through the y
   * scale slot); `Area` fills from the y values down to zero; `Bar` draws bars from zero to
-  * y, dodging side-by-side within a discrete colour scale.
+  * y, dodging side-by-side within a discrete colour scale.  `Segment` and `Arrow` connect
+  * (x, y) to the `xend`/`yend` aesthetics — one row per connection, so edge sets are
+  * columns rather than thousands of figure-level annotations; `Arrow` adds a head, styled
+  * and curved by `arrowStyle(...)`.
   */
 final case class Visual(kind: Visual.Kind)
 
 object Visual:
   enum Kind:
-    case Scatter, Line, Band, Area, Bar
+    case Scatter, Line, Band, Area, Bar, Segment, Arrow
 
 
 /** A statistical transform applied to a layer's columns before its visual.  The real
@@ -158,6 +161,12 @@ object Style:
   val empty: Style = Style(Nil)
   /** The styled-constant colour key; `color("#0072B2")` in the vocabulary sets it. */
   val Color: Key[String] = new Key[String]("color")
+  /** Head and shaft geometry for `Arrow` layers; `arrowStyle(...)` sets it. */
+  val Arrow: Key[ArrowShape] = new Key[ArrowShape]("arrowShape")
+  /** Radius of curvature for `Arrow`/`Segment` layers; `arrowStyle(curve = ...)` sets it. */
+  val Curve: Key[Double] = new Key[Double]("curve")
+  /** Stroke opacity for layer geometry; `arrowStyle(alpha = ...)` sets it. */
+  val Alpha: Key[Double] = new Key[Double]("alpha")
 
 
 /** The data-free part of a layer: visual, stats, style.  `visual(...)`, `smooth(...)`, and
@@ -271,15 +280,15 @@ object ArrowShape:
   * merge — layer lists concatenate in draw order; config fragments accumulate and
   * cascade-merge at interpretation.
   */
-final case class Parts(layers: List[Layer], config: List[Parts.Config]):
-  def +(that: Parts): Parts = Parts(layers ::: that.layers, config ::: that.config)
+final case class Parts(layers: Vector[Layer], config: Vector[Parts.Config]):
+  def +(that: Parts): Parts = Parts(layers ++ that.layers, config ++ that.config)
   def +(that: Layer): Parts = Parts(layers :+ that, config)
-  def +(those: Layers): Parts = Parts(layers ::: those.terms, config)
+  def +(those: Layers): Parts = Parts(layers ++ those.terms, config)
 
 object Parts:
-  val empty: Parts = Parts(Nil, Nil)
-  def of(l: Layer): Parts = Parts(l :: Nil, Nil)
-  def of(ls: Layers): Parts = Parts(ls.terms, Nil)
+  val empty: Parts = Parts(Vector.empty, Vector.empty)
+  def of(l: Layer): Parts = Parts(Vector(l), Vector.empty)
+  def of(ls: Layers): Parts = Parts(ls.terms.toVector, Vector.empty)
 
   enum Axis:
     case Horz, Vert
@@ -368,25 +377,25 @@ final class DataWord private[eyes] ():
 /** Axis config words, reached as `axis.vert.limit(...)` etc. */
 final class AxisWords private[eyes] (which: Parts.Axis):
   def limit(min: Double = Double.NaN, max: Double = Double.NaN): Parts =
-    Parts(Nil, Parts.Config.AxisLimit(which, min, max) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.AxisLimit(which, min, max)))
   def title(text: String): Parts =
-    Parts(Nil, Parts.Config.AxisTitle(which, text) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.AxisTitle(which, text)))
   /** This axis fits each facet panel's own data instead of the shared domain. */
   def free: Parts =
-    Parts(Nil, Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert)))
 
 final class AxisVocab private[eyes] ():
   val horz: AxisWords = AxisWords(Parts.Axis.Horz)
   val vert: AxisWords = AxisWords(Parts.Axis.Vert)
   /** Both axes free: every facet panel fits its own data. */
-  def free: Parts = Parts(Nil, Parts.Config.FreeAxis(true, true) :: Nil)
+  def free: Parts = Parts(Vector.empty, Vector(Parts.Config.FreeAxis(true, true)))
 
 /** Panel-arrangement words for facet grids. */
 final class PanelsVocab private[eyes] ():
   def gap(both: Double): Parts = gap(both, both)
-  def gap(horz: Double, vert: Double): Parts = Parts(Nil, Parts.Config.PanelGap(horz, vert) :: Nil)
+  def gap(horz: Double, vert: Double): Parts = Parts(Vector.empty, Vector(Parts.Config.PanelGap(horz, vert)))
   /** Every panel gets its own tick labels (scales still shared unless axes are free). */
-  def eachLabeled: Parts = Parts(Nil, Parts.Config.EachLabeled :: Nil)
+  def eachLabeled: Parts = Parts(Vector.empty, Vector(Parts.Config.EachLabeled))
 
 
 /** The `note` words: callouts — a short label with an arrow pointing at a spot, the label
@@ -407,11 +416,11 @@ final class PanelsVocab private[eyes] ():
   */
 final class NoteWord private[eyes] ():
   def apply(text: String, x: Double, y: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
-    Parts(Nil, Parts.Config.Note(text, NoteAt.Point(x, y), backoff, radius, shape) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Note(text, NoteAt.Point(x, y), backoff, radius, shape)))
   def x(text: String, at: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
-    Parts(Nil, Parts.Config.Note(text, NoteAt.OnX(at), backoff, radius, shape) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Note(text, NoteAt.OnX(at), backoff, radius, shape)))
   def y(text: String, at: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
-    Parts(Nil, Parts.Config.Note(text, NoteAt.OnY(at), backoff, radius, shape) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Note(text, NoteAt.OnY(at), backoff, radius, shape)))
 
 
 /** The spec-building words.  Everything is a method on some object (`Fig`, or the scope
@@ -444,6 +453,13 @@ trait Vocabulary:
     */
   def color(c: String): Look = Look(null, Nil, Style((Style.Color, c) :: Nil))
 
+  /** Styles `Segment`/`Arrow` layer geometry: head and shaft shape, radius of curvature
+    * (positive bows to the traveler's left; the head stays straight and the bend starts
+    * behind it), and stroke opacity — useful when thousands of edges overlap.
+    */
+  def arrowStyle(shape: ArrowShape = ArrowShape(), curve: Double = Double.NaN, alpha: Double = 1.0): Look =
+    Look(null, Nil, Style((Style.Arrow, shape) :: (Style.Curve, curve) :: (Style.Alpha, alpha) :: Nil))
+
   /** Binned bars of the x distribution: `visual(Bar) * bin(bins)`. */
   def histogram(bins: Int = 30): Look = visual(Visual.Kind.Bar) * bin(bins)
 
@@ -459,9 +475,9 @@ trait Vocabulary:
   inline def facet[C, R](col: C, row: R)(using ac: AsColumn[C], ar: AsColumn[R]): Layer =
     Layer(Data.checked(Data(Data.Field("col", ac.column(col)) :: Data.Field("row", ar.column(row)) :: Nil)), Look.empty)
 
-  def legend(title: String): Parts = Parts(Nil, Parts.Config.LegendTitle(title) :: Nil)
+  def legend(title: String): Parts = Parts(Vector.empty, Vector(Parts.Config.LegendTitle(title)))
 
-  def title(text: String): Parts = Parts(Nil, Parts.Config.FigTitle(text) :: Nil)
+  def title(text: String): Parts = Parts(Vector.empty, Vector(Parts.Config.FigTitle(text)))
 
   /** A miniature figure floated over the panel area.  Placement:
     * {{{
@@ -473,11 +489,11 @@ trait Vocabulary:
     * `axis.vert.limit(max = ...) + inset(mini, "ne")`.
     */
   def inset(fig: Figure): Parts =
-    Parts(Nil, Parts.Config.Inset(fig, Place.Auto(0.38, 0.35)) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Inset(fig, Place.Auto(0.38, 0.35))))
   def inset(fig: Figure, at: Compass, w: Double = 0.38, h: Double = 0.35): Parts =
-    Parts(Nil, Parts.Config.Inset(fig, Place.At(at, w, h)) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Inset(fig, Place.At(at, w, h))))
   def inset(fig: Figure, x: Double, y: Double, w: Double, h: Double): Parts =
-    Parts(Nil, Parts.Config.Inset(fig, Place.Exact(x, y, w, h)) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Inset(fig, Place.Exact(x, y, w, h))))
 
   val axis: AxisVocab = AxisVocab()
 
@@ -495,7 +511,7 @@ trait Vocabulary:
   def arrow(fromX: Double, fromY: Double, toX: Double, toY: Double, label: String = "",
             backoff: Double = 0.0, radius: Double = Double.NaN,
             color: String = "#3F3F3F", alpha: Double = 1.0, shape: ArrowShape = ArrowShape()): Parts =
-    Parts(Nil, Parts.Config.Arrow(label, fromX, fromY, toX, toY, backoff, radius, color, alpha, shape) :: Nil)
+    Parts(Vector.empty, Vector(Parts.Config.Arrow(label, fromX, fromY, toX, toY, backoff, radius, color, alpha, shape)))
 
   /** Placeholder recipe: a line look.  Becomes a real recipe (default x = index, scales,
     * style) once interpretation exists.
@@ -507,6 +523,8 @@ trait Vocabulary:
   final val Band = Visual.Kind.Band
   final val Area = Visual.Kind.Area
   final val Bar = Visual.Kind.Bar
+  final val Segment = Visual.Kind.Segment
+  final val Arrow = Visual.Kind.Arrow
 
   type Loess = kse.eyes.Loess
   final val Loess = kse.eyes.Loess

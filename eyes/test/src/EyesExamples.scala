@@ -116,8 +116,47 @@ object EyesExamples:
         legend("x + y + noise") + axis.horz.title("x") + axis.vert.title("y")
     write(dir, "sketch6.svg", fig6)
 
+    // Sketch 7: a directed network — edges are columns, one row per connection, so the
+    // count is data-sized rather than spec-sized (10k+ edges render in tens of ms)
+    val nNode = 72
+    val angle = Array.tabulate(nNode)(i => 2 * jm.PI * i / nNode)
+    val nodeX = angle.map(a => jm.cos(a))
+    val nodeY = angle.map(a => jm.sin(a))
+    def edgesOf(count: Int, salt: Long, reach: Int): (Array[Double], Array[Double], Array[Double], Array[Double]) =
+      val sx = new Array[Double](count)
+      val sy = new Array[Double](count)
+      val tx = new Array[Double](count)
+      val ty = new Array[Double](count)
+      var i = 0
+      while i < count do
+        val a = (jm.abs((noise(i, salt) * 4096).toInt) % nNode)
+        // connections favor nearby neurons, with a few long-range projections
+        val hop = 1 + (jm.abs((noise(i, salt + 7) * 4096).toInt) % reach)
+        val b = (a + hop) % nNode
+        sx(i) = nodeX(a)
+        sy(i) = nodeY(a)
+        tx(i) = nodeX(b)
+        ty(i) = nodeY(b)
+        i += 1
+      (sx, sy, tx, ty)
+    val (chemSx, chemSy, chemTx, chemTy) = edgesOf(900, 101, 26)
+    val (gapSx, gapSy, gapTx, gapTy) = edgesOf(180, 202, 8)
+    val net = Fig: f =>
+      import f.*
+      data(x = gapSx, y = gapSy, xend = gapTx, yend = gapTy) * visual(Segment) *
+        arrowStyle(curve = 260.0, alpha = 0.5) * color("#009E73") +
+      data(x = chemSx, y = chemSy, xend = chemTx, yend = chemTy) * visual(Arrow) *
+        arrowStyle(shape = ArrowShape(headLength = 5.0, headHalfWidth = 1.8, barb = 0.35, shaftWidth = 0.8),
+                   curve = 260.0, alpha = 0.32) * color("#0072B2") +
+      data(x = nodeX, y = nodeY) * visual(Scatter) * color("#333333") +
+      title("Directed network: 900 arrows + 180 undirected links")
+    writeAt(dir, "sketch7.svg", net, 760, 760)
+
   private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =
-    fig.svg().fold{ s =>
+    writeAt(dir, name, fig, 640, 480)
+
+  private def writeAt(dir: java.nio.file.Path, name: String, fig: Figure | Board, w: Double, h: Double): Unit =
+    fig.svg(w, h).fold{ s =>
       val p = dir.resolve(name)
       val _ = Files.writeString(p, s)
       println(s"wrote $p (${s.length} chars)")

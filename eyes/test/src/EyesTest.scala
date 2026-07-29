@@ -576,8 +576,14 @@ class EyesTest {
     // backoff pulls the tip short of the aim point
     val backed = Arrow.outline(0, 0, 100, 0, 8, 4, 0, 2, backoff = 10).asInstanceOf[Arrow.Outline]
     T ~ backed.xs(3) ==== 90.0
-    // too short to draw honestly
-    T ~ (Arrow.outline(0, 0, 9, 0, 8, 4, 0, 2) == null) ==== true
+    // an arrow shorter than its own head shrinks in proportion rather than vanishing —
+    // a short edge in a dense graph must still draw
+    val tiny = Arrow.outline(0, 0, 6, 0, 8, 4, 0, 2).asInstanceOf[Arrow.Outline]
+    T ~ tiny.xs(3) ==== 6.0                  // tip still exactly on the aim point
+    T ~ (tiny.ys(2) < 4.0) ==== true         // head narrowed with its length
+    T ~ (tiny.ys(2) / tiny.xs(3) - 4.0 / 8.0 < 1e-9) ==== true  // proportions kept
+    // only a sub-pixel arrow has nothing to say
+    T ~ (Arrow.outline(0, 0, 0.5, 0, 8, 4, 0, 2) == null) ==== true
     // curved: positive radius bows to the traveler's left (up, for a rightward arrow),
     // the tip still lands exactly on the aim point, and the tail direction reports the bow
     val bent = Arrow.outline(0, 100, 100, 100, 8, 4, 0, 2, radius = 200).asInstanceOf[Arrow.Outline]
@@ -619,6 +625,78 @@ class EyesTest {
     T ~ bent.svg() ==== once
     val poly = """<polygon points="([^"]*)"""".r.findFirstMatchIn(once.get).get.group(1)
     T ~ (poly.split(' ').length > 8) ==== true
+
+  @Test
+  def edgeLayerTest(): Unit =
+    // edges are columns, one row per connection: four arrows and four plain segments
+    val ax = Array(0.0, 1.0, 2.0, 3.0)
+    val ay = Array(0.0, 1.0, 0.0, 1.0)
+    val bx = Array(1.0, 2.0, 3.0, 0.0)
+    val by = Array(1.0, 0.0, 1.0, 0.0)
+    val arrows = Fig: f =>
+      import f.*
+      data(x = ax, y = ay, xend = bx, yend = by) * visual(Arrow)
+    val sa = arrows.svg().get
+    T ~ (sa.split("<polygon").length - 1) ==== 4
+    val segs = Fig: f =>
+      import f.*
+      data(x = ax, y = ay, xend = bx, yend = by) * visual(Segment) * arrowStyle(alpha = 0.3)
+    val ss = segs.svg().get
+    // headless edges stroke instead of filling; the alpha marks them out from the frame
+    T ~ (ss.split("stroke-opacity=\"0.3\"").length - 1) ==== 4
+    T ~ ss.contains("<polygon") ==== false
+    // curvature turns segments into arcs
+    val bent = Fig: f =>
+      import f.*
+      data(x = ax, y = ay, xend = bx, yend = by) * visual(Segment) * arrowStyle(curve = 40.0)
+    T ~ (bent.svg().get.split("<polyline").length - 1) ==== 4
+    // far endpoints resolve through the x/y slots, so the domain covers them
+    val wide = Fig: f =>
+      import f.*
+      data(x = Array(0.0), y = Array(0.0), xend = Array(50.0), yend = Array(80.0)) * visual(Arrow)
+    val sw = wide.svg().get
+    T ~ sw.contains(">40<") ==== true    // an x tick out at the far endpoint
+    T ~ sw.contains(">80<") ==== true
+    // colour maps per edge, exactly like any other aesthetic
+    val hued = Fig: f =>
+      import f.*
+      data(x = ax, y = ay, xend = bx, yend = by, color = Array("a", "b", "a", "b")) * visual(Arrow) + legend("kind")
+    val sh = hued.svg().get
+    T ~ sh.contains("#0072B2") ==== true
+    T ~ sh.contains("#E69F00") ==== true
+
+  @Test
+  def edgeScaleTest(): Unit =
+    // ten thousand edges as columns: every one drawn (short edges shrink rather than
+    // vanishing), and the spec stays one layer rather than ten thousand config entries
+    val k = 10000
+    def r(i: Int, salt: Long): Double =
+      val h = i * 2654435761L + salt * 0x9E3779B97F4A7C15L
+      val m = h ^ (h >>> 33)
+      (m & 0xFFFFFF).toDouble / 0xFFFFFF.toDouble
+    val sx = Array.tabulate(k)(i => 100 * r(i, 1))
+    val sy = Array.tabulate(k)(i => 100 * r(i, 2))
+    // deliberately includes sub-pixel-to-short edges, which must still draw
+    val tx = Array.tabulate(k)(i => sx(i) + 3 * (r(i, 3) - 0.5))
+    val ty = Array.tabulate(k)(i => sy(i) + 3 * (r(i, 4) - 0.5))
+    val fig = Fig: f =>
+      import f.*
+      data(x = sx, y = sy, xend = tx, yend = ty) * visual(Arrow) * arrowStyle(alpha = 0.3)
+    T ~ fig.parts.layers.length ==== 1
+    val s = fig.svg(1200, 900).get
+    T ~ (s.split("<polygon").length - 1) ==== k
+    T ~ s.contains("NaN") ==== false
+
+  @Test
+  def edgeMisuseTest(): Unit =
+    def failsWith(fig: Figure, part: String): Unit =
+      fig.svg().fold{ _ =>
+        assertTrue(s"expected failure mentioning '$part' but the figure rendered", false)
+      }{ e => T ~ e.toString.contains(part) ==== true }
+    failsWith(Fig(f => f.data(x = ts, y = vs) * f.visual(f.Arrow)), "needs aesthetics 'xend' and 'yend'")
+    failsWith(
+      Fig(f => f.data(x = ts, y = vs, xend = ts, yend = vs) * f.visual(f.Arrow) * f.smooth(f.Fit(1))),
+      "cannot transform edge geometry")
 
   @Test
   def scaleKindTest(): Unit =

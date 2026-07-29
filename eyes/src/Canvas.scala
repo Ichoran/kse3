@@ -39,8 +39,8 @@ object Measurer:
   * (DESIGN 9).  Coordinates are figure pixels, y-down; frames do the data-space flip.
   */
 enum Glyph:
-  case Segment(x1: Double, y1: Double, x2: Double, y2: Double, stroke: String, w: Double)
-  case Polyline(xs: Array[Double], ys: Array[Double], stroke: String, w: Double)
+  case Segment(x1: Double, y1: Double, x2: Double, y2: Double, stroke: String, w: Double, alpha: Double = 1.0)
+  case Polyline(xs: Array[Double], ys: Array[Double], stroke: String, w: Double, alpha: Double = 1.0)
   case Disc(x: Double, y: Double, r: Double, fill: String)
   case Box(x: Double, y: Double, w: Double, h: Double, fill: String)
   case Poly(xs: Array[Double], ys: Array[Double], fill: String, alpha: Double = 1.0)
@@ -72,28 +72,69 @@ object Arrow:
     * nonzero, is the shaft's radius of curvature in the same units — positive bows the
     * shaft to the traveler's left (upward, for a rightward arrow in y-down coordinates),
     * negative to the right; the radius is quietly raised to the smallest reachable value
-    * if the bend asked for cannot span the endpoints.  Returns null when the arrow is too
-    * short to draw honestly.
+    * if the bend asked for cannot span the endpoints.
+    *
+    * An arrow shorter than its own head keeps its proportions and shrinks — a short edge
+    * in a dense graph still draws, just small.  Null comes back only for a sub-pixel
+    * arrow, where there is genuinely nothing to say.
     */
   def outline(tailX: Double, tailY: Double, aimX: Double, aimY: Double,
               headLen: Double, headHalf: Double, barb: Double, shaftW: Double,
               radius: Double = Double.NaN, backoff: Double = 0.0): Outline | Null =
     val b = jm.max(0.0, jm.min(0.9, barb))
-    val bigW = jm.max(0.1, headHalf)
-    val bigL = jm.max(0.1, headLen)
+    var dx = aimX - tailX
+    var dy = aimY - tailY
+    val chord = jm.sqrt(dx * dx + dy * dy)
+    val avail = chord - backoff
+    if !(avail > 0.75) then return null
+    val shrink = jm.min(1.0, avail / (1.2 * jm.max(0.1, headLen)))
+    val bigW = jm.max(0.05, headHalf * shrink)
+    val bigL = jm.max(0.1, headLen * shrink)
     val s = jm.min(0.9 * bigW, jm.max(0.05, shaftW / 2))
     val axJ = (1 - b) * bigL + (s / bigW) * b * bigL
     if radius.isNaN || radius.isInfinite || radius == 0 then
-      var dx = aimX - tailX
-      var dy = aimY - tailY
-      val chord = jm.sqrt(dx * dx + dy * dy)
-      if chord <= backoff + axJ + 2 then null
-      else
-        dx /= chord
-        dy /= chord
-        straight(tailX, tailY, aimX - dx * backoff, aimY - dy * backoff, dx, dy, bigL, bigW, b, s)
+      dx /= chord
+      dy /= chord
+      straight(tailX, tailY, aimX - dx * backoff, aimY - dy * backoff, dx, dy, bigL, bigW, b, s)
     else
-      curved(tailX, tailY, aimX, aimY, bigL, bigW, b, s, axJ, radius, backoff)
+      curved(tailX, tailY, aimX, aimY, bigL, bigW, b, s, axJ, radius, backoff) match
+        case o: Outline => o
+        case null =>
+          dx /= chord
+          dy /= chord
+          straight(tailX, tailY, aimX - dx * backoff, aimY - dy * backoff, dx, dy, bigL, bigW, b, s)
+
+  /** The points of a circular arc from (x1, y1) to (x2, y2) with the given radius of
+    * curvature (positive bows to the traveler's left), for headless connectors; null when
+    * the endpoints are too close to bend between.
+    */
+  def arc(x1: Double, y1: Double, x2: Double, y2: Double, radius: Double): (Array[Double], Array[Double]) | Null =
+    val chord = jm.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+    if !(chord > 0.75) then return null
+    val sigma = if radius > 0 then 1.0 else -1.0
+    val r = jm.max(jm.abs(radius), 0.51 * chord)
+    val mx = (x1 + x2) / 2
+    val my = (y1 + y2) / 2
+    val ux = (x2 - x1) / chord
+    val uy = (y2 - y1) / chord
+    val sag = jm.sqrt(jm.max(0.0, r * r - chord * chord / 4))
+    val cx = mx + sigma * sag * uy
+    val cy = my - sigma * sag * ux
+    val p1 = jm.atan2(y1 - cy, x1 - cx)
+    val p2 = jm.atan2(y2 - cy, x2 - cx)
+    var delta = p2 - p1
+    while delta > jm.PI do delta -= 2 * jm.PI
+    while delta < -jm.PI do delta += 2 * jm.PI
+    val n = jm.max(2, jm.min(64, jm.ceil(jm.abs(delta) / (2 * jm.sqrt(0.3 / r))).toInt))
+    val xs = new Array[Double](n + 1)
+    val ys = new Array[Double](n + 1)
+    var k = 0
+    while k <= n do
+      val phi = p1 + delta * k / n
+      xs(k) = cx + r * jm.cos(phi)
+      ys(k) = cy + r * jm.sin(phi)
+      k += 1
+    (xs, ys)
 
   private def straight(px: Double, py: Double, tx: Double, ty: Double, dx: Double, dy: Double,
                        bigL: Double, bigW: Double, b: Double, s: Double): Outline =
@@ -173,7 +214,7 @@ object Arrow:
     var tx = aimX
     var ty = aimY
     var th = headAngle(px, py, tx, ty, axJ, sigma, r)
-    if th.isNaN then return outline(px, py, aimX, aimY, bigL, bigW, b, 2 * s, Double.NaN, backoff)
+    if th.isNaN then return null
     if backoff > 0 then
       tx = aimX - backoff * jm.cos(th)
       ty = aimY - backoff * jm.sin(th)
@@ -362,11 +403,13 @@ object Svg:
         i += 1
       b.toString
     glyphs.foreach:
-      case Glyph.Segment(x1, y1, x2, y2, stroke, w) =>
-        emit(s"""<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" stroke="$stroke" stroke-width="${num(w)}"/>""")
+      case Glyph.Segment(x1, y1, x2, y2, stroke, w, alpha) =>
+        val op = if alpha >= 1 then "" else s""" stroke-opacity="${num(alpha)}""""
+        emit(s"""<line x1="${num(x1)}" y1="${num(y1)}" x2="${num(x2)}" y2="${num(y2)}" stroke="$stroke" stroke-width="${num(w)}"$op/>""")
         emit("\n")
-      case Glyph.Polyline(xs, ys, stroke, w) =>
-        emit(s"""<polyline points="${pts(xs, ys)}" fill="none" stroke="$stroke" stroke-width="${num(w)}" stroke-linejoin="round" stroke-linecap="round"/>""")
+      case Glyph.Polyline(xs, ys, stroke, w, alpha) =>
+        val op = if alpha >= 1 then "" else s""" stroke-opacity="${num(alpha)}""""
+        emit(s"""<polyline points="${pts(xs, ys)}" fill="none" stroke="$stroke" stroke-width="${num(w)}" stroke-linejoin="round" stroke-linecap="round"$op/>""")
         emit("\n")
       case Glyph.Poly(xs, ys, fill, alpha) =>
         val op = if alpha >= 1 then "" else s""" fill-opacity="${num(alpha)}""""
