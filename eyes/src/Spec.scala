@@ -250,6 +250,19 @@ enum NoteAt:
   case OnY(y: Double)
 
 
+/** Arrow styling for notes and arrows: head length and half-width; `barb` (0 = flat-backed
+  * triangle, up to 0.9 pulls the back-center toward the tip leaving swept-back barbs); and
+  * full shaft width.  All in px at nominal figure size, scaled with the figure's type.
+  * The whole arrow renders as one filled outline, so translucency shows no seam where the
+  * shaft meets the head and the shaft can never poke past the head's silhouette.
+  */
+final case class ArrowShape(headLength: Double = 5.5, headHalfWidth: Double = 2.0, barb: Double = 0.0, shaftWidth: Double = 1.1)
+
+object ArrowShape:
+  /** A swept-back barbed head, sized up a touch so the barbs read at figure scale. */
+  val barbed: ArrowShape = ArrowShape(headLength = 7.0, headHalfWidth = 2.6, barb = 0.45)
+
+
 /////////////////////////////////////
 /// The figure-level Parts monoid ///
 /////////////////////////////////////
@@ -281,7 +294,9 @@ object Parts:
     case PanelGap(horz: Double, vert: Double)
     case EachLabeled
     case Inset(fig: Figure, place: Place)
-    case Note(text: String, at: NoteAt)
+    case Note(text: String, at: NoteAt, backoff: Double, radius: Double, shape: ArrowShape)
+    case Arrow(label: String, x1: Double, y1: Double, x2: Double, y2: Double,
+               backoff: Double, radius: Double, colour: String, alpha: Double, shape: ArrowShape)
 
 
 /** An interpreted figure.  For now just the normalized spec; scene, layout, and rendering
@@ -382,14 +397,21 @@ final class PanelsVocab private[eyes] ():
   * note.x("launch", 20.0)                    // points at a spot on the horizontal axis
   * note.y("threshold", 4.5)                  // points at a spot on the vertical axis
   * }}}
+  * `backoff` (px) sets how far short of the target the tip stops (NaN = a sensible
+  * default per target kind); `radius` (px) bows the arrow shaft — positive to the
+  * traveler's left, negative right, with the head staying straight and the bend starting
+  * only behind it; `shape` restyles the head and shaft (e.g. `ArrowShape.barbed`).
   * Note targets are included when axis domains are fit.  In a faceted figure the note
   * appears in every panel whose scales contain its target; if no panel does (pinned axis
   * limits, free scales), rendering fails loudly rather than dropping the annotation.
   */
 final class NoteWord private[eyes] ():
-  def apply(text: String, x: Double, y: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.Point(x, y)) :: Nil)
-  def x(text: String, at: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.OnX(at)) :: Nil)
-  def y(text: String, at: Double): Parts = Parts(Nil, Parts.Config.Note(text, NoteAt.OnY(at)) :: Nil)
+  def apply(text: String, x: Double, y: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
+    Parts(Nil, Parts.Config.Note(text, NoteAt.Point(x, y), backoff, radius, shape) :: Nil)
+  def x(text: String, at: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
+    Parts(Nil, Parts.Config.Note(text, NoteAt.OnX(at), backoff, radius, shape) :: Nil)
+  def y(text: String, at: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
+    Parts(Nil, Parts.Config.Note(text, NoteAt.OnY(at), backoff, radius, shape) :: Nil)
 
 
 /** The spec-building words.  Everything is a method on some object (`Fig`, or the scope
@@ -463,6 +485,18 @@ trait Vocabulary:
 
   val note: NoteWord = NoteWord()
 
+  /** A user-anchored arrow in data coordinates, tail to tip, with an optional label hung
+    * off the tail.  `backoff` (px) pulls the tip short of the aim point; `radius` (px)
+    * bows the shaft — positive to the traveler's left, negative right; the head stays
+    * straight and the bend begins only behind it.  Restyle via [[ArrowShape]].  The arrow
+    * draws in every panel whose axes contain both endpoints; if none can, rendering fails
+    * loudly.
+    */
+  def arrow(fromX: Double, fromY: Double, toX: Double, toY: Double, label: String = "",
+            backoff: Double = 0.0, radius: Double = Double.NaN,
+            color: String = "#3F3F3F", alpha: Double = 1.0, shape: ArrowShape = ArrowShape()): Parts =
+    Parts(Nil, Parts.Config.Arrow(label, fromX, fromY, toX, toY, backoff, radius, color, alpha, shape) :: Nil)
+
   /** Placeholder recipe: a line look.  Becomes a real recipe (default x = index, scales,
     * style) once interpretation exists.
     */
@@ -484,6 +518,8 @@ trait Vocabulary:
   final val RollingMedian = kse.eyes.RollingMedian
   type Fit = kse.eyes.Fit
   final val Fit = kse.eyes.Fit
+  type ArrowShape = kse.eyes.ArrowShape
+  final val ArrowShape = kse.eyes.ArrowShape
 
 
 /** Figure entry point:

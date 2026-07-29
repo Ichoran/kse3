@@ -100,8 +100,9 @@ object EyesExamples:
                    yhigh = Array.tabulate(fx.length)(i => fy(i) + half(i))) * visual(Band) * steel +
         data(x = fx, y = fy) * visual(Line) * steel +
         title("Projection with widening uncertainty") + axis.horz.title("day") +
-        note("last firm estimate", x = 40.0, y = fy(40)) +
-        note.x("projection begins", 40.0)
+        note("last firm estimate", x = 40.0, y = fy(40), radius = 90.0, shape = ArrowShape.barbed) +
+        note.x("projection begins", 40.0) +
+        arrow(50.0, fy(50) - 4.5, 50.0, fy(50) - half(50) - 0.1, label = "lower bound")
     write(dir, "sketch5.svg", fig5)
 
     // Sketch 6: continuous colour on a scatter, with its colorbar

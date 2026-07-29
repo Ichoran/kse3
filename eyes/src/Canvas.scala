@@ -51,6 +51,191 @@ object Glyph:
     case Start, Middle, End
 
 
+/** Arrow outlines: the whole arrow — shaft and head — as ONE filled polygon, so a
+  * translucent arrow composites once with no seam where shaft meets head, and nothing can
+  * poke past the head: the shaft edges terminate exactly on the head's back edge (flat
+  * head) or barb-notch edges (barbed head).  The head is always straight; a curved shaft
+  * is a circular arc that begins at the head's back-junction plane, tangent to the head
+  * axis there, so the tip points exactly where aimed and the bend starts only behind the
+  * head.
+  */
+object Arrow:
+  /** An arrow's outline plus the shaft's travel direction at the tail (for hanging a
+    * label off the tail end).
+    */
+  final case class Outline(xs: Array[Double], ys: Array[Double], tailDirX: Double, tailDirY: Double)
+
+  /** Builds an arrow from (tailX, tailY) aimed at (aimX, aimY).  `headLen`/`headHalf`
+    * size the head; `barb` in [0, 0.9] pulls the back-center toward the tip leaving
+    * swept-back barbs (0 = flat-backed); `shaftW` is the full shaft width; `backoff`
+    * pulls the tip short of the aim point along the head axis.  `radius`, when finite and
+    * nonzero, is the shaft's radius of curvature in the same units — positive bows the
+    * shaft to the traveler's left (upward, for a rightward arrow in y-down coordinates),
+    * negative to the right; the radius is quietly raised to the smallest reachable value
+    * if the bend asked for cannot span the endpoints.  Returns null when the arrow is too
+    * short to draw honestly.
+    */
+  def outline(tailX: Double, tailY: Double, aimX: Double, aimY: Double,
+              headLen: Double, headHalf: Double, barb: Double, shaftW: Double,
+              radius: Double = Double.NaN, backoff: Double = 0.0): Outline | Null =
+    val b = jm.max(0.0, jm.min(0.9, barb))
+    val bigW = jm.max(0.1, headHalf)
+    val bigL = jm.max(0.1, headLen)
+    val s = jm.min(0.9 * bigW, jm.max(0.05, shaftW / 2))
+    val axJ = (1 - b) * bigL + (s / bigW) * b * bigL
+    if radius.isNaN || radius.isInfinite || radius == 0 then
+      var dx = aimX - tailX
+      var dy = aimY - tailY
+      val chord = jm.sqrt(dx * dx + dy * dy)
+      if chord <= backoff + axJ + 2 then null
+      else
+        dx /= chord
+        dy /= chord
+        straight(tailX, tailY, aimX - dx * backoff, aimY - dy * backoff, dx, dy, bigL, bigW, b, s)
+    else
+      curved(tailX, tailY, aimX, aimY, bigL, bigW, b, s, axJ, radius, backoff)
+
+  private def straight(px: Double, py: Double, tx: Double, ty: Double, dx: Double, dy: Double,
+                       bigL: Double, bigW: Double, b: Double, s: Double): Outline =
+    val ppx = -dy
+    val ppy = dx
+    val mX = tx - (1 - b) * bigL * dx
+    val mY = ty - (1 - b) * bigL * dy
+    val bpX = tx - bigL * dx + bigW * ppx
+    val bpY = ty - bigL * dy + bigW * ppy
+    val bmX = tx - bigL * dx - bigW * ppx
+    val bmY = ty - bigL * dy - bigW * ppy
+    val f = s / bigW
+    val jpX = mX + f * (bpX - mX)
+    val jpY = mY + f * (bpY - mY)
+    val jmX = mX + f * (bmX - mX)
+    val jmY = mY + f * (bmY - mY)
+    val xs = Array(px + s * ppx, jpX, bpX, tx, bmX, jmX, px - s * ppx)
+    val ys = Array(py + s * ppy, jpY, bpY, ty, bmY, jmY, py - s * ppy)
+    Outline(xs, ys, dx, dy)
+
+  /** Solves the head-axis angle so an arc of radius `r` starting tangent at the head's
+    * back junction passes through the tail; NaN if no bend in scan range works.
+    */
+  private def headAngle(px: Double, py: Double, tx: Double, ty: Double, axJ: Double, sigma: Double, r: Double): Double =
+    val th0 = jm.atan2(ty - py, tx - px)
+    def f(th: Double): Double =
+      val dX = jm.cos(th)
+      val dY = jm.sin(th)
+      val cx = tx - axJ * dX - sigma * r * dY
+      val cy = ty - axJ * dY + sigma * r * dX
+      val ex = cx - px
+      val ey = cy - py
+      ex * ex + ey * ey - r * r
+    val n = 64
+    val lo0 = th0 - 1.55
+    var bl = 0.0
+    var bh = 0.0
+    var bestDist = Double.MaxValue
+    var prevTh = lo0
+    var prevF = f(lo0)
+    var k = 1
+    while k <= n do
+      val th = lo0 + 3.1 * k / n
+      val v = f(th)
+      if v * prevF < 0 then
+        val dd = jm.abs((prevTh + th) / 2 - th0)
+        if dd < bestDist then
+          bestDist = dd
+          bl = prevTh
+          bh = th
+      prevTh = th
+      prevF = v
+      k += 1
+    if bestDist == Double.MaxValue then Double.NaN
+    else
+      var a0 = bl
+      var b0 = bh
+      var fa = f(a0)
+      var it = 0
+      while it < 48 do
+        val mth = (a0 + b0) / 2
+        val fm = f(mth)
+        if fa * fm <= 0 then b0 = mth
+        else
+          a0 = mth
+          fa = fm
+        it += 1
+      (a0 + b0) / 2
+
+  private def curved(px: Double, py: Double, aimX: Double, aimY: Double,
+                     bigL: Double, bigW: Double, b: Double, s: Double, axJ: Double,
+                     radius: Double, backoff: Double): Outline | Null =
+    val sigma = if radius > 0 then 1.0 else -1.0
+    val chord0 = jm.sqrt((aimX - px) * (aimX - px) + (aimY - py) * (aimY - py))
+    if chord0 <= backoff + axJ + 2 then return null
+    val r = jm.max(jm.abs(radius), 0.51 * chord0)
+    var tx = aimX
+    var ty = aimY
+    var th = headAngle(px, py, tx, ty, axJ, sigma, r)
+    if th.isNaN then return outline(px, py, aimX, aimY, bigL, bigW, b, 2 * s, Double.NaN, backoff)
+    if backoff > 0 then
+      tx = aimX - backoff * jm.cos(th)
+      ty = aimY - backoff * jm.sin(th)
+      val th2 = headAngle(px, py, tx, ty, axJ, sigma, r)
+      if !th2.isNaN then th = th2
+    val dX = jm.cos(th)
+    val dY = jm.sin(th)
+    val ppx = -dY
+    val ppy = dX
+    val sX = tx - axJ * dX
+    val sY = ty - axJ * dY
+    val cx = sX + sigma * r * ppx
+    val cy = sY + sigma * r * ppy
+    val phiP = jm.atan2(py - cy, px - cx)
+    val phiS = jm.atan2(sY - cy, sX - cx)
+    // travel at the junction must be +d; the ccw tangent there decides the walk direction
+    val ccwT = -jm.sin(phiS) * dX + jm.cos(phiS) * dY
+    val tau = if ccwT >= 0 then 1.0 else -1.0
+    var delta = phiS - phiP
+    if tau > 0 then
+      while delta < 0 do delta += 2 * jm.PI
+      while delta > 2 * jm.PI do delta -= 2 * jm.PI
+    else
+      while delta > 0 do delta -= 2 * jm.PI
+      while delta < -2 * jm.PI do delta += 2 * jm.PI
+    if jm.abs(delta) * r < 2 then return null
+    val nArc = jm.max(2, jm.min(96, jm.ceil(jm.abs(delta) / (2 * jm.sqrt(0.3 / r))).toInt))
+    val mX = tx - (1 - b) * bigL * dX
+    val mY = ty - (1 - b) * bigL * dY
+    val bpX = tx - bigL * dX + bigW * ppx
+    val bpY = ty - bigL * dY + bigW * ppy
+    val bmX = tx - bigL * dX - bigW * ppx
+    val bmY = ty - bigL * dY - bigW * ppy
+    val f = s / bigW
+    val total = 2 * nArc + 5
+    val xs = new Array[Double](total)
+    val ys = new Array[Double](total)
+    var k = 0
+    while k < nArc do
+      val phi = phiP + delta * k / nArc
+      val rx = jm.cos(phi)
+      val ry = jm.sin(phi)
+      xs(k) = cx + r * rx - sigma * s * rx
+      ys(k) = cy + r * ry - sigma * s * ry
+      xs(total - 1 - k) = cx + r * rx + sigma * s * rx
+      ys(total - 1 - k) = cy + r * ry + sigma * s * ry
+      k += 1
+    xs(nArc) = mX + f * (bpX - mX)
+    ys(nArc) = mY + f * (bpY - mY)
+    xs(nArc + 1) = bpX
+    ys(nArc + 1) = bpY
+    xs(nArc + 2) = tx
+    ys(nArc + 2) = ty
+    xs(nArc + 3) = bmX
+    ys(nArc + 3) = bmY
+    xs(nArc + 4) = mX + f * (bmX - mX)
+    ys(nArc + 4) = mY + f * (bmY - mY)
+    val tdx = tau * -jm.sin(phiP)
+    val tdy = tau * jm.cos(phiP)
+    Outline(xs, ys, tdx, tdy)
+
+
 /** A coarse raster of how occupied each patch of a rectangle is, built from the geometry
   * actually drawn there — the measured-output feedback that placing annotations in
   * relatively clear space needs, without rendering to pixels.  Marks carry weights in

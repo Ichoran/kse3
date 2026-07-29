@@ -4,6 +4,8 @@
 package kse.test.eyes
 
 
+import java.lang.{Math => jm}
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._
@@ -548,6 +550,75 @@ class EyesTest {
     fig.svg().fold{ _ =>
       assertTrue("expected the out-of-view note to refuse", false)
     }{ e => T ~ e.toString.contains("points outside every panel") ==== true }
+
+  @Test
+  def arrowGeometryTest(): Unit =
+    // straight flat-backed: 7 points; shaft edges land exactly on the back edge at the
+    // shaft's half-width, and nothing reaches past the tip
+    val o = Arrow.outline(0, 0, 100, 0, 8, 4, 0, 2)
+    T ~ (o == null) ==== false
+    val flat = o.asInstanceOf[Arrow.Outline]
+    T ~ flat.xs.length ==== 7
+    T ~ flat.xs(3) ==== 100.0   // the tip, exactly at the aim point
+    T ~ flat.ys(3) ==== 0.0
+    T ~ flat.xs.max ==== 100.0
+    T ~ flat.xs(1) ==== 92.0    // junction on the back plane (headLen behind the tip)
+    T ~ flat.ys(1) ==== 1.0     // at the shaft half-width
+    T ~ flat.ys(0) ==== 1.0
+    T ~ flat.ys(2) ==== 4.0     // the head corner
+    // barbed: back-center pulled tipward, so the junction rides the notch edge and the
+    // barb corners trail behind it
+    val barb = Arrow.outline(0, 0, 100, 0, 8, 4, 0.5, 2).asInstanceOf[Arrow.Outline]
+    T ~ barb.xs(1) ==== 95.0
+    T ~ barb.ys(1) ==== 1.0
+    T ~ barb.xs(2) ==== 92.0
+    T ~ barb.ys(2) ==== 4.0
+    // backoff pulls the tip short of the aim point
+    val backed = Arrow.outline(0, 0, 100, 0, 8, 4, 0, 2, backoff = 10).asInstanceOf[Arrow.Outline]
+    T ~ backed.xs(3) ==== 90.0
+    // too short to draw honestly
+    T ~ (Arrow.outline(0, 0, 9, 0, 8, 4, 0, 2) == null) ==== true
+    // curved: positive radius bows to the traveler's left (up, for a rightward arrow),
+    // the tip still lands exactly on the aim point, and the tail direction reports the bow
+    val bent = Arrow.outline(0, 100, 100, 100, 8, 4, 0, 2, radius = 200).asInstanceOf[Arrow.Outline]
+    T ~ (bent.xs.length > 7) ==== true
+    var tipHit = false
+    var i = 0
+    while i < bent.xs.length do
+      if jm.abs(bent.xs(i) - 100) < 1e-6 && jm.abs(bent.ys(i) - 100) < 1e-6 then tipHit = true
+      i += 1
+    T ~ tipHit ==== true
+    T ~ (bent.ys.min < 97.0) ==== true
+    T ~ (bent.tailDirY < 0) ==== true   // launching upward to bow over the chord
+    val bentDown = Arrow.outline(0, 100, 100, 100, 8, 4, 0, 2, radius = -200).asInstanceOf[Arrow.Outline]
+    T ~ (bentDown.ys.max > 103.0) ==== true
+
+  @Test
+  def arrowWordTest(): Unit =
+    val fig = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) +
+        arrow(1.2, 28.0, 2.0, 21.0, label = "gap", alpha = 0.5)
+    val s = fig.svg().get
+    T ~ s.contains(">gap<") ==== true
+    T ~ (s.split("<polygon").length - 1) ==== 1     // one filled outline: no shaft/head seam
+    T ~ s.contains("fill-opacity=\"0.5\"") ==== true
+    // an endpoint cropped out by pinned limits refuses loudly
+    val bad = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) + axis.horz.limit(max = 5.0) + arrow(1.0, 20.0, 10.0, 20.0)
+    bad.svg().fold{ _ =>
+      assertTrue("expected the cropped arrow to refuse", false)
+    }{ e => T ~ e.toString.contains("points outside every panel") ==== true }
+    // curved barbed callout: deterministic, and the outline is a real polyline-arc
+    val bent = Fig: f =>
+      import f.*
+      data(x = ts, y = vs) * visual(Scatter) + note("bent", x = 2.0, y = 20.0, radius = 60.0, shape = ArrowShape.barbed)
+    val once = bent.svg()
+    T ~ once.isIs ==== true
+    T ~ bent.svg() ==== once
+    val poly = """<polygon points="([^"]*)"""".r.findFirstMatchIn(once.get).get.group(1)
+    T ~ (poly.split(' ').length > 8) ==== true
 
   @Test
   def scaleKindTest(): Unit =

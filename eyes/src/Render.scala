@@ -49,6 +49,12 @@ object Render:
     case Levels(n: Int)
     case Ramp(lo: Double, hi: Double)
 
+  /** A panel annotation: a placed callout, or a user-anchored arrow. */
+  private enum Mark:
+    case Noted(text: String, at: NoteAt, backoff: Double, radius: Double, shape: ArrowShape)
+    case Arrowed(label: String, x1: Double, y1: Double, x2: Double, y2: Double,
+                 backoff: Double, radius: Double, colour: String, alpha: Double, shape: ArrowShape)
+
   private val labSz = 12.0
   private val titleSz = 14.0
   private val tickLen = 4.0
@@ -436,7 +442,7 @@ object Render:
     hue: Hue,
     showLeft: Boolean, showBottom: Boolean,
     colStrip: String | Null, rowStrip: String | Null,
-    notes: List[(String, NoteAt)],
+    marks: List[Mark],
     fs: Double,
     m: Measurer
   ) extends GlyphBlock:
@@ -644,70 +650,91 @@ object Render:
       * little data, then closeness, then a mild taste for up-and-right.  Placed labels
       * and leaders are marked in the raster so later notes avoid earlier ones.
       */
-    private def placeNotes(rect: Rect, sxF: Double => Double, syF: Double => Double, occ: Occupancy, put: Glyph => Unit): Unit =
+    private def placeNote(mk: Mark.Noted, rect: Rect, sxF: Double => Double, syF: Double => Double, occ: Occupancy, put: Glyph => Unit): Unit =
       val prefAngle = -jm.PI / 4
       val angles = Array.tabulate(24)(k => k * jm.PI / 12).sortBy(a => jm.abs(wrapAngle(a - prefAngle)))
       val th = m.lineHeight(lab)
       val radii = Array(2.0 * th, 3.0 * th, 4.2 * th, 5.6 * th)
-      notes.foreach: (text, at) =>
-        val (tx, ty) = at match
-          case NoteAt.Point(x, y) => (sxF(x), syF(y))
-          case NoteAt.OnX(x)      => (sxF(x), rect.bottom)
-          case NoteAt.OnY(y)      => (rect.x, syF(y))
-        val pad = 3 * fs
-        val bw = m.width(text, lab) + 2 * pad
-        val bh = th + 2 * pad
-        var bestX = 0.0
-        var bestY = 0.0
-        var bestSc = Double.PositiveInfinity
-        var ri = 0
-        while ri < radii.length do
-          var ai = 0
-          while ai < angles.length do
-            val ang = angles(ai)
-            val cx = tx + radii(ri) * jm.cos(ang)
-            val cy = ty + radii(ri) * jm.sin(ang)
-            val bx = cx - bw / 2
-            val by = cy - bh / 2
-            val inRect = bx >= rect.x + 1 && by >= rect.y + 1 && bx + bw <= rect.right - 1 && by + bh <= rect.bottom - 1
-            val overTarget = tx >= bx - 2 && tx <= bx + bw + 2 && ty >= by - 2 && ty <= by + bh + 2
-            if inRect && !overTarget then
-              val (axp, ayp) = edgePoint(cx, cy, bw / 2 + 1, bh / 2 + 1, tx, ty)
-              val sc = 3.0 * occ.boxLoad(bx, by, bw, bh) + occ.lineLoad(axp, ayp, tx, ty) +
-                0.3 * ri / (radii.length - 1.0) + 0.12 * jm.abs(wrapAngle(ang - prefAngle)) / jm.PI
-              if sc < bestSc then
-                bestSc = sc
-                bestX = cx
-                bestY = cy
-            ai += 1
-          ri += 1
-        if bestSc.isInfinite then
-          // nothing fits cleanly (tiny panel or huge label): sit near the target, clamped
-          bestX = jm.max(rect.x + bw / 2 + 1, jm.min(rect.right - bw / 2 - 1, tx))
-          bestY =
-            if ty - 2.2 * th >= rect.y + bh / 2 + 1 then ty - 2.2 * th
-            else jm.min(rect.bottom - bh / 2 - 1, ty + 2.2 * th)
-        val (axp, ayp) = edgePoint(bestX, bestY, bw / 2 + 1, bh / 2 + 1, tx, ty)
-        val gap = at match
-          case NoteAt.Point(_, _) => 4.5 * fs
-          case _                  => 1.0
-        var dx = tx - axp
-        var dy = ty - ayp
-        val len = jm.sqrt(dx * dx + dy * dy)
-        if len > gap + 6 * fs then
-          dx /= len
-          dy /= len
-          val ex = tx - dx * gap
-          val ey = ty - dy * gap
-          val headLen = 5.5 * fs
-          val headHalf = 2.0 * fs
-          val hx = ex - dx * headLen
-          val hy = ey - dy * headLen
-          put(Glyph.Segment(axp, ayp, ex - dx * headLen * 0.5, ey - dy * headLen * 0.5, "#3F3F3F", jm.max(0.8, 1.1 * fs)))
-          put(Glyph.Poly(Array(ex, hx - dy * headHalf, hx + dy * headHalf), Array(ey, hy + dx * headHalf, hy - dx * headHalf), "#3F3F3F"))
-          occ.markSegment(axp, ayp, ex, ey, 1.5)
-        put(Glyph.Txt(bestX, bestY + m.ascent(lab) * 0.38, text, lab, "#1F1F1F", Glyph.Anchor.Middle, halo = true))
-        occ.markBox(bestX - bw / 2, bestY - bh / 2, bw, bh)
+      val (tx, ty) = mk.at match
+        case NoteAt.Point(x, y) => (sxF(x), syF(y))
+        case NoteAt.OnX(x)      => (sxF(x), rect.bottom)
+        case NoteAt.OnY(y)      => (rect.x, syF(y))
+      val pad = 3 * fs
+      val bw = m.width(mk.text, lab) + 2 * pad
+      val bh = th + 2 * pad
+      var bestX = 0.0
+      var bestY = 0.0
+      var bestSc = Double.PositiveInfinity
+      var ri = 0
+      while ri < radii.length do
+        var ai = 0
+        while ai < angles.length do
+          val ang = angles(ai)
+          val cx = tx + radii(ri) * jm.cos(ang)
+          val cy = ty + radii(ri) * jm.sin(ang)
+          val bx = cx - bw / 2
+          val by = cy - bh / 2
+          val inRect = bx >= rect.x + 1 && by >= rect.y + 1 && bx + bw <= rect.right - 1 && by + bh <= rect.bottom - 1
+          val overTarget = tx >= bx - 2 && tx <= bx + bw + 2 && ty >= by - 2 && ty <= by + bh + 2
+          if inRect && !overTarget then
+            val (axp, ayp) = edgePoint(cx, cy, bw / 2 + 1, bh / 2 + 1, tx, ty)
+            val sc = 3.0 * occ.boxLoad(bx, by, bw, bh) + occ.lineLoad(axp, ayp, tx, ty) +
+              0.3 * ri / (radii.length - 1.0) + 0.12 * jm.abs(wrapAngle(ang - prefAngle)) / jm.PI
+            if sc < bestSc then
+              bestSc = sc
+              bestX = cx
+              bestY = cy
+          ai += 1
+        ri += 1
+      if bestSc.isInfinite then
+        // nothing fits cleanly (tiny panel or huge label): sit near the target, clamped
+        bestX = jm.max(rect.x + bw / 2 + 1, jm.min(rect.right - bw / 2 - 1, tx))
+        bestY =
+          if ty - 2.2 * th >= rect.y + bh / 2 + 1 then ty - 2.2 * th
+          else jm.min(rect.bottom - bh / 2 - 1, ty + 2.2 * th)
+      val (axp, ayp) = edgePoint(bestX, bestY, bw / 2 + 1, bh / 2 + 1, tx, ty)
+      val backPx = (if mk.backoff.isNaN then (mk.at match { case NoteAt.Point(_, _) => 4.5; case _ => 1.0 }) else mk.backoff) * fs
+      val radPx = if mk.radius.isNaN || mk.radius == 0 then Double.NaN else mk.radius * fs
+      val sh = mk.shape
+      Arrow.outline(axp, ayp, tx, ty, sh.headLength * fs, sh.headHalfWidth * fs, sh.barb,
+                    jm.max(0.8, sh.shaftWidth * fs), radPx, backPx) match
+        case null => ()
+        case o: Arrow.Outline =>
+          put(Glyph.Poly(o.xs, o.ys, "#3F3F3F", 1.0))
+          occ.markSegment(axp, ayp, tx, ty, 1.5)
+      put(Glyph.Txt(bestX, bestY + m.ascent(lab) * 0.38, mk.text, lab, "#1F1F1F", Glyph.Anchor.Middle, halo = true))
+      occ.markBox(bestX - bw / 2, bestY - bh / 2, bw, bh)
+
+    /** Draws a user-anchored arrow through the shared outline geometry, hanging the label
+      * (if any) off the tail end, and marks the raster so callouts placed later steer
+      * clear of it.
+      */
+    private def drawArrow(a: Mark.Arrowed, sxF: Double => Double, syF: Double => Double, occ: Occupancy, put: Glyph => Unit): Unit =
+      val px = sxF(a.x1)
+      val py = syF(a.y1)
+      val qx = sxF(a.x2)
+      val qy = syF(a.y2)
+      val sh = a.shape
+      val radPx = if a.radius.isNaN || a.radius == 0 then Double.NaN else a.radius * fs
+      Arrow.outline(px, py, qx, qy, sh.headLength * fs, sh.headHalfWidth * fs, sh.barb,
+                    jm.max(0.8, sh.shaftWidth * fs), radPx, a.backoff * fs) match
+        case null => ()
+        case o: Arrow.Outline =>
+          put(Glyph.Poly(o.xs, o.ys, a.colour, a.alpha))
+          occ.markSegment(px, py, qx, qy, sh.headHalfWidth * fs)
+          if a.label.nonEmpty then
+            val ux = -o.tailDirX
+            val uy = -o.tailDirY
+            val off = 5 * fs
+            val gx = px + ux * off
+            val gy = py + uy * off
+            if jm.abs(ux) >= 0.6 then
+              val anchor = if ux > 0 then Glyph.Anchor.Start else Glyph.Anchor.End
+              put(Glyph.Txt(gx, gy + m.ascent(lab) * 0.38, a.label, lab, "#1F1F1F", anchor, halo = true))
+            else
+              val base = if uy > 0 then gy + m.ascent(lab) else gy - 2
+              put(Glyph.Txt(gx, base, a.label, lab, "#1F1F1F", Glyph.Anchor.Middle, halo = true))
+            occ.markBox(gx - m.width(a.label, lab) / 2 - 2, gy - m.lineHeight(lab) / 2, m.width(a.label, lab) + 4, m.lineHeight(lab))
 
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
       val xt = xTicks(rect.w)
@@ -738,11 +765,18 @@ object Render:
         put(Glyph.Txt(rect.x + rect.w / 2, rect.y - 5 * fs, colStrip, lab, "#222222", Glyph.Anchor.Middle, bold = true))
       if rowStrip != null then
         put(Glyph.Txt(rect.right + 6, rect.y + rect.h / 2 + m.ascent(lab) * 0.38, rowStrip, lab, "#222222", Glyph.Anchor.Start, bold = true))
-      val occ: Occupancy | Null = if notes.isEmpty then null else Occupancy(rect.x, rect.y, rect.w, rect.h, jm.max(4.0, 6 * fs))
+      val occ: Occupancy | Null = if marks.isEmpty then null else Occupancy(rect.x, rect.y, rect.w, rect.h, jm.max(4.0, 6 * fs))
       slices.foreach(s => drawSlice(s, rect, sx, sy, occ, put))
       occ match
         case null => ()
-        case o: Occupancy => placeNotes(rect, sx, sy, o, put)
+        case o: Occupancy =>
+          // arrows are fully user-anchored, so they draw first and callouts route around them
+          marks.foreach:
+            case a: Mark.Arrowed => drawArrow(a, sx, sy, o, put)
+            case _ => ()
+          marks.foreach:
+            case n: Mark.Noted => placeNote(n, rect, sx, sy, o, put)
+            case _ => ()
 
   private final class LegendBlock(title: String | Null, levels: Array[String], fs: Double, m: Measurer) extends GlyphBlock:
     private val lab = labSz * fs
@@ -881,9 +915,12 @@ object Render:
     var gapV = 12.0
     var everyLabel = false
     val insets = collection.mutable.ArrayBuffer.empty[Parts.Config.Inset]
-    val notes = collection.mutable.ArrayBuffer.empty[(String, NoteAt)]
+    val marks = collection.mutable.ArrayBuffer.empty[Mark]
     fig.parts.config.foreach:
-      case Parts.Config.Note(t, at)    => val _ = notes.addOne((t, at))
+      case Parts.Config.Note(t, at, back, rad, shp) =>
+        val _ = marks.addOne(Mark.Noted(t, at, back, rad, shp))
+      case Parts.Config.Arrow(lbl, x1, y1, x2, y2, back, rad, col, al, shp) =>
+        val _ = marks.addOne(Mark.Arrowed(lbl, x1, y1, x2, y2, back, rad, col, al, shp))
       case Parts.Config.LegendTitle(t) => legTitle = t
       case Parts.Config.FigTitle(t)    => figTitle = t
       case Parts.Config.AxisTitle(a, t) =>
@@ -1025,20 +1062,26 @@ object Render:
         if dyLo > 0 then dyLo = 0.0
         if dyHi < 0 then dyHi = 0.0
     if !(dxLo <= dxHi && dyLo <= dyHi) then Err.break("figure has no data points")
-    // note targets count as data when domains are fit, so callouts land in view by default
-    notes.foreach: (_, at) =>
-      at match
-        case NoteAt.Point(x, y) =>
-          if x < dxLo then dxLo = x
-          if x > dxHi then dxHi = x
-          if y < dyLo then dyLo = y
-          if y > dyHi then dyHi = y
-        case NoteAt.OnX(x) =>
-          if x < dxLo then dxLo = x
-          if x > dxHi then dxHi = x
-        case NoteAt.OnY(y) =>
-          if y < dyLo then dyLo = y
-          if y > dyHi then dyHi = y
+    // annotation targets count as data when domains are fit, so they land in view by default
+    inline def dxTake(x: Double): Unit =
+      if x < dxLo then dxLo = x
+      if x > dxHi then dxHi = x
+    inline def dyTake(y: Double): Unit =
+      if y < dyLo then dyLo = y
+      if y > dyHi then dyHi = y
+    marks.foreach:
+      case Mark.Noted(_, at, _, _, _) =>
+        at match
+          case NoteAt.Point(x, y) =>
+            dxTake(x)
+            dyTake(y)
+          case NoteAt.OnX(x) => dxTake(x)
+          case NoteAt.OnY(y) => dyTake(y)
+      case a: Mark.Arrowed =>
+        dxTake(a.x1)
+        dxTake(a.x2)
+        dyTake(a.y1)
+        dyTake(a.y2)
     val (fx0, fx1) = axisSpan(dxLo, dxHi, xLoC, xHiC)
     val (fy0, fy1) = axisSpan(dyLo, dyHi, yLoC, yHiC)
 
@@ -1126,7 +1169,7 @@ object Render:
           val _ = placedInsets.addOne((ins.fig, x, y, w, h))
 
     val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 6)
-    val noteHits = new Array[Int](notes.length)
+    val markHits = new Array[Int](marks.length)
     var r = 0
     while r < nR do
       var c = 0
@@ -1136,17 +1179,22 @@ object Render:
         val slices = prepped.map(p => sliceFor(p, cl, rl))
         val (px0, px1) = if freeX then freeSpan(slices, true, xLoC, xHiC, fx0, fx1) else (fx0, fx1)
         val (py0, py1) = if freeY then freeSpan(slices, false, yLoC, yHiC, fy0, fy1) else (fy0, fy1)
-        // a note shows wherever its target is on this panel's axes (all panels, unfaceted)
-        val panNotes = List.newBuilder[(String, NoteAt)]
+        // an annotation shows wherever its anchors are on this panel's axes
+        val panMarks = List.newBuilder[Mark]
         var k = 0
-        notes.foreach: (t, at) =>
-          val ok = at match
-            case NoteAt.Point(x, y) => x >= px0 && x <= px1 && y >= py0 && y <= py1
-            case NoteAt.OnX(x)      => x >= px0 && x <= px1
-            case NoteAt.OnY(y)      => y >= py0 && y <= py1
+        marks.foreach: mk =>
+          val ok = mk match
+            case Mark.Noted(_, at, _, _, _) =>
+              at match
+                case NoteAt.Point(x, y) => x >= px0 && x <= px1 && y >= py0 && y <= py1
+                case NoteAt.OnX(x)      => x >= px0 && x <= px1
+                case NoteAt.OnY(y)      => y >= py0 && y <= py1
+            case a: Mark.Arrowed =>
+              a.x1 >= px0 && a.x1 <= px1 && a.x2 >= px0 && a.x2 <= px1 &&
+              a.y1 >= py0 && a.y1 <= py1 && a.y2 >= py0 && a.y2 <= py1
           if ok then
-            noteHits(k) += 1
-            panNotes += ((t, at))
+            markHits(k) += 1
+            panMarks += mk
           k += 1
         val pan = Panel(
           slices, px0, px1, py0, py1,
@@ -1155,7 +1203,7 @@ object Render:
           showBottom = freeX || everyLabel || r == nR - 1,
           colStrip = if r == 0 then cl else null,
           rowStrip = if c == nC - 1 then rl else null,
-          panNotes.result(),
+          panMarks.result(),
           fs,
           m
         )
@@ -1163,9 +1211,12 @@ object Render:
         c += 1
       r += 1
     var nk = 0
-    notes.foreach: (t, _) =>
-      if noteHits(nk) == 0 then
-        Err.break(s"note '$t' points outside every panel's axes; move the target or relax the axis limits")
+    marks.foreach: mk =>
+      if markHits(nk) == 0 then
+        val what = mk match
+          case Mark.Noted(t, _, _, _, _) => s"note '$t'"
+          case a: Mark.Arrowed => if a.label.isEmpty then s"arrow to (${a.x2}, ${a.y2})" else s"arrow '${a.label}'"
+        Err.break(s"$what points outside every panel's axes; move the target or relax the axis limits")
       nk += 1
 
     val legendB: Block | Null =
