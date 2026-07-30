@@ -9,9 +9,10 @@ import java.lang.{Math => jm}
 
 /** Decimal-exact ticks for a continuous axis: parallel arrays of positions (the correctly
   * rounded `Double` of each exact decimal tick value) and labels (the shortest decimal
-  * spelling of that same exact value).
+  * spelling of that same exact value), plus unlabeled `minor` positions between and
+  * beyond the majors.
   */
-final class Ticks private[eyes] (val values: Array[Double], val labels: Array[String]):
+final class Ticks private[eyes] (val values: Array[Double], val labels: Array[String], val minor: Array[Double]):
   def length: Int = values.length
 
 
@@ -29,12 +30,18 @@ final class Ticks private[eyes] (val values: Array[Double], val labels: Array[St
   * float residue.  If the longest plain label would exceed [[plainLimit]] characters and
   * scientific notation (lowercase e) is strictly shorter, the whole axis switches together,
   * so mixed styles never appear; a zero tick is always "0".
+  *
+  * Minor ticks subdivide each major interval with the largest {1, 2, 5} step that divides
+  * the major step at least four ways: major mantissa 1 -> fifths, 2 -> quarters, 5 ->
+  * fifths.  So minors are nice decimals themselves, they coincide with majors only on the
+  * exact integer grid (no float comparisons), and they run past the outermost majors to
+  * the span edges.  Minors are never labeled -- a labeled minor would just be a major.
   */
 object Ticks:
   /** Plain labels at most this long never trigger the switch to scientific notation. */
   inline val plainLimit = 6
 
-  val none: Ticks = new Ticks(new Array[Double](0), new Array[String](0))
+  val none: Ticks = new Ticks(new Array[Double](0), new Array[String](0), new Array[Double](0))
 
   /** About `target` ticks spanning `lo` to `hi` (delivery is roughly 0.7x to 1.5x that,
     * depending on where nice multiples fall), and never fewer than two for a valid span:
@@ -124,7 +131,35 @@ object Ticks:
             if sci(i).length > w then w = sci(i).length
             i += 1
           if w < wide then labs = sci
-        new Ticks(vs, labs)
+        new Ticks(vs, labs, minorsIn(lo, hi, m, e))
+
+  /** Minor positions across [lo, hi] for a major step m*10^e: the largest ladder step
+    * dividing it at least four ways, with the exact major coincidences skipped by index.
+    */
+  private def minorsIn(lo: Double, hi: Double, m: Int, e: Int): Array[Double] =
+    val (mm, me, ratio) =
+      if m == 1 then (2, e - 1, 5)
+      else if m == 2 then (5, e - 1, 4)
+      else (1, e, 5)
+    val step = valueOf(mm, me)
+    val q0 = lo / step
+    val q1 = hi / step
+    if !(jm.abs(q0) < 4e15 && jm.abs(q1) < 4e15) then new Array[Double](0)
+    else
+      val kLo = jm.ceil(q0 - 4 * jm.ulp(q0) - 1e-9).toLong
+      val kHi = jm.floor(q1 + 4 * jm.ulp(q1) + 1e-9).toLong
+      val n = kHi - kLo + 1
+      if n <= 0 || n > 4096 then new Array[Double](0)
+      else
+        val b = new Array[Double](n.toInt)
+        var j = 0
+        var k = kLo
+        while k <= kHi do
+          if k % ratio != 0 then
+            b(j) = valueOf(k * mm, me)
+            j += 1
+          k += 1
+        java.util.Arrays.copyOf(b, j)
 
   // digits with trailing zeros folded into the exponent, so labels come out shortest
   private def strip(mult: Long, e: Int): (String, Int) =

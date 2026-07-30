@@ -768,6 +768,74 @@ class EyesTest {
     T ~ (found >= 21) ==== true
 
   @Test
+  def minorTickDefaultsTest(): Unit =
+    // minor ticks on by default (shorter unlabeled marks), minor gridlines off by
+    // default; both toggle per axis
+    val xs = Array.tabulate(30)(i => i / 29.0 * 10.0)
+    val ys = Array.tabulate(30)(i => (i % 4).toDouble)
+    def marks(s: String): Int = s.split("stroke=\"#555555\"").length - 1
+    val base = (Fig: f =>
+      import f.*
+      Parts.of(data(x = xs, y = ys) * visual(Line))
+    ).svg().get
+    val noMinor = (Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) + axis.horz.minorTicks(false) + axis.vert.minorTicks(false)
+    ).svg().get
+    T ~ (marks(base) > marks(noMinor)) ==== true
+    T ~ base.contains("stroke-width=\"0.5\"") ==== false
+    val withGrid = (Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) + axis.horz.minorGrid(true)
+    ).svg().get
+    T ~ withGrid.contains("stroke-width=\"0.5\"") ==== true
+
+  @Test
+  def translucentAxisTest(): Unit =
+    // half-alpha axis ink must composite exactly once: no axis stroke may overlap
+    // another (frame corner, tick-on-frame, gridline-under-frame are the classic sins)
+    val xs = Array.tabulate(30)(i => i / 29.0 * 10.0)
+    val ys = Array.tabulate(30)(i => (i % 4).toDouble)
+    val fig = Fig: f =>
+      import f.*
+      data(x = xs, y = ys) * visual(Line) +
+        axis.horz.color("#555555", alpha = 0.5) + axis.vert.color("#555555", alpha = 0.5) +
+        axis.horz.minorGrid(true)
+    val s = fig.svg().get
+    T ~ s.contains("stroke-opacity=\"0.5\"") ==== true
+    // collect every #555555 stroke as a rect (stroke width 1 => +-0.5 around the line)
+    val boxes = collection.mutable.ArrayBuffer.empty[(Double, Double, Double, Double)]
+    """<line x1="([-0-9.]+)" y1="([-0-9.]+)" x2="([-0-9.]+)" y2="([-0-9.]+)" stroke="#555555"""".r.findAllMatchIn(s).foreach: mm =>
+      val x1 = mm.group(1).toDouble
+      val y1 = mm.group(2).toDouble
+      val x2 = mm.group(3).toDouble
+      val y2 = mm.group(4).toDouble
+      // butt caps: the stroke spans the endpoints along the line, +-half width across it
+      if y1 == y2 then boxes += ((jm.min(x1, x2), y1 - 0.5, jm.max(x1, x2), y1 + 0.5))
+      else boxes += ((x1 - 0.5, jm.min(y1, y2), x1 + 0.5, jm.max(y1, y2)))
+    var overlaps = 0
+    var i = 0
+    while i < boxes.length do
+      var j = i + 1
+      while j < boxes.length do
+        val a = boxes(i)
+        val b = boxes(j)
+        if a._1 < b._3 - 1e-9 && b._1 < a._3 - 1e-9 && a._2 < b._4 - 1e-9 && b._2 < a._4 - 1e-9 then overlaps += 1
+        j += 1
+      i += 1
+    T ~ overlaps ==== 0
+    // and gridlines never intrude into the frame stroke: they stop at its top edge
+    var frameY = 0.0
+    """<line x1="([-0-9.]+)" y1="([-0-9.]+)" x2="([-0-9.]+)" y2="([-0-9.]+)" stroke="#555555"""".r.findAllMatchIn(s).foreach: mm =>
+      if mm.group(2).toDouble == mm.group(4).toDouble && mm.group(3).toDouble - mm.group(1).toDouble > 100 then
+        frameY = mm.group(2).toDouble
+    var gridOk = true
+    """<line x1="([-0-9.]+)" y1="([-0-9.]+)" x2="([-0-9.]+)" y2="([-0-9.]+)" stroke="#ECECEC"""".r.findAllMatchIn(s).foreach: mm =>
+      if mm.group(1).toDouble == mm.group(3).toDouble then
+        if mm.group(4).toDouble > frameY - 0.5 + 1e-9 then gridOk = false
+    T ~ gridOk ==== true
+
+  @Test
   def axisTitleAttachmentTest(): Unit =
     // the x-axis title is part of the axis: centered on the data area (not on a grid
     // cell that also contains the y-label gutter) and snug below the tick labels

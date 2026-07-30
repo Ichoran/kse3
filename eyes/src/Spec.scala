@@ -305,6 +305,9 @@ object Parts:
     case AxisTitle(axis: Axis, title: String)
     case AxisLimit(axis: Axis, min: Double, max: Double)  // NaN = unset
     case AxisTicks(axis: Axis, target: Int)
+    case MinorTicks(axis: Axis, on: Boolean)
+    case MinorGrid(axis: Axis, on: Boolean)
+    case AxisColor(axis: Axis, colour: String, alpha: Double)
     case FreeAxis(horz: Boolean, vert: Boolean)
     case PanelGap(horz: Double, vert: Double)
     case EachLabeled
@@ -392,6 +395,19 @@ final class AxisWords private[eyes] (which: Parts.Axis):
     */
   def ticks(target: Int): Parts =
     Parts(Vector.empty, Vector(Parts.Config.AxisTicks(which, target)))
+  /** Unlabeled minor ticks subdividing the major intervals; on by default.  Minors never
+    * get labels — a labeled minor would just be another major.
+    */
+  def minorTicks(on: Boolean = true): Parts =
+    Parts(Vector.empty, Vector(Parts.Config.MinorTicks(which, on)))
+  /** Faint gridlines at the minor tick positions; off by default. */
+  def minorGrid(on: Boolean = true): Parts =
+    Parts(Vector.empty, Vector(Parts.Config.MinorGrid(which, on)))
+  /** Ink for this axis's frame line and tick marks (labels keep their own colour).
+    * Translucent ink composites cleanly: frame, ticks, and gridlines never double-draw.
+    */
+  def color(c: String, alpha: Double = 1.0): Parts =
+    Parts(Vector.empty, Vector(Parts.Config.AxisColor(which, c, alpha)))
   /** This axis fits each facet panel's own data instead of the shared domain. */
   def free: Parts =
     Parts(Vector.empty, Vector(Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert)))

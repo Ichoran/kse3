@@ -168,6 +168,19 @@ object EyesExamples:
       val (xs, ys) = waveXY(5e4, 1.15e6, 2e-5, 1.8e-4, 3)
       data(x = xs, y = ys) * visual(Line) + axis.vert.ticks(4) +
         title("long labels go scientific, on both axes")
+    val everyday = Fig: f =>
+      import f.*
+      val (xs, ys) = waveXY(0.03, 0.97, 0.0, 240.0, 6)
+      data(x = xs, y = ys) * visual(Line) +
+        axis.horz.minorGrid(true) + axis.vert.minorGrid(true) +
+        title("the everyday axis, minor grid on")
+    val alphaAxes = Fig: f =>
+      import f.*
+      val (xs, ys) = waveXY(-1.2, 1.2, 0.0, 1.0, 10)
+      data(x = xs, y = ys) * visual(Line) +
+        axis.horz.color("#555555", alpha = 0.5) + axis.vert.color("#555555", alpha = 0.5) +
+        axis.horz.minorGrid(true) +
+        title("axes at half alpha")
     val dense = Fig: f =>
       import f.*
       val (xs, ys) = waveXY(0.2, 9.8, 0.5, 5.8, 7)
@@ -180,10 +193,10 @@ object EyesExamples:
       (sciBoth |
        graph(1.2e-5, 8.8e-5, 0.0, 1.0, "tiny values: 2e-5 beats 0.00002", 4)) /
       (graph(999100.0, 1000900.0, 0.0, 1.0, "fine grid far from zero: plain wins", 5) |
-       graph(0.03, 0.97, 0.0, 240.0, "the everyday axis", 6)) /
+       everyday) /
       dense /
       (graph(0.0, 3.0, 0.0, 1.0, "0 to 3", 7) | graph(41.0, 89.0, 0.0, 1.0, "41 to 89", 8) |
-       graph(0.4, 2.6, 0.0, 1.0, "0.4 to 2.6", 9) | graph(-1.2, 1.2, 0.0, 1.0, "spanning zero", 10))
+       graph(0.4, 2.6, 0.0, 1.0, "0.4 to 2.6", 9) | alphaAxes)
     writeAt(dir, "sketch8.svg", gallery, 1800, 1250)
 
   private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =

@@ -74,6 +74,26 @@ class TicksTest {
     T ~ labs(0.97, 1.03, 1) ==== List("0.98", "1", "1.02")
 
   @Test
+  def minorTicksTest(): Unit =
+    // minors subdivide by the largest {1,2,5} step dividing the major step at least four
+    // ways: mantissa 1 -> fifths, 2 -> quarters, 5 -> fifths; exact majors are excluded
+    val t2 = Ticks.linear(0.0, 1.0, 5)          // majors every 0.2 -> minors every 0.05
+    T ~ t2.minor.length ==== 15
+    T ~ t2.minor.contains(0.05) ==== true
+    T ~ t2.minor.contains(0.15) ==== true
+    T ~ t2.minor.count(v => t2.values.contains(v)) ==== 0
+    val t1 = Ticks.linear(0.0, 10.0, 8)         // majors every 1 -> minors every 0.2
+    T ~ t1.minor.length ==== 40
+    val t5 = Ticks.linear(0.0, 50.0, 8)         // majors every 5 -> minors every 1
+    T ~ t5.minor.length ==== 40
+    T ~ t5.minor.contains(1.0) ==== true
+    T ~ t5.minor.contains(5.0) ==== false
+    // minors run past the outermost majors to the span edges
+    val tf = Ticks.linear(1.011, 1.0248, 7)
+    T ~ (tf.minor.min < 1.012) ==== true
+    T ~ (tf.minor.max > 1.024) ==== true
+
+  @Test
   def degenerateSpanTest(): Unit =
     T ~ Ticks.linear(1.0, 1.0, 5).length ==== 0
     T ~ Ticks.linear(2.0, 1.0, 5).length ==== 0
@@ -104,5 +124,11 @@ class TicksTest {
         T ~ s.contains("E") ==== false
         if s.contains('.') && !s.contains('e') then T ~ s.endsWith("0") ==== false
         i += 1
+      var sorted = true
+      i = 1
+      while i < t.minor.length do
+        if !(t.minor(i) > t.minor(i - 1)) then sorted = false
+        i += 1
+      T ~ sorted ==== true
       trial += 1
 }

@@ -129,6 +129,20 @@ object Render:
     kind: Visual.Kind, layerIdx: Int
   )
 
+  /** Minor-tick treatment for one axis: unlabeled marks (default on), faint grid (default off). */
+  private final case class Minor(ticks: Boolean, grid: Boolean)
+
+  /** Ink for one axis's frame line and tick marks. */
+  private final case class Ink(colour: String, alpha: Double)
+  private val plainInk = Ink("#555555", 1.0)
+
+  // half the frame stroke width: ticks start here (past the frame, not on top of it) and
+  // gridlines stop here, so translucent axis ink composites exactly once everywhere
+  private val axisHalf = 0.5
+
+  // minor tick marks protrude 1/sqrt(2) as far as the majors and stroke 1/sqrt(2) as wide
+  private val minorFrac = 1.0 / jm.sqrt(2.0)
+
   /** Resolved per-layer geometry style for Segment/Arrow layers. */
   private final case class EdgeStyle(shape: ArrowShape, curve: Double, alpha: Double, backoff: Double)
 
@@ -444,6 +458,8 @@ object Render:
     showLeft: Boolean, showBottom: Boolean,
     colStrip: String | Null, rowStrip: String | Null,
     xTickN: Int, yTickN: Int,
+    xMinor: Minor, yMinor: Minor,
+    xInk: Ink, yInk: Ink,
     marks: List[Mark],
     fs: Double,
     m: Measurer
@@ -485,7 +501,7 @@ object Render:
       val yt = if showLeft then yTicks(h) else null
       val xt = if showBottom then xTicks(w) else null
       val yLabels =
-        if yt != null then yt.labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, lab))) + tick + 8 * fs
+        if yt != null then yt.labels.foldLeft(0.0)((mx, s) => jm.max(mx, m.width(s, lab))) + axisHalf + tick + 8 * fs
         else 0.0
       // centered x tick labels overhang the content rect at its corners; reporting the
       // real overhang as protrusion keeps them on canvas (and out of neighbor panels)
@@ -503,9 +519,9 @@ object Render:
       val left = jm.max(yLabels, xLeft)
       val right = jm.max(if rowStrip != null then m.width(rowStrip, lab) + 8 * fs else 0.0, xRight)
       val top = jm.max(if colStrip != null then m.lineHeight(lab) + 4 * fs else 0.0, yTop)
-      // exactly the labels' extent (drawn at bottom + tick + 2 within a line box); any
-      // extra here reads as dead space between the labels and the axis title below
-      val bottom = if showBottom then m.lineHeight(lab) + tick + 2 * fs else 0.0
+      // exactly the labels' extent (drawn at bottom + half frame + tick + 2 within a line
+      // box); any extra here reads as dead space between the labels and the axis title
+      val bottom = if showBottom then m.lineHeight(lab) + axisHalf + tick + 2 * fs else 0.0
       Prot(left, right, top, bottom)
 
     private def levelCount: Int = hue match
@@ -810,26 +826,43 @@ object Render:
       val yt = yTicks(rect.h)
       def sx(v: Double): Double = rect.x + (v - x0) / (x1 - x0) * rect.w
       def sy(v: Double): Double = rect.y + rect.h - (v - y0) / (y1 - y0) * rect.h
-      xt.values.foreach(v => put(Glyph.Segment(sx(v), rect.y, sx(v), rect.bottom, "#ECECEC", 1)))
-      yt.values.foreach(v => put(Glyph.Segment(rect.x, sy(v), rect.right, sy(v), "#ECECEC", 1)))
-      put(Glyph.Segment(rect.x, rect.bottom, rect.right, rect.bottom, "#555555", 1))
-      put(Glyph.Segment(rect.x, rect.y, rect.x, rect.bottom, "#555555", 1))
+      // gridlines stop at the frame's edge and skip its exact position, so a translucent
+      // frame never shows a gridline through itself or a doubled stripe beneath it
+      def vGrid(v: Double, wdt: Double): Unit =
+        val px = sx(v)
+        if px - rect.x > 0.6 then put(Glyph.Segment(px, rect.y, px, rect.bottom - axisHalf, "#ECECEC", wdt))
+      def hGrid(v: Double, wdt: Double): Unit =
+        val py = sy(v)
+        if rect.bottom - py > 0.6 then put(Glyph.Segment(rect.x + axisHalf, py, rect.right, py, "#ECECEC", wdt))
+      if xMinor.grid then xt.minor.foreach(vGrid(_, 0.5))
+      if yMinor.grid then yt.minor.foreach(hGrid(_, 0.5))
+      xt.values.foreach(vGrid(_, 1))
+      yt.values.foreach(hGrid(_, 1))
+      // the frame: the bottom line owns the corner (starting half a stroke early) and the
+      // left line stops half a stroke short -- full coverage, zero overlap, so alpha
+      // composites exactly once even where the two axes meet
+      put(Glyph.Segment(rect.x - axisHalf, rect.bottom, rect.right, rect.bottom, xInk.colour, 1, xInk.alpha))
+      put(Glyph.Segment(rect.x, rect.y, rect.x, rect.bottom - axisHalf, yInk.colour, 1, yInk.alpha))
       if showBottom then
         val xL = xt.labels
         var i = 0
         while i < xt.values.length do
           val px = sx(xt.values(i))
-          put(Glyph.Segment(px, rect.bottom, px, rect.bottom + tick, "#555555", 1))
-          put(Glyph.Txt(px, rect.bottom + tick + m.ascent(lab) + 2, xL(i), lab, "#333333", Glyph.Anchor.Middle))
+          put(Glyph.Segment(px, rect.bottom + axisHalf, px, rect.bottom + axisHalf + tick, xInk.colour, 1, xInk.alpha))
+          put(Glyph.Txt(px, rect.bottom + axisHalf + tick + m.ascent(lab) + 2, xL(i), lab, "#333333", Glyph.Anchor.Middle))
           i += 1
+        if xMinor.ticks then
+          xt.minor.foreach(v => put(Glyph.Segment(sx(v), rect.bottom + axisHalf, sx(v), rect.bottom + axisHalf + minorFrac * tick, xInk.colour, minorFrac, xInk.alpha)))
       if showLeft then
         val yL = yt.labels
         var i = 0
         while i < yt.values.length do
           val py = sy(yt.values(i))
-          put(Glyph.Segment(rect.x - tick, py, rect.x, py, "#555555", 1))
-          put(Glyph.Txt(rect.x - tick - 4, py + m.ascent(lab) * 0.38, yL(i), lab, "#333333", Glyph.Anchor.End))
+          put(Glyph.Segment(rect.x - axisHalf - tick, py, rect.x - axisHalf, py, yInk.colour, 1, yInk.alpha))
+          put(Glyph.Txt(rect.x - axisHalf - tick - 4, py + m.ascent(lab) * 0.38, yL(i), lab, "#333333", Glyph.Anchor.End))
           i += 1
+        if yMinor.ticks then
+          yt.minor.foreach(v => put(Glyph.Segment(rect.x - axisHalf - minorFrac * tick, sy(v), rect.x - axisHalf, sy(v), yInk.colour, minorFrac, yInk.alpha)))
       if colStrip != null then
         put(Glyph.Txt(rect.x + rect.w / 2, rect.y - 5 * fs, colStrip, lab, "#222222", Glyph.Anchor.Middle, bold = true))
       if rowStrip != null then
@@ -993,6 +1026,12 @@ object Render:
     var freeY = false
     var xTickC = 0
     var yTickC = 0
+    var xMinorTicks = true
+    var yMinorTicks = true
+    var xMinorGrid = false
+    var yMinorGrid = false
+    var xInkC = plainInk
+    var yInkC = plainInk
     var gapH = 12.0
     var gapV = 12.0
     var everyLabel = false
@@ -1016,6 +1055,12 @@ object Render:
           if !hi.isNaN then yHiC = hi
       case Parts.Config.AxisTicks(a, n) =>
         if a == Parts.Axis.Horz then xTickC = jm.max(1, n) else yTickC = jm.max(1, n)
+      case Parts.Config.MinorTicks(a, on) =>
+        if a == Parts.Axis.Horz then xMinorTicks = on else yMinorTicks = on
+      case Parts.Config.MinorGrid(a, on) =>
+        if a == Parts.Axis.Horz then xMinorGrid = on else yMinorGrid = on
+      case Parts.Config.AxisColor(a, c, al) =>
+        if a == Parts.Axis.Horz then xInkC = Ink(c, al) else yInkC = Ink(c, al)
       case Parts.Config.FreeAxis(h, v) =>
         freeX |= h
         freeY |= v
@@ -1306,6 +1351,8 @@ object Render:
           colStrip = if r == 0 then cl else null,
           rowStrip = if c == nC - 1 then rl else null,
           xTickN = xTickC, yTickN = yTickC,
+          xMinor = Minor(xMinorTicks, xMinorGrid), yMinor = Minor(yMinorTicks, yMinorGrid),
+          xInk = xInkC, yInk = yInkC,
           panMarks.result(),
           fs,
           m
