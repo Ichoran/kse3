@@ -104,6 +104,34 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
   private[eyes] def floatCount: Int = floats.length
   private[eyes] def floatBlockAt(i: Int): Block = floats(i).block
 
+  /** The content-footprint width this grid naturally wants at roughly height `h`: when
+    * every column is Fixed, the columns plus the internal gutters they need — so a parent
+    * can size a cell to fit and keep neighboring annotations glued to the content.  NaN
+    * when any column is Auto or Relative: width is then contextual, not natural.
+    */
+  private[eyes] def naturalWidth(h: Double): Double =
+    val colW = new Array[Double](cols)
+    var c = 0
+    while c < cols do
+      prefFor(true, c) match
+        case Size.Fixed(px) => colW(c) = px
+        case _              => return Double.NaN
+      c += 1
+    val rowH = Array.fill(rows)(jm.max(10.0, (h - 2 * pad - rowGap * (rows - 1)) / rows))
+    val startL = new Array[Double](cols + 1)
+    val endR = new Array[Double](cols + 1)
+    entries.foreach: e =>
+      val p = e.block.protrusions(sumOf(colW, e.c0, e.c1), sumOf(rowH, e.r0, e.r1))
+      if p.left > startL(e.c0) then startL(e.c0) = p.left
+      if p.right > endR(e.c1 + 1) then endR(e.c1 + 1) = p.right
+    var total = 0.0
+    c = 0
+    while c < cols do
+      total += colW(c)
+      if c > 0 then total += colGap + (endR(c) + startL(c)) * 1.08
+      c += 1
+    total
+
   def solve(w: Double, h: Double, margin: Double = 0.08, maxPasses: Int = 4): Layout =
     solveAt(0.0, 0.0, w, h, margin, maxPasses)
 
@@ -240,9 +268,19 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     val converged = s.converged
     val cramped = s.cramped
 
-    // geometry: accumulate positions; spans absorb their internal gutters
+    // geometry: accumulate positions; spans absorb their internal gutters.  When every
+    // track is Fixed/Relative and space is left over, the whole assembly centers in it —
+    // content should never end up huddled left of a blank it was allocated
+    inline def slackOf(total: Double, gut: Array[Double], trk: Array[Double]): Double =
+      var used = 0.0
+      var j = 0
+      while j < gut.length do
+        used += gut(j)
+        if j < trk.length then used += trk(j)
+        j += 1
+      jm.max(0.0, total - used) / 2
     val colX = new Array[Double](cols + 1)
-    var acc = x0 + colGut(0)
+    var acc = x0 + slackOf(w, colGut, colW) + colGut(0)
     var c = 0
     while c < cols do
       colX(c) = acc
@@ -250,7 +288,7 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
       c += 1
     colX(cols) = acc
     val rowY = new Array[Double](rows + 1)
-    acc = y0 + rowGut(0)
+    acc = y0 + slackOf(h, rowGut, rowH) + rowGut(0)
     var r = 0
     while r < rows do
       rowY(r) = acc

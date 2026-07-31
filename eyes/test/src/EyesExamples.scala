@@ -199,6 +199,62 @@ object EyesExamples:
        graph(0.4, 2.6, 0.0, 1.0, "0.4 to 2.6", 9) | alphaAxes)
     writeAt(dir, "sketch8.svg", gallery, 1800, 1250)
 
+    // Sketch 9: collated / summarized data — categorical axes, box-whisker-outlier plots,
+    // violins, honest never-jittered strips, direct-from-summary boxes, and binned-x boxes
+    def draws(n: Int, center: Double, spread: Double, salt: Long): Array[Double] =
+      Array.tabulate(n)(i => center + spread * (noise(i, salt) + noise(i + 5000, salt + 3) + noise(i + 9000, salt + 6)))
+    val armNames = Array("placebo", "low dose", "high dose")
+    val n9 = 180
+    val arm9 = Array.tabulate(n9)(i => armNames(i % 3))
+    val sex9 = Array.tabulate(n9)(i => if (i / 3) % 2 == 0 then "F" else "M")
+    val resp9 = Array.tabulate(n9): i =>
+      val a = i % 3
+      val s = (i / 3) % 2
+      val burst = if i % 47 == 0 then 11.0 else 0.0  // a few genuine extreme responders
+      8.0 + 3.5 * a + 1.2 * s + burst +
+        (1.8 + 0.7 * a) * (noise(i, 71) + noise(i + 500, 72) + noise(i + 900, 73))
+    val box9 = Fig: f =>
+      import f.*
+      data(x = arm9, y = resp9, color = sex9) * boxplot() +
+        legend("Sex") + title("Response by arm") + axis.vert.title("response")
+    val vio9 = Fig: f =>
+      import f.*
+      data(x = arm9, y = resp9, color = sex9) * violin() +
+        legend("Sex") + title("Same data, violins") + axis.vert.title("response")
+    val ties9 = Fig: f =>
+      import f.*
+      // integer readings tie exactly; on a categorical axis the points swarm — spread
+      // deterministically across content-free width, never jittered — and only pile-ups
+      // past the slot's edge would merge into thicker rings
+      data(x = arm9, y = resp9.map(v => jm.rint(v))) * strip +
+        title("Integer readings: swarm, no jitter") + axis.vert.title("response (counts)")
+    val overlay9 = Fig: f =>
+      import f.*
+      val d = data(x = arm9, y = resp9)
+      d * boxplot() * color("#B8B8B8") + d * strip * color("#0072B2") * fade(0.35) +
+        title("Summary and every point, superposed") + axis.vert.title("response")
+    val direct9 = Fig: f =>
+      import f.*
+      // no raw data at all: a published 5/25/50/75/95th-percentile set per station
+      data(x = Array("north", "east", "south", "west"),
+           y    = Array(12.1, 14.9, 10.2, 16.4),
+           ylow = Array(10.0, 12.6,  8.9, 13.8), yhigh = Array(14.5, 16.8, 11.8, 18.9),
+           ymin = Array( 7.1,  9.4,  6.6, 10.2), ymax  = Array(18.0, 20.3, 14.9, 23.1)) *
+        visual(Boxplot) +
+        title("From published percentiles (5/25/50/75/95)") + axis.vert.title("yield")
+    val ages9 = Array.tabulate(240)(i => 21.0 + 46.0 * (0.5 + noise(i, 81)))
+    val income9 = Array.tabulate(240): i =>
+      val a = ages9(i)
+      28.0 + 1.6 * (a - 20.0) - 0.022 * (a - 47.0) * (a - 47.0) +
+        14.0 * (noise(i, 91) + noise(i + 700, 92))
+    val binned9 = Fig: f =>
+      import f.*
+      data(x = ages9, y = income9) * binBy(10.0) * boxplot() +
+        title("Income by age decade: binBy(10) * boxplot()") +
+        axis.horz.title("age") + axis.vert.title("income (k$)")
+    val gallery9 = (box9 | vio9 | ties9) / (overlay9 | direct9 | binned9)
+    writeAt(dir, "sketch9.svg", gallery9, 1250, 820)
+
   private def write(dir: java.nio.file.Path, name: String, fig: Figure | Board): Unit =
     writeAt(dir, name, fig, 640, 480)
 

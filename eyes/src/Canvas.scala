@@ -41,8 +41,9 @@ object Measurer:
 enum Glyph:
   case Segment(x1: Double, y1: Double, x2: Double, y2: Double, stroke: String, w: Double, alpha: Double = 1.0)
   case Polyline(xs: Array[Double], ys: Array[Double], stroke: String, w: Double, alpha: Double = 1.0)
-  case Disc(x: Double, y: Double, r: Double, fill: String)
-  case Box(x: Double, y: Double, w: Double, h: Double, fill: String)
+  case Disc(x: Double, y: Double, r: Double, fill: String, alpha: Double = 1.0)
+  case Ring(x: Double, y: Double, r: Double, stroke: String, w: Double, alpha: Double = 1.0)
+  case Box(x: Double, y: Double, w: Double, h: Double, fill: String, alpha: Double = 1.0, stroke: String = "", strokeW: Double = 0.0)
   case Poly(xs: Array[Double], ys: Array[Double], fill: String, alpha: Double = 1.0)
   case Txt(x: Double, y: Double, text: String, size: Double, fill: String, anchor: Glyph.Anchor, bold: Boolean = false, rotate: Double = 0, halo: Boolean = false)
 
@@ -415,11 +416,18 @@ object Svg:
         val op = if alpha >= 1 then "" else s""" fill-opacity="${num(alpha)}""""
         emit(s"""<polygon points="${pts(xs, ys)}" fill="$fill"$op/>""")
         emit("\n")
-      case Glyph.Disc(x, y, r, fill) =>
-        emit(s"""<circle cx="${num(x)}" cy="${num(y)}" r="${num(r)}" fill="$fill"/>""")
+      case Glyph.Disc(x, y, r, fill, alpha) =>
+        val op = if alpha >= 1 then "" else s""" fill-opacity="${num(alpha)}""""
+        emit(s"""<circle cx="${num(x)}" cy="${num(y)}" r="${num(r)}" fill="$fill"$op/>""")
         emit("\n")
-      case Glyph.Box(x, y, w, h, fill) =>
-        emit(s"""<rect x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}" fill="$fill"/>""")
+      case Glyph.Ring(x, y, r, stroke, w, alpha) =>
+        val op = if alpha >= 1 then "" else s""" stroke-opacity="${num(alpha)}""""
+        emit(s"""<circle cx="${num(x)}" cy="${num(y)}" r="${num(r)}" fill="none" stroke="$stroke" stroke-width="${num(w)}"$op/>""")
+        emit("\n")
+      case Glyph.Box(x, y, w, h, fill, alpha, stroke, strokeW) =>
+        val op = if alpha >= 1 then "" else s""" fill-opacity="${num(alpha)}""""
+        val st = if stroke.isEmpty || strokeW <= 0 then "" else s""" stroke="$stroke" stroke-width="${num(strokeW)}""""
+        emit(s"""<rect x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}" fill="$fill"$op$st/>""")
         emit("\n")
       case Glyph.Txt(x, y, text, size, fill, anchor, bold, rotate, halo) =>
         val anch = anchor match

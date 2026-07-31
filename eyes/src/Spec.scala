@@ -102,12 +102,21 @@ object Data:
   * (x, y) to the `xend`/`yend` aesthetics — one row per connection, so edge sets are
   * columns rather than thousands of figure-level annotations; `Arrow` adds a head, styled
   * and curved by `arrowStyle(...)`.
+  *
+  * `Strip` draws points exactly where their data lie (never jittered — position is
+  * information), showing overlap honestly: coincident points merge into one ring whose
+  * outline thickens with the count, or accumulate translucent ink under `fade(...)`.
+  * `Boxplot` draws a box from `ylow` to `yhigh` with a line at `y` and optional whiskers
+  * to `ymin`/`ymax` — usually made by the `boxplot()` stat, but mappable directly from
+  * precomputed summary columns.  `Violin` mirrors the `width` aesthetic about the slot
+  * center across `y` — usually made by the `violin()` stat.  All three dodge side-by-side
+  * within a discrete colour scale like `Bar`.
   */
 final case class Visual(kind: Visual.Kind)
 
 object Visual:
   enum Kind:
-    case Scatter, Line, Band, Area, Bar, Segment, Arrow
+    case Scatter, Line, Band, Area, Bar, Segment, Arrow, Strip, Boxplot, Violin
 
 
 /** A statistical transform applied to a layer's columns before its visual.  The real
@@ -143,6 +152,43 @@ final case class Fit(degree: Int = 1) extends Smoother
 final case class Bin(bins: Int = 30) extends Stat
 final case class Density(bandwidth: Double = Double.NaN) extends Stat
 case object Count extends Stat
+
+
+/** How far box-plot whiskers reach.  `Iqr(k)` is the Tukey rule: each whisker runs to the
+  * most extreme datum within `k` interquartile ranges of its quartile, and anything beyond
+  * is drawn individually as an outlier.  `Quantiles(lo, hi)` puts the whisker ends at those
+  * quantiles of the data, with data beyond drawn as outliers.  `Extremes` runs whiskers to
+  * the minimum and maximum, so no outliers exist.
+  */
+enum Whisk:
+  case Iqr(k: Double = 1.5)
+  case Quantiles(lo: Double = 0.05, hi: Double = 0.95)
+  case Extremes
+
+/** Summary stats: these consume a layer's y values grouped by x — categorical levels
+  * directly, or bins of a continuous x via `BinBy` (bare distinct values group as-is) —
+  * crossed with colour level and facet cell.  `BoxSummary` emits the five-number box
+  * summary per group plus the outliers as a second table of individually drawn points
+  * (the stat contract's multi-output seam).  `YDensity` emits a kernel density of y per
+  * group as a violin's `width` channel (NaN bandwidth = Silverman's rule per group) —
+  * over the whisker-fenced body only, with outliers emitted as points like the box's,
+  * because a kernel bump over an outlier fakes statistical support for a gap-and-blip
+  * that the data does not contain.  The density tapers naturally past the body but
+  * never past the fence, so the taper cannot reach an outlying point.  Groups too small
+  * for a density to mean anything (fewer than five points) emit their points
+  * individually instead.
+  */
+final case class BoxSummary(whisk: Whisk = Whisk.Iqr()) extends Stat
+final case class YDensity(bandwidth: Double = Double.NaN, whisk: Whisk = Whisk.Iqr()) extends Stat
+
+/** Groups a continuous x for a downstream summary stat: rows fall into bins of `width`
+  * (or about `bins` bins of a nice snapped width), and each bin's summaries are positioned
+  * at `at` — the bin center, or the mean or median x of the bin's contents.
+  */
+final case class BinBy(width: Double = Double.NaN, bins: Int = 8, at: BinBy.At = BinBy.At.Center) extends Stat
+object BinBy:
+  enum At:
+    case Center, Mean, Median
 
 
 /** Typed-key attribute store stub (DESIGN 7).  Rightmost entry wins at lookup; the cascade
@@ -493,6 +539,58 @@ trait Vocabulary:
   /** Binned bars of the x distribution: `visual(Bar) * bin(bins)`. */
   def histogram(bins: Int = 30): Look = visual(Visual.Kind.Bar) * bin(bins)
 
+  /** Points drawn where their data lie — never jittered, because readers reason from
+    * position and a randomly displaced point is plotted where the data is not.  On a
+    * categorical axis the direction across the slot carries no content, so points spread
+    * beeswarm-style there — deterministically, each at the nearest clear offset — which
+    * is honest for the same reason jitter is not.  Wherever x does carry content (a
+    * continuous axis, including binned summaries' outliers) every point sits at its
+    * literal x.  Residual overlap shows honestly: thin-outlined rings merge only when
+    * too close to tell apart, thickening with the count (saturating to a solid disc);
+    * distinguishable overlaps simply draw and visibly cross.  Compose with `fade(a)` for
+    * translucent filled dots whose overlap accumulates ink instead.
+    */
+  def strip: Look = visual(Visual.Kind.Strip)
+
+  /** Box-whisker-outlier summary of y grouped by x — categorical levels directly, or bins
+    * of a continuous x via `binBy(...)` — dodged within a discrete colour scale.  Whiskers
+    * per [[Whisk]]: Tukey `Iqr(1.5)` by default, with data beyond drawn individually as
+    * outliers.  To draw boxes from precomputed numbers instead, map the summary columns
+    * directly with no stat:
+    * `data(x = labs, y = medians, ylow = q1, yhigh = q3, ymin = lo, ymax = hi) * visual(Boxplot)`
+    * (whiskers optional: map both `ymin` and `ymax` or neither).
+    */
+  def boxplot(whisk: Whisk = Whisk.Iqr()): Look =
+    visual(Visual.Kind.Boxplot) * Look(null, BoxSummary(whisk) :: Nil, Style.empty)
+
+  /** Violin — mirrored kernel density — of y grouped by x (categorical levels, or bins of
+    * a continuous x via `binBy(...)`), dodged within a discrete colour scale; NaN
+    * bandwidth = Silverman's rule per group.  Each violin is normalized to the same
+    * maximum width.  The density covers only the whisker-fenced body (`whisk`, Tukey
+    * 1.5 IQR by default); outliers draw as individual points, never as kernel bumps — a
+    * bump over an outlier fakes statistical support for a gap-and-blip the data does not
+    * contain.  The shape still tapers naturally past its body, but never past the fence,
+    * so the taper cannot reach an outlying point.  Groups with fewer than five points
+    * show their points individually: too few for a bulge to mean anything.
+    * `Whisk.Extremes` opts back into whole-sample violins.
+    */
+  def violin(bandwidth: Double = Double.NaN, whisk: Whisk = Whisk.Iqr()): Look =
+    visual(Visual.Kind.Violin) * Look(null, YDensity(bandwidth, whisk) :: Nil, Style.empty)
+
+  /** Groups a continuous x into bins for a following summary stat: e.g.
+    * `data(x = age, y = income) * binBy(10.0) * boxplot()` draws one box per decade.
+    * Give `width` directly or a target `bins` count (the width snaps to a nice step);
+    * summaries sit at the bin center, or at the mean or median x of the bin's contents
+    * via `at`.
+    */
+  def binBy(width: Double = Double.NaN, bins: Int = 8, at: BinBy.At = BinBy.At.Center): Look =
+    Look(null, kse.eyes.BinBy(width, bins, at) :: Nil, Style.empty)
+
+  /** Translucent geometry for this look's layers: overlapping marks accumulate ink, so
+    * density of overlap stays visible instead of vanishing under the topmost mark.
+    */
+  def fade(alpha: Double): Look = Look(null, Nil, Style((Style.Alpha, alpha) :: Nil))
+
   /** Facet by discrete columns; `col` and `row` are the reserved facet slots, stored as
     * columns like any other aesthetic.  Lengths must match the layer's data when merged.
     */
@@ -555,6 +653,9 @@ trait Vocabulary:
   final val Bar = Visual.Kind.Bar
   final val Segment = Visual.Kind.Segment
   final val Arrow = Visual.Kind.Arrow
+  final val Strip = Visual.Kind.Strip
+  final val Boxplot = Visual.Kind.Boxplot
+  final val Violin = Visual.Kind.Violin
 
   type Loess = kse.eyes.Loess
   final val Loess = kse.eyes.Loess
@@ -568,6 +669,9 @@ trait Vocabulary:
   final val Fit = kse.eyes.Fit
   type ArrowShape = kse.eyes.ArrowShape
   final val ArrowShape = kse.eyes.ArrowShape
+  type Whisk = kse.eyes.Whisk
+  final val Whisk = kse.eyes.Whisk
+  final val BinAt = kse.eyes.BinBy.At
 
 
 /** Figure entry point:

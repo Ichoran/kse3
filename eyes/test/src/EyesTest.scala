@@ -207,7 +207,9 @@ class EyesTest {
         assertTrue(s"expected failure mentioning '$part' but the figure rendered", false)
       }{ e => T ~ e.toString.contains(part) ==== true }
     failsWith(Fig(f => f.data((x = ts)) * f.visual(f.Line)), "needs aesthetic 'y'")
-    failsWith(Fig(f => f.data(x = labs, y = vs)), "continuous or temporal")
+    failsWith(Fig(f => f.data(x = ts, y = labs)), "continuous or temporal")
+    failsWith(Fig(f => f.data(x = labs, y = vs)), "use strip")
+    failsWith(Fig(f => f.data(x = labs, y = vs) * f.visual(f.Line)), "categorical")
     failsWith(Fig(f => f.data(x = ts, y = vs, col = ts2) * f.visual(f.Scatter)), "needs a discrete column")
     failsWith(Fig(f => f.data(x = ts, y = vs) * f.smooth(f.Loess(span = -1.0))), "span must be positive")
 
@@ -435,6 +437,226 @@ class EyesTest {
     T ~ s.contains("<polyline") ==== false
     // the y domain covers the whole band, not just one edge
     T ~ (s.contains(">4<") || s.contains(">4.0<")) ==== true
+
+  @Test
+  def categoricalAxisTest(): Unit =
+    val cats = Array("dog", "cat", "bird", "cat", "dog", "dog")
+    val cys = Array(1.0, 2.0, 3.0, 2.5, 1.5, 1.2)
+    val r = Fig(f => f.data(x = cats, y = cys) * f.strip).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    // every level labels the axis, in first-appearance order
+    T ~ s.contains(">dog<") ==== true
+    T ~ s.contains(">cat<") ==== true
+    T ~ s.contains(">bird<") ==== true
+    T ~ (s.indexOf(">dog<") < s.indexOf(">cat<")) ==== true
+    T ~ (s.indexOf(">cat<") < s.indexOf(">bird<")) ==== true
+    // a categorical x draws no vertical gridlines: every gridline is horizontal
+    val grid = "<line x1=\"([-0-9.]+)\" y1=\"([-0-9.]+)\" x2=\"([-0-9.]+)\" y2=\"([-0-9.]+)\" stroke=\"#ECECEC\"".r
+    var gridlines = 0
+    grid.findAllMatchIn(s).foreach: mm =>
+      gridlines += 1
+      T ~ mm.group(2) ==== mm.group(4)
+    T ~ (gridlines > 0) ==== true
+    // six distinct points, six thin rings, none jittered away from their slot
+    T ~ ("<circle[^>]*fill=\"none\"".r.findAllIn(s).length) ==== 6
+
+  @Test
+  def stripOverlapTest(): Unit =
+    // categorical axis: the cross-slot direction carries no content, so ties spread
+    // beeswarm-style — deterministically, never randomly
+    val cats = Array("a", "a", "a", "a", "b")
+    val cys = Array(2.0, 2.0, 2.0, 5.0, 3.0)
+    val r = Fig(f => f.data(x = cats, y = cys) * f.strip).svg()
+    T ~ r.isIs ==== true
+    val ring = "<circle cx=\"([-0-9.]+)\" cy=\"([-0-9.]+)\"[^>]*fill=\"none\" stroke=\"[^\"]+\" stroke-width=\"([0-9.]+)\"".r
+    val rings = ring.findAllMatchIn(r.get).map(mm => (mm.group(1).toDouble, mm.group(2).toDouble, mm.group(3).toDouble)).toArray
+    T ~ rings.length ==== 5
+    val tied = rings.filter(t => rings.count(u => u._2 == t._2) == 3)
+    T ~ tied.length ==== 3
+    // the ties share y, take three distinct x offsets symmetric about the center ring,
+    // and nothing thickened — the spread keeps every point individually visible
+    T ~ tied.map(_._1).distinct.length ==== 3
+    T ~ (rings.map(_._3).max - rings.map(_._3).min < 1e-9) ==== true
+    val txs = tied.map(_._1).sorted
+    T ~ (jm.abs((txs(0) + txs(2)) / 2 - txs(1)) < 0.05) ==== true
+    // continuous axis: x carries content, so ties stay at their literal x and thicken
+    val cxx = Array(1.0, 1.0, 1.0, 2.0)
+    val cyy = Array(2.0, 2.0, 2.0, 3.0)
+    val rc = Fig(f => f.data(x = cxx, y = cyy) * f.strip).svg()
+    T ~ rc.isIs ==== true
+    val widths = "<circle[^>]*fill=\"none\" stroke=\"[^\"]+\" stroke-width=\"([0-9.]+)\"".r
+      .findAllMatchIn(rc.get).map(_.group(1).toDouble).toArray
+    T ~ widths.length ==== 2
+    T ~ (widths.max > widths.min * 1.5) ==== true
+    // translucent mode: every point draws and overlapping ink accumulates
+    val rf = Fig(f => f.data(x = cats, y = cys) * f.strip * f.fade(0.3)).svg()
+    T ~ rf.isIs ==== true
+    T ~ ("<circle[^>]*fill-opacity=\"0.3\"".r.findAllIn(rf.get).length) ==== 5
+
+  @Test
+  def boxplotStatTest(): Unit =
+    // group a: 1..9 plus a far point; group b: tight, nothing unusual
+    val va = Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 30.0)
+    val vb = Array(4.0, 4.5, 5.0, 5.5, 6.0)
+    val cats = Array.fill(va.length)("a") ++ Array.fill(vb.length)("b")
+    val r = Fig(f => f.data(x = cats, y = va ++ vb) * f.boxplot()).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    // two boxes: the only stroked rects
+    T ~ ("<rect[^>]*stroke=".r.findAllIn(s).length) ==== 2
+    // exactly one outlier ring: 30 is beyond 1.5 IQR of group a (q3 7.75, iqr 4.5)
+    T ~ ("<circle[^>]*fill=\"none\"".r.findAllIn(s).length) ==== 1
+    // the outlier joined the domain fit, so the axis reaches it
+    T ~ s.contains(">30<") ==== true
+    // whiskers to the extremes leave nothing to mark as outlying
+    val re = Fig(f => f.data(x = cats, y = va ++ vb) * f.boxplot(f.Whisk.Extremes)).svg()
+    T ~ re.isIs ==== true
+    T ~ ("<circle[^>]*fill=\"none\"".r.findAllIn(re.get).length) ==== 0
+
+  @Test
+  def boxplotDodgeAlignTest(): Unit =
+    // one category, two dodged colour levels; only level v has an outlier, and its ring
+    // must land on level v's box center, not the slot center
+    val cx = Array.fill(20)("g")
+    val grp = Array.tabulate(20)(i => if i < 10 then "u" else "v")
+    val vals = Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 5.0,
+                     1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 30.0)
+    val r = Fig(f => f.data(x = cx, y = vals, color = grp) * f.boxplot() + f.legend("grp")).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    val boxRe = "<rect x=\"([-0-9.]+)\" y=\"[-0-9.]+\" width=\"([0-9.]+)\"[^>]*stroke=".r
+    val boxMid = boxRe.findAllMatchIn(s).map(mm => mm.group(1).toDouble + mm.group(2).toDouble / 2).toArray
+    T ~ boxMid.length ==== 2
+    val ringRe = "<circle cx=\"([-0-9.]+)\"[^>]*fill=\"none\"".r
+    val rings = ringRe.findAllMatchIn(s).map(_.group(1).toDouble).toArray
+    T ~ rings.length ==== 1
+    T ~ (jm.abs(rings(0) - boxMid(1)) < 0.75) ==== true
+    T ~ (jm.abs(boxMid(0) - boxMid(1)) > 10) ==== true
+
+  @Test
+  def boxplotDirectTest(): Unit =
+    // evoking boxes without raw data: a published five-number summary per station
+    val stations = Array("A", "B", "C")
+    val med = Array(5.0, 6.0, 7.0)
+    val q1 = Array(4.0, 5.0, 6.0)
+    val q3 = Array(6.0, 7.0, 8.0)
+    val w0 = Array(2.0, 3.0, 4.0)
+    val w1 = Array(8.0, 9.0, 10.0)
+    val r = Fig(f => f.data(x = stations, y = med, ylow = q1, yhigh = q3, ymin = w0, ymax = w1) * f.visual(f.Boxplot)).svg()
+    T ~ r.isIs ==== true
+    T ~ ("<rect[^>]*stroke=".r.findAllIn(r.get).length) ==== 3
+    // the whisker ends stretch the y domain
+    T ~ (r.get.contains(">2<") && r.get.contains(">10<")) ==== true
+    // a lone whisker end is a mistake, not a style
+    Fig(f => f.data(x = stations, y = med, ylow = q1, yhigh = q3, ymin = w0) * f.visual(f.Boxplot)).svg().fold{ _ =>
+      assertTrue("expected whisker-pair refusal", false)
+    }{ e => T ~ e.toString.contains("both 'ymin' and 'ymax'") ==== true }
+
+  @Test
+  def violinTest(): Unit =
+    val cats = Array.tabulate(40)(i => if i % 2 == 0 then "L" else "R") :+ "S"
+    val vals = Array.tabulate(40)(i => (if i % 2 == 0 then 5.0 else 8.0) + (i % 7) * 0.3) :+ 4.0
+    val r = Fig(f => f.data(x = cats, y = vals) * f.violin()).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ ("<polygon".r.findAllIn(s).length) ==== 2                   // two real violins
+    T ~ ("<circle[^>]*fill=\"none\"".r.findAllIn(s).length) ==== 1  // the 1-point group shows its point
+    T ~ ("<circle[^>]*fill=\"#".r.findAllIn(s).length) ==== 0
+    // each violin is mirror-symmetric about its slot center, row by row
+    val pts = "<polygon points=\"([^\"]+)\"".r.findFirstMatchIn(s).get.group(1).split(" ").map(_.split(","))
+    val n = (pts.length - 1) / 2
+    val mid = (pts(0)(0).toDouble + pts(2 * n - 1)(0).toDouble) / 2
+    var k = 0
+    while k < n do
+      T ~ (jm.abs((pts(k)(0).toDouble + pts(2 * n - 1 - k)(0).toDouble) / 2 - mid) < 0.03) ==== true
+      T ~ pts(k)(1) ==== pts(2 * n - 1 - k)(1)
+      k += 1
+
+  @Test
+  def violinSmallGroupTest(): Unit =
+    // fewer than five points is no distribution: the points show, no bulge is invented
+    val cats = Array("a", "a", "a", "b", "b", "b", "b", "b", "b", "b", "b", "b")
+    val vals = Array(1.0, 2.0, 3.0, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0)
+    val r = Fig(f => f.data(x = cats, y = vals) * f.violin()).svg()
+    T ~ r.isIs ==== true
+    T ~ ("<polygon".r.findAllIn(r.get).length) ==== 1                   // only b has enough points
+    T ~ ("<circle[^>]*fill=\"none\"".r.findAllIn(r.get).length) ==== 3  // a's points, individually
+
+  @Test
+  def binnedOutlierLiteralXTest(): Unit =
+    // an outlier in a bin plots at ITS x, not recentered on the bin's representative
+    val bx = Array(21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 28.0)
+    val by = Array(5.0, 5.2, 5.4, 5.6, 5.8, 6.0, 6.2, 40.0)
+    val r = Fig(f => f.data(x = bx, y = by) * f.binBy(10.0) * f.boxplot()).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    val bm = "<rect x=\"([-0-9.]+)\" y=\"[-0-9.]+\" width=\"([0-9.]+)\"[^>]*stroke=".r.findFirstMatchIn(s).get
+    val boxMid = bm.group(1).toDouble + bm.group(2).toDouble / 2
+    val rings = "<circle cx=\"([-0-9.]+)\"[^>]*fill=\"none\"".r.findAllMatchIn(s).map(_.group(1).toDouble).toArray
+    T ~ rings.length ==== 1
+    // the box sits at the bin center (25); the 28-valued row's ring sits well right of it
+    T ~ (rings(0) - boxMid > 15) ==== true
+
+  @Test
+  def binByTest(): Unit =
+    // four decades of x, one box per decade
+    val bx = Array.tabulate(80)(i => (i % 40) + 0.5)
+    val by = Array.tabulate(80)(i => (i % 40) * 0.5 + (i % 11) * 0.7)
+    val r = Fig(f => f.data(x = bx, y = by) * f.binBy(10.0) * f.boxplot(f.Whisk.Extremes)).svg()
+    T ~ r.isIs ==== true
+    T ~ ("<rect[^>]*stroke=".r.findAllIn(r.get).length) ==== 4
+    // binBy with nothing after it is grouping for nobody
+    Fig(f => f.data(x = bx, y = by) * f.binBy(10.0)).svg().fold{ _ =>
+      assertTrue("expected bare-binBy refusal", false)
+    }{ e => T ~ e.toString.contains("follow it with") ==== true }
+    // a summary on a genuinely continuous x refuses toward binBy...
+    val cxx = Array.tabulate(60)(i => i * 0.618033)
+    val cyy = Array.tabulate(60)(i => i * 0.1)
+    Fig(f => f.data(x = cxx, y = cyy) * f.boxplot()).svg().fold{ _ =>
+      assertTrue("expected distinct-x refusal", false)
+    }{ e => T ~ e.toString.contains("binBy") ==== true }
+    // ...but a small set of repeated numeric conditions groups by distinct value
+    val dose = Array(1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 10.0, 10.0)
+    val resp = Array(2.0, 3.0, 4.0, 5.0, 7.0, 8.0, 9.0, 10.0)
+    val rd = Fig(f => f.data(x = dose, y = resp) * f.boxplot(f.Whisk.Extremes)).svg()
+    T ~ rd.isIs ==== true
+    T ~ ("<rect[^>]*stroke=".r.findAllIn(rd.get).length) ==== 2
+
+  @Test
+  def categoricalBarTest(): Unit =
+    val pets = Array("dog", "cat", "dog", "bird", "dog", "cat")
+    val r = Fig(f => f.data((x = pets)) * f.count).svg()
+    T ~ r.isIs ==== true
+    val s = r.get
+    T ~ (s.split("<rect").length - 1) ==== 4  // three bars + background
+    T ~ (s.contains(">dog<") && s.contains(">cat<") && s.contains(">bird<")) ==== true
+
+  @Test
+  def categoricalFacetTest(): Unit =
+    val cats = Array("a", "b", "a", "b", "a", "b", "a", "b")
+    val vals = Array(1.0, 2.0, 3.0, 4.0, 2.0, 3.0, 4.0, 5.0)
+    val cols = Array("L", "L", "L", "L", "R", "R", "R", "R")
+    val r = Fig(f => f.data(x = cats, y = vals, col = cols) * f.strip).svg()
+    T ~ r.isIs ==== true
+    // both bottom-row panels tick every category
+    T ~ (">a<".r.findAllIn(r.get).length) ==== 2
+    T ~ (">b<".r.findAllIn(r.get).length) ==== 2
+
+  @Test
+  def categoricalMisuseTest(): Unit =
+    def failsWith(fig: Figure, part: String): Unit =
+      fig.svg().fold{ _ =>
+        assertTrue(s"expected failure mentioning '$part' but the figure rendered", false)
+      }{ e => T ~ e.toString.contains(part) ==== true }
+    val cats = Array("a", "b", "c")
+    failsWith(Fig(f => f.data(x = cats, y = vs) * f.strip + f.axis.horz.limit(min = 0.5)), "does not apply to a categorical x")
+    failsWith(Fig(f => f.data(x = cats, y = vs) * f.strip + f.axis.horz.free), "free horizontal scales")
+    failsWith(Fig(f => f.data(x = cats, y = vs) * f.smooth(f.Loess())), "smooth() needs a continuous x")
+    failsWith(Fig(f => f.data(x = cats, y = vs) * f.binBy(2.0) * f.boxplot()), "levels already group")
+    failsWith(Fig(f => f.data((x = cats)) * f.density()), "density() needs a continuous x")
+    failsWith(Fig(f => f.data(x = cats, y = vs) + f.data(x = ts, y = vs)), "cannot mix a categorical x")
+    failsWith(Fig(f => f.data(x = cats, y = vs, ylow = vs) * f.boxplot()), "computes the summary channels itself")
 
   @Test
   def statMisuseTest(): Unit =

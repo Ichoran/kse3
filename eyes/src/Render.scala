@@ -65,6 +65,10 @@ object Render:
   private val tickLen = 4.0
   private val dotRad = 3.5
 
+  // fewer points than this and a violin has no business bulging: the group's points
+  // draw individually instead
+  private val violinMin = 5
+
   /** Type size scale for a figure granted (w, h): an n-fold smaller figure gets sqrt(n)
     * smaller type, with the two dimension ratios combined by RMS so the larger dimension
     * dominates when shrinkage is uneven.  Clamped for legibility.
@@ -106,26 +110,48 @@ object Render:
         out
       case other => Err.break(s"$what needs a discrete column, but its kind is ${other.kind}")
 
-  /** One layer's data resolved to numbers: x always present, the y channels per visual
-    * (Band uses yLo/yHi, everything else ys), colour either discrete indices or continuous
-    * values, facet labels along for the ride.
+  // Channel absence is a zero-length array, never null: a present channel always has one
+  // value per row, so on any layer with rows the two cannot be confused, and every
+  // consumer can index or iterate without a guard.  These are the canonical empties.
+  private val noD = new Array[Double](0)
+  private val noI = new Array[Int](0)
+  private val noS = new Array[String](0)
+  private val noDD = new Array[Array[Double]](0)
+
+  /** One layer's data resolved to numbers: x always present (level indices when the x
+    * axis is categorical), the y channels per visual (Band uses yLo/yHi, Boxplot the
+    * whisker ends yMin/yMax too, everything else ys), `wd` the violin width channel,
+    * colour either discrete indices or continuous values, facet labels along for the
+    * ride.  A zero-length channel is absent; a present channel has one value per row.
+    * `xIdx` is the x grouping (category level or bin index) when x is grouped, and
+    * `slotW` the data-space pitch one group occupies (NaN = derive from spacing);
+    * `xRep` is each row's group representative position when that differs from its
+    * literal x (binned x) — summaries draw at the representative, but each row keeps its
+    * literal x so outliers plot where the data actually is.  `styled` is the constant
+    * colour, empty when unset.
     */
   private final case class Prep(
-    xs: Array[Double], ys: Array[Double] | Null,
-    yLo: Array[Double] | Null, yHi: Array[Double] | Null,
-    xEnd: Array[Double] | Null, yEnd: Array[Double] | Null,
-    colorIdx: Array[Int] | Null, colorVal: Array[Double] | Null,
-    styled: String | Null, edge: EdgeStyle,
+    xs: Array[Double], ys: Array[Double],
+    yLo: Array[Double], yHi: Array[Double],
+    yMin: Array[Double], yMax: Array[Double],
+    xEnd: Array[Double], yEnd: Array[Double],
+    wd: Array[Double], xRep: Array[Double],
+    xIdx: Array[Int], slotW: Double,
+    colorIdx: Array[Int], colorVal: Array[Double],
+    styled: String, edge: EdgeStyle,
     kind: Visual.Kind, layerIdx: Int,
-    colLabs: Array[String] | Null, rowLabs: Array[String] | Null
+    colLabs: Array[String], rowLabs: Array[String]
   )
 
   private final case class Slice(
-    xs: Array[Double], ys: Array[Double] | Null,
-    yLo: Array[Double] | Null, yHi: Array[Double] | Null,
-    xEnd: Array[Double] | Null, yEnd: Array[Double] | Null,
-    colorIdx: Array[Int] | Null, colorVal: Array[Double] | Null,
-    styled: String | Null, edge: EdgeStyle,
+    xs: Array[Double], ys: Array[Double],
+    yLo: Array[Double], yHi: Array[Double],
+    yMin: Array[Double], yMax: Array[Double],
+    xEnd: Array[Double], yEnd: Array[Double],
+    wd: Array[Double],
+    xIdx: Array[Int], slotW: Double,
+    colorIdx: Array[Int], colorVal: Array[Double],
+    styled: String, edge: EdgeStyle,
     kind: Visual.Kind, layerIdx: Int
   )
 
@@ -148,46 +174,49 @@ object Render:
 
   private val plainEdge = EdgeStyle(ArrowShape(), Double.NaN, 1.0, Double.NaN)
 
-  private def sliceFor(p: Prep, cl: String | Null, rl: String | Null): Slice =
+  /** Slices a layer's rows to one facet cell; `clOn`/`rlOn` say whether the figure facets
+    * that dimension at all, so a genuine empty-string level still matches by equality.
+    */
+  private def sliceFor(p: Prep, cl: String, clOn: Boolean, rl: String, rlOn: Boolean): Slice =
     inline def keep(i: Int): Boolean =
-      (cl == null || p.colLabs == null || p.colLabs(i) == cl) &&
-      (rl == null || p.rowLabs == null || p.rowLabs(i) == rl)
+      (!clOn || p.colLabs.length == 0 || p.colLabs(i) == cl) &&
+      (!rlOn || p.rowLabs.length == 0 || p.rowLabs(i) == rl)
     val n = p.xs.length
     var cnt = 0
     var i = 0
     while i < n do
       if keep(i) then cnt += 1
       i += 1
-    if cnt == n then Slice(p.xs, p.ys, p.yLo, p.yHi, p.xEnd, p.yEnd, p.colorIdx, p.colorVal, p.styled, p.edge, p.kind, p.layerIdx)
+    if cnt == n then Slice(p.xs, p.ys, p.yLo, p.yHi, p.yMin, p.yMax, p.xEnd, p.yEnd, p.wd,
+                           p.xIdx, p.slotW, p.colorIdx, p.colorVal, p.styled, p.edge, p.kind, p.layerIdx)
     else
       inline def pick(src: Array[Double]): Array[Double] =
-        val a = new Array[Double](cnt)
-        var j = 0
-        var k = 0
-        while k < n do
-          if keep(k) then
-            a(j) = src(k)
-            j += 1
-          k += 1
-        a
-      val xs = pick(p.xs)
-      val ys = if p.ys == null then null else pick(p.ys)
-      val lo = if p.yLo == null then null else pick(p.yLo)
-      val hi = if p.yHi == null then null else pick(p.yHi)
-      val xe = if p.xEnd == null then null else pick(p.xEnd)
-      val ye = if p.yEnd == null then null else pick(p.yEnd)
-      val cv = if p.colorVal == null then null else pick(p.colorVal)
-      val ci = if p.colorIdx == null then null else
-        val a = new Array[Int](cnt)
-        var j = 0
-        var k = 0
-        while k < n do
-          if keep(k) then
-            a(j) = p.colorIdx(k)
-            j += 1
-          k += 1
-        a
-      Slice(xs, ys, lo, hi, xe, ye, ci, cv, p.styled, p.edge, p.kind, p.layerIdx)
+        if src.length == 0 then src
+        else
+          val a = new Array[Double](cnt)
+          var j = 0
+          var k = 0
+          while k < n do
+            if keep(k) then
+              a(j) = src(k)
+              j += 1
+            k += 1
+          a
+      inline def pickI(src: Array[Int]): Array[Int] =
+        if src.length == 0 then src
+        else
+          val a = new Array[Int](cnt)
+          var j = 0
+          var k = 0
+          while k < n do
+            if keep(k) then
+              a(j) = src(k)
+              j += 1
+            k += 1
+          a
+      Slice(pick(p.xs), pick(p.ys), pick(p.yLo), pick(p.yHi), pick(p.yMin), pick(p.yMax),
+            pick(p.xEnd), pick(p.yEnd), pick(p.wd), pickI(p.xIdx), p.slotW,
+            pickI(p.colorIdx), pick(p.colorVal), p.styled, p.edge, p.kind, p.layerIdx)
 
   private def grid(lo: Double, hi: Double, n: Int): Array[Double] =
     if hi <= lo then Array(lo)
@@ -197,8 +226,11 @@ object Render:
   /// Stat interpretation ///
   ///////////////////////////
 
-  /** One stat group: colour level (or -1) crossed with facet cell (or null). */
-  private final case class GroupKey(ci: Int, cl: String | Null, rl: String | Null)
+  /** One stat group: x group (level or bin, -1 = ungrouped) crossed with colour level
+    * (-1 = unmapped) and facet cell ("" = unfaceted; a layer's facet channel is present
+    * for all rows or none, so no collision with a real empty-string level is possible).
+    */
+  private final case class GroupKey(xi: Int, ci: Int, cl: String, rl: String)
 
   private def groupsOf(p: Prep): (Array[GroupKey], Array[Array[Int]]) =
     val keys = collection.mutable.ArrayBuffer.empty[GroupKey]
@@ -206,9 +238,10 @@ object Render:
     var i = 0
     while i < p.xs.length do
       val k = GroupKey(
-        if p.colorIdx == null then -1 else p.colorIdx(i),
-        if p.colLabs == null then null else p.colLabs(i),
-        if p.rowLabs == null then null else p.rowLabs(i))
+        if p.xIdx.length == 0 then -1 else p.xIdx(i),
+        if p.colorIdx.length == 0 then -1 else p.colorIdx(i),
+        if p.colLabs.length == 0 then "" else p.colLabs(i),
+        if p.rowLabs.length == 0 then "" else p.rowLabs(i))
       var g = keys.indexOf(k)
       if g < 0 then
         g = keys.length
@@ -218,27 +251,36 @@ object Render:
       i += 1
     (keys.toArray, members.map(_.toArray).toArray)
 
-  /** Rebuilds a Prep from per-group output columns, replicating each group's colour level
-    * and facet labels onto every output row — the grouping-column pass-through of the stat
-    * contract.  Continuous colour never survives a stat (checked upstream).
+  /** Rebuilds a Prep from per-group output columns (zero-length outer array = channel not
+    * produced), replicating each group's x group, colour level, and facet labels onto
+    * every output row — the grouping-column pass-through of the stat contract.
+    * Continuous colour never survives a stat (checked upstream).
     */
   private def reassemble(
     p: Prep, keys: Array[GroupKey],
-    gx: Array[Array[Double]], gy: Array[Array[Double]] | Null,
-    gLo: Array[Array[Double]] | Null, gHi: Array[Array[Double]] | Null
+    gx: Array[Array[Double]], gy: Array[Array[Double]],
+    gLo: Array[Array[Double]], gHi: Array[Array[Double]],
+    gMn: Array[Array[Double]], gMx: Array[Array[Double]],
+    gWd: Array[Array[Double]]
   ): Prep =
     var total = 0
     var g = 0
     while g < gx.length do
       total += gx(g).length
       g += 1
+    inline def out(gc: Array[Array[Double]]): Array[Double] =
+      if gc.length == 0 then noD else new Array[Double](total)
     val xs2 = new Array[Double](total)
-    val ys2 = if gy == null then null else new Array[Double](total)
-    val lo2 = if gLo == null then null else new Array[Double](total)
-    val hi2 = if gHi == null then null else new Array[Double](total)
-    val ci2 = if p.colorIdx == null then null else new Array[Int](total)
-    val cl2 = if p.colLabs == null then null else new Array[String](total)
-    val rl2 = if p.rowLabs == null then null else new Array[String](total)
+    val ys2 = out(gy)
+    val lo2 = out(gLo)
+    val hi2 = out(gHi)
+    val mn2 = out(gMn)
+    val mx2 = out(gMx)
+    val wd2 = out(gWd)
+    val xi2 = if p.xIdx.length == 0 then noI else new Array[Int](total)
+    val ci2 = if p.colorIdx.length == 0 then noI else new Array[Int](total)
+    val cl2 = if p.colLabs.length == 0 then noS else new Array[String](total)
+    val rl2 = if p.rowLabs.length == 0 then noS else new Array[String](total)
     var o = 0
     g = 0
     while g < gx.length do
@@ -246,16 +288,22 @@ object Render:
       var k = 0
       while k < ex.length do
         xs2(o) = ex(k)
-        if ys2 != null then ys2(o) = gy(g)(k)
-        if lo2 != null then lo2(o) = gLo(g)(k)
-        if hi2 != null then hi2(o) = gHi(g)(k)
-        if ci2 != null then ci2(o) = keys(g).ci
-        if cl2 != null then cl2(o) = keys(g).cl
-        if rl2 != null then rl2(o) = keys(g).rl
+        if ys2.length > 0 then ys2(o) = gy(g)(k)
+        if lo2.length > 0 then lo2(o) = gLo(g)(k)
+        if hi2.length > 0 then hi2(o) = gHi(g)(k)
+        if mn2.length > 0 then mn2(o) = gMn(g)(k)
+        if mx2.length > 0 then mx2(o) = gMx(g)(k)
+        if wd2.length > 0 then wd2(o) = gWd(g)(k)
+        if xi2.length > 0 then xi2(o) = keys(g).xi
+        if ci2.length > 0 then ci2(o) = keys(g).ci
+        if cl2.length > 0 then cl2(o) = keys(g).cl
+        if rl2.length > 0 then rl2(o) = keys(g).rl
         o += 1
         k += 1
       g += 1
-    Prep(xs2, ys2, lo2, hi2, null, null, ci2, null, p.styled, p.edge, p.kind, p.layerIdx, cl2, rl2)
+    p.copy(xs = xs2, ys = ys2, yLo = lo2, yHi = hi2, yMin = mn2, yMax = mx2,
+           xEnd = noD, yEnd = noD, wd = wd2, xRep = noD, xIdx = xi2, colorIdx = ci2,
+           colorVal = noD, colLabs = cl2, rowLabs = rl2)
 
   private def applySmoother(how: Smoother, sx: Array[Double], sy: Array[Double]): (Array[Double], Array[Double]) =
     if sx.length < 2 then (sx, sy)
@@ -284,9 +332,9 @@ object Render:
     val (keys, members) = groupsOf(p)
     val ng = keys.length
     val gx = new Array[Array[Double]](ng)
-    val gy = if p.ys == null then null else new Array[Array[Double]](ng)
-    val gl = if p.yLo == null then null else new Array[Array[Double]](ng)
-    val gh = if p.yHi == null then null else new Array[Array[Double]](ng)
+    val gy = if p.ys.length == 0 then noDD else new Array[Array[Double]](ng)
+    val gl = if p.yLo.length == 0 then noDD else new Array[Array[Double]](ng)
+    val gh = if p.yHi.length == 0 then noDD else new Array[Array[Double]](ng)
     var g = 0
     while g < ng do
       val order = members(g).sortBy(p.xs(_))
@@ -295,12 +343,12 @@ object Render:
         val (ax, ay) = applySmoother(how, sx, order.map(src(_)))
         gx(g) = ax
         ay
-      if gy != null then gy(g) = run(p.ys)
-      if gl != null then gl(g) = run(p.yLo)
-      if gh != null then gh(g) = run(p.yHi)
+      if gy.length > 0 then gy(g) = run(p.ys)
+      if gl.length > 0 then gl(g) = run(p.yLo)
+      if gh.length > 0 then gh(g) = run(p.yHi)
       if gx(g) == null then gx(g) = sx
       g += 1
-    reassemble(p, keys, gx, gy, gl, gh)
+    reassemble(p, keys, gx, gy, gl, gh, noDD, noDD, noDD)
 
   /** Histogram counts.  All groups share one set of edges (dodged bars align), the width
     * snaps to a nice step so edges land on round numbers, and empty bins are kept so a
@@ -338,7 +386,7 @@ object Render:
       gx(g) = centers
       gy(g) = counts
       g += 1
-    reassemble(p, keys, gx, gy, null, null)
+    reassemble(p, keys, gx, gy, noDD, noDD, noDD, noDD, noDD)
 
   /** Kernel density per group, evaluated on one shared grid covering every group's data
     * plus three bandwidths of tail, so overlaid curves share their extent.  Bandwidth is
@@ -372,7 +420,7 @@ object Render:
       gx(g) = ex
       gy(g) = kse.maths.Smoothing.kdeAt(gxs(g), ex, bw(g))
       g += 1
-    reassemble(p, keys, gx, gy, null, null)
+    reassemble(p, keys, gx, gy, noDD, noDD, noDD, noDD, noDD)
 
   /** Occurrence counts of each distinct x value, per group, x ascending; zero counts are
     * not emitted.  NaN x values are ignored.
@@ -412,35 +460,447 @@ object Render:
       gx(g) = cx
       gy(g) = cy
       g += 1
-    reassemble(p, keys, gx, gy, null, null)
+    reassemble(p, keys, gx, gy, noDD, noDD, noDD, noDD, noDD)
+
+  /** Drops rows whose x is NaN — a row with no x cannot be grouped by x. */
+  private def finiteX(p: Prep): Prep =
+    val n = p.xs.length
+    var cnt = 0
+    var i = 0
+    while i < n do
+      if !p.xs(i).isNaN then cnt += 1
+      i += 1
+    if cnt == n then p
+    else
+      inline def pick(src: Array[Double]): Array[Double] =
+        if src.length == 0 then src
+        else
+          val a = new Array[Double](cnt)
+          var j = 0
+          var k = 0
+          while k < n do
+            if !p.xs(k).isNaN then
+              a(j) = src(k)
+              j += 1
+            k += 1
+          a
+      inline def pickI(src: Array[Int]): Array[Int] =
+        if src.length == 0 then src
+        else
+          val a = new Array[Int](cnt)
+          var j = 0
+          var k = 0
+          while k < n do
+            if !p.xs(k).isNaN then
+              a(j) = src(k)
+              j += 1
+            k += 1
+          a
+      inline def pickS(src: Array[String]): Array[String] =
+        if src.length == 0 then src
+        else
+          val a = new Array[String](cnt)
+          var j = 0
+          var k = 0
+          while k < n do
+            if !p.xs(k).isNaN then
+              a(j) = src(k)
+              j += 1
+            k += 1
+          a
+      p.copy(xs = pick(p.xs), ys = pick(p.ys), yLo = pick(p.yLo), yHi = pick(p.yHi),
+             yMin = pick(p.yMin), yMax = pick(p.yMax), xEnd = pick(p.xEnd), yEnd = pick(p.yEnd),
+             wd = pick(p.wd), xRep = pick(p.xRep), xIdx = pickI(p.xIdx), colorIdx = pickI(p.colorIdx),
+             colorVal = pick(p.colorVal), colLabs = pickS(p.colLabs), rowLabs = pickS(p.rowLabs))
+
+  /** Assigns each row to a bin of x and repositions it at the bin's representative, so a
+    * following summary stat groups per bin and draws there.  All colour levels share one
+    * representative per bin, so dodged summaries stay aligned; `slotW` records the bin
+    * width so the summaries can size themselves to their bin.
+    */
+  private def binByPrep(p0: Prep, width: Double, bins: Int, at: BinBy.At): Ask[Prep] = Ask:
+    val p = finiteX(p0)
+    if p.xs.length == 0 then Err.break("binBy(): no finite x values to bin")
+    var lo = Double.PositiveInfinity
+    var hi = Double.NegativeInfinity
+    var i = 0
+    while i < p.xs.length do
+      val v = p.xs(i)
+      if v < lo then lo = v
+      if v > hi then hi = v
+      i += 1
+    val w =
+      if width == width && width > 0 then width
+      else if hi > lo then Ticks.step((hi - lo) / jm.max(1, bins))
+      else jm.max(1.0, jm.abs(lo) * 0.01)
+    val e0 = jm.floor(lo / w + 1e-9) * w
+    val nb = jm.max(1, jm.ceil((hi - e0) / w - 1e-9).toInt)
+    val xi = new Array[Int](p.xs.length)
+    i = 0
+    while i < p.xs.length do
+      var b = jm.floor((p.xs(i) - e0) / w + 1e-9).toInt
+      if b < 0 then b = 0
+      if b >= nb then b = nb - 1
+      xi(i) = b
+      i += 1
+    val rep = new Array[Double](nb)
+    at match
+      case BinBy.At.Center =>
+        var b = 0
+        while b < nb do
+          rep(b) = e0 + (b + 0.5) * w
+          b += 1
+      case BinBy.At.Mean =>
+        val cnt = new Array[Int](nb)
+        i = 0
+        while i < p.xs.length do
+          rep(xi(i)) += p.xs(i)
+          cnt(xi(i)) += 1
+          i += 1
+        var b = 0
+        while b < nb do
+          rep(b) = if cnt(b) > 0 then rep(b) / cnt(b) else e0 + (b + 0.5) * w
+          b += 1
+      case BinBy.At.Median =>
+        val cnt = new Array[Int](nb)
+        i = 0
+        while i < p.xs.length do
+          cnt(xi(i)) += 1
+          i += 1
+        val vals = new Array[Array[Double]](nb)
+        val fill = new Array[Int](nb)
+        var b = 0
+        while b < nb do
+          vals(b) = new Array[Double](cnt(b))
+          b += 1
+        i = 0
+        while i < p.xs.length do
+          vals(xi(i))(fill(xi(i))) = p.xs(i)
+          fill(xi(i)) += 1
+          i += 1
+        b = 0
+        while b < nb do
+          rep(b) =
+            if cnt(b) == 0 then e0 + (b + 0.5) * w
+            else
+              val s = kse.maths.Quantile.finiteSorted(vals(b), 0, vals(b).length)
+              kse.maths.Quantile.ofSorted(s, 0, s.length)(0.5)
+          b += 1
+    // rows keep their literal x (an outlier at 28 plots at 28, not at its bin's 25);
+    // the per-row representative rides along for the summary bodies to draw at
+    val xr = new Array[Double](p.xs.length)
+    i = 0
+    while i < p.xs.length do
+      xr(i) = rep(xi(i))
+      i += 1
+    p.copy(xRep = xr, xIdx = xi, slotW = w)
+
+  /** Summaries on an ungrouped continuous x group by distinct x value — the natural read
+    * when x is a small set of numeric conditions.  A genuinely continuous x would make a
+    * group per point, which is not a summary of anything: refuse and point at binBy.
+    */
+  private def groupedX(p0: Prep, li: Int, what: String): Ask[Prep] = Ask:
+    if p0.xIdx.length > 0 then p0
+    else
+      val p = finiteX(p0)
+      val distinct = p.xs.distinct.sorted
+      if distinct.length == 0 then Err.break(s"layer ${li + 1}: $what found no finite x values")
+      if distinct.length > 8 && distinct.length * 2 > p.xs.length then
+        Err.break(s"layer ${li + 1}: $what grouped by distinct x would make ${distinct.length} groups of nearly one point each; bin a continuous x first with binBy(...)")
+      val index = collection.mutable.HashMap.empty[Double, Int]
+      var i = 0
+      while i < distinct.length do
+        index(distinct(i)) = i
+        i += 1
+      val xi = new Array[Int](p.xs.length)
+      i = 0
+      while i < p.xs.length do
+        xi(i) = index(p.xs(i))
+        i += 1
+      p.copy(xIdx = xi)
+
+  /** Whisker ends over sorted finite values: the most extreme data within k IQRs of the
+    * box (Tukey — the quartiles are always within, so the scans cannot cross), the given
+    * quantiles, or the extremes.
+    */
+  private def whiskEnds(s: Array[Double], q1: Double, q3: Double, whisk: Whisk): (Double, Double) =
+    val n = s.length
+    whisk match
+      case Whisk.Iqr(k) =>
+        val r = k * (q3 - q1)
+        var a = 0
+        while a < n && s(a) < q1 - r do a += 1
+        var b = n - 1
+        while b >= 0 && s(b) > q3 + r do b -= 1
+        (s(a), s(b))
+      case Whisk.Quantiles(ql, qh) =>
+        (kse.maths.Quantile.ofSorted(s, 0, n)(jm.min(ql, qh)),
+         kse.maths.Quantile.ofSorted(s, 0, n)(jm.max(ql, qh)))
+      case Whisk.Extremes => (s(0), s(n - 1))
+
+  /** Five-number box summary per group, plus the outliers beyond the whiskers as a second
+    * table of individually drawn Strip points — the stat contract's multi-output seam,
+    * exercised for real.  NaN y values are ignored; a group with no finite y emits
+    * nothing.
+    */
+  private def boxPrep(p: Prep, whisk: Whisk): List[Prep] =
+    if p.xs.length == 0 then return p :: Nil
+    val (keys, members) = groupsOf(p)
+    val ng = keys.length
+    val gx = new Array[Array[Double]](ng)
+    val gy = new Array[Array[Double]](ng)
+    val gLo = new Array[Array[Double]](ng)
+    val gHi = new Array[Array[Double]](ng)
+    val gMn = new Array[Array[Double]](ng)
+    val gMx = new Array[Array[Double]](ng)
+    val gox = new Array[Array[Double]](ng)
+    val goy = new Array[Array[Double]](ng)
+    var haveOut = false
+    var g = 0
+    while g < ng do
+      val mem = members(g)
+      val vals = new Array[Double](mem.length)
+      var i = 0
+      while i < mem.length do
+        vals(i) = p.ys(mem(i))
+        i += 1
+      val s = kse.maths.Quantile.finiteSorted(vals, 0, vals.length)
+      if s.length == 0 then
+        gx(g) = noD
+        gy(g) = noD
+        gLo(g) = noD
+        gHi(g) = noD
+        gMn(g) = noD
+        gMx(g) = noD
+        gox(g) = noD
+        goy(g) = noD
+      else
+        val n = s.length
+        val q1 = kse.maths.Quantile.ofSorted(s, 0, n)(0.25)
+        val med = kse.maths.Quantile.ofSorted(s, 0, n)(0.5)
+        val q3 = kse.maths.Quantile.ofSorted(s, 0, n)(0.75)
+        val (wLo, wHi) = whiskEnds(s, q1, q3, whisk)
+        val rep = if p.xRep.length > 0 then p.xRep(mem(0)) else p.xs(mem(0))
+        gx(g) = Array(rep)
+        gy(g) = Array(med)
+        gLo(g) = Array(q1)
+        gHi(g) = Array(q3)
+        gMn(g) = Array(wLo)
+        gMx(g) = Array(wHi)
+        // outliers keep each row's literal x — a binned outlier plots where it is, not
+        // at its bin's representative
+        val ox = collection.mutable.ArrayBuffer.empty[Double]
+        val oy = collection.mutable.ArrayBuffer.empty[Double]
+        i = 0
+        while i < mem.length do
+          val v = p.ys(mem(i))
+          if v == v && (v < wLo || v > wHi) then
+            val _ = ox.addOne(p.xs(mem(i)))
+            val _ = oy.addOne(v)
+          i += 1
+        if ox.isEmpty then
+          gox(g) = noD
+          goy(g) = noD
+        else
+          haveOut = true
+          gox(g) = ox.toArray
+          goy(g) = oy.toArray
+      g += 1
+    val main = reassemble(p, keys, gx, gy, gLo, gHi, gMn, gMx, noDD)
+    if !haveOut then main :: Nil
+    else main :: reassemble(p, keys, gox, goy, noDD, noDD, noDD, noDD, noDD).copy(kind = Visual.Kind.Strip) :: Nil
+
+  /** Kernel density of y per group as the violin width channel — over the whisker-fenced
+    * body only, on the group's own grid trimmed to the body's actual range, normalized so
+    * every violin has the same maximum width.  Outliers, groups with fewer than
+    * `violinMin` points, and zero-spread bodies emit their points individually as a
+    * second Strip table (literal x): a kernel bump over an outlier or a handful of
+    * points looks like statistical support for a gap-and-blip the data does not
+    * contain, so nothing bulges without enough points behind it.  NaN y values are
+    * ignored.
+    */
+  private def violinPrep(p: Prep, bandwidth: Double, whisk: Whisk): List[Prep] =
+    if p.xs.length == 0 then return p :: Nil
+    val (keys, members) = groupsOf(p)
+    val ng = keys.length
+    val gx = new Array[Array[Double]](ng)
+    val gy = new Array[Array[Double]](ng)
+    val gWd = new Array[Array[Double]](ng)
+    val gox = new Array[Array[Double]](ng)
+    val goy = new Array[Array[Double]](ng)
+    var havePts = false
+    var g = 0
+    while g < ng do
+      val mem = members(g)
+      val vals = new Array[Double](mem.length)
+      var i = 0
+      while i < mem.length do
+        vals(i) = p.ys(mem(i))
+        i += 1
+      val s = kse.maths.Quantile.finiteSorted(vals, 0, vals.length)
+      gx(g) = noD
+      gy(g) = noD
+      gWd(g) = noD
+      gox(g) = noD
+      goy(g) = noD
+      if s.length > 0 then
+        val rep = if p.xRep.length > 0 then p.xRep(mem(0)) else p.xs(mem(0))
+        var wLo = s(0)
+        var wHi = s(s.length - 1)
+        var q1 = wLo
+        var q3 = wHi
+        if s.length >= violinMin then
+          q1 = kse.maths.Quantile.ofSorted(s, 0, s.length)(0.25)
+          q3 = kse.maths.Quantile.ofSorted(s, 0, s.length)(0.75)
+          val ends = whiskEnds(s, q1, q3, whisk)
+          wLo = ends._1
+          wHi = ends._2
+        var b0 = 0
+        var b1 = s.length
+        while b0 < s.length && s(b0) < wLo do b0 += 1
+        while b1 > 0 && s(b1 - 1) > wHi do b1 -= 1
+        val body = if b0 == 0 && b1 == s.length then s else java.util.Arrays.copyOfRange(s, b0, b1)
+        val bw =
+          if s.length < violinMin || body.length < violinMin then 0.0
+          else if bandwidth.isNaN then kse.maths.Smoothing.silvermanBandwidth(body)
+          else bandwidth
+        if bw > 0 then
+          // the density tapers past the body by up to three bandwidths — a taper is more
+          // honest than a guillotined end — but never past the numeric fence: for Tukey
+          // whiskers no datum lies between the whisker end and the fence, so the taper
+          // provably cannot wrap an outlier point; for quantile whiskers data sits
+          // immediately past the cut, so there the blunt end is the true shape
+          val (fLo, fHi) = whisk match
+            case Whisk.Iqr(k)          => (q1 - k * (q3 - q1), q3 + k * (q3 - q1))
+            case Whisk.Quantiles(_, _) => (wLo, wHi)
+            case Whisk.Extremes        => (Double.NegativeInfinity, Double.PositiveInfinity)
+          val ex0 = grid(jm.max(body(0) - 3 * bw, fLo), jm.min(body(body.length - 1) + 3 * bw, fHi), 96)
+          val d0 = kse.maths.Smoothing.kdeAt(body, ex0, bw)
+          var mx = 0.0
+          i = 0
+          while i < d0.length do
+            if d0(i) > mx then mx = d0(i)
+            i += 1
+          if mx > 0 then
+            i = 0
+            while i < d0.length do
+              d0(i) /= mx
+              i += 1
+          // drop near-zero filament ends (outside the body only) so the taper closes
+          var a0 = 0
+          var a1 = d0.length - 1
+          while a0 < a1 && d0(a0) < 0.012 && ex0(a0) < body(0) do a0 += 1
+          while a1 > a0 && d0(a1) < 0.012 && ex0(a1) > body(body.length - 1) do a1 -= 1
+          val ex = java.util.Arrays.copyOfRange(ex0, a0, a1 + 1)
+          val d = java.util.Arrays.copyOfRange(d0, a0, a1 + 1)
+          gx(g) = Array.fill(ex.length)(rep)
+          gy(g) = ex
+          gWd(g) = d
+          val ox = collection.mutable.ArrayBuffer.empty[Double]
+          val oy = collection.mutable.ArrayBuffer.empty[Double]
+          i = 0
+          while i < mem.length do
+            val v = p.ys(mem(i))
+            if v == v && (v < wLo || v > wHi) then
+              val _ = ox.addOne(p.xs(mem(i)))
+              val _ = oy.addOne(v)
+            i += 1
+          if ox.nonEmpty then
+            havePts = true
+            gox(g) = ox.toArray
+            goy(g) = oy.toArray
+        else
+          // no density worth drawing: every point in the group shows individually
+          val ox = new Array[Double](s.length)
+          val oy = new Array[Double](s.length)
+          var j = 0
+          i = 0
+          while i < mem.length do
+            val v = p.ys(mem(i))
+            if v == v then
+              ox(j) = p.xs(mem(i))
+              oy(j) = v
+              j += 1
+            i += 1
+          havePts = true
+          gox(g) = ox
+          goy(g) = oy
+      g += 1
+    val main = reassemble(p, keys, gx, gy, noDD, noDD, noDD, noDD, gWd)
+    if !havePts then main :: Nil
+    else main :: reassemble(p, keys, gox, goy, noDD, noDD, noDD, noDD, noDD).copy(kind = Visual.Kind.Strip) :: Nil
 
   private def statName(st: Stat): String = st match
-    case Smooth(_)  => "smooth()"
-    case Bin(_)     => "bin()"
-    case Density(_) => "density()"
-    case Count      => "count"
+    case Smooth(_)     => "smooth()"
+    case Bin(_)        => "bin()"
+    case Density(_)    => "density()"
+    case Count         => "count"
+    case BinBy(_, _, _) => "binBy()"
+    case BoxSummary(_)  => "boxplot()"
+    case YDensity(_, _) => "violin()"
 
-  /** Runs a layer's stats in declared order.  The distribution stats consume x and refuse
-    * a mapped y; no stat can carry continuous colour through (there is no level to group
-    * by), so that combination refuses too.
+  /** Runs a layer's stats in declared order; a summary stat (boxplot/violin) may emit a
+    * second table (outliers) and must come last.  The distribution stats consume x and
+    * refuse a mapped y; the summary stats consume y grouped by x.  No stat can carry
+    * continuous colour through (there is no level to group by), so that combination
+    * refuses too.
     */
-  private def statted(p: Prep, stats: List[Stat], li: Int): Ask[Prep] = Ask:
+  private def statted(p: Prep, stats: List[Stat], li: Int, catX: Boolean): Ask[List[Prep]] = Ask:
     var q = p
+    var side: List[Prep] = Nil
+    var closed = ""
     stats.foreach: st =>
-      if q.xEnd != null || q.yEnd != null then
+      if closed.nonEmpty then
+        Err.break(s"layer ${li + 1}: ${statName(st)} cannot follow $closed — a summary stat comes last")
+      if q.xEnd.length > 0 || q.yEnd.length > 0 then
         Err.break(s"layer ${li + 1}: ${statName(st)} cannot transform edge geometry ('xend'/'yend'); compute the endpoints yourself")
-      if q.colorVal != null then
+      if q.colorVal.length > 0 then
         Err.break(s"layer ${li + 1}: ${statName(st)} cannot carry continuous colour through; use discrete colour to group the output")
       st match
-        case Smooth(how) => q = smoothPrep(q, how)
+        case Smooth(how) =>
+          if catX then Err.break(s"layer ${li + 1}: smooth() needs a continuous x, but the x axis is categorical")
+          if q.xIdx.length > 0 then Err.break(s"layer ${li + 1}: smooth() cannot follow binBy(); binBy() groups for a summary stat")
+          q = smoothPrep(q, how)
+        case BinBy(w, n, at) =>
+          if catX then Err.break(s"layer ${li + 1}: binBy() bins a continuous x, but the x axis is categorical — its levels already group")
+          if q.xIdx.length > 0 then Err.break(s"layer ${li + 1}: binBy() applied twice")
+          q = binByPrep(q, w, n, at).?
+        case BoxSummary(whisk) =>
+          if q.ys.length == 0 then Err.break(s"layer ${li + 1}: boxplot() summarizes 'y' grouped by 'x'; map aesthetic 'y'")
+          if q.yLo.length > 0 || q.yHi.length > 0 || q.yMin.length > 0 || q.yMax.length > 0 || q.wd.length > 0 then
+            Err.break(s"layer ${li + 1}: boxplot() computes the summary channels itself; map them directly with visual(Boxplot) and no stat instead")
+          boxPrep(groupedX(q, li, "boxplot()").?, whisk) match
+            case main :: rest =>
+              q = main
+              side = rest
+            case _ => ()
+          closed = "boxplot()"
+        case YDensity(bw, whisk) =>
+          if q.ys.length == 0 then Err.break(s"layer ${li + 1}: violin() summarizes 'y' grouped by 'x'; map aesthetic 'y'")
+          if q.yLo.length > 0 || q.yHi.length > 0 || q.yMin.length > 0 || q.yMax.length > 0 || q.wd.length > 0 then
+            Err.break(s"layer ${li + 1}: violin() computes the width channel itself; map 'width' directly with visual(Violin) and no stat instead")
+          violinPrep(groupedX(q, li, "violin()").?, bw, whisk) match
+            case main :: rest =>
+              q = main
+              side = rest
+            case _ => ()
+          closed = "violin()"
         case other =>
-          if q.ys != null || q.yLo != null || q.yHi != null then
+          if q.xIdx.length > 0 && !catX then
+            Err.break(s"layer ${li + 1}: after binBy(), use boxplot() or violin(); ${statName(other)} does not summarize groups")
+          if q.ys.length > 0 || q.yLo.length > 0 || q.yHi.length > 0 then
             Err.break(s"layer ${li + 1}: ${statName(other)} computes 'y' from the x values; remove the layer's y mapping")
           other match
-            case Bin(bins)   => q = binPrep(q, bins)
-            case Density(bw) => q = densityPrep(q, bw)
-            case _           => q = countPrep(q)
-    q
+            case Bin(bins) =>
+              if catX then Err.break(s"layer ${li + 1}: bin() needs a continuous x; on a categorical axis use count")
+              q = binPrep(q, bins)
+            case Density(bw) =>
+              if catX then Err.break(s"layer ${li + 1}: density() needs a continuous x; on a categorical axis use count")
+              q = densityPrep(q, bw)
+            case _ => q = countPrep(q)
+    if stats.lastOption.exists(_.isInstanceOf[BinBy]) then
+      Err.break(s"layer ${li + 1}: binBy() groups for a summary stat; follow it with boxplot() or violin()")
+    q :: side
 
   //////////////////////////
   /// Blocks and drawing ///
@@ -454,9 +914,10 @@ object Render:
   private final class Panel(
     slices: Seq[Slice],
     x0: Double, x1: Double, y0: Double, y1: Double,
+    xCats: Array[String],
     hue: Hue,
     showLeft: Boolean, showBottom: Boolean,
-    colStrip: String | Null, rowStrip: String | Null,
+    colStrip: String, rowStrip: String,
     xTickN: Int, yTickN: Int,
     xMinor: Minor, yMinor: Minor,
     xInk: Ink, yInk: Ink,
@@ -467,10 +928,34 @@ object Render:
     private val lab = labSz * fs
     private val tick = tickLen * fs
 
+    // A categorical axis carries no information across its width, so the panel asks for
+    // its natural width — slots times a per-visual pitch — and never stretches past it:
+    // three boxes across a wide canvas should read as three boxes, not three planks, and
+    // twenty-odd bars should fit a square comfortably.  Granted less, everything already
+    // degrades (glyph caps shrink, swarms compress into partial overlap).
+    private lazy val natW: Double =
+      if xCats.length == 0 then Double.PositiveInfinity
+      else
+        var per = 0.0
+        slices.foreach: s =>
+          val b = s.kind match
+            case Visual.Kind.Bar     => 22.0
+            case Visual.Kind.Boxplot => 30.0
+            case Visual.Kind.Violin  => 40.0
+            case Visual.Kind.Strip   => 52.0  // widest: swarm spread actually encodes count
+            case _                   => 24.0
+          val nLev = if s.colorIdx.length == 0 then 1 else levelCount
+          if b * nLev > per then per = b * nLev
+        if per == 0 then per = 24.0
+        xCats.length * per * fs
+
+    override def widthPref: Size =
+      if xCats.length > 0 then Size.Fixed(natW) else Size.Auto
+
     // data positions this panel draws as marker discs: an arrow tip aimed bit-exactly at
     // one of these backs off to the disc's edge by default rather than vanishing under it
     private val dotted: collection.Set[(Long, Long)] =
-      if !slices.exists(s => s.kind == Visual.Kind.Arrow && s.xEnd != null) then Set.empty
+      if !slices.exists(s => s.kind == Visual.Kind.Arrow && s.xEnd.length > 0) then Set.empty
       else
         val b = collection.mutable.HashSet.empty[(Long, Long)]
         slices.foreach: s =>
@@ -491,13 +976,40 @@ object Render:
         ts = Ticks.linear(lo, hi, t)
       ts
     private def xTicks(w: Double): Ticks =
-      val t = if xTickN > 0 then xTickN else jm.max(2, jm.min(8, (w / (lab * 7.5)).toInt))
-      fitTicks(x0, x1, t, jm.max(2, (w / (lab * 4.5)).toInt))
+      if xCats.length > 0 then new Ticks(Array.tabulate(xCats.length)(_.toDouble), xCats, noD)
+      else
+        val t = if xTickN > 0 then xTickN else jm.max(2, jm.min(8, (w / (lab * 7.5)).toInt))
+        fitTicks(x0, x1, t, jm.max(2, (w / (lab * 4.5)).toInt))
     private def yTicks(h: Double): Ticks =
       val t = if yTickN > 0 then yTickN else jm.max(2, jm.min(8, (h / (m.lineHeight(lab) * 4.5)).toInt))
       fitTicks(y0, y1, t, jm.max(2, (h / (m.lineHeight(lab) * 1.5)).toInt))
 
-    def protrusions(w: Double, h: Double): Prot =
+    private lazy val catMaxW: Double = xCats.foldLeft(0.0)((w, s) => jm.max(w, m.width(s, lab)))
+
+    // category labels never drop and never touch: horizontal while they fit the slot
+    // pitch, then diagonal (adjacent baselines are pitch*sin40 apart), then vertical
+    private def catRot(w: Double): Int =
+      if xCats.length == 0 then 0
+      else
+        val pitch = w / jm.max(1, xCats.length)
+        if catMaxW + 6 * fs <= pitch then 0
+        else if m.lineHeight(lab) * 1.556 + 2 * fs <= pitch then -40
+        else -90
+
+    // when even vertical labels would touch, label every k-th category (ticks still mark
+    // every one; each drawn label sits at its true slot)
+    private def catEvery(w: Double): Int =
+      if xCats.length == 0 then 1
+      else
+        val rot = catRot(w)
+        if rot != -90 then 1
+        else
+          val pitch = w / jm.max(1, xCats.length)
+          val need = m.lineHeight(lab) + 2 * fs
+          if need <= pitch then 1 else jm.ceil(need / pitch).toInt
+
+    def protrusions(w0: Double, h: Double): Prot =
+      val w = jm.min(w0, natW)
       val yt = if showLeft then yTicks(h) else null
       val xt = if showBottom then xTicks(w) else null
       val yLabels =
@@ -506,22 +1018,33 @@ object Render:
       // centered x tick labels overhang the content rect at its corners; reporting the
       // real overhang as protrusion keeps them on canvas (and out of neighbor panels)
       def atX(v: Double): Double = if x1 > x0 then (v - x0) / (x1 - x0) * w else 0.0
+      val rot = if xt != null then catRot(w) else 0
       var xLeft = 0.0
       var xRight = 0.0
       if xt != null && xt.length > 0 then
-        xLeft = jm.max(0.0, m.width(xt.labels(0), lab) / 2 - atX(xt.values(0)))
-        xRight = jm.max(0.0, atX(xt.values(xt.length - 1)) + m.width(xt.labels(xt.length - 1), lab) / 2 - w)
+        if rot == 0 then
+          xLeft = jm.max(0.0, m.width(xt.labels(0), lab) / 2 - atX(xt.values(0)))
+          xRight = jm.max(0.0, atX(xt.values(xt.length - 1)) + m.width(xt.labels(xt.length - 1), lab) / 2 - w)
+        else if rot == -40 then
+          // end-anchored diagonal labels extend down-left of their tick
+          xLeft = jm.max(0.0, 0.766 * catMaxW - atX(xt.values(0)))
+        else
+          xLeft = jm.max(0.0, m.lineHeight(lab) / 2 - atX(xt.values(0)))
       // and the topmost y label's cap can poke about half a line above the content top
       var yTop = 0.0
       if yt != null && yt.length > 0 then
         val dTop = if y1 > y0 then h * (1.0 - (yt.values(yt.length - 1) - y0) / (y1 - y0)) else h
         yTop = jm.max(0.0, m.lineHeight(lab) / 2 - dTop)
       val left = jm.max(yLabels, xLeft)
-      val right = jm.max(if rowStrip != null then m.width(rowStrip, lab) + 8 * fs else 0.0, xRight)
-      val top = jm.max(if colStrip != null then m.lineHeight(lab) + 4 * fs else 0.0, yTop)
+      val right = jm.max(if rowStrip.nonEmpty then m.width(rowStrip, lab) + 8 * fs else 0.0, xRight)
+      val top = jm.max(if colStrip.nonEmpty then m.lineHeight(lab) + 4 * fs else 0.0, yTop)
       // exactly the labels' extent (drawn at bottom + half frame + tick + 2 within a line
       // box); any extra here reads as dead space between the labels and the axis title
-      val bottom = if showBottom then m.lineHeight(lab) + axisHalf + tick + 2 * fs else 0.0
+      val xLabDepth =
+        if rot == 0 then m.lineHeight(lab)
+        else if rot == -40 then 0.643 * catMaxW + 0.766 * m.lineHeight(lab)
+        else catMaxW + 2 * fs
+      val bottom = if showBottom then xLabDepth + axisHalf + tick + 2 * fs else 0.0
       Prot(left, right, top, bottom)
 
     private def levelCount: Int = hue match
@@ -529,14 +1052,14 @@ object Render:
       case _             => 1
 
     private def flatColour(s: Slice): String =
-      if s.styled != null then s.styled
+      if s.styled.nonEmpty then s.styled
       else hue match
         case Hue.Off => palette(s.layerIdx % palette.length)
         case _       => neutral
 
     private def pointColour(s: Slice, i: Int): String =
-      if s.colorIdx != null then palette(s.colorIdx(i) % palette.length)
-      else if s.colorVal != null then
+      if s.colorIdx.length > 0 then palette(s.colorIdx(i) % palette.length)
+      else if s.colorVal.length > 0 then
         hue match
           case Hue.Ramp(lo, hi) =>
             val v = s.colorVal(i)
@@ -550,7 +1073,7 @@ object Render:
       */
     private def levelIdx(s: Slice, lv: Int): Array[Int] =
       val all =
-        if s.colorIdx == null then Array.range(0, s.xs.length)
+        if s.colorIdx.length == 0 then Array.range(0, s.xs.length)
         else
           val b = collection.mutable.ArrayBuffer.empty[Int]
           var i = 0
@@ -561,8 +1084,101 @@ object Render:
       all.sortBy(s.xs(_))
 
     private def presentLevels(s: Slice): Array[Int] =
-      if s.colorIdx == null then Array(-1)
+      if s.colorIdx.length == 0 then Array(-1)
       else s.colorIdx.distinct.sorted
+
+    /** Slot pitch in data units for grouped visuals: the recorded bin width or category
+      * pitch, else the smallest gap between distinct x positions, else a tenth of the
+      * span.
+      */
+    private def pitchOf(s: Slice): Double =
+      if !s.slotW.isNaN then s.slotW
+      else
+        val distinct = s.xs.distinct.sorted
+        var gap = Double.PositiveInfinity
+        var i = 1
+        while i < distinct.length do
+          val d = distinct(i) - distinct(i - 1)
+          if d > 0 && d < gap then gap = d
+          i += 1
+        if gap < Double.PositiveInfinity then gap else (x1 - x0) / 10.0
+
+    /** Dodged sub-slot for colour level `lv` within a group's slot: (center offset from
+      * the slot position, sub-slot width), in data units.  Strip, Boxplot, and Violin
+      * share the centers, so a box's outliers land exactly on their dodged box; each
+      * visual sizes its own glyph within the sub-slot, capped in px — a box or violin is
+      * a glyph, and the cross-slot direction carries no information, so its width must
+      * not grow with panel size.
+      */
+    private def dodge(s: Slice, lv: Int): (Double, Double) =
+      val full = 0.78 * pitchOf(s)
+      val nLev = if s.colorIdx.length == 0 then 1 else levelCount
+      val sub = full / nLev
+      val lvv = if lv < 0 then 0 else lv
+      (-full / 2 + (lvv + 0.5) * sub, sub)
+
+    /** Deterministic beeswarm within each (slot, colour) group: points in y order take
+      * the nearest horizontal offset that clears the already-placed — no randomness, and
+      * spreading is honest here only because a categorical slot's cross direction
+      * carries no content.  A swarm wider than the dodged sub-slot compresses
+      * proportionally, so the bees partially overlap rather than the slot bloating —
+      * fine, since rings keep overlaps visible.
+      */
+    private def swarm(s: Slice, pxA: Array[Double], pyA: Array[Double], r: Double, pxPerX: Double): Unit =
+      val d = 2 * r + 1.2
+      val groups = collection.mutable.LinkedHashMap.empty[(Long, Int), collection.mutable.ArrayBuffer[Int]]
+      var i = 0
+      while i < s.xs.length do
+        val key = (java.lang.Double.doubleToLongBits(s.xs(i)), if s.colorIdx.length == 0 then -1 else s.colorIdx(i))
+        val buf = groups.getOrElseUpdate(key, collection.mutable.ArrayBuffer.empty[Int])
+        val _ = buf.addOne(i)
+        i += 1
+      groups.foreach: (key, idxs) =>
+        val (_, sub) = dodge(s, key._2)
+        val cap = jm.max(2.0, 0.45 * sub * pxPerX - r)
+        val order = idxs.toArray.sortBy(j => (s.ys(j), j))
+        val offs = new Array[Double](order.length)
+        val placedX = new Array[Double](order.length)
+        val placedY = new Array[Double](order.length)
+        var np = 0
+        var maxAbs = 0.0
+        order.foreach: j =>
+          val py = pyA(j)
+          val cx = pxA(j)
+          val cands = collection.mutable.ArrayBuffer(0.0)
+          var k = np - 1
+          while k >= 0 && placedY(k) - py < d do
+            val dy = placedY(k) - py
+            val dx = jm.sqrt(jm.max(0.0, d * d - dy * dy))
+            val _ = cands.addOne(placedX(k) - cx + dx)
+            val _ = cands.addOne(placedX(k) - cx - dx)
+            k -= 1
+          val sorted = cands.toArray.sortBy(c => (jm.abs(c), c))
+          // the outermost flank of the outermost neighbor is always clear, so this finds
+          // a candidate; placement is unclamped and the whole group compresses after
+          var chosen = Double.NaN
+          var ci = 0
+          while chosen.isNaN && ci < sorted.length do
+            val c = sorted(ci)
+            var clear = true
+            var k2 = np - 1
+            while clear && k2 >= 0 && placedY(k2) - py < d do
+              val ddx = cx + c - placedX(k2)
+              val ddy = placedY(k2) - py
+              if ddx * ddx + ddy * ddy < d * d - 1e-6 then clear = false
+              k2 -= 1
+            if clear then chosen = c
+            ci += 1
+          offs(np) = chosen
+          placedX(np) = cx + chosen
+          placedY(np) = py
+          if jm.abs(chosen) > maxAbs then maxAbs = jm.abs(chosen)
+          np += 1
+        val squeeze = if maxAbs > cap then cap / maxAbs else 1.0
+        var k = 0
+        while k < order.length do
+          pxA(order(k)) = pxA(order(k)) + offs(k) * squeeze
+          k += 1
 
     private def drawSlice(s: Slice, rect: Rect, sx: Double => Double, sy: Double => Double, occ: Occupancy | Null, put: Glyph => Unit): Unit =
       val flat = flatColour(s)
@@ -572,9 +1188,149 @@ object Render:
           while i < s.xs.length do
             val px = sx(s.xs(i))
             val py = sy(s.ys(i))
-            put(Glyph.Disc(px, py, dotRad * fs, pointColour(s, i)))
+            put(Glyph.Disc(px, py, dotRad * fs, pointColour(s, i), s.edge.alpha))
             if occ != null then occ.markDisc(px, py, dotRad * fs + 2)
             i += 1
+        case Visual.Kind.Strip =>
+          // never jittered: on a categorical axis points spread beeswarm-style — the
+          // cross-slot direction carries no content there — while anywhere x means
+          // something (a continuous axis, binned summaries' outliers) each point sits at
+          // its literal x.  Overlap shows honestly: under fade(), translucent discs
+          // accumulate ink; otherwise thin rings merge only when a reader could not tell
+          // separate rings apart anyway, thickening with the count until solid.
+          val r = dotRad * fs * 0.85
+          val pxPerX = rect.w / (x1 - x0)
+          val nPts = s.xs.length
+          val pxA = new Array[Double](nPts)
+          val pyA = new Array[Double](nPts)
+          var i = 0
+          while i < nPts do
+            val off =
+              if xCats.length > 0 && s.xIdx.length > 0 then
+                dodge(s, if s.colorIdx.length == 0 then -1 else s.colorIdx(i))._1
+              else 0.0
+            pxA(i) = sx(s.xs(i) + off)
+            pyA(i) = sy(s.ys(i))
+            i += 1
+          if xCats.length > 0 then swarm(s, pxA, pyA, r, pxPerX)
+          if s.edge.alpha < 1 then
+            i = 0
+            while i < nPts do
+              put(Glyph.Disc(pxA(i), pyA(i), r, pointColour(s, i), s.edge.alpha))
+              if occ != null then occ.markDisc(pxA(i), pyA(i), r + 2)
+              i += 1
+          else
+            val eps = jm.max(1.0, 0.45 * r)
+            val cx = collection.mutable.ArrayBuffer.empty[Double]
+            val cy = collection.mutable.ArrayBuffer.empty[Double]
+            val cc = collection.mutable.ArrayBuffer.empty[String]
+            val cn = collection.mutable.ArrayBuffer.empty[Int]
+            val cells = collection.mutable.HashMap.empty[(Long, Long, Int), List[Int]]
+            i = 0
+            while i < nPts do
+              val lv = if s.colorIdx.length == 0 then -1 else s.colorIdx(i)
+              val px = pxA(i)
+              val py = pyA(i)
+              val gx0 = jm.floor(px / eps).toLong
+              val gy0 = jm.floor(py / eps).toLong
+              var found = -1
+              var dx = -1
+              while dx <= 1 && found < 0 do
+                var dy = -1
+                while dy <= 1 && found < 0 do
+                  cells.getOrElse((gx0 + dx, gy0 + dy, lv), Nil).foreach: id =>
+                    if found < 0 then
+                      val ddx = cx(id) - px
+                      val ddy = cy(id) - py
+                      if ddx * ddx + ddy * ddy <= eps * eps then found = id
+                  dy += 1
+                dx += 1
+              if found >= 0 then cn(found) += 1
+              else
+                val id = cx.length
+                val _ = cx.addOne(px)
+                val _ = cy.addOne(py)
+                val _ = cc.addOne(pointColour(s, i))
+                val _ = cn.addOne(1)
+                val key = (gx0, gy0, lv)
+                cells(key) = id :: cells.getOrElse(key, Nil)
+              i += 1
+            var c = 0
+            while c < cx.length do
+              val w0 = 0.9 * fs * jm.sqrt(cn(c).toDouble)
+              if w0 >= r then put(Glyph.Disc(cx(c), cy(c), r, cc(c)))
+              else put(Glyph.Ring(cx(c), cy(c), r - w0 / 2, cc(c), w0))
+              if occ != null then occ.markDisc(cx(c), cy(c), r + 2)
+              c += 1
+        case Visual.Kind.Boxplot =>
+          val hasWh = s.yMin.length > 0
+          val lw = jm.max(1.0, 1.2 * fs)
+          val pxPerX = rect.w / (x1 - x0)
+          var i = 0
+          while i < s.xs.length do
+            val lv = if s.colorIdx.length == 0 then -1 else s.colorIdx(i)
+            val (off, sub) = dodge(s, lv)
+            val hw = jm.min(11 * fs, 0.3 * sub * pxPerX) / pxPerX
+            val cxp = sx(s.xs(i) + off)
+            val xL = sx(s.xs(i) + off - hw)
+            val xR = sx(s.xs(i) + off + hw)
+            val colour = if lv >= 0 then palette(lv % palette.length) else flatColour(s)
+            val yMed = sy(s.ys(i))
+            val yQ1 = sy(s.yLo(i))
+            val yQ3 = sy(s.yHi(i))
+            if hasWh then
+              val yW0 = sy(s.yMin(i))
+              val yW1 = sy(s.yMax(i))
+              val capw = 0.25 * (xR - xL)
+              put(Glyph.Segment(cxp, yW0, cxp, yQ1, colour, lw))
+              put(Glyph.Segment(cxp, yQ3, cxp, yW1, colour, lw))
+              put(Glyph.Segment(cxp - capw, yW0, cxp + capw, yW0, colour, lw))
+              put(Glyph.Segment(cxp - capw, yW1, cxp + capw, yW1, colour, lw))
+              if occ != null then occ.markSegment(cxp, yW0, cxp, yW1, 2)
+            put(Glyph.Box(xL, yQ3, xR - xL, jm.max(0.0, yQ1 - yQ3), colour, 0.18, colour, lw))
+            put(Glyph.Segment(xL, yMed, xR, yMed, colour, jm.max(1.6, 2.0 * fs)))
+            if occ != null then occ.markBox(xL, yQ3, xR - xL, jm.max(0.0, yQ1 - yQ3))
+            i += 1
+        case Visual.Kind.Violin =>
+          // rows of one violin are contiguous, share an x position and colour level, and
+          // run in y order (the stat emits them so; direct mapping must supply them so)
+          val pxPerX = rect.w / (x1 - x0)
+          var i = 0
+          while i < s.xs.length do
+            val xb = java.lang.Double.doubleToLongBits(s.xs(i))
+            val lv = if s.colorIdx.length == 0 then -1 else s.colorIdx(i)
+            var j = i + 1
+            while j < s.xs.length
+                  && java.lang.Double.doubleToLongBits(s.xs(j)) == xb
+                  && (if s.colorIdx.length == 0 then -1 else s.colorIdx(j)) == lv do
+              j += 1
+            val (off, sub) = dodge(s, lv)
+            val hw = jm.min(16 * fs, 0.45 * sub * pxPerX) / pxPerX
+            val colour = if lv >= 0 then palette(lv % palette.length) else flatColour(s)
+            val n = j - i
+            if n == 1 then
+              put(Glyph.Disc(sx(s.xs(i) + off), sy(s.ys(i)), jm.max(2.0, 2.2 * fs), colour))
+            else
+              val px = new Array[Double](2 * n + 1)
+              val py = new Array[Double](2 * n + 1)
+              var k = 0
+              while k < n do
+                val yv = sy(s.ys(i + k))
+                px(k) = sx(s.xs(i + k) + off + s.wd(i + k) * hw)
+                py(k) = yv
+                px(2 * n - 1 - k) = sx(s.xs(i + k) + off - s.wd(i + k) * hw)
+                py(2 * n - 1 - k) = yv
+                k += 1
+              px(2 * n) = px(0)
+              py(2 * n) = py(0)
+              put(Glyph.Poly(px, py, colour, 0.3))
+              put(Glyph.Polyline(px, py, colour, jm.max(0.9, 1.1 * fs)))
+              if occ != null then
+                k = 0
+                while k < n do
+                  occ.markSegment(px(2 * n - 1 - k), py(k), px(k), py(k), 1.0, 0.5)
+                  k += 1
+            i = j
         case Visual.Kind.Line =>
           inline def polyline(idx: IndexedSeq[Int], colour: String): Unit =
             val px = idx.map(i => sx(s.xs(i))).toArray
@@ -585,13 +1341,12 @@ object Render:
               while i < px.length do
                 occ.markSegment(px(i - 1), py(i - 1), px(i), py(i), 2 * fs)
                 i += 1
-          s.colorIdx match
-            case null =>
-              if s.xs.length >= 2 then polyline(0 until s.xs.length, flat)
-            case ci =>
-              presentLevels(s).foreach: lv =>
-                val idx = (0 until s.xs.length).filter(i => ci(i) == lv)
-                if idx.length >= 2 then polyline(idx, palette(lv % palette.length))
+          if s.colorIdx.length == 0 then
+            if s.xs.length >= 2 then polyline(0 until s.xs.length, flat)
+          else
+            presentLevels(s).foreach: lv =>
+              val idx = (0 until s.xs.length).filter(i => s.colorIdx(i) == lv)
+              if idx.length >= 2 then polyline(idx, palette(lv % palette.length))
         case Visual.Kind.Band =>
           presentLevels(s).foreach: lv =>
             val idx = levelIdx(s, lv)
@@ -687,28 +1442,20 @@ object Render:
             if occ != null then occ.markSegment(px, py, qx, qy, sh.headHalfWidth * fs)
             i += 1
         case Visual.Kind.Bar =>
-          val distinct = s.xs.distinct.sorted
-          var gap = Double.PositiveInfinity
-          var i = 1
-          while i < distinct.length do
-            val d = distinct(i) - distinct(i - 1)
-            if d > 0 && d < gap then gap = d
-            i += 1
-          if !(gap < Double.PositiveInfinity) then gap = (x1 - x0) / 10.0
-          val full = 0.9 * gap
-          val nLev = if s.colorIdx == null then 1 else levelCount
+          val full = 0.9 * pitchOf(s)
+          val nLev = if s.colorIdx.length == 0 then 1 else levelCount
           val slot = full / nLev
           val pxPerX = rect.w / (x1 - x0)
           val base = jm.min(rect.bottom, jm.max(rect.y, sy(0.0)))
-          i = 0
+          var i = 0
           while i < s.xs.length do
             if s.ys(i) != 0.0 then
-              val lv = if s.colorIdx == null then 0 else s.colorIdx(i)
+              val lv = if s.colorIdx.length == 0 then 0 else s.colorIdx(i)
               val xL = sx(s.xs(i) - full / 2 + lv * slot)
               val yp = sy(s.ys(i))
               val top = jm.min(yp, base)
               val hgt = jm.abs(yp - base)
-              val fill = if s.colorIdx == null then flat else palette(lv % palette.length)
+              val fill = if s.colorIdx.length == 0 then flat else palette(lv % palette.length)
               if hgt > 0.01 then
                 val bwPx = jm.max(0.5, slot * pxPerX)
                 put(Glyph.Box(xL, top, bwPx, hgt, fill))
@@ -821,7 +1568,10 @@ object Render:
               put(Glyph.Txt(gx, base, a.label, lab, "#1F1F1F", Glyph.Anchor.Middle, halo = true))
             occ.markBox(gx - m.width(a.label, lab) / 2 - 2, gy - m.lineHeight(lab) / 2, m.width(a.label, lab) + 4, m.lineHeight(lab))
 
-    def glyphs(rect: Rect, put: Glyph => Unit): Unit =
+    def glyphs(rect0: Rect, put: Glyph => Unit): Unit =
+      // safety net: granted more than the natural categorical width anyway (the layout
+      // normally sizes the cell to it), draw at natural width, centered in the excess
+      val rect = if rect0.w > natW then rect0.copy(x = rect0.x + (rect0.w - natW) / 2, w = natW) else rect0
       val xt = xTicks(rect.w)
       val yt = yTicks(rect.h)
       def sx(v: Double): Double = rect.x + (v - x0) / (x1 - x0) * rect.w
@@ -834,9 +1584,12 @@ object Render:
       def hGrid(v: Double, wdt: Double): Unit =
         val py = sy(v)
         if rect.bottom - py > 0.6 then put(Glyph.Segment(rect.x + axisHalf, py, rect.right, py, "#ECECEC", wdt))
-      if xMinor.grid then xt.minor.foreach(vGrid(_, 0.5))
+      // a categorical x draws no vertical gridlines: the slots are labels, not values,
+      // and gridlines through boxes and violins would only add noise
+      if xCats.length == 0 then
+        if xMinor.grid then xt.minor.foreach(vGrid(_, 0.5))
+        xt.values.foreach(vGrid(_, 1))
       if yMinor.grid then yt.minor.foreach(hGrid(_, 0.5))
-      xt.values.foreach(vGrid(_, 1))
       yt.values.foreach(hGrid(_, 1))
       // the frame: the bottom line owns the corner (starting half a stroke early) and the
       // left line stops half a stroke short -- full coverage, zero overlap, so alpha
@@ -845,11 +1598,19 @@ object Render:
       put(Glyph.Segment(rect.x, rect.y, rect.x, rect.bottom - axisHalf, yInk.colour, 1, yInk.alpha))
       if showBottom then
         val xL = xt.labels
+        val rot = catRot(rect.w)
+        val every = catEvery(rect.w)
         var i = 0
         while i < xt.values.length do
           val px = sx(xt.values(i))
           put(Glyph.Segment(px, rect.bottom + axisHalf, px, rect.bottom + axisHalf + tick, xInk.colour, 1, xInk.alpha))
-          put(Glyph.Txt(px, rect.bottom + axisHalf + tick + m.ascent(lab) + 2, xL(i), lab, "#333333", Glyph.Anchor.Middle))
+          if i % every == 0 then
+            if rot == 0 then
+              put(Glyph.Txt(px, rect.bottom + axisHalf + tick + m.ascent(lab) + 2, xL(i), lab, "#333333", Glyph.Anchor.Middle))
+            else if rot == -40 then
+              put(Glyph.Txt(px + 2, rect.bottom + axisHalf + tick + m.ascent(lab) * 0.85 + 1, xL(i), lab, "#333333", Glyph.Anchor.End, rotate = -40))
+            else
+              put(Glyph.Txt(px + m.ascent(lab) * 0.38, rect.bottom + axisHalf + tick + 2, xL(i), lab, "#333333", Glyph.Anchor.End, rotate = -90))
           i += 1
         if xMinor.ticks then
           xt.minor.foreach(v => put(Glyph.Segment(sx(v), rect.bottom + axisHalf, sx(v), rect.bottom + axisHalf + minorFrac * tick, xInk.colour, minorFrac, xInk.alpha)))
@@ -863,9 +1624,9 @@ object Render:
           i += 1
         if yMinor.ticks then
           yt.minor.foreach(v => put(Glyph.Segment(rect.x - axisHalf - minorFrac * tick, sy(v), rect.x - axisHalf, sy(v), yInk.colour, minorFrac, yInk.alpha)))
-      if colStrip != null then
+      if colStrip.nonEmpty then
         put(Glyph.Txt(rect.x + rect.w / 2, rect.y - 5 * fs, colStrip, lab, "#222222", Glyph.Anchor.Middle, bold = true))
-      if rowStrip != null then
+      if rowStrip.nonEmpty then
         put(Glyph.Txt(rect.right + 6, rect.y + rect.h / 2 + m.ascent(lab) * 0.38, rowStrip, lab, "#222222", Glyph.Anchor.Start, bold = true))
       val occ: Occupancy | Null = if marks.isEmpty then null else Occupancy(rect.x, rect.y, rect.w, rect.h, jm.max(4.0, 6 * fs))
       slices.foreach(s => drawSlice(s, rect, sx, sy, occ, put))
@@ -954,18 +1715,29 @@ object Render:
     * on the content span — not on any grid cell — so "day" sits snug under the tick
     * labels and dead-center on the data area it names.
     */
-  private final class AxesBlock(inner: Grid, xTitle: String | Null, yTitle: String | Null, fs: Double, m: Measurer) extends GlyphBlock:
+  private final class AxesBlock(inner: Grid, xTitle: String | Null, yTitle: String | Null, fs: Double, estH: Double, m: Measurer) extends GlyphBlock:
     private val ttl = axisTitleSz * fs
     private val lead = 2 * fs
     private def stack(t: String | Null): Double = if t == null then 0.0 else m.lineHeight(ttl) + lead
+    // when the panels have a natural (categorical) width, the whole axes assembly asks
+    // for exactly that, so the figure's title and legend stay glued to the graph instead
+    // of spanning space the graph declined to fill
+    override def widthPref: Size =
+      val nw = inner.naturalWidth(estH)
+      if nw.isNaN then Size.Auto else Size.Fixed(nw)
     def protrusions(w: Double, h: Double): Prot =
       val p = inner.protrusions(w, h)
       Prot(p.left + stack(yTitle), p.right, p.top, p.bottom + stack(xTitle))
     def glyphs(rect: Rect, put: Glyph => Unit): Unit =
-      emitGrid(inner, inner.solveAt(rect.x, rect.y, rect.w, rect.h, 0.08, 4, footprint = true), put)
+      val lay = inner.solveAt(rect.x, rect.y, rect.w, rect.h, 0.08, 4, footprint = true)
+      emitGrid(inner, lay, put)
       val p = inner.protrusions(rect.w, rect.h)
+      // fixed-width (categorical) panels can leave the grid's right edge blank; the axis
+      // title centers on the panels actually drawn, not on the granted width
+      var right = rect.x
+      lay.content.foreach(r => if r.right > right then right = r.right)
       if xTitle != null then
-        put(Glyph.Txt(rect.x + rect.w / 2, rect.bottom + p.bottom + lead + m.ascent(ttl), xTitle, ttl, "#222222", Glyph.Anchor.Middle))
+        put(Glyph.Txt((rect.x + right) / 2, rect.bottom + p.bottom + lead + m.ascent(ttl), xTitle, ttl, "#222222", Glyph.Anchor.Middle))
       if yTitle != null then
         put(Glyph.Txt(rect.x - p.left - lead - m.lineHeight(ttl) + m.ascent(ttl), rect.y + rect.h / 2, yTitle, ttl, "#222222", Glyph.Anchor.Middle, rotate = -90))
 
@@ -985,13 +1757,12 @@ object Render:
   private def freeSpan(slices: Seq[Slice], horz: Boolean, cfgLo: Double, cfgHi: Double, fb0: Double, fb1: Double): (Double, Double) =
     var lo = Double.PositiveInfinity
     var hi = Double.NegativeInfinity
-    inline def sweep(a: Array[Double] | Null): Unit =
-      if a != null then
-        var i = 0
-        while i < a.length do
-          if a(i) < lo then lo = a(i)
-          if a(i) > hi then hi = a(i)
-          i += 1
+    inline def sweep(a: Array[Double]): Unit =
+      var i = 0
+      while i < a.length do
+        if a(i) < lo then lo = a(i)
+        if a(i) > hi then hi = a(i)
+        i += 1
     slices.foreach: s =>
       if horz then
         sweep(s.xs)
@@ -1000,6 +1771,8 @@ object Render:
         sweep(s.ys)
         sweep(s.yLo)
         sweep(s.yHi)
+        sweep(s.yMin)
+        sweep(s.yMax)
         sweep(s.yEnd)
         if s.kind == Visual.Kind.Bar || s.kind == Visual.Kind.Area then
           if lo > 0 then lo = 0.0
@@ -1070,9 +1843,26 @@ object Render:
       case Parts.Config.EachLabeled => everyLabel = true
       case ins: Parts.Config.Inset  => val _ = insets.addOne(ins)
 
+    // one x slot for the whole figure: every layer's x is categorical or none is, since
+    // slot positions and level dictionaries must agree across superposed layers
+    var sawCatX = false
+    var sawNumX = false
+    layers.foreach: layer =>
+      layer.data.fields.foreach: f =>
+        if f.name == "x" then
+          if f.column.scale.kind == ScaleKind.Discrete then sawCatX = true else sawNumX = true
+        else if f.name == "xend" then sawNumX = true
+    if sawCatX && sawNumX then
+      Err.break("cannot mix a categorical x with a continuous x (or edge geometry) across layers")
+    val catX = sawCatX
+    if catX then
+      if freeX then Err.break("free horizontal scales do not apply to a categorical x: every panel shows the levels")
+      if !xLoC.isNaN || !xHiC.isNaN then Err.break("axis.horz.limit does not apply to a categorical x: every level shows")
+    val xCatBuf = collection.mutable.ArrayBuffer.empty[String]
+
     val levels = collection.mutable.ArrayBuffer.empty[String]
 
-    val prepped = layers.zipWithIndex.map: (layer, li) =>
+    val prepped = layers.zipWithIndex.flatMap: (layer, li) =>
       // when the user names no visual, the last stat picks a sensible one
       val kind = layer.look.visual match
         case null =>
@@ -1080,30 +1870,56 @@ object Render:
             case Some(Smooth(_))            => Visual.Kind.Line
             case Some(Bin(_)) | Some(Count) => Visual.Kind.Bar
             case Some(Density(_))           => Visual.Kind.Area
+            case Some(BoxSummary(_)) | Some(BinBy(_, _, _)) => Visual.Kind.Boxplot
+            case Some(YDensity(_, _))       => Visual.Kind.Violin
             case _                          => Visual.Kind.Scatter
         case v: Visual => v.kind
       val names = layer.data.names
-      def channel(name: String): Array[Double] | Null =
+      if layer.data.fields.nonEmpty && layer.data.length == 0 then
+        Err.break(s"layer ${li + 1} has no rows: its columns [${names.mkString(", ")}] are empty")
+      def channel(name: String): Array[Double] =
         layer.data.fields.find(_.name == name) match
           case Some(f) => numbersOf(f.column, s"layer ${li + 1} aesthetic '$name'").?
-          case None    => null
+          case None    => noD
       val ys = channel("y")
       val yLo = channel("ylow")
       val yHi = channel("yhigh")
+      val yMn = channel("ymin")
+      val yMx = channel("ymax")
+      val wdC = channel("width")
       val xEnd = channel("xend")
       val yEnd = channel("yend")
-      val xs = channel("x") match
-        case a: Array[Double] => a
-        case null =>
-          layer.look.stats.find(st => !st.isInstanceOf[Smooth]) match
-            case Some(st) => Err.break(s"layer ${li + 1}: ${statName(st)} needs aesthetic 'x'; it has [${names.mkString(", ")}]")
-            case None => ()
-          val ref = if ys != null then ys else if yHi != null then yHi else yLo
-          ref match
-            case a: Array[Double] => Array.tabulate(a.length)(_.toDouble)  // default: observation index
-            case null => Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
-      var colorIdx: Array[Int] | Null = null
-      var colorVal: Array[Double] | Null = null
+      var xIdx = noI
+      val xs: Array[Double] =
+        if catX then
+          layer.data.fields.find(_.name == "x") match
+            case Some(f) =>
+              // shared level dictionary, first appearance across layers in layer order
+              val labsX = labelsOf(f.column, s"layer ${li + 1} aesthetic 'x'").?
+              val out = new Array[Int](labsX.length)
+              var i = 0
+              while i < out.length do
+                var k = xCatBuf.indexOf(labsX(i))
+                if k < 0 then
+                  k = xCatBuf.length
+                  val _ = xCatBuf.addOne(labsX(i))
+                out(i) = k
+                i += 1
+              xIdx = out
+              Array.tabulate(out.length)(out(_).toDouble)
+            case None => Err.break(s"layer ${li + 1} needs aesthetic 'x': the figure's x axis is categorical")
+        else
+          val cx = channel("x")
+          if cx.length > 0 then cx
+          else
+            layer.look.stats.find(st => !st.isInstanceOf[Smooth]) match
+              case Some(st) => Err.break(s"layer ${li + 1}: ${statName(st)} needs aesthetic 'x'; it has [${names.mkString(", ")}]")
+              case None => ()
+            val ref = if ys.length > 0 then ys else if yHi.length > 0 then yHi else yLo
+            if ref.length > 0 then Array.tabulate(ref.length)(_.toDouble)  // default: observation index
+            else Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
+      var colorIdx = noI
+      var colorVal = noD
       layer.data.fields.find(_.name == "color") match
         case Some(f) =>
           f.column.scale match
@@ -1127,12 +1943,12 @@ object Render:
         case None => ()
       val colLabs = layer.data.fields.find(_.name == "col") match
         case Some(f) => labelsOf(f.column, s"layer ${li + 1} facet 'col'").?
-        case None    => null
+        case None    => noS
       val rowLabs = layer.data.fields.find(_.name == "row") match
         case Some(f) => labelsOf(f.column, s"layer ${li + 1} facet 'row'").?
-        case None    => null
+        case None    => noS
       // rightmost styled constant wins, per the cascade; a mapped colour column still beats it
-      var styled: String | Null = null
+      var styled = ""
       layer.look.style.entries.foreach: (k, v) =>
         if k eq Style.Color then styled = v.asInstanceOf[String]
       var edge = plainEdge
@@ -1141,22 +1957,42 @@ object Render:
         else if k eq Style.Curve then edge = edge.copy(curve = v.asInstanceOf[Double])
         else if k eq Style.Alpha then edge = edge.copy(alpha = v.asInstanceOf[Double])
         else if k eq Style.Backoff then edge = edge.copy(backoff = v.asInstanceOf[Double])
-      val raw = Prep(xs, ys, yLo, yHi, xEnd, yEnd, colorIdx, colorVal, styled, edge, kind, li, colLabs, rowLabs)
-      // stats run upstream of scale resolution, so domains cover the transformed data
-      val p = if layer.look.stats.isEmpty then raw else statted(raw, layer.look.stats, li).?
+      val raw = Prep(xs, ys, yLo, yHi, yMn, yMx, xEnd, yEnd, wdC, noD,
+                     xIdx, if catX then 1.0 else Double.NaN,
+                     colorIdx, colorVal, styled, edge, kind, li, colLabs, rowLabs)
+      // stats run upstream of scale resolution, so domains cover the transformed data;
+      // a summary stat may emit a second table (its outliers), so a layer is a list
+      val ps = if layer.look.stats.isEmpty then raw :: Nil else statted(raw, layer.look.stats, li, catX).?
       // aesthetic completeness per visual, checked after stats have had their say
-      p.kind match
-        case Visual.Kind.Band =>
-          if p.yLo == null || p.yHi == null then
-            Err.break(s"layer ${li + 1} with visual Band needs aesthetics 'ylow' and 'yhigh'; it has [${names.mkString(", ")}]")
-        case k =>
-          if p.ys == null then Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
-          if k == Visual.Kind.Segment || k == Visual.Kind.Arrow then
-            if p.xEnd == null || p.yEnd == null then
-              Err.break(s"layer ${li + 1} with visual $k needs aesthetics 'xend' and 'yend'; it has [${names.mkString(", ")}]")
-      if p.colorVal != null && p.kind != Visual.Kind.Scatter then
-        Err.break(s"layer ${li + 1}: continuous colour is interpreted on Scatter only so far; use discrete colour for ${p.kind}")
-      p
+      ps.foreach: p =>
+        if p.xs.length > 0 then
+          p.kind match
+            case Visual.Kind.Band =>
+              if p.yLo.length == 0 || p.yHi.length == 0 then
+                Err.break(s"layer ${li + 1} with visual Band needs aesthetics 'ylow' and 'yhigh'; it has [${names.mkString(", ")}]")
+            case Visual.Kind.Boxplot =>
+              if p.ys.length == 0 || p.yLo.length == 0 || p.yHi.length == 0 then
+                Err.break(s"layer ${li + 1} with visual Boxplot needs aesthetics 'y' (median), 'ylow', and 'yhigh' (quartiles) — or the boxplot() stat; it has [${names.mkString(", ")}]")
+              if (p.yMin.length == 0) != (p.yMax.length == 0) then
+                Err.break(s"layer ${li + 1} with visual Boxplot: map both 'ymin' and 'ymax' (the whisker ends) or neither")
+            case Visual.Kind.Violin =>
+              if p.ys.length == 0 || p.wd.length == 0 then
+                Err.break(s"layer ${li + 1} with visual Violin needs aesthetics 'y' and 'width' — or the violin() stat; it has [${names.mkString(", ")}]")
+            case k =>
+              if p.ys.length == 0 then Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
+              if k == Visual.Kind.Segment || k == Visual.Kind.Arrow then
+                if p.xEnd.length == 0 || p.yEnd.length == 0 then
+                  Err.break(s"layer ${li + 1} with visual $k needs aesthetics 'xend' and 'yend'; it has [${names.mkString(", ")}]")
+          if catX then
+            p.kind match
+              case Visual.Kind.Scatter =>
+                Err.break(s"layer ${li + 1}: Scatter on a categorical x hides coincident points under one dot; use strip — exact positions, overlap shown honestly")
+              case Visual.Kind.Line | Visual.Kind.Band | Visual.Kind.Area | Visual.Kind.Segment | Visual.Kind.Arrow =>
+                Err.break(s"layer ${li + 1}: visual ${p.kind} needs a continuous or temporal x, but the x axis is categorical")
+              case _ => ()
+          if p.colorVal.length > 0 && p.kind != Visual.Kind.Scatter then
+            Err.break(s"layer ${li + 1}: continuous colour is interpreted on Scatter only so far; use discrete colour for ${p.kind}")
+      ps
 
     // one colour scale per figure: discrete levels or a continuous ramp, never both
     var cLo = Double.PositiveInfinity
@@ -1182,35 +2018,37 @@ object Render:
     var dxHi = Double.NegativeInfinity
     var dyLo = Double.PositiveInfinity
     var dyHi = Double.NegativeInfinity
-    inline def dySweep(a: Array[Double] | Null): Unit =
-      if a != null then
-        var i = 0
-        while i < a.length do
-          if a(i) < dyLo then dyLo = a(i)
-          if a(i) > dyHi then dyHi = a(i)
-          i += 1
-    inline def dxSweep(a: Array[Double] | Null): Unit =
-      if a != null then
-        var i = 0
-        while i < a.length do
-          if a(i) < dxLo then dxLo = a(i)
-          if a(i) > dxHi then dxHi = a(i)
-          i += 1
+    inline def dySweep(a: Array[Double]): Unit =
+      var i = 0
+      while i < a.length do
+        if a(i) < dyLo then dyLo = a(i)
+        if a(i) > dyHi then dyHi = a(i)
+        i += 1
+    inline def dxSweep(a: Array[Double]): Unit =
+      var i = 0
+      while i < a.length do
+        if a(i) < dxLo then dxLo = a(i)
+        if a(i) > dxHi then dxHi = a(i)
+        i += 1
     prepped.foreach: p =>
       dxSweep(p.xs)
       dxSweep(p.xEnd)
       dySweep(p.ys)
       dySweep(p.yLo)
       dySweep(p.yHi)
+      dySweep(p.yMin)
+      dySweep(p.yMax)
       dySweep(p.yEnd)
       if p.kind == Visual.Kind.Bar || p.kind == Visual.Kind.Area then
         if dyLo > 0 then dyLo = 0.0
         if dyHi < 0 then dyHi = 0.0
     if !(dxLo <= dxHi && dyLo <= dyHi) then Err.break("figure has no data points")
-    // annotation targets count as data when domains are fit, so they land in view by default
+    // annotation targets count as data when domains are fit, so they land in view by
+    // default (on a categorical x the domain is the levels; x targets are slot indices)
     inline def dxTake(x: Double): Unit =
-      if x < dxLo then dxLo = x
-      if x > dxHi then dxHi = x
+      if !catX then
+        if x < dxLo then dxLo = x
+        if x > dxHi then dxHi = x
     inline def dyTake(y: Double): Unit =
       if y < dyLo then dyLo = y
       if y > dyHi then dyHi = y
@@ -1227,24 +2065,25 @@ object Render:
         dxTake(a.x2)
         dyTake(a.y1)
         dyTake(a.y2)
-    val (fx0, fx1) = axisSpan(dxLo, dxHi, xLoC, xHiC)
+    val (fx0, fx1) =
+      if catX then (-0.5, xCatBuf.length - 0.5)
+      else axisSpan(dxLo, dxHi, xLoC, xHiC)
     val (fy0, fy1) = axisSpan(dyLo, dyHi, yLoC, yHiC)
 
-    // facet levels, first appearance in layer order; null level = the unfaceted dimension
-    def levelsFor(get: Prep => Array[String] | Null): Array[String | Null] =
+    // facet levels, first appearance in layer order; an empty array = unfaceted dimension
+    def levelsFor(get: Prep => Array[String]): Array[String] =
       val buf = collection.mutable.ArrayBuffer.empty[String]
       prepped.foreach: p =>
         val labs = get(p)
-        if labs != null then
-          var i = 0
-          while i < labs.length do
-            if !buf.contains(labs(i)) then { val _ = buf.addOne(labs(i)) }
-            i += 1
-      if buf.isEmpty then Array[String | Null](null) else buf.toArray[String | Null]
+        var i = 0
+        while i < labs.length do
+          if !buf.contains(labs(i)) then { val _ = buf.addOne(labs(i)) }
+          i += 1
+      buf.toArray
     val colLevels = levelsFor(_.colLabs)
     val rowLevels = levelsFor(_.rowLabs)
-    val nC = colLevels.length
-    val nR = rowLevels.length
+    val nC = jm.max(1, colLevels.length)
+    val nR = jm.max(1, rowLevels.length)
 
     // resolve inset placements: exact rects pass through; compass anchors compute their
     // rect; auto placement scores the corners by data occupancy and takes the emptiest
@@ -1266,16 +2105,16 @@ object Render:
       placedInsets.foreach: (_, px, py, pw, ph) =>
         if rx < px + pw && px < rx + rw && ry < py + ph && py < ry + rh then s += 1e9
       prepped.foreach: p =>
-        inline def countChannel(ya: Array[Double] | Null): Unit =
-          if ya != null then
+        inline def countChannel(ya: Array[Double]): Unit =
+          if ya.length > 0 then
             var i = 0
             while i < p.xs.length do
               val xf = (p.xs(i) - fx0) / (fx1 - fx0)
               val yf = 1 - (ya(i) - fy0) / (fy1 - fy0)
-              val c0 = if p.colLabs == null then 0 else jm.max(0, colLevels.indexOf(p.colLabs(i)))
-              val c1 = if p.colLabs == null then nC - 1 else c0
-              val r0 = if p.rowLabs == null then 0 else jm.max(0, rowLevels.indexOf(p.rowLabs(i)))
-              val r1 = if p.rowLabs == null then nR - 1 else r0
+              val c0 = if p.colLabs.length == 0 then 0 else jm.max(0, colLevels.indexOf(p.colLabs(i)))
+              val c1 = if p.colLabs.length == 0 then nC - 1 else c0
+              val r0 = if p.rowLabs.length == 0 then 0 else jm.max(0, rowLevels.indexOf(p.rowLabs(i)))
+              val r1 = if p.rowLabs.length == 0 then nR - 1 else r0
               var cc = c0
               while cc <= c1 do
                 var rr = r0
@@ -1317,13 +2156,16 @@ object Render:
     // breathing room comes from the outer grid's pad instead of dead space in here
     val facetGrid = Grid(nR, nC, colGap = gapH, rowGap = gapV, pad = 0)
     val markHits = new Array[Int](marks.length)
+    val xCatArr = xCatBuf.toArray
+    val clOn = colLevels.length > 0
+    val rlOn = rowLevels.length > 0
     var r = 0
     while r < nR do
       var c = 0
       while c < nC do
-        val cl = colLevels(c)
-        val rl = rowLevels(r)
-        val slices = prepped.map(p => sliceFor(p, cl, rl))
+        val cl = if clOn then colLevels(c) else ""
+        val rl = if rlOn then rowLevels(r) else ""
+        val slices = prepped.map(p => sliceFor(p, cl, clOn, rl, rlOn))
         val (px0, px1) = if freeX then freeSpan(slices, true, xLoC, xHiC, fx0, fx1) else (fx0, fx1)
         val (py0, py1) = if freeY then freeSpan(slices, false, yLoC, yHiC, fy0, fy1) else (fy0, fy1)
         // an annotation shows wherever its anchors are on this panel's axes
@@ -1345,11 +2187,12 @@ object Render:
           k += 1
         val pan = Panel(
           slices, px0, px1, py0, py1,
+          xCatArr,
           hue,
           showLeft = freeY || everyLabel || c == 0,
           showBottom = freeX || everyLabel || r == nR - 1,
-          colStrip = if r == 0 then cl else null,
-          rowStrip = if c == nC - 1 then rl else null,
+          colStrip = if r == 0 then cl else "",
+          rowStrip = if c == nC - 1 then rl else "",
           xTickN = xTickC, yTickN = yTickC,
           xMinor = Minor(xMinorTicks, xMinorGrid), yMinor = Minor(yMinorTicks, yMinorGrid),
           xInk = xInkC, yInk = yInkC,
@@ -1376,7 +2219,7 @@ object Render:
     // legend(...) doubles as the figure title when no guide is drawn; title(...) always wins
     val topText: String | Null = if figTitle != null then figTitle else if legendB == null then legTitle else null
     val titleB = if topText != null then TitleBlock(topText, fs, m) else null
-    val axes = AxesBlock(facetGrid, xTitle, yTitle, fs, m)
+    val axes = AxesBlock(facetGrid, xTitle, yTitle, fs, estH, m)
 
     val rT = if titleB != null then 1 else 0
     val cL = if legendB != null then 1 else 0
