@@ -112,20 +112,20 @@ object EioBase64 {
     var bits = 0
     var nb = 0
     var i = i0
-    if i0 < 0 || iN > encoded.length then Err.break(s"Input $i0 until $iN not within input of length ${encoded.length}")
-    if index < 0 then Err.break(s"Output index is negative: $index")
+    if i0 < 0 || iN > encoded.length then Err ?# s"Input $i0 until $iN not within input of length ${encoded.length}"
+    if index < 0 then Err ?# s"Output index is negative: $index"
     var j = index
     while i < iN do
       val b = encoded(i)
       val y =
         if b >= 9 && b <= 122 then decode64Table(b-9)
         else -1
-      if y == -1 then Err.break(s"Invalid Base64 character ${b.toChar} at index $i")
+      if y == -1 then Err ?# s"Invalid Base64 character ${b.toChar} at index $i"
       if y != 64 then 
         bits = (bits << 6) | y
         nb += 6
       if nb >= 24 then
-        if j > target.length-2 then Err.break(s"Insufficient space in decoding array with ${4+(iN-i)} input bytes remaining")
+        if j > target.length-2 then Err ?# s"Insufficient space in decoding array with ${4+(iN-i)} input bytes remaining"
         target(j) = bits.byte(2); j += 1
         target(j) = bits.byte(1); j += 1
         target(j) = bits.byte(0); j += 1
@@ -133,19 +133,19 @@ object EioBase64 {
         nb = 0
       i += 1
     if nb >= 8 then
-      if j >= target.length then Err.break(s"Insufficient space in decoding array with $nb input bits remaining")
+      if j >= target.length then Err ?# s"Insufficient space in decoding array with $nb input bits remaining"
       bits = bits << (24 - nb)
       target(j) = bits.byte(2)
       bits = bits & 0xFFFF
       j += 1
       if nb >= 16 then
-        if j >= target.length then Err.break(s"Insufficient space in decoding array with ${nb - 8} input bits remaining")
+        if j >= target.length then Err ?# s"Insufficient space in decoding array with ${nb - 8} input bits remaining"
         target(j) = bits.byte(1)
         bits = bits & 0xFF
         j += 1
     if bits != 0 then
       val bitstr = if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString
-      Err.break(s"Trailing bits: $bitstr; Base64 data must be incomplete")
+      Err ?# s"Trailing bits: $bitstr; Base64 data must be incomplete"
     j - index
   inline def decodeRangeInto(encoded: Array[Byte], i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
@@ -187,20 +187,20 @@ object EioBase64 {
     var bits = 0
     var nb = 0
     var i = i0
-    if iN > encoded.length then Err.break(s"Input length exceeded: $i0 until $iN not within ${encoded.length}")
-    if index < 0 then Err.break(s"Output index is negative: $index")
+    if iN > encoded.length then Err ?# s"Input length exceeded: $i0 until $iN not within ${encoded.length}"
+    if index < 0 then Err ?# s"Output index is negative: $index"
     var j = index
     while i < iN do
       val c = encoded.charAt(i)
       val y =
         if c >= 9 && c <= 122 then decode64Table(c-9)
         else -1
-      if y == -1 then Err.break(s"Invalid Base64 character $c at index $i")
+      if y == -1 then Err ?# s"Invalid Base64 character $c at index $i"
       if y != 64 then 
         bits = (bits << 6) | y
         nb += 6
       if nb >= 24 then
-        if j > target.length-2 then Err.break(s"Insufficient space in decoding array with ${4+(iN-i)} input bytes remaining")
+        if j > target.length-2 then Err ?# s"Insufficient space in decoding array with ${4+(iN-i)} input bytes remaining"
         target(j) = bits.byte(2); j += 1
         target(j) = bits.byte(1); j += 1
         target(j) = bits.byte(0); j += 1
@@ -208,19 +208,19 @@ object EioBase64 {
         nb = 0
       i += 1
     if nb >= 8 then
-      if j >= target.length then Err.break(s"Insufficient space in decoding array with $nb input bits remaining")
+      if j >= target.length then Err ?# s"Insufficient space in decoding array with $nb input bits remaining"
       bits = bits << (24 - nb)
       target(j) = bits.byte(2)
       bits = bits & 0xFFFF
       j += 1
       if nb >= 16 then
-        if j >= target.length then Err.break(s"Insufficient space in decoding array with ${nb - 8} input bits remaining")
+        if j >= target.length then Err ?# s"Insufficient space in decoding array with ${nb - 8} input bits remaining"
         target(j) = bits.byte(1)
         bits = bits & 0xFF
         j += 1
     if bits != 0 then
       val bitstr = if bits.byte(1) != 0 then bits.byte(1).bitString else bits.byte(0).bitString
-      Err.break(s"Trailing bits: $bitstr; Base64 data must be incomplete")
+      Err ?# s"Trailing bits: $bitstr; Base64 data must be incomplete"
     j - index
   inline def decodeRangeInto(encoded: String, i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
@@ -418,7 +418,7 @@ object EioBase85 {
 
 
   private def decodeRangeWithTable(encoded: Array[Byte], i0: Int, iN: Int, table: Array[Byte]): Ask[Array[Byte]] = Or.Ret:
-    if i0 < 0 || iN > encoded.length then Err.break(s"Invalid decoding range: $i0 until $iN in array of length ${encoded.length}")
+    if i0 < 0 || iN > encoded.length then Err ?# s"Invalid decoding range: $i0 until $iN in array of length ${encoded.length}"
     val l = ((iN - i0).toLong*4)/5
     var a = new Array[Byte](l.toInt)
     var lead: Int = 0
@@ -432,7 +432,7 @@ object EioBase85 {
       val y =
         if b >= 9 && b <= bmax then table(b - 9)
         else -1
-      if y < 0 then Err.break(s"Invalid Base85 character for this encoding: '${b.toChar}' at $i")
+      if y < 0 then Err ?# s"Invalid Base85 character for this encoding: '${b.toChar}' at $i"
       else if y < 85 then
         if stored == 0 then
           lead = y
@@ -442,7 +442,7 @@ object EioBase85 {
           stored += 1
           if stored == 5 then
             stored = 0
-            if lead > 82 || (lead == 82 && rest > 14516045) then Err.break(s"Over-full Base85 number $lead*85^4 + $rest ending at $i")
+            if lead > 82 || (lead == 82 && rest > 14516045) then Err ?# s"Over-full Base85 number $lead*85^4 + $rest ending at $i"
             rest = lead*52200625 + rest
             a(j) =   ( rest >>> 24        ).toByte
             a(j+1) = ((rest >>> 16) & 0xFF).toByte
@@ -456,7 +456,7 @@ object EioBase85 {
       while stored < 5 do
         rest = rest*85 + 84
         stored += 1
-      if lead > 82 || (lead == 82 && rest > 14516045) then Err.break(s"Over-full Base85 number $lead*85^4 + $rest at end of input")
+      if lead > 82 || (lead == 82 && rest > 14516045) then Err ?# s"Over-full Base85 number $lead*85^4 + $rest at end of input"
       rest = lead*52200625 + rest
       a(j) = (rest >>> 24).toByte
       j += 1
@@ -489,7 +489,7 @@ object EioBase85 {
   def decodeAscii(encoded: Array[Byte]): Ask[Array[Byte]] = decodeRangeWithTable(encoded, 0, encoded.length, decodeAsciiTable)
 
   private def decodeRangeWithTable(encoded: String, i0: Int, iN: Int, table: Array[Byte]): Ask[Array[Byte]] = Or.Ret:
-    if i0 < 0 || iN > encoded.length then Err.break(s"Invalid decoding range: $i0 until $iN in string of length ${encoded.length}")
+    if i0 < 0 || iN > encoded.length then Err ?# s"Invalid decoding range: $i0 until $iN in string of length ${encoded.length}"
     val l = ((iN - i0).toLong*4)/5
     var a = new Array[Byte](l.toInt)
     var lead: Int = 0
@@ -503,7 +503,7 @@ object EioBase85 {
       val y =
         if b >= 9 && b <= bmax then table(b - 9)
         else -1
-      if y < 0 then Err.break(s"Invalid Base85 character for this encoding: '${b.toChar}' at $i")
+      if y < 0 then Err ?# s"Invalid Base85 character for this encoding: '${b.toChar}' at $i"
       else if y < 85 then
         if stored == 0 then
           lead = y
@@ -513,7 +513,7 @@ object EioBase85 {
           stored += 1
           if stored == 5 then
             stored = 0
-            if lead > 82 || (lead == 82 && rest > 14516045) then Err.break(s"Over-full Base85 number $lead*85^4 + $rest ending at $i")
+            if lead > 82 || (lead == 82 && rest > 14516045) then Err ?# s"Over-full Base85 number $lead*85^4 + $rest ending at $i"
             rest = lead*52200625 + rest
             a(j) =   ( rest >>> 24        ).toByte
             a(j+1) = ((rest >>> 16) & 0xFF).toByte
@@ -527,7 +527,7 @@ object EioBase85 {
       while stored < 5 do
         rest = rest*85 + 84
         stored += 1
-      if lead > 82 || (lead == 82 && rest > 14516045) then Err.break(s"Over-full Base85 number $lead*85^4 + $rest at end of input")
+      if lead > 82 || (lead == 82 && rest > 14516045) then Err ?# s"Over-full Base85 number $lead*85^4 + $rest at end of input"
       rest = lead*52200625 + rest
       a(j) = (rest >>> 24).toByte
       j += 1

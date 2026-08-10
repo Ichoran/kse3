@@ -133,10 +133,10 @@ object Parse {
   def whereKey(key: String)(args: Array[String]): Array[(Int, Int)] =
     var stop = false
     args.flex.copyOp: (test, i) =>
-      shortcut.quit(stop).?
+      shortcut.quit_?(stop)
       stop = test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))
       val j = keyMatch(key)(test)
-      shortcut.skip(j < 0).?
+      shortcut.skip_?(j < 0)
       (i, j)
 
   def shortMatch(key: Char)(test: String): Option[Array[Int]] =
@@ -149,7 +149,7 @@ object Parse {
       args.visit(): (test, i) =>
         shortMatch(key)(test) match
           case Some(js) => js.use()(j => iib += ((i, j)))
-          case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
+          case _ => shortcut.quit_?(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '=')))
     iib.result()
 
   def whereEither(key: String, short: Char)(args: Array[String]): Array[(Int, Boolean, Int)] =
@@ -160,7 +160,7 @@ object Parse {
         if j >= 0 then izib += ((i, true, j))
         else shortMatch(short)(test) match
           case Some(js) => js.use()(j => izib += ((i, false, j)))
-          case _ => shortcut.quit(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '='))).?
+          case _ => shortcut.quit_?(test.startsWith("--") && (test.length == 2 || (test.length==3 && test.charAt(2) == '=')))
     izib.result()
 }
 
@@ -398,7 +398,7 @@ object Opt {
         val msgIfShort = if shortIdx.length > 0 then s"as --$label " else ""
         sb += s"  ${msgIfShort}at arguments ${Parse.listy(labelIdx.map(i => s"#${i+1}"))}"
       if shortIdx.length > 0 then
-        val shortArgs = shortIdx.diced(shortIdx.flex.copyOp{ (ix, j) => shortcut.skip(j == 0 || shortIdx(j-1) == ix).?; j } , "[)")
+        val shortArgs = shortIdx.diced(shortIdx.flex.copyOp{ (ix, j) => shortcut.skip_?(j == 0 || shortIdx(j-1) == ix); j } , "[)")
         val argsMsg = shortArgs.copyWith: ixs =>
           if ixs.length == 1 then
             if args(ixs(0)).length == 2 then "#" + (ixs(0)+1)
@@ -605,7 +605,7 @@ final class Args[N <: LabelStr, T <: Tuple](val original: Array[String], used: A
   val indexedArgs =
     var stopped = false
     original.flex.copyOp: (arg, i) =>
-      shortcut.skip(used(i) > 0).?
+      shortcut.skip_?(used(i) > 0)
       (arg, i)
 
   val args = indexedArgs.copyWith(_._1)

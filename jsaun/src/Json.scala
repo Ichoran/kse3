@@ -83,7 +83,7 @@ object JAny {
     inline def isErr: Boolean = ja.isInstanceOf[Alt[?]]
 
     /** The JSON value, or a jump to the enclosing boundary with the error. */
-    inline def json[E >: Alt[Err]](using Label[E]): Json = (ja: Ask[Json]).?
+    inline def json_?[E >: Alt[Err]](using Label[E]): Json = (ja: Ask[Json]).?
 
     /** The JSON value, or `alt` if this is an error. */
     def jsonOr(alt: Json): Json = (ja: Any) match

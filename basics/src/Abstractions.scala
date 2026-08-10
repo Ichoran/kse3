@@ -272,11 +272,32 @@ object shortcut {
       inline def ?[S >: Skips.type <: Type](using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
   }
 
+  /** Jumps to the enclosing skippable boundary if the condition holds.  A literal `true` always
+    * jumps (nothing else is evaluated); a literal `false` compiles to nothing.
+    */
+  inline def skip_?[S >: Skips.type <: Type](inline p: Boolean)(using boundary.Label[S]): Unit = inline p match
+    case true  => boundary.break(Skips: S)
+    case false => ()
+    case _     => if p then boundary.break(Skips: S)
+
+  /** Jumps to the enclosing quittable boundary if the condition holds.  A literal `true` always
+    * jumps (nothing else is evaluated); a literal `false` compiles to nothing.
+    */
+  inline def quit_?[Q >: Quits.type <: Type](inline p: Boolean)(using boundary.Label[Q]): Unit = inline p match
+    case true  => boundary.break(Quits: Q)
+    case false => ()
+    case _     => if p then boundary.break(Quits: Q)
+
+  @deprecated("use quit_?(condition) instead", "0.8.0")
   inline def quit(p: Boolean): QuitTest = p
+
+  @deprecated("use skip_?(condition) instead", "0.8.0")
   inline def skip(p: Boolean): SkipTest = p
 
+  @deprecated("use skip_?(true) instead", "0.8.0")
   inline def skip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
 
+  @deprecated("use quit_?(true) instead", "0.8.0")
   inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   /** Jumps within pre-specified corrals, but presently these aren't fully optimized so only use when it's essential. */
@@ -305,13 +326,21 @@ object shortcut {
         Skips
       if what eq Quits then Hop.jump(Quits)
 
-    inline def skip[S >: Skips.type <: Type, C <: Singleton]()(using l: boundary.Label[S], h: Hop[S, C], c: C) = Hop.jump(Skips: S)
+    /** Jumps to the enclosing skippable boundary if the condition holds.  A literal `true` always
+      * jumps (nothing else is evaluated); a literal `false` compiles to nothing.
+      */
+    inline def skip_?[S >: Skips.type <: Type, C <: Singleton](inline p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = inline p match
+      case true  => Hop.jump(Skips: S)
+      case false => ()
+      case _     => if p then Hop.jump(Skips: S)
 
-    inline def skipIf[S >: Skips.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[S], h: Hop[S, C], c: C): Unit = if p then Hop.jump(Skips: S)
-
-    inline def quit[Q >: Quits.type <: Type, C <: Singleton]()(using l: boundary.Label[Q], h: Hop[Q, C], c: C) = Hop.jump(Quits: Q)
-
-    inline def quitIf[Q >: Quits.type <: Type, C <: Singleton](p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = if p then Hop.jump(Quits: Q)
+    /** Jumps to the enclosing quittable boundary if the condition holds.  A literal `true` always
+      * jumps (nothing else is evaluated); a literal `false` compiles to nothing.
+      */
+    inline def quit_?[Q >: Quits.type <: Type, C <: Singleton](inline p: Boolean)(using l: boundary.Label[Q], h: Hop[Q, C], c: C): Unit = inline p match
+      case true  => Hop.jump(Quits: Q)
+      case false => ()
+      case _     => if p then Hop.jump(Quits: Q)
   }
 }
 

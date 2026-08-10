@@ -141,7 +141,7 @@ class JsaunTest {
     T ~ bad(e("a")(3).str)                  ==== true
     T ~ errText(e("a")(3).str)              ==== errText(e.ask)
     // Boundary-style unwrap
-    T ~ Ask{ j("stations")(1)("id").json.strOr("?") } ==== Is("b2")
+    T ~ Ask{ j("stations")(1)("id").json_?.strOr("?") } ==== Is("b2")
 
   @Test
   def duplicateKeyTest(): Unit =

@@ -62,7 +62,7 @@ class ChanNSpscBench {
     Go.session:
       Go:
         ch.put(batch): i =>
-          shortcut.quit(i >= Total).?
+          shortcut.quit_?(i >= Total)
           Pool(i & Mask)
       ch.get: v =>
         acc += v.length
@@ -117,7 +117,7 @@ class ChanNFanInBench {
       while p < producers do
         Go:
           ch.put(batch): i =>
-            shortcut.quit(i >= per).?
+            shortcut.quit_?(i >= per)
             Pool(i & Mask)
         p += 1
       ch.get: v =>
@@ -165,7 +165,7 @@ class ChanNSelectBench {
         Go:
           var perturb = 0
           ch.put(batch): i =>
-            shortcut.quit(i >= per).?
+            shortcut.quit_?(i >= per)
             val s = Pool((i + perturb) & Mask)
             perturb = collatzWork(s.length, w)          // work result steers the next selection
             s
@@ -258,7 +258,7 @@ class ChanNLatencyBench {
       Go:
         var perturb = 0
         ch.put(batch): i =>
-          shortcut.quit(i >= Lat.Total).?
+          shortcut.quit_?(i >= Lat.Total)
           if bursty then
             if (i & 63) == 0 then perturb = collatzWork(i + perturb, w * 64)
           else perturb = collatzWork(i + perturb, w)
@@ -360,7 +360,7 @@ class ChanNFullGrabBench {
       while p < producers do
         Go:
           ch.put(pbatch): i =>
-            shortcut.quit(i >= per).?
+            shortcut.quit_?(i >= per)
             Pool(i & Mask)
         p += 1
       if full then

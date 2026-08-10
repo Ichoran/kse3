@@ -267,7 +267,7 @@ package kse
   *   i1 + i2
   * }}}
   * 
-  * If you just need to exit early, use `Err.break("message")` or `Err ?# "message"`.  If you want
+  * If you just need to exit early, use `Err ?# "message"`.  If you want
   * to add a message (e.g. to explain context) when returning in the error condition, use
   * `foo() ?# "message"` where `foo()` has an `Or Err` type (i.e. is an `Ask`).
   * 

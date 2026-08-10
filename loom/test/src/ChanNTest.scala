@@ -241,7 +241,7 @@ class ChanNTest {
     val h = Go.session:
       Go:
         ch.put(8): i =>
-          shortcut.quit(i >= 100).?
+          shortcut.quit_?(i >= 100)
           i + 1
       Go:
         var stack = List.empty[Int]
@@ -259,8 +259,8 @@ class ChanNTest {
     val h = Go.session:
       Go:
         ch.put(8): i =>
-          shortcut.quit(i >= 100).?
-          shortcut.skip(i % 2 == 1).?
+          shortcut.quit_?(i >= 100)
+          shortcut.skip_?(i % 2 == 1)
           i
       Go:
         var stack = List.empty[Int]
@@ -380,7 +380,7 @@ class ChanNTest {
     val h = Go.session:
       Go:
         ch.put(1): i =>
-          shortcut.quit(i >= 20).?
+          shortcut.quit_?(i >= 20)
           i
       Go:
         var stack = List.empty[Int]
@@ -401,7 +401,7 @@ class ChanNTest {
     val h = Go.session:
       Go:
         ch.put(8): i =>
-          shortcut.quit(i >= 50).?
+          shortcut.quit_?(i >= 50)
           i
       Go:
         var stack = List.empty[Int]
@@ -426,7 +426,7 @@ class ChanNTest {
       val h = Go.session:
         Go:
           ch.put(32): i =>
-            shortcut.quit(i >= n).?
+            shortcut.quit_?(i >= n)
             i + 1
         Go:
           ch.get: v =>

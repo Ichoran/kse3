@@ -1362,10 +1362,10 @@ class ArraysTest() {
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
-      shortcut.quit(p).?
+      shortcut.quit_?(p)
 
     inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
-      shortcut.skip(p).?
+      shortcut.skip_?(p)
 
     var cuml = 0
     val str = "ch.#ik."
@@ -1622,10 +1622,10 @@ class ArraysTest() {
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
-      shortcut.quit(p).?
+      shortcut.quit_?(p)
 
     inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
-      shortcut.skip(p).?
+      shortcut.skip_?(p)
 
     var cuml = 0
     val str = "ch.#ik."
@@ -3230,10 +3230,10 @@ class StringsTest() {
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
-      shortcut.quit(p).?
+      shortcut.quit_?(p)
 
     inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
-      shortcut.skip(p).?
+      shortcut.skip_?(p)
 
     var cuml = 0
     val str = "ch.#ik."
@@ -3417,10 +3417,10 @@ class StringsTest() {
     import shortcut.{ quittable => qt }
 
     inline def qIf[Q >: shortcut.Quits.type <: shortcut.Type](p: Boolean)(using boundary.Label[Q]) =
-      shortcut.quit(p).?
+      shortcut.quit_?(p)
 
     inline def sIf[S >: shortcut.Skips.type <: shortcut.Type](p: Boolean)(using boundary.Label[S]) =
-      shortcut.skip(p).?
+      shortcut.skip_?(p)
 
     var cuml = 0
     val str = "ch.#ik."

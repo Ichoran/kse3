@@ -351,7 +351,7 @@ iFor(list.iterator){ (s, i) => println(s*i) }  // prints newline, then "herring"
 
 Error handling is greatly simplified and streamlined by using an `Err` type that is either a simple string message, or is
 a wrapped exception.  (Custom `Err` types can also be defined by extending `ErrType`.)  Any operation that may fail should
-return `A Or Err`, where `A` is the success type.  Use `Err.break("message")` or `Err ?# "message"` to exit with a lightweight
+return `A Or Err`, where `A` is the success type.  Use `Err ?# "message"` to exit with a lightweight
 error message.  Use `foo().?` to propagate errors from an error-prone method that you call.  Use `foo() ?# "message"` to
 propagate the error with an explanation about the context.  To catch exceptions and pack them as an `Err`, use `nice{ baz() }`.
 Because `A Or Err` is a very common pattern, the type `Ask[A]` is aliased to it.  If you use `Ask:` instead of `Or.Ret:` any
@@ -705,7 +705,8 @@ ideally be provided.
 #### Control Flow, Exceptions and Error Handling
 
 1. Early-exit control flow is either called `break()`, with parens, or some
-modification thereof; or contains `?`.
+modification thereof; or is called `jump` (used for guarded boundaries, e.g.
+`Hop.jump`); or contains `?`.
 
 1. Anything called `safe`, `safely`, etc., will catch and package exceptions.
 Control flow will not be caught.

@@ -2259,7 +2259,7 @@ class FlowTest {
     T ~ m()                                               ==== 6
     T ~ Ask[Int]{ Resource(m)(_.zap(- _)){ x => 
           if x() > 0 then Is.break(x())
-          else if x() < 0 then Err.break("negative")
+          else if x() < 0 then Err ?# "negative"
           else 0
         } }                                               ==== 6 --: typed[Ask[Int]]
     T ~ m()                                               ==== -6
@@ -2273,7 +2273,7 @@ class FlowTest {
     T ~ Or.FlatRet{
           Resource.safe(m)(_.zap(- _)){ x => 
             if x() > 0 then Is.break(x())
-            else if x() < 0 then Err.break("negative")
+            else if x() < 0 then Err ?# "negative"
             else 0
           }.mapAlt(Err apply _)
         }                                                      ==== 6 --: typed[Int Or Err]
@@ -2294,7 +2294,7 @@ class FlowTest {
     T ~ Or.FlatRet{
           Resource.nice(m.orErr)(_.zap(- _)){ x => 
             if x() > 0 then Is.break(x())
-            else if x() < 0 then Err.break("negative")
+            else if x() < 0 then Err ?# "negative"
             else 0
           }
         }                                                            ==== 6
@@ -2336,7 +2336,7 @@ class FlowTest {
     T ~ m()                                                          ==== 15
     T ~ Resource.Nice(m.orErr)(_.zap(- _)){ x =>
           x.zap(_ - 8)
-          Err.break(x().toString)
+          Err ?# x().toString
           x := 4; x()
         }                                                            ==== Alt(Err("7"))
     T ~ m()                                                          ==== -7
@@ -2354,7 +2354,7 @@ class FlowTest {
           m.errCase{ case x if x() < 0 => Err("bad") }
         }(_.zap(- _)){ x =>
           x.zap(_ - 8)
-          Err.break(x().toString)
+          Err ?# x().toString
           x := 4; x()
         }                                                            ==== Err.or("bad")
     T ~ m()                                                          ==== -5
@@ -2392,20 +2392,20 @@ class FlowTest {
     T ~ c.isOpen            ==== false
     T ~ log.contains(7)     ==== true
 
-    // nice/flatNice carry a boundary for .? / Err.break
+    // nice/flatNice carry a boundary for .? / Err ?#
     val d = Tidy.Later(20)
     T ~ d.nice(r => r * 2)                  ==== 40
     T ~ d.flatNice(r => Is(r + 1))          ==== 21
-    T ~ d.nice(r => { Err.break("no"); r }) ==== Err.or("no")
+    T ~ d.nice(r => { Err ?# "no"; r }) ==== Err.or("no")
     d.close()
 
     // AndClose never drops a close error; never lets it mask the op error
     val boom: Tidy.Clean[Int] = _ => throw new Exception("boomclose")
     T ~ Tidy.Later(9).niceAndClose(r => r * 2)                     ==== 18                  // op ok, close ok
-    T ~ Tidy.Later(9).niceAndClose(r => { Err.break("nope"); r })  ==== Err.or("nope")      // op fails, close ok
+    T ~ Tidy.Later(9).niceAndClose(r => { Err ?# "nope"; r })  ==== Err.or("nope")      // op fails, close ok
     T ~ Tidy.Later(5)(using boom).niceAndClose(r => r + 1)
           .existsAlt(_.toString.contains("closing"))               ==== true                // op ok, close fails
-    val both = Tidy.Later(5)(using boom).niceAndClose(r => { Err.break("opfail"); r })
+    val both = Tidy.Later(5)(using boom).niceAndClose(r => { Err ?# "opfail"; r })
     T ~ both.existsAlt(_.toString.contains("opfail"))              ==== true                // both fail: op kept
     T ~ both.existsAlt(_.toString.contains("boomclose"))           ==== true                // both fail: close kept
     var sup: Throwable = null
@@ -2439,7 +2439,7 @@ class FlowTest {
     T ~ m()                                                           ==== 3
     T ~ Resource.Clean(m.orErr)(_.zap(- _)){ x =>
           x.zap(_ - 8)
-          Err.break(x().toString)
+          Err ?# x().toString
           x := 4; x()
         }                                                            ==== Alt(Err("-5"))
     T ~ m()                                                          ==== 5

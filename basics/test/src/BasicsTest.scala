@@ -225,40 +225,44 @@ class BasicsTest() {
   @Test
   def shortcutTest(): Unit =
     var x = 0
-    T ~ { shortcut.quittable{ x += 1; shortcut.quit(); x += 1 }; x } ==== 1
-    T ~ { shortcut.quittable{ x += 1; shortcut.quit(x > 1).?;  x += 1 }; x } ==== 2
-    T ~ { shortcut.quittable{ x += 1; shortcut.quit(x > 3).?;  x += 1 }; x } ==== 4
-    T ~ { shortcut.skippable{ x += 1; shortcut.skip(); x += 1 }; x } ==== 5
-    T ~ { shortcut.skippable{ x += 1; shortcut.skip(x > 5).?;  x += 1 }; x } ==== 6
-    T ~ { shortcut.skippable{ x += 1; shortcut.skip(x > 7).?;  x += 1 }; x } ==== 8
-    T ~ { shortcut.outer{ x += 2; shortcut.quit(); x += 1 }; x } ==== 10
-    T ~ { shortcut.outer{ x += 2; shortcut.skip(); x += 1 }; x } ==== 12
-    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.skip(); x += 1 }; x += 3 }; x } ==== 18
-    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.quit(); x += 1 }; x += 3 }; x } ==== 21
+    T ~ { shortcut.quittable{ x += 1; shortcut.quit_?(true); x += 1 }; x } ==== 1
+    T ~ { shortcut.quittable{ x += 1; shortcut.quit_?(x > 1);  x += 1 }; x } ==== 2
+    T ~ { shortcut.quittable{ x += 1; shortcut.quit_?(x > 3);  x += 1 }; x } ==== 4
+    T ~ { shortcut.skippable{ x += 1; shortcut.skip_?(true); x += 1 }; x } ==== 5
+    T ~ { shortcut.skippable{ x += 1; shortcut.skip_?(x > 5);  x += 1 }; x } ==== 6
+    T ~ { shortcut.skippable{ x += 1; shortcut.skip_?(x > 7);  x += 1 }; x } ==== 8
+    T ~ { shortcut.outer{ x += 2; shortcut.quit_?(true); x += 1 }; x } ==== 10
+    T ~ { shortcut.outer{ x += 2; shortcut.skip_?(true); x += 1 }; x } ==== 12
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.skip_?(true); x += 1 }; x += 3 }; x } ==== 18
+    T ~ { shortcut.outer{ x += 2; shortcut.inner{ x += 1; shortcut.quit_?(true); x += 1 }; x += 3 }; x } ==== 21
+
+    var w = 0
+    T ~ { shortcut.quittable{ w += 1; shortcut.quit_?(false); w += 1 }; w } ==== 2
+    T ~ { shortcut.skippable{ w += 1; shortcut.skip_?(false); w += 1 }; w } ==== 4
 
     var y = 0
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit();        y += 1 }; y } ==== 1
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 1); y += 1 }; y } ==== 2
-    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quitIf(y > 3); y += 1 }; y } ==== 4
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip();        y += 1 }; y } ==== 5
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 5); y += 1 }; y } ==== 6
-    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skipIf(y > 7); y += 1 }; y } ==== 8
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.quit(); y += 1 }; y } ==== 10
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.skip(); y += 1 }; y } ==== 12
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.skip(); y += 1 }; y += 3 }; y } ==== 18
-    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.quit(); y += 1 }; y += 3 }; y } ==== 21
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit_?(true);        y += 1 }; y } ==== 1
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit_?(y > 1); y += 1 }; y } ==== 2
+    T ~ { shortcut.hopped.quittable{ y += 1; shortcut.hopped.quit_?(y > 3); y += 1 }; y } ==== 4
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip_?(true);        y += 1 }; y } ==== 5
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip_?(y > 5); y += 1 }; y } ==== 6
+    T ~ { shortcut.hopped.skippable{ y += 1; shortcut.hopped.skip_?(y > 7); y += 1 }; y } ==== 8
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.quit_?(true); y += 1 }; y } ==== 10
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.skip_?(true); y += 1 }; y } ==== 12
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.skip_?(true); y += 1 }; y += 3 }; y } ==== 18
+    T ~ { shortcut.hopped.outer{ y += 2; shortcut.hopped.inner{ y += 1; shortcut.hopped.quit_?(true); y += 1 }; y += 3 }; y } ==== 21
 
     var z = 0
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit();        z += 1 }; z } ==== 1
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 1); z += 1 }; z } ==== 2
-    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quitIf(z > 3); z += 1 }; z } ==== 4
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip();        z += 1 }; z } ==== 5
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 5); z += 1 }; z } ==== 6
-    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skipIf(z > 7); z += 1 }; z } ==== 8
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.quit(); z += 1 }; z } ==== 10
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.skip(); z += 1 }; z } ==== 12
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.skip(); z += 1 }; z += 3 }; z } ==== 18
-    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.quit(); z += 1 }; z += 3 }; z } ==== 21
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit_?(true);        z += 1 }; z } ==== 1
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit_?(z > 1); z += 1 }; z } ==== 2
+    T ~ Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit_?(z > 3); z += 1 }; z } ==== 4
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip_?(true);        z += 1 }; z } ==== 5
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip_?(z > 5); z += 1 }; z } ==== 6
+    T ~ Corral{ shortcut.hopped.skippable{ z += 1; shortcut.hopped.skip_?(z > 7); z += 1 }; z } ==== 8
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.quit_?(true); z += 1 }; z } ==== 10
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.skip_?(true); z += 1 }; z } ==== 12
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.skip_?(true); z += 1 }; z += 3 }; z } ==== 18
+    T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.quit_?(true); z += 1 }; z += 3 }; z } ==== 21
 
     T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?();      z += 1 } }; z }"""
     T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 1); z += 1 } }; z }"""
@@ -608,8 +612,8 @@ class BasicsTest() {
     T ~ 3.of[Int]                                           ==== typed[Array[Int]]
     T ~ 3.unfold(i => i+1)                                  =**= Array(1, 2, 3)
     T ~ 3.unfold(i => i+1)                                  ==== typed[Array[Int]]
-    T ~ 3.unfoldFlex{ i => shortcut.skip(i%2 != 0).?; i+1 } =**= Array(1, 3)
-    T ~ 3.unfoldFlex{ i => shortcut.quit(i%2 != 0).?; i+1 } =**= Array(1)
+    T ~ 3.unfoldFlex{ i => shortcut.skip_?(i%2 != 0); i+1 } =**= Array(1, 3)
+    T ~ 3.unfoldFlex{ i => shortcut.quit_?(i%2 != 0); i+1 } =**= Array(1)
     T ~ 3.unfoldFlex(i => i+1)                              ==== typed[Array[Int]]
     T ~ n{ 3.times{ cuml = 2*cuml + 1 } }                   ==== 7
     T ~ n{ 5.visit(cuml += _) }                             ==== 10
@@ -670,8 +674,8 @@ class BasicsTest() {
     T ~ Iv(Int.MinValue, Int.MaxValue).steps().estimateSize   ==== 0xFFFFFFFFL
     T ~ Iv(1, 3).unfold(_ + 1)                                =**= Array(2, 3)
     T ~ Iv(7, 7).unfold(_ + 1)                                =**= Array.empty[Int]
-    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.skip(i < 6).?; i } =**= Array(6, 7, 8)
-    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.quit(i > 7).?; i } =**= Array(5, 6, 7)
+    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.skip_?(i < 6); i } =**= Array(6, 7, 8)
+    T ~ Iv(5, 9).unfoldFlex{ i => shortcut.quit_?(i > 7); i } =**= Array(5, 6, 7)
 
     T ~ n{ Iv(3, 5).visit(cuml += _) }             ==== 7
     T ~ Iv(3, 5).i0                                ==== 3

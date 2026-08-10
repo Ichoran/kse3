@@ -544,16 +544,17 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     ownThreads = Array.empty[Thread]
 
     // On a startup failure after `setup()` succeeded, stop whatever started, close resources, run
-    // teardown, and surface the error — so teardown always runs even if thread creation fails.
-    def abortStartup(e: Err): Nothing =
+    // teardown, and hand the error back for `?+` to surface — so teardown always runs even if
+    // thread creation fails.
+    def abortStartup(e: Err): Err =
       stopWorkers()
       closeAllResources()
       threadnice(teardown()).flatten.foreachAlt(_ => ())
-      boundary.break(Alt(e))
+      e
 
     threadnice(setup()).flatten.?                                  // setup cleans up after itself on error
-    threadnice(startWorkers()).flatten.foreachAlt(abortStartup)
-    threadnice{ startOwnThreads() }.foreachAlt(abortStartup)
+    threadnice(startWorkers()).flatten.?+(abortStartup)
+    threadnice{ startOwnThreads() }.?+(abortStartup)
 
     var wall = 0L
     threadnice:

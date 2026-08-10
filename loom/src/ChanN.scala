@@ -28,8 +28,8 @@ import kse.flow._
   * to the capacity, so a chunk that could never assemble is not waited for.
   *
   *  - Declaratively, inside a `Go` block: `put(n)(f)` produces elements n at a time
-  *    (`f` is `i => element`, with `shortcut.skip()` to omit an element and
-  *    `shortcut.quit()` to finish), `put()(produce)` is the one-at-a-time Chan-like
+  *    (`f` is `i => element`, with `shortcut.skip_?(cond)` to omit an element and
+  *    `shortcut.quit_?(cond)` to finish), `put()(produce)` is the one-at-a-time Chan-like
   *    form, `putN(a, x0, xN)` drains an array slice, and `get(f)` consumes per-item but
   *    extracts up to a batch per lock acquisition.
   *

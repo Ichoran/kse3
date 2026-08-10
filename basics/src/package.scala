@@ -54,17 +54,17 @@ package kse
   * By using `scala.util.boundary` functionality, one can implement break-and-continue-like shortcuts.
   * `shortcut.outer:` defines a point equivalent to a break (customarily one would place this outside
   * a loop); you can stop execution and return from the `shortcut.quittable:` block--which must be side-effecting
-  * because it only returns `Unit`--by using `shortcut.quit_?` with or without a condition.
-  * `shortcut.skippable:` would generally go inside a loop, and can be exited by using `shortcut.skip_?`.
-  * 
+  * because it only returns `Unit`--by using `shortcut.quit_?(condition)`; a literal `true` quits unconditionally.
+  * `shortcut.skippable:` would generally go inside a loop, and can be exited by using `shortcut.skip_?(condition)`.
+  *
   * {{{
   * var i = 0
   * shortcut.quittable:
   *   while i < 100 do
   *     shortcut.skippable:
-  *       if i % 2 == 0 then shortcut.skip()
+  *       shortcut.skip_?(i % 2 == 0)
   *       println(i)
-  *     shortcut.quit(i.toString.length > 1).?
+  *     shortcut.quit_?(i.toString.length > 1)
   *     i += 1
   * // This prints odd numbers from 1 to 9
   * }}}
@@ -246,7 +246,7 @@ package kse
   * actually exist.
   * 
   * But what if you want to stop in the middle of some operation but still want your return value?  No worries!
-  * Prepend `.breakable` and you can use `shortcut.quit` to terminate early inside your lambda, returning any
+  * Prepend `.breakable` and you can use `shortcut.quit_?` to terminate early inside your lambda, returning any
   * partial results you might have found.  And if that might go out of bounds? `.breakable.clip`.
   * Or `.clip.breakable`.  Spell it however you like.
   * 

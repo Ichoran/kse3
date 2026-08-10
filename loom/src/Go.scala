@@ -587,7 +587,7 @@ extension [A](chan: ChanN[A]) {
 
   /** Produce values `n` at a time: `f` maps a running element index 0, 1, 2, ... to a value,
     * and the whole batch moves in one lock acquisition (or a few, when room is short).
-    * Inside `f`, `shortcut.skip()` omits the current index, `shortcut.quit()` ends production
+    * Inside `f`, `shortcut.skip_?(cond)` omits the current index, `shortcut.quit_?(cond)` ends production
     * for good (any values already produced are still delivered, then the channel auto-closes
     * once every writer is done), and `.?` fails the task.  Registers this task as a writer;
     * without a quit, terminate via `Stop.on`/`Stop()`. */

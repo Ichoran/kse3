@@ -95,7 +95,7 @@ object Render:
         while i < n do
           out(i) = f.epochSeconds(c.values(i))
           i += 1
-      case _ => Err.break(s"$what needs a continuous or temporal column, but its kind is ${c.scale.kind}")
+      case _ => Err ?# s"$what needs a continuous or temporal column, but its kind is ${c.scale.kind}"
     out
 
   private def labelsOf(c: Column, what: String): Ask[Array[String]] = Ask:
@@ -108,7 +108,7 @@ object Render:
           out(i) = f.label(c.values(i))
           i += 1
         out
-      case other => Err.break(s"$what needs a discrete column, but its kind is ${other.kind}")
+      case other => Err ?# s"$what needs a discrete column, but its kind is ${other.kind}"
 
   // Channel absence is a zero-length array, never null: a present channel always has one
   // value per row, so on any layer with rows the two cannot be confused, and every
@@ -520,7 +520,7 @@ object Render:
     */
   private def binByPrep(p0: Prep, width: Double, bins: Int, at: BinBy.At): Ask[Prep] = Ask:
     val p = finiteX(p0)
-    if p.xs.length == 0 then Err.break("binBy(): no finite x values to bin")
+    if p.xs.length == 0 then Err ?# "binBy(): no finite x values to bin"
     var lo = Double.PositiveInfinity
     var hi = Double.NegativeInfinity
     var i = 0
@@ -604,9 +604,9 @@ object Render:
     else
       val p = finiteX(p0)
       val distinct = p.xs.distinct.sorted
-      if distinct.length == 0 then Err.break(s"layer ${li + 1}: $what found no finite x values")
+      if distinct.length == 0 then Err ?# s"layer ${li + 1}: $what found no finite x values"
       if distinct.length > 8 && distinct.length * 2 > p.xs.length then
-        Err.break(s"layer ${li + 1}: $what grouped by distinct x would make ${distinct.length} groups of nearly one point each; bin a continuous x first with binBy(...)")
+        Err ?# s"layer ${li + 1}: $what grouped by distinct x would make ${distinct.length} groups of nearly one point each; bin a continuous x first with binBy(...)"
       val index = collection.mutable.HashMap.empty[Double, Int]
       var i = 0
       while i < distinct.length do
@@ -851,24 +851,24 @@ object Render:
     var closed = ""
     stats.foreach: st =>
       if closed.nonEmpty then
-        Err.break(s"layer ${li + 1}: ${statName(st)} cannot follow $closed — a summary stat comes last")
+        Err ?# s"layer ${li + 1}: ${statName(st)} cannot follow $closed — a summary stat comes last"
       if q.xEnd.length > 0 || q.yEnd.length > 0 then
-        Err.break(s"layer ${li + 1}: ${statName(st)} cannot transform edge geometry ('xend'/'yend'); compute the endpoints yourself")
+        Err ?# s"layer ${li + 1}: ${statName(st)} cannot transform edge geometry ('xend'/'yend'); compute the endpoints yourself"
       if q.colorVal.length > 0 then
-        Err.break(s"layer ${li + 1}: ${statName(st)} cannot carry continuous colour through; use discrete colour to group the output")
+        Err ?# s"layer ${li + 1}: ${statName(st)} cannot carry continuous colour through; use discrete colour to group the output"
       st match
         case Smooth(how) =>
-          if catX then Err.break(s"layer ${li + 1}: smooth() needs a continuous x, but the x axis is categorical")
-          if q.xIdx.length > 0 then Err.break(s"layer ${li + 1}: smooth() cannot follow binBy(); binBy() groups for a summary stat")
+          if catX then Err ?# s"layer ${li + 1}: smooth() needs a continuous x, but the x axis is categorical"
+          if q.xIdx.length > 0 then Err ?# s"layer ${li + 1}: smooth() cannot follow binBy(); binBy() groups for a summary stat"
           q = smoothPrep(q, how)
         case BinBy(w, n, at) =>
-          if catX then Err.break(s"layer ${li + 1}: binBy() bins a continuous x, but the x axis is categorical — its levels already group")
-          if q.xIdx.length > 0 then Err.break(s"layer ${li + 1}: binBy() applied twice")
+          if catX then Err ?# s"layer ${li + 1}: binBy() bins a continuous x, but the x axis is categorical — its levels already group"
+          if q.xIdx.length > 0 then Err ?# s"layer ${li + 1}: binBy() applied twice"
           q = binByPrep(q, w, n, at).?
         case BoxSummary(whisk) =>
-          if q.ys.length == 0 then Err.break(s"layer ${li + 1}: boxplot() summarizes 'y' grouped by 'x'; map aesthetic 'y'")
+          if q.ys.length == 0 then Err ?# s"layer ${li + 1}: boxplot() summarizes 'y' grouped by 'x'; map aesthetic 'y'"
           if q.yLo.length > 0 || q.yHi.length > 0 || q.yMin.length > 0 || q.yMax.length > 0 || q.wd.length > 0 then
-            Err.break(s"layer ${li + 1}: boxplot() computes the summary channels itself; map them directly with visual(Boxplot) and no stat instead")
+            Err ?# s"layer ${li + 1}: boxplot() computes the summary channels itself; map them directly with visual(Boxplot) and no stat instead"
           boxPrep(groupedX(q, li, "boxplot()").?, whisk) match
             case main :: rest =>
               q = main
@@ -876,9 +876,9 @@ object Render:
             case _ => ()
           closed = "boxplot()"
         case YDensity(bw, whisk) =>
-          if q.ys.length == 0 then Err.break(s"layer ${li + 1}: violin() summarizes 'y' grouped by 'x'; map aesthetic 'y'")
+          if q.ys.length == 0 then Err ?# s"layer ${li + 1}: violin() summarizes 'y' grouped by 'x'; map aesthetic 'y'"
           if q.yLo.length > 0 || q.yHi.length > 0 || q.yMin.length > 0 || q.yMax.length > 0 || q.wd.length > 0 then
-            Err.break(s"layer ${li + 1}: violin() computes the width channel itself; map 'width' directly with visual(Violin) and no stat instead")
+            Err ?# s"layer ${li + 1}: violin() computes the width channel itself; map 'width' directly with visual(Violin) and no stat instead"
           violinPrep(groupedX(q, li, "violin()").?, bw, whisk) match
             case main :: rest =>
               q = main
@@ -887,19 +887,19 @@ object Render:
           closed = "violin()"
         case other =>
           if q.xIdx.length > 0 && !catX then
-            Err.break(s"layer ${li + 1}: after binBy(), use boxplot() or violin(); ${statName(other)} does not summarize groups")
+            Err ?# s"layer ${li + 1}: after binBy(), use boxplot() or violin(); ${statName(other)} does not summarize groups"
           if q.ys.length > 0 || q.yLo.length > 0 || q.yHi.length > 0 then
-            Err.break(s"layer ${li + 1}: ${statName(other)} computes 'y' from the x values; remove the layer's y mapping")
+            Err ?# s"layer ${li + 1}: ${statName(other)} computes 'y' from the x values; remove the layer's y mapping"
           other match
             case Bin(bins) =>
-              if catX then Err.break(s"layer ${li + 1}: bin() needs a continuous x; on a categorical axis use count")
+              if catX then Err ?# s"layer ${li + 1}: bin() needs a continuous x; on a categorical axis use count"
               q = binPrep(q, bins)
             case Density(bw) =>
-              if catX then Err.break(s"layer ${li + 1}: density() needs a continuous x; on a categorical axis use count")
+              if catX then Err ?# s"layer ${li + 1}: density() needs a continuous x; on a categorical axis use count"
               q = densityPrep(q, bw)
             case _ => q = countPrep(q)
     if stats.lastOption.exists(_.isInstanceOf[BinBy]) then
-      Err.break(s"layer ${li + 1}: binBy() groups for a summary stat; follow it with boxplot() or violin()")
+      Err ?# s"layer ${li + 1}: binBy() groups for a summary stat; follow it with boxplot() or violin()"
     q :: side
 
   //////////////////////////
@@ -1785,7 +1785,7 @@ object Render:
   private def buildFigure(fig: Figure, estW: Double, estH: Double)(using m: Measurer): Ask[Grid] = Ask:
     val fs = fontScale(estW, estH)
     val layers = fig.parts.layers
-    if layers.isEmpty then Err.break("figure has no layers")
+    if layers.isEmpty then Err ?# "figure has no layers"
 
     var xLoC = Double.NaN
     var xHiC = Double.NaN
@@ -1853,11 +1853,11 @@ object Render:
           if f.column.scale.kind == ScaleKind.Discrete then sawCatX = true else sawNumX = true
         else if f.name == "xend" then sawNumX = true
     if sawCatX && sawNumX then
-      Err.break("cannot mix a categorical x with a continuous x (or edge geometry) across layers")
+      Err ?# "cannot mix a categorical x with a continuous x (or edge geometry) across layers"
     val catX = sawCatX
     if catX then
-      if freeX then Err.break("free horizontal scales do not apply to a categorical x: every panel shows the levels")
-      if !xLoC.isNaN || !xHiC.isNaN then Err.break("axis.horz.limit does not apply to a categorical x: every level shows")
+      if freeX then Err ?# "free horizontal scales do not apply to a categorical x: every panel shows the levels"
+      if !xLoC.isNaN || !xHiC.isNaN then Err ?# "axis.horz.limit does not apply to a categorical x: every level shows"
     val xCatBuf = collection.mutable.ArrayBuffer.empty[String]
 
     val levels = collection.mutable.ArrayBuffer.empty[String]
@@ -1876,7 +1876,7 @@ object Render:
         case v: Visual => v.kind
       val names = layer.data.names
       if layer.data.fields.nonEmpty && layer.data.length == 0 then
-        Err.break(s"layer ${li + 1} has no rows: its columns [${names.mkString(", ")}] are empty")
+        Err ?# s"layer ${li + 1} has no rows: its columns [${names.mkString(", ")}] are empty"
       def channel(name: String): Array[Double] =
         layer.data.fields.find(_.name == name) match
           case Some(f) => numbersOf(f.column, s"layer ${li + 1} aesthetic '$name'").?
@@ -1907,17 +1907,17 @@ object Render:
                 i += 1
               xIdx = out
               Array.tabulate(out.length)(out(_).toDouble)
-            case None => Err.break(s"layer ${li + 1} needs aesthetic 'x': the figure's x axis is categorical")
+            case None => Err ?# s"layer ${li + 1} needs aesthetic 'x': the figure's x axis is categorical"
         else
           val cx = channel("x")
           if cx.length > 0 then cx
           else
             layer.look.stats.find(st => !st.isInstanceOf[Smooth]) match
-              case Some(st) => Err.break(s"layer ${li + 1}: ${statName(st)} needs aesthetic 'x'; it has [${names.mkString(", ")}]")
+              case Some(st) => Err ?# s"layer ${li + 1}: ${statName(st)} needs aesthetic 'x'; it has [${names.mkString(", ")}]"
               case None => ()
             val ref = if ys.length > 0 then ys else if yHi.length > 0 then yHi else yLo
             if ref.length > 0 then Array.tabulate(ref.length)(_.toDouble)  // default: observation index
-            else Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
+            else Err ?# s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]"
       var colorIdx = noI
       var colorVal = noD
       layer.data.fields.find(_.name == "color") match
@@ -1937,7 +1937,7 @@ object Render:
                 i += 1
               colorIdx = out
             case _: ScaleOf.AsIdentity[?] =>
-              Err.break(s"layer ${li + 1}: identity colour columns are not interpreted yet")
+              Err ?# s"layer ${li + 1}: identity colour columns are not interpreted yet"
             case _ =>
               colorVal = numbersOf(f.column, s"layer ${li + 1} aesthetic 'color'").?
         case None => ()
@@ -1969,29 +1969,29 @@ object Render:
           p.kind match
             case Visual.Kind.Band =>
               if p.yLo.length == 0 || p.yHi.length == 0 then
-                Err.break(s"layer ${li + 1} with visual Band needs aesthetics 'ylow' and 'yhigh'; it has [${names.mkString(", ")}]")
+                Err ?# s"layer ${li + 1} with visual Band needs aesthetics 'ylow' and 'yhigh'; it has [${names.mkString(", ")}]"
             case Visual.Kind.Boxplot =>
               if p.ys.length == 0 || p.yLo.length == 0 || p.yHi.length == 0 then
-                Err.break(s"layer ${li + 1} with visual Boxplot needs aesthetics 'y' (median), 'ylow', and 'yhigh' (quartiles) — or the boxplot() stat; it has [${names.mkString(", ")}]")
+                Err ?# s"layer ${li + 1} with visual Boxplot needs aesthetics 'y' (median), 'ylow', and 'yhigh' (quartiles) — or the boxplot() stat; it has [${names.mkString(", ")}]"
               if (p.yMin.length == 0) != (p.yMax.length == 0) then
-                Err.break(s"layer ${li + 1} with visual Boxplot: map both 'ymin' and 'ymax' (the whisker ends) or neither")
+                Err ?# s"layer ${li + 1} with visual Boxplot: map both 'ymin' and 'ymax' (the whisker ends) or neither"
             case Visual.Kind.Violin =>
               if p.ys.length == 0 || p.wd.length == 0 then
-                Err.break(s"layer ${li + 1} with visual Violin needs aesthetics 'y' and 'width' — or the violin() stat; it has [${names.mkString(", ")}]")
+                Err ?# s"layer ${li + 1} with visual Violin needs aesthetics 'y' and 'width' — or the violin() stat; it has [${names.mkString(", ")}]"
             case k =>
-              if p.ys.length == 0 then Err.break(s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]")
+              if p.ys.length == 0 then Err ?# s"layer ${li + 1} needs aesthetic 'y'; it has [${names.mkString(", ")}]"
               if k == Visual.Kind.Segment || k == Visual.Kind.Arrow then
                 if p.xEnd.length == 0 || p.yEnd.length == 0 then
-                  Err.break(s"layer ${li + 1} with visual $k needs aesthetics 'xend' and 'yend'; it has [${names.mkString(", ")}]")
+                  Err ?# s"layer ${li + 1} with visual $k needs aesthetics 'xend' and 'yend'; it has [${names.mkString(", ")}]"
           if catX then
             p.kind match
               case Visual.Kind.Scatter =>
-                Err.break(s"layer ${li + 1}: Scatter on a categorical x hides coincident points under one dot; use strip — exact positions, overlap shown honestly")
+                Err ?# s"layer ${li + 1}: Scatter on a categorical x hides coincident points under one dot; use strip — exact positions, overlap shown honestly"
               case Visual.Kind.Line | Visual.Kind.Band | Visual.Kind.Area | Visual.Kind.Segment | Visual.Kind.Arrow =>
-                Err.break(s"layer ${li + 1}: visual ${p.kind} needs a continuous or temporal x, but the x axis is categorical")
+                Err ?# s"layer ${li + 1}: visual ${p.kind} needs a continuous or temporal x, but the x axis is categorical"
               case _ => ()
           if p.colorVal.length > 0 && p.kind != Visual.Kind.Scatter then
-            Err.break(s"layer ${li + 1}: continuous colour is interpreted on Scatter only so far; use discrete colour for ${p.kind}")
+            Err ?# s"layer ${li + 1}: continuous colour is interpreted on Scatter only so far; use discrete colour for ${p.kind}"
       ps
 
     // one colour scale per figure: discrete levels or a continuous ramp, never both
@@ -2007,7 +2007,7 @@ object Render:
           i += 1
     val contColour = cLo <= cHi
     if contColour && levels.nonEmpty then
-      Err.break("one colour scale per figure: some layers map discrete colour and others continuous")
+      Err ?# "one colour scale per figure: some layers map discrete colour and others continuous"
     val hue: Hue =
       if levels.nonEmpty then Hue.Levels(levels.length)
       else if contColour then Hue.Ramp(cLo, cHi)
@@ -2042,7 +2042,7 @@ object Render:
       if p.kind == Visual.Kind.Bar || p.kind == Visual.Kind.Area then
         if dyLo > 0 then dyLo = 0.0
         if dyHi < 0 then dyHi = 0.0
-    if !(dxLo <= dxHi && dyLo <= dyHi) then Err.break("figure has no data points")
+    if !(dxLo <= dxHi && dyLo <= dyHi) then Err ?# "figure has no data points"
     // annotation targets count as data when domains are fit, so they land in view by
     // default (on a categorical x the domain is the levels; x targets are slot indices)
     inline def dxTake(x: Double): Unit =
@@ -2209,7 +2209,7 @@ object Render:
         val what = mk match
           case Mark.Noted(t, _, _, _, _) => s"note '$t'"
           case a: Mark.Arrowed => if a.label.isEmpty then s"arrow to (${a.x2}, ${a.y2})" else s"arrow '${a.label}'"
-        Err.break(s"$what points outside every panel's axes; move the target or relax the axis limits")
+        Err ?# s"$what points outside every panel's axes; move the target or relax the axis limits"
       nk += 1
 
     val legendB: Block | Null =

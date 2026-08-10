@@ -18,6 +18,7 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
     inline def underlying: String | ErrType = e
 
   extension (e: kse.flow.Err)
+    inline def ?[L >: Alt[Err]](using Label[L]): Nothing = boundary.break(Alt(e))
     def +#(s: String): kse.flow.Err = ErrType.Explained(s, e, "  ")
     def explainWith(f: kse.flow.Err => String, indent: String = "  "): kse.flow.Err = Err.apply(ErrType.Explained(f(e), e, indent))
     def explainBy(s: String, indent: String = "  "): Err = Err.apply(ErrType.Explained(s, e, indent))
@@ -44,10 +45,6 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
   def or(et: ErrType): kse.flow.Alt[kse.flow.Err] = Alt(et)
   def or[E](e: E)(using ef: ErrFrom[E]): kse.flow.Alt[kse.flow.Err] = Alt(ef(e))
 
-  inline def break[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
-  inline def break[L >: Alt[Err]](et: ErrType)(using Label[L]): Nothing = boundary.break(Alt(apply(et)))
-  inline def break[E, L >: Alt[Err]](e: E)(using ef: ErrFrom[E], lb: Label[L]): Nothing = boundary.break(Alt(apply(e)))
-
   inline def ?#[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
 }
 
@@ -55,6 +52,8 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
 trait ErrType {
   type E
   def error: E
+
+  final inline def ?[L >: Alt[Err]](using Label[L]): Nothing = boundary.break(Alt(Err(this)))
 
   /** Converts this into a `Throwable`.  This `Throwable` should be `catchable`--wrap in `ErrType.CatchableException` if necessary. */
   def toThrowable: Throwable
