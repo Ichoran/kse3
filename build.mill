@@ -58,6 +58,7 @@ trait Common extends Base {
       super.mvnDeps() ++ extraTestIvy()
     }
     def moduleDeps = extraTestDeps ++ super.moduleDeps
+    def forkArgs = Task { Seq("--enable-native-access=ALL-UNNAMED") }   // FFM native paths (SharedMemory, FdSock)
   }
 }
 

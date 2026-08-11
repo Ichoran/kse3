@@ -10,6 +10,7 @@ import java.lang.invoke.MethodHandle
 import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Path, Files, StandardOpenOption}
+import java.time.Duration
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
@@ -29,9 +30,16 @@ import kse.flow.{given, _}
   * creates a fresh, randomly-named, RAM-resident object and returns the owning `Tidy.Later`, whose cleanup
   * (at `close`, JVM shutdown, or GC) unmaps and destroys it.
   *
+  * [[createFd]] / [[attachFd]], with [[FdSock]] sockets to carry the descriptor, are the anonymous
+  * (`SCM_RIGHTS`) alternative on Linux and macOS: no name in any namespace, kernel-refcounted lifetime
+  * (kill every holder, however rudely, and the memory is reclaimed), and on Linux a seal against shrinking
+  * so no peer can truncate the region out from under the rest.  [[offerFd]] serves such a region at a
+  * socket path and [[acceptFd]] connects and maps it, one call each.
+  *
   * The native paths (everything except the Linux `FileChannel` route) call restricted FFM methods, so the
   * JVM must be started with `--enable-native-access=ALL-UNNAMED` (or the owning module); without it macOS and
-  * Windows `attach`/`createNamed` fail.  The Linux file route needs no such flag.
+  * Windows `attach`/`createNamed` fail.  The Linux file route needs no such flag, but the descriptor routes
+  * are native everywhere, so on Linux they — unlike the name routes — need it too.
   *
   * The backing file is the shared medium, so its naming, lifetime, and cleanup are the caller's job
   * (a tmpfs file holds RAM until deleted).  A region is sized to exactly `n * bytesOf[A]` bytes, so its
@@ -161,8 +169,9 @@ object SharedMemory {
         arena.close()
         throw e
 
-  /** Native `libSystem` bindings for POSIX shared memory on macOS, where `shm_open` objects are *not* files
-    * and so cannot be reached through a `FileChannel`.  Initialized lazily on first macOS use only.
+  /** Native libc/libSystem bindings for POSIX shared memory: macOS names (where `shm_open` objects are
+    * *not* files and so cannot be reached through a `FileChannel`) plus the descriptor-based routes on both
+    * Linux and macOS.  Initialized lazily on first native use.
     */
   private object PosixNative {
     private val linker = Linker.nativeLinker()
@@ -180,6 +189,9 @@ object SharedMemory {
     val munmap    = bind("munmap",     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG))
     val close     = bind("close",      FunctionDescriptor.of(JAVA_INT, JAVA_INT))
     val shmUnlink = bind("shm_unlink", FunctionDescriptor.of(JAVA_INT, ADDRESS))
+    val lseek     = bind("lseek",      FunctionDescriptor.of(JAVA_LONG, JAVA_INT, JAVA_LONG, JAVA_INT), captureErr)
+    val fcntl     = bind("fcntl",      FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT), Linker.Option.firstVariadicArg(2), captureErr)
+    lazy val memfdCreate = bind("memfd_create", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), captureErr)   // Linux-only symbol; touch only there
   }
 
   private def attachPosixNative[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
@@ -406,4 +418,227 @@ object SharedMemory {
               (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
               throw e
       finally tmp.close()
+
+
+  ///////////////////////////////////////////////////////////////////////
+  /// Anonymous regions passed by file descriptor (Linux and macOS)    ///
+  ///////////////////////////////////////////////////////////////////////
+
+  /** An owned, anonymous shared-memory region: a local mapping plus the descriptor `fd` that another
+    * process can map once it reaches them (via [[FdSock.Conn.sendFd]], or [[offerFd]] for the packaged
+    * version).  Anonymous means no name in any namespace: the kernel reference-counts descriptors and
+    * mappings, so however ungracefully every holder exits, the memory is reclaimed.  `close` unmaps and
+    * closes `fd`; peers that already received the descriptor are unaffected.
+    */
+  final class Anon[A <: Mem.Type] private[SharedMemory] (val fd: Int, val byteSize: Long, owned: Mem.Owned[A]) extends AutoCloseable {
+    def memory: Mem[A] = owned.memory
+    def op[B](f: Mem[A] => B): B = owned.op(f)
+    def use(f: Mem[A] => Unit): Unit = owned.use(f)
+    def close(): Unit = try owned.close() finally (PosixNative.close.invoke(fd): Int) __ Unit
+  }
+
+  /** Create an anonymous RAM-resident region of `n` items of `A`, reachable by other processes only if
+    * its descriptor is passed to them over a Unix socket ([[FdSock]], or the [[offerFd]]/[[acceptFd]]
+    * pair).  Linux regions (`memfd_create`) are sealed against shrinking, so no peer can truncate the
+    * region and SIGBUS the rest; macOS regions are `shm_open`ed and immediately unlinked (anonymous from
+    * birth, but unsealable).  Cleanup at `close`, JVM shutdown, or GC unmaps and drops the descriptor;
+    * the kernel frees the memory once the last holder lets go.  Linux/macOS only; needs
+    * `--enable-native-access`.
+    */
+  inline def createFd[A <: Mem.Type](n: Long): Ask[Tidy.Later[Anon[A]]] =
+    anonLater[A](n * Mem.bytesOf[A])
+
+  /** Worker for [[createFd]]: create `bytes` bytes and wrap the result in a backstopped `Tidy.Later`. */
+  def anonLater[A <: Mem.Type](bytes: Long): Ask[Tidy.Later[Anon[A]]] =
+    anonBytes[A](bytes).map(a => Resource.closedLater(a)(_.close()))
+
+  private def anonBytes[A <: Mem.Type](bytes: Long): Ask[Anon[A]] =
+    if bytes <= 0 then Err.or(s"shared-memory size must be positive, got $bytes bytes")
+    else if onLinux then anonMemfd(bytes)
+    else if onMac then anonShm(bytes)
+    else Err.or(s"anonymous shared-memory creation is unsupported on '$osName'")
+
+  /** Map `size` bytes of `fd` as an owned Mem (`fd` remains the caller's); read-only mappings give
+    * read-only segments, so a stray write is an exception rather than a SIGSEGV.
+    */
+  private def mapOwned[A <: Mem.Type](fd: Int, size: Long, readOnly: Boolean, cap: MemorySegment): Ask[Mem.Owned[A]] =
+    val arena = Arena.ofShared()
+    Ask:
+      val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
+      val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, size, prot, 0x1, fd, 0L)  // MAP_SHARED
+      if view.address() == -1L then Err ?# s"mmap failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+      val whole = view.reinterpret(size, arena, s => (PosixNative.munmap.invoke(s, size): Int) __ Unit)
+      Mem.Owned.create[A](arena)(_ => if readOnly then whole.asReadOnly else whole)
+    .peekAlt: _ =>
+      arena.close()
+
+  /** Map an anonymous fd read-write and take ownership of it (on failure the caller cleans up the fd). */
+  private def mapAnonFd[A <: Mem.Type](fd: Int, bytes: Long, cap: MemorySegment): Ask[Anon[A]] =
+    mapOwned[A](fd, bytes, readOnly = false, cap).map(o => new Anon[A](fd, bytes, o))
+
+  /** Linux: `memfd_create(MFD_CLOEXEC | MFD_ALLOW_SEALING)`, size it, seal it against shrinking. */
+  private def anonMemfd[A <: Mem.Type](bytes: Long): Ask[Anon[A]] =
+    val tmp = Arena.ofConfined()
+    try
+      val cap = tmp.allocate(PosixNative.captureLayout)
+      Ask.flat:
+        val fd: Int = PosixNative.memfdCreate.invoke(cap, tmp.allocateFrom("kse-shm"), 0x1 | 0x2)   // MFD_CLOEXEC | MFD_ALLOW_SEALING
+        if fd < 0 then Err ?# s"memfd_create failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+        Ask.flat:
+          if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
+            Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+          if (PosixNative.fcntl.invoke(cap, fd, 1033, 0x2): Int) != 0 then                          // F_ADD_SEALS, F_SEAL_SHRINK
+            Err ?# s"F_ADD_SEALS(F_SEAL_SHRINK) failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+          mapAnonFd[A](fd, bytes, cap)
+        .peekAlt: _ =>
+          (PosixNative.close.invoke(fd): Int) __ Unit
+    finally tmp.close()
+
+  /** macOS: `shm_open` a fresh name, size it, then `shm_unlink` at once — anonymous from birth. */
+  private def anonShm[A <: Mem.Type](bytes: Long): Ask[Anon[A]] =
+    val tmp = Arena.ofConfined()
+    try
+      val cap = tmp.allocate(PosixNative.captureLayout)
+      Ask.flat:
+        var made: Ask[Anon[A]] = Err.or("could not create a uniquely-named shared-memory object in 5 attempts")
+        var tries = 0
+        var clashing = true
+        while clashing && tries < 5 do
+          tries += 1
+          clashing = false
+          val name = freshName()
+          val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(name), 0x0200 | 0x0800 | 0x0002, 0x180)  // O_CREAT|O_EXCL|O_RDWR, 0600
+          if fd < 0 then
+            val e = (PosixNative.errnoVH.get(cap, 0L): Int)
+            if e == 17 then clashing = true   // EEXIST: name clash, try another
+            else Err ?# s"shm_open failed (errno=$e)"
+          else
+            made =
+              Ask.flat:
+                if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
+                  Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+                shmUnlink(name)              // from here on, the descriptor and mappings are the only handles
+                mapAnonFd[A](fd, bytes, cap)
+              .peekAlt: _ =>
+                shmUnlink(name)
+                (PosixNative.close.invoke(fd): Int) __ Unit
+        made
+    finally tmp.close()
+
+  /** Map a shared-memory descriptor received from another process (see [[FdSock.Conn.recvFd]]) as `n`
+    * items of `A`.  With `n = 0` the size is discovered from the descriptor itself (`lseek` to the end —
+    * works for any Linux descriptor and for plain files; macOS `shm_open`-style descriptors cannot be
+    * measured that way, so pass `n` there).  The descriptor is consumed either way: once mapped, the
+    * mapping keeps the memory alive and the descriptor is closed; on failure it is closed too.
+    * Linux/macOS only; needs `--enable-native-access`.
+    */
+  inline def attachFd[A <: Mem.Type](fd: Int, n: Long = 0L, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
+    attachFdBytes[A](fd, n * Mem.bytesOf[A], readOnly)
+
+  /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure via `lseek`), consuming the descriptor. */
+  def attachFdBytes[A <: Mem.Type](fd: Int, bytes: Long, readOnly: Boolean): Ask[Mem.Owned[A]] =
+    if !(onLinux || onMac) then Err.or(s"descriptor attach is unsupported on '$osName'")
+    else
+      val tmp = Arena.ofConfined()
+      try
+        val cap = tmp.allocate(PosixNative.captureLayout)
+        try
+          Ask.flat:
+            val size =
+              if bytes > 0 then bytes
+              else
+                val z: Long = PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END
+                if z <= 0 then Err ?# s"could not measure the shared descriptor (lseek gave $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
+                z
+            mapOwned[A](fd, size, readOnly, cap)
+        finally (PosixNative.close.invoke(fd): Int) __ Unit   // consumed either way; a successful mapping keeps the memory
+      finally tmp.close()
+
+  // The 16-byte header sent ahead of an offered descriptor: magic, version, then the byte size (little-endian).
+  private def fdTag(bytes: Long): Array[Byte] =
+    val tag = new Array[Byte](16)
+    tag(0) = 'k'; tag(1) = 's'; tag(2) = 'e'; tag(3) = 'M'
+    tag(4) = 1
+    var i = 0
+    while i < 8 do
+      tag(8 + i) = ((bytes >>> (8 * i)) & 0xFF).toByte
+      i += 1
+    tag
+
+  /** The byte size from an offer header, or -1 if the header is not ours. */
+  private def parseFdTag(tag: Array[Byte]): Long =
+    if tag.length >= 16 && tag(0) == 'k'.toByte && tag(1) == 's'.toByte && tag(2) == 'e'.toByte && tag(3) == 'M'.toByte && tag(4) == 1 then
+      var bytes = 0L
+      var i = 7
+      while i >= 0 do
+        bytes = (bytes << 8) | (tag(8 + i) & 0xFFL)
+        i -= 1
+      bytes
+    else -1L
+
+  /** An anonymous region being offered at socket `path`: each [[serveOne]] hands the descriptor (plus a
+    * small size-bearing header) to one connecting client — [[acceptFd]], or any `SCM_RIGHTS`-speaking
+    * program.  `close` stops serving (unlinking `path`) and drops our mapping and descriptor; clients that
+    * already received the descriptor keep the memory alive until they too let go.
+    */
+  final class Offer[A <: Mem.Type] private[SharedMemory] (anon: Anon[A], server: FdSock.Server) extends AutoCloseable {
+    def path: Path = server.path
+    def memory: Mem[A] = anon.memory
+    def op[B](f: Mem[A] => B): B = anon.op(f)
+    def use(f: Mem[A] => Unit): Unit = anon.use(f)
+
+    /** Waits (up to the server timeout) for one client and hands it the descriptor. */
+    def serveOne(): Ask[Unit] = Ask:
+      val conn = server.accept().?
+      try conn.sendFd(anon.fd, fdTag(anon.byteSize)).?
+      finally conn.close()
+
+    def close(): Unit = try server.close() finally anon.close()
+  }
+
+  /** Create an anonymous region of `n` items of `A` (see [[createFd]]) and offer its descriptor at socket
+    * `path`: each [[Offer.serveOne]] call serves one connecting [[acceptFd]] (or foreign `SCM_RIGHTS`)
+    * client.  Cleanup at `close`, JVM shutdown, or GC stops serving and unmaps; the kernel frees the
+    * memory once the last holder is gone.  Linux/macOS only; needs `--enable-native-access`.
+    */
+  inline def offerFd[A <: Mem.Type](path: Path, n: Long, timeout: Duration = FdSock.defaultTimeout): Ask[Tidy.Later[Offer[A]]] =
+    offeredLater[A](path, n * Mem.bytesOf[A], timeout)
+
+  /** Worker for [[offerFd]]: create `bytes` bytes, listen at `path`, wrap in a backstopped `Tidy.Later`. */
+  def offeredLater[A <: Mem.Type](path: Path, bytes: Long, timeout: Duration): Ask[Tidy.Later[Offer[A]]] =
+    Ask.flat:
+      val anon = anonBytes[A](bytes).?
+      FdSock.listen(path, timeout)
+        .peekAlt(_ => anon.close())
+        .map(server => Resource.closedLater(new Offer[A](anon, server))(_.close()))
+
+  /** Connect to an [[offerFd]] socket at `path` and map the offered region; the element count comes from
+    * the offer itself, so only the element type `A` need be agreed.  One call: connect, receive the
+    * descriptor, map.  Linux/macOS only; needs `--enable-native-access`.
+    */
+  def acceptFd[A <: Mem.Type](path: Path, readOnly: Boolean = false, timeout: Duration = FdSock.defaultTimeout)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
+    Ask.flat:
+      val conn = FdSock.connect(path, timeout).?
+      val tag = new Array[Byte](16)
+      var fd = -1
+      try
+        Ask:
+          val r = conn.recvFd(tag).?
+          fd = r.fd
+          var have = r.count
+          while have < tag.length do            // a stream may split the header; the descriptor rode the first byte
+            val more = new Array[Byte](tag.length - have)
+            val m = conn.read(more).?
+            if m == 0 then Err ?# s"peer at $path closed before completing the offer header"
+            System.arraycopy(more, 0, tag, have, m)
+            have += m
+        .peekAlt: _ =>
+          if fd >= 0 then (PosixNative.close.invoke(fd): Int) __ Unit
+        .?
+      finally conn.close()
+      val bytes = parseFdTag(tag)
+      if bytes <= 0 then
+        (PosixNative.close.invoke(fd): Int) __ Unit
+        Err ?# s"peer at $path did not speak the kse shared-memory offer protocol"
+      attachFdBytes[A](fd, bytes, readOnly)
 }

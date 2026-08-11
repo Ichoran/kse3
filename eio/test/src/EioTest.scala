@@ -828,6 +828,184 @@ class EioTest {
 
 
   @Test
+  def fdSharedMemoryTest(): Unit =
+    if FdSock.supported then
+      def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
+        val x = sq.poll(10, java.util.concurrent.TimeUnit.SECONDS)
+        if x == null then throw new RuntimeException("fd handoff timed out")
+        x
+      val dir = Files.createTempDirectory("kse-fdshm-")
+      val ready = new java.util.concurrent.SynchronousQueue[AnyRef]()
+      val done  = new java.util.concurrent.SynchronousQueue[AnyRef]()
+
+      // Raw FdSock: plain bytes both ways
+      val rawSock = dir.resolve("raw.sock")
+      val rawServer = Fu:
+        Resource.nice(FdSock.listen(rawSock, 5.s))(_.close()){ srv =>
+          ready.put("go")
+          val conn = srv.accept().?
+          try
+            val buf = new Array[Byte](8)
+            val n = conn.read(buf).?
+            conn.write("pong".bytes).?
+            new String(buf, 0, n)
+          finally conn.close()
+        }.?
+      val rawClient = Fu:
+        handoff(ready) __ Unit
+        Resource.nice(FdSock.connect(rawSock, 5.s))(_.close()){ conn =>
+          conn.write("ping".bytes).?
+          val buf = new Array[Byte](8)
+          val n = conn.read(buf).?
+          new String(buf, 0, n)
+        }.?
+      T ~ rawServer.await() ==== "ping"
+      T ~ rawClient.await() ==== "pong"
+
+      // offerFd/acceptFd: anonymous region handed across threads via SCM_RIGHTS, with write-back
+      val sock = dir.resolve("offer.sock")
+      val offerer = Fu:
+        Resource.nice(SharedMemory.offerFd[Long](sock, 4, 5.s))(_.close()){ later =>
+          later.use(_.use(_.set()(i => (i + 1) * 11)))   // 11, 22, 33, 44
+          ready.put("go")
+          later.op(_.serveOne()).?
+          handoff(done) __ Unit                          // acceptor has written back
+          later.op(_.op(_(2)))
+        }.?
+      val acceptor = Fu:
+        handoff(ready) __ Unit
+        Resource.nice(SharedMemory.acceptFd[Long](sock, timeout = 5.s))(_.close()){ o =>
+          val v = (o.op(_.length), o.op(_(0)), o.op(_(3)))
+          o.use(m => m(2) = 99L)
+          done.put("ok")
+          v
+        }.?
+      T ~ acceptor.await() ==== ((4L, 11L, 44L))
+      T ~ offerer.await() ==== 99L
+
+      // Failure paths answer errors, not hangs
+      T ~ FdSock.connect(dir.resolve("nobody.sock"), 1.s).isAlt ==== true
+      T ~ Resource.nice(FdSock.listen(dir.resolve("lonely.sock"), 250.ms))(_.close()){ srv => srv.accept().isAlt } ==== Is(true)
+
+      // Honest interop: python speaks SCM_RIGHTS natively (Linux: memfd host and mmap client)
+      val py = Path.of("/usr/bin/python3")
+      if System.getProperty("os.name", "").toLowerCase.contains("nux") && Files.isExecutable(py) then
+        // python offers a memfd with the kse header; we accept, read, and write back where python can see it
+        val hostSock = dir.resolve("pyhost.sock")
+        val hostScript = dir.resolve("pyhost.py")
+        Files.writeString(hostScript,
+          """import socket, os, mmap, struct, sys, time
+            |srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            |srv.bind(sys.argv[1])
+            |srv.listen(1)
+            |size = 32
+            |fd = os.memfd_create('py-host')
+            |os.ftruncate(fd, size)
+            |m = mmap.mmap(fd, size)
+            |m[:] = struct.pack('<4q', 5, 6, 7, 8)
+            |conn, _ = srv.accept()
+            |tag = b'kseM' + bytes([1, 0, 0, 0]) + struct.pack('<q', size)
+            |socket.send_fds(conn, [tag], [fd])
+            |deadline = time.time() + 10
+            |while time.time() < deadline and struct.unpack('<q', m[24:32])[0] != 55:
+            |    time.sleep(0.01)
+            |print(struct.unpack('<q', m[24:32])[0])
+            |conn.close()
+            |srv.close()
+            |""".stripMargin) __ Unit
+        val host = new ProcessBuilder(py.toString, hostScript.toString, hostSock.toString).redirectErrorStream(true).start()
+        var w = 0
+        while !Files.exists(hostSock) && w < 200 do { Thread.sleep(25); w += 1 }
+        T ~ Files.exists(hostSock) ==== true
+        T ~ Resource.nice(SharedMemory.acceptFd[Long](hostSock, timeout = 5.s))(_.close()){ o =>
+          val v = (o.op(_.length), o.op(_(0)), o.op(_(3)))
+          o.use(m => m(3) = 55L)
+          v
+        } ==== Is((4L, 5L, 8L))
+        T ~ host.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)   ==== true
+        T ~ (new String(host.getInputStream.readAllBytes())).trim     ==== "55"
+
+        // we offer; a python client receives the descriptor, reads, and writes back
+        val downSock = dir.resolve("pydown.sock")
+        val clientScript = dir.resolve("pyclient.py")
+        Files.writeString(clientScript,
+          """import socket, mmap, struct, sys
+            |c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            |c.connect(sys.argv[1])
+            |msg, fds, flags, addr = socket.recv_fds(c, 32, 4)
+            |size = struct.unpack('<q', msg[8:16])[0]
+            |m = mmap.mmap(fds[0], size)
+            |print(struct.unpack('<q', m[0:8])[0], size)
+            |m[8:16] = struct.pack('<q', 777)
+            |c.close()
+            |""".stripMargin) __ Unit
+        T ~ Resource.nice(SharedMemory.offerFd[Long](downSock, 3, 5.s))(_.close()){ later =>
+          later.use(_.use(m => m(0) = 123L))
+          val cl = new ProcessBuilder(py.toString, clientScript.toString, downSock.toString).redirectErrorStream(true).start()
+          T ~ later.op[Ask[Unit]](_.serveOne()).isIs ==== true
+          T ~ cl.waitFor(10, java.util.concurrent.TimeUnit.SECONDS) ==== true
+          T ~ (new String(cl.getInputStream.readAllBytes())).trim   ==== "123 24"
+          later.op(_.op(_(1)))
+        } ==== Is(777L)
+
+        // adopt + tryRecvFd, doorbell-style: python hands us one end of a SEQPACKET socketpair,
+        // then interleaves a plain record with a memfd-bearing grant on it
+        val dbSock = dir.resolve("pydoor.sock")
+        val dbScript = dir.resolve("pydoor.py")
+        Files.writeString(dbScript,
+          """import socket, os, mmap, struct, sys
+            |srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            |srv.bind(sys.argv[1])
+            |srv.listen(1)
+            |conn, _ = srv.accept()
+            |a, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+            |socket.send_fds(conn, [b'sock'], [b.fileno()])
+            |b.close()
+            |a.send(b'event-no-fd')
+            |fd = os.memfd_create('grant')
+            |os.ftruncate(fd, 16)
+            |m = mmap.mmap(fd, 16)
+            |m[:] = struct.pack('<2q', 41, 42)
+            |socket.send_fds(a, [b'grant'], [fd])
+            |print(a.recv(16).decode())
+            |a.close()
+            |conn.close()
+            |srv.close()
+            |""".stripMargin) __ Unit
+        val db = new ProcessBuilder(py.toString, dbScript.toString, dbSock.toString).redirectErrorStream(true).start()
+        w = 0
+        while !Files.exists(dbSock) && w < 200 do { Thread.sleep(25); w += 1 }
+        val doorbell = Fu:
+          Resource.nice(FdSock.connect(dbSock, 5.s))(_.close()){ c =>
+            val r = c.recvFd(new Array[Byte](8)).?
+            val door = FdSock.adopt(r.fd).?
+            try
+              door.setTimeout(5.s).?
+              val buf = new Array[Byte](64)
+              val e1 = door.recvMsgOrFd(buf).?
+              val s1 = new String(buf, 0, e1.count)
+              val e2 = door.recvMsgOrFd(buf).?
+              val s2 = new String(buf, 0, e2.count)
+              val vals = Resource.nice(SharedMemory.attachFd[Long](e2.fd.getOrElse(-1)))(_.close()){ o =>
+                (o.op(_.length), o.op(_(0)), o.op(_(1)))
+              }.?
+              door.write("ok".bytes).?
+              (e1.fd.isEmpty, s1, e2.fd.isDefined, s2, vals)
+            finally door.close()
+          }.?
+        T ~ doorbell.await() ==== ((true, "event-no-fd", true, "grant", (2L, 41L, 42L)))
+        T ~ db.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)   ==== true
+        T ~ (new String(db.getInputStream.readAllBytes())).trim     ==== "ok"
+
+      T ~ FdSock.adopt(-1).isAlt  ==== true
+      T ~ FdSock.adopt(999_999).isAlt ==== true   // fd numbers allocate lowest-first; this one cannot be open
+
+      List("raw.sock", "offer.sock", "lonely.sock", "pyhost.sock", "pydown.sock", "pydoor.sock", "pyhost.py", "pyclient.py", "pydoor.py")
+        .foreach(f => Files.deleteIfExists(dir.resolve(f)) __ Unit)
+      Files.deleteIfExists(dir) __ Unit
+
+
+  @Test
   def cleasyTest(): Unit =
     import cleasy.*
 
