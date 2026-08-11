@@ -15,6 +15,14 @@ import publish._
 trait Base extends ScalaModule {
   def scalaVersion = "3.8.4"
 
+  // scaladoc 3.8.x has a parallel-rendering race (SignatureBuilder NPE) that maths trips on
+  // nearly every run and other modules occasionally; 3.9 fixes it.  Override the doc tool
+  // only -- the compiler stays at scalaVersion (3.9.0-RC1 miscompiled captured private-var
+  // mutation).  Drop this override when scalaVersion itself reaches 3.9.
+  override def scalaDocClasspath = Task {
+    defaultResolver().classpath(Seq(mvn"org.scala-lang:scaladoc_3:3.9.0-RC5")) ++ super.scalaDocClasspath()
+  }
+
   def scalacOptions = Seq(
     "-deprecation",
     "-Wnonunit-statement",
@@ -34,7 +42,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.7.2"
+  def publishVersion = "0.8.0"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -99,8 +107,8 @@ object eyes extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
-object foundation extends Common {
-  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun)
+object foundation extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun, eyes)
 }
 
 object all extends Common {
