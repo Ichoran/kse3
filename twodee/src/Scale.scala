@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.eyes
+package kse.twodee
 
 
 /** Which family of scale an aesthetic value belongs to.  Decided at compile time from the

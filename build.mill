@@ -103,12 +103,12 @@ object jsaun extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
-object eyes extends Common with PublishKse3 {
-  def moduleDeps = Seq(basics, flow, maths, eio)
+object foundation extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun)
 }
 
-object foundation extends Common with PublishKse3 {
-  def moduleDeps = Seq(basics, flow, maths, loom, eio, thyme, jsaun, eyes)
+object twodee extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
 object all extends Common {
@@ -122,5 +122,5 @@ object all extends Common {
       mvn"com.twelvemonkeys.imageio:imageio-tiff:3.10.1"
     )
   }
-  def moduleDeps = Seq(foundation, eyes)
+  def moduleDeps = Seq(foundation, twodee)
 }

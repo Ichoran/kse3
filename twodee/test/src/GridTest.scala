@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.test.eyes
+package kse.test.twodee
 
 
 import java.lang.{Math => jm}
@@ -11,7 +11,7 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
-import kse.eyes.*
+import kse.twodee.*
 
 
 class Steady(l: Double, r: Double = 0, t: Double = 0, b: Double = 0, wp: Size = Size.Auto, hp: Size = Size.Auto, asp: Double = Double.NaN) extends Block {

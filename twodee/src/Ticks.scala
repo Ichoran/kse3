@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.eyes
+package kse.twodee
 
 
 import java.lang.{Math => jm}
@@ -12,7 +12,7 @@ import java.lang.{Math => jm}
   * spelling of that same exact value), plus unlabeled `minor` positions between and
   * beyond the majors.
   */
-final class Ticks private[eyes] (val values: Array[Double], val labels: Array[String], val minor: Array[Double]):
+final class Ticks private[twodee] (val values: Array[Double], val labels: Array[String], val minor: Array[Double]):
   def length: Int = values.length
 
 

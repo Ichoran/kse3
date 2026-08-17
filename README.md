@@ -38,11 +38,12 @@ mvn"com.github.ichoran::kse3-loom:0.8.0"
 mvn"com.github.ichoran::kse3-thyme:0.8.0"
 mvn"com.github.ichoran::kse3-eio:0.8.0"
 mvn"com.github.ichoran::kse3-jsaun:0.8.0"
-mvn"com.github.ichoran::kse3-eyes:0.8.0"
+mvn"com.github.ichoran::kse3-twodee:0.8.0"
 ```
 
 to try it out; `kse3-foundation` (same version) is an aggregator with no code of its own
-that pulls in all of the above with one line.  Or, the scala-cli header equivalent:
+that pulls in all of the above except `kse3-twodee` with one line.  Or, the scala-cli
+header equivalent:
 
 ```scala
 //> using scala 3.8.4
@@ -53,7 +54,7 @@ that pulls in all of the above with one line.  Or, the scala-cli header equivale
 //> using dep com.github.ichoran::kse3-thyme:0.8.0
 //> using dep com.github.ichoran::kse3-eio:0.8.0
 //> using dep com.github.ichoran::kse3-jsaun:0.8.0
-//> using dep com.github.ichoran::kse3-eyes:0.8.0
+//> using dep com.github.ichoran::kse3-twodee:0.8.0
 ```
 
 Because scala-cli does not by default use the default JVM and does not use Java 25 by default,

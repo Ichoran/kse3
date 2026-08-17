@@ -1,24 +1,24 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.test.eyes
+package kse.test.twodee
 
 
 import java.lang.{Math => jm}
 import java.nio.file.{Files, Paths}
 
 import kse.flow.{given, _}
-import kse.eyes.{given, _}
+import kse.twodee.{given, _}
 
 
 /** Renders the example figures to SVG files for human review:
-  * `mill eyes.test.runMain kse.test.eyes.EyesExamples <outdir>`
+  * `mill twodee.test.runMain kse.test.twodee.TwodeeExamples <outdir>`
   */
-object EyesExamples:
+object TwodeeExamples:
   case class Rev(day: Double, revenue: Double, region: String)
 
   def main(args: Array[String]): Unit =
-    val dir = Paths.get(if args.nonEmpty then args(0) else "eyes/examples")
+    val dir = Paths.get(if args.nonEmpty then args(0) else "twodee/examples")
     val _ = Files.createDirectories(dir)
 
     // Sketch 1: a bare series through the timeseries recipe, titled, floored at zero

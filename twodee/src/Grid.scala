@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.eyes
+package kse.twodee
 
 
 import java.lang.{Math => jm}
@@ -99,17 +99,17 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
     val s = settle(w, h, 0.08, 4, footprint = true)
     Prot(pad + s.cNeed(0), pad + s.cNeed(cols), pad + s.rNeed(0), pad + s.rNeed(rows))
 
-  private[eyes] def blockCount: Int = entries.length
-  private[eyes] def blockAt(i: Int): Block = entries(i).block
-  private[eyes] def floatCount: Int = floats.length
-  private[eyes] def floatBlockAt(i: Int): Block = floats(i).block
+  private[twodee] def blockCount: Int = entries.length
+  private[twodee] def blockAt(i: Int): Block = entries(i).block
+  private[twodee] def floatCount: Int = floats.length
+  private[twodee] def floatBlockAt(i: Int): Block = floats(i).block
 
   /** The content-footprint width this grid naturally wants at roughly height `h`: when
     * every column is Fixed, the columns plus the internal gutters they need — so a parent
     * can size a cell to fit and keep neighboring annotations glued to the content.  NaN
     * when any column is Auto or Relative: width is then contextual, not natural.
     */
-  private[eyes] def naturalWidth(h: Double): Double =
+  private[twodee] def naturalWidth(h: Double): Double =
     val colW = new Array[Double](cols)
     var c = 0
     while c < cols do
@@ -257,7 +257,7 @@ final class Grid(val rows: Int, val cols: Int, val colGap: Double = 8.0, val row
       rowH = distribute(h, rowGut, rowPref)
     Settled(colW, rowH, colGut, rowGut, cFull, rFull, passes, converged, cramped)
 
-  private[eyes] def solveAt(x0: Double, y0: Double, w: Double, h: Double, margin: Double, maxPasses: Int, footprint: Boolean = false): Layout =
+  private[twodee] def solveAt(x0: Double, y0: Double, w: Double, h: Double, margin: Double, maxPasses: Int, footprint: Boolean = false): Layout =
     val n = entries.length
     val s = settle(w, h, margin, maxPasses, footprint)
     val colW = s.colW

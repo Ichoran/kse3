@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.eyes
+package kse.twodee
 
 
 import scala.annotation.targetName
@@ -413,7 +413,7 @@ enum Board:
   * A lone `name = value` parses as a named method argument, hence the extra parens in the
   * single-column case.
   */
-final class DataWord private[eyes] ():
+final class DataWord private[twodee] ():
   inline def apply[T <: AnyNamedTuple](t: T): Layer =
     val names = constValueTuple[Names[T]].toList.asInstanceOf[List[String]]
     val makers = summonAll[Tuple.Map[DropNames[T], AsColumn]].toList.asInstanceOf[List[AsColumn[Any]]]
@@ -430,7 +430,7 @@ final class DataWord private[eyes] ():
 
 
 /** Axis config words, reached as `axis.vert.limit(...)` etc. */
-final class AxisWords private[eyes] (which: Parts.Axis):
+final class AxisWords private[twodee] (which: Parts.Axis):
   def limit(min: Double = Double.NaN, max: Double = Double.NaN): Parts =
     Parts(Vector.empty, Vector(Parts.Config.AxisLimit(which, min, max)))
   def title(text: String): Parts =
@@ -458,14 +458,14 @@ final class AxisWords private[eyes] (which: Parts.Axis):
   def free: Parts =
     Parts(Vector.empty, Vector(Parts.Config.FreeAxis(which == Parts.Axis.Horz, which == Parts.Axis.Vert)))
 
-final class AxisVocab private[eyes] ():
+final class AxisVocab private[twodee] ():
   val horz: AxisWords = AxisWords(Parts.Axis.Horz)
   val vert: AxisWords = AxisWords(Parts.Axis.Vert)
   /** Both axes free: every facet panel fits its own data. */
   def free: Parts = Parts(Vector.empty, Vector(Parts.Config.FreeAxis(true, true)))
 
 /** Panel-arrangement words for facet grids. */
-final class PanelsVocab private[eyes] ():
+final class PanelsVocab private[twodee] ():
   def gap(both: Double): Parts = gap(both, both)
   def gap(horz: Double, vert: Double): Parts = Parts(Vector.empty, Vector(Parts.Config.PanelGap(horz, vert)))
   /** Every panel gets its own tick labels (scales still shared unless axes are free). */
@@ -488,7 +488,7 @@ final class PanelsVocab private[eyes] ():
   * appears in every panel whose scales contain its target; if no panel does (pinned axis
   * limits, free scales), rendering fails loudly rather than dropping the annotation.
   */
-final class NoteWord private[eyes] ():
+final class NoteWord private[twodee] ():
   def apply(text: String, x: Double, y: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
     Parts(Vector.empty, Vector(Parts.Config.Note(text, NoteAt.Point(x, y), backoff, radius, shape)))
   def x(text: String, at: Double, backoff: Double = Double.NaN, radius: Double = Double.NaN, shape: ArrowShape = ArrowShape()): Parts =
@@ -584,7 +584,7 @@ trait Vocabulary:
     * via `at`.
     */
   def binBy(width: Double = Double.NaN, bins: Int = 8, at: BinBy.At = BinBy.At.Center): Look =
-    Look(null, kse.eyes.BinBy(width, bins, at) :: Nil, Style.empty)
+    Look(null, kse.twodee.BinBy(width, bins, at) :: Nil, Style.empty)
 
   /** Translucent geometry for this look's layers: overlapping marks accumulate ink, so
     * density of overlap stays visible instead of vanishing under the topmost mark.
@@ -657,21 +657,21 @@ trait Vocabulary:
   final val Boxplot = Visual.Kind.Boxplot
   final val Violin = Visual.Kind.Violin
 
-  type Loess = kse.eyes.Loess
-  final val Loess = kse.eyes.Loess
-  type Kernel = kse.eyes.Kernel
-  final val Kernel = kse.eyes.Kernel
-  type Rolling = kse.eyes.Rolling
-  final val Rolling = kse.eyes.Rolling
-  type RollingMedian = kse.eyes.RollingMedian
-  final val RollingMedian = kse.eyes.RollingMedian
-  type Fit = kse.eyes.Fit
-  final val Fit = kse.eyes.Fit
-  type ArrowShape = kse.eyes.ArrowShape
-  final val ArrowShape = kse.eyes.ArrowShape
-  type Whisk = kse.eyes.Whisk
-  final val Whisk = kse.eyes.Whisk
-  final val BinAt = kse.eyes.BinBy.At
+  type Loess = kse.twodee.Loess
+  final val Loess = kse.twodee.Loess
+  type Kernel = kse.twodee.Kernel
+  final val Kernel = kse.twodee.Kernel
+  type Rolling = kse.twodee.Rolling
+  final val Rolling = kse.twodee.Rolling
+  type RollingMedian = kse.twodee.RollingMedian
+  final val RollingMedian = kse.twodee.RollingMedian
+  type Fit = kse.twodee.Fit
+  final val Fit = kse.twodee.Fit
+  type ArrowShape = kse.twodee.ArrowShape
+  final val ArrowShape = kse.twodee.ArrowShape
+  type Whisk = kse.twodee.Whisk
+  final val Whisk = kse.twodee.Whisk
+  final val BinAt = kse.twodee.BinBy.At
 
 
 /** Figure entry point:

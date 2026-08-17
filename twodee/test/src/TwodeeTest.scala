@@ -1,7 +1,7 @@
 // This file is distributed under the BSD 3-clause license.  See file LICENSE.
 // Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab)
 
-package kse.test.eyes
+package kse.test.twodee
 
 
 import java.lang.{Math => jm}
@@ -11,14 +11,14 @@ import org.junit.runners.JUnit4
 import org.junit._
 import org.junit.Assert._
 
-import kse.eyes.*
+import kse.twodee.*
 
 
 case class Sale(date: Double, revenue: Double, region: String, channel: String)
 
 
 @RunWith(classOf[JUnit4])
-class EyesTest {
+class TwodeeTest {
   import kse.basics.testutilities.TestUtilities.{given, _}
   import kse.flow.{given, _}
 
@@ -74,7 +74,7 @@ class EyesTest {
 
   @Test
   def algebraLawsTest(): Unit =
-    import kse.eyes.Fig.*
+    import kse.twodee.Fig.*
     val base = data(x = ts, y = vs)
     val vS = visual(Scatter)
     val vL = visual(Line)
@@ -103,7 +103,7 @@ class EyesTest {
 
   @Test
   def mixedLayersTest(): Unit =
-    import kse.eyes.Fig.*
+    import kse.twodee.Fig.*
     // five aesthetics in one layer, two in another: superposition is total and each layer
     // keeps its own aesthetic set (unmapped ones resolve to style/theme at render)
     val rich = data.from(sales)(s => (x = s.date, y = s.revenue, hue = s.region, size = s.revenue, spikiness = s.date)) * visual(Scatter)
@@ -116,7 +116,7 @@ class EyesTest {
 
   @Test
   def lengthMismatchTest(): Unit =
-    import kse.eyes.Fig.*
+    import kse.twodee.Fig.*
     var bundleCaught = false
     try
       val bad = data(x = Array(1.0, 2.0), y = Array(1.0))
@@ -136,19 +136,19 @@ class EyesTest {
     import scala.compiletime.testing.typeChecks
     // positive twin: the same shapes compile when used correctly,
     // so the rejections below fail for the right reason
-    T ~ typeChecks("""kse.eyes.Fig.data(x = Array(1.0), y = Array(2.0))""") ==== true
+    T ~ typeChecks("""kse.twodee.Fig.data(x = Array(1.0), y = Array(2.0))""") ==== true
     // scalars are not columns: constants belong in style, not data
-    T ~ typeChecks("""kse.eyes.Fig.data(x = Array(1.0), color = "red")""") ==== false
+    T ~ typeChecks("""kse.twodee.Fig.data(x = Array(1.0), color = "red")""") ==== false
     // row function must match the row type
-    T ~ typeChecks("""kse.eyes.Fig.data.from(Array(1.0, 2.0))((s: String) => (x = s.length))""") ==== false
+    T ~ typeChecks("""kse.twodee.Fig.data.from(Array(1.0, 2.0))((s: String) => (x = s.length))""") ==== false
     // Parts has no *: config does not multiply
-    T ~ typeChecks("""kse.eyes.Parts.empty * kse.eyes.Fig.visual(kse.eyes.Visual.Kind.Scatter)""") ==== false
+    T ~ typeChecks("""kse.twodee.Parts.empty * kse.twodee.Fig.visual(kse.twodee.Visual.Kind.Scatter)""") ==== false
     // a bare look cannot be superposed onto a figure without a layer
-    T ~ typeChecks("""kse.eyes.Fig.visual(kse.eyes.Visual.Kind.Scatter) + kse.eyes.Parts.empty""") ==== false
+    T ~ typeChecks("""kse.twodee.Fig.visual(kse.twodee.Visual.Kind.Scatter) + kse.twodee.Parts.empty""") ==== false
 
   @Test
   def dataSurfaceTest(): Unit =
-    import kse.eyes.Fig.*
+    import kse.twodee.Fig.*
     val bundle = data(x = ts, y = vs, color = labs)
     T ~ bundle.data.names ==== List("x", "y", "color")
     T ~ bundle.data.fields.map(_.column.scale.kind) ==== List(ScaleKind.Continuous, ScaleKind.Continuous, ScaleKind.Discrete)
@@ -166,7 +166,7 @@ class EyesTest {
 
   @Test
   def facetTest(): Unit =
-    import kse.eyes.Fig.*
+    import kse.twodee.Fig.*
     T ~ facet(col = labs).data.names ==== List("col")
     T ~ facet(row = labs).data.names ==== List("row")
     T ~ facet(col = labs, row = labs).data.names ==== List("col", "row")
@@ -376,8 +376,8 @@ class EyesTest {
     T ~ (sy > 220) ==== true
     // compass strings are checked at compile time
     import scala.compiletime.testing.typeChecks
-    T ~ typeChecks("""val m = kse.eyes.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.eyes.Fig.inset(m, "ne")""") ==== true
-    T ~ typeChecks("""val m = kse.eyes.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.eyes.Fig.inset(m, "qq")""") ==== false
+    T ~ typeChecks("""val m = kse.twodee.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.twodee.Fig.inset(m, "ne")""") ==== true
+    T ~ typeChecks("""val m = kse.twodee.Fig(f => f.data(x = Array(1.0, 2.0), y = Array(1.0, 2.0))); kse.twodee.Fig.inset(m, "qq")""") ==== false
 
   @Test
   def histogramTest(): Unit =
