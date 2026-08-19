@@ -17,10 +17,10 @@ trait Base extends ScalaModule {
 
   // scaladoc 3.8.x has a parallel-rendering race (SignatureBuilder NPE) that maths trips on
   // nearly every run and other modules occasionally; 3.9 fixes it.  Override the doc tool
-  // only -- the compiler stays at scalaVersion (3.9.0-RC1 miscompiled captured private-var
-  // mutation).  Drop this override when scalaVersion itself reaches 3.9.
+  // only -- the compiler stays at scalaVersion until 3.9.0 final (3.9.0-RC6 verified clean
+  // against the full build and test suite).  Drop this override when scalaVersion reaches 3.9.
   override def scalaDocClasspath = Task {
-    defaultResolver().classpath(Seq(mvn"org.scala-lang:scaladoc_3:3.9.0-RC5")) ++ super.scalaDocClasspath()
+    defaultResolver().classpath(Seq(mvn"org.scala-lang:scaladoc_3:3.9.0-RC6")) ++ super.scalaDocClasspath()
   }
 
   def scalacOptions = Seq(
@@ -28,6 +28,7 @@ trait Base extends ScalaModule {
     "-Wnonunit-statement",
     "-Wvalue-discard",
     "-Wconf:msg=is not declared infix:s",
+    "-Wconf:msg=Illegal literal:s",
     "-release", "25"      // require JDK 25+: stable Foreign Function & Memory API (22) + non-pinning
                           // synchronized for virtual threads (24), used by Mem/SharedMemory/Fu
   )

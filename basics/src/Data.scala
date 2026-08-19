@@ -1969,7 +1969,7 @@ object ClippedArray {
                 case "[]" =>
                   if hN < h0 then
                     if h0 >= a.length then h0 = a.length - 1
-                    hN = if hN >= 0 then hN - 1 else - 1
+                    hN = if hN >= 0 then hN - 1 else -1
                   else
                     if h0 < 0 then h0 = 0
                     hN = if hN < a.length then hN + 1 else a.length
@@ -4689,7 +4689,7 @@ object ClippedString {
                 case "[]" =>
                   if hN < h0 then
                     if h0 >= a.length then h0 = a.length - 1
-                    hN = if hN >= 0 then hN - 1 else - 1
+                    hN = if hN >= 0 then hN - 1 else -1
                   else
                     if h0 < 0 then h0 = 0
                     hN = if hN < a.length then hN + 1 else a.length

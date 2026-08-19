@@ -126,6 +126,23 @@ If you use scala-cli headers, where spaces don't parse as part of the message, y
 
 (Note that this has to go above the MainClass declaration if you have one.)
 
+#### What about negative numbers?
+
+Scala 3.9 warns ("Illegal literal") when a negated numeric literal is followed by a method
+call, e.g. `-25.abs` or `-2.days`, because some languages parse that as `-(25.abs)`.  Scala
+reads it the natural human way: a number, `-25`, whose method is then called.  Kse3 leans
+heavily on suffix-style operators, so the recommendation is to turn this warning off too:
+
+```scala
+    "-Wconf:msg=Illegal literal:s"
+```
+
+or in scala-cli headers
+
+```scala
+//> using options -Wconf:msg=Illegal.literal:s
+```
+
 #### Is Kse3 stable?  Binary compatible?
 
 Kse3 is intended as something of an **incubator for good ideas**, so stability is not a primary goal for
