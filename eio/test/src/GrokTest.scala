@@ -214,6 +214,135 @@ class GrokTest {
     }
 
   @Test
+  def grokCoveringTest(): Unit =
+    T ~ Grok.all("123")(_.I)                              ==== Is(123)
+    T ~ Grok.all("-9223372036854775808")(_.L)             ==== Is(Long.MinValue)
+    T ~ Grok.all("+42")(_.I)                              ==== Is(42)
+    T ~ Grok.all("18446744073709551615")(_.uL)            ==== Is(ULong.MaxValue)
+    T ~ Grok.all("255")(_.uB)                             ==== Is(UByte.wrap(-1))
+    T ~ Grok.all("DeadBeef")(_.xI)                        ==== Is(0xDEADBEEF)
+    T ~ Grok.all("ffffffffffffffff")(_.uxL)               ==== Is(ULong.wrap(-1L))
+    T ~ Grok.all("1.25e-3")(_.D)                          ==== Is(1.25e-3)
+    T ~ Grok.all("-Infinity")(_.D)                        ==== Is(Double.NegativeInfinity)
+    T ~ Grok.all("1.5")(_.F)                              ==== Is(1.5f)
+    T ~ bad(Grok.all("123x")(_.I))                        ==== true
+    T ~ bad(Grok.all("12 ")(_.I))                         ==== true
+    T ~ bad(Grok.all("1.25e-3q")(_.D))                    ==== true
+    T ~ bad(Grok.all("")(_.I))                            ==== true
+    T ~ bad(Grok.all("12\n34")(_.I))                      ==== true
+    T ~ errText(Grok.all("12\n34")(_.I)).contains("end of input") ==== true
+    T ~ Grok.all("3,4", delim = ','){ g => (g.I, g.I) }        ==== Is((3, 4))
+    T ~ bad(Grok.all("3,4,5", delim = ','){ g => (g.I, g.I) }) ==== true
+    T ~ Grok.all("06b", partial = true){ g => (g.I, g.tok) }   ==== Is((6, "b"))
+    T ~ bad(Grok.all("06b", partial = true)(_.I))              ==== true
+    T ~ Grok.all("123".getBytes)(_.I)                     ==== Is(123)
+    T ~ Grok.all("123".toCharArray)(_.I)                  ==== Is(123)
+    T ~ Grok.all(Mem of "123".getBytes)(_.I)              ==== Is(123)
+    T ~ bad(Grok.all("123x".getBytes)(_.I))               ==== true
+
+  @Test
+  def parseStringTest(): Unit =
+    T ~ "42".parseB                       ==== Is(42.toByte)
+    T ~ "-128".parseB                     ==== Is(-128.toByte)
+    T ~ bad("128".parseB)                 ==== true
+    T ~ "-32768".parseS                   ==== Is(-32768.toShort)
+    T ~ bad("32768".parseS)               ==== true
+    T ~ "+42".parseI                      ==== Is(42)
+    T ~ "-2147483648".parseI              ==== Is(Int.MinValue)
+    T ~ bad("2147483648".parseI)          ==== true
+    T ~ "9223372036854775807".parseL      ==== Is(Long.MaxValue)
+    T ~ "-9223372036854775808".parseL     ==== Is(Long.MinValue)
+    T ~ "-9170187325617826341".parseL     ==== Is(-9170187325617826341L)   // the failure sentinel, truly spelled
+    T ~ bad("9223372036854775808".parseL) ==== true
+    T ~ bad("".parseI)                    ==== true
+    T ~ bad("1 ".parseI)                  ==== true
+    T ~ bad("nope".parseL)                ==== true
+    T ~ "255".parseUB                     ==== Is(UByte.wrap(-1))
+    T ~ bad("256".parseUB)                ==== true
+    T ~ bad("-1".parseUB)                 ==== true
+    T ~ "65535".parseUS                   ==== Is(UShort.wrap(-1))
+    T ~ "4294967295".parseUI              ==== Is(UInt.wrap(-1))
+    T ~ bad("4294967296".parseUI)         ==== true
+    T ~ "18446744073709551615".parseUL    ==== Is(ULong.MaxValue)
+    T ~ "18276556748091725275".parseUL    ==== Is(Parse.failULong)    // the failure sentinel, truly spelled
+    T ~ bad("18446744073709551616".parseUL) ==== true
+    T ~ "ff".parseXB                      ==== Is((-1).toByte)
+    T ~ "7F".parseXB                      ==== Is(127.toByte)
+    T ~ bad("100".parseXB)                ==== true
+    T ~ "beef".parseXS                    ==== Is(0xBEEF.toShort)
+    T ~ "DeadBeef".parseXI                ==== Is(0xDEADBEEF)
+    T ~ "ffffffffffffffff".parseXL        ==== Is(-1L)
+    T ~ "c7a16d3e52b84f19".parseXL        ==== Is(Parse.failHex)      // the failure sentinel, truly spelled
+    T ~ "C7A16D3E52B84F19".parseUxL       ==== Is(ULong.wrap(Parse.failHex))
+    T ~ bad("12345678901234567".parseXL)  ==== true
+    T ~ bad("0xff".parseXB)               ==== true
+    T ~ bad("-1f".parseXB)                ==== true
+    T ~ "ff".parseUxB                     ==== Is(UByte.wrap(-1))
+    T ~ "ffff".parseUxS                   ==== Is(UShort.wrap(-1))
+    T ~ "ffffffff".parseUxI               ==== Is(UInt.wrap(-1))
+    T ~ "ffffffffffffffff".parseUxL       ==== Is(ULong.wrap(-1L))
+    T ~ "1.25e-3".parseD                  ==== Is(1.25e-3)
+    T ~ "-0.0".parseD.map(d => java.lang.Double.doubleToRawLongBits(d)) ==== Is(java.lang.Double.doubleToRawLongBits(-0.0))
+    T ~ "NaN".parseD.map(_.isNaN)         ==== Is(true)
+    T ~ "-Infinity".parseD                ==== Is(Double.NegativeInfinity)
+    T ~ bad("1.0q".parseD)                ==== true
+    T ~ bad("".parseD)                    ==== true
+    T ~ "1.5".parseF                      ==== Is(1.5f)
+    T ~ "3.4028235e38".parseF             ==== Is(Float.MaxValue)
+    T ~ bad("nope".parseF)                ==== true
+    // the inline _? forms jump instead of boxing, and answer the bare primitive
+    T ~ Or.Ret{ "3".parseI_? + "4".parseI_? }        ==== Is(7)
+    T ~ Or.Ret{ "3".parseI_? + "x".parseI_? }.isAlt  ==== true
+    T ~ Or.Ret{ "1.5".parseD_? * 2 }                 ==== Is(3.0)
+    T ~ errText(Or.Ret{ "x".parseUL_? }).contains("not a ULong") ==== true
+
+  @Test
+  def parseAgreesWithGrokTest(): Unit =
+    val r: Prng = Pcg64(4457719923851L)
+    // Only the value-or-rejection agrees: the Err payloads differ by design, since the bare
+    // kernels have no cursor to report a position from
+    def agreeL(s: String): Unit =
+      T ~ s.parseL.toOption ==== Grok.all(s)(_.L).toOption
+      T ~ s.parseI.toOption ==== Grok.all(s)(_.I).toOption
+      T ~ s.parseS.toOption ==== Grok.all(s)(_.S).toOption
+      T ~ s.parseB.toOption ==== Grok.all(s)(_.B).toOption
+    def agreeU(s: String): Unit =
+      T ~ s.parseUL.toOption ==== Grok.all(s)(_.uL).toOption
+      T ~ s.parseUI.toOption ==== Grok.all(s)(_.uI).toOption
+      T ~ s.parseUS.toOption ==== Grok.all(s)(_.uS).toOption
+      T ~ s.parseUB.toOption ==== Grok.all(s)(_.uB).toOption
+    def agreeX(s: String): Unit =
+      T ~ s.parseXL.toOption  ==== Grok.all(s)(_.xL).toOption
+      T ~ s.parseXI.toOption  ==== Grok.all(s)(_.xI).toOption
+      T ~ s.parseUxL.toOption ==== Grok.all(s)(_.uxL).toOption
+      T ~ s.parseUxB.toOption ==== Grok.all(s)(_.uxB).toOption
+    // Doubles compare by bits: NaN is a legitimate parse of "NaN", and Scala's numeric
+    // equality unboxes, where NaN != NaN
+    def agreeD(s: String): Unit =
+      T ~ s.parseD.map(java.lang.Double.doubleToRawLongBits).toOption ==== Grok.all(s)(_.D).map(java.lang.Double.doubleToRawLongBits).toOption
+      T ~ s.parseF.map(java.lang.Float.floatToRawIntBits).toOption    ==== Grok.all(s)(_.F).map(java.lang.Float.floatToRawIntBits).toOption
+    for s <- Array("0", "-0", "+7", "007", "", "-", "+", "x", "1x", " 1", "1 ", "-+1",
+                   "9223372036854775807", "-9223372036854775808", "9223372036854775808",
+                   "18446744073709551615", "18446744073709551616", "99999999999999999999999",
+                   "-9170187325617826341", "18276556748091725275") do
+      agreeL(s)
+      agreeU(s)
+    for s <- Array("0", "ff", "FF", "00ff", "", "fg", "-1f", "0xff", "+ff",
+                   "ffffffffffffffff", "12345678901234567", "123456789abcdef0",
+                   "c7a16d3e52b84f19", "C7A16D3E52B84F19") do
+      agreeX(s)
+    for s <- Array("0", "-0.0", "1.25e-3", "0.1", "1e400", "NaN", "Infinity", "-Infinity",
+                   "", "1.0q", ".5", "5.", "1e", "1.7976931348623157e308") do
+      agreeD(s)
+    nFor(200){ _ =>
+      val l = r.L
+      agreeL(l.toString)
+      agreeU(java.lang.Long.toUnsignedString(l))
+      agreeX(l.loHexString)
+      agreeD(r.D.toString)
+    }
+
+  @Test
   def grokDigitsFieldTest(): Unit =
     T ~ Grok("20250706")(g => (g.digits(4), g.digits(2), g.digits(2)))  ==== Is((2025L, 7L, 6L))
     T ~ Grok("123456")(g => (g.digits(4), g.digits(2)))                 ==== Is((1234L, 56L))

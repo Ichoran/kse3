@@ -117,6 +117,14 @@ class EioTest {
       T ~ b.stringEncode85ascii.decode85ascii.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode85ascii.decode85ascii.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
+    nFor(32){ i =>
+      val b = r.arrayB(i)
+      T ~ b.stringEncodeHex.decodeHex.map(_.toVector)      ==== b.toVector --: typed[Vector[Byte] Or Err]
+      T ~ b.stringEncodeHexLo.decodeHex.map(_.toVector)    ==== b.toVector --: typed[Vector[Byte] Or Err]
+      T ~ b.encodeHex.decodeHex.map(_.toVector)            ==== b.toVector --: typed[Vector[Byte] Or Err]
+      T ~ b.encodeHexLo.decodeHex.map(_.toVector)          ==== b.toVector --: typed[Vector[Byte] Or Err]
+      T ~ chs(b.stringEncodeHex).decodeHex.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
+    }
 
     T ~ " \uFEFF".bytes.hasBOM                   ==== false
     T ~ "\uFEFF".bytes.hasBOM                    ==== true
@@ -198,12 +206,30 @@ class EioTest {
     T ~ EioBase85.decodeAsciiRange(b.encode85ascii, 90 to End-215).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
     T ~ EioBase85.decodeAsciiRange(b.stringEncode85ascii, 90 to End-215).get =**= b.encode85ascii.slice(90, 105).decode85ascii.get
 
+    val hb = Array(0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x15).map(_.toByte)
+    T ~ hb.stringEncodeHex   ==== "DEADBEEF0015"
+    T ~ hb.stringEncodeHexLo ==== "deadbeef0015"
+    T ~ hb.encodeHex   =**= "DEADBEEF0015".bytes
+    T ~ hb.encodeHexLo =**= "deadbeef0015".bytes
+    T ~ "DeadBeef0015".decodeHex.get =**= hb
+    T ~ "de ad be ef\n00 15".decodeHex.get =**= hb
+    T ~ "deadbeef001".decodeHex.isAlt  ==== true
+    T ~ "deadbexf0015".decodeHex.isAlt ==== true
+    T ~ EioHex.encodeRange(hb, 1, 3) =**= "ADBE".bytes
+    T ~ EioHex.encodeRange(hb, Iv(1, 3)) =**= "ADBE".bytes
+    T ~ EioHex.encodeLoRange(hb, 1 to 2) =**= "adbe".bytes
+    T ~ EioHex.encodeLoRange(hb, 1 to End-3) =**= "adbe".bytes
+    T ~ EioHex.decodeRange("xxDEADxx", 2, 6).get =**= hb.take(2)
+    T ~ EioHex.decodeRange("xxDEADxx", Iv(2, 6)).get =**= hb.take(2)
+    T ~ EioHex.decodeRange("xxDEADxx".bytes, 2 to 5).get =**= hb.take(2)
+    T ~ EioHex.decodeRange("xxDEADxx".bytes, 2 to End-2).get =**= hb.take(2)
+
     val zok = new ZipEntry("all/fine/here.txt")
     val zwin = new ZipEntry("bad\\win\\name.txt")
     T ~ zok.cleanName  ==== "all/fine/here.txt"
     T ~ zwin.cleanName ==== "bad/win/name.txt"
-    T ~ zok.cleanPath  ==== (new java.io.File("all/fine/here.txt")).toPath
-    T ~ zwin.cleanPath ==== (new java.io.File("bad/win/name.txt")).toPath
+    T ~ zok.systemPath  ==== (new java.io.File("all/fine/here.txt")).toPath
+    T ~ zwin.systemPath ==== (new java.io.File("bad/win/name.txt")).toPath
 
     val bf = "fish".bytes.buffer()
     T ~ bf.remaining     ==== 4

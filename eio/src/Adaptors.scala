@@ -17,6 +17,8 @@ import java.util.Base64
 import scala.collection.immutable.{Range => Rg}
 
 import kse.basics.{given, _}
+import scala.util.boundary.Label
+
 import kse.basics.intervals.{Iv, End}
 import kse.flow.{given, _}
 import kse.maths.{given, _}
@@ -560,6 +562,129 @@ object EioBase85 {
   def decodeAscii(encoded: String): Ask[Array[Byte]] = decodeRangeWithTable(encoded, 0, encoded.length, decodeAsciiTable)
 }
 
+
+/** Hexadecimal encoding and decoding of byte arrays.  Encoding is two digits per byte with
+  * no separators, uppercase by default with `Lo` variants for lowercase.  Decoding accepts
+  * either case and skips ASCII whitespace (like the Base64 and Base85 decoders), but the
+  * digit count must be even--a trailing half byte is an error, not a padding opportunity.
+  */
+object EioHex {
+  private val encodeHiTable: Array[Byte] = Array(
+    '0'.toByte, '1'.toByte, '2'.toByte, '3'.toByte, '4'.toByte, '5'.toByte, '6'.toByte, '7'.toByte,
+    '8'.toByte, '9'.toByte, 'A'.toByte, 'B'.toByte, 'C'.toByte, 'D'.toByte, 'E'.toByte, 'F'.toByte
+  )
+
+  private val encodeLoTable: Array[Byte] = Array(
+    '0'.toByte, '1'.toByte, '2'.toByte, '3'.toByte, '4'.toByte, '5'.toByte, '6'.toByte, '7'.toByte,
+    '8'.toByte, '9'.toByte, 'a'.toByte, 'b'.toByte, 'c'.toByte, 'd'.toByte, 'e'.toByte, 'f'.toByte
+  )
+
+  private inline def hexValue(c: Int): Int =
+    if      c >= '0' && c <= '9' then c - '0'
+    else if c >= 'A' && c <= 'F' then c - 'A' + 10
+    else if c >= 'a' && c <= 'f' then c - 'a' + 10
+    else if c == ' ' || c == '\t' || c == '\n' || c == '\r' then 16
+    else -1
+
+  private def encodeRangeWithTable(raw: Array[Byte], i0: Int, iN: Int, table: Array[Byte]): Array[Byte] =
+    if i0 < 0 || iN > raw.length then throw new RuntimeException(s"Invalid input range: $i0 until $iN in input of length ${raw.length}")
+    if iN - i0 > Int.MaxValue/2 then throw new RuntimeException(s"Overly long hex encode: would require ${2L*(iN - i0)} bytes")
+    val a = new Array[Byte](2*(iN - i0))
+    var i = i0
+    var j = 0
+    while i < iN do
+      val b = raw(i) & 0xFF
+      a(j) = table(b >>> 4)
+      a(j+1) = table(b & 0xF)
+      i += 1
+      j += 2
+    a
+
+  def encodeRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeHiTable)
+  inline def encodeRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
+    val iv = Iv of rg
+    encodeRange(raw, iv.i0, iv.iN)
+  inline def encodeRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
+    val iv = v of raw
+    encodeRange(raw, iv.i0, iv.iN)
+
+  def encodeLoRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeLoTable)
+  inline def encodeLoRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
+    val iv = Iv of rg
+    encodeLoRange(raw, iv.i0, iv.iN)
+  inline def encodeLoRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
+    val iv = v of raw
+    encodeLoRange(raw, iv.i0, iv.iN)
+
+  def encode(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeHiTable)
+
+  def encodeLo(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeLoTable)
+
+  def stringEncode(raw: Array[Byte]): String = new String(encode(raw), ISO_8859_1)
+
+  def stringEncodeLo(raw: Array[Byte]): String = new String(encodeLo(raw), ISO_8859_1)
+
+  def decodeRange(encoded: Array[Byte], i0: Int, iN: Int): Ask[Array[Byte]] = Or.Ret:
+    if i0 < 0 || iN > encoded.length then Err ?# s"Invalid decoding range: $i0 until $iN in array of length ${encoded.length}"
+    val a = new Array[Byte]((iN - i0 + 1) >> 1)
+    var partial = 0
+    var half = false
+    var i = i0
+    var j = 0
+    while i < iN do
+      val y = hexValue(encoded(i))
+      if y < 0 then Err ?# s"Invalid hexadecimal character: '${encoded(i).toChar}' at $i"
+      else if y < 16 then
+        if half then
+          a(j) = ((partial << 4) | y).toByte
+          j += 1
+          half = false
+        else
+          partial = y
+          half = true
+      i += 1
+    if half then Err ?# s"Odd number of hexadecimal digits: input ends mid-byte at $iN"
+    a.shrinkCopy(j)
+  inline def decodeRange(encoded: Array[Byte], inline rg: Rg): Ask[Array[Byte]] =
+    val iv = Iv of rg
+    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange(encoded: Array[Byte], inline v: Iv.X): Ask[Array[Byte]] =
+    val iv = v of encoded
+    decodeRange(encoded, iv.i0, iv.iN)
+
+  def decode(encoded: Array[Byte]): Ask[Array[Byte]] = decodeRange(encoded, 0, encoded.length)
+
+  def decodeRange(encoded: String, i0: Int, iN: Int): Ask[Array[Byte]] = Or.Ret:
+    if i0 < 0 || iN > encoded.length then Err ?# s"Invalid decoding range: $i0 until $iN in string of length ${encoded.length}"
+    val a = new Array[Byte]((iN - i0 + 1) >> 1)
+    var partial = 0
+    var half = false
+    var i = i0
+    var j = 0
+    while i < iN do
+      val y = hexValue(encoded.charAt(i))
+      if y < 0 then Err ?# s"Invalid hexadecimal character: '${encoded.charAt(i)}' at $i"
+      else if y < 16 then
+        if half then
+          a(j) = ((partial << 4) | y).toByte
+          j += 1
+          half = false
+        else
+          partial = y
+          half = true
+      i += 1
+    if half then Err ?# s"Odd number of hexadecimal digits: input ends mid-byte at $iN"
+    a.shrinkCopy(j)
+  inline def decodeRange(encoded: String, inline rg: Rg): Ask[Array[Byte]] =
+    val iv = Iv of rg
+    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange(encoded: String, inline v: Iv.X): Ask[Array[Byte]] =
+    val iv = v of encoded
+    decodeRange(encoded, iv.i0, iv.iN)
+
+  def decode(encoded: String): Ask[Array[Byte]] = decodeRange(encoded, 0, encoded.length)
+}
+
 extension (underlying: Array[Byte]) {
   inline def utf8 = new String(underlying, UTF_8)
   inline def ascii = new String(underlying, US_ASCII)
@@ -599,6 +724,14 @@ extension (underlying: Array[Byte]) {
   inline def decode85 = EioBase85.decodeZmq(underlying)
   inline def decode85zmq = EioBase85.decodeZmq(underlying)
   inline def decode85ascii = EioBase85.decodeAscii(underlying)
+
+  inline def stringEncodeHex = EioHex.stringEncode(underlying)
+  inline def stringEncodeHexLo = EioHex.stringEncodeLo(underlying)
+
+  inline def encodeHex = EioHex.encode(underlying)
+  inline def encodeHexLo = EioHex.encodeLo(underlying)
+
+  inline def decodeHex = EioHex.decode(underlying)
 }
 
 extension (underlying: String) {
@@ -612,18 +745,183 @@ extension (underlying: String) {
   inline def decode85 = EioBase85.decodeZmq(underlying)
   inline def decode85zmq = EioBase85.decodeZmq(underlying)
   inline def decode85ascii = EioBase85.decodeAscii(underlying)
+
+  inline def decodeHex = EioHex.decode(underlying)
+}
+
+
+///////////////////////////////////////////////////////////////
+// Covering numeric parses of whole strings                  //
+///////////////////////////////////////////////////////////////
+
+/** Parse this entire string as one number: the `parseI` family answers `Ask` (first failure
+  * as an `Err`), and the inline `parseI_?` family jumps to the enclosing boundary instead,
+  * answering the bare primitive with no boxing on the success path.  The verbs and grammar
+  * are Grok's -- signed decimal `B`/`S`/`I`/`L`, unsigned decimal `UB`..`UL`, hex bit
+  * patterns `XB`..`XL` (case-insensitive, no `0x`), unsigned hex `UxB`..`UxL`, and
+  * EL-parsed `D`/`F` -- but the machinery is the bare kernels in `kse.maths.Parse` and
+  * `kse.maths.EiselLemire`, so no Grok is ever constructed.
+  */
+extension (underlying: String) {
+  inline def parseB_?[E >: Alt[Err]](using Label[E]): Byte =
+    val x = Parse.long(underlying)
+    if x < Byte.MinValue || x > Byte.MaxValue then Err ?# s"not a Byte: $underlying"
+    x.toByte
+
+  inline def parseS_?[E >: Alt[Err]](using Label[E]): Short =
+    val x = Parse.long(underlying)
+    if x < Short.MinValue || x > Short.MaxValue then Err ?# s"not a Short: $underlying"
+    x.toShort
+
+  inline def parseI_?[E >: Alt[Err]](using Label[E]): Int =
+    val x = Parse.long(underlying)
+    if x < Int.MinValue || x > Int.MaxValue then Err ?# s"not an Int: $underlying"
+    x.toInt
+
+  inline def parseL_?[E >: Alt[Err]](using Label[E]): Long =
+    val x = Parse.long(underlying)
+    if x == Parse.failLong && !Parse.spellsFailLong(underlying) then Err ?# s"not a Long: $underlying"
+    x
+
+  inline def parseUB_?[E >: Alt[Err]](using Label[E]): UByte =
+    val x = Parse.uLong(underlying).signed
+    if x < 0 || x > 0xFF then Err ?# s"not a UByte: $underlying"
+    UByte.wrap(x.toByte)
+
+  inline def parseUS_?[E >: Alt[Err]](using Label[E]): UShort =
+    val x = Parse.uLong(underlying).signed
+    if x < 0 || x > 0xFFFF then Err ?# s"not a UShort: $underlying"
+    UShort.wrap(x.toShort)
+
+  inline def parseUI_?[E >: Alt[Err]](using Label[E]): UInt =
+    val x = Parse.uLong(underlying).signed
+    if x < 0 || x > 0xFFFFFFFFL then Err ?# s"not a UInt: $underlying"
+    UInt.wrap(x.toInt)
+
+  inline def parseUL_?[E >: Alt[Err]](using Label[E]): ULong =
+    val x = Parse.uLong(underlying)
+    if x == Parse.failULong && !Parse.spellsFailULong(underlying) then Err ?# s"not a ULong: $underlying"
+    x
+
+  inline def parseXB_?[E >: Alt[Err]](using Label[E]): Byte =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFF then Err ?# s"not a hex Byte: $underlying"
+    x.toByte
+
+  inline def parseXS_?[E >: Alt[Err]](using Label[E]): Short =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFFFF then Err ?# s"not a hex Short: $underlying"
+    x.toShort
+
+  inline def parseXI_?[E >: Alt[Err]](using Label[E]): Int =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFFFFFFFFL then Err ?# s"not a hex Int: $underlying"
+    x.toInt
+
+  inline def parseXL_?[E >: Alt[Err]](using Label[E]): Long =
+    val x = Parse.hex(underlying)
+    if x == Parse.failHex && !Parse.spellsFailHex(underlying) then Err ?# s"not a hex Long: $underlying"
+    x
+
+  inline def parseUxB_?[E >: Alt[Err]](using Label[E]): UByte =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFF then Err ?# s"not a hex UByte: $underlying"
+    UByte.wrap(x.toByte)
+
+  inline def parseUxS_?[E >: Alt[Err]](using Label[E]): UShort =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFFFF then Err ?# s"not a hex UShort: $underlying"
+    UShort.wrap(x.toShort)
+
+  inline def parseUxI_?[E >: Alt[Err]](using Label[E]): UInt =
+    val x = Parse.hex(underlying)
+    if x < 0 || x > 0xFFFFFFFFL then Err ?# s"not a hex UInt: $underlying"
+    UInt.wrap(x.toInt)
+
+  inline def parseUxL_?[E >: Alt[Err]](using Label[E]): ULong =
+    val x = Parse.hex(underlying)
+    if x == Parse.failHex && !Parse.spellsFailHex(underlying) then Err ?# s"not a hex ULong: $underlying"
+    ULong.wrap(x)
+
+  inline def parseD_?[E >: Alt[Err]](using Label[E]): Double =
+    val x = EiselLemire.parseDouble(underlying)
+    if EiselLemire.failed(x) then Err ?# s"not a Double: $underlying"
+    x
+
+  inline def parseF_?[E >: Alt[Err]](using Label[E]): Float =
+    val x = EiselLemire.parseFloat(underlying)
+    if EiselLemire.failed(x) then Err ?# s"not a Float: $underlying"
+    x
+
+  def parseB: Ask[Byte] = Or.Ret:
+    parseB_?
+
+  def parseS: Ask[Short] = Or.Ret:
+    parseS_?
+
+  def parseI: Ask[Int] = Or.Ret:
+    parseI_?
+
+  def parseL: Ask[Long] = Or.Ret:
+    parseL_?
+
+  def parseUB: Ask[UByte] = Or.Ret:
+    parseUB_?
+
+  def parseUS: Ask[UShort] = Or.Ret:
+    parseUS_?
+
+  def parseUI: Ask[UInt] = Or.Ret:
+    parseUI_?
+
+  def parseUL: Ask[ULong] = Or.Ret:
+    parseUL_?
+
+  def parseXB: Ask[Byte] = Or.Ret:
+    parseXB_?
+
+  def parseXS: Ask[Short] = Or.Ret:
+    parseXS_?
+
+  def parseXI: Ask[Int] = Or.Ret:
+    parseXI_?
+
+  def parseXL: Ask[Long] = Or.Ret:
+    parseXL_?
+
+  def parseUxB: Ask[UByte] = Or.Ret:
+    parseUxB_?
+
+  def parseUxS: Ask[UShort] = Or.Ret:
+    parseUxS_?
+
+  def parseUxI: Ask[UInt] = Or.Ret:
+    parseUxI_?
+
+  def parseUxL: Ask[ULong] = Or.Ret:
+    parseUxL_?
+
+  def parseD: Ask[Double] = Or.Ret:
+    parseD_?
+
+  def parseF: Ask[Float] = Or.Ret:
+    parseF_?
 }
 
 
 
 extension (underlying: java.util.zip.ZipEntry) {
+  /** The entry's name, with backslash separators (which some Windows tools write in
+    * violation of the zip spec) corrected to the / that entry names are supposed to use.
+    */
   def cleanName =
     val n = underlying.getName
     val i = n.indexOf('/')
     val j = n.indexOf('\\')
     if i < 0 && j > 0 then n.replace('\\', '/') else n
 
-  def cleanPath =
+  /** The entry's cleaned name as a `Path`, with this system's separator. */
+  def systemPath =
     val n = underlying.cleanName
     val fs = FileSystems.getDefault
     fs.getPath(if fs.getSeparator == "/" then n else n.replace("/", fs.getSeparator))

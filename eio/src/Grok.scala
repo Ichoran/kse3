@@ -2099,6 +2099,17 @@ object Grok {
       case b: Array[Byte]  => new Bytes(b, Delim.from(delim), partial, !exact)
       case m: Mem[Byte]    => new MemBytes(m, Delim.from(delim), partial, !exact)
 
+  /** Covering parse of `content`: exactly `Grok(content, ...){ g => ... }`, plus a check that
+    * the block consumed every element of the input, so trailing unparsed input is an error
+    * rather than silently ignored.  `Grok.all(s)(_.I)` is thus a whole-string integer parse.
+    */
+  inline def all[A](inline content: String | Array[Char] | Array[Byte] | Mem[Byte], inline delim: Delim | Char | String = Delim.lines, partial: Boolean = false, exact: Boolean = false)(inline f: Label[A Or Err] ?=> Grok => A): Ask[A] =
+    val g = apply(content, delim, partial, exact)
+    Or.Nice:
+      val a = f(g)
+      g.end
+      a
+
 
   /** Groks raw bytes.  Structure (delimiters, numbers, and `<` literals) is ASCII, read as
     * unsigned 0-255; `tok` decodes its span as UTF-8, which is safe because multi-byte sequences
