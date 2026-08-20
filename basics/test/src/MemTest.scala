@@ -983,9 +983,53 @@ class MemTest() {
       T ~ of2.whereIsFwd(0L, 4L)(1.5f) ==== 2L
       T ~ f.whereIsFwd(0L, 4L)(1.5f)   ==== -1L
 
+    // Order-aware structs: a TIFF-flavored header, declared once, read either way
+    type Hdr = (magic: Short, version: Short, offset: Int)
+    val hb = Mem.alloc[Byte](8L)
+    hb.setS_be(0L, 0x4D4D.toShort)
+    hb.setS_be(2L, 42.toShort)
+    hb.setI_be(4L, 8)
+    val ho = Mem.AoS.wrap[Hdr](hb.segment).orderAware
+    T ~ ho.length ==== 1L
+    locally:
+      import Mem.BE
+      T ~ ho.magic(0)   ==== 0x4D4D.toShort
+      T ~ ho.version(0) ==== 42.toShort
+      T ~ ho.offset(0)  ==== 8
+      val t = ho(0)
+      T ~ t.magic  ==== 0x4D4D.toShort
+      T ~ t.offset ==== 8
+      val c = ho.cursor(0)
+      T ~ c.version ==== 42.toShort
+      c.offset = 16
+      T ~ hb.getI_be(4L) ==== 16
+    locally:
+      import Mem.LE
+      T ~ ho.offset(0) ==== 0x10000000
+    locally:
+      import Mem.BE
+      ho(0) = (magic = 0x4949.toShort, version = 43.toShort, offset = 24)
+      T ~ hb.getS_be(0L) ==== 0x4949.toShort
+      val expect = (magic = 0x4949.toShort, version = 43.toShort, offset = 24)
+      T ~ ho(0) ==== expect
+      var vsum = 0
+      ho.use()(idx => vsum += idx.offset)
+      T ~ vsum ==== 24
+      ho.use()(idx => idx.version = 44.toShort)
+      T ~ ho.version(0) ==== 44.toShort
+      ho.offset.alter(_ + 1)
+      T ~ ho.offset(0) ==== 25
+      T ~ ho.gather(0)()((z, idx) => z + idx.offset) ==== 25
+      T ~ ho.where(idx => idx.version == 44.toShort) =**= Array(0L)
+      val sc = ho.struct(0)
+      ho.version(0) = 45.toShort
+      T ~ sc.version ==== 44.toShort
+      T ~ ho.aos.version(0) ==== java.lang.Short.reverseBytes(45.toShort)
+
     // With no order in scope, order-aware access is ambiguous by design; stating one compiles
     T ~ compiletime.testing.typeChecks("val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== false
     T ~ compiletime.testing.typeChecks("Mem.alloc[Int](2L).getI_xe(0L)")              ==== false
+    T ~ compiletime.testing.typeChecks("val q = Mem.AoS.alloc[(a: Int)](1L).orderAware; q.a(0L)") ==== false
     T ~ compiletime.testing.typeChecks("given Mem.Order = Mem.bigEndian; val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== true
 }
 object MemTest {

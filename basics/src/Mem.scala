@@ -1671,6 +1671,62 @@ object Mem {
         case _: Double  => seg.set(JAVA_DOUBLE_UNALIGNED, off, x.asInstanceOf[Double])
         case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
 
+    /** Read a value of (translucently primitive) type `O` at byte offset `off` of `seg` in byte
+      * order `o`: the backing primitive swaps as one unit, which is only right for genuinely
+      * scalar fields (a compound packed opaque would be reversed whole).  Access is via the
+      * constant native-order layouts plus a conditional `reverseBytes` (see [[Mem.Order]]).
+      */
+    inline def readAt[O](seg: MemorySegment, o: Order, off: Long): O = summonFrom:
+      case _: Translucent[O, b] => readAt[b](seg, o, off).asInstanceOf[O]
+      case _ => inline erasedValue[O] match
+        case _: Byte    => seg.get(JAVA_BYTE, off).asInstanceOf[O]
+        case _: Short   =>
+          val x = seg.get(JAVA_SHORT_UNALIGNED, off)
+          (if o.swapped then java.lang.Short.reverseBytes(x) else x).asInstanceOf[O]
+        case _: Char    =>
+          val x = seg.get(JAVA_CHAR_UNALIGNED, off)
+          (if o.swapped then java.lang.Character.reverseBytes(x) else x).asInstanceOf[O]
+        case _: Int     =>
+          val x = seg.get(JAVA_INT_UNALIGNED, off)
+          (if o.swapped then java.lang.Integer.reverseBytes(x) else x).asInstanceOf[O]
+        case _: Float   =>
+          (if o.swapped then java.lang.Float.intBitsToFloat(java.lang.Integer.reverseBytes(seg.get(JAVA_INT_UNALIGNED, off)))
+           else seg.get(JAVA_FLOAT_UNALIGNED, off)).asInstanceOf[O]
+        case _: Long    =>
+          val x = seg.get(JAVA_LONG_UNALIGNED, off)
+          (if o.swapped then java.lang.Long.reverseBytes(x) else x).asInstanceOf[O]
+        case _: Double  =>
+          (if o.swapped then java.lang.Double.longBitsToDouble(java.lang.Long.reverseBytes(seg.get(JAVA_LONG_UNALIGNED, off)))
+           else seg.get(JAVA_DOUBLE_UNALIGNED, off)).asInstanceOf[O]
+        case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
+
+    /** Write a value of (translucently primitive) type `O` at byte offset `off` of `seg` in byte
+      * order `o`; swap semantics and fast-path shape as for the ordered `readAt`.
+      */
+    inline def writeAt[O](seg: MemorySegment, o: Order, off: Long, x: O): Unit = summonFrom:
+      case _: Translucent[O, b] => writeAt[b](seg, o, off, x.asInstanceOf[b])
+      case _ => inline erasedValue[O] match
+        case _: Byte    => seg.set(JAVA_BYTE, off, x.asInstanceOf[Byte])
+        case _: Short   =>
+          val v = x.asInstanceOf[Short]
+          seg.set(JAVA_SHORT_UNALIGNED, off, if o.swapped then java.lang.Short.reverseBytes(v) else v)
+        case _: Char    =>
+          val v = x.asInstanceOf[Char]
+          seg.set(JAVA_CHAR_UNALIGNED, off, if o.swapped then java.lang.Character.reverseBytes(v) else v)
+        case _: Int     =>
+          val v = x.asInstanceOf[Int]
+          seg.set(JAVA_INT_UNALIGNED, off, if o.swapped then java.lang.Integer.reverseBytes(v) else v)
+        case _: Float   =>
+          if o.swapped then seg.set(JAVA_INT_UNALIGNED, off, java.lang.Integer.reverseBytes(java.lang.Float.floatToRawIntBits(x.asInstanceOf[Float])))
+          else seg.set(JAVA_FLOAT_UNALIGNED, off, x.asInstanceOf[Float])
+        case _: Long    =>
+          val v = x.asInstanceOf[Long]
+          seg.set(JAVA_LONG_UNALIGNED, off, if o.swapped then java.lang.Long.reverseBytes(v) else v)
+        case _: Double  =>
+          if o.swapped then seg.set(JAVA_LONG_UNALIGNED, off, java.lang.Long.reverseBytes(java.lang.Double.doubleToRawLongBits(x.asInstanceOf[Double])))
+          else seg.set(JAVA_DOUBLE_UNALIGNED, off, x.asInstanceOf[Double])
+        case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
+
     /** Forward value seek dispatched to the primitive that backs `O`; see `whereIsFwd`. */
     inline def seekFwd[O](seg: MemorySegment, i0: Long, iN: Long, v: O): Long = summonFrom:
       case _: Translucent[O, b] => seekFwd[b](seg, i0, iN, v.asInstanceOf[b])
@@ -2406,6 +2462,12 @@ object Mem {
       MemorySegment.copy(segment, i * st, seg, 0L, st)
       new Mem.Struct[T](seg, 0L)
 
+    /** An order-aware view of the same structs: the field layout stays as declared, but field
+      * reads and writes take the `Mem.Order` given in scope--so e.g. a wire-format header
+      * struct can be read in whichever byte order its file says.
+      */
+    inline def orderAware: AoS.OrderAware[T] = new AoS.OrderAware[T](segment)
+
     /** Run `f` on an instance-typed index for each complete struct in order.  This array is
       * contextually available inside `f`, so `idx.x` reads and `idx.x = v` writes its fields
       * (which subsumes alter/edit), the plain position is `idx.unwrap`, and neighbors are a
@@ -2547,6 +2609,21 @@ object Mem {
           As.writeAt[t](seg, off, v.productElement(k).asInstanceOf[t])
           writeTuple[ts](seg, off + As.bytesOf[t], v, k + 1)
 
+    /** Read the fields of `Ts`, packed starting at byte offset `off`, into a value tuple, each
+      * field in byte order `o`.
+      */
+    inline def readTuple[Ts <: Tuple](seg: MemorySegment, o: Order, off: Long): Ts = inline erasedValue[Ts] match
+      case _: EmptyTuple => EmptyTuple.asInstanceOf[Ts]
+      case _: (t *: ts)  => (As.readAt[t](seg, o, off) *: readTuple[ts](seg, o, off + As.bytesOf[t])).asInstanceOf[Ts]
+
+    /** Write the fields of `Ts` from `v`, packed starting at byte offset `off`, each field in byte order `o`. */
+    inline def writeTuple[Ts <: Tuple](seg: MemorySegment, o: Order, off: Long, v: Tuple, inline k: Int): Unit =
+      inline erasedValue[Ts] match
+        case _: EmptyTuple => ()
+        case _: (t *: ts)  =>
+          As.writeAt[t](seg, o, off, v.productElement(k).asInstanceOf[t])
+          writeTuple[ts](seg, o, off + As.bytesOf[t], v, k + 1)
+
     /** A struct index bound by type to the one array instance it indexes: `A` is that array's
       * singleton type, and every field access summons the array contextually (`using A`), so
       * `idx.x` reads and `idx.x = v` writes field `x` of struct `idx` -- and an index made for
@@ -2631,6 +2708,235 @@ object Mem {
           z = f(z, apply(i), i)
           i += 1
         z
+    }
+
+    /** An array of structs whose field reads and writes take the [[Mem.Order]] given in scope:
+      * the field layout (declaration order, packed) is fixed, and each field's bytes swap to
+      * the stated order--so a header whose file says which way it goes (e.g. a TIFF IFD) can
+      * be declared once and read either way.  A field swaps as its whole translucent backing
+      * primitive, which is only right for genuinely scalar fields: a compound packed opaque
+      * would be reversed as one unit.  This is the same memory as the [[AoS]] it views.
+      */
+    final class OrderAware[T <: NamedTuple.AnyNamedTuple](val segment: MemorySegment) extends AnyVal with Dynamic {
+      /** Bytes per struct: the packed sum of the field sizes. */
+      inline def stride: Long = strideOf[T]
+
+      /** Number of whole structs = floor(byteSize / stride). */
+      inline def length: Long = segment.byteSize / strideOf[T]
+
+      /** The same memory as a plain (native-order) array of structs. */
+      inline def aos: AoS[T] = new AoS[T](segment)
+
+      /** Materialize struct `i` as a named tuple, fields in the given order (this allocates the tuple). */
+      inline def apply(i: Long)(using o: Order): T =
+        readTuple[NamedTuple.DropNames[T]](segment, o, i * strideOf[T]).asInstanceOf[T]
+
+      /** Write every field of struct `i` from a named tuple, fields in the given order. */
+      inline def update(i: Long, v: T)(using o: Order): Unit =
+        writeTuple[NamedTuple.DropNames[T]](segment, o, i * strideOf[T], v.asInstanceOf[Tuple], 0)
+
+      /** The strided order-aware column view of the named field (also serves `xs.name(i) = x` assignment). */
+      inline def selectDynamic(name: String & Singleton): OrderAware.Field[T, name.type] =
+        new OrderAware.Field[T, name.type](segment)
+
+      /** Field `name` of struct `i`, read directly in the given order. */
+      inline def applyDynamic(name: String & Singleton)(i: Long)(using o: Order): FieldType[T, name.type] =
+        As.readAt[FieldType[T, name.type]](segment, o, i * strideOf[T] + offsetOf[T, name.type])
+
+      /** A one-struct order-aware view of this array, placed at struct `i`. */
+      inline def cursor(i: Long): OrderAware.Struct[T] = new OrderAware.Struct[T](segment, i * strideOf[T])
+
+      /** A detached order-aware copy of struct `i`: bytes are copied as they lie, and reads
+        * and writes still take the order given in scope.
+        */
+      inline def struct(i: Long): OrderAware.Struct[T] =
+        val st = strideOf[T]
+        val seg = Arena.ofAuto().allocate(st)
+        MemorySegment.copy(segment, i * st, seg, 0L, st)
+        new OrderAware.Struct[T](seg, 0L)
+
+      /** Run `f` on an instance-typed index for each complete struct in order, as for [[AoS]]'s
+        * `use`; the `Mem.Order` for the field accesses inside `f` is resolved where `f` is
+        * written.
+        */
+      inline def use()(inline f: this.type ?=> OrderAware.Index[T, this.type] => Unit): Unit =
+        use(0L, length)(f)
+      inline def use(i0: Long, iN: Long)(inline f: this.type ?=> OrderAware.Index[T, this.type] => Unit): Unit =
+        var i = i0
+        while i < iN do
+          f(using this)(new OrderAware.Index[T, this.type](i))
+          i += 1
+      inline def use(indices: Array[Long])(inline f: this.type ?=> OrderAware.Index[T, this.type] => Unit): Unit =
+        var i = 0
+        while i < indices.length do
+          f(using this)(new OrderAware.Index[T, this.type](indices(i)))
+          i += 1
+      inline def use(indices: LongStepper)(inline f: this.type ?=> OrderAware.Index[T, this.type] => Unit): Unit =
+        while indices.hasStep do
+          f(using this)(new OrderAware.Index[T, this.type](indices.nextStep()))
+
+      /** Visit each adjacent pair of structs as indices, as [[AoS]]'s `pairs`. */
+      inline def pairs(inline f: this.type ?=> (OrderAware.Index[T, this.type], OrderAware.Index[T, this.type]) => Unit): Unit =
+        val n = length
+        var i = 1L
+        while i < n do
+          f(using this)(new OrderAware.Index[T, this.type](i - 1), new OrderAware.Index[T, this.type](i))
+          i += 1
+
+      /** Visit each adjacent triple of structs as indices, as `pairs`. */
+      inline def trios(inline f: this.type ?=> (OrderAware.Index[T, this.type], OrderAware.Index[T, this.type], OrderAware.Index[T, this.type]) => Unit): Unit =
+        val n = length
+        var i = 2L
+        while i < n do
+          f(using this)(new OrderAware.Index[T, this.type](i - 2), new OrderAware.Index[T, this.type](i - 1), new OrderAware.Index[T, this.type](i))
+          i += 1
+
+      /** Fold over an instance-typed index for each complete struct, in order. */
+      inline def gather[Z](zero: Z)()(inline f: this.type ?=> (Z, OrderAware.Index[T, this.type]) => Z): Z =
+        gather(zero)(0L, length)(f)
+      inline def gather[Z](zero: Z)(i0: Long, iN: Long)(inline f: this.type ?=> (Z, OrderAware.Index[T, this.type]) => Z): Z =
+        var i = i0
+        var z = zero
+        while i < iN do
+          z = f(using this)(z, new OrderAware.Index[T, this.type](i))
+          i += 1
+        z
+      inline def gather[Z](zero: Z)(indices: Array[Long])(inline f: this.type ?=> (Z, OrderAware.Index[T, this.type]) => Z): Z =
+        var i = 0
+        var z = zero
+        while i < indices.length do
+          z = f(using this)(z, new OrderAware.Index[T, this.type](indices(i)))
+          i += 1
+        z
+      inline def gather[Z](zero: Z)(indices: LongStepper)(inline f: this.type ?=> (Z, OrderAware.Index[T, this.type]) => Z): Z =
+        var z = zero
+        while indices.hasStep do
+          z = f(using this)(z, new OrderAware.Index[T, this.type](indices.nextStep()))
+        z
+
+      /** The indices of the structs an index predicate picks. */
+      inline def where(inline pick: this.type ?=> OrderAware.Index[T, this.type] => Boolean): Array[Long] =
+        whereIn(0L, length)(pick)
+      inline def whereIn(i0: Long, iN: Long)(inline pick: this.type ?=> OrderAware.Index[T, this.type] => Boolean): Array[Long] =
+        var ix = new Array[Long](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else (iN - i0).toInt)
+        var i = i0
+        var j = 0
+        while i < iN do
+          if pick(using this)(new OrderAware.Index[T, this.type](i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+      inline def whereFrom(indices: Array[Long])(inline pick: this.type ?=> OrderAware.Index[T, this.type] => Boolean): Array[Long] =
+        var ix = new Array[Long](if indices.length > 8 then 8 else indices.length)
+        var i = 0
+        var j = 0
+        while i < indices.length do
+          val k = indices(i)
+          if pick(using this)(new OrderAware.Index[T, this.type](k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+    }
+    object OrderAware {
+      /** A struct index bound by type to the one order-aware array it indexes, as [[AoS.Index]];
+        * field access additionally takes the `Mem.Order` given where the access is written.
+        */
+      final class Index[T <: NamedTuple.AnyNamedTuple, A <: OrderAware[T]](private[basics] val raw: Long) extends AnyVal with Dynamic {
+        /** The plain struct index. */
+        inline def unwrap: Long = raw
+
+        inline def +(k: Long): Index[T, A] = new Index[T, A](raw + k)
+        inline def -(k: Long): Index[T, A] = new Index[T, A](raw - k)
+
+        /** Field `name` of the struct this index points to, read in the given order. */
+        inline def selectDynamic(name: String & Singleton)(using a: A, o: Order): FieldType[T, name.type] =
+          As.readAt[FieldType[T, name.type]](a.segment, o, raw * strideOf[T] + offsetOf[T, name.type])
+
+        /** Set field `name` of the struct this index points to, written in the given order. */
+        inline def updateDynamic(name: String & Singleton)(x: FieldType[T, name.type])(using a: A, o: Order): Unit =
+          As.writeAt[FieldType[T, name.type]](a.segment, o, raw * strideOf[T] + offsetOf[T, name.type], x)
+      }
+
+      /** One named column of an order-aware array, as [[AoS.Field]] but reading and writing in
+        * the `Mem.Order` given in scope.
+        */
+      final class Field[T <: NamedTuple.AnyNamedTuple, N <: LabelStr](val segment: MemorySegment) extends AnyVal {
+        /** Bytes per struct of the underlying array. */
+        inline def stride: Long = strideOf[T]
+
+        /** Number of whole structs. */
+        inline def length: Long = segment.byteSize / strideOf[T]
+
+        /** This field of struct `i`, read in the given order. */
+        inline def apply(i: Long)(using o: Order): FieldType[T, N] =
+          As.readAt[FieldType[T, N]](segment, o, i * strideOf[T] + offsetOf[T, N])
+
+        /** Set this field of struct `i`, written in the given order. */
+        inline def update(i: Long, x: FieldType[T, N])(using o: Order): Unit =
+          As.writeAt[FieldType[T, N]](segment, o, i * strideOf[T] + offsetOf[T, N], x)
+
+        /** Visit this field of every complete struct, in order. */
+        inline def use(inline f: FieldType[T, N] => Unit)(using o: Order): Unit =
+          var i = 0L
+          val n = length
+          while i < n do
+            f(apply(i))
+            i += 1
+
+        /** Visit this field of every complete struct with its struct index. */
+        inline def visit(inline f: (FieldType[T, N], Long) => Unit)(using o: Order): Unit =
+          var i = 0L
+          val n = length
+          while i < n do
+            f(apply(i), i)
+            i += 1
+
+        /** Replace this field of every complete struct. */
+        inline def alter(inline f: FieldType[T, N] => FieldType[T, N])(using o: Order): Unit =
+          var i = 0L
+          val n = length
+          while i < n do
+            update(i, f(apply(i)))
+            i += 1
+
+        /** Set this field of every complete struct from its struct index. */
+        inline def set(inline indexer: Long => FieldType[T, N])(using o: Order): Unit =
+          var i = 0L
+          val n = length
+          while i < n do
+            update(i, indexer(i))
+            i += 1
+
+        /** Fold over this field of every complete struct, in order. */
+        inline def gather[Z](zero: Z)(inline f: (Z, FieldType[T, N], Long) => Z)(using o: Order): Z =
+          var i = 0L
+          val n = length
+          var z = zero
+          while i < n do
+            z = f(z, apply(i), i)
+            i += 1
+          z
+      }
+
+      /** A positioned view of one struct, as [[Mem.Struct]] but with field reads and writes in
+        * the `Mem.Order` given in scope--the keepable way to hold one wire-format header.
+        */
+      final class Struct[T <: NamedTuple.AnyNamedTuple](
+        private[basics] val segment: MemorySegment,
+        private[basics] val offset: Long
+      ) extends Dynamic {
+        /** Field `name` of the struct under the view, read in the given order. */
+        inline def selectDynamic(name: String & Singleton)(using o: Order): FieldType[T, name.type] =
+          As.readAt[FieldType[T, name.type]](segment, o, offset + offsetOf[T, name.type])
+
+        /** Set field `name` of the struct under the view, written in the given order. */
+        inline def updateDynamic(name: String & Singleton)(x: FieldType[T, name.type])(using o: Order): Unit =
+          As.writeAt[FieldType[T, name.type]](segment, o, offset + offsetOf[T, name.type], x)
+      }
     }
   }
 
