@@ -854,6 +854,20 @@ class MemTest() {
     T ~ compiletime.testing.typeChecks("zs.use()(idx => cuml += wsIdx.index)") ==== false
     T ~ compiletime.testing.typeChecks("cuml += wsIdx.index")                  ==== false
 
+    // Self-backed single structs: define the type, own one directly
+    type C_tm = (sec: Int, min: Int, hour: Int, mday: Int, mon: Int, year: Int, wday: Int, yday: Int, isdst: Int)
+    val tm = Mem.Struct.of[C_tm]
+    T ~ tm.year ==== 0
+    tm.year = 126
+    tm.mon = 7
+    T ~ tm.year ==== 126
+    T ~ Mem.Struct.segmentOf(tm).byteSize ==== 36L
+    T ~ Mem.Struct.segmentOf(tm).get(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED, 20L) ==== 126
+    T ~ Mem.Struct.offsetOf(tm) ==== 0L
+    val tw = Mem.Struct.wrap[C_tm](Mem.Struct.segmentOf(tm))
+    tw.mday = 15
+    T ~ tm.mday ==== 15
+
   def memOrderAwareTest(): Unit =
     var cuml = 0
     inline def n(inline f: => Unit): Int =
@@ -1025,6 +1039,22 @@ class MemTest() {
       ho.version(0) = 45.toShort
       T ~ sc.version ==== 44.toShort
       T ~ ho.aos.version(0) ==== java.lang.Short.reverseBytes(45.toShort)
+
+    // Self-backed order-aware single struct: an either-way header of one's own
+    val hself = Mem.AoS.OrderAware.Struct.of[Hdr]
+    locally:
+      import Mem.BE
+      hself.magic = 0x4D4D.toShort
+      hself.offset = 8
+      T ~ hself.offset ==== 8
+      T ~ Mem.AoS.OrderAware.Struct.segmentOf(hself).get(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED, 4L) ==== 0x08000000
+    locally:
+      import Mem.LE
+      T ~ hself.offset ==== 0x08000000
+    val hwrap = Mem.AoS.OrderAware.Struct.wrap[Hdr](Mem.AoS.OrderAware.Struct.segmentOf(hself))
+    locally:
+      import Mem.BE
+      T ~ hwrap.magic ==== 0x4D4D.toShort
 
     // With no order in scope, order-aware access is ambiguous by design; stating one compiles
     T ~ compiletime.testing.typeChecks("val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== false

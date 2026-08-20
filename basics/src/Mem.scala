@@ -2937,6 +2937,23 @@ object Mem {
         inline def updateDynamic(name: String & Singleton)(x: FieldType[T, name.type])(using o: Order): Unit =
           As.writeAt[FieldType[T, name.type]](segment, o, offset + offsetOf[T, name.type], x)
       }
+      object Struct {
+        /** A self-backed order-aware struct: allocates its own zeroed buffer, as [[Mem.Struct.of]]
+          * but with field access in the `Mem.Order` given in scope.
+          */
+        inline def of[T <: NamedTuple.AnyNamedTuple]: Struct[T] =
+          new Struct[T](Arena.ofAuto().allocate(strideOf[T]), 0L)
+
+        /** View one struct at byte offset `off` of a caller-owned segment, order-aware. */
+        inline def wrap[T <: NamedTuple.AnyNamedTuple](seg: MemorySegment, off: Long = 0L): Struct[T] =
+          new Struct[T](seg, off)
+
+        /** The backing segment of a struct view (companion-side so no field name is ever shadowed). */
+        inline def segmentOf(s: Struct[?]): MemorySegment = s.segment
+
+        /** The byte offset of a struct view within its segment. */
+        inline def offsetOf(s: Struct[?]): Long = s.offset
+      }
     }
   }
 
@@ -2960,6 +2977,31 @@ object Mem {
     /** Set field `name` of the struct under the view. */
     inline def updateDynamic(name: String & Singleton)(x: AoS.FieldType[T, name.type]): Unit =
       As.writeAt[AoS.FieldType[T, name.type]](segment, offset + AoS.offsetOf[T, name.type], x)
+  }
+  object Struct {
+    /** A self-backed struct: allocates its own zeroed buffer, so a struct type can be used
+      * directly--`val t = Mem.Struct.of[C_tm]; t.year = 126`.  The buffer is native memory
+      * (so it can be handed to foreign code as an address, via [[segmentOf]]) but its lifetime
+      * is managed like any object: it is reclaimed by the GC when unreachable.  Note that the
+      * layout is [[AoS]]'s--fields packed in declaration order with NO padding--whereas the C
+      * ABI pads mixed-width structs, so match layouts explicitly when sharing with C.
+      */
+    inline def of[T <: NamedTuple.AnyNamedTuple]: Struct[T] =
+      new Struct[T](Arena.ofAuto().allocate(AoS.strideOf[T]), 0L)
+
+    /** View one struct at byte offset `off` of a caller-owned segment.  The caller retains
+      * responsibility for the segment's lifetime.
+      */
+    inline def wrap[T <: NamedTuple.AnyNamedTuple](seg: MemorySegment, off: Long = 0L): Struct[T] =
+      new Struct[T](seg, off)
+
+    /** The backing segment of a struct view, e.g. to pass to foreign code.  This lives on the
+      * companion rather than the view so that no dynamic field name is ever shadowed.
+      */
+    inline def segmentOf(s: Struct[?]): MemorySegment = s.segment
+
+    /** The byte offset of a struct view within its segment. */
+    inline def offsetOf(s: Struct[?]): Long = s.offset
   }
 }
 
