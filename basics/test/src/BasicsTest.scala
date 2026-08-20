@@ -865,6 +865,8 @@ class BasicsTest() {
 
   @Test def memAoSTest: Unit = memTester.memAoSTest()
 
+  @Test def memOrderAwareTest: Unit = memTester.memOrderAwareTest()
+
   @Test
   def sayInterpolationTest(): Unit =
     T ~ say"" ==== ""

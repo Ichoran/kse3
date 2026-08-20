@@ -95,6 +95,44 @@ object Mem {
       new Owned[A](arena, wrap[A](f(arena)))
   }
 
+  // === Byte order as a value ===
+
+  /** True on big-endian hosts.  Both operands are JVM constants, so the JIT folds this--and
+    * any branch on it--away entirely.
+    */
+  inline def bigEndianHost: Boolean = java.nio.ByteOrder.nativeOrder() eq java.nio.ByteOrder.BIG_ENDIAN
+
+  /** A byte order, reduced to whether it is byte-swapped relative to this machine: ordered
+    * access always reads and writes through the JDK's constant native-order layouts (the only
+    * ones the JIT compiles down to raw loads and stores) and conditionally applies the
+    * `reverseBytes` intrinsic--a swapped-but-fixed layout object would instead land on the
+    * uninlined `VarHandle` path, roughly 20x slower.  Pick an order with `import Mem.LE` (or
+    * `Mem.BE`, or `Mem.Native`), or bind one chosen at runtime with e.g.
+    * `given Mem.Order = if p then Mem.bigEndian else Mem.littleEndian`.  There is
+    * deliberately no default: all three givens sit in this type's implicit scope, so
+    * order-aware code that never states its order fails to compile as ambiguous--plain `Mem`
+    * access is already the native-order spelling.
+    */
+  final class Order private[basics] (val swapped: Boolean, name: String) {
+    override def toString = name
+  }
+
+  /** Little-endian byte order (see [[Mem.Order]]). */
+  val littleEndian: Order = new Order(bigEndianHost, "LE")
+
+  /** Big-endian (network) byte order (see [[Mem.Order]]). */
+  val bigEndian: Order = new Order(!bigEndianHost, "BE")
+
+  /** Whichever of [[Mem.littleEndian]]/[[Mem.bigEndian]] this machine natively is. */
+  val nativeEndian: Order = if littleEndian.swapped then bigEndian else littleEndian
+
+  /** `import Mem.LE` puts little-endian order in scope. */
+  given LE: Order = littleEndian
+  /** `import Mem.BE` puts big-endian (network) order in scope. */
+  given BE: Order = bigEndian
+  /** `import Mem.Native` puts this machine's native order in scope, explicitly. */
+  given Native: Order = nativeEndian
+
   // === Value scans: width-specialized workers backing `whereIsFwd`/`whereIsBkw` ===
   // Byte through Int lanes ride a 64-bit SWAR: read a long, xor with the value broadcast to
   // every lane, and zero-test the lanes.  Forward scans use the cheap test
@@ -270,8 +308,121 @@ object Mem {
     inline def setL(i: Long, x: Long):   Unit = (m: MemorySegment).set(JAVA_LONG_UNALIGNED,   i * bytesOf[A], x)
     inline def setD(i: Long, x: Double): Unit = (m: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A], x)
 
+    /** Read a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`)
+      * in the stated byte order: `_le` little-endian, `_be` big-endian, `_xe` in whatever
+      * order the `Mem.Order` given in scope says.  Bytes have no order, so `getB` covers all.
+      * Access is always through the constant native-order layouts (the JIT's fast path) with
+      * a conditional `reverseBytes`; for `_le`/`_be` the condition is itself a JIT constant,
+      * so the matching direction compiles to a bare load.
+      */
+    inline def getS_le(i: Long): Short =
+      val x = (m: MemorySegment).get(JAVA_SHORT_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then java.lang.Short.reverseBytes(x) else x
+    inline def getC_le(i: Long): Char =
+      val x = (m: MemorySegment).get(JAVA_CHAR_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then java.lang.Character.reverseBytes(x) else x
+    inline def getI_le(i: Long): Int =
+      val x = (m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then java.lang.Integer.reverseBytes(x) else x
+    inline def getL_le(i: Long): Long =
+      val x = (m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then java.lang.Long.reverseBytes(x) else x
+    inline def getF_le(i: Long): Float =
+      if bigEndianHost then java.lang.Float.intBitsToFloat(java.lang.Integer.reverseBytes((m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])))
+      else (m: MemorySegment).get(JAVA_FLOAT_UNALIGNED, i * bytesOf[A])
+    inline def getD_le(i: Long): Double =
+      if bigEndianHost then java.lang.Double.longBitsToDouble(java.lang.Long.reverseBytes((m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])))
+      else (m: MemorySegment).get(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A])
+    inline def getS_be(i: Long): Short =
+      val x = (m: MemorySegment).get(JAVA_SHORT_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then x else java.lang.Short.reverseBytes(x)
+    inline def getC_be(i: Long): Char =
+      val x = (m: MemorySegment).get(JAVA_CHAR_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then x else java.lang.Character.reverseBytes(x)
+    inline def getI_be(i: Long): Int =
+      val x = (m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then x else java.lang.Integer.reverseBytes(x)
+    inline def getL_be(i: Long): Long =
+      val x = (m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])
+      if bigEndianHost then x else java.lang.Long.reverseBytes(x)
+    inline def getF_be(i: Long): Float =
+      if bigEndianHost then (m: MemorySegment).get(JAVA_FLOAT_UNALIGNED, i * bytesOf[A])
+      else java.lang.Float.intBitsToFloat(java.lang.Integer.reverseBytes((m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])))
+    inline def getD_be(i: Long): Double =
+      if bigEndianHost then (m: MemorySegment).get(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A])
+      else java.lang.Double.longBitsToDouble(java.lang.Long.reverseBytes((m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])))
+    inline def getS_xe(i: Long)(using o: Order): Short =
+      val x = (m: MemorySegment).get(JAVA_SHORT_UNALIGNED, i * bytesOf[A])
+      if o.swapped then java.lang.Short.reverseBytes(x) else x
+    inline def getC_xe(i: Long)(using o: Order): Char =
+      val x = (m: MemorySegment).get(JAVA_CHAR_UNALIGNED, i * bytesOf[A])
+      if o.swapped then java.lang.Character.reverseBytes(x) else x
+    inline def getI_xe(i: Long)(using o: Order): Int =
+      val x = (m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])
+      if o.swapped then java.lang.Integer.reverseBytes(x) else x
+    inline def getL_xe(i: Long)(using o: Order): Long =
+      val x = (m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])
+      if o.swapped then java.lang.Long.reverseBytes(x) else x
+    inline def getF_xe(i: Long)(using o: Order): Float =
+      if o.swapped then java.lang.Float.intBitsToFloat(java.lang.Integer.reverseBytes((m: MemorySegment).get(JAVA_INT_UNALIGNED, i * bytesOf[A])))
+      else (m: MemorySegment).get(JAVA_FLOAT_UNALIGNED, i * bytesOf[A])
+    inline def getD_xe(i: Long)(using o: Order): Double =
+      if o.swapped then java.lang.Double.longBitsToDouble(java.lang.Long.reverseBytes((m: MemorySegment).get(JAVA_LONG_UNALIGNED, i * bytesOf[A])))
+      else (m: MemorySegment).get(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A])
+
+    /** Write a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`)
+      * in the stated byte order, as for the ordered `get` family.
+      */
+    inline def setS_le(i: Long, x: Short): Unit =
+      (m: MemorySegment).set(JAVA_SHORT_UNALIGNED, i * bytesOf[A], if bigEndianHost then java.lang.Short.reverseBytes(x) else x)
+    inline def setC_le(i: Long, x: Char): Unit =
+      (m: MemorySegment).set(JAVA_CHAR_UNALIGNED, i * bytesOf[A], if bigEndianHost then java.lang.Character.reverseBytes(x) else x)
+    inline def setI_le(i: Long, x: Int): Unit =
+      (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], if bigEndianHost then java.lang.Integer.reverseBytes(x) else x)
+    inline def setL_le(i: Long, x: Long): Unit =
+      (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], if bigEndianHost then java.lang.Long.reverseBytes(x) else x)
+    inline def setF_le(i: Long, x: Float): Unit =
+      if bigEndianHost then (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], java.lang.Integer.reverseBytes(java.lang.Float.floatToRawIntBits(x)))
+      else (m: MemorySegment).set(JAVA_FLOAT_UNALIGNED, i * bytesOf[A], x)
+    inline def setD_le(i: Long, x: Double): Unit =
+      if bigEndianHost then (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], java.lang.Long.reverseBytes(java.lang.Double.doubleToRawLongBits(x)))
+      else (m: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A], x)
+    inline def setS_be(i: Long, x: Short): Unit =
+      (m: MemorySegment).set(JAVA_SHORT_UNALIGNED, i * bytesOf[A], if bigEndianHost then x else java.lang.Short.reverseBytes(x))
+    inline def setC_be(i: Long, x: Char): Unit =
+      (m: MemorySegment).set(JAVA_CHAR_UNALIGNED, i * bytesOf[A], if bigEndianHost then x else java.lang.Character.reverseBytes(x))
+    inline def setI_be(i: Long, x: Int): Unit =
+      (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], if bigEndianHost then x else java.lang.Integer.reverseBytes(x))
+    inline def setL_be(i: Long, x: Long): Unit =
+      (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], if bigEndianHost then x else java.lang.Long.reverseBytes(x))
+    inline def setF_be(i: Long, x: Float): Unit =
+      if bigEndianHost then (m: MemorySegment).set(JAVA_FLOAT_UNALIGNED, i * bytesOf[A], x)
+      else (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], java.lang.Integer.reverseBytes(java.lang.Float.floatToRawIntBits(x)))
+    inline def setD_be(i: Long, x: Double): Unit =
+      if bigEndianHost then (m: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A], x)
+      else (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], java.lang.Long.reverseBytes(java.lang.Double.doubleToRawLongBits(x)))
+    inline def setS_xe(i: Long, x: Short)(using o: Order): Unit =
+      (m: MemorySegment).set(JAVA_SHORT_UNALIGNED, i * bytesOf[A], if o.swapped then java.lang.Short.reverseBytes(x) else x)
+    inline def setC_xe(i: Long, x: Char)(using o: Order): Unit =
+      (m: MemorySegment).set(JAVA_CHAR_UNALIGNED, i * bytesOf[A], if o.swapped then java.lang.Character.reverseBytes(x) else x)
+    inline def setI_xe(i: Long, x: Int)(using o: Order): Unit =
+      (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], if o.swapped then java.lang.Integer.reverseBytes(x) else x)
+    inline def setL_xe(i: Long, x: Long)(using o: Order): Unit =
+      (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], if o.swapped then java.lang.Long.reverseBytes(x) else x)
+    inline def setF_xe(i: Long, x: Float)(using o: Order): Unit =
+      if o.swapped then (m: MemorySegment).set(JAVA_INT_UNALIGNED, i * bytesOf[A], java.lang.Integer.reverseBytes(java.lang.Float.floatToRawIntBits(x)))
+      else (m: MemorySegment).set(JAVA_FLOAT_UNALIGNED, i * bytesOf[A], x)
+    inline def setD_xe(i: Long, x: Double)(using o: Order): Unit =
+      if o.swapped then (m: MemorySegment).set(JAVA_LONG_UNALIGNED, i * bytesOf[A], java.lang.Long.reverseBytes(java.lang.Double.doubleToRawLongBits(x)))
+      else (m: MemorySegment).set(JAVA_DOUBLE_UNALIGNED, i * bytesOf[A], x)
+
     /** A bounds-clipping view: out-of-range indices are silently skipped or clamped. */
     inline def clip: kse.basics.ClippedMem[A] = ClippedMem wrap m
+
+    /** An order-aware view of the same memory: element access takes the `Mem.Order` given in
+      * scope (e.g. via `import Mem.BE`), so reads and writes say their byte order.
+      */
+    inline def orderAware: Mem.OrderAware[A] = OrderAware.wrap[A](m)
 
     inline def use()(inline f: A => Unit): Unit =
       var i = 0L
@@ -865,6 +1016,564 @@ object Mem {
 
     /** Zero-copy reinterpretation as an array of structs (any trailing partial struct is ignored by its `length`). */
     inline def aos[T <: NamedTuple.AnyNamedTuple]: Mem.AoS[T] = AoS.wrap[T](m)
+  }
+
+  // === Mem.OrderAware: element access in a byte order given by the scope ===
+
+  /** Array-like memory access where every element read or write takes the [[Mem.Order]] given
+    * in scope (e.g. via `import Mem.BE`): the same memory as the `Mem[A]` it views, with the
+    * byte order stated once instead of at every access.  Methods that move raw bytes between
+    * same-order views, or that never touch element values, do not consult the order.  Note
+    * that the underlying `Mem[A]` remains usable (and native-order) alongside this view; keep
+    * whichever handle you mean to read with.
+    */
+  opaque type OrderAware[A <: Mem.Type] = MemorySegment
+  object OrderAware {
+    /** Wrap a caller-owned segment.  The caller retains responsibility for its lifetime. */
+    inline def wrap[A <: Type](seg: MemorySegment): OrderAware[A] = seg
+
+    /** Read element `i` of `seg` in byte order `o` (kernel behind `apply`): constant native
+      * layouts (the JIT's fast path) plus a conditional `reverseBytes` intrinsic--the swapped
+      * flag is loop-invariant and hoists.
+      */
+    inline def read[A <: Type](seg: MemorySegment, o: Order, i: Long): A = inline erasedValue[A] match
+      case _: Byte    => seg.get(JAVA_BYTE, i).asInstanceOf[A]
+      case _: Short   =>
+        val x = seg.getAtIndex(JAVA_SHORT_UNALIGNED, i)
+        (if o.swapped then java.lang.Short.reverseBytes(x) else x).asInstanceOf[A]
+      case _: Char    =>
+        val x = seg.getAtIndex(JAVA_CHAR_UNALIGNED, i)
+        (if o.swapped then java.lang.Character.reverseBytes(x) else x).asInstanceOf[A]
+      case _: Int     =>
+        val x = seg.getAtIndex(JAVA_INT_UNALIGNED, i)
+        (if o.swapped then java.lang.Integer.reverseBytes(x) else x).asInstanceOf[A]
+      case _: Float   =>
+        (if o.swapped then java.lang.Float.intBitsToFloat(java.lang.Integer.reverseBytes(seg.getAtIndex(JAVA_INT_UNALIGNED, i)))
+         else seg.getAtIndex(JAVA_FLOAT_UNALIGNED, i)).asInstanceOf[A]
+      case _: Long    =>
+        val x = seg.getAtIndex(JAVA_LONG_UNALIGNED, i)
+        (if o.swapped then java.lang.Long.reverseBytes(x) else x).asInstanceOf[A]
+      case _: Double  =>
+        (if o.swapped then java.lang.Double.longBitsToDouble(java.lang.Long.reverseBytes(seg.getAtIndex(JAVA_LONG_UNALIGNED, i)))
+         else seg.getAtIndex(JAVA_DOUBLE_UNALIGNED, i)).asInstanceOf[A]
+      case _          => error("Mem only supports primitive element types")
+
+    /** Write element `i` of `seg` in byte order `o` (kernel behind `update`); fast-path shape as for `read`. */
+    inline def write[A <: Type](seg: MemorySegment, o: Order, i: Long, x: A): Unit = inline erasedValue[A] match
+      case _: Byte    => seg.set(JAVA_BYTE, i, x.asInstanceOf[Byte])
+      case _: Short   =>
+        val v = x.asInstanceOf[Short]
+        seg.setAtIndex(JAVA_SHORT_UNALIGNED, i, if o.swapped then java.lang.Short.reverseBytes(v) else v)
+      case _: Char    =>
+        val v = x.asInstanceOf[Char]
+        seg.setAtIndex(JAVA_CHAR_UNALIGNED, i, if o.swapped then java.lang.Character.reverseBytes(v) else v)
+      case _: Int     =>
+        val v = x.asInstanceOf[Int]
+        seg.setAtIndex(JAVA_INT_UNALIGNED, i, if o.swapped then java.lang.Integer.reverseBytes(v) else v)
+      case _: Float   =>
+        if o.swapped then seg.setAtIndex(JAVA_INT_UNALIGNED, i, java.lang.Integer.reverseBytes(java.lang.Float.floatToRawIntBits(x.asInstanceOf[Float])))
+        else seg.setAtIndex(JAVA_FLOAT_UNALIGNED, i, x.asInstanceOf[Float])
+      case _: Long    =>
+        val v = x.asInstanceOf[Long]
+        seg.setAtIndex(JAVA_LONG_UNALIGNED, i, if o.swapped then java.lang.Long.reverseBytes(v) else v)
+      case _: Double  =>
+        if o.swapped then seg.setAtIndex(JAVA_LONG_UNALIGNED, i, java.lang.Long.reverseBytes(java.lang.Double.doubleToRawLongBits(x.asInstanceOf[Double])))
+        else seg.setAtIndex(JAVA_DOUBLE_UNALIGNED, i, x.asInstanceOf[Double])
+      case _          => error("Mem only supports primitive element types")
+
+    /** The sought value with its bytes as they would lie in memory under `o`, so native-lane seeks find it. */
+    inline def seekBits[A <: Type](o: Order, value: A): A = inline erasedValue[A] match
+      case _: Byte    => value
+      case _: Short   => (if o.swapped then java.lang.Short.reverseBytes(value.asInstanceOf[Short]) else value.asInstanceOf[Short]).asInstanceOf[A]
+      case _: Char    => (if o.swapped then java.lang.Character.reverseBytes(value.asInstanceOf[Char]) else value.asInstanceOf[Char]).asInstanceOf[A]
+      case _: Int     => (if o.swapped then java.lang.Integer.reverseBytes(value.asInstanceOf[Int]) else value.asInstanceOf[Int]).asInstanceOf[A]
+      case _: Long    => (if o.swapped then java.lang.Long.reverseBytes(value.asInstanceOf[Long]) else value.asInstanceOf[Long]).asInstanceOf[A]
+      case _: Float   =>
+        val b = java.lang.Float.floatToRawIntBits(value.asInstanceOf[Float])
+        java.lang.Float.intBitsToFloat(if o.swapped then java.lang.Integer.reverseBytes(b) else b).asInstanceOf[A]
+      case _: Double  =>
+        val b = java.lang.Double.doubleToRawLongBits(value.asInstanceOf[Double])
+        java.lang.Double.longBitsToDouble(if o.swapped then java.lang.Long.reverseBytes(b) else b).asInstanceOf[A]
+      case _          => error("Mem only supports primitive element types")
+
+    extension [A <: Type](m: OrderAware[A]) {
+      /** The underlying storage, to use FFM calls directly. */
+      inline def segment: MemorySegment = m
+
+      /** The same memory as a plain (native-order) `Mem[A]`. */
+      inline def mem: Mem[A] = Mem.wrap[A](m)
+
+      /** Number of elements = floor(byteSize / elementBytes). */
+      inline def length: Long = (m: MemorySegment).byteSize / bytesOf[A]
+
+      inline def apply(i: Long)(using o: Order): A = read[A]((m: MemorySegment), o, i)
+
+      inline def update(i: Long, x: A)(using o: Order): Unit = write[A]((m: MemorySegment), o, i, x)
+
+      /** Read a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`)
+        * in the `Mem.Order` given in scope; bytes have no order, so `getB` takes none.
+        */
+      inline def getB(i: Long): Byte = (m: MemorySegment).get(JAVA_BYTE, i * bytesOf[A])
+      inline def getS(i: Long)(using o: Order): Short  = Mem.getS_xe[A](Mem.wrap[A](m))(i)
+      inline def getC(i: Long)(using o: Order): Char   = Mem.getC_xe[A](Mem.wrap[A](m))(i)
+      inline def getI(i: Long)(using o: Order): Int    = Mem.getI_xe[A](Mem.wrap[A](m))(i)
+      inline def getF(i: Long)(using o: Order): Float  = Mem.getF_xe[A](Mem.wrap[A](m))(i)
+      inline def getL(i: Long)(using o: Order): Long   = Mem.getL_xe[A](Mem.wrap[A](m))(i)
+      inline def getD(i: Long)(using o: Order): Double = Mem.getD_xe[A](Mem.wrap[A](m))(i)
+
+      /** Write a primitive of the stated type at element index `i` (byte offset `i * bytesOf[A]`)
+        * in the `Mem.Order` given in scope; bytes have no order, so `setB` takes none.
+        */
+      inline def setB(i: Long, x: Byte): Unit = (m: MemorySegment).set(JAVA_BYTE, i * bytesOf[A], x)
+      inline def setS(i: Long, x: Short)(using o: Order):  Unit = Mem.setS_xe[A](Mem.wrap[A](m))(i, x)
+      inline def setC(i: Long, x: Char)(using o: Order):   Unit = Mem.setC_xe[A](Mem.wrap[A](m))(i, x)
+      inline def setI(i: Long, x: Int)(using o: Order):    Unit = Mem.setI_xe[A](Mem.wrap[A](m))(i, x)
+      inline def setF(i: Long, x: Float)(using o: Order):  Unit = Mem.setF_xe[A](Mem.wrap[A](m))(i, x)
+      inline def setL(i: Long, x: Long)(using o: Order):   Unit = Mem.setL_xe[A](Mem.wrap[A](m))(i, x)
+      inline def setD(i: Long, x: Double)(using o: Order): Unit = Mem.setD_xe[A](Mem.wrap[A](m))(i, x)
+
+      inline def use()(inline f: A => Unit)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          f(m(i))
+          i += 1
+      inline def use(i0: Long, iN: Long)(inline f: A => Unit)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          f(m(i))
+          i += 1
+      inline def use(indices: Array[Long])(inline f: A => Unit)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          f(m(indices(i)))
+          i += 1
+      inline def use(indices: LongStepper)(inline f: A => Unit)(using o: Order): Unit =
+        while indices.hasStep do
+          f(m(indices.nextStep()))
+      inline def use(inline p: A => Boolean)(inline f: A => Unit)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          val x = m(i)
+          if p(x) then f(x)
+          i += 1
+
+      inline def alter()(inline f: A => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          m(i) = f(m(i))
+          i += 1
+      inline def alter(i0: Long, iN: Long)(inline f: A => A)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          m(i) = f(m(i))
+          i += 1
+      inline def alter(indices: Array[Long])(inline f: A => A)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          val j = indices(i)
+          m(j) = f(m(j))
+          i += 1
+      inline def alter(indices: LongStepper)(inline f: A => A)(using o: Order): Unit =
+        while indices.hasStep do
+          val j = indices.nextStep()
+          m(j) = f(m(j))
+      inline def alter(inline p: A => Boolean)(inline f: A => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          val x = m(i)
+          if p(x) then m(i) = f(x)
+          i += 1
+
+      inline def visit()(inline f: (A, Long) => Unit)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          f(m(i), i)
+          i += 1
+      inline def visit(i0: Long, iN: Long)(inline f: (A, Long) => Unit)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          f(m(i), i)
+          i += 1
+      inline def visit(indices: Array[Long])(inline f: (A, Long) => Unit)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          val j = indices(i)
+          f(m(j), j)
+          i += 1
+      inline def visit(indices: LongStepper)(inline f: (A, Long) => Unit)(using o: Order): Unit =
+        while indices.hasStep do
+          val j = indices.nextStep()
+          f(m(j), j)
+      inline def visit(inline p: A => Boolean)(inline f: (A, Long) => Unit)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          val x = m(i)
+          if p(x) then f(x, i)
+          i += 1
+
+      inline def edit()(inline f: (A, Long) => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          m(i) = f(m(i), i)
+          i += 1
+      inline def edit(i0: Long, iN: Long)(inline f: (A, Long) => A)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          m(i) = f(m(i), i)
+          i += 1
+      inline def edit(indices: Array[Long])(inline f: (A, Long) => A)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          val j = indices(i)
+          m(j) = f(m(j), j)
+          i += 1
+      inline def edit(indices: LongStepper)(inline f: (A, Long) => A)(using o: Order): Unit =
+        while indices.hasStep do
+          val j = indices.nextStep()
+          m(j) = f(m(j), j)
+      inline def edit(inline p: A => Boolean)(inline f: (A, Long) => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          val x = m(i)
+          if p(x) then m(i) = f(x, i)
+          i += 1
+
+      /** Visit each adjacent pair (x(i), x(i+1)). */
+      inline def pairs(inline f: (A, A) => Unit)(using o: Order): Unit =
+        val n = m.length
+        if n > 0 then
+          var a0 = m(0)
+          var i = 1L
+          while i < n do
+            val a1 = m(i)
+            f(a0, a1)
+            a0 = a1
+            i += 1
+      /** Visit each adjacent triple (x(i), x(i+1), x(i+2)). */
+      inline def trios(inline f: (A, A, A) => Unit)(using o: Order): Unit =
+        val n = m.length
+        if n > 1 then
+          var a0 = m(0)
+          var a1 = m(1)
+          var i = 2L
+          while i < n do
+            val a2 = m(i)
+            f(a0, a1, a2)
+            a0 = a1
+            a1 = a2
+            i += 1
+
+      /** Visit elements of this and `b` in lockstep, both in the given order, up to the shorter length. */
+      inline def together[B <: Type](b: OrderAware[B])(inline f: (A, B, Long) => Unit)(using o: Order): Unit =
+        val nb = b.length
+        var n = m.length
+        if nb < n then n = nb
+        var i = 0L
+        while i < n do
+          f(m(i), b(i), i)
+          i += 1
+      inline def together[B <: Type, C <: Type](b: OrderAware[B], c: OrderAware[C])(inline f: (A, B, C, Long) => Unit)(using o: Order): Unit =
+        var n = m.length
+        val nb = b.length
+        val nc = c.length
+        if nb < n then n = nb
+        if nc < n then n = nc
+        var i = 0L
+        while i < n do
+          f(m(i), b(i), c(i), i)
+          i += 1
+
+      /** Follow indices produced by `f` until one falls out of range; returns the number of steps. */
+      inline def wander()(inline f: (A, Long) => Long)(using o: Order): Long =
+        wander(0L)(f)
+      inline def wander(start: Long)(inline f: (A, Long) => Long)(using o: Order): Long =
+        var n = 0L
+        var i = start
+        val len = m.length
+        while i >= 0 && i < len && n < Long.MaxValue do
+          n += 1
+          i = f(m(i), i)
+        n
+
+      inline def gather[Z](zero: Z)()(inline f: (Z, A, Long) => Z)(using o: Order): Z =
+        var i = 0L
+        val n = m.length
+        var z = zero
+        while i < n do
+          z = f(z, m(i), i)
+          i += 1
+        z
+      inline def gather[Z](zero: Z)(i0: Long, iN: Long)(inline f: (Z, A, Long) => Z)(using o: Order): Z =
+        var i = i0
+        var z = zero
+        while i < iN do
+          z = f(z, m(i), i)
+          i += 1
+        z
+      inline def gather[Z](zero: Z)(indices: Array[Long])(inline f: (Z, A, Long) => Z)(using o: Order): Z =
+        var i = 0
+        var z = zero
+        while i < indices.length do
+          val j = indices(i)
+          z = f(z, m(j), j)
+          i += 1
+        z
+      inline def gather[Z](zero: Z)(indices: LongStepper)(inline f: (Z, A, Long) => Z)(using o: Order): Z =
+        var z = zero
+        while indices.hasStep do
+          val j = indices.nextStep()
+          z = f(z, m(j), j)
+        z
+      inline def gather[Z](zero: Z)(inline p: A => Boolean)(inline f: (Z, A, Long) => Z)(using o: Order): Z =
+        var i = 0L
+        val n = m.length
+        var z = zero
+        while i < n do
+          val x = m(i)
+          if p(x) then z = f(z, x, i)
+          i += 1
+        z
+
+      @targetName("update_All_constant")
+      inline def update(value: A)(using o: Order): Unit =
+        update(0L, m.length, value)
+      /** Raw byte copy from a same-order view: no element is reinterpreted, so no order is consulted. */
+      @targetName("update_All_segment")
+      inline def update(values: OrderAware[A]): Unit =
+        update(0L, m.length, values)
+
+      @targetName("update_i0iN_constant")
+      inline def update(i0: Long, iN: Long, value: A)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          m(i) = value
+          i += 1
+      @targetName("update_i0iN_segment")
+      inline def update(i0: Long, iN: Long, values: OrderAware[A]): Unit =
+        MemorySegment.copy((values: MemorySegment), 0L, (m: MemorySegment), i0 * bytesOf[A], (iN - i0) * bytesOf[A])
+
+      @targetName("update_Places_constant")
+      inline def update(indices: Array[Long], value: A)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          m(indices(i)) = value
+          i += 1
+      @targetName("update_Places_segment")
+      inline def update(indices: Array[Long], values: OrderAware[A])(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          m(indices(i)) = values(i)
+          i += 1
+
+      @targetName("update_Stepper_constant")
+      inline def update(indices: LongStepper, value: A)(using o: Order): Unit =
+        while indices.hasStep do
+          m(indices.nextStep()) = value
+      @targetName("update_Stepper_segment")
+      inline def update(indices: LongStepper, values: OrderAware[A])(using o: Order): Unit =
+        var i = 0L
+        while indices.hasStep do
+          m(indices.nextStep()) = values(i)
+          i += 1
+
+      @targetName("update_Selector")
+      inline def update(inline pick: A => Boolean, value: A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          if pick(m(i)) then m(i) = value
+          i += 1
+
+      @targetName("set_All_generate")
+      inline def set()(inline generator: () => A)(using o: Order): Unit =
+        set(0L, m.length)(generator)
+      @targetName("set_All_index")
+      inline def set()(inline indexer: Long => A)(using o: Order): Unit =
+        set(0L, m.length)(indexer)
+
+      @targetName("set_i0iN_generate")
+      inline def set(i0: Long, iN: Long)(inline generator: () => A)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          m(i) = generator()
+          i += 1
+      @targetName("set_i0iN_index")
+      inline def set(i0: Long, iN: Long)(inline indexer: Long => A)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          m(i) = indexer(i)
+          i += 1
+
+      @targetName("set_Places_generate")
+      inline def set(indices: Array[Long])(inline generator: () => A)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          m(indices(i)) = generator()
+          i += 1
+      @targetName("set_Places_index")
+      inline def set(indices: Array[Long])(inline indexer: Long => A)(using o: Order): Unit =
+        var i = 0
+        while i < indices.length do
+          val j = indices(i)
+          m(j) = indexer(j)
+          i += 1
+
+      @targetName("set_Stepper_generate")
+      inline def set(indices: LongStepper)(inline generator: () => A)(using o: Order): Unit =
+        while indices.hasStep do
+          m(indices.nextStep()) = generator()
+      @targetName("set_Stepper_index")
+      inline def set(indices: LongStepper)(inline indexer: Long => A)(using o: Order): Unit =
+        while indices.hasStep do
+          val j = indices.nextStep()
+          m(j) = indexer(j)
+
+      @targetName("set_Selector_generate")
+      inline def set(inline pick: A => Boolean)(inline generator: () => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          if pick(m(i)) then m(i) = generator()
+          i += 1
+      @targetName("set_Selector_index")
+      inline def set(inline pick: A => Boolean)(inline indexer: Long => A)(using o: Order): Unit =
+        var i = 0L
+        val n = m.length
+        while i < n do
+          if pick(m(i)) then m(i) = indexer(i)
+          i += 1
+
+      /** All indices, 0 until length. */
+      inline def where(): Array[Long] =
+        val ix = new Array[Long](m.length.toInt)
+        var i = 0
+        while i < ix.length do
+          ix(i) = i.toLong
+          i += 1
+        ix
+      inline def where(inline pick: A => Boolean)(using o: Order): Array[Long] =
+        whereIn(0L, m.length)(pick)
+      inline def whereOp(inline pick: (A, Long) => Long)(using o: Order): Array[Long] =
+        whereInOp(0L, m.length)(pick)
+
+      inline def whereIn(i0: Long, iN: Long)(inline pick: A => Boolean)(using o: Order): Array[Long] =
+        var ix = new Array[Long](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else (iN - i0).toInt)
+        var i = i0
+        var j = 0
+        while i < iN do
+          if pick(m(i)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = i
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+      inline def whereInOp(i0: Long, iN: Long)(inline pick: (A, Long) => Long)(using o: Order): Array[Long] =
+        var ix = new Array[Long](if iN - i0 < 0 then 0 else if iN - i0 > 8 then 8 else (iN - i0).toInt)
+        var i = i0
+        var j = 0
+        while i < iN do
+          val h = pick(m(i), i)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+
+      inline def whereFrom(indices: Array[Long])(inline pick: A => Boolean)(using o: Order): Array[Long] =
+        var ix = new Array[Long](if indices.length > 8 then 8 else indices.length)
+        var i = 0
+        var j = 0
+        while i < indices.length do
+          val k = indices(i)
+          if pick(m(k)) then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = k
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+      inline def whereFromOp(indices: Array[Long])(inline pick: (A, Long) => Long)(using o: Order): Array[Long] =
+        var ix = new Array[Long](if indices.length > 8 then 8 else indices.length)
+        var i = 0
+        var j = 0
+        while i < indices.length do
+          val k = indices(i)
+          val h = pick(m(k), k)
+          if h >= 0 then
+            if j >= ix.length then ix = ix.enlargeTo(ix.length | (ix.length << 1))
+            ix(j) = h
+            j += 1
+          i += 1
+        ix.shrinkTo(j)
+
+      inline def whereFwd(i: Long)(inline f: A => Boolean)(using o: Order): Long =
+        if i < 0 then -1L
+        else boundary[Long]:
+          var j = i
+          val n = m.length
+          while j < n do
+            if f(m(j)) then boundary.break(j)
+            j += 1
+          -1L
+      inline def whereBkw(i: Long)(inline f: A => Boolean)(using o: Order): Long =
+        if i >= m.length then -1
+        else boundary[Long]:
+          var j = i
+          while j >= 0 do
+            if f(m(j)) then boundary.break(j)
+            j -= 1
+          -1L
+
+      /** The first index in `[i0, iN)` (clamped) holding exactly `value` in the given order, or -1
+        * if there is none: the sought bits are laid out per the order once, then the native lane
+        * scan runs at full speed.  Matching is by bit pattern, as for `Mem`'s `whereIsFwd`.
+        */
+      inline def whereIsFwd(i0: Long, iN: Long)(value: A)(using o: Order): Long =
+        Mem.whereIsFwd[A](Mem.wrap[A](m))(i0, iN)(seekBits[A](o, value))
+
+      /** The last index in `[i0, iN)` (clamped) holding exactly `value` in the given order, or -1
+        * if there is none; matching as for `whereIsFwd`.
+        */
+      inline def whereIsBkw(i0: Long, iN: Long)(value: A)(using o: Order): Long =
+        Mem.whereIsBkw[A](Mem.wrap[A](m))(i0, iN)(seekBits[A](o, value))
+
+      /** Visit maximal runs delimited where `cut(prev, next)` holds, passing each run's [i, j). */
+      inline def visitCuts()(inline cut: (A, A) => Boolean)(inline f: (Long, Long) => Unit)(using o: Order): Unit =
+        visitCuts(0L, m.length)(cut)(f)
+      inline def visitCuts(i0: Long, iN: Long)(inline cut: (A, A) => Boolean)(inline f: (Long, Long) => Unit)(using o: Order): Unit =
+        var i = i0
+        while i < iN do
+          var x = m(i)
+          var j = i + 1
+          var continue = true
+          while continue && j < iN do
+            val y = m(j)
+            if cut(x, y) then continue = false
+            else
+              x = y
+              j += 1
+          f(i, j)
+          i = j
+
+      /** Zero-copy reinterpretation as another primitive (any trailing partial element is ignored by `length`). */
+      inline def as[B <: Type]: OrderAware[B] = wrap[B](m)
+
+      /** Zero-copy view of elements `[i0, iN)`, sharing this memory and its lifetime. */
+      inline def view(i0: Long, iN: Long): OrderAware[A] =
+        wrap[A]((m: MemorySegment).asSlice(i0 * bytesOf[A], (iN - i0) * bytesOf[A]))
+
+      /** Zero-copy view of elements `[i0, iN)` (indices in units of `A`) reinterpreted as another primitive. */
+      inline def viewAs[B <: Type](i0: Long, iN: Long): OrderAware[B] =
+        wrap[B]((m: MemorySegment).asSlice(i0 * bytesOf[A], (iN - i0) * bytesOf[A]))
+    }
   }
 
   // === Mem.As: element types translucently backed by a primitive ===

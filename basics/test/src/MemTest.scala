@@ -853,6 +853,140 @@ class MemTest() {
     T ~ compiletime.testing.typeChecks("ws.use()(idx => cuml += wsIdx.index)") ==== true
     T ~ compiletime.testing.typeChecks("zs.use()(idx => cuml += wsIdx.index)") ==== false
     T ~ compiletime.testing.typeChecks("cuml += wsIdx.index")                  ==== false
+
+  def memOrderAwareTest(): Unit =
+    var cuml = 0
+    inline def n(inline f: => Unit): Int =
+      cuml = 0
+      f
+      cuml
+
+    // The order-aware view reads what the given order says (native memory here is little-endian)
+    val m1 = Mem of Array[Int](0x1, 0x100, 0x10000, 0x1000000)
+    locally:
+      import Mem.BE
+      val m2 = m1.orderAware
+      T ~ m2(3)     ==== 1
+      T ~ m2(0)     ==== 0x01000000
+      T ~ m2.length ==== 4L
+      T ~ m2.mem(0) ==== 0x1
+    locally:
+      import Mem.LE
+      val m2 = m1.orderAware
+      T ~ m2(0) ==== 0x1
+      T ~ m2(3) ==== 0x1000000
+    locally:
+      given Mem.Order = if m1.length > 2 then Mem.bigEndian else Mem.littleEndian
+      T ~ m1.orderAware(0) ==== 0x01000000
+
+    // Ordered byte-offset accessors on plain Mem: fixed _le/_be, scope-configured _xe
+    val mb = Mem of Array[Byte](1, 2, 3, 4, 5, 6, 7, 8)
+    T ~ mb.getI_le(0L) ==== 0x04030201
+    T ~ mb.getI_be(0L) ==== 0x01020304
+    T ~ mb.getS_be(0L) ==== 0x0102.toShort
+    T ~ mb.getC_be(1L) ==== 0x0203.toChar
+    T ~ mb.getL_be(0L) ==== 0x0102030405060708L
+    T ~ mb.getL_le(0L) ==== 0x0807060504030201L
+    T ~ mb.getF_be(0L) ==== java.lang.Float.intBitsToFloat(0x01020304)
+    T ~ mb.getD_le(0L) ==== java.lang.Double.longBitsToDouble(0x0807060504030201L)
+    locally:
+      import Mem.BE
+      T ~ mb.getI_xe(4L) ==== 0x05060708
+      mb.setI_xe(4L, 0x0A0B0C0D)
+      T ~ mb.getI_be(4L) ==== 0x0A0B0C0D
+      T ~ mb.getI_le(4L) ==== 0x0D0C0B0A
+    mb.setS_be(0L, 0x1122.toShort)
+    T ~ mb.getB(0L) ==== 0x11.toByte
+    mb.setS_le(0L, 0x1122.toShort)
+    T ~ mb.getB(0L) ==== 0x22.toByte
+    mb.setL_be(0L, 0x0102030405060708L)
+    T ~ mb.getL_le(0L) ==== 0x0807060504030201L
+    mb.setC_le(0L, 0x1234.toChar)
+    T ~ mb.getC_be(0L) ==== 0x3412.toChar
+    mb.setF_be(0L, 1.5f)
+    T ~ mb.getI_be(0L) ==== java.lang.Float.floatToRawIntBits(1.5f)
+    mb.setD_le(0L, -2.25)
+    T ~ mb.getL_le(0L) ==== java.lang.Double.doubleToRawLongBits(-2.25)
+
+    // Writes through the view land the stated way in memory
+    locally:
+      import Mem.BE
+      val w = Mem.alloc[Int](4L)
+      val ow = w.orderAware
+      ow(0) = 0x01020304
+      T ~ w(0)  ==== 0x04030201
+      T ~ ow(0) ==== 0x01020304
+      ow.setL(1L, 0x0102030405060708L)
+      T ~ ow.getL(1L) ==== 0x0102030405060708L
+      T ~ w(1) ==== 0x04030201
+      T ~ w(2) ==== 0x08070605
+
+    // Loop families consult the order once per element access, not per method
+    locally:
+      import Mem.BE
+      val w = Mem.alloc[Int](5L)
+      val ow = w.orderAware
+      ow.set()((i: Long) => (i + 1).toInt)
+      T ~ w.gather(0)()((z, x, _) => z + x)  ==== 0x0F000000
+      T ~ ow.gather(0)()((z, x, _) => z + x) ==== 15
+      T ~ n{ ow.use()(cuml += _) }           ==== 15
+      T ~ n{ ow.use(1L, 3L)(cuml += _) }     ==== 5
+      T ~ n{ ow.visit()((x, i) => cuml += x * (i + 1).toInt) } ==== 1 + 4 + 9 + 16 + 25
+      ow.alter()(_ * 10)
+      T ~ ow(4) ==== 50
+      ow.edit()((x, i) => x + i.toInt)
+      T ~ ow(4) ==== 54
+      T ~ ow.where(_ > 30)            =**= Array(2L, 3L, 4L)
+      T ~ ow.whereIn(0L, 3L)(_ >= 20) =**= Array(1L, 2L)
+      T ~ ow.whereFwd(0L)(_ > 30) ==== 2L
+      T ~ ow.whereBkw(4L)(_ < 30) ==== 1L
+      var psum = 0
+      ow.pairs((a, b) => psum += b - a)
+      T ~ psum ==== 44
+      T ~ ow.wander()((x, i) => i + x) ==== 1L
+      ow.update(0L, 2L, 7)
+      T ~ ow.gather(0)()((z, x, _) => z + x) ==== 143
+      ow.update(Array(4L), 9)
+      T ~ ow(4) ==== 9
+      var t3 = 0
+      ow.trios((_, _, _) => t3 += 1)
+      T ~ t3 ==== 3
+      val w2 = Mem.alloc[Int](5L)
+      val ow2 = w2.orderAware
+      ow2.update(ow)
+      T ~ ow2(0) ==== ow(0)
+      T ~ w2(3)  ==== w(3)
+      var tsum = 0
+      ow.together(ow2)((a, b, _) => tsum += a - b)
+      T ~ tsum ==== 0
+      T ~ ow.view(1L, 3L)(0)      ==== ow(1)
+      T ~ ow.as[Short].getB(0L)   ==== w.getB(0L)
+      var cuts = List.empty[(Long, Long)]
+      ow.update(0L, 5L, 2)
+      ow(2) = 5
+      ow.visitCuts()((a, b) => a != b)((i, j) => cuts = (i, j) :: cuts)
+      T ~ cuts.reverse ==== List((0L, 2L), (2L, 3L), (3L, 5L))
+
+    // Value seeks lay the sought bits out per the order, then ride the native lane scan
+    locally:
+      import Mem.BE
+      val w = Mem.alloc[Int](6L)
+      val ow = w.orderAware
+      ow(3) = 0x01020304
+      T ~ ow.whereIsFwd(0L, 6L)(0x01020304) ==== 3L
+      T ~ ow.whereIsBkw(0L, 6L)(0x01020304) ==== 3L
+      T ~ w.whereIsFwd(0L, 6L)(0x01020304)  ==== -1L
+      T ~ w.whereIsFwd(0L, 6L)(0x04030201)  ==== 3L
+      val f = Mem.alloc[Float](4L)
+      val of2 = f.orderAware
+      of2(2) = 1.5f
+      T ~ of2.whereIsFwd(0L, 4L)(1.5f) ==== 2L
+      T ~ f.whereIsFwd(0L, 4L)(1.5f)   ==== -1L
+
+    // With no order in scope, order-aware access is ambiguous by design; stating one compiles
+    T ~ compiletime.testing.typeChecks("val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== false
+    T ~ compiletime.testing.typeChecks("Mem.alloc[Int](2L).getI_xe(0L)")              ==== false
+    T ~ compiletime.testing.typeChecks("given Mem.Order = Mem.bigEndian; val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== true
 }
 object MemTest {
   import kse.basics.*
