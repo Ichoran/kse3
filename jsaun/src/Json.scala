@@ -100,6 +100,16 @@ object JAny {
       case _: Alt[?] => ja
       case j => j.asInstanceOf[Json].apply(i)
 
+    /** True if this is an object that contains `key`; an error (or non-object) does not. */
+    def has(key: String): Boolean = (ja: Any) match
+      case _: Alt[?] => false
+      case j => j.asInstanceOf[Json].has(key)
+
+    /** True if this is an array with an element at `i`; an error (or non-array) does not. */
+    def has(i: Int): Boolean = (ja: Any) match
+      case _: Alt[?] => false
+      case j => j.asInstanceOf[Json].has(i)
+
     def str: Ask[String] = (ja: Any) match
       case _: Alt[?] => ja.asInstanceOf[Ask[String]]
       case j => j.asInstanceOf[Json].str
@@ -173,6 +183,12 @@ sealed abstract class Json protected () {
 
   /** The element at `i`, or an error if this is not an array or `i` is out of bounds. */
   def apply(i: Int): JAny = JAny.err(Json.expectErr(s"an array with element $i", this))
+
+  /** True if this is an object that contains `key`. */
+  def has(key: String): Boolean = false
+
+  /** True if this is an array with an element at index `i`. */
+  def has(i: Int): Boolean = false
 
   def str: Ask[String] = Alt(Json.expectErr("a string", this))
   def bool: Ask[Boolean] = Alt(Json.expectErr("a boolean", this))
@@ -729,6 +745,7 @@ object Jnum {
 sealed abstract class Jarr protected () extends Json {
   def kind = "array"
   override def arr: Ask[Jarr] = Is(this)
+  final override def has(i: Int): Boolean = i >= 0 && i < size
 
   /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
   private[jsaun] var fmt: Jfmt | Null = null
@@ -1264,6 +1281,8 @@ sealed class Jobj private[jsaun] (
     else JAny(j)
 
   final def contains(key: String): Boolean = find(key) >= 0
+
+  final override def has(key: String): Boolean = contains(key)
 
   final def foreach(f: (String, Json) => Unit): Unit =
     var k = 0

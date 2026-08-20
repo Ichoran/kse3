@@ -136,10 +136,23 @@ class JsaunTest {
     T ~ errText(j("missing").str).contains("no key \"missing\"")     ==== true
     T ~ errText(j("n")("x").str).contains("found number")            ==== true
     T ~ errText(j("stations").str).contains("expected a string")     ==== true
+    // Key/element presence without probing by error
+    T ~ j.has("stations")                   ==== true
+    T ~ j.has("missing")                    ==== false
+    T ~ j("stations").has(1)                ==== true
+    T ~ j("stations").has(2)                ==== false
+    T ~ j("stations").has(-1)               ==== false
+    T ~ j("stations").has("id")             ==== false
+    T ~ j("stations")(0).has("id")          ==== true
+    T ~ j("n").has(0)                       ==== false
+    T ~ (Jobj("a" -> Jnum(1)): Json).has("a")  ==== true
+    T ~ (Jarr(Jnum(1), Jnum(2)): Json).has(1)  ==== true
+    T ~ (Jarr(Jnum(1), Jnum(2)): Json).has("a") ==== false
     // A parse error flows through the whole access chain unchanged
     val e = Json.parse("[1, 2")
     T ~ bad(e("a")(3).str)                  ==== true
     T ~ errText(e("a")(3).str)              ==== errText(e.ask)
+    T ~ e.has("stations")                   ==== false
     // Boundary-style unwrap
     T ~ Ask{ j("stations")(1)("id").json_?.strOr("?") } ==== Is("b2")
 

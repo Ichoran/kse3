@@ -47,6 +47,7 @@ header equivalent:
 
 ```scala
 //> using scala 3.8.4
+//> using jvm 25
 //> using dep com.github.ichoran::kse3-basics:0.8.0
 //> using dep com.github.ichoran::kse3-flow:0.8.0
 //> using dep com.github.ichoran::kse3-maths:0.8.0
@@ -57,9 +58,10 @@ header equivalent:
 //> using dep com.github.ichoran::kse3-twodee:0.8.0
 ```
 
-Because scala-cli does not by default use the default JVM and does not use Java 25 by default,
-you'll typically need to pass `--jvm=25`, or `--jvm=system` if you have 25 installed, when
-running scala-cli.
+The `//> using jvm 25` line is not optional: scala-cli picks an older JVM by default, and the
+failure is a cryptic `Cannot resolve reference to type java.lang.foreign...` rather than anything
+that says your JVM is too old.  Pin the number itself (not `system`) so the script means the same
+thing on every machine.
 
 kse3 expects that you will use compiler options to warn against discarding values.  This is
 an important safety mechanism when handling errors as values: even if there is no meaningful

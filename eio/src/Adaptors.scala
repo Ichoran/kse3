@@ -908,6 +908,46 @@ extension (underlying: String) {
     parseF_?
 }
 
+extension (companion: Byte.type)
+  /** `Byte.from(s)` is `s.parseB`: the entire string as one signed decimal `Byte`, or `Err`. */
+  inline def from(s: String): Ask[Byte] = s.parseB
+
+extension (companion: Short.type)
+  /** `Short.from(s)` is `s.parseS`: the entire string as one signed decimal `Short`, or `Err`. */
+  inline def from(s: String): Ask[Short] = s.parseS
+
+extension (companion: Int.type)
+  /** `Int.from(s)` is `s.parseI`: the entire string as one signed decimal `Int`, or `Err`. */
+  inline def from(s: String): Ask[Int] = s.parseI
+
+extension (companion: Long.type)
+  /** `Long.from(s)` is `s.parseL`: the entire string as one signed decimal `Long`, or `Err`. */
+  inline def from(s: String): Ask[Long] = s.parseL
+
+extension (companion: UByte.type)
+  /** `UByte.from(s)` is `s.parseUB`: the entire string as one unsigned decimal `UByte`, or `Err`. */
+  inline def from(s: String): Ask[UByte] = s.parseUB
+
+extension (companion: UShort.type)
+  /** `UShort.from(s)` is `s.parseUS`: the entire string as one unsigned decimal `UShort`, or `Err`. */
+  inline def from(s: String): Ask[UShort] = s.parseUS
+
+extension (companion: UInt.type)
+  /** `UInt.from(s)` is `s.parseUI`: the entire string as one unsigned decimal `UInt`, or `Err`. */
+  inline def from(s: String): Ask[UInt] = s.parseUI
+
+extension (companion: ULong.type)
+  /** `ULong.from(s)` is `s.parseUL`: the entire string as one unsigned decimal `ULong`, or `Err`. */
+  inline def from(s: String): Ask[ULong] = s.parseUL
+
+extension (companion: Float.type)
+  /** `Float.from(s)` is `s.parseF`: the entire string as one `Float`, or `Err`. */
+  inline def from(s: String): Ask[Float] = s.parseF
+
+extension (companion: Double.type)
+  /** `Double.from(s)` is `s.parseD`: the entire string as one `Double`, or `Err`. */
+  inline def from(s: String): Ask[Double] = s.parseD
+
 
 
 extension (underlying: java.util.zip.ZipEntry) {

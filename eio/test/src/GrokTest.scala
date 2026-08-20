@@ -290,6 +290,21 @@ class GrokTest {
     T ~ "1.5".parseF                      ==== Is(1.5f)
     T ~ "3.4028235e38".parseF             ==== Is(Float.MaxValue)
     T ~ bad("nope".parseF)                ==== true
+    // the companion-object spellings are the same verbs
+    T ~ Byte.from("-128")                 ==== "-128".parseB
+    T ~ Short.from("-32768")              ==== Is((-32768).toShort)
+    T ~ Int.from("+42")                   ==== Is(42)
+    T ~ Long.from("9223372036854775807")  ==== Is(Long.MaxValue)
+    T ~ bad(Long.from("nope"))            ==== true
+    T ~ UByte.from("255")                 ==== Is(UByte.wrap(-1))
+    T ~ bad(UByte.from("256"))            ==== true
+    T ~ UShort.from("65535")              ==== Is(UShort.wrap(-1))
+    T ~ UInt.from("4294967295")           ==== Is(UInt.wrap(-1))
+    T ~ ULong.from("18446744073709551615") ==== Is(ULong.MaxValue)
+    T ~ bad(ULong.from("-1"))             ==== true
+    T ~ Float.from("1.5")                 ==== Is(1.5f)
+    T ~ Double.from("1.25e-3")            ==== Is(1.25e-3)
+    T ~ bad(Double.from("1.0q"))          ==== true
     // the inline _? forms jump instead of boxing, and answer the bare primitive
     T ~ Or.Ret{ "3".parseI_? + "4".parseI_? }        ==== Is(7)
     T ~ Or.Ret{ "3".parseI_? + "x".parseI_? }.isAlt  ==== true
