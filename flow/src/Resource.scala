@@ -188,7 +188,12 @@ object Tidy {
     * drains and cleans itself.
     */
   final class Lease[R] private[Tidy] (reap: Later.Reapable[R]) {
-    private val state = Atom(0L)   // borrow count; sign bit set = closing
+    // The ENTIRE protocol lives on this one atomic: borrow count in the low bits, sign bit set =
+    // closing.  Every guarded transition is a read-check-CAS loop -- never a bare increment --
+    // because the sign bit changing the value is exactly what makes a raced CAS fail.  ABA is
+    // moot: the state is fully encoded in the value.  Reapable's own once-latch is a downstream
+    // idempotence backstop, never a coordinator; no invariant may span both atomics.
+    private val state = Atom(0L)
     private val cleanable = Later.reaper.register(this, reap)
 
     private def borrowed(): Boolean =
@@ -197,11 +202,15 @@ object Tidy {
       while go do
         val cur = state()
         if cur < 0 then go = false
-        else if state.cas(cur, cur + 1) then
+        else if state.cas(cur, cur + 1) then   // check and increment must stay fused in this CAS
           ok = true
           go = false
       ok
 
+    // The unguarded decrement is safe only because pairing is structural: release is called
+    // solely from the finally of a successful borrow.  The return-value test is the
+    // linearization point: exactly one release can step MinValue+1 -> MinValue, so the drain
+    // cleans exactly once, and same-variable ordering makes every borrower's work visible to it.
     private def release(): Unit =
       if state.zapAndGet(_ - 1) == Long.MinValue then cleanable.clean()
 
@@ -213,8 +222,8 @@ object Tidy {
       while go do
         val cur = state()
         if cur < 0 then go = false
-        else if state.cas(cur, cur | Long.MinValue) then
-          if cur == 0L then cleanable.clean()
+        else if state.cas(cur, cur | Long.MinValue) then   // only one CAS from a sign-free value can win
+          if cur == 0L then cleanable.clean()              // idle -> closed: we clean; else the drain does
           go = false
 
     /** Borrow the resource for a side-effecting `f`; throws if closing or closed. */
