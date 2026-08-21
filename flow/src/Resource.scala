@@ -21,6 +21,15 @@ trait Tidy[-T] extends (T => Unit) {
 object Tidy {
   val doNothing: Tidy[Any] = (a: Any) => ()
 
+  private val closesAutoCloseable: Clean[AutoCloseable] = _.close()
+
+  /** The cleanup every `AutoCloseable` already carries; pass as the `done` of any `Resource` verb
+    * or `Later`/`Lease` factory, e.g. `Resource.clean(acquire)(Tidy.closes)(f)`.  Deliberately not
+    * a given: `Tidy` is contravariant, so a given here would satisfy every `Tidy.Nice` witness and
+    * erase the responsibility-taken discipline the witness exists to state.
+    */
+  def closes[R <: AutoCloseable]: Clean[R] = closesAutoCloseable
+
   /** Can tidy up a resource of arbitrary type.  Marks that Ask-semantics should be employed. */
   trait Nice[-T] extends Tidy[T] {}
 
@@ -120,7 +129,7 @@ object Tidy {
         }
   }
   object Later {
-    private val reaper  = Cleaner.create()
+    private[Tidy] val reaper  = Cleaner.create()
     private val pending = new ConcurrentHashMap[Reapable[?], java.lang.Long]()
     private val reapSeq = Atom(0L)
     private val hooked  = Atom(false)
@@ -155,7 +164,7 @@ object Tidy {
           try clean(r) finally pending.remove(this) __ Unit
     }
 
-    private def enroll[R](r: R, clean: Clean[R]): Reapable[R] =
+    private[Tidy] def enroll[R](r: R, clean: Clean[R]): Reapable[R] =
       installHook()
       val reap = new Reapable(r, clean)
       pending.put(reap, java.lang.Long.valueOf(reapSeq.zapAndGet(_ + 1L))) __ Unit
@@ -165,6 +174,89 @@ object Tidy {
 
     /** Take sole ownership of `r`, cleaned up by `clean` at [[Later.close]], shutdown, or GC. */
     def apply[R](r: R)(using clean: Clean[R]): Later[R] = new Later(enroll(r, clean))
+  }
+
+
+  /** Shared owner of a resource that concurrent borrowers use in scoped calls: each `use`/`op`/
+    * `nice`/`flatNice` is a counted borrow, and [[close]] refuses new borrows but defers the
+    * (exactly-once) cleanup until the last borrow returns -- so a server can retire or replace a
+    * live resource without either leaking it or yanking it from a mid-flight reader.  The
+    * check-and-borrow is a single compare-and-swap, so there is no check-then-act race against a
+    * concurrent close.  As with [[Later]], cleanup is backstopped at JVM shutdown or GC -- there it
+    * runs immediately, since borrowers cannot delay a dying process and an unreachable `Lease` has
+    * none.  To replace a shared resource, swap in a fresh `Lease` and `close` the old one: it
+    * drains and cleans itself.
+    */
+  final class Lease[R] private[Tidy] (reap: Later.Reapable[R]) {
+    private val state = Atom(0L)   // borrow count; sign bit set = closing
+    private val cleanable = Later.reaper.register(this, reap)
+
+    private def borrowed(): Boolean =
+      var ok = false
+      var go = reap.open
+      while go do
+        val cur = state()
+        if cur < 0 then go = false
+        else if state.cas(cur, cur + 1) then
+          ok = true
+          go = false
+      ok
+
+    private def release(): Unit =
+      if state.zapAndGet(_ - 1) == Long.MinValue then cleanable.clean()
+
+    /** Refuse new borrows; cleanup runs now if no borrow is outstanding, otherwise when the last
+      * borrow returns.  Idempotent, and never blocks: the drain is asynchronous.
+      */
+    def close(): Unit =
+      var go = true
+      while go do
+        val cur = state()
+        if cur < 0 then go = false
+        else if state.cas(cur, cur | Long.MinValue) then
+          if cur == 0L then cleanable.clean()
+          go = false
+
+    /** Borrow the resource for a side-effecting `f`; throws if closing or closed. */
+    def use(f: R => Unit): Unit =
+      if borrowed() then
+        try f(reap.held) finally release()
+      else throw new IllegalStateException("Already closed")
+
+    /** Borrow the resource to compute with `f`; throws if closing or closed. */
+    def op[A](f: R => A): A =
+      if borrowed() then
+        try f(reap.held) finally release()
+      else throw new IllegalStateException("Already closed")
+
+    /** Borrow the resource with `.?` early return available; closing or closed yields `Alt(Err)`. */
+    def nice[A](f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] =
+      if borrowed() then
+        try
+          boundary:
+            try Is(f(reap.held))
+            catch case e if e.catchable => Err.or(e)
+        finally release()
+      else Alt(Err("Already closed"))
+
+    /** Like [[nice]], but `f` itself yields an `Ask`. */
+    def flatNice[A](f: boundary.Label[A Or Err] ?=> (R => Ask[A])): Ask[A] =
+      if borrowed() then
+        try
+          boundary:
+            try f(reap.held)
+            catch case e if e.catchable => Err.or(e)
+        finally release()
+      else Alt(Err("Already closed"))
+
+    /** A point-in-time snapshot of whether new borrows are being accepted -- for sequential
+      * introspection, not a guard against a concurrent [[close]] (the borrow itself is the guard). */
+    def isOpen: Boolean = state() >= 0 && reap.open
+  }
+  object Lease {
+    /** Take shared ownership of `r`, cleaned by `clean` once [[Lease.close]] has been called and
+      * every borrow has returned -- or at JVM shutdown or GC, immediately. */
+    def apply[R](r: R)(using clean: Clean[R]): Lease[R] = new Lease(Later.enroll(r, clean))
   }
 }
 
@@ -226,6 +318,12 @@ object Resource {
     * `Later.close`, JVM shutdown, or GC.  The unmanaged-but-backstopped counterpart to [[unmanaged]]. */
   def closedLater[R](rsc: Tidy.Clean[R] ?=> R)(done: Tidy.Clean[R]): Tidy.Later[R] =
     Tidy.Later(rsc(using done))(using done)
+
+  /** Acquire a resource and hand back an owning [[Tidy.Lease]]: concurrent borrowers use it in
+    * scoped calls, and `Lease.close` defers cleanup until the borrows drain.  The shared-ownership
+    * counterpart to [[closedLater]]. */
+  def leased[R](rsc: Tidy.Clean[R] ?=> R)(done: Tidy.Clean[R]): Tidy.Lease[R] =
+    Tidy.Lease(rsc(using done))(using done)
 
   /** Like [[nice]], but the resource is also enrolled for cleanup at JVM shutdown for the duration of `f`,
     * so a `SIGTERM`/`SIGINT` (or normal exit) mid-`f` still releases it — which the `finally` alone cannot

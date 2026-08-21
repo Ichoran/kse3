@@ -2443,6 +2443,84 @@ class FlowTest {
           x := 4; x()
         }                                                            ==== Alt(Err("-5"))
     T ~ m()                                                          ==== 5
+
+  @Test
+  def leaseTest: Unit =
+    val log = scala.collection.mutable.ArrayBuffer.empty[Int]
+    given Tidy.Clean[Int] = i => log.synchronized{ log += i } __ Unit
+
+    // open: borrows compute, cleanup deferred
+    val a = Tidy.Lease(1)
+    T ~ a.isOpen                   ==== true
+    T ~ a.op(_ + 10)               ==== 11
+    a.use(_ => ())
+    T ~ a.nice(_ * 3)              ==== 3
+    T ~ a.flatNice(r => Is(r - 1)) ==== 0
+    T ~ log.size                   ==== 0
+    // close with no borrow outstanding cleans immediately, exactly once
+    a.close()
+    T ~ log.size      ==== 1
+    a.close()
+    T ~ log.size      ==== 1
+    T ~ a.isOpen      ==== false
+    T ~ a.op(_ + 1)   ==== thrown[IllegalStateException]
+    T ~ a.nice(_ + 1) ==== runtype[Alt[?]]
+
+    // close inside a borrow: new borrows refused at once, cleanup deferred to the drain
+    log.clear()
+    val b = Tidy.Lease(2)
+    b.use{ r =>
+      b.close()
+      T ~ log.size      ==== 0
+      T ~ b.isOpen      ==== false
+      T ~ b.nice(_ + 1) ==== runtype[Alt[?]]
+      T ~ (r + 1)       ==== 3
+    }
+    T ~ log.toList ==== List(2)
+
+    // nested borrows: the outermost exit cleans
+    log.clear()
+    val c = Tidy.Lease(3)
+    c.use{ _ =>
+      c.op{ _ =>
+        c.close()
+        T ~ log.size ==== 0
+        0
+      } __ Unit
+      T ~ log.size ==== 0
+    }
+    T ~ log.toList ==== List(3)
+
+    // an error inside a borrow still releases it
+    log.clear()
+    val d = Tidy.Lease(4)
+    T ~ d.nice(r => { Err ?# "no"; r }) ==== Err.or("no")
+    d.close()
+    T ~ log.toList ==== List(4)
+
+    // a borrower on another thread holds the drain across a close
+    log.clear()
+    val w = Resource.leased(5)(i => log.synchronized{ log += i } __ Unit)
+    val entered = new java.util.concurrent.CountDownLatch(1)
+    val unblock = new java.util.concurrent.CountDownLatch(1)
+    val th = new Thread(() => w.use{ _ => entered.countDown(); unblock.await() })
+    th.start()
+    entered.await()
+    w.close()
+    T ~ log.synchronized(log.size) ==== 0
+    unblock.countDown()
+    th.join()
+    T ~ log.toList ==== List(5)
+
+    // Tidy.closes: AutoCloseable resources need no hand-written done
+    var acc = 0
+    class AC extends AutoCloseable { def close(): Unit = acc += 1 }
+    T ~ Resource.clean(Ask{ new AC })(Tidy.closes)(_ => 42) ==== 42
+    T ~ acc ==== 1
+    val f = Resource.leased(new AC)(Tidy.closes)
+    f.use(_ => ())
+    f.close()
+    T ~ acc ==== 2
 }
 object FlowTest {
   // @BeforeClass
