@@ -31,14 +31,14 @@ def scalaVersion = "3.8.4"
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.8.0"
-mvn"com.github.ichoran::kse3-flow:0.8.0"
-mvn"com.github.ichoran::kse3-maths:0.8.0"
-mvn"com.github.ichoran::kse3-loom:0.8.0"
-mvn"com.github.ichoran::kse3-thyme:0.8.0"
-mvn"com.github.ichoran::kse3-eio:0.8.0"
-mvn"com.github.ichoran::kse3-jsaun:0.8.0"
-mvn"com.github.ichoran::kse3-twodee:0.8.0"
+mvn"com.github.ichoran::kse3-basics:0.8.1"
+mvn"com.github.ichoran::kse3-flow:0.8.1"
+mvn"com.github.ichoran::kse3-maths:0.8.1"
+mvn"com.github.ichoran::kse3-loom:0.8.1"
+mvn"com.github.ichoran::kse3-thyme:0.8.1"
+mvn"com.github.ichoran::kse3-eio:0.8.1"
+mvn"com.github.ichoran::kse3-jsaun:0.8.1"
+mvn"com.github.ichoran::kse3-twodee:0.8.1"
 ```
 
 to try it out; `kse3-foundation` (same version) is an aggregator with no code of its own
@@ -48,14 +48,14 @@ header equivalent:
 ```scala
 //> using scala 3.8.4
 //> using jvm 25
-//> using dep com.github.ichoran::kse3-basics:0.8.0
-//> using dep com.github.ichoran::kse3-flow:0.8.0
-//> using dep com.github.ichoran::kse3-maths:0.8.0
-//> using dep com.github.ichoran::kse3-loom:0.8.0
-//> using dep com.github.ichoran::kse3-thyme:0.8.0
-//> using dep com.github.ichoran::kse3-eio:0.8.0
-//> using dep com.github.ichoran::kse3-jsaun:0.8.0
-//> using dep com.github.ichoran::kse3-twodee:0.8.0
+//> using dep com.github.ichoran::kse3-basics:0.8.1
+//> using dep com.github.ichoran::kse3-flow:0.8.1
+//> using dep com.github.ichoran::kse3-maths:0.8.1
+//> using dep com.github.ichoran::kse3-loom:0.8.1
+//> using dep com.github.ichoran::kse3-thyme:0.8.1
+//> using dep com.github.ichoran::kse3-eio:0.8.1
+//> using dep com.github.ichoran::kse3-jsaun:0.8.1
+//> using dep com.github.ichoran::kse3-twodee:0.8.1
 ```
 
 The `//> using jvm 25` line is not optional: scala-cli picks an older JVM by default, and the
