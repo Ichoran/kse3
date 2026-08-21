@@ -535,7 +535,13 @@ object SharedMemory {
   inline def attachFd[A <: Mem.Type](fd: Int, n: Long = 0L, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
     attachFdBytes[A](fd, n * Mem.bytesOf[A], readOnly)
 
-  /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure via `lseek`), consuming the descriptor. */
+  /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure via `lseek`), consuming the descriptor.
+    * Unlike `attachFd`, nothing here asks how the mapping will be released: the caller owns the
+    * returned `Mem.Owned` outright, and losing it leaks the mapping until process exit.  Prefer
+    * `attachFd` (whose `Tidy.Nice` witness makes an enclosing `Resource` scope state the cleanup),
+    * or wrap the result yourself -- `Tidy.Later` for a sole owner, `Tidy.Lease` for a registry that
+    * concurrent readers borrow from and that must survive replacement.
+    */
   def attachFdBytes[A <: Mem.Type](fd: Int, bytes: Long, readOnly: Boolean): Ask[Mem.Owned[A]] =
     if !(onLinux || onMac) then Err.or(s"descriptor attach is unsupported on '$osName'")
     else
