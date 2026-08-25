@@ -189,4 +189,21 @@ class DiffTest {
     val jNote = DynamicMessage.newBuilder(trackD).setField(trackD.findFieldByName("note"), "").build().toByteArray
     T ~ Track.parse(jNote).fold(_.extra)(e => throw new AssertionError(e.toString)) ==== Track.Extra.Note("")
     T ~ jNote =**= eNote
+
+  @Test
+  def diffUnknownRetentionTest(): Unit =
+    // fields our schema does not name survive a kse3 read-modify-write and land where
+    // protobuf-java expects them: in its UnknownFieldSet, values intact
+    val junky = kse.alien.Pb.Out()
+    junky.string(1, "keeper")
+    junky.int32Always(99, 12345)
+    junky.doubleAlways(98, 2.25)
+    junky.stringAlways(97, "junk")
+    val ours = Track.parse(junky.result).fold(t => t)(e => throw new AssertionError(e.toString))
+    val m = DynamicMessage.parseFrom(trackD, ours.copy(id = "edited").toBytes)
+    T ~ m.getField(trackD.findFieldByName("id")) ==== "edited"
+    val uf = m.getUnknownFields
+    T ~ uf.getField(99).getVarintList.get(0) ==== java.lang.Long.valueOf(12345L)
+    T ~ uf.getField(98).getFixed64List.get(0).longValue.bitsD ==== 2.25
+    T ~ uf.getField(97).getLengthDelimitedList.get(0).toStringUtf8 ==== "junk"
 }

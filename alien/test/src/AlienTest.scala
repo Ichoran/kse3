@@ -292,6 +292,30 @@ class AlienTest {
     T ~ errText(Pb.decode(bomb.result)(burrow)).contains("nesting deeper") ==== true
 
   @Test
+  def pbKeepTest(): Unit =
+    val junk = Array[Byte](
+      0x08, -0x7F, 0x00,                   // field 1 varint 1, in a deliberately over-long spelling
+      0x11, 1, 2, 3, 4, 5, 6, 7, 8,        // field 2 fixed64
+      0x1A, 0x02, 0x68, 0x69,              // field 3 length-delimited "hi"
+      0x25, 4, 3, 2, 1)                    // field 4 fixed32
+    def keepAll(in: Pb.In): List[Pb.Unknown] =
+      var ks = List.empty[Pb.Unknown]
+      while in.next() do ks = in.keep() :: ks
+      ks.reverse
+    val kept = got(Pb.decode(junk)(keepAll))
+    T ~ kept.map(u => (u.field, u.wire, u.data.length)) ==== List((1, 0, 2), (2, 1, 8), (3, 2, 2), (4, 5, 4))
+    T ~ kept.head.data.toList ==== List[Byte](-0x7F, 0x00)   // verbatim: still over-long
+    T ~ kept(2).data.toList ==== List[Byte](0x68, 0x69)
+    val o = Pb.Out()
+    o.unknowns(kept)
+    T ~ o.result =**= junk                                   // byte-identical resurrection
+    T ~ got(Pb.decode(Mem of junk)(keepAll)).map(u => (u.field, u.wire, u.data.toList)) ==== kept.map(u => (u.field, u.wire, u.data.toList))
+    // groups still refused, and malformed hand-built unknowns refuse to write
+    T ~ errText(Pb.decode(Array[Byte](0x0B)){ in => in.next() __ Unit; in.keep() }).contains("wire type 3") ==== true
+    T ~ errText(nice{ Pb.Out().unknown(1, Pb.WFix64, Array[Byte](1, 2, 3)) }).contains("8 bytes") ==== true
+    T ~ errText(nice{ Pb.Out().unknown(1, Pb.WVarint, Array[Byte](-0x80)) }).contains("not one varint") ==== true
+
+  @Test
   def pbMemOutTest(): Unit =
     def sample(o: Pb.Out): Unit =
       o.string(1, "slot")
@@ -452,6 +476,7 @@ class AlienTest {
     T ~ src.contains("case MoodArm(value: Mood)") ==== true      // Arm suffix dodged the Mood shadow
     T ~ src.contains("stamp: ULong = ULong(0L)") ==== true
     T ~ src.contains("hops.use()(v => o.int32Always(5, v))") ==== true   // [packed = false] honored
+    T ~ src.contains("unknown: List[Pb.Unknown] = Nil") ==== true        // retention is the default
     // if the checked-in generated file is reachable from here, it matches regeneration exactly
     val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
     if java.nio.file.Files.exists(p) then
@@ -500,7 +525,7 @@ class AlienTest {
     T ~ odd.meta.fold(_.mood.number)(_ => -1) ==== 42
     T ~ Mood(42).name.contains("unknown") ==== true
     T ~ Mood.GLAD.name ==== "HAPPY"   // alias resolves to the first-named value
-    // unknown fields are skipped: junk fields around known ones do not disturb the read
+    // unknown fields are RETAINED in encounter order, and survive read-modify-write
     val junky = Pb.Out()
     junky.string(1, "still me")
     junky.int32Always(99, 12345)
@@ -510,6 +535,13 @@ class AlienTest {
     val j = got(Track.parse(junky.result))
     T ~ j.id ==== "still me"
     T ~ j.stamp.signed ==== 7L
+    T ~ j.unknown.map(u => (u.field, u.wire)) ==== List((99, 0), (98, 1), (97, 2))
+    val j2 = got(Track.parse(j.copy(id = "renamed").toBytes))
+    T ~ j2.id ==== "renamed"
+    T ~ j2.stamp.signed ==== 7L
+    T ~ j2.unknown.map(u => (u.field, u.wire, u.data.toList)) ==== j.unknown.map(u => (u.field, u.wire, u.data.toList))
+    // ...but a schema that names every field carries none
+    T ~ got(Track.parse(t.toBytes)).unknown ==== Nil
     // and the whole thing round-trips straight out of off-heap memory
     val slot = Mem.alloc[Byte](bs.length + 16)
     T ~ got(Pb.encodeInto(slot)(t.writeTo)) ==== bs.length.toLong

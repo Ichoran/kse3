@@ -25,16 +25,21 @@ import kse.flow.{given, _}
   *     whose name would collide with a type it mentions gets an `Arm` suffix.
   *   - map<K, V> -> immutable `Map[K, V]`.
   *
-  * Unknown fields are dropped on read (so a decode-encode round trip keeps only what the
-  * schema names), and writers emit in ascending field-number order.  Services generate
-  * nothing yet — the schema keeps their descriptions for a future transport layer.
+  * Unknown fields are RETAINED by default: each message carries an `unknown` list of
+  * `Pb.Unknown` (encounter order, verbatim bytes), re-emitted after the known fields, so a
+  * read-modify-write pass preserves what a newer schema added.  Set
+  * `Config(retainUnknown = false)` for lean drop-on-read bindings (which is also the
+  * behavior a future fixed-layout `Mem.Struct`/`Mem.AoS` target will have by nature).
+  * Writers emit in ascending field-number order.  Services generate nothing yet — the
+  * schema keeps their descriptions for a future transport layer.
   */
 object PbGen {
 
   /** Knobs for generation: where generated code lands (proto package -> Scala package,
-    * identity by default) and an extra header line if wanted.
+    * identity by default), an extra header line if wanted, and whether messages carry and
+    * re-emit unknown fields (they do unless told otherwise).
     */
-  final case class Config(pkgOf: String => String = p => p, header: String = "")
+  final case class Config(pkgOf: String => String = p => p, header: String = "", retainUnknown: Boolean = true)
 
   /** Generate one Scala source per file in the schema, as (suggested filename, content). */
   def generate(schema: Proto.Schema, config: Config = Config()): Ask[List[(String, String)]] =
@@ -235,6 +240,13 @@ object PbGen {
       case Proto.PType.MapOf(_, _) => "Map.empty"
       case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
 
+    /** The name of the retained-unknowns field, dodging any proto field that claims it. */
+    private def unknownNameOf(m: Proto.Message): String =
+      val taken = m.fields.map(f => camel(f.name)).toSet ++ m.oneofs.map(o => camel(o.name))
+      if !taken("unknown") then "unknown"
+      else if !taken("unknownFields") then "unknownFields"
+      else Pb.fail(s"${file.name}:${m.pos}: message ${m.name} claims both 'unknown' and 'unknownFields'; rename one or generate with retainUnknown = false")
+
     // --- oneof case naming, with the shadow-dodging Arm suffix ---
 
     private def oneofTypeName(o: Proto.Oneof): String = pascal(o.name)
@@ -267,6 +279,7 @@ object PbGen {
             oneofEmitted = oneofEmitted + f.oneof
             List(Alt(f.oneof))
       slots.foreach(s => s.fold(f => writeField(f, indent))(oidx => writeOneof(m, myRef, oidx, indent)))
+      if config.retainUnknown then line(indent, s"o.unknowns(${unknownNameOf(m)})")
 
     private def writeField(f: Proto.Field, indent: Int): Unit =
       val x = fieldScalaName(f)
@@ -344,9 +357,11 @@ object PbGen {
             line(indent, s"val $x = new Pb.IntAcc")
           case _ =>
             line(indent, s"var $x: ${typeOf(f)} = ${defaultOf(f)}")
+      if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = List.empty[Pb.Unknown]")
       line(indent, "while in.next() do in.field match")
       m.fields.sortBy(_.number).foreach(f => readCase(m, myRef, f, indent + 1))
-      line(indent + 1, "case _ => in.skip()")
+      if config.retainUnknown then line(indent + 1, s"case _ => ${unknownNameOf(m)} = in.keep() :: ${unknownNameOf(m)}")
+      else line(indent + 1, "case _ => in.skip()")
       val args = ctorArgs(m).map(_._2).mkString(", ")
       line(indent, s"$myRef($args)")
 
@@ -401,6 +416,13 @@ object PbGen {
 
     /** The case-class parameters, in declaration order, oneofs at their first member. */
     private def ctorArgs(m: Proto.Message): List[(String, String)] =
+      val base = fieldArgs(m)
+      if config.retainUnknown then
+        val un = unknownNameOf(m)
+        base :+ ((s"$un: List[Pb.Unknown] = Nil", s"$un.reverse"))
+      else base
+
+    private def fieldArgs(m: Proto.Message): List[(String, String)] =
       var oneofSeen = Set.empty[Int]
       m.fields.flatMap: f =>
         if f.oneof >= 0 then
@@ -429,7 +451,7 @@ object PbGen {
         args.foreach((decl, _) => line(indent + 1, decl + (if decl == args.last._1 then "" else ",")))
         line(indent, ") {")
       line(indent + 1, "def writeTo(o: Pb.Out): Unit =")
-      if m.fields.isEmpty then line(indent + 2, "()")
+      if m.fields.isEmpty && !config.retainUnknown then line(indent + 2, "()")
       else writeLines(m, myRef, indent + 2)
       line(indent + 1, "def toBytes: Array[Byte] =")
       line(indent + 2, "val o = Pb.Out()")

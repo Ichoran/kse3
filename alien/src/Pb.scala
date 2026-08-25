@@ -39,7 +39,10 @@ import kse.maths.{given, _}
   * `HostMsg: ViewState: field 5 at byte 117: varint runs off the end`.
   *
   * Deliberate proto3-isms and limits, chosen loudly rather than silently:
-  *   - Unknown fields are skipped, not retained; re-serializing a decoded message drops them.
+  *   - Unknown fields are the reader's choice: `skip()` drops one, `keep()` captures it as a
+  *     `Pb.Unknown` — verbatim bytes, so even a non-canonical varint spelling survives — for
+  *     re-emission with `Out.unknowns`.  Generated bindings retain by default, so a
+  *     read-modify-write pass cannot silently strip fields a newer schema added.
   *   - Wire types 3 and 4 (proto2 groups) are refused.
   *   - A singular field read with the wrong wire type is an error, not an unknown field.
   *   - Repeated scalars decode from either packed or unpacked spelling, per spec.
@@ -67,6 +70,12 @@ object Pb {
 
   /** Abandon an encode or decode with an explanation. */
   def fail(message: String): Nothing = throw new Halt(message)
+
+  /** One unknown field, captured verbatim by `In.keep` in encounter order: field number,
+    * wire type, and the value bytes exactly as read (no tag; for length-delimited values,
+    * no length prefix).  `Out.unknowns` writes a run of them back byte-identically.
+    */
+  final case class Unknown(field: Int, wire: Int, data: Array[Byte])
 
   /** Label a stretch of coding (typically one message reader) so any failure inside
     * carries the path to where it happened.  Free unless a `Halt` actually passes through.
@@ -214,6 +223,37 @@ object Pb {
       tag(field, WLen)
       varint(m.length)
       rawBytes(m.buffer, 0, m.length)
+
+    /** Write back one unknown field.  The data must be re-emittable as captured by
+      * `In.keep`: a well-formed varint (over-long spellings allowed), exactly 8 or 4 bytes
+      * for the fixed widths, anything for length-delimited.  Halts rather than corrupt.
+      */
+    def unknown(field: Int, wire: Int, data: Array[Byte]): Unit =
+      if field <= 0 || field > 536870911 then fail(s"unknown-field number $field out of range")
+      wire match
+        case WVarint =>
+          if data.length < 1 || data.length > 10 || (data(data.length - 1) & 0x80) != 0 then
+            fail(s"unknown-field $field: ${data.length} bytes are not one varint")
+          tag(field, wire)
+          rawBytes(data, 0, data.length)
+        case WFix64 =>
+          if data.length != 8 then fail(s"unknown-field $field: fixed64 needs 8 bytes, not ${data.length}")
+          tag(field, wire)
+          rawBytes(data, 0, data.length)
+        case WFix32 =>
+          if data.length != 4 then fail(s"unknown-field $field: fixed32 needs 4 bytes, not ${data.length}")
+          tag(field, wire)
+          rawBytes(data, 0, data.length)
+        case WLen =>
+          tag(field, wire)
+          varint(data.length)
+          rawBytes(data, 0, data.length)
+        case w => fail(s"unknown-field $field: wire type $w cannot be written")
+
+    def unknown(u: Unknown): Unit = unknown(u.field, u.wire, u.data)
+
+    /** Write back a run of unknown fields in order — typically last, after the known fields. */
+    def unknowns(us: List[Unknown]): Unit = us.foreach(u => unknown(u.field, u.wire, u.data))
 
     // --- packed repeated (proto3 default for numeric scalars; nothing emitted when empty) ---
 
@@ -527,6 +567,29 @@ object Pb {
       case WLen    => lenSpan() __ Unit
       case WFix32  => if i + 4 > end then fail(s"skip of field $field runs off the end at byte $i") else i += 4
       case w       => fail(s"field $field at byte $i: wire type $w (proto2 groups are not supported)")
+
+    /** Capture the current field verbatim instead of dropping it — the modern retention
+      * behavior, so a read-modify-write pass preserves what this schema does not know.
+      */
+    def keep(): Unknown = wire match
+      case WVarint =>
+        val a = i
+        readVarint() __ Unit
+        Unknown(field, wire, bytesWork(a, i))
+      case WFix64 =>
+        if i + 8 > end then fail(s"keep of field $field runs off the end at byte $i")
+        val u = Unknown(field, wire, bytesWork(i, i + 8))
+        i += 8
+        u
+      case WLen =>
+        val a = lenSpanInt()
+        Unknown(field, wire, bytesWork(a, i))
+      case WFix32 =>
+        if i + 4 > end then fail(s"keep of field $field runs off the end at byte $i")
+        val u = Unknown(field, wire, bytesWork(i, i + 4))
+        i += 4
+        u
+      case w => fail(s"field $field at byte $i: wire type $w (proto2 groups are not supported)")
   }
 
   object In {

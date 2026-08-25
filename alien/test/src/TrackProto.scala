@@ -28,11 +28,13 @@ object Mood {
 
 final case class Pt(
   x: Double = 0.0,
-  y: Double = 0.0
+  y: Double = 0.0,
+  unknown: List[Pb.Unknown] = Nil
 ) {
   def writeTo(o: Pb.Out): Unit =
     o.double(1, x)
     o.double(2, y)
+    o.unknowns(unknown)
   def toBytes: Array[Byte] =
     val o = Pb.Out()
     writeTo(o)
@@ -43,11 +45,12 @@ object Pt {
   def readFrom(in: Pb.In): Pt = Pb.context("Pt"):
     var x: Double = 0.0
     var y: Double = 0.0
+    var unknown = List.empty[Pb.Unknown]
     while in.next() do in.field match
       case 1 => x = in.double()
       case 2 => y = in.double()
-      case _ => in.skip()
-    Pt(x, y)
+      case _ => unknown = in.keep() :: unknown
+    Pt(x, y, unknown.reverse)
   def parse(bs: Array[Byte]): Ask[Pt] = Pb.decode(bs)(readFrom)
   def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Pt] = Pb.decode(bs, i0, iN)(readFrom)
   def parse(m: Mem[Byte]): Ask[Pt] = Pb.decode(m)(readFrom)
@@ -62,7 +65,8 @@ final case class Track(
   hops: Array[Int] = Array.empty[Int],
   extra: Track.Extra = Track.Extra.Unset,
   meta: Track.Meta Or Unit = Alt.unit,
-  stamp: ULong = ULong(0L)
+  stamp: ULong = ULong(0L),
+  unknown: List[Pb.Unknown] = Nil
 ) {
   def writeTo(o: Pb.Out): Unit =
     o.string(1, id)
@@ -84,6 +88,7 @@ final case class Track(
       case Track.Extra.Unset => ()
     meta.fold{ v => val b = Pb.Out(); v.writeTo(b); o.msg(20, b) }(_ => ())
     o.uint64(21, stamp)
+    o.unknowns(unknown)
   def toBytes: Array[Byte] =
     val o = Pb.Out()
     writeTo(o)
@@ -100,11 +105,13 @@ object Track {
 
   final case class Meta(
     mood: Mood = Mood.MOOD_UNSPECIFIED,
-    blob: Array[Byte] = Array.empty[Byte]
+    blob: Array[Byte] = Array.empty[Byte],
+    unknown: List[Pb.Unknown] = Nil
   ) {
     def writeTo(o: Pb.Out): Unit =
       o.int32(1, mood.number)
       o.bytes(2, blob)
+      o.unknowns(unknown)
     def toBytes: Array[Byte] =
       val o = Pb.Out()
       writeTo(o)
@@ -115,11 +122,12 @@ object Track {
     def readFrom(in: Pb.In): Track.Meta = Pb.context("Meta"):
       var mood: Mood = Mood.MOOD_UNSPECIFIED
       var blob: Array[Byte] = Array.empty[Byte]
+      var unknown = List.empty[Pb.Unknown]
       while in.next() do in.field match
         case 1 => mood = Mood(in.int32())
         case 2 => blob = in.bytes()
-        case _ => in.skip()
-      Track.Meta(mood, blob)
+        case _ => unknown = in.keep() :: unknown
+      Track.Meta(mood, blob, unknown.reverse)
     def parse(bs: Array[Byte]): Ask[Track.Meta] = Pb.decode(bs)(readFrom)
     def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Track.Meta] = Pb.decode(bs, i0, iN)(readFrom)
     def parse(m: Mem[Byte]): Ask[Track.Meta] = Pb.decode(m)(readFrom)
@@ -135,6 +143,7 @@ object Track {
     var extra: Track.Extra = Track.Extra.Unset
     var meta: Track.Meta Or Unit = Alt.unit
     var stamp: ULong = ULong(0L)
+    var unknown = List.empty[Pb.Unknown]
     while in.next() do in.field match
       case 1 => id = in.string()
       case 2 => pts += Pt.readFrom(in.sub())
@@ -154,8 +163,8 @@ object Track {
       case 12 => extra = Track.Extra.MoodArm(Mood(in.int32()))
       case 20 => meta = Is(Track.Meta.readFrom(in.sub()))
       case 21 => stamp = in.uint64()
-      case _ => in.skip()
-    Track(id, pts.result, tags, score, hops.result, extra, meta, stamp)
+      case _ => unknown = in.keep() :: unknown
+    Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, unknown.reverse)
   def parse(bs: Array[Byte]): Ask[Track] = Pb.decode(bs)(readFrom)
   def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Track] = Pb.decode(bs, i0, iN)(readFrom)
   def parse(m: Mem[Byte]): Ask[Track] = Pb.decode(m)(readFrom)
