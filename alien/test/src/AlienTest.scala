@@ -52,6 +52,8 @@ object TestProtos {
     |  }
     |  Meta meta = 20;
     |  uint64 stamp = 21;
+    |  bytes payload = 30 [(kse3.view) = true];
+    |  repeated double wave = 31 [(kse3.view) = true];
     |  reserved 100 to max;
     |  reserved "old_name";
     |}
@@ -354,6 +356,61 @@ class AlienTest {
     T ~ errText(Pb.decode(Mem of bad){ in => in.next() __ Unit; in.string() }).contains("UTF-8") ==== true
 
   @Test
+  def pbViewTest(): Unit =
+    import kse.alien.PbGen
+    import kse.test.alien.track.Track
+    // wire level: a view aliases the decode buffer; an owned copy does not
+    val src = enc(_.bytesAlways(1, Array[Byte](10, 20, 30)))
+    val view = got(Pb.decode(src){ in => in.next() __ Unit; in.bytesView() })
+    T ~ view.length ==== 3L
+    T ~ view(1) ==== (20: Byte)
+    val own = Pb.ownedBytes(view)
+    src(src.length - 2) = 99
+    T ~ view(1) ==== (99: Byte)     // the view follows the buffer
+    T ~ own(1) ==== (20: Byte)      // the owned copy stands
+    // packed fixed-width views work from both substrates
+    val pk = enc(_.packedDouble(1, Array(1.5, -2.5, 3.25)))
+    val pv = got(Pb.decode(Mem of pk){ in => in.next() __ Unit; in.packedDoubleView(Mem of Array.empty[Double]) })
+    T ~ pv.length ==== 3L
+    T ~ (pv(0), pv(1), pv(2)) ==== (1.5, -2.5, 3.25)
+    // chunked and unpacked spellings concatenate (degrading to a private copy)
+    val chunked = enc{ o => o.packedDouble(1, Array(1.0, 2.0)); o.string(2, "gap"); o.doubleAlways(1, 3.0) }
+    def readRun(in: Pb.In): Mem[Double] =
+      var w: Mem[Double] = Mem of Array.empty[Double]
+      while in.next() do in.field match
+        case 1 => w = in.packedDoubleView(w)
+        case _ => in.skip()
+      w
+    val cv = got(Pb.decode(chunked)(readRun))
+    T ~ (cv(0), cv(1), cv(2)) ==== (1.0, 2.0, 3.0)
+    // ragged packed payloads are loud
+    T ~ errText(Pb.decode(Array[Byte](0x0A, 0x05, 1, 2, 3, 4, 5)){ in => in.next() __ Unit; in.packedDoubleView(Mem of Array.empty[Double]) }).contains("ragged") ==== true
+    // generated bindings: Mem-typed fields are views, owned severs them
+    val t = Track(id = "v", payload = Mem of Array[Byte](7, 8), wave = Mem of Array(0.5, 1.5))
+    val bs = t.toBytes
+    val u = got(Track.parse(bs))
+    T ~ u.payload.length ==== 2L
+    T ~ (u.wave(0), u.wave(1)) ==== (0.5, 1.5)
+    val uo = u.owned
+    java.util.Arrays.fill(bs, 0: Byte)
+    T ~ u.payload(0) ==== (0: Byte)    // parsed views die with the buffer...
+    T ~ uo.payload(0) ==== (7: Byte)   // ...owned survives it
+    T ~ (uo.wave(0), uo.wave(1)) ==== (0.5, 1.5)
+    T ~ got(Track.parse(uo.toBytes)).wave(1) ==== 1.5
+    // spec merge: a later packed chunk appends to the view field
+    val wm = got(Track.parse(Track(wave = Mem of Array(1.0)).toBytes ++ Track(wave = Mem of Array(2.0, 3.0)).toBytes))
+    T ~ (wm.wave(0), wm.wave(1), wm.wave(2)) ==== (1.0, 2.0, 3.0)
+    // views by Config selection, without touching the .proto
+    val viaCfg = got(PbGen.generate(got(Proto.read("""syntax = "proto3"; package v; message M { bytes data = 1; repeated fixed32 raw = 2; }""")),
+                                    PbGen.Config(viewFields = Set("v.M.data", "v.M.raw"))))
+    T ~ viaCfg.head._2.contains("data: Mem[Byte]") ==== true
+    T ~ viaCfg.head._2.contains("raw: Mem[Int]") ==== true
+    // ineligible view requests fail generation with an explanation
+    T ~ errText(PbGen.generate(got(Proto.read("""syntax = "proto3"; message M { repeated int32 x = 1 [(kse3.view) = true]; }""")))).contains("varint-encoded") ==== true
+    T ~ errText(PbGen.generate(got(Proto.read("""syntax = "proto3"; message M { int32 x = 1 [(kse3.view) = true]; }""")))).contains("singular bytes") ==== true
+    T ~ errText(PbGen.generate(got(Proto.read("""syntax = "proto3"; message M { repeated bytes b = 1 [(kse3.view) = true]; }""")))).contains("contiguous span") ==== true
+
+  @Test
   def pbMergeTest(): Unit =
     import kse.test.alien.track.{Mood, Pt, Track}
     val t1 = Track(id = "a", pts = Array(Pt(1.0, 2.0)), tags = Map("k" -> 1L, "only1" -> 5L), hops = Array(1),
@@ -538,6 +595,8 @@ class AlienTest {
     T ~ src.contains("hops.use()(v => o.int32Always(5, v))") ==== true   // [packed = false] honored
     T ~ src.contains("unknown: List[Pb.Unknown] = Nil") ==== true        // retention is the default
     T ~ src.contains("def readFrom(in: Pb.In, prior: Track): Track") ==== true   // spec merge semantics
+    T ~ src.contains("payload: Mem[Byte] = Mem of Array.empty[Byte]") ==== true  // Mem type = zero-copy view
+    T ~ src.contains("def owned: Track") ==== true                               // the view-severing copy
     // if the checked-in generated file is reachable from here, it matches regeneration exactly
     val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
     if java.nio.file.Files.exists(p) then

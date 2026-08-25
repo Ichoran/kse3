@@ -38,6 +38,14 @@ import kse.maths.{given, _}
   * `Pb.context` so a failure surfaces with its full message path, e.g.
   * `HostMsg: ViewState: field 5 at byte 117: varint runs off the end`.
   *
+  * Zero-copy has a bright line here.  The `*View` accessors (`bytesView`, `packedDoubleView`
+  * and kin) return `Mem` slices that ALIAS the decode source — free, but they must not
+  * outlive the buffer (a reused socket buffer, a regranted mapping).  Everything else —
+  * `bytes()`, `string()`, the accumulators — is an owned copy, safe forever.  The alias
+  * forms exist because they are the only zero-copy protobuf permits: a length-delimited
+  * payload and a packed fixed-width run are the format's two statically-shaped spans.
+  * The `Pb.owned*` helpers copy a view into fresh storage when independence is needed.
+  *
   * Deliberate proto3-isms and limits, chosen loudly rather than silently:
   *   - Unknown fields are the reader's choice: `skip()` drops one, `keep()` captures it as a
   *     `Pb.Unknown` — verbatim bytes, so even a non-canonical varint spelling survives — for
@@ -115,6 +123,32 @@ object Pb {
           else k += 4
       else ok = false
     ok
+
+  /** Copy a view into fresh heap-backed storage, severing any tie to a decode buffer. */
+  def ownedBytes(m: Mem[Byte]): Mem[Byte] =
+    val a = new Array[Byte](m.length.toInt)
+    m.inject(a) __ Unit
+    Mem of a
+
+  def ownedInts(m: Mem[Int]): Mem[Int] =
+    val a = new Array[Int](m.length.toInt)
+    m.inject(a) __ Unit
+    Mem of a
+
+  def ownedLongs(m: Mem[Long]): Mem[Long] =
+    val a = new Array[Long](m.length.toInt)
+    m.inject(a) __ Unit
+    Mem of a
+
+  def ownedFloats(m: Mem[Float]): Mem[Float] =
+    val a = new Array[Float](m.length.toInt)
+    m.inject(a) __ Unit
+    Mem of a
+
+  def ownedDoubles(m: Mem[Double]): Mem[Double] =
+    val a = new Array[Double](m.length.toInt)
+    m.inject(a) __ Unit
+    Mem of a
 
   /** Label a stretch of coding (typically one message reader) so any failure inside
     * carries the path to where it happened.  Free unless a `Halt` actually passes through.
@@ -196,6 +230,7 @@ object Pb {
     protected def raw32(v: Int): Unit
     protected def raw64(v: Long): Unit
     protected def rawBytes(bs: Array[Byte], off: Int, len: Int): Unit
+    protected def rawMem(src: MemorySegment, srcOff: Long, len: Long): Unit
 
     def tag(field: Int, wire: Int): Unit = varint((field.toLong << 3) | wire)
 
@@ -253,6 +288,14 @@ object Pb {
 
     def stringAlways(field: Int, s: String): Unit = bytesAlways(field, s.getBytes(java.nio.charset.StandardCharsets.UTF_8))
     def string(field: Int, s: String): Unit = if s.nonEmpty then stringAlways(field, s)
+
+    /** Emit a bytes payload straight out of memory — one bulk copy, no heap staging. */
+    def bytesAlways(field: Int, m: Mem[Byte]): Unit =
+      tag(field, WLen)
+      varint(m.length)
+      rawMem(m.segment, 0L, m.length)
+
+    def bytes(field: Int, m: Mem[Byte]): Unit = if m.length > 0 then bytesAlways(field, m)
 
     /** Embed a nested message (or map entry, or oneof message arm).  Presence is the caller's
       * decision — call only when the field is actually set; an empty present message is a
@@ -373,6 +416,34 @@ object Pb {
         tag(field, WLen)
         varint(8L * vs.length)
         vs.use()(v => raw64(v.bitsL))
+
+    // Packed fixed-width runs straight out of memory: the payload is bulk-copied verbatim,
+    // which is exactly right for views taken by the packed*View readers (wire is LE, and
+    // kse3 assumes LE hosts throughout).
+
+    def packedFixed32(field: Int, vs: Mem[Int]): Unit =
+      if vs.length > 0 then
+        tag(field, WLen)
+        varint(4L * vs.length)
+        rawMem(vs.segment, 0L, 4L * vs.length)
+
+    def packedFixed64(field: Int, vs: Mem[Long]): Unit =
+      if vs.length > 0 then
+        tag(field, WLen)
+        varint(8L * vs.length)
+        rawMem(vs.segment, 0L, 8L * vs.length)
+
+    def packedFloat(field: Int, vs: Mem[Float]): Unit =
+      if vs.length > 0 then
+        tag(field, WLen)
+        varint(4L * vs.length)
+        rawMem(vs.segment, 0L, 4L * vs.length)
+
+    def packedDouble(field: Int, vs: Mem[Double]): Unit =
+      if vs.length > 0 then
+        tag(field, WLen)
+        varint(8L * vs.length)
+        rawMem(vs.segment, 0L, 8L * vs.length)
   }
 
   object Out {
@@ -430,6 +501,11 @@ object Pb {
       System.arraycopy(bs, off, buf, n, len)
       n += len
 
+    protected def rawMem(src: MemorySegment, srcOff: Long, len: Long): Unit =
+      ensure(len.toInt)
+      MemorySegment.copy(src, srcOff, MemorySegment.ofArray(buf), n.toLong, len)
+      n += len.toInt
+
     def length: Int = n
 
     private[alien] def buffer: Array[Byte] = buf
@@ -479,6 +555,11 @@ object Pb {
       MemorySegment.copy(MemorySegment.ofArray(bs), off.toLong, m.segment, i, len.toLong)
       i += len
 
+    protected def rawMem(src: MemorySegment, srcOff: Long, len: Long): Unit =
+      if i + len > iN then fail(s"encoding overran the ${iN - i0} byte destination at offset ${i - i0}")
+      MemorySegment.copy(src, srcOff, m.segment, i, len)
+      i += len
+
     /** Bytes written so far. */
     def written: Long = i - i0
   }
@@ -510,6 +591,7 @@ object Pb {
     protected def stringWork(i0: Long, iN: Long): String
     protected def bytesWork(i0: Long, iN: Long): Array[Byte]
     protected def subWork(i0: Long, iN: Long): In
+    protected def viewWork(i0: Long, iN: Long): Mem[Byte]
 
     def hasMore: Boolean = i < end
 
@@ -559,6 +641,59 @@ object Pb {
     def string(): String = { val a = lenSpanInt(); stringWork(a, i) }
 
     def bytes(): Array[Byte] = { val a = lenSpanInt(); bytesWork(a, i) }
+
+    // --- zero-copy views: these ALIAS the decode source and must not outlive it ---
+
+    /** Zero-copy view of a bytes payload.  Aliases the decode source: if the buffer is
+      * reused or unmapped, the view goes with it — `bytes()` (or `Pb.ownedBytes`) is the
+      * independent form.
+      */
+    def bytesView(): Mem[Byte] = { val a = lenSpanInt(); viewWork(a, i) }
+
+    // Packed fixed-width runs are the wire format's other statically-shaped span, so they
+    // too can be viewed in place (as little-endian data, which kse3 assumes throughout).
+    // Each reader accepts the unpacked spelling as well, and a second chunk of the same
+    // field concatenates by degrading to a private copy — pass the field's current value
+    // and the right thing happens, including spec merge behavior (chunks append).
+
+    private def spliceWork(priorSeg: MemorySegment, priorBytes: Long, a: Long, b: Long): Mem[Byte] =
+      if priorBytes + (b - a) > Int.MaxValue - 8 then fail(s"field $field at byte $a: packed payload too big for the heap")
+      val arr = new Array[Byte]((priorBytes + (b - a)).toInt)
+      MemorySegment.copy(priorSeg, 0L, MemorySegment.ofArray(arr), 0L, priorBytes)
+      val chunk = bytesWork(a, b)
+      System.arraycopy(chunk, 0, arr, priorBytes.toInt, chunk.length)
+      Mem of arr
+
+    private def fixedSpan(width: Int, natural: Int): Long =
+      if wire == natural then
+        if i + width > end then fail(s"field $field runs off the end at byte $i")
+        val a = i
+        i += width
+        a
+      else
+        val a = lenSpanInt()
+        if (i - a) % width != 0 then fail(s"field $field at byte $a: ${i - a} byte packed payload is ragged (width $width)")
+        a
+
+    def packedFixed32View(prior: Mem[Int]): Mem[Int] =
+      val a = fixedSpan(4, WFix32)
+      if prior.length == 0 then viewWork(a, i).as[Int]
+      else spliceWork(prior.segment, 4L * prior.length, a, i).as[Int]
+
+    def packedFixed64View(prior: Mem[Long]): Mem[Long] =
+      val a = fixedSpan(8, WFix64)
+      if prior.length == 0 then viewWork(a, i).as[Long]
+      else spliceWork(prior.segment, 8L * prior.length, a, i).as[Long]
+
+    def packedFloatView(prior: Mem[Float]): Mem[Float] =
+      val a = fixedSpan(4, WFix32)
+      if prior.length == 0 then viewWork(a, i).as[Float]
+      else spliceWork(prior.segment, 4L * prior.length, a, i).as[Float]
+
+    def packedDoubleView(prior: Mem[Double]): Mem[Double] =
+      val a = fixedSpan(8, WFix64)
+      if prior.length == 0 then viewWork(a, i).as[Double]
+      else spliceWork(prior.segment, 8L * prior.length, a, i).as[Double]
 
     /** Descend into a length-delimited payload (nested message or packed run) without copying. */
     def sub(): In =
@@ -722,6 +857,8 @@ object Pb {
       java.util.Arrays.copyOfRange(bs, i0.toInt, iN.toInt)
 
     protected def subWork(i0: Long, iN: Long): In = new ArrIn(bs, i0, iN, depth + 1)
+
+    protected def viewWork(i0: Long, iN: Long): Mem[Byte] = (Mem of bs).view(i0, iN)
   }
 
   final class MemIn private[alien] (m: Mem[Byte], i0: Long, iN: Long, d: Int) extends In(i0, iN, d) {
@@ -762,6 +899,8 @@ object Pb {
       out
 
     protected def subWork(i0: Long, iN: Long): In = new MemIn(m, i0, iN, depth + 1)
+
+    protected def viewWork(i0: Long, iN: Long): Mem[Byte] = m.view(i0, iN)
   }
 
 

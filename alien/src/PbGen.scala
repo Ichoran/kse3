@@ -25,6 +25,17 @@ import kse.flow.{given, _}
   *     whose name would collide with a type it mentions gets an `Arm` suffix.
   *   - map<K, V> -> immutable `Map[K, V]`.
   *
+  * A field marked for zero-copy — `[(kse3.view) = true]` in the schema, or named in
+  * `Config.viewFields` as `"pkg.Msg.field_name"` — becomes a `Mem` view that ALIASES the
+  * decode buffer: singular `bytes` maps to `Mem[Byte]`, repeated fixed-width scalars to
+  * `Mem[Int]`/`Mem[Long]`/`Mem[Float]`/`Mem[Double]`.  The `Mem` type in the case class IS
+  * the aliasing warning (`Array`/`String` fields are always owned), and any message that
+  * transitively holds views gets an `owned` method that copies every view off the buffer —
+  * call it before the buffer is reused.  Only those two shapes are eligible, because they
+  * are the only statically-shaped spans the wire format has; asking for a view of anything
+  * else fails generation loudly.  Chunked packed arrivals and spec merges degrade to
+  * private (appending) copies, so a view field is at worst accidentally independent.
+  *
   * Readers follow the spec's merge semantics: `readFrom(in, prior)` decodes on top of an
   * existing instance, so concatenated encodings merge — later singular scalars win, later
   * singular messages merge field-by-field (recursively, same-arm oneofs and map values
@@ -45,14 +56,37 @@ object PbGen {
     * identity by default), an extra header line if wanted, and whether messages carry and
     * re-emit unknown fields (they do unless told otherwise).
     */
-  final case class Config(pkgOf: String => String = p => p, header: String = "", retainUnknown: Boolean = true)
+  final case class Config(pkgOf: String => String = p => p, header: String = "", retainUnknown: Boolean = true,
+                          viewFields: Set[String] = Set.empty)
 
   /** Generate one Scala source per file in the schema, as (suggested filename, content). */
   def generate(schema: Proto.Schema, config: Config = Config()): Ask[List[(String, String)]] =
-    try Is(schema.files.map(f => new Gen(schema, config, f).result))
+    try
+      val viewful = viewfulSet(schema, config)
+      Is(schema.files.map(f => new Gen(schema, config, viewful, f).result))
     catch
       case h: Pb.Halt => Alt(Err(h.message))
       case e if e.catchable => Alt(Err(e))
+
+  private def viewFlagged(config: Config, m: Proto.Message, f: Proto.Field): Boolean =
+    config.viewFields(m.fqn + "." + f.name) || f.optioned("(kse3.view)", false)
+
+  /** Messages that hold a view directly or through any message-typed field, to fixpoint. */
+  private def viewfulSet(schema: Proto.Schema, config: Config): Set[String] =
+    val msgs = schema.syms.toList.collect{ case (fqn, Proto.Sym.M(m, _)) => (fqn, m) }
+    def refs(m: Proto.Message): List[String] = m.fields.flatMap(f => f.tpe match
+      case Proto.PType.MsgT(fqn) => List(fqn)
+      case Proto.PType.MapOf(_, Proto.PType.MsgT(fqn)) => List(fqn)
+      case _ => Nil)
+    var vf = msgs.collect{ case (fqn, m) if m.fields.exists(f => viewFlagged(config, m, f)) => fqn }.toSet
+    var grew = true
+    while grew do
+      grew = false
+      msgs.foreach: (fqn, m) =>
+        if !vf(fqn) && refs(m).exists(vf) then
+          vf = vf + fqn
+          grew = true
+    vf
 
   /** Parse, link, and generate in one go, for (filename, text) sources. */
   def generate(sources: Seq[(String, String)]): Ask[List[(String, String)]] = Or.Ret:
@@ -97,7 +131,7 @@ object PbGen {
     pascal(base.replace('.', '_').replace('-', '_')) + "Proto.scala"
 
 
-  private final class Gen(schema: Proto.Schema, config: Config, file: Proto.File) {
+  private final class Gen(schema: Proto.Schema, config: Config, viewful: Set[String], file: Proto.File) {
     private val sb = new java.lang.StringBuilder
     private val pkg = file.pkg
     private val scalaPkg = config.pkgOf(pkg)
@@ -212,7 +246,10 @@ object PbGen {
 
     private def fieldScalaName(f: Proto.Field): String = sident(camel(f.name))
 
-    private def typeOf(f: Proto.Field): String = f.tpe match
+    private def typeOf(m: Proto.Message, f: Proto.Field): String =
+      if isView(m, f) then viewType(m, f) else typeOfPlain(f)
+
+    private def typeOfPlain(f: Proto.Field): String = f.tpe match
       case Proto.PType.Prim(s) =>
         if f.label == Proto.Label.Rep then s"Array[${repElemType(s)}]"
         else if f.label == Proto.Label.Opt then s"${scalarType(s)} Or Unit"
@@ -232,7 +269,10 @@ object PbGen {
         s"Map[${scalarType(k)}, $vt]"
       case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
 
-    private def defaultOf(f: Proto.Field): String = f.tpe match
+    private def defaultOf(m: Proto.Message, f: Proto.Field): String =
+      if isView(m, f) then viewDefault(m, f) else defaultOfPlain(f)
+
+    private def defaultOfPlain(f: Proto.Field): String = f.tpe match
       case Proto.PType.Prim(s) =>
         if f.label == Proto.Label.Rep then s"Array.empty[${repElemType(s)}]"
         else if f.label == Proto.Label.Opt then "Alt.unit"
@@ -245,6 +285,110 @@ object PbGen {
         else enumZero(fqn)
       case Proto.PType.MapOf(_, _) => "Map.empty"
       case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
+
+    // --- zero-copy view fields ---
+
+    private def isView(m: Proto.Message, f: Proto.Field): Boolean = viewFlagged(config, m, f)
+
+    /** The Mem element type a view field carries; only the statically-shaped spans qualify. */
+    private def viewType(m: Proto.Message, f: Proto.Field): String =
+      def no(why: String): Nothing =
+        Pb.fail(s"${file.name}:${f.pos}: field '${f.name}' cannot be a zero-copy view: $why")
+      if f.oneof >= 0 then no("oneof members always parse fully")
+      f.tpe match
+        case Proto.PType.Prim(Proto.Scalar.Bytes) =>
+          if f.label == Proto.Label.Singular then "Mem[Byte]"
+          else no("only a singular bytes field is one contiguous span")
+        case Proto.PType.Prim(s) if f.label == Proto.Label.Rep => s match
+          case Proto.Scalar.Flt => "Mem[Float]"
+          case Proto.Scalar.Dbl => "Mem[Double]"
+          case Proto.Scalar.Fixed32 | Proto.Scalar.SFixed32 => "Mem[Int]"
+          case Proto.Scalar.Fixed64 | Proto.Scalar.SFixed64 => "Mem[Long]"
+          case other => no(s"${other.protoName} is varint-encoded, so its packed run has no fixed layout")
+        case _ => no("views need a singular bytes field or a repeated fixed-width scalar")
+
+    private def viewDefault(m: Proto.Message, f: Proto.Field): String = viewType(m, f) match
+      case "Mem[Byte]"   => "Mem of Array.empty[Byte]"
+      case "Mem[Int]"    => "Mem of Array.empty[Int]"
+      case "Mem[Long]"   => "Mem of Array.empty[Long]"
+      case "Mem[Float]"  => "Mem of Array.empty[Float]"
+      case "Mem[Double]" => "Mem of Array.empty[Double]"
+      case other => Pb.fail(s"internal: no default for view type $other")
+
+    private def viewReadCall(m: Proto.Message, f: Proto.Field, x: String): String = viewType(m, f) match
+      case "Mem[Byte]"   => "in.bytesView()"
+      case "Mem[Int]"    => s"in.packedFixed32View($x)"
+      case "Mem[Long]"   => s"in.packedFixed64View($x)"
+      case "Mem[Float]"  => s"in.packedFloatView($x)"
+      case "Mem[Double]" => s"in.packedDoubleView($x)"
+      case other => Pb.fail(s"internal: no reader for view type $other")
+
+    private def viewWriteCall(m: Proto.Message, f: Proto.Field, x: String): String = viewType(m, f) match
+      case "Mem[Byte]"   => s"o.bytes(${f.number}, $x)"
+      case "Mem[Int]"    => s"o.packedFixed32(${f.number}, $x)"
+      case "Mem[Long]"   => s"o.packedFixed64(${f.number}, $x)"
+      case "Mem[Float]"  => s"o.packedFloat(${f.number}, $x)"
+      case "Mem[Double]" => s"o.packedDouble(${f.number}, $x)"
+      case other => Pb.fail(s"internal: no writer for view type $other")
+
+    private def viewOwnedCall(m: Proto.Message, f: Proto.Field, x: String): String = viewType(m, f) match
+      case "Mem[Byte]"   => s"Pb.ownedBytes($x)"
+      case "Mem[Int]"    => s"Pb.ownedInts($x)"
+      case "Mem[Long]"   => s"Pb.ownedLongs($x)"
+      case "Mem[Float]"  => s"Pb.ownedFloats($x)"
+      case "Mem[Double]" => s"Pb.ownedDoubles($x)"
+      case other => Pb.fail(s"internal: no owned copier for view type $other")
+
+    private def ownedNameOf(m: Proto.Message): String =
+      val taken = m.fields.map(f => camel(f.name)).toSet ++ m.oneofs.map(o => camel(o.name))
+      if !taken("owned") then "owned"
+      else if !taken("ownedCopy") then "ownedCopy"
+      else Pb.fail(s"${file.name}:${m.pos}: message ${m.name} claims both 'owned' and 'ownedCopy'; rename one or drop the view flags")
+
+    private def ownedRefOf(fqn: String): String = schema.syms.get(fqn) match
+      case Some(Proto.Sym.M(m2, _)) => ownedNameOf(m2)
+      case _ => Pb.fail(s"internal: '$fqn' is not a message")
+
+    /** The view-severing copy, generated for any message that transitively holds views. */
+    private def genOwned(m: Proto.Message, myRef: String, indent: Int): Unit =
+      if viewful(m.fqn) then
+        val on = ownedNameOf(m)
+        line(indent, s"/** A copy with every decode-buffer view, recursively, replaced by owned storage. */")
+        line(indent, s"def $on: $myRef =")
+        // oneofs whose viewful message arms need rebuilding become locals first
+        var locals = List.empty[(Int, String)]
+        m.oneofs.zipWithIndex.foreach: (o, oidx) =>
+          val hasViewfulArm = oneofCases(m, oidx).exists((f, _) => f.tpe match
+            case Proto.PType.MsgT(fqn) => viewful(fqn)
+            case _ => false)
+          if hasViewfulArm then
+            val ov = sident(camel(o.name))
+            locals = (oidx, ov) :: locals
+            val ot = s"$myRef.${oneofTypeName(o)}"
+            line(indent + 1, s"val ${ov}O = $ov match")
+            oneofCases(m, oidx).foreach: (f, cname) =>
+              f.tpe match
+                case Proto.PType.MsgT(fqn) if viewful(fqn) =>
+                  line(indent + 2, s"case $ot.$cname(v) => $ot.$cname(v.${ownedRefOf(fqn)})")
+                case _ => ()
+            line(indent + 2, "case e => e")
+        var sets = List.empty[String]
+        m.fields.foreach: f =>
+          val x = fieldScalaName(f)
+          if f.oneof >= 0 then ()
+          else if isView(m, f) then sets = s"$x = ${viewOwnedCall(m, f, x)}" :: sets
+          else f.tpe match
+            case Proto.PType.MsgT(fqn) if viewful(fqn) =>
+              if f.label == Proto.Label.Rep then sets = s"$x = $x.copyWith(_.${ownedRefOf(fqn)})" :: sets
+              else sets = s"$x = $x.fold(v => Is(v.${ownedRefOf(fqn)}))(_ => $x)" :: sets
+            case Proto.PType.MapOf(_, Proto.PType.MsgT(fqn)) if viewful(fqn) =>
+              sets = s"$x = $x.map((mk, mv) => mk -> mv.${ownedRefOf(fqn)})" :: sets
+            case _ => ()
+        locals.reverse.foreach((_, ov) => sets = s"$ov = ${ov}O" :: sets)
+        val all = sets.reverse
+        line(indent + 1, "copy(")
+        all.foreach(s => line(indent + 2, s + (if s == all.last then "" else ",")))
+        line(indent + 1, ")")
 
     /** The name of the retained-unknowns field, dodging any proto field that claims it. */
     private def unknownNameOf(m: Proto.Message): String =
@@ -284,13 +428,14 @@ object PbGen {
           else
             oneofEmitted = oneofEmitted + f.oneof
             List(Alt(f.oneof))
-      slots.foreach(s => s.fold(f => writeField(f, indent))(oidx => writeOneof(m, myRef, oidx, indent)))
+      slots.foreach(s => s.fold(f => writeField(m, f, indent))(oidx => writeOneof(m, myRef, oidx, indent)))
       if config.retainUnknown then line(indent, s"o.unknowns(${unknownNameOf(m)})")
 
-    private def writeField(f: Proto.Field, indent: Int): Unit =
+    private def writeField(m: Proto.Message, f: Proto.Field, indent: Int): Unit =
       val x = fieldScalaName(f)
       val n = f.number
-      f.tpe match
+      if isView(m, f) then line(indent, viewWriteCall(m, f, x))
+      else f.tpe match
         case Proto.PType.Prim(s) => f.label match
           case Proto.Label.Singular => line(indent, s"o.${verbOf(s)}($n, $x)")
           case Proto.Label.Opt      => line(indent, s"$x.fold(v => o.${verbOf(s)}Always($n, v))(_ => ())")
@@ -354,6 +499,7 @@ object PbGen {
             val ov = sident(camel(m.oneofs(f.oneof).name))
             val ot = s"$myRef.${oneofTypeName(m.oneofs(f.oneof))}"
             line(indent, s"var $ov: $ot = prior.$ov")
+        else if isView(m, f) then line(indent, s"var $x: ${viewType(m, f)} = prior.$x")
         else f.tpe match
           case Proto.PType.Prim(s) if f.label == Proto.Label.Rep =>
             line(indent, s"val $x = new ${accOf(s)}")
@@ -365,7 +511,7 @@ object PbGen {
             line(indent, s"val $x = new Pb.IntAcc")
             line(indent, s"$x ++= prior.$x")
           case _ =>
-            line(indent, s"var $x: ${typeOf(f)} = prior.$x")
+            line(indent, s"var $x: ${typeOfPlain(f)} = prior.$x")
       if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = prior.${unknownNameOf(m)}.reverse")
       line(indent, "while in.next() do in.field match")
       m.fields.sortBy(_.number).foreach(f => readCase(m, myRef, f, indent + 1))
@@ -391,7 +537,8 @@ object PbGen {
           case _ => Pb.fail("internal: oneof member can only be scalar, enum, or message")
       else
         val x = fieldScalaName(f)
-        f.tpe match
+        if isView(m, f) then line(indent, s"case $n => $x = ${viewReadCall(m, f, x)}")
+        else f.tpe match
           case Proto.PType.Prim(s) => f.label match
             case Proto.Label.Singular => line(indent, s"case $n => $x = in.${verbOf(s)}()")
             case Proto.Label.Opt      => line(indent, s"case $n => $x = Is(in.${verbOf(s)}())")
@@ -447,16 +594,19 @@ object PbGen {
             List((s"$ov: $ot = $ot.Unset", ov))
         else
           val x = fieldScalaName(f)
-          // readFrom builds repeated fields in accumulators, so the argument differs
-          val arg = f.tpe match
-            case _ if f.label != Proto.Label.Rep => x
-            case Proto.PType.MapOf(_, _) => x
-            case _ => x + ".result"
-          List((s"$x: ${typeOf(f)} = ${defaultOf(f)}", arg))
+          // readFrom builds repeated fields in accumulators (views excepted), so the argument differs
+          val arg =
+            if isView(m, f) then x
+            else f.tpe match
+              case _ if f.label != Proto.Label.Rep => x
+              case Proto.PType.MapOf(_, _) => x
+              case _ => x + ".result"
+          List((s"$x: ${typeOf(m, f)} = ${defaultOf(m, f)}", arg))
 
     private def genMessage(m: Proto.Message, indent: Int): Unit =
       val myRef = m.path   // path from file root: always valid inside this file's package
       val name = sident(m.name)
+      m.fields.foreach(f => if isView(m, f) then viewType(m, f) __ Unit)   // reject ineligible views loudly
       val args = ctorArgs(m)
       if args.isEmpty then line(indent, s"final case class $name() {")
       else
@@ -470,6 +620,7 @@ object PbGen {
       line(indent + 2, "val o = Pb.Out()")
       line(indent + 2, "writeTo(o)")
       line(indent + 2, "o.result")
+      genOwned(m, myRef, indent + 1)
       line(indent, "}")
       blank()
       line(indent, s"object $name {")

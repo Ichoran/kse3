@@ -68,6 +68,8 @@ final case class Track(
   extra: Track.Extra = Track.Extra.Unset,
   meta: Track.Meta Or Unit = Alt.unit,
   stamp: ULong = ULong(0L),
+  payload: Mem[Byte] = Mem of Array.empty[Byte],
+  wave: Mem[Double] = Mem of Array.empty[Double],
   unknown: List[Pb.Unknown] = Nil
 ) {
   def writeTo(o: Pb.Out): Unit =
@@ -90,11 +92,19 @@ final case class Track(
       case Track.Extra.Unset => ()
     meta.fold{ v => val b = Pb.Out(); v.writeTo(b); o.msg(20, b) }(_ => ())
     o.uint64(21, stamp)
+    o.bytes(30, payload)
+    o.packedDouble(31, wave)
     o.unknowns(unknown)
   def toBytes: Array[Byte] =
     val o = Pb.Out()
     writeTo(o)
     o.result
+  /** A copy with every decode-buffer view, recursively, replaced by owned storage. */
+  def owned: Track =
+    copy(
+      payload = Pb.ownedBytes(payload),
+      wave = Pb.ownedDoubles(wave)
+    )
 }
 
 object Track {
@@ -151,6 +161,8 @@ object Track {
     var extra: Track.Extra = prior.extra
     var meta: Track.Meta Or Unit = prior.meta
     var stamp: ULong = prior.stamp
+    var payload: Mem[Byte] = prior.payload
+    var wave: Mem[Double] = prior.wave
     var unknown = prior.unknown.reverse
     while in.next() do in.field match
       case 1 => id = in.string()
@@ -173,8 +185,10 @@ object Track {
       case 12 => extra = Track.Extra.MoodArm(Mood(in.int32()))
       case 20 => meta = Is(Track.Meta.readFrom(in.sub(), meta.getOrElse(_ => Track.Meta.default)))
       case 21 => stamp = in.uint64()
+      case 30 => payload = in.bytesView()
+      case 31 => wave = in.packedDoubleView(wave)
       case _ => unknown = in.keep() :: unknown
-    Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, unknown.reverse)
+    Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, payload, wave, unknown.reverse)
   def parse(bs: Array[Byte]): Ask[Track] = Pb.decode(bs)(readFrom)
   def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Track] = Pb.decode(bs, i0, iN)(readFrom)
   def parse(m: Mem[Byte]): Ask[Track] = Pb.decode(m)(readFrom)
