@@ -3003,6 +3003,236 @@ object Mem {
     /** The byte offset of a struct view within its segment. */
     inline def offsetOf(s: Struct[?]): Long = s.offset
   }
+
+
+  //////////////////////////////
+  /// Atomic memory          ///
+  //////////////////////////////
+
+  /** Internal machinery: the two VarHandles behind `Mem.Atom`.  These must be true statics —
+    * the JIT only constant-folds a VarHandle loaded from trusted-final storage, and an
+    * unfolded VarHandle pays a slow path on every access — and public, because inline
+    * bodies expand at external call sites.
+    */
+  final class AtomVh private ()
+  object AtomVh {
+    @scala.annotation.static val I: java.lang.invoke.VarHandle = ValueLayout.JAVA_INT.varHandle()
+    @scala.annotation.static val L: java.lang.invoke.VarHandle = ValueLayout.JAVA_LONG.varHandle()
+  }
+
+  /** Memory accessed atomically — the shared-memory sibling of [[kse.basics.Atom]], with the
+    * same verb vocabulary at an element index: `apply`/`update` are volatile, `swap`, `cas`,
+    * `addAndGet`/`subAndGet` ride the hardware, and the zap family retries with CAS so no
+    * concurrent update is ever silently lost.  `getAcquire`/`setRelease` are the named
+    * cheaper orderings for handshake patterns.
+    *
+    * Only `Int` and `Long` are offered: they are the carriers hardware can CAS, and shared
+    * counters, generations, and flags are what cross-process coordination actually needs.
+    * (Unlike `Atom`, nothing generic: this type is deliberately concrete.)
+    *
+    * Bulk operations take the safest atomicity available for the action: `use`/`visit` read
+    * each element volatile, `set` writes volatile, and `alter`/`edit` CAS each element in a
+    * retry loop.  Atomicity is per element — a bulk pass is not a transaction across them.
+    *
+    * Atomic access demands natural alignment: acquire a view with `m.atom`, which verifies
+    * the backing alignment once and loudly (native and mapped memory qualifies; a
+    * byte-array-backed heap `Mem` does not).  Every operation lowers to the same hardware
+    * instructions inside and across processes, which is what makes these meaningful on a
+    * `SharedMemory` mapping another process also holds.
+    */
+  opaque type Atom[A <: Int | Long] = MemorySegment
+
+  object Atom {
+    inline def wrap[A <: Int | Long](seg: MemorySegment): Atom[A] = seg
+
+    /** Answer the segment if it guarantees `align`-byte alignment; refuse loudly otherwise. */
+    def checked(seg: MemorySegment, align: Long): MemorySegment =
+      if seg.maxByteAlignment < align then
+        throw new IllegalArgumentException(s"atomic access needs $align-byte alignment but this segment guarantees only ${seg.maxByteAlignment}")
+      seg
+
+    def allocSeg(bytes: Long, align: Long): MemorySegment = Arena.ofAuto().allocate(bytes, align)
+
+    /** Zero-filled, naturally aligned, GC-managed native memory ready for atomic use. */
+    inline def alloc[A <: Int | Long](n: Long): Atom[A] = inline erasedValue[A] match
+      case _: Int  => wrap[A](allocSeg(4L * n, 4L))
+      case _: Long => wrap[A](allocSeg(8L * n, 8L))
+
+    extension [A <: Int | Long](a: Atom[A]) {
+      /** The same memory with plain (non-atomic) access; pair with `Atom.fence` if needed. */
+      inline def mem: Mem[A] = Mem.wrap[A](a)
+
+      inline def segment: MemorySegment = a
+
+      inline def length: Long = inline erasedValue[A] match
+        case _: Int  => (a: MemorySegment).byteSize / 4
+        case _: Long => (a: MemorySegment).byteSize / 8
+
+      /** Volatile read. */
+      inline def apply(i: Long): A = inline erasedValue[A] match
+        case _: Int  => (AtomVh.I.getVolatile((a: MemorySegment), i * 4): Int).asInstanceOf[A]
+        case _: Long => (AtomVh.L.getVolatile((a: MemorySegment), i * 8): Long).asInstanceOf[A]
+
+      /** Volatile write. */
+      inline def update(i: Long, x: A): Unit = inline erasedValue[A] match
+        case _: Int  => AtomVh.I.setVolatile((a: MemorySegment), i * 4, x.asInstanceOf[Int])
+        case _: Long => AtomVh.L.setVolatile((a: MemorySegment), i * 8, x.asInstanceOf[Long])
+
+      inline def getAcquire(i: Long): A = inline erasedValue[A] match
+        case _: Int  => (AtomVh.I.getAcquire((a: MemorySegment), i * 4): Int).asInstanceOf[A]
+        case _: Long => (AtomVh.L.getAcquire((a: MemorySegment), i * 8): Long).asInstanceOf[A]
+
+      inline def setRelease(i: Long, x: A): Unit = inline erasedValue[A] match
+        case _: Int  => AtomVh.I.setRelease((a: MemorySegment), i * 4, x.asInstanceOf[Int])
+        case _: Long => AtomVh.L.setRelease((a: MemorySegment), i * 8, x.asInstanceOf[Long])
+
+      /** Atomically replace the element, answering what was there. */
+      inline def swap(i: Long, x: A): A = inline erasedValue[A] match
+        case _: Int  => (AtomVh.I.getAndSet((a: MemorySegment), i * 4, x.asInstanceOf[Int]): Int).asInstanceOf[A]
+        case _: Long => (AtomVh.L.getAndSet((a: MemorySegment), i * 8, x.asInstanceOf[Long]): Long).asInstanceOf[A]
+
+      /** Strong compare-and-set: true if `expected` was there and `update` now is. */
+      inline def cas(i: Long)(expected: A, update: A): Boolean = inline erasedValue[A] match
+        case _: Int  => (AtomVh.I.compareAndSet((a: MemorySegment), i * 4, expected.asInstanceOf[Int], update.asInstanceOf[Int]): Boolean)
+        case _: Long => (AtomVh.L.compareAndSet((a: MemorySegment), i * 8, expected.asInstanceOf[Long], update.asInstanceOf[Long]): Boolean)
+
+      /** Atomic add, answering the new value (hardware fetch-add underneath). */
+      inline def addAndGet(i: Long, x: A): A = inline erasedValue[A] match
+        case _: Int  => ((AtomVh.I.getAndAdd((a: MemorySegment), i * 4, x.asInstanceOf[Int]): Int) + x.asInstanceOf[Int]).asInstanceOf[A]
+        case _: Long => ((AtomVh.L.getAndAdd((a: MemorySegment), i * 8, x.asInstanceOf[Long]): Long) + x.asInstanceOf[Long]).asInstanceOf[A]
+
+      /** Atomic subtract, answering the new value. */
+      inline def subAndGet(i: Long, x: A): A = inline erasedValue[A] match
+        case _: Int  => ((AtomVh.I.getAndAdd((a: MemorySegment), i * 4, -x.asInstanceOf[Int]): Int) - x.asInstanceOf[Int]).asInstanceOf[A]
+        case _: Long => ((AtomVh.L.getAndAdd((a: MemorySegment), i * 8, -x.asInstanceOf[Long]): Long) - x.asInstanceOf[Long]).asInstanceOf[A]
+
+      /** Atomically update the element with `f`, retrying on contention (no update is lost). */
+      inline def zap(i: Long)(inline f: A => A): Unit = inline erasedValue[A] match
+        case _: Int =>
+          val seg: MemorySegment = a
+          var going = true
+          while going do
+            val cur: Int = AtomVh.I.getVolatile(seg, i * 4)
+            going = !(AtomVh.I.compareAndSet(seg, i * 4, cur, f(cur.asInstanceOf[A]).asInstanceOf[Int]): Boolean)
+        case _: Long =>
+          val seg: MemorySegment = a
+          var going = true
+          while going do
+            val cur: Long = AtomVh.L.getVolatile(seg, i * 8)
+            going = !(AtomVh.L.compareAndSet(seg, i * 8, cur, f(cur.asInstanceOf[A]).asInstanceOf[Long]): Boolean)
+
+      /** Like `zap`, answering the value `f` produced. */
+      inline def zapAndGet(i: Long)(inline f: A => A): A = inline erasedValue[A] match
+        case _: Int =>
+          val seg: MemorySegment = a
+          var next = 0
+          var going = true
+          while going do
+            val cur: Int = AtomVh.I.getVolatile(seg, i * 4)
+            next = f(cur.asInstanceOf[A]).asInstanceOf[Int]
+            going = !(AtomVh.I.compareAndSet(seg, i * 4, cur, next): Boolean)
+          next.asInstanceOf[A]
+        case _: Long =>
+          val seg: MemorySegment = a
+          var next = 0L
+          var going = true
+          while going do
+            val cur: Long = AtomVh.L.getVolatile(seg, i * 8)
+            next = f(cur.asInstanceOf[A]).asInstanceOf[Long]
+            going = !(AtomVh.L.compareAndSet(seg, i * 8, cur, next): Boolean)
+          next.asInstanceOf[A]
+
+      /** Like `zap`, answering the value `f` was applied to. */
+      inline def getAndZap(i: Long)(inline f: A => A): A = inline erasedValue[A] match
+        case _: Int =>
+          val seg: MemorySegment = a
+          var cur = 0
+          var going = true
+          while going do
+            cur = AtomVh.I.getVolatile(seg, i * 4): Int
+            going = !(AtomVh.I.compareAndSet(seg, i * 4, cur, f(cur.asInstanceOf[A]).asInstanceOf[Int]): Boolean)
+          cur.asInstanceOf[A]
+        case _: Long =>
+          val seg: MemorySegment = a
+          var cur = 0L
+          var going = true
+          while going do
+            cur = AtomVh.L.getVolatile(seg, i * 8): Long
+            going = !(AtomVh.L.compareAndSet(seg, i * 8, cur, f(cur.asInstanceOf[A]).asInstanceOf[Long]): Boolean)
+          cur.asInstanceOf[A]
+
+      // --- bulk operations, each element at the safest atomicity for the action ---
+
+      inline def use()(inline f: A => Unit): Unit = use(0L, length)(f)
+      inline def use(i0: Long, iN: Long)(inline f: A => Unit): Unit =
+        var i = i0
+        while i < iN do
+          f(apply(i))
+          i += 1
+
+      inline def visit()(inline f: (A, Long) => Unit): Unit = visit(0L, length)(f)
+      inline def visit(i0: Long, iN: Long)(inline f: (A, Long) => Unit): Unit =
+        var i = i0
+        while i < iN do
+          f(apply(i), i)
+          i += 1
+
+      inline def set()(inline generator: () => A): Unit = set(0L, length)(generator)
+      inline def set(i0: Long, iN: Long)(inline generator: () => A): Unit =
+        var i = i0
+        while i < iN do
+          update(i, generator())
+          i += 1
+
+      @targetName("atomSetAllIndex")
+      inline def set()(inline indexer: Long => A): Unit = set(0L, length)(indexer)
+      @targetName("atomSetRangeIndex")
+      inline def set(i0: Long, iN: Long)(inline indexer: Long => A): Unit =
+        var i = i0
+        while i < iN do
+          update(i, indexer(i))
+          i += 1
+
+      /** Transform each element in place; every element is CASed, so concurrent updates
+        * are never overwritten unseen (but the pass is not a transaction across elements).
+        */
+      inline def alter()(inline f: A => A): Unit = alter(0L, length)(f)
+      inline def alter(i0: Long, iN: Long)(inline f: A => A): Unit =
+        var i = i0
+        while i < iN do
+          zap(i)(f)
+          i += 1
+
+      /** Like `alter`, with the index in hand. */
+      inline def edit()(inline f: (A, Long) => A): Unit = edit(0L, length)(f)
+      inline def edit(i0: Long, iN: Long)(inline f: (A, Long) => A): Unit =
+        var i = i0
+        while i < iN do
+          zap(i)(x => f(x, i))
+          i += 1
+
+      /** Copy elements out (volatile reads) into a caller-provided array; answers the count. */
+      inline def inject(that: Array[A]): Long = inject(that, 0)(0L, length)
+      inline def inject(that: Array[A], where: Int): Long = inject(that, where)(0L, length)
+      inline def inject(that: Array[A])(i0: Long, iN: Long): Long = inject(that, 0)(i0, iN)
+      inline def inject(that: Array[A], where: Int)(i0: Long, iN: Long): Long =
+        var i = i0
+        var w = where
+        while i < iN do
+          that(w) = apply(i)
+          w += 1
+          i += 1
+        iN - i0
+    }
+  }
+
+  extension [A <: Int | Long](m: Mem[A])
+    /** Atomic view of this memory, after a once-and-loud check that the backing can align
+      * (native and mapped segments can; byte-array-backed heap memory cannot).
+      */
+    inline def atom: Mem.Atom[A] = inline erasedValue[A] match
+      case _: Int  => Atom.wrap[A](Atom.checked((m: MemorySegment), 4L))
+      case _: Long => Atom.wrap[A](Atom.checked((m: MemorySegment), 8L))
 }
 
 

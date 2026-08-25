@@ -1061,6 +1061,84 @@ class MemTest() {
     T ~ compiletime.testing.typeChecks("Mem.alloc[Int](2L).getI_xe(0L)")              ==== false
     T ~ compiletime.testing.typeChecks("val q = Mem.AoS.alloc[(a: Int)](1L).orderAware; q.a(0L)") ==== false
     T ~ compiletime.testing.typeChecks("given Mem.Order = Mem.bigEndian; val q = Mem.alloc[Int](2L).orderAware; q(0)") ==== true
+
+  def memAtomTest(): Unit =
+    val ai = Mem.alloc[Int](8L).atom
+    T ~ ai.length ==== 8L
+    T ~ ai(0) ==== 0
+    ai(0) = 42
+    T ~ ai(0) ==== 42
+    T ~ ai.swap(0, 7) ==== 42
+    T ~ ai(0) ==== 7
+    T ~ ai.cas(0)(7, 9) ==== true
+    T ~ ai.cas(0)(7, 11) ==== false
+    T ~ ai(0) ==== 9
+    T ~ ai.addAndGet(0, 5) ==== 14
+    T ~ ai.subAndGet(0, 4) ==== 10
+    ai.zap(0)(_ * 3)
+    T ~ ai(0) ==== 30
+    T ~ ai.zapAndGet(0)(_ + 1) ==== 31
+    T ~ ai.getAndZap(0)(_ - 1) ==== 31
+    T ~ ai(0) ==== 30
+    ai.setRelease(1, 17)
+    T ~ ai.getAcquire(1) ==== 17
+    T ~ ai.mem(1) ==== 17
+
+    val al = Mem.Atom.alloc[Long](4L)
+    al(2) = 0x123456789ABCDEFL
+    T ~ al(2) ==== 0x123456789ABCDEFL
+    T ~ al.cas(2)(0x123456789ABCDEFL, -1L) ==== true
+    T ~ al.addAndGet(2, 2L) ==== 1L
+    al.zap(2)(_ - 5L)
+    T ~ al(2) ==== -4L
+
+    // bulk operations: volatile reads/writes, CAS transforms
+    ai.set()(() => 2)
+    var sum = 0
+    ai.use()(sum += _)
+    T ~ sum ==== 16
+    ai.set()((i: Long) => i.toInt)
+    ai.edit()((v, i) => v + 10 * i.toInt)
+    var idxsum = 0L
+    ai.visit()((v, i) => idxsum += v - i)
+    T ~ idxsum ==== (0 until 8).map(i => 10L * i).sum
+    ai.alter(0L, 4L)(_ + 1)
+    val out = new Array[Int](8)
+    T ~ ai.inject(out) ==== 8L
+    T ~ out.toVector ==== Vector(1, 12, 23, 34, 44, 55, 66, 77)
+
+    // heap Mem of an int array: element size aligns, so atomics work in place
+    val backing = Array(1, 2, 3, 4)
+    val ah = (Mem of backing).atom
+    T ~ ah.cas(1)(2, 20) ==== true
+    T ~ backing(1) ==== 20
+    // ...but byte-backed memory cannot promise alignment, and the retag says so at once
+    T ~ Try{ (Mem of new Array[Byte](16)).as[Int].atom }.isFailure ==== true
+    // and non-CASable element types do not typecheck at all
+    T ~ compiletime.testing.typeChecks("Mem.alloc[Double](2L).atom") ==== false
+    T ~ compiletime.testing.typeChecks("Mem.Atom.alloc[Byte](2L)")  ==== false
+
+    // hammer it: parallel fetch-add, zap, and cas-loop increments all land exactly
+    val counters = Mem.Atom.alloc[Long](3L)
+    val threads = (0 until 4).map{ _ =>
+      val t = new Thread(() => {
+        var k = 0
+        while k < 50000 do
+          counters.addAndGet(0, 1L) __ Unit
+          counters.zap(1)(_ + 1L)
+          var going = true
+          while going do
+            val c = counters(2)
+            going = !counters.cas(2)(c, c + 1L)
+          k += 1
+      })
+      t.start()
+      t
+    }
+    threads.foreach(_.join())
+    T ~ counters(0) ==== 200000L
+    T ~ counters(1) ==== 200000L
+    T ~ counters(2) ==== 200000L
 }
 object MemTest {
   import kse.basics.*
