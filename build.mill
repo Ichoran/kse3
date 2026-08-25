@@ -112,6 +112,10 @@ object twodee extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, eio)
 }
 
+object alien extends Common with PublishKse3 {
+  def moduleDeps = Seq(basics, flow, maths, loom, eio)
+}
+
 object all extends Common {
   override def mvnDeps = Task {
     super.mvnDeps() ++
@@ -123,5 +127,5 @@ object all extends Common {
       mvn"com.twelvemonkeys.imageio:imageio-tiff:3.10.1"
     )
   }
-  def moduleDeps = Seq(foundation, twodee)
+  def moduleDeps = Seq(foundation, twodee, alien)
 }
