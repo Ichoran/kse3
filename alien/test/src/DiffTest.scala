@@ -206,4 +206,34 @@ class DiffTest {
     T ~ uf.getField(99).getVarintList.get(0) ==== java.lang.Long.valueOf(12345L)
     T ~ uf.getField(98).getFixed64List.get(0).longValue.bitsD ==== 2.25
     T ~ uf.getField(97).getLengthDelimitedList.get(0).toStringUtf8 ==== "junk"
+    // an unknown group also rides through and lands as a group in pb-java's UnknownFieldSet
+    val g = Array[Byte](0x33, 0x08, 0x01, 0x34)   // group field 6 { f1: varint 1 }
+    val withG = Track.parse(Track(id = "g").toBytes ++ g).fold(t => t)(e => throw new AssertionError(e.toString))
+    val mg = DynamicMessage.parseFrom(trackD, withG.toBytes)
+    T ~ mg.getUnknownFields.getField(6).getGroupList.size ==== 1
+    T ~ mg.getUnknownFields.getField(6).getGroupList.get(0).getField(1).getVarintList.get(0) ==== java.lang.Long.valueOf(1L)
+
+  @Test
+  def diffMergeTest(): Unit =
+    // concatenated encodings must merge; protobuf-java is the oracle for every clause
+    val t1 = Track(id = "a", pts = Array(Pt(1.0, 2.0)), hops = Array(1),
+                   extra = Track.Extra.Anchor(Pt(1.0, 0.0)), meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1))), stamp = ULong(1L))
+    val t2 = Track(id = "b", pts = Array(Pt(3.0, 4.0)),
+                   extra = Track.Extra.Anchor(Pt(0.0, 2.0)), meta = Is(Track.Meta(blob = Array[Byte](9))))
+    val cat = t1.toBytes ++ t2.toBytes
+    val ours = Track.parse(cat).fold(t => t)(e => throw new AssertionError(e.toString))
+    val jm = DynamicMessage.parseFrom(trackD, cat)
+    T ~ jm.getField(trackD.findFieldByName("id")) ==== ours.id
+    T ~ jm.getField(trackD.findFieldByName("pts")).asInstanceOf[java.util.List[?]].size ==== ours.pts.length
+    T ~ jm.getField(trackD.findFieldByName("stamp")) ==== java.lang.Long.valueOf(ours.stamp.signed)
+    val metaD = trackD.findNestedTypeByName("Meta")
+    val jMeta = jm.getField(trackD.findFieldByName("meta")).asInstanceOf[DynamicMessage]
+    T ~ jMeta.getField(metaD.findFieldByName("mood")).asInstanceOf[Descriptors.EnumValueDescriptor].getNumber ==== ours.meta.fold(_.mood.number)(_ => -1)
+    T ~ jMeta.getField(metaD.findFieldByName("blob")).asInstanceOf[ByteString].toByteArray.toList ==== ours.meta.fold(_.blob.toList)(_ => Nil)
+    val jAnchor = jm.getField(trackD.findFieldByName("anchor")).asInstanceOf[DynamicMessage]
+    val ourAnchor = ours.extra match
+      case Track.Extra.Anchor(p) => (p.x, p.y)
+      case _ => (Double.NaN, Double.NaN)
+    T ~ (jAnchor.getField(ptD.findFieldByName("x")), jAnchor.getField(ptD.findFieldByName("y"))) ==== ourAnchor
+    T ~ ourAnchor ==== (1.0, 2.0)
 }

@@ -43,8 +43,13 @@ import kse.maths.{given, _}
   *     `Pb.Unknown` — verbatim bytes, so even a non-canonical varint spelling survives — for
   *     re-emission with `Out.unknowns`.  Generated bindings retain by default, so a
   *     read-modify-write pass cannot silently strip fields a newer schema added.
-  *   - Wire types 3 and 4 (proto2 groups) are refused.
-  *   - A singular field read with the wrong wire type is an error, not an unknown field.
+  *   - Unknown groups (wire types 3/4, proto2 legacy) skip and keep like any other stray
+  *     field, interior preserved verbatim; an end-group with no start is an error.
+  *   - `string` fields must be valid UTF-8 — invalid sequences are an error, as proto3
+  *     demands, not a silent U+FFFD substitution.
+  *   - A singular field read with the wrong wire type is an error, not an unknown field
+  *     (no legitimate schema evolution changes a field's wire type except packedness,
+  *     which repeated readers already accept both ways).
   *   - Repeated scalars decode from either packed or unpacked spelling, per spec.
   *   - Nesting depth is capped at `Pb.MaxDepth` so hostile input cannot overflow the stack
   *     through a recursive message type.
@@ -54,6 +59,8 @@ object Pb {
   inline val WVarint = 0
   inline val WFix64 = 1
   inline val WLen = 2
+  inline val WSGroup = 3
+  inline val WEGroup = 4
   inline val WFix32 = 5
 
   /** Deepest message nesting `In.sub` will follow. */
@@ -76,6 +83,38 @@ object Pb {
     * no length prefix).  `Out.unknowns` writes a run of them back byte-identically.
     */
   final case class Unknown(field: Int, wire: Int, data: Array[Byte])
+
+  /** Strict UTF-8 well-formedness: no over-long forms, no surrogates, nothing past
+    * U+10FFFF.  Proto3 requires `string` fields to hold exactly this.
+    */
+  def validUtf8(bs: Array[Byte], i0: Int, iN: Int): Boolean =
+    var k = i0
+    var ok = true
+    while ok && k < iN do
+      val b = bs(k) & 0xFF
+      if b < 0x80 then k += 1
+      else if b < 0xC2 then ok = false
+      else if b < 0xE0 then
+        if k + 1 >= iN || (bs(k + 1) & 0xC0) != 0x80 then ok = false
+        else k += 2
+      else if b < 0xF0 then
+        if k + 2 >= iN then ok = false
+        else
+          val c1 = bs(k + 1) & 0xFF
+          if (c1 & 0xC0) != 0x80 || (bs(k + 2) & 0xC0) != 0x80 then ok = false
+          else if b == 0xE0 && c1 < 0xA0 then ok = false
+          else if b == 0xED && c1 > 0x9F then ok = false
+          else k += 3
+      else if b < 0xF5 then
+        if k + 3 >= iN then ok = false
+        else
+          val c1 = bs(k + 1) & 0xFF
+          if (c1 & 0xC0) != 0x80 || (bs(k + 2) & 0xC0) != 0x80 || (bs(k + 3) & 0xC0) != 0x80 then ok = false
+          else if b == 0xF0 && c1 < 0x90 then ok = false
+          else if b == 0xF4 && c1 > 0x8F then ok = false
+          else k += 4
+      else ok = false
+    ok
 
   /** Label a stretch of coding (typically one message reader) so any failure inside
     * carries the path to where it happened.  Free unless a `Halt` actually passes through.
@@ -226,7 +265,8 @@ object Pb {
 
     /** Write back one unknown field.  The data must be re-emittable as captured by
       * `In.keep`: a well-formed varint (over-long spellings allowed), exactly 8 or 4 bytes
-      * for the fixed widths, anything for length-delimited.  Halts rather than corrupt.
+      * for the fixed widths, anything for length-delimited, a well-formed field sequence
+      * for a group interior.  Halts rather than corrupt.
       */
     def unknown(field: Int, wire: Int, data: Array[Byte]): Unit =
       if field <= 0 || field > 536870911 then fail(s"unknown-field number $field out of range")
@@ -248,6 +288,12 @@ object Pb {
           tag(field, wire)
           varint(data.length)
           rawBytes(data, 0, data.length)
+        case WSGroup =>
+          val v = In.of(data)
+          while v.next() do v.skip()
+          tag(field, WSGroup)
+          rawBytes(data, 0, data.length)
+          tag(field, WEGroup)
         case w => fail(s"unknown-field $field: wire type $w cannot be written")
 
     def unknown(u: Unknown): Unit = unknown(u.field, u.wire, u.data)
@@ -561,15 +607,45 @@ object Pb {
       if wire == WFix64 then acc += raw64Work().bitsD
       else { val in = sub(); while in.hasMore do acc += in.raw64Work().bitsD }
 
+    /** Skip a whole group, itself skipping anything inside (nested groups included), until
+      * the matching end-group tag; answers the offset where that end tag began, so `keep`
+      * can capture the interior verbatim.
+      */
+    private def skipGroup(open: Int, d: Int): Long =
+      if d >= MaxDepth then fail(s"group $open at byte $i: nesting deeper than $MaxDepth")
+      var endAt = -1L
+      while endAt < 0 do
+        if i >= end then fail(s"group $open never ends")
+        val tagAt = i
+        val t = readVarint()
+        val f = (t >>> 3).toInt
+        val w = (t & 7).toInt
+        if (t >>> 3) == 0 || (t >>> 3) > 536870911L then fail(s"tag with field number ${t >>> 3} out of range at byte $tagAt")
+        w match
+          case WEGroup => if f == open then endAt = tagAt else fail(s"group $open at byte $tagAt: closed by end-group for field $f")
+          case WSGroup => skipGroup(f, d + 1) __ Unit
+          case WVarint => readVarint() __ Unit
+          case WFix64  => if i + 8 > end then fail(s"group $open runs off the end at byte $i") else i += 8
+          case WLen =>
+            val len = readVarint()
+            if len < 0 || len > end - i then fail(s"field $f at byte $i: length $len overruns the message")
+            i += len
+          case WFix32  => if i + 4 > end then fail(s"group $open runs off the end at byte $i") else i += 4
+          case other   => fail(s"field $f at byte $tagAt: wire type $other does not exist")
+      endAt
+
     def skip(): Unit = wire match
       case WVarint => readVarint() __ Unit
       case WFix64  => if i + 8 > end then fail(s"skip of field $field runs off the end at byte $i") else i += 8
       case WLen    => lenSpan() __ Unit
       case WFix32  => if i + 4 > end then fail(s"skip of field $field runs off the end at byte $i") else i += 4
-      case w       => fail(s"field $field at byte $i: wire type $w (proto2 groups are not supported)")
+      case WSGroup => skipGroup(field, depth + 1) __ Unit
+      case WEGroup => fail(s"field $field at byte $i: end-group with no start-group")
+      case w       => fail(s"field $field at byte $i: wire type $w does not exist")
 
     /** Capture the current field verbatim instead of dropping it — the modern retention
       * behavior, so a read-modify-write pass preserves what this schema does not know.
+      * A group is captured as its interior; `Out.unknown` restores the bracketing tags.
       */
     def keep(): Unknown = wire match
       case WVarint =>
@@ -589,7 +665,13 @@ object Pb {
         val u = Unknown(field, wire, bytesWork(i, i + 4))
         i += 4
         u
-      case w => fail(s"field $field at byte $i: wire type $w (proto2 groups are not supported)")
+      case WSGroup =>
+        val a = i
+        val b = skipGroup(field, depth + 1)
+        if b - a > Int.MaxValue - 8 then fail(s"field $field at byte $a: group too big for the heap")
+        Unknown(field, WSGroup, bytesWork(a, b))
+      case WEGroup => fail(s"field $field at byte $i: end-group with no start-group")
+      case w => fail(s"field $field at byte $i: wire type $w does not exist")
   }
 
   object In {
@@ -633,6 +715,7 @@ object Pb {
       v
 
     protected def stringWork(i0: Long, iN: Long): String =
+      if !validUtf8(bs, i0.toInt, iN.toInt) then fail(s"field $field at byte $i0: string is not valid UTF-8")
       new String(bs, i0.toInt, (iN - i0).toInt, java.nio.charset.StandardCharsets.UTF_8)
 
     protected def bytesWork(i0: Long, iN: Long): Array[Byte] =
@@ -669,7 +752,9 @@ object Pb {
       v
 
     protected def stringWork(i0: Long, iN: Long): String =
-      new String(bytesWork(i0, iN), java.nio.charset.StandardCharsets.UTF_8)
+      val a = bytesWork(i0, iN)
+      if !validUtf8(a, 0, a.length) then fail(s"field $field at byte $i0: string is not valid UTF-8")
+      new String(a, java.nio.charset.StandardCharsets.UTF_8)
 
     protected def bytesWork(i0: Long, iN: Long): Array[Byte] =
       val out = new Array[Byte]((iN - i0).toInt)
@@ -694,6 +779,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a, a.length * 2)
       a(n) = x
       n += 1
+    def ++=(xs: Array[Int]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[Int] = java.util.Arrays.copyOf(a, n)
   }
 
@@ -704,6 +794,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a, a.length * 2)
       a(n) = x
       n += 1
+    def ++=(xs: Array[Long]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[Long] = java.util.Arrays.copyOf(a, n)
   }
 
@@ -714,6 +809,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a, a.length * 2)
       a(n) = x
       n += 1
+    def ++=(xs: Array[Float]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[Float] = java.util.Arrays.copyOf(a, n)
   }
 
@@ -724,6 +824,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a, a.length * 2)
       a(n) = x
       n += 1
+    def ++=(xs: Array[Double]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[Double] = java.util.Arrays.copyOf(a, n)
   }
 
@@ -734,6 +839,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a, a.length * 2)
       a(n) = x
       n += 1
+    def ++=(xs: Array[Boolean]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[Boolean] = java.util.Arrays.copyOf(a, n)
   }
 
@@ -744,6 +854,11 @@ object Pb {
       if n >= a.length then a = java.util.Arrays.copyOf(a.asInstanceOf[Array[AnyRef]], a.length * 2).asInstanceOf[Array[A]]
       a(n) = x
       n += 1
+    def ++=(xs: Array[A]): Unit =
+      var k = 0
+      while k < xs.length do
+        this += xs(k)
+        k += 1
     def result: Array[A] = java.util.Arrays.copyOf(a.asInstanceOf[Array[AnyRef]], n).asInstanceOf[Array[A]]
   }
 }

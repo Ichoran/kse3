@@ -25,6 +25,12 @@ import kse.flow.{given, _}
   *     whose name would collide with a type it mentions gets an `Arm` suffix.
   *   - map<K, V> -> immutable `Map[K, V]`.
   *
+  * Readers follow the spec's merge semantics: `readFrom(in, prior)` decodes on top of an
+  * existing instance, so concatenated encodings merge — later singular scalars win, later
+  * singular messages merge field-by-field (recursively, same-arm oneofs and map values
+  * included), and repeated fields append.  `readFrom(in)` is the fresh-parse form, reading
+  * on top of the companion's shared all-defaults `default`.
+  *
   * Unknown fields are RETAINED by default: each message carries an `unknown` list of
   * `Pb.Unknown` (encounter order, verbatim bytes), re-emitted after the known fields, so a
   * read-modify-write pass preserves what a newer schema added.  Set
@@ -338,7 +344,7 @@ object PbGen {
     // --- reader ---
 
     private def readerLines(m: Proto.Message, myRef: String, indent: Int): Unit =
-      // accumulators and working state, one per field slot
+      // working state seeded from `prior`, one slot per field (repeated appends, per spec)
       var oneofDeclared = Set.empty[Int]
       m.fields.foreach: f =>
         val x = fieldScalaName(f)
@@ -347,17 +353,20 @@ object PbGen {
             oneofDeclared = oneofDeclared + f.oneof
             val ov = sident(camel(m.oneofs(f.oneof).name))
             val ot = s"$myRef.${oneofTypeName(m.oneofs(f.oneof))}"
-            line(indent, s"var $ov: $ot = $ot.Unset")
+            line(indent, s"var $ov: $ot = prior.$ov")
         else f.tpe match
           case Proto.PType.Prim(s) if f.label == Proto.Label.Rep =>
             line(indent, s"val $x = new ${accOf(s)}")
+            line(indent, s"$x ++= prior.$x")
           case Proto.PType.MsgT(fqn) if f.label == Proto.Label.Rep =>
             line(indent, s"val $x = new Pb.RefAcc[${refOf(fqn)}]")
+            line(indent, s"$x ++= prior.$x")
           case Proto.PType.EnumT(_) if f.label == Proto.Label.Rep =>
             line(indent, s"val $x = new Pb.IntAcc")
+            line(indent, s"$x ++= prior.$x")
           case _ =>
-            line(indent, s"var $x: ${typeOf(f)} = ${defaultOf(f)}")
-      if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = List.empty[Pb.Unknown]")
+            line(indent, s"var $x: ${typeOf(f)} = prior.$x")
+      if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = prior.${unknownNameOf(m)}.reverse")
       line(indent, "while in.next() do in.field match")
       m.fields.sortBy(_.number).foreach(f => readCase(m, myRef, f, indent + 1))
       if config.retainUnknown then line(indent + 1, s"case _ => ${unknownNameOf(m)} = in.keep() :: ${unknownNameOf(m)}")
@@ -374,7 +383,11 @@ object PbGen {
         f.tpe match
           case Proto.PType.Prim(s)    => line(indent, s"case $n => $ov = $ot.$cname(in.${verbOf(s)}())")
           case Proto.PType.EnumT(fqn) => line(indent, s"case $n => $ov = $ot.$cname(${refOf(fqn)}(in.int32()))")
-          case Proto.PType.MsgT(fqn)  => line(indent, s"case $n => $ov = $ot.$cname(${refOf(fqn)}.readFrom(in.sub()))")
+          case Proto.PType.MsgT(fqn)  =>
+            // a repeated same-arm occurrence merges into the arm's message, per spec
+            line(indent, s"case $n =>")
+            line(indent + 1, s"val p = $ov match { case $ot.$cname(q) => q; case _ => ${refOf(fqn)}.default }")
+            line(indent + 1, s"$ov = $ot.$cname(${refOf(fqn)}.readFrom(in.sub(), p))")
           case _ => Pb.fail("internal: oneof member can only be scalar, enum, or message")
       else
         val x = fieldScalaName(f)
@@ -387,7 +400,7 @@ object PbGen {
               else line(indent, s"case $n => $x += in.${verbOf(s)}()")
           case Proto.PType.MsgT(fqn) => f.label match
             case Proto.Label.Rep => line(indent, s"case $n => $x += ${refOf(fqn)}.readFrom(in.sub())")
-            case _               => line(indent, s"case $n => $x = Is(${refOf(fqn)}.readFrom(in.sub()))")
+            case _               => line(indent, s"case $n => $x = Is(${refOf(fqn)}.readFrom(in.sub(), $x.getOrElse(_ => ${refOf(fqn)}.default)))")
           case Proto.PType.EnumT(fqn) => f.label match
             case Proto.Label.Singular => line(indent, s"case $n => $x = ${refOf(fqn)}(in.int32())")
             case Proto.Label.Opt      => line(indent, s"case $n => $x = Is(${refOf(fqn)}(in.int32()))")
@@ -399,14 +412,14 @@ object PbGen {
             v match
               case Proto.PType.Prim(s)    => line(indent + 1, s"var mv: ${scalarType(s)} = ${scalarDefault(s)}")
               case Proto.PType.EnumT(fqn) => line(indent + 1, s"var mv: ${refOf(fqn)} = ${enumZero(fqn)}")
-              case Proto.PType.MsgT(fqn)  => line(indent + 1, s"var mv: ${refOf(fqn)} = ${refOf(fqn)}()")
+              case Proto.PType.MsgT(fqn)  => line(indent + 1, s"var mv: ${refOf(fqn)} = ${refOf(fqn)}.default")
               case _ => Pb.fail("internal: map value cannot be a map")
             line(indent + 1, "while e.next() do e.field match")
             line(indent + 2, s"case 1 => mk = e.${verbOf(k)}()")
             v match
               case Proto.PType.Prim(s)    => line(indent + 2, s"case 2 => mv = e.${verbOf(s)}()")
               case Proto.PType.EnumT(fqn) => line(indent + 2, s"case 2 => mv = ${refOf(fqn)}(e.int32())")
-              case Proto.PType.MsgT(fqn)  => line(indent + 2, s"case 2 => mv = ${refOf(fqn)}.readFrom(e.sub())")
+              case Proto.PType.MsgT(fqn)  => line(indent + 2, s"case 2 => mv = ${refOf(fqn)}.readFrom(e.sub(), mv)")
               case _ => ()
             line(indent + 2, "case _ => e.skip()")
             line(indent + 1, s"$x = $x + (mk -> mv)")
@@ -474,7 +487,9 @@ object PbGen {
         blank()
       m.enums.foreach(e => genEnum(e, indent + 1))
       m.nested.foreach(genMessage(_, indent + 1))
-      line(indent + 1, s"def readFrom(in: Pb.In): $myRef = Pb.context(\"${m.name}\"):")
+      line(indent + 1, s"val default: $myRef = $myRef()")
+      line(indent + 1, s"def readFrom(in: Pb.In): $myRef = readFrom(in, default)")
+      line(indent + 1, s"def readFrom(in: Pb.In, prior: $myRef): $myRef = Pb.context(\"${m.name}\"):")
       readerLines(m, myRef, indent + 2)
       line(indent + 1, s"def parse(bs: Array[Byte]): Ask[$myRef] = Pb.decode(bs)(readFrom)")
       line(indent + 1, s"def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[$myRef] = Pb.decode(bs, i0, iN)(readFrom)")

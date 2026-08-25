@@ -267,7 +267,7 @@ class AlienTest {
     T ~ errText(Pb.decode(Array[Byte](0x0D, 0x01)){ in => in.next() __ Unit; in.float() }).contains("fixed32 runs off") ==== true
     T ~ errText(Pb.decode(Array[Byte](0x0A, 0x05, 'a')){ in => in.next() __ Unit; in.string() }).contains("overruns") ==== true
     T ~ errText(Pb.decode(Array[Byte](0x00)){ in => in.next() }).contains("field number 0") ==== true
-    T ~ errText(Pb.decode(Array[Byte](0x0B)){ in => in.next() __ Unit; in.skip() }).contains("wire type 3") ==== true
+    T ~ errText(Pb.decode(Array[Byte](0x0B)){ in => in.next() __ Unit; in.skip() }).contains("never ends") ==== true
     T ~ errText(Pb.decode(Array[Byte](0x08, 0x05)){ in => in.next() __ Unit; in.string() }).contains("expected length-delimited") ==== true
     // an 11-byte varint is malformed even though the value would fit
     T ~ errText(Pb.decode(Array[Byte](0x08, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0x01)){ in => in.next() __ Unit; in.int64() }).contains("longer than 10") ==== true
@@ -310,10 +310,70 @@ class AlienTest {
     o.unknowns(kept)
     T ~ o.result =**= junk                                   // byte-identical resurrection
     T ~ got(Pb.decode(Mem of junk)(keepAll)).map(u => (u.field, u.wire, u.data.toList)) ==== kept.map(u => (u.field, u.wire, u.data.toList))
-    // groups still refused, and malformed hand-built unknowns refuse to write
-    T ~ errText(Pb.decode(Array[Byte](0x0B)){ in => in.next() __ Unit; in.keep() }).contains("wire type 3") ==== true
+    // a stray end-group is refused, and malformed hand-built unknowns refuse to write
+    T ~ errText(Pb.decode(Array[Byte](0x0C)){ in => in.next() __ Unit; in.keep() }).contains("no start-group") ==== true
     T ~ errText(nice{ Pb.Out().unknown(1, Pb.WFix64, Array[Byte](1, 2, 3)) }).contains("8 bytes") ==== true
     T ~ errText(nice{ Pb.Out().unknown(1, Pb.WVarint, Array[Byte](-0x80)) }).contains("not one varint") ==== true
+
+  @Test
+  def pbGroupTest(): Unit =
+    // group field 6 { f1: varint 1; group f2 { f1: varint 7 }; f3: "x" }
+    val g = Array[Byte](0x33, 0x08, 0x01, 0x13, 0x08, 0x07, 0x14, 0x1A, 0x01, 0x78, 0x34)
+    T ~ got(Pb.decode(g){ in => in.next() __ Unit; in.skip(); in.hasMore }) ==== false
+    val kept = got(Pb.decode(g){ in => in.next() __ Unit; in.keep() })
+    T ~ (kept.field, kept.wire, kept.data.length) ==== (6, 3, 9)
+    val o = Pb.Out()
+    o.unknown(kept)
+    T ~ o.result =**= g                                   // interior + bracketing tags resurrect exactly
+    T ~ got(Pb.decode(Mem of g){ in => in.next() __ Unit; in.keep() }).data.toList ==== kept.data.toList
+    // mismatched closer, missing closer, and closer-with-no-opener are all loud
+    T ~ errText(Pb.decode(Array[Byte](0x2B, 0x14)){ in => in.next() __ Unit; in.skip() }).contains("end-group for field 2") ==== true
+    T ~ errText(Pb.decode(Array[Byte](0x2B, 0x08, 0x01)){ in => in.next() __ Unit; in.skip() }).contains("never ends") ==== true
+    T ~ errText(Pb.decode(Array[Byte](0x0C)){ in => in.next() __ Unit; in.skip() }).contains("no start-group") ==== true
+    // corrupt hand-built interiors refuse to write
+    T ~ errText(nice{ Pb.Out().unknown(5, Pb.WSGroup, Array[Byte](0x08)) }).contains("runs off") ==== true
+    // and a group rides through a generated message's read-modify-write untouched
+    import kse.test.alien.track.Track
+    val gu = got(Track.parse(Track(id = "g").toBytes ++ g))
+    T ~ gu.unknown.map(u => (u.field, u.wire)) ==== List((6, 3))
+    T ~ got(Track.parse(gu.copy(id = "g2").toBytes)).unknown.map(u => (u.field, u.wire, u.data.toList)) ==== List((6, 3, kept.data.toList))
+
+  @Test
+  def pbUtf8Test(): Unit =
+    def strOf(bs: Array[Byte]): Ask[String] =
+      val o = Pb.Out()
+      o.bytesAlways(1, bs)
+      Pb.decode(o.result){ in => in.next() __ Unit; in.string() }
+    T ~ got(strOf("π→😀".getBytes(java.nio.charset.StandardCharsets.UTF_8))) ==== "π→😀"
+    T ~ errText(strOf(Array[Byte](0x61, -0x40))).contains("UTF-8") ==== true          // bare C0 lead
+    T ~ errText(strOf(Array[Byte](-0x40, -0x80))).contains("UTF-8") ==== true         // over-long NUL
+    T ~ errText(strOf(Array[Byte](-0x13, -0x60, -0x80))).contains("UTF-8") ==== true  // encoded surrogate
+    T ~ errText(strOf(Array[Byte](-0x0B, -0x70, -0x80, -0x80))).contains("UTF-8") ==== true  // past U+10FFFF
+    T ~ errText(strOf(Array[Byte](-0x1E))).contains("UTF-8") ==== true                // truncated sequence
+    val bad = { val o = Pb.Out(); o.bytesAlways(1, Array[Byte](-0x40)); o.result }
+    T ~ errText(Pb.decode(Mem of bad){ in => in.next() __ Unit; in.string() }).contains("UTF-8") ==== true
+
+  @Test
+  def pbMergeTest(): Unit =
+    import kse.test.alien.track.{Mood, Pt, Track}
+    val t1 = Track(id = "a", pts = Array(Pt(1.0, 2.0)), tags = Map("k" -> 1L, "only1" -> 5L), hops = Array(1),
+                   extra = Track.Extra.Anchor(Pt(1.0, 0.0)), meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1))), stamp = ULong(1L))
+    val t2 = Track(id = "b", pts = Array(Pt(3.0, 4.0)), tags = Map("k" -> 2L), hops = Array(2, 3),
+                   extra = Track.Extra.Anchor(Pt(0.0, 2.0)), meta = Is(Track.Meta(blob = Array[Byte](9))))
+    val mm = got(Track.parse(t1.toBytes ++ t2.toBytes))
+    T ~ mm.id ==== "b"                                                       // later singular scalar wins
+    T ~ mm.pts.map(p => (p.x, p.y)).toList ==== List((1.0, 2.0), (3.0, 4.0)) // repeated appends
+    T ~ mm.tags ==== Map("k" -> 2L, "only1" -> 5L)                           // maps merge, later key wins
+    T ~ mm.hops.toList ==== List(1, 2, 3)
+    T ~ mm.stamp.signed ==== 1L                                              // absent later field keeps the earlier value
+    T ~ mm.meta.fold(m => (m.mood.number, m.blob.toList))(_ => (-1, Nil)) ==== (16, List[Byte](9))  // messages merge field-by-field
+    T ~ mm.extra ==== Track.Extra.Anchor(Pt(1.0, 2.0))                       // same oneof arm merges too
+    val t3 = Track(extra = Track.Extra.Note("n"))
+    T ~ got(Track.parse(t1.toBytes ++ t3.toBytes)).extra ==== Track.Extra.Note("n")   // a different arm replaces
+    // merge-parse over a prior instance is the public face of the same machinery
+    val m2 = got(Pb.decode(t2.toBytes)(in => Track.readFrom(in, t1)))
+    T ~ m2.id ==== "b"
+    T ~ m2.meta.fold(m => (m.mood.number, m.blob.toList))(_ => (-1, Nil)) ==== (16, List[Byte](9))
 
   @Test
   def pbMemOutTest(): Unit =
@@ -477,6 +537,7 @@ class AlienTest {
     T ~ src.contains("stamp: ULong = ULong(0L)") ==== true
     T ~ src.contains("hops.use()(v => o.int32Always(5, v))") ==== true   // [packed = false] honored
     T ~ src.contains("unknown: List[Pb.Unknown] = Nil") ==== true        // retention is the default
+    T ~ src.contains("def readFrom(in: Pb.In, prior: Track): Track") ==== true   // spec merge semantics
     // if the checked-in generated file is reachable from here, it matches regeneration exactly
     val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
     if java.nio.file.Files.exists(p) then

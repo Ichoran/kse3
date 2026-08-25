@@ -42,10 +42,12 @@ final case class Pt(
 }
 
 object Pt {
-  def readFrom(in: Pb.In): Pt = Pb.context("Pt"):
-    var x: Double = 0.0
-    var y: Double = 0.0
-    var unknown = List.empty[Pb.Unknown]
+  val default: Pt = Pt()
+  def readFrom(in: Pb.In): Pt = readFrom(in, default)
+  def readFrom(in: Pb.In, prior: Pt): Pt = Pb.context("Pt"):
+    var x: Double = prior.x
+    var y: Double = prior.y
+    var unknown = prior.unknown.reverse
     while in.next() do in.field match
       case 1 => x = in.double()
       case 2 => y = in.double()
@@ -119,10 +121,12 @@ object Track {
   }
 
   object Meta {
-    def readFrom(in: Pb.In): Track.Meta = Pb.context("Meta"):
-      var mood: Mood = Mood.MOOD_UNSPECIFIED
-      var blob: Array[Byte] = Array.empty[Byte]
-      var unknown = List.empty[Pb.Unknown]
+    val default: Track.Meta = Track.Meta()
+    def readFrom(in: Pb.In): Track.Meta = readFrom(in, default)
+    def readFrom(in: Pb.In, prior: Track.Meta): Track.Meta = Pb.context("Meta"):
+      var mood: Mood = prior.mood
+      var blob: Array[Byte] = prior.blob
+      var unknown = prior.unknown.reverse
       while in.next() do in.field match
         case 1 => mood = Mood(in.int32())
         case 2 => blob = in.bytes()
@@ -134,16 +138,20 @@ object Track {
     def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[Track.Meta] = Pb.decode(m, i0, iN)(readFrom)
   }
 
-  def readFrom(in: Pb.In): Track = Pb.context("Track"):
-    var id: String = ""
+  val default: Track = Track()
+  def readFrom(in: Pb.In): Track = readFrom(in, default)
+  def readFrom(in: Pb.In, prior: Track): Track = Pb.context("Track"):
+    var id: String = prior.id
     val pts = new Pb.RefAcc[Pt]
-    var tags: Map[String, Long] = Map.empty
-    var score: Float Or Unit = Alt.unit
+    pts ++= prior.pts
+    var tags: Map[String, Long] = prior.tags
+    var score: Float Or Unit = prior.score
     val hops = new Pb.IntAcc
-    var extra: Track.Extra = Track.Extra.Unset
-    var meta: Track.Meta Or Unit = Alt.unit
-    var stamp: ULong = ULong(0L)
-    var unknown = List.empty[Pb.Unknown]
+    hops ++= prior.hops
+    var extra: Track.Extra = prior.extra
+    var meta: Track.Meta Or Unit = prior.meta
+    var stamp: ULong = prior.stamp
+    var unknown = prior.unknown.reverse
     while in.next() do in.field match
       case 1 => id = in.string()
       case 2 => pts += Pt.readFrom(in.sub())
@@ -159,9 +167,11 @@ object Track {
       case 4 => score = Is(in.float())
       case 5 => in.int32s(hops)
       case 10 => extra = Track.Extra.Note(in.string())
-      case 11 => extra = Track.Extra.Anchor(Pt.readFrom(in.sub()))
+      case 11 =>
+        val p = extra match { case Track.Extra.Anchor(q) => q; case _ => Pt.default }
+        extra = Track.Extra.Anchor(Pt.readFrom(in.sub(), p))
       case 12 => extra = Track.Extra.MoodArm(Mood(in.int32()))
-      case 20 => meta = Is(Track.Meta.readFrom(in.sub()))
+      case 20 => meta = Is(Track.Meta.readFrom(in.sub(), meta.getOrElse(_ => Track.Meta.default)))
       case 21 => stamp = in.uint64()
       case _ => unknown = in.keep() :: unknown
     Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, unknown.reverse)
