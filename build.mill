@@ -114,6 +114,9 @@ object twodee extends Common with PublishKse3 {
 
 object alien extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, loom, eio)
+  override def extraTestIvy = Task { Seq(
+    mvn"com.google.protobuf:protobuf-java:4.28.3"   // differential oracle for the Pb wire codec; test-only
+  ) }
 }
 
 object all extends Common {

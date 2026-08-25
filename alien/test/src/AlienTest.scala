@@ -10,6 +10,63 @@ import org.junit._
 import org.junit.Assert._
 
 
+object TestProtos {
+  val track = """
+    |// Everything the parser should chew through, commentary included.
+    |syntax = "proto3";  /* block
+    |                       comment */
+    |package alien.test;
+    |
+    |import "other.proto";
+    |option java_package = "com.example" ".suffix";
+    |
+    |enum Mood {
+    |  option allow_alias = true;
+    |  MOOD_UNSPECIFIED = 0;
+    |  HAPPY = 1;
+    |  GLAD = 1;       // alias, blessed above
+    |  GRUMPY = 0x10;
+    |  reserved 5 to 8, -2;
+    |  reserved "SULLEN";
+    |}
+    |
+    |message Pt {
+    |  double x = 1;
+    |  double y = 2;
+    |}
+    |
+    |message Track {
+    |  string id = 1;
+    |  repeated Pt pts = 2;
+    |  map<string, sint64> tags = 3;
+    |  optional float score = 4 [deprecated = true];
+    |  repeated int32 hops = 5 [packed = false];
+    |  oneof extra {
+    |    string note = 10;
+    |    Pt anchor = 11;
+    |    .alien.test.Mood mood = 12;
+    |  }
+    |  message Meta {
+    |    Mood mood = 1;
+    |    bytes blob = 2;
+    |  }
+    |  Meta meta = 20;
+    |  uint64 stamp = 21;
+    |  reserved 100 to max;
+    |  reserved "old_name";
+    |}
+    |
+    |service Tracker {
+    |  rpc Get (Pt) returns (Track);
+    |  rpc Watch (Pt) returns (stream Track) { option idempotency_level = NO_SIDE_EFFECTS; }
+    |}
+    |""".stripMargin
+
+  /** The config the checked-in TrackProto.scala was generated with. */
+  val trackConfig = kse.alien.PbGen.Config(pkgOf = _ => "kse.test.alien.track")
+}
+
+
 @RunWith(classOf[JUnit4])
 class AlienTest {
   import kse.basics.testutilities.TestUtilities.{given, _}
@@ -273,56 +330,7 @@ class AlienTest {
   def fieldOf(m: Proto.Message, name: String): Proto.Field =
     m.fields.find(_.name == name).getOrElse(throw new AssertionError(s"no field $name in ${m.name}"))
 
-  val trackProto = """
-    |// Everything the parser should chew through, commentary included.
-    |syntax = "proto3";  /* block
-    |                       comment */
-    |package alien.test;
-    |
-    |import "other.proto";
-    |option java_package = "com.example" ".suffix";
-    |
-    |enum Mood {
-    |  option allow_alias = true;
-    |  MOOD_UNSPECIFIED = 0;
-    |  HAPPY = 1;
-    |  GLAD = 1;       // alias, blessed above
-    |  GRUMPY = 0x10;
-    |  reserved 5 to 8, -2;
-    |  reserved "SULLEN";
-    |}
-    |
-    |message Pt {
-    |  double x = 1;
-    |  double y = 2;
-    |}
-    |
-    |message Track {
-    |  string id = 1;
-    |  repeated Pt pts = 2;
-    |  map<string, sint64> tags = 3;
-    |  optional float score = 4 [deprecated = true];
-    |  repeated int32 hops = 5 [packed = false];
-    |  oneof extra {
-    |    string note = 10;
-    |    Pt anchor = 11;
-    |    .alien.test.Mood mood = 12;
-    |  }
-    |  message Meta {
-    |    Mood mood = 1;
-    |    bytes blob = 2;
-    |  }
-    |  Meta meta = 20;
-    |  uint64 stamp = 21;
-    |  reserved 100 to max;
-    |  reserved "old_name";
-    |}
-    |
-    |service Tracker {
-    |  rpc Get (Pt) returns (Track);
-    |  rpc Watch (Pt) returns (stream Track) { option idempotency_level = NO_SIDE_EFFECTS; }
-    |}
-    |""".stripMargin
+  def trackProto = TestProtos.track
 
   @Test
   def protoParseTest(): Unit =
@@ -430,4 +438,80 @@ class AlienTest {
     refuses("""syntax = "proto3"; service S { rpc R (E) returns (E); } enum E { A = 0; }""", "must be messages")
     // and the failure position is named file:line:col
     T ~ errText(Proto.read("syntax = \"proto3\";\nmessage M {\n  int32 x = 0;\n}", "pos.proto")).contains("pos.proto:3:") ==== true
+
+  @Test
+  def pbGenGoldenTest(): Unit =
+    import kse.alien.PbGen
+    val out = got(Or.Ret[List[(String, String)], Err]{ PbGen.generate(Proto.read(trackProto, "track.proto").?, TestProtos.trackConfig).? })
+    T ~ out.length ==== 1
+    T ~ out.head._1 ==== "TrackProto.scala"
+    val src = out.head._2
+    T ~ src.contains("package kse.test.alien.track") ==== true
+    T ~ src.contains("final case class Track(") ==== true
+    T ~ src.contains("opaque type Mood = Int") ==== true
+    T ~ src.contains("case MoodArm(value: Mood)") ==== true      // Arm suffix dodged the Mood shadow
+    T ~ src.contains("stamp: ULong = ULong(0L)") ==== true
+    T ~ src.contains("hops.use()(v => o.int32Always(5, v))") ==== true   // [packed = false] honored
+    // if the checked-in generated file is reachable from here, it matches regeneration exactly
+    val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
+    if java.nio.file.Files.exists(p) then
+      T ~ java.nio.file.Files.readString(p) ==== src
+
+  @Test
+  def pbGenRoundTripTest(): Unit =
+    import kse.test.alien.track.{Mood, Pt, Track}
+    val t = Track(
+      id = "t1",
+      pts = Array(Pt(1.5, -2.5), Pt(0.0, 3.0)),
+      tags = Map("a" -> -1L, "b" -> 700L),
+      score = Is(0.5f),
+      hops = Array(3, -4, 5),
+      extra = Track.Extra.Anchor(Pt(9.0, 9.0)),
+      meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1, 2, 3))),
+      stamp = ULong(-1L)
+    )
+    val bs = t.toBytes
+    def check(u: Track): Unit =
+      T ~ u.id ==== "t1"
+      T ~ u.pts.map(p => (p.x, p.y)).toList ==== List((1.5, -2.5), (0.0, 3.0))
+      T ~ u.tags ==== Map("a" -> -1L, "b" -> 700L)
+      T ~ u.score ==== Is(0.5f)
+      T ~ u.hops.toList ==== List(3, -4, 5)
+      T ~ u.extra ==== Track.Extra.Anchor(Pt(9.0, 9.0))
+      T ~ u.meta.fold(m => (m.mood.number, m.blob.toList))(_ => (-1, Nil)) ==== (16, List[Byte](1, 2, 3))
+      T ~ u.stamp.signed ==== -1L
+    check(got(Track.parse(bs)))
+    check(got(Track.parse(Mem of bs)))
+    // an all-default message is zero bytes, and reads back as all defaults
+    T ~ Track().toBytes.length ==== 0
+    val d = got(Track.parse(Array.empty[Byte]))
+    T ~ d.score ==== Alt.unit
+    T ~ d.meta ==== Alt.unit
+    T ~ d.extra ==== Track.Extra.Unset
+    T ~ d.pts.length ==== 0
+    // explicit presence: optional zero and oneof zero-value arms still emit and survive
+    T ~ Track(score = Is(0.0f)).toBytes.length ==== 5
+    T ~ got(Track.parse(Track(score = Is(0.0f)).toBytes)).score ==== Is(0.0f)
+    T ~ Track(extra = Track.Extra.Note("")).toBytes.length ==== 2
+    T ~ got(Track.parse(Track(extra = Track.Extra.Note("")).toBytes)).extra ==== Track.Extra.Note("")
+    T ~ got(Track.parse(Track(extra = Track.Extra.MoodArm(Mood.MOOD_UNSPECIFIED)).toBytes)).extra ==== Track.Extra.MoodArm(Mood(0))
+    // open enums: unknown numbers ride through untouched
+    val odd = got(Track.parse(Track(meta = Is(Track.Meta(mood = Mood(42)))).toBytes))
+    T ~ odd.meta.fold(_.mood.number)(_ => -1) ==== 42
+    T ~ Mood(42).name.contains("unknown") ==== true
+    T ~ Mood.GLAD.name ==== "HAPPY"   // alias resolves to the first-named value
+    // unknown fields are skipped: junk fields around known ones do not disturb the read
+    val junky = Pb.Out()
+    junky.string(1, "still me")
+    junky.int32Always(99, 12345)
+    junky.doubleAlways(98, 2.25)
+    junky.stringAlways(97, "junk")
+    junky.uint64Always(21, ULong(7L))
+    val j = got(Track.parse(junky.result))
+    T ~ j.id ==== "still me"
+    T ~ j.stamp.signed ==== 7L
+    // and the whole thing round-trips straight out of off-heap memory
+    val slot = Mem.alloc[Byte](bs.length + 16)
+    T ~ got(Pb.encodeInto(slot)(t.writeTo)) ==== bs.length.toLong
+    check(got(Track.parse(slot, 0L, bs.length.toLong)))
 }
