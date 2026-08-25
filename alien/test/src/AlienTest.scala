@@ -16,7 +16,7 @@ class AlienTest {
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.maths.{given, _}
-  import kse.alien.Pb
+  import kse.alien.{Pb, Proto}
 
   given Asserter(
     (m, test, x) => assertEquals(m, x, test),
@@ -265,4 +265,169 @@ class AlienTest {
     val wide = new Array[Byte](viaArr.length + 8)
     T ~ got(Pb.encodeInto(Mem of wide, 8L, wide.length.toLong)(sample)) ==== viaArr.length.toLong
     T ~ java.util.Arrays.copyOfRange(wide, 8, wide.length) =**= viaArr
+
+  def msgOf(sch: Proto.Schema, fqn: String): Proto.Message =
+    sch.message(fqn).fold(m => m)(_ => throw new AssertionError(s"no message $fqn"))
+  def enmOf(sch: Proto.Schema, fqn: String): Proto.EnumDef =
+    sch.enumDef(fqn).fold(e => e)(_ => throw new AssertionError(s"no enum $fqn"))
+  def fieldOf(m: Proto.Message, name: String): Proto.Field =
+    m.fields.find(_.name == name).getOrElse(throw new AssertionError(s"no field $name in ${m.name}"))
+
+  val trackProto = """
+    |// Everything the parser should chew through, commentary included.
+    |syntax = "proto3";  /* block
+    |                       comment */
+    |package alien.test;
+    |
+    |import "other.proto";
+    |option java_package = "com.example" ".suffix";
+    |
+    |enum Mood {
+    |  option allow_alias = true;
+    |  MOOD_UNSPECIFIED = 0;
+    |  HAPPY = 1;
+    |  GLAD = 1;       // alias, blessed above
+    |  GRUMPY = 0x10;
+    |  reserved 5 to 8, -2;
+    |  reserved "SULLEN";
+    |}
+    |
+    |message Pt {
+    |  double x = 1;
+    |  double y = 2;
+    |}
+    |
+    |message Track {
+    |  string id = 1;
+    |  repeated Pt pts = 2;
+    |  map<string, sint64> tags = 3;
+    |  optional float score = 4 [deprecated = true];
+    |  repeated int32 hops = 5 [packed = false];
+    |  oneof extra {
+    |    string note = 10;
+    |    Pt anchor = 11;
+    |    .alien.test.Mood mood = 12;
+    |  }
+    |  message Meta {
+    |    Mood mood = 1;
+    |    bytes blob = 2;
+    |  }
+    |  Meta meta = 20;
+    |  uint64 stamp = 21;
+    |  reserved 100 to max;
+    |  reserved "old_name";
+    |}
+    |
+    |service Tracker {
+    |  rpc Get (Pt) returns (Track);
+    |  rpc Watch (Pt) returns (stream Track) { option idempotency_level = NO_SIDE_EFFECTS; }
+    |}
+    |""".stripMargin
+
+  @Test
+  def protoParseTest(): Unit =
+    val sch = got(Proto.read(trackProto, "track.proto"))
+    val file = sch.files.head
+    T ~ file.pkg ==== "alien.test"
+    T ~ file.imports.map(_.path) ==== List("other.proto")
+    T ~ file.options.head.value ==== "com.example.suffix"
+    val mood = enmOf(sch, "alien.test.Mood")
+    T ~ mood.allowAlias ==== true
+    T ~ mood.values.map(v => (v.name, v.number)) ==== List(("MOOD_UNSPECIFIED", 0), ("HAPPY", 1), ("GLAD", 1), ("GRUMPY", 16))
+    T ~ mood.reserved.hasNumber(6) ==== true
+    T ~ mood.reserved.hasNumber(-2) ==== true
+    T ~ mood.reserved.hasName("SULLEN") ==== true
+    val track = msgOf(sch, "alien.test.Track")
+    T ~ fieldOf(track, "id").tpe     ==== Proto.PType.Prim(Proto.Scalar.Str)
+    T ~ fieldOf(track, "id").number  ==== 1
+    T ~ fieldOf(track, "pts").label  ==== Proto.Label.Rep
+    T ~ fieldOf(track, "pts").tpe    ==== Proto.PType.MsgT("alien.test.Pt")
+    T ~ fieldOf(track, "tags").tpe   ==== Proto.PType.MapOf(Proto.Scalar.Str, Proto.PType.Prim(Proto.Scalar.SInt64))
+    T ~ fieldOf(track, "score").label ==== Proto.Label.Opt
+    T ~ fieldOf(track, "score").optioned("deprecated", false) ==== true
+    T ~ fieldOf(track, "hops").optioned("packed", true)       ==== false
+    T ~ fieldOf(track, "note").oneof   ==== 0
+    T ~ fieldOf(track, "anchor").oneof ==== 0
+    T ~ fieldOf(track, "anchor").tpe   ==== Proto.PType.MsgT("alien.test.Pt")
+    T ~ fieldOf(track, "mood").tpe     ==== Proto.PType.EnumT("alien.test.Mood")
+    T ~ fieldOf(track, "meta").tpe     ==== Proto.PType.MsgT("alien.test.Track.Meta")
+    T ~ fieldOf(track, "stamp").tpe    ==== Proto.PType.Prim(Proto.Scalar.UInt64)
+    T ~ track.oneofs.map(_.name)       ==== List("extra")
+    T ~ track.reserved.hasNumber(100)  ==== true
+    T ~ track.reserved.hasNumber(536870911) ==== true
+    T ~ track.reserved.hasName("old_name")  ==== true
+    // Meta.mood resolves outward: alien.test.Track.Meta -> alien.test.Track -> alien.test
+    val meta = msgOf(sch, "alien.test.Track.Meta")
+    T ~ fieldOf(meta, "mood").tpe ==== Proto.PType.EnumT("alien.test.Mood")
+    val svc = file.services.head
+    T ~ svc.name ==== "Tracker"
+    T ~ svc.rpcs.map(_.name) ==== List("Get", "Watch")
+    T ~ svc.rpcs(0).in  ==== Proto.PType.MsgT("alien.test.Pt")
+    T ~ svc.rpcs(0).outStream ==== false
+    T ~ svc.rpcs(1).outStream ==== true
+    T ~ svc.rpcs(1).out ==== Proto.PType.MsgT("alien.test.Track")
+
+  @Test
+  def protoResolveTest(): Unit =
+    // protoc semantics: the innermost scope owning the FIRST component wins outright;
+    // if the rest does not resolve there, that is an error, not a cue to look further out.
+    val shadowed = """syntax = "proto3";
+      |package a.b;
+      |message M { message N { } }
+      |message P {
+      |  message M { }
+      |  M.N x = 1;
+      |}
+      |""".stripMargin
+    T ~ errText(Proto.read(shadowed, "shadow.proto")).contains("is not a type") ==== true
+    // ...but the absolute reference threads past the shadow
+    val absolute = shadowed.replace("M.N x = 1;", ".a.b.M.N x = 1;")
+    val sch = got(Proto.read(absolute, "shadow.proto"))
+    T ~ fieldOf(msgOf(sch, "a.b.P"), "x").tpe ==== Proto.PType.MsgT("a.b.M.N")
+    // dotted reference from the file root
+    val rooted = """syntax = "proto3";
+      |message Outer { message Inner { } }
+      |message Q { Outer.Inner f = 1; }
+      |""".stripMargin
+    T ~ fieldOf(msgOf(got(Proto.read(rooted)), "Q"), "f").tpe ==== Proto.PType.MsgT("Outer.Inner")
+    // cross-file, cross-package resolution through read(Seq(...))
+    val fa = ("a.proto", """syntax = "proto3"; package base; message Shared { int32 v = 1; }""")
+    val fb = ("b.proto", """syntax = "proto3"; package app; import "a.proto"; message Use { base.Shared s = 1; }""")
+    val sch2 = got(Proto.read(List(fa, fb)))
+    T ~ fieldOf(msgOf(sch2, "app.Use"), "s").tpe ==== Proto.PType.MsgT("base.Shared")
+    // unresolved types name themselves and where the search stood
+    T ~ errText(Proto.read("""syntax = "proto3"; message W { Missing x = 1; }""")).contains("'Missing' is not defined") ==== true
+    // colliding declarations across files of one package fail loudly at link
+    val dup = List(
+      ("one.proto", """syntax = "proto3"; package p; message Twin { }"""),
+      ("two.proto", """syntax = "proto3"; package p; message Twin { }""")
+    )
+    T ~ errText(Proto.read(dup)).contains("already declared") ==== true
+
+  @Test
+  def protoRefusalTest(): Unit =
+    def refuses(proto: String, key: String): Unit =
+      val e = errText(Proto.read(proto, "t.proto"))
+      T ~ e.contains(key) ==== true
+    refuses("""syntax = "proto2"; message M { }""", "proto3 only")
+    refuses("""message M { }""", "proto2")
+    refuses("""edition = "2023"; message M { }""", "proto3 only")
+    refuses("""syntax = "proto3"; message M { required int32 x = 1; }""", "proto2")
+    refuses("""syntax = "proto3"; message M { group G = 1 { } }""", "proto2")
+    refuses("""syntax = "proto3"; message M { extensions 100 to 200; }""", "proto2")
+    refuses("""syntax = "proto3"; extend M { }""", "proto2")
+    refuses("""syntax = "proto3"; message M { int32 x = 19500; }""", "reserved by protobuf")
+    refuses("""syntax = "proto3"; message M { int32 x = 1; int64 y = 1; }""", "already used")
+    refuses("""syntax = "proto3"; message M { int32 x = 1; int64 x = 2; }""", "already used")
+    refuses("""syntax = "proto3"; message M { reserved 3; int32 x = 3; }""", "is reserved")
+    refuses("""syntax = "proto3"; message M { reserved "x"; int32 x = 1; }""", "is reserved")
+    refuses("""syntax = "proto3"; enum E { FIRST = 1; }""", "must be 0")
+    refuses("""syntax = "proto3"; enum E { A = 0; B = 0; }""", "allow_alias")
+    refuses("""syntax = "proto3"; message M { map<float, int32> m = 1; }""", "map key")
+    refuses("""syntax = "proto3"; message M { oneof o { repeated int32 x = 1; } }""", "cannot be repeated")
+    refuses("""syntax = "proto3"; message M { oneof o { map<string, int32> m = 1; } }""", "cannot be a map")
+    refuses("""syntax = "proto3"; message M { int32 x = 0; }""", "out of range")
+    refuses("""syntax = "proto3"; service S { rpc R (E) returns (E); } enum E { A = 0; }""", "must be messages")
+    // and the failure position is named file:line:col
+    T ~ errText(Proto.read("syntax = \"proto3\";\nmessage M {\n  int32 x = 0;\n}", "pos.proto")).contains("pos.proto:3:") ==== true
 }
