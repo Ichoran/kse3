@@ -87,7 +87,7 @@ final case class Track(
     hops.use()(v => o.int32Always(5, v))
     extra match
       case Track.Extra.Note(v) => o.stringAlways(10, v)
-      case Track.Extra.Anchor(v) => val b = Pb.Out(); v.writeTo(b); o.msg(11, b)
+      case Track.Extra.Anchor(v) => { val b = Pb.Out(); v.writeTo(b); o.msg(11, b) }
       case Track.Extra.MoodArm(v) => o.int32Always(12, v.number)
       case Track.Extra.Unset => ()
     meta.fold{ v => val b = Pb.Out(); v.writeTo(b); o.msg(20, b) }(_ => ())

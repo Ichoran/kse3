@@ -143,6 +143,17 @@ object PbGen {
 
     private def blank(): Unit = sb.append('\n') __ Unit
 
+    /** One `case` arm on a single line.  A body of more than one statement is
+      * BRACED: a `;`-separated run after `=>` inside a significant-indentation
+      * `match` has not been parsed as separate statements by every Scala 3
+      * release, and generated code is the last place that should be finding out
+      * which ones.  Every single-line arm goes through here so the rule cannot
+      * be forgotten the next time an arm grows a second statement.
+      */
+    private def caseLine(indent: Int, pattern: String, body: String*): Unit =
+      if body.length == 1 then line(indent, s"case $pattern => ${body.head}")
+      else line(indent, s"case $pattern => { ${body.mkString("; ")} }")
+
     // --- names and references ---
 
     /** The Scala reference for a resolved type: its path within this package if it lives
@@ -369,9 +380,9 @@ object PbGen {
             oneofCases(m, oidx).foreach: (f, cname) =>
               f.tpe match
                 case Proto.PType.MsgT(fqn) if viewful(fqn) =>
-                  line(indent + 2, s"case $ot.$cname(v) => $ot.$cname(v.${ownedRefOf(fqn)})")
+                  caseLine(indent + 2, s"$ot.$cname(v)", s"$ot.$cname(v.${ownedRefOf(fqn)})")
                 case _ => ()
-            line(indent + 2, "case e => e")
+            caseLine(indent + 2, "e", "e")
         var sets = List.empty[String]
         m.fields.foreach: f =>
           val x = fieldScalaName(f)
@@ -478,13 +489,13 @@ object PbGen {
         val n = f.number
         f.tpe match
           case Proto.PType.Prim(s) =>
-            line(indent + 1, s"case $ot.$cname(v) => o.${verbOf(s)}Always($n, v)")
+            caseLine(indent + 1, s"$ot.$cname(v)", s"o.${verbOf(s)}Always($n, v)")
           case Proto.PType.EnumT(_) =>
-            line(indent + 1, s"case $ot.$cname(v) => o.int32Always($n, v.number)")
+            caseLine(indent + 1, s"$ot.$cname(v)", s"o.int32Always($n, v.number)")
           case Proto.PType.MsgT(_) =>
-            line(indent + 1, s"case $ot.$cname(v) => val b = Pb.Out(); v.writeTo(b); o.msg($n, b)")
+            caseLine(indent + 1, s"$ot.$cname(v)", "val b = Pb.Out()", "v.writeTo(b)", s"o.msg($n, b)")
           case _ => Pb.fail("internal: oneof member can only be scalar, enum, or message")
-      line(indent + 1, s"case $ot.Unset => ()")
+      caseLine(indent + 1, s"$ot.Unset", "()")
 
     // --- reader ---
 
@@ -515,8 +526,8 @@ object PbGen {
       if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = prior.${unknownNameOf(m)}.reverse")
       line(indent, "while in.next() do in.field match")
       m.fields.sortBy(_.number).foreach(f => readCase(m, myRef, f, indent + 1))
-      if config.retainUnknown then line(indent + 1, s"case _ => ${unknownNameOf(m)} = in.keep() :: ${unknownNameOf(m)}")
-      else line(indent + 1, "case _ => in.skip()")
+      if config.retainUnknown then caseLine(indent + 1, "_", s"${unknownNameOf(m)} = in.keep() :: ${unknownNameOf(m)}")
+      else caseLine(indent + 1, "_", "in.skip()")
       val args = ctorArgs(m).map(_._2).mkString(", ")
       line(indent, s"$myRef($args)")
 
@@ -527,8 +538,8 @@ object PbGen {
         val ot = s"$myRef.${oneofTypeName(m.oneofs(f.oneof))}"
         val cname = oneofCases(m, f.oneof).find(_._1.number == n).map(_._2).getOrElse(Pb.fail("internal: oneof case vanished"))
         f.tpe match
-          case Proto.PType.Prim(s)    => line(indent, s"case $n => $ov = $ot.$cname(in.${verbOf(s)}())")
-          case Proto.PType.EnumT(fqn) => line(indent, s"case $n => $ov = $ot.$cname(${refOf(fqn)}(in.int32()))")
+          case Proto.PType.Prim(s)    => caseLine(indent, s"$n", s"$ov = $ot.$cname(in.${verbOf(s)}())")
+          case Proto.PType.EnumT(fqn) => caseLine(indent, s"$n", s"$ov = $ot.$cname(${refOf(fqn)}(in.int32()))")
           case Proto.PType.MsgT(fqn)  =>
             // a repeated same-arm occurrence merges into the arm's message, per spec
             line(indent, s"case $n =>")
@@ -537,21 +548,21 @@ object PbGen {
           case _ => Pb.fail("internal: oneof member can only be scalar, enum, or message")
       else
         val x = fieldScalaName(f)
-        if isView(m, f) then line(indent, s"case $n => $x = ${viewReadCall(m, f, x)}")
+        if isView(m, f) then caseLine(indent, s"$n", s"$x = ${viewReadCall(m, f, x)}")
         else f.tpe match
           case Proto.PType.Prim(s) => f.label match
-            case Proto.Label.Singular => line(indent, s"case $n => $x = in.${verbOf(s)}()")
-            case Proto.Label.Opt      => line(indent, s"case $n => $x = Is(in.${verbOf(s)}())")
+            case Proto.Label.Singular => caseLine(indent, s"$n", s"$x = in.${verbOf(s)}()")
+            case Proto.Label.Opt      => caseLine(indent, s"$n", s"$x = Is(in.${verbOf(s)}())")
             case Proto.Label.Rep =>
-              if packable(s) then line(indent, s"case $n => in.${accVerbOf(s)}($x)")
-              else line(indent, s"case $n => $x += in.${verbOf(s)}()")
+              if packable(s) then caseLine(indent, s"$n", s"in.${accVerbOf(s)}($x)")
+              else caseLine(indent, s"$n", s"$x += in.${verbOf(s)}()")
           case Proto.PType.MsgT(fqn) => f.label match
-            case Proto.Label.Rep => line(indent, s"case $n => $x += ${refOf(fqn)}.readFrom(in.sub())")
-            case _               => line(indent, s"case $n => $x = Is(${refOf(fqn)}.readFrom(in.sub(), $x.getOrElse(_ => ${refOf(fqn)}.default)))")
+            case Proto.Label.Rep => caseLine(indent, s"$n", s"$x += ${refOf(fqn)}.readFrom(in.sub())")
+            case _               => caseLine(indent, s"$n", s"$x = Is(${refOf(fqn)}.readFrom(in.sub(), $x.getOrElse(_ => ${refOf(fqn)}.default)))")
           case Proto.PType.EnumT(fqn) => f.label match
-            case Proto.Label.Singular => line(indent, s"case $n => $x = ${refOf(fqn)}(in.int32())")
-            case Proto.Label.Opt      => line(indent, s"case $n => $x = Is(${refOf(fqn)}(in.int32()))")
-            case Proto.Label.Rep      => line(indent, s"case $n => in.int32s($x)")
+            case Proto.Label.Singular => caseLine(indent, s"$n", s"$x = ${refOf(fqn)}(in.int32())")
+            case Proto.Label.Opt      => caseLine(indent, s"$n", s"$x = Is(${refOf(fqn)}(in.int32()))")
+            case Proto.Label.Rep      => caseLine(indent, s"$n", s"in.int32s($x)")
           case Proto.PType.MapOf(k, v) =>
             line(indent, s"case $n =>")
             line(indent + 1, "val e = in.sub()")
@@ -562,13 +573,13 @@ object PbGen {
               case Proto.PType.MsgT(fqn)  => line(indent + 1, s"var mv: ${refOf(fqn)} = ${refOf(fqn)}.default")
               case _ => Pb.fail("internal: map value cannot be a map")
             line(indent + 1, "while e.next() do e.field match")
-            line(indent + 2, s"case 1 => mk = e.${verbOf(k)}()")
+            caseLine(indent + 2, "1", s"mk = e.${verbOf(k)}()")
             v match
-              case Proto.PType.Prim(s)    => line(indent + 2, s"case 2 => mv = e.${verbOf(s)}()")
-              case Proto.PType.EnumT(fqn) => line(indent + 2, s"case 2 => mv = ${refOf(fqn)}(e.int32())")
-              case Proto.PType.MsgT(fqn)  => line(indent + 2, s"case 2 => mv = ${refOf(fqn)}.readFrom(e.sub(), mv)")
+              case Proto.PType.Prim(s)    => caseLine(indent + 2, "2", s"mv = e.${verbOf(s)}()")
+              case Proto.PType.EnumT(fqn) => caseLine(indent + 2, "2", s"mv = ${refOf(fqn)}(e.int32())")
+              case Proto.PType.MsgT(fqn)  => caseLine(indent + 2, "2", s"mv = ${refOf(fqn)}.readFrom(e.sub(), mv)")
               case _ => ()
-            line(indent + 2, "case _ => e.skip()")
+            caseLine(indent + 2, "_", "e.skip()")
             line(indent + 1, s"$x = $x + (mk -> mv)")
           case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
 
@@ -662,8 +673,8 @@ object PbGen {
       e.values.foreach: v =>
         if !seen(v.number) then
           seen = seen + v.number
-          line(indent + 3, s"case ${v.number} => \"${v.name}\"")
-      line(indent + 3, s"case n => s\"<unknown ${e.name} $$n>\"")
+          caseLine(indent + 3, s"${v.number}", s"\"${v.name}\"")
+      caseLine(indent + 3, "n", s"s\"<unknown ${e.name} $$n>\"")
       line(indent + 1, "}")
       line(indent, "}")
       blank()
