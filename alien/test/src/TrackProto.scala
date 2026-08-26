@@ -67,10 +67,9 @@ final case class Track(
     o.string(1, id)
     pts.use()(v => o.msg(2, v))
     tags.foreach: (mk, mv) =>
-      val b = Pb.Out()
-      b.string(1, mk)
-      b.sint64(2, mv)
-      o.msg(3, b)
+      o.msgHeader(3, Pb.sizeString(1, mk) + Pb.sizeSInt64(2, mv))
+      o.string(1, mk)
+      o.sint64(2, mv)
     o.float(4, score)
     hops.use()(v => o.int32Always(5, v))
     extra match

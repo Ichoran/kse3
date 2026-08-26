@@ -220,6 +220,17 @@ object PbGen {
       case Proto.Scalar.Bool => Is("Pb.OptBool")
       case _ => Alt.unit
 
+    /** The `Pb.size*` helper mirroring each wire verb, for staging-free map entries. */
+    private def sizeVerbOf(s: Proto.Scalar): String = s match
+      case Proto.Scalar.Int32 => "sizeInt32";       case Proto.Scalar.Int64 => "sizeInt64"
+      case Proto.Scalar.UInt32 => "sizeUInt32";     case Proto.Scalar.UInt64 => "sizeUInt64"
+      case Proto.Scalar.SInt32 => "sizeSInt32";     case Proto.Scalar.SInt64 => "sizeSInt64"
+      case Proto.Scalar.Fixed32 => "sizeFixed32";   case Proto.Scalar.Fixed64 => "sizeFixed64"
+      case Proto.Scalar.SFixed32 => "sizeSFixed32"; case Proto.Scalar.SFixed64 => "sizeSFixed64"
+      case Proto.Scalar.Flt => "sizeFloat";         case Proto.Scalar.Dbl => "sizeDouble"
+      case Proto.Scalar.Bool => "sizeBool";         case Proto.Scalar.Str => "sizeString"
+      case Proto.Scalar.Bytes => "sizeBytes"
+
     /** Element type for repeated scalars (bit patterns for the unsigned pair). */
     private def repElemType(s: Proto.Scalar): String = s match
       case Proto.Scalar.UInt32 | Proto.Scalar.Fixed32 => "Int"
@@ -479,15 +490,19 @@ object PbGen {
             if f.optioned("packed", true) then line(indent, s"o.packedInt32($n, $x)")
             else line(indent, s"$x.use()(v => o.int32Always($n, v))")
         case Proto.PType.MapOf(k, v) =>
-          line(indent, s"$x.foreach: (mk, mv) =>")
-          line(indent + 1, s"val b = Pb.Out()")
-          line(indent + 1, s"b.${verbOf(k)}(1, mk)")
-          v match
-            case Proto.PType.Prim(s)   => line(indent + 1, s"b.${verbOf(s)}(2, mv)")
-            case Proto.PType.EnumT(_)  => line(indent + 1, s"b.int32(2, mv.number)")
-            case Proto.PType.MsgT(_)   => line(indent + 1, s"b.msg(2, mv)")
+          val vsize = v match
+            case Proto.PType.Prim(s)   => s"Pb.${sizeVerbOf(s)}(2, mv)"
+            case Proto.PType.EnumT(_)  => "Pb.sizeInt32(2, mv.number)"
+            case Proto.PType.MsgT(_)   => "Pb.sizeMsg(2, mv)"
             case _ => Pb.fail("internal: map value cannot be a map")
-          line(indent + 1, s"o.msg($n, b)")
+          line(indent, s"$x.foreach: (mk, mv) =>")
+          line(indent + 1, s"o.msgHeader($n, Pb.${sizeVerbOf(k)}(1, mk) + $vsize)")
+          line(indent + 1, s"o.${verbOf(k)}(1, mk)")
+          v match
+            case Proto.PType.Prim(s)   => line(indent + 1, s"o.${verbOf(s)}(2, mv)")
+            case Proto.PType.EnumT(_)  => line(indent + 1, s"o.int32(2, mv.number)")
+            case Proto.PType.MsgT(_)   => line(indent + 1, s"o.msg(2, mv)")
+            case _ => ()
         case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
 
     private def writeOneof(m: Proto.Message, myRef: String, oidx: Int, indent: Int): Unit =

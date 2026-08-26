@@ -124,6 +124,63 @@ object Pb {
       else ok = false
     ok
 
+  //////////////////////////////
+  /// Wire-size arithmetic   ///
+  //////////////////////////////
+
+  /** Encoded length of a varint, 1 to 10 bytes. */
+  def varintSize(v: Long): Int =
+    if v == 0L then 1 else (70 - java.lang.Long.numberOfLeadingZeros(v)) / 7
+
+  /** Encoded length of a field tag.  The wire-type bits live below the lowest varint
+    * group boundary a shifted field number can sit on, so they never change the size.
+    */
+  def tagSize(field: Int): Int = varintSize(field.toLong << 3)
+
+  /** The byte length `String.getBytes(UTF_8)` will produce, without producing it.
+    * Unpaired surrogates count 1, matching the encoder's `?` replacement.
+    */
+  def utf8Size(s: String): Int =
+    var n = 0
+    var k = 0
+    while k < s.length do
+      val c = s.charAt(k)
+      if c < 0x80 then n += 1
+      else if c < 0x800 then n += 2
+      else if java.lang.Character.isHighSurrogate(c) && k + 1 < s.length && java.lang.Character.isLowSurrogate(s.charAt(k + 1)) then
+        n += 4
+        k += 1
+      else if java.lang.Character.isSurrogate(c) then n += 1
+      else n += 3
+      k += 1
+    n
+
+  // Encoded length of one field, each mirroring its same-named `Out` verb exactly --
+  // including writing nothing at the proto3 default.  Generated map entries add these up
+  // so the entry header can be written before the entry, with no staging buffer.
+
+  def sizeInt32(field: Int, v: Int): Int = if v == 0 then 0 else tagSize(field) + varintSize(v.toLong)
+  def sizeInt64(field: Int, v: Long): Int = if v == 0L then 0 else tagSize(field) + varintSize(v)
+  def sizeUInt32(field: Int, v: UInt): Int = if v.signed == 0 then 0 else tagSize(field) + varintSize(v.signed & 0xFFFFFFFFL)
+  def sizeUInt64(field: Int, v: ULong): Int = if v.signed == 0L then 0 else tagSize(field) + varintSize(v.signed)
+  def sizeSInt32(field: Int, v: Int): Int = if v == 0 then 0 else tagSize(field) + varintSize(((v << 1) ^ (v >> 31)).toLong & 0xFFFFFFFFL)
+  def sizeSInt64(field: Int, v: Long): Int = if v == 0L then 0 else tagSize(field) + varintSize((v << 1) ^ (v >> 63))
+  def sizeBool(field: Int, v: Boolean): Int = if v then tagSize(field) + 1 else 0
+  def sizeFixed32(field: Int, v: UInt): Int = if v.signed == 0 then 0 else tagSize(field) + 4
+  def sizeSFixed32(field: Int, v: Int): Int = if v == 0 then 0 else tagSize(field) + 4
+  def sizeFloat(field: Int, v: Float): Int = if v.bitsI == 0 then 0 else tagSize(field) + 4
+  def sizeFixed64(field: Int, v: ULong): Int = if v.signed == 0L then 0 else tagSize(field) + 8
+  def sizeSFixed64(field: Int, v: Long): Int = if v == 0L then 0 else tagSize(field) + 8
+  def sizeDouble(field: Int, v: Double): Int = if v.bitsL == 0L then 0 else tagSize(field) + 8
+  def sizeString(field: Int, s: String): Int =
+    if s.isEmpty then 0 else { val u = utf8Size(s); tagSize(field) + varintSize(u.toLong) + u }
+  def sizeBytes(field: Int, bs: Array[Byte]): Int =
+    if bs.length == 0 then 0 else tagSize(field) + varintSize(bs.length.toLong) + bs.length
+  def sizeMsg(field: Int, w: Writable): Int =
+    val u = w.sizeOf
+    tagSize(field) + varintSize(u.toLong) + u
+
+
   /** Copy a view into fresh heap-backed storage, severing any tie to a decode buffer. */
   def ownedBytes(m: Mem[Byte]): Mem[Byte] =
     val a = new Array[Byte](m.length.toInt)
@@ -279,16 +336,37 @@ object Pb {
   /// Generated-code runtime ///
   //////////////////////////////
 
-  /** What a generated message does on its own behalf: write itself to an `Out`.  The
-    * length-prefixed nested form lives on `Out.msg`, so the buffer-per-submessage policy
-    * is one method here rather than a pattern stamped into every generated file.
+  /** What a generated message does on its own behalf: write itself to an `Out`, and know
+    * how many bytes that takes.  `Out.msg` uses `sizeOf` for the length prefix and then
+    * writes the body straight into the enclosing sink, so nesting never stages a buffer.
     */
   trait Writable {
+    private var sizeMemo: Int = -1
+
     def writeTo(o: Out): Unit
+
+    /** The serialized byte length of this message's body, memoized on first use (a benign
+      * write-once race).  The count is taken by running `writeTo` against a counting sink,
+      * so it cannot disagree with what is actually written -- provided the message is not
+      * mutated through a held `Array` afterward, which the do-not-mutate-after-handoff
+      * convention already forbids.
+      */
+    final def sizeOf: Int =
+      var z = sizeMemo
+      if z < 0 then
+        val counter = new SizeOut
+        writeTo(counter)
+        if counter.total > Int.MaxValue then fail(s"message of ${counter.total} bytes exceeds the 2 GB protobuf limit")
+        z = counter.total.toInt
+        sizeMemo = z
+      z
+
+    /** Encode into an array of exactly the right size -- one allocation, no trailing copy. */
     final def toBytes: Array[Byte] =
-      val o = Out()
+      val k = sizeOf
+      val o = new ArrOut(k)
       writeTo(o)
-      o.result
+      if o.length == k && o.buffer.length == k then o.buffer else o.result
   }
 
   /** What a generated companion does on the message's behalf: fresh and merging reads, and
@@ -414,14 +492,25 @@ object Pb {
       varint(m.length)
       rawBytes(m.buffer, 0, m.length)
 
-    /** Embed a nested message, letting it write itself through its own buffer. */
+    /** Embed a nested message in one pass: its memoized `sizeOf` supplies the length
+      * prefix and the body writes straight into this sink -- no staging buffer at any
+      * nesting depth.
+      */
     def msg(field: Int, w: Writable): Unit =
-      val b = Out()
-      w.writeTo(b)
-      msg(field, b)
+      tag(field, WLen)
+      varint(w.sizeOf.toLong)
+      w.writeTo(this)
 
     /** Embed an optional nested message; absent writes nothing. */
     def msg(field: Int, w: Writable Or Unit): Unit = w.fold(v => msg(field, v))(_ => ())
+
+    /** The tag-and-length header for an embedded message whose body -- exactly `size`
+      * bytes, typically summed with the `Pb.size*` family -- the caller writes next,
+      * straight into this sink.  This is how generated map entries avoid staging.
+      */
+    def msgHeader(field: Int, size: Int): Unit =
+      tag(field, WLen)
+      varint(size.toLong)
 
     // Boxless optional-scalar emitters: absent writes nothing, present always writes,
     // zero included -- explicit presence is the whole point of `optional` in proto3.
@@ -473,47 +562,54 @@ object Pb {
     def unknowns(us: List[Unknown]): Unit = us.foreach(u => unknown(u.field, u.wire, u.data))
 
     // --- packed repeated (proto3 default for numeric scalars; nothing emitted when empty) ---
-
-    private def packedTail(field: Int, body: ArrOut): Unit =
-      tag(field, WLen)
-      varint(body.length)
-      rawBytes(body.buffer, 0, body.length)
+    // Varint payloads sum their sizes in a first pass so the length prefix can lead --
+    // two walks over the array, zero staging.
 
     def packedInt32(field: Int, vs: Array[Int]): Unit =
       if vs.length > 0 then
-        val body = new ArrOut
-        vs.use()(v => body.varint(v.toLong))
-        packedTail(field, body)
+        var sz = 0L
+        vs.use()(v => sz += varintSize(v.toLong))
+        tag(field, WLen)
+        varint(sz)
+        vs.use()(v => varint(v.toLong))
 
     def packedInt64(field: Int, vs: Array[Long]): Unit =
       if vs.length > 0 then
-        val body = new ArrOut
-        vs.use()(v => body.varint(v))
-        packedTail(field, body)
+        var sz = 0L
+        vs.use()(v => sz += varintSize(v))
+        tag(field, WLen)
+        varint(sz)
+        vs.use()(v => varint(v))
 
     /** Repeated uint32 travels as an `Array[Int]` of bit patterns (no `ClassTag[UInt]` exists
       * outside kse.maths); each element is zero-extended here.
       */
     def packedUInt32(field: Int, vs: Array[Int]): Unit =
       if vs.length > 0 then
-        val body = new ArrOut
-        vs.use()(v => body.varint(v.toLong & 0xFFFFFFFFL))
-        packedTail(field, body)
+        var sz = 0L
+        vs.use()(v => sz += varintSize(v.toLong & 0xFFFFFFFFL))
+        tag(field, WLen)
+        varint(sz)
+        vs.use()(v => varint(v.toLong & 0xFFFFFFFFL))
 
     /** Repeated uint64 as an `Array[Long]` of bit patterns; the encoding is number-identical. */
     def packedUInt64(field: Int, vs: Array[Long]): Unit = packedInt64(field, vs)
 
     def packedSInt32(field: Int, vs: Array[Int]): Unit =
       if vs.length > 0 then
-        val body = new ArrOut
-        vs.use()(v => body.varint(((v << 1) ^ (v >> 31)).toLong & 0xFFFFFFFFL))
-        packedTail(field, body)
+        var sz = 0L
+        vs.use()(v => sz += varintSize(((v << 1) ^ (v >> 31)).toLong & 0xFFFFFFFFL))
+        tag(field, WLen)
+        varint(sz)
+        vs.use()(v => varint(((v << 1) ^ (v >> 31)).toLong & 0xFFFFFFFFL))
 
     def packedSInt64(field: Int, vs: Array[Long]): Unit =
       if vs.length > 0 then
-        val body = new ArrOut
-        vs.use()(v => body.varint((v << 1) ^ (v >> 63)))
-        packedTail(field, body)
+        var sz = 0L
+        vs.use()(v => sz += varintSize((v << 1) ^ (v >> 63)))
+        tag(field, WLen)
+        varint(sz)
+        vs.use()(v => varint((v << 1) ^ (v >> 63)))
 
     def packedBool(field: Int, vs: Array[Boolean]): Unit =
       if vs.length > 0 then
@@ -575,8 +671,11 @@ object Pb {
   }
 
   object Out {
-    /** A growable array-backed sink — the substrate for nested messages and general traffic. */
-    def apply(): ArrOut = new ArrOut
+    /** A growable array-backed sink — the general-traffic substrate. */
+    def apply(): ArrOut = new ArrOut(64)
+
+    /** An array-backed sink pre-sized for a known encoding, e.g. from `sizeOf`. */
+    def apply(capacity: Int): ArrOut = new ArrOut(capacity)
 
     /** A sink over a span of memory, e.g. a shared-memory slot; halts if the encoding outgrows it. */
     def into(m: Mem[Byte], i0: Long, iN: Long): MemOut = new MemOut(m, i0, iN)
@@ -586,8 +685,8 @@ object Pb {
   /** Growable array-backed `Out`.  `result` copies, so the buffer may keep growing after;
     * `clear()` permits reuse.
     */
-  final class ArrOut private[alien] () extends Out {
-    private var buf = new Array[Byte](64)
+  final class ArrOut private[alien] (capacity: Int) extends Out {
+    private var buf = new Array[Byte](jm.max(capacity, 1))
     private var n = 0
 
     private def ensure(k: Int): Unit =
@@ -690,6 +789,36 @@ object Pb {
 
     /** Bytes written so far. */
     def written: Long = i - i0
+  }
+
+  /** An `Out` that only counts: run a `writeTo` against it and `total` is the byte length
+    * the same code will produce for real.  Sizing and writing thus share one code path and
+    * cannot disagree.  Nested messages contribute their memoized `sizeOf` instead of being
+    * walked again, and strings are measured without materializing their bytes.
+    */
+  final class SizeOut private[alien] () extends Out {
+    private var n = 0L
+
+    def total: Long = n
+
+    def varint(v: Long): Unit = n += varintSize(v)
+    protected def rawByte(v: Int): Unit = n += 1
+    protected def raw32(v: Int): Unit = n += 4
+    protected def raw64(v: Long): Unit = n += 8
+    protected def rawBytes(bs: Array[Byte], off: Int, len: Int): Unit = n += len
+    protected def rawMem(src: MemorySegment, srcOff: Long, len: Long): Unit = n += len
+
+    override def msg(field: Int, w: Writable): Unit =
+      tag(field, WLen)
+      val z = w.sizeOf
+      varint(z.toLong)
+      n += z
+
+    override def stringAlways(field: Int, s: String): Unit =
+      val u = utf8Size(s)
+      tag(field, WLen)
+      varint(u.toLong)
+      n += u
   }
 
 
