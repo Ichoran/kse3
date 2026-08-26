@@ -6,7 +6,7 @@ package kse.flow
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
-import scala.compiletime.{erasedValue, summonFrom}
+import scala.compiletime.erasedValue
 import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
 import scala.util.boundary
@@ -132,35 +132,37 @@ extension[Y](alt: Alt[Y]) {
   */
 type Is[+X] = kse.flow.IsJust[X] | IsBox[X]
 object Is {
-  /** Extracts the value stored in this `Is`, if we are sure that the type is `Is`. */
+  /** Extracts the value stored in this `Is`, if we are sure that the type is `Is`.
+    *
+    * The stored value is behind an `IsBox` exactly when it is itself an `Alt` or an `IsBox`,
+    * so the box is checked for at runtime unless the type of `X` proves it cannot be there.
+    */
   inline def unwrap[X](is: Is[X]): X = inline erasedValue[X] match
     case _: Null => is.asInstanceOf[X]
     case _: Alt[?] => is.asInstanceOf[IsBox[X]].get
     case _: IsBox[?] => is.asInstanceOf[IsBox[X]].get
-    case _ => summonFrom {
-      case _: (IsBox[?] <:< X) => (is: Any) match
-        case _: BoxedOr[?] => is.asInstanceOf[IsBox[X]].get
-        case _ => is.asInstanceOf[X]
-      case _: (Alt[?] <:< X) => (is: Any) match
-        case _: BoxedOr[?] => is.asInstanceOf[IsBox[X]].get
-        case _ => is.asInstanceOf[X]
-      case _ => is.asInstanceOf[X]
-    }
+    case _ =>
+      inline if flowMacroImpl.canBeInstanceOf[Alt[Any], X] || flowMacroImpl.canBeInstanceOf[IsBox[Any], X] then
+        (is: Any) match
+          case _: BoxedOr[?] => is.asInstanceOf[IsBox[X]].get
+          case _ => is.asInstanceOf[X]
+      else is.asInstanceOf[X]
 
-  /** Wraps a value into an `Is` (by doing nothing unless it's wrapping some other boxed `Or`) */
+  /** Wraps a value into an `Is` (by doing nothing unless the value is an `Alt` or an `IsBox`,
+    * which must go into an `IsBox` so they cannot be mistaken for a disfavored branch or for
+    * a different depth of nesting).  The box check happens at runtime unless the type of `X`
+    * proves it unnecessary.
+    */
   inline def apply[X](x: X): Is[X] = inline erasedValue[X] match
     case _: Null => x.asInstanceOf[kse.flow.IsJust[X]]
     case _: Alt[?] => new IsBox(x)
     case _: IsBox[?] => new IsBox(x)
-    case _ => summonFrom {
-      case _: (IsBox[?] <:< X) => (x: Any) match
-        case _: BoxedOr[?] => new IsBox(x)
-        case _ => x
-      case _: (Alt[?] <:< X) => (x: Any) match
-        case w: BoxedOr[?] => new IsBox(x)
-        case _ => x.asInstanceOf[kse.flow.IsJust[X]]
-      case _ => x.asInstanceOf[kse.flow.IsJust[X]]
-    }
+    case _ =>
+      inline if flowMacroImpl.canBeInstanceOf[Alt[Any], X] || flowMacroImpl.canBeInstanceOf[IsBox[Any], X] then
+        (x: Any) match
+          case _: BoxedOr[?] => new IsBox(x)
+          case _ => x.asInstanceOf[kse.flow.IsJust[X]]
+      else x.asInstanceOf[kse.flow.IsJust[X]]
 
   /** Wraps a value into an `Is`.  `Is wrap x` is equivalent to `Is(x)`. */
   inline def wrap[X](x: X): Is[X] = apply(x)

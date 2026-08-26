@@ -352,6 +352,62 @@ class FlowTest {
 
 
   @Test
+  def orGenericRepresentationTest(): Unit =
+    // Non-inline generic context: the compiler cannot see whether A hides a boxed Or,
+    // so construction and unwrapping must check the value at runtime.
+    def wrapB[A](a: A): A Or Boolean = Is(a)
+    def wrapS[A](a: A): A Or String = Is(a)
+    def wrapC[A](a: A): A Or Char = Is(a)
+    def getB[A](o: A Or Boolean): A = o.get
+    def wrapCS[A <: CharSequence](a: A): A Or Int = Is(a)
+    def wrapN[A >: Null](a: A): A Or Int = Is(a)
+
+    val inner: Int Or String = Alt("cod")
+
+    T ~ wrapB(inner)         ==== Is(inner) --: typed[(Int Or String) Or Boolean]
+    T ~ wrapB(inner).isBoxed ==== true
+    T ~ wrapB(inner).isIs    ==== true
+    T ~ wrapB(inner).get     ==== inner
+    T ~ wrapB(inner).fold(_ == inner)(_ => false) ==== true
+    T ~ wrapS(inner)         ==== Is(inner) --: typed[(Int Or String) Or String]
+    T ~ wrapS(inner).fold(_ == inner)(_ => false) ==== true
+
+    T ~ wrapB("eel")         ==== "eel"     --: typed[String Or Boolean]
+    T ~ wrapB("eel").isBoxed ==== false
+    T ~ wrapB(5)             ==== 5         --: typed[Int Or Boolean]
+    T ~ wrapB(5).isBoxed     ==== false
+
+    // Generic unwrap of a box added at a concrete site
+    val nested: (Int Or String) Or Boolean = Is(inner)
+    T ~ getB(nested)       ==== inner
+    T ~ getB(nested).isAlt ==== true
+
+    // Triple nesting built entirely through generic calls
+    val d2 = wrapC(inner)
+    val d3 = wrapB(d2)
+    T ~ d3.isBoxed     ==== true
+    T ~ d3.get         ==== d2   --: typed[(Int Or String) Or Char]
+    T ~ d3.get.get     ==== inner
+    T ~ d3.get.get.alt ==== "cod"
+
+    // Boxes circulating as ordinary data
+    val altData: Alt[Int] = Alt(5)
+    T ~ wrapB(altData)     ==== Is(altData) --: typed[Alt[Int] Or Boolean]
+    T ~ wrapB(altData).get ==== altData
+    val anyBox: Any = Alt(5)
+    T ~ wrapB(anyBox).isBoxed ==== true
+    T ~ (wrapB(anyBox).get.asInstanceOf[AnyRef] eq anyBox.asInstanceOf[AnyRef]) ==== true
+
+    // An upper bound that excludes the boxes proves bare representation is safe
+    T ~ wrapCS("eel")         ==== "eel"
+    T ~ wrapCS("eel").isBoxed ==== false
+
+    // Null stays a bare favored value through a generic context
+    T ~ wrapN(null)      ==== null
+    T ~ wrapN(null).isIs ==== true
+
+
+  @Test
   def orAccessTest(): Unit =
     val valueProvider = new ProvideVariousOrValues()
     import valueProvider._
