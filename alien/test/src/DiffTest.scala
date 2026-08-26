@@ -24,6 +24,7 @@ class DiffTest {
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.maths.{given, _}
+  import kse.alien.Pb
   import kse.test.alien.track.{Mood, Pt, Track}
 
   given Asserter(
@@ -118,7 +119,7 @@ class DiffTest {
   private def kTrack(): Track = Track(
     id = "t1",
     pts = Array(Pt(1.5, -2.5), Pt(0.0, 3.0)),
-    score = Is(0.5f),
+    score = Pb.OptFloat(0.5f),
     hops = Array(3, -4, 5),
     extra = Track.Extra.Anchor(Pt(9.0, 9.0)),
     meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1, 2, 3))),
@@ -143,7 +144,7 @@ class DiffTest {
     T ~ u.id ==== "t1"
     T ~ u.pts.map(p => (p.x, p.y)).toList ==== List((1.5, -2.5), (0.0, 3.0))
     T ~ u.tags ==== Map("a" -> Long.MinValue)
-    T ~ u.score ==== Is(0.5f)
+    T ~ u.score ==== Pb.OptFloat(0.5f)
     T ~ u.hops.toList ==== List(3, -4, 5)
     T ~ u.extra ==== Track.Extra.Anchor(Pt(9.0, 9.0))
     T ~ u.meta.fold(m => (m.mood.number, m.blob.toList))(_ => (-1, Nil)) ==== (16, List[Byte](1, 2, 3))
@@ -171,7 +172,7 @@ class DiffTest {
   @Test
   def diffEdgeValuesTest(): Unit =
     // negative-zero float in an optional field: presence plus sign both survive the oracle
-    val negZero = Track(score = Is(-0.0f)).toBytes
+    val negZero = Track(score = Pb.OptFloat(-0.0f)).toBytes
     val m = DynamicMessage.parseFrom(trackD, negZero)
     T ~ m.hasField(trackD.findFieldByName("score")) ==== true
     T ~ java.lang.Float.floatToRawIntBits(m.getField(trackD.findFieldByName("score")).asInstanceOf[Float]) ==== 0x80000000

@@ -11,12 +11,15 @@ import kse.flow.{given, _}
 /** Generation of kse3-taste Scala bindings from a linked proto3 `Proto.Schema`.
   *
   * Each .proto file becomes one Scala source file.  The mapping is:
-  *   - message -> `final case class` with proto3 defaults, nested types in the companion,
-  *     `writeTo`/`toBytes` on the class and `readFrom`/`parse` (array and `Mem` forms,
-  *     `Ask`-valued) on the companion.
+  *   - message -> `final case class` extending `Pb.Writable` (which supplies `toBytes` atop
+  *     the generated `writeTo`), proto3 defaults, nested types in the companion; the
+  *     companion extends `Pb.Companion` (which supplies fresh `readFrom` and the `parse`
+  *     family, array and `Mem` forms, `Ask`-valued, atop the generated merging `readFrom`).
   *   - singular scalars -> `Int`/`Long`/`UInt`/`ULong`/`Float`/`Double`/`Boolean`/`String`/
-  *     `Array[Byte]`; message fields and `optional` scalars -> `T Or Unit` (`Alt.unit` when
-  *     absent); repeated -> plain `Array` (reference semantics, the kse3 way).
+  *     `Array[Byte]`; `optional` scalars narrower than eight bytes -> the boxless
+  *     `Pb.OptInt`/`OptUInt`/`OptFloat`/`OptBool` (`.unit` when absent); message fields and
+  *     the remaining `optional` types -> `T Or Unit` (`Alt.unit` when absent); repeated ->
+  *     plain `Array` (reference semantics, the kse3 way).
   *   - repeated `uint32`/`uint64` and repeated enums -> `Array[Int]`/`Array[Long]` of raw
   *     bit patterns / numbers, because no `ClassTag` exists for the opaque wrappers.
   *   - proto enum -> opaque type over `Int` with named constants, `number`, and `name` —
@@ -207,6 +210,16 @@ object PbGen {
       case Proto.Scalar.Bool => "bool";         case Proto.Scalar.Str => "string"
       case Proto.Scalar.Bytes => "bytes"
 
+    /** The boxless optional carrier for scalars narrower than eight bytes; the eight-byte
+      * scalars (and strings and bytes, which never box) fall through to `T Or Unit`.
+      */
+    private def optTypeOf(s: Proto.Scalar): String Or Unit = s match
+      case Proto.Scalar.Int32 | Proto.Scalar.SInt32 | Proto.Scalar.SFixed32 => Is("Pb.OptInt")
+      case Proto.Scalar.UInt32 | Proto.Scalar.Fixed32 => Is("Pb.OptUInt")
+      case Proto.Scalar.Flt => Is("Pb.OptFloat")
+      case Proto.Scalar.Bool => Is("Pb.OptBool")
+      case _ => Alt.unit
+
     /** Element type for repeated scalars (bit patterns for the unsigned pair). */
     private def repElemType(s: Proto.Scalar): String = s match
       case Proto.Scalar.UInt32 | Proto.Scalar.Fixed32 => "Int"
@@ -263,7 +276,7 @@ object PbGen {
     private def typeOfPlain(f: Proto.Field): String = f.tpe match
       case Proto.PType.Prim(s) =>
         if f.label == Proto.Label.Rep then s"Array[${repElemType(s)}]"
-        else if f.label == Proto.Label.Opt then s"${scalarType(s)} Or Unit"
+        else if f.label == Proto.Label.Opt then optTypeOf(s).getOrElse(_ => s"${scalarType(s)} Or Unit")
         else scalarType(s)
       case Proto.PType.MsgT(fqn) =>
         if f.label == Proto.Label.Rep then s"Array[${refOf(fqn)}]" else s"${refOf(fqn)} Or Unit"
@@ -286,7 +299,7 @@ object PbGen {
     private def defaultOfPlain(f: Proto.Field): String = f.tpe match
       case Proto.PType.Prim(s) =>
         if f.label == Proto.Label.Rep then s"Array.empty[${repElemType(s)}]"
-        else if f.label == Proto.Label.Opt then "Alt.unit"
+        else if f.label == Proto.Label.Opt then optTypeOf(s).fold(t => s"$t.unit")(_ => "Alt.unit")
         else scalarDefault(s)
       case Proto.PType.MsgT(fqn) =>
         if f.label == Proto.Label.Rep then s"Array.empty[${refOf(fqn)}]" else "Alt.unit"
@@ -449,18 +462,16 @@ object PbGen {
       else f.tpe match
         case Proto.PType.Prim(s) => f.label match
           case Proto.Label.Singular => line(indent, s"o.${verbOf(s)}($n, $x)")
-          case Proto.Label.Opt      => line(indent, s"$x.fold(v => o.${verbOf(s)}Always($n, v))(_ => ())")
+          case Proto.Label.Opt =>
+            // the boxless carriers have presence-aware Out overloads; the rest unwrap here
+            if optTypeOf(s).isIs then line(indent, s"o.${verbOf(s)}($n, $x)")
+            else line(indent, s"$x.fold(v => o.${verbOf(s)}Always($n, v))(_ => ())")
           case Proto.Label.Rep =>
             if packable(s) && f.optioned("packed", true) then line(indent, s"o.${packedVerbOf(s)}($n, $x)")
             else line(indent, s"$x.use()(v => ${repElemEmit(s, n, "v")})")
         case Proto.PType.MsgT(_) => f.label match
-          case Proto.Label.Rep =>
-            line(indent, s"$x.use(): v =>")
-            line(indent + 1, s"val b = Pb.Out()")
-            line(indent + 1, s"v.writeTo(b)")
-            line(indent + 1, s"o.msg($n, b)")
-          case _ =>
-            line(indent, s"$x.fold{ v => val b = Pb.Out(); v.writeTo(b); o.msg($n, b) }(_ => ())")
+          case Proto.Label.Rep => line(indent, s"$x.use()(v => o.msg($n, v))")
+          case _                => line(indent, s"o.msg($n, $x)")
         case Proto.PType.EnumT(_) => f.label match
           case Proto.Label.Singular => line(indent, s"o.int32($n, $x.number)")
           case Proto.Label.Opt      => line(indent, s"$x.fold(v => o.int32Always($n, v.number))(_ => ())")
@@ -474,10 +485,7 @@ object PbGen {
           v match
             case Proto.PType.Prim(s)   => line(indent + 1, s"b.${verbOf(s)}(2, mv)")
             case Proto.PType.EnumT(_)  => line(indent + 1, s"b.int32(2, mv.number)")
-            case Proto.PType.MsgT(_)   =>
-              line(indent + 1, s"val c = Pb.Out()")
-              line(indent + 1, s"mv.writeTo(c)")
-              line(indent + 1, s"b.msg(2, c)")
+            case Proto.PType.MsgT(_)   => line(indent + 1, s"b.msg(2, mv)")
             case _ => Pb.fail("internal: map value cannot be a map")
           line(indent + 1, s"o.msg($n, b)")
         case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
@@ -493,7 +501,7 @@ object PbGen {
           case Proto.PType.EnumT(_) =>
             caseLine(indent + 1, s"$ot.$cname(v)", s"o.int32Always($n, v.number)")
           case Proto.PType.MsgT(_) =>
-            caseLine(indent + 1, s"$ot.$cname(v)", "val b = Pb.Out()", "v.writeTo(b)", s"o.msg($n, b)")
+            caseLine(indent + 1, s"$ot.$cname(v)", s"o.msg($n, v)")
           case _ => Pb.fail("internal: oneof member can only be scalar, enum, or message")
       caseLine(indent + 1, s"$ot.Unset", "()")
 
@@ -513,14 +521,11 @@ object PbGen {
         else if isView(m, f) then line(indent, s"var $x: ${viewType(m, f)} = prior.$x")
         else f.tpe match
           case Proto.PType.Prim(s) if f.label == Proto.Label.Rep =>
-            line(indent, s"val $x = new ${accOf(s)}")
-            line(indent, s"$x ++= prior.$x")
-          case Proto.PType.MsgT(fqn) if f.label == Proto.Label.Rep =>
-            line(indent, s"val $x = new Pb.RefAcc[${refOf(fqn)}]")
-            line(indent, s"$x ++= prior.$x")
+            line(indent, s"val $x = ${accOf(s)}(prior.$x)")
+          case Proto.PType.MsgT(_) if f.label == Proto.Label.Rep =>
+            line(indent, s"val $x = Pb.RefAcc(prior.$x)")
           case Proto.PType.EnumT(_) if f.label == Proto.Label.Rep =>
-            line(indent, s"val $x = new Pb.IntAcc")
-            line(indent, s"$x ++= prior.$x")
+            line(indent, s"val $x = Pb.IntAcc(prior.$x)")
           case _ =>
             line(indent, s"var $x: ${typeOfPlain(f)} = prior.$x")
       if config.retainUnknown then line(indent, s"var ${unknownNameOf(m)} = prior.${unknownNameOf(m)}.reverse")
@@ -552,13 +557,15 @@ object PbGen {
         else f.tpe match
           case Proto.PType.Prim(s) => f.label match
             case Proto.Label.Singular => caseLine(indent, s"$n", s"$x = in.${verbOf(s)}()")
-            case Proto.Label.Opt      => caseLine(indent, s"$n", s"$x = Is(in.${verbOf(s)}())")
+            case Proto.Label.Opt =>
+              val wrap = optTypeOf(s).getOrElse(_ => "Is")
+              caseLine(indent, s"$n", s"$x = $wrap(in.${verbOf(s)}())")
             case Proto.Label.Rep =>
               if packable(s) then caseLine(indent, s"$n", s"in.${accVerbOf(s)}($x)")
               else caseLine(indent, s"$n", s"$x += in.${verbOf(s)}()")
           case Proto.PType.MsgT(fqn) => f.label match
             case Proto.Label.Rep => caseLine(indent, s"$n", s"$x += ${refOf(fqn)}.readFrom(in.sub())")
-            case _               => caseLine(indent, s"$n", s"$x = Is(${refOf(fqn)}.readFrom(in.sub(), $x.getOrElse(_ => ${refOf(fqn)}.default)))")
+            case _               => caseLine(indent, s"$n", s"$x = Pb.merge(in, $x, ${refOf(fqn)})")
           case Proto.PType.EnumT(fqn) => f.label match
             case Proto.Label.Singular => caseLine(indent, s"$n", s"$x = ${refOf(fqn)}(in.int32())")
             case Proto.Label.Opt      => caseLine(indent, s"$n", s"$x = Is(${refOf(fqn)}(in.int32()))")
@@ -619,22 +626,18 @@ object PbGen {
       val name = sident(m.name)
       m.fields.foreach(f => if isView(m, f) then viewType(m, f) __ Unit)   // reject ineligible views loudly
       val args = ctorArgs(m)
-      if args.isEmpty then line(indent, s"final case class $name() {")
+      if args.isEmpty then line(indent, s"final case class $name() extends Pb.Writable {")
       else
         line(indent, s"final case class $name(")
         args.foreach((decl, _) => line(indent + 1, decl + (if decl == args.last._1 then "" else ",")))
-        line(indent, ") {")
+        line(indent, ") extends Pb.Writable {")
       line(indent + 1, "def writeTo(o: Pb.Out): Unit =")
       if m.fields.isEmpty && !config.retainUnknown then line(indent + 2, "()")
       else writeLines(m, myRef, indent + 2)
-      line(indent + 1, "def toBytes: Array[Byte] =")
-      line(indent + 2, "val o = Pb.Out()")
-      line(indent + 2, "writeTo(o)")
-      line(indent + 2, "o.result")
       genOwned(m, myRef, indent + 1)
       line(indent, "}")
       blank()
-      line(indent, s"object $name {")
+      line(indent, s"object $name extends Pb.Companion[$myRef] {")
       m.oneofs.zipWithIndex.foreach: (o, oidx) =>
         line(indent + 1, s"enum ${oneofTypeName(o)} {")
         oneofCases(m, oidx).foreach: (f, cname) =>
@@ -650,13 +653,8 @@ object PbGen {
       m.enums.foreach(e => genEnum(e, indent + 1))
       m.nested.foreach(genMessage(_, indent + 1))
       line(indent + 1, s"val default: $myRef = $myRef()")
-      line(indent + 1, s"def readFrom(in: Pb.In): $myRef = readFrom(in, default)")
       line(indent + 1, s"def readFrom(in: Pb.In, prior: $myRef): $myRef = Pb.context(\"${m.name}\"):")
       readerLines(m, myRef, indent + 2)
-      line(indent + 1, s"def parse(bs: Array[Byte]): Ask[$myRef] = Pb.decode(bs)(readFrom)")
-      line(indent + 1, s"def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[$myRef] = Pb.decode(bs, i0, iN)(readFrom)")
-      line(indent + 1, s"def parse(m: Mem[Byte]): Ask[$myRef] = Pb.decode(m)(readFrom)")
-      line(indent + 1, s"def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[$myRef] = Pb.decode(m, i0, iN)(readFrom)")
       line(indent, "}")
       blank()
 

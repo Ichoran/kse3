@@ -609,7 +609,7 @@ class AlienTest {
       id = "t1",
       pts = Array(Pt(1.5, -2.5), Pt(0.0, 3.0)),
       tags = Map("a" -> -1L, "b" -> 700L),
-      score = Is(0.5f),
+      score = Pb.OptFloat(0.5f),
       hops = Array(3, -4, 5),
       extra = Track.Extra.Anchor(Pt(9.0, 9.0)),
       meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1, 2, 3))),
@@ -620,7 +620,7 @@ class AlienTest {
       T ~ u.id ==== "t1"
       T ~ u.pts.map(p => (p.x, p.y)).toList ==== List((1.5, -2.5), (0.0, 3.0))
       T ~ u.tags ==== Map("a" -> -1L, "b" -> 700L)
-      T ~ u.score ==== Is(0.5f)
+      T ~ u.score ==== Pb.OptFloat(0.5f)
       T ~ u.hops.toList ==== List(3, -4, 5)
       T ~ u.extra ==== Track.Extra.Anchor(Pt(9.0, 9.0))
       T ~ u.meta.fold(m => (m.mood.number, m.blob.toList))(_ => (-1, Nil)) ==== (16, List[Byte](1, 2, 3))
@@ -630,13 +630,13 @@ class AlienTest {
     // an all-default message is zero bytes, and reads back as all defaults
     T ~ Track().toBytes.length ==== 0
     val d = got(Track.parse(Array.empty[Byte]))
-    T ~ d.score ==== Alt.unit
+    T ~ d.score ==== Pb.OptFloat.unit
     T ~ d.meta ==== Alt.unit
     T ~ d.extra ==== Track.Extra.Unset
     T ~ d.pts.length ==== 0
     // explicit presence: optional zero and oneof zero-value arms still emit and survive
-    T ~ Track(score = Is(0.0f)).toBytes.length ==== 5
-    T ~ got(Track.parse(Track(score = Is(0.0f)).toBytes)).score ==== Is(0.0f)
+    T ~ Track(score = Pb.OptFloat(0.0f)).toBytes.length ==== 5
+    T ~ got(Track.parse(Track(score = Pb.OptFloat(0.0f)).toBytes)).score ==== Pb.OptFloat(0.0f)
     T ~ Track(extra = Track.Extra.Note("")).toBytes.length ==== 2
     T ~ got(Track.parse(Track(extra = Track.Extra.Note("")).toBytes)).extra ==== Track.Extra.Note("")
     T ~ got(Track.parse(Track(extra = Track.Extra.MoodArm(Mood.MOOD_UNSPECIFIED)).toBytes)).extra ==== Track.Extra.MoodArm(Mood(0))

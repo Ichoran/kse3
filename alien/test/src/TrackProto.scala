@@ -30,20 +30,15 @@ final case class Pt(
   x: Double = 0.0,
   y: Double = 0.0,
   unknown: List[Pb.Unknown] = Nil
-) {
+) extends Pb.Writable {
   def writeTo(o: Pb.Out): Unit =
     o.double(1, x)
     o.double(2, y)
     o.unknowns(unknown)
-  def toBytes: Array[Byte] =
-    val o = Pb.Out()
-    writeTo(o)
-    o.result
 }
 
-object Pt {
+object Pt extends Pb.Companion[Pt] {
   val default: Pt = Pt()
-  def readFrom(in: Pb.In): Pt = readFrom(in, default)
   def readFrom(in: Pb.In, prior: Pt): Pt = Pb.context("Pt"):
     var x: Double = prior.x
     var y: Double = prior.y
@@ -53,17 +48,13 @@ object Pt {
       case 2 => y = in.double()
       case _ => unknown = in.keep() :: unknown
     Pt(x, y, unknown.reverse)
-  def parse(bs: Array[Byte]): Ask[Pt] = Pb.decode(bs)(readFrom)
-  def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Pt] = Pb.decode(bs, i0, iN)(readFrom)
-  def parse(m: Mem[Byte]): Ask[Pt] = Pb.decode(m)(readFrom)
-  def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[Pt] = Pb.decode(m, i0, iN)(readFrom)
 }
 
 final case class Track(
   id: String = "",
   pts: Array[Pt] = Array.empty[Pt],
   tags: Map[String, Long] = Map.empty,
-  score: Float Or Unit = Alt.unit,
+  score: Pb.OptFloat = Pb.OptFloat.unit,
   hops: Array[Int] = Array.empty[Int],
   extra: Track.Extra = Track.Extra.Unset,
   meta: Track.Meta Or Unit = Alt.unit,
@@ -71,34 +62,27 @@ final case class Track(
   payload: Mem[Byte] = Mem of Array.empty[Byte],
   wave: Mem[Double] = Mem of Array.empty[Double],
   unknown: List[Pb.Unknown] = Nil
-) {
+) extends Pb.Writable {
   def writeTo(o: Pb.Out): Unit =
     o.string(1, id)
-    pts.use(): v =>
-      val b = Pb.Out()
-      v.writeTo(b)
-      o.msg(2, b)
+    pts.use()(v => o.msg(2, v))
     tags.foreach: (mk, mv) =>
       val b = Pb.Out()
       b.string(1, mk)
       b.sint64(2, mv)
       o.msg(3, b)
-    score.fold(v => o.floatAlways(4, v))(_ => ())
+    o.float(4, score)
     hops.use()(v => o.int32Always(5, v))
     extra match
       case Track.Extra.Note(v) => o.stringAlways(10, v)
-      case Track.Extra.Anchor(v) => { val b = Pb.Out(); v.writeTo(b); o.msg(11, b) }
+      case Track.Extra.Anchor(v) => o.msg(11, v)
       case Track.Extra.MoodArm(v) => o.int32Always(12, v.number)
       case Track.Extra.Unset => ()
-    meta.fold{ v => val b = Pb.Out(); v.writeTo(b); o.msg(20, b) }(_ => ())
+    o.msg(20, meta)
     o.uint64(21, stamp)
     o.bytes(30, payload)
     o.packedDouble(31, wave)
     o.unknowns(unknown)
-  def toBytes: Array[Byte] =
-    val o = Pb.Out()
-    writeTo(o)
-    o.result
   /** A copy with every decode-buffer view, recursively, replaced by owned storage. */
   def owned: Track =
     copy(
@@ -107,7 +91,7 @@ final case class Track(
     )
 }
 
-object Track {
+object Track extends Pb.Companion[Track] {
   enum Extra {
     case Note(value: String)
     case Anchor(value: Pt)
@@ -119,20 +103,15 @@ object Track {
     mood: Mood = Mood.MOOD_UNSPECIFIED,
     blob: Array[Byte] = Array.empty[Byte],
     unknown: List[Pb.Unknown] = Nil
-  ) {
+  ) extends Pb.Writable {
     def writeTo(o: Pb.Out): Unit =
       o.int32(1, mood.number)
       o.bytes(2, blob)
       o.unknowns(unknown)
-    def toBytes: Array[Byte] =
-      val o = Pb.Out()
-      writeTo(o)
-      o.result
   }
 
-  object Meta {
+  object Meta extends Pb.Companion[Track.Meta] {
     val default: Track.Meta = Track.Meta()
-    def readFrom(in: Pb.In): Track.Meta = readFrom(in, default)
     def readFrom(in: Pb.In, prior: Track.Meta): Track.Meta = Pb.context("Meta"):
       var mood: Mood = prior.mood
       var blob: Array[Byte] = prior.blob
@@ -142,22 +121,15 @@ object Track {
         case 2 => blob = in.bytes()
         case _ => unknown = in.keep() :: unknown
       Track.Meta(mood, blob, unknown.reverse)
-    def parse(bs: Array[Byte]): Ask[Track.Meta] = Pb.decode(bs)(readFrom)
-    def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Track.Meta] = Pb.decode(bs, i0, iN)(readFrom)
-    def parse(m: Mem[Byte]): Ask[Track.Meta] = Pb.decode(m)(readFrom)
-    def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[Track.Meta] = Pb.decode(m, i0, iN)(readFrom)
   }
 
   val default: Track = Track()
-  def readFrom(in: Pb.In): Track = readFrom(in, default)
   def readFrom(in: Pb.In, prior: Track): Track = Pb.context("Track"):
     var id: String = prior.id
-    val pts = new Pb.RefAcc[Pt]
-    pts ++= prior.pts
+    val pts = Pb.RefAcc(prior.pts)
     var tags: Map[String, Long] = prior.tags
-    var score: Float Or Unit = prior.score
-    val hops = new Pb.IntAcc
-    hops ++= prior.hops
+    var score: Pb.OptFloat = prior.score
+    val hops = Pb.IntAcc(prior.hops)
     var extra: Track.Extra = prior.extra
     var meta: Track.Meta Or Unit = prior.meta
     var stamp: ULong = prior.stamp
@@ -176,22 +148,18 @@ object Track {
           case 2 => mv = e.sint64()
           case _ => e.skip()
         tags = tags + (mk -> mv)
-      case 4 => score = Is(in.float())
+      case 4 => score = Pb.OptFloat(in.float())
       case 5 => in.int32s(hops)
       case 10 => extra = Track.Extra.Note(in.string())
       case 11 =>
         val p = extra match { case Track.Extra.Anchor(q) => q; case _ => Pt.default }
         extra = Track.Extra.Anchor(Pt.readFrom(in.sub(), p))
       case 12 => extra = Track.Extra.MoodArm(Mood(in.int32()))
-      case 20 => meta = Is(Track.Meta.readFrom(in.sub(), meta.getOrElse(_ => Track.Meta.default)))
+      case 20 => meta = Pb.merge(in, meta, Track.Meta)
       case 21 => stamp = in.uint64()
       case 30 => payload = in.bytesView()
       case 31 => wave = in.packedDoubleView(wave)
       case _ => unknown = in.keep() :: unknown
     Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, payload, wave, unknown.reverse)
-  def parse(bs: Array[Byte]): Ask[Track] = Pb.decode(bs)(readFrom)
-  def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[Track] = Pb.decode(bs, i0, iN)(readFrom)
-  def parse(m: Mem[Byte]): Ask[Track] = Pb.decode(m)(readFrom)
-  def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[Track] = Pb.decode(m, i0, iN)(readFrom)
 }
 

@@ -150,6 +150,77 @@ object Pb {
     m.inject(a) __ Unit
     Mem of a
 
+  //////////////////////////////
+  /// Boxless optional scalars //
+  //////////////////////////////
+
+  // `optional` scalars narrower than eight bytes ride in a wider primitive with absence as
+  // an out-of-band bit pattern, so presence never allocates.  Unlike an in-band sentinel,
+  // the pattern is unreachable from any present value: present `OptInt` is sign-extended,
+  // present `OptUInt` and `OptFloat` are zero-extended (raw bits for float, so every NaN
+  // spelling survives verbatim), present `OptBool` is 0 or 1, and the nowhere point is none
+  // of these.  Eight-byte scalars have no spare bits and stay `T Or Unit`.
+
+  private inline val AbsentL = 0x6B39A0D54C17E28BL
+  private inline val AbsentI = 0x5AD093C6
+
+  /** An `optional int32`/`sint32`/`sfixed32` value, present or absent, without a box. */
+  opaque type OptInt = Long
+  object OptInt {
+    inline def apply(v: Int): OptInt = v.toLong
+    val unit: OptInt = AbsentL
+    extension (x: OptInt)
+      inline def isIs: Boolean = x != AbsentL
+      inline def isAlt: Boolean = x == AbsentL
+      inline def get: Int = if x == AbsentL then throw new NoSuchElementException("get on absent OptInt") else x.toInt
+      inline def getOrElse(inline v: Int): Int = if x == AbsentL then v else x.toInt
+      inline def fold[Z](inline f: Int => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(x.toInt)
+      inline def or: Int Or Unit = if x == AbsentL then Alt.unit else Is(x.toInt)
+  }
+
+  /** An `optional uint32`/`fixed32` value, present or absent, without a box. */
+  opaque type OptUInt = Long
+  object OptUInt {
+    inline def apply(v: UInt): OptUInt = v.signed & 0xFFFFFFFFL
+    val unit: OptUInt = AbsentL
+    extension (x: OptUInt)
+      inline def isIs: Boolean = x != AbsentL
+      inline def isAlt: Boolean = x == AbsentL
+      inline def get: UInt = if x == AbsentL then throw new NoSuchElementException("get on absent OptUInt") else UInt(x.toInt)
+      inline def getOrElse(inline v: UInt): UInt = if x == AbsentL then v else UInt(x.toInt)
+      inline def fold[Z](inline f: UInt => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(UInt(x.toInt))
+      inline def or: UInt Or Unit = if x == AbsentL then Alt.unit else Is(UInt(x.toInt))
+  }
+
+  /** An `optional float` value, present or absent, without a box; bits are kept raw. */
+  opaque type OptFloat = Long
+  object OptFloat {
+    inline def apply(v: Float): OptFloat = v.bitsI.toLong & 0xFFFFFFFFL
+    val unit: OptFloat = AbsentL
+    extension (x: OptFloat)
+      inline def isIs: Boolean = x != AbsentL
+      inline def isAlt: Boolean = x == AbsentL
+      inline def get: Float = if x == AbsentL then throw new NoSuchElementException("get on absent OptFloat") else x.toInt.bitsF
+      inline def getOrElse(inline v: Float): Float = if x == AbsentL then v else x.toInt.bitsF
+      inline def fold[Z](inline f: Float => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(x.toInt.bitsF)
+      inline def or: Float Or Unit = if x == AbsentL then Alt.unit else Is(x.toInt.bitsF)
+  }
+
+  /** An `optional bool` value, present or absent, without a box. */
+  opaque type OptBool = Int
+  object OptBool {
+    inline def apply(v: Boolean): OptBool = if v then 1 else 0
+    val unit: OptBool = AbsentI
+    extension (x: OptBool)
+      inline def isIs: Boolean = x != AbsentI
+      inline def isAlt: Boolean = x == AbsentI
+      inline def get: Boolean = if x == AbsentI then throw new NoSuchElementException("get on absent OptBool") else x == 1
+      inline def getOrElse(inline v: Boolean): Boolean = if x == AbsentI then v else x == 1
+      inline def fold[Z](inline f: Boolean => Z)(inline g: Unit => Z): Z = if x == AbsentI then g(()) else f(x == 1)
+      inline def or: Boolean Or Unit = if x == AbsentI then Alt.unit else Is(x == 1)
+  }
+
+
   /** Label a stretch of coding (typically one message reader) so any failure inside
     * carries the path to where it happened.  Free unless a `Halt` actually passes through.
     */
@@ -202,6 +273,43 @@ object Pb {
       case e if e.catchable => Alt(Err(e))
 
   inline def encodeInto(m: Mem[Byte])(inline f: Out => Unit): Ask[Long] = encodeInto(m, 0L, m.length)(f)
+
+
+  //////////////////////////////
+  /// Generated-code runtime ///
+  //////////////////////////////
+
+  /** What a generated message does on its own behalf: write itself to an `Out`.  The
+    * length-prefixed nested form lives on `Out.msg`, so the buffer-per-submessage policy
+    * is one method here rather than a pattern stamped into every generated file.
+    */
+  trait Writable {
+    def writeTo(o: Out): Unit
+    final def toBytes: Array[Byte] =
+      val o = Out()
+      writeTo(o)
+      o.result
+  }
+
+  /** What a generated companion does on the message's behalf: fresh and merging reads, and
+    * `Ask`-valued parses from either substrate.  Only `default` and the merging `readFrom`
+    * are per-message; everything else is defined once, here.
+    */
+  trait Companion[A <: Writable] {
+    def default: A
+    def readFrom(in: In, prior: A): A
+    final def readFrom(in: In): A = readFrom(in, default)
+    final def parse(bs: Array[Byte]): Ask[A] = decode(bs)(readFrom)
+    final def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[A] = decode(bs, i0, iN)(readFrom)
+    final def parse(m: Mem[Byte]): Ask[A] = decode(m)(readFrom)
+    final def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[A] = decode(m, i0, iN)(readFrom)
+  }
+
+  /** Spec merge for a singular message field: decode the next length-delimited value on top
+    * of the prior occupant, or on the companion's default if the field was absent so far.
+    */
+  def merge[A <: Writable](in: In, prior: A Or Unit, c: Companion[A]): A Or Unit =
+    Is(c.readFrom(in.sub(), prior.getOrElse(_ => c.default)))
 
 
   //////////////////////////////
@@ -305,6 +413,26 @@ object Pb {
       tag(field, WLen)
       varint(m.length)
       rawBytes(m.buffer, 0, m.length)
+
+    /** Embed a nested message, letting it write itself through its own buffer. */
+    def msg(field: Int, w: Writable): Unit =
+      val b = Out()
+      w.writeTo(b)
+      msg(field, b)
+
+    /** Embed an optional nested message; absent writes nothing. */
+    def msg(field: Int, w: Writable Or Unit): Unit = w.fold(v => msg(field, v))(_ => ())
+
+    // Boxless optional-scalar emitters: absent writes nothing, present always writes,
+    // zero included -- explicit presence is the whole point of `optional` in proto3.
+    // (Inside Pb the Opt types are transparently primitive, so the tests are direct.)
+    def int32(field: Int, v: OptInt): Unit = if v != AbsentL then int32Always(field, v.toInt)
+    def sint32(field: Int, v: OptInt): Unit = if v != AbsentL then sint32Always(field, v.toInt)
+    def sfixed32(field: Int, v: OptInt): Unit = if v != AbsentL then sfixed32Always(field, v.toInt)
+    def uint32(field: Int, v: OptUInt): Unit = if v != AbsentL then uint32Always(field, UInt(v.toInt))
+    def fixed32(field: Int, v: OptUInt): Unit = if v != AbsentL then fixed32Always(field, UInt(v.toInt))
+    def float(field: Int, v: OptFloat): Unit = if v != AbsentL then floatAlways(field, v.toInt.bitsF)
+    def bool(field: Int, v: OptBool): Unit = if v != AbsentI then boolAlways(field, v == 1)
 
     /** Write back one unknown field.  The data must be re-emittable as captured by
       * `In.keep`: a well-formed varint (over-long spellings allowed), exactly 8 or 4 bytes
@@ -925,6 +1053,11 @@ object Pb {
         k += 1
     def result: Array[Int] = java.util.Arrays.copyOf(a, n)
   }
+  object IntAcc {
+    def apply(): IntAcc = new IntAcc
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply(prior: Array[Int]): IntAcc = { val acc = new IntAcc; acc ++= prior; acc }
+  }
 
   final class LongAcc {
     private var a = new Array[Long](8)
@@ -939,6 +1072,11 @@ object Pb {
         this += xs(k)
         k += 1
     def result: Array[Long] = java.util.Arrays.copyOf(a, n)
+  }
+  object LongAcc {
+    def apply(): LongAcc = new LongAcc
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply(prior: Array[Long]): LongAcc = { val acc = new LongAcc; acc ++= prior; acc }
   }
 
   final class FloatAcc {
@@ -955,6 +1093,11 @@ object Pb {
         k += 1
     def result: Array[Float] = java.util.Arrays.copyOf(a, n)
   }
+  object FloatAcc {
+    def apply(): FloatAcc = new FloatAcc
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply(prior: Array[Float]): FloatAcc = { val acc = new FloatAcc; acc ++= prior; acc }
+  }
 
   final class DoubleAcc {
     private var a = new Array[Double](8)
@@ -969,6 +1112,11 @@ object Pb {
         this += xs(k)
         k += 1
     def result: Array[Double] = java.util.Arrays.copyOf(a, n)
+  }
+  object DoubleAcc {
+    def apply(): DoubleAcc = new DoubleAcc
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply(prior: Array[Double]): DoubleAcc = { val acc = new DoubleAcc; acc ++= prior; acc }
   }
 
   final class BoolAcc {
@@ -985,6 +1133,11 @@ object Pb {
         k += 1
     def result: Array[Boolean] = java.util.Arrays.copyOf(a, n)
   }
+  object BoolAcc {
+    def apply(): BoolAcc = new BoolAcc
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply(prior: Array[Boolean]): BoolAcc = { val acc = new BoolAcc; acc ++= prior; acc }
+  }
 
   final class RefAcc[A >: Null <: AnyRef : ClassTag] {
     private var a = new Array[A](8)
@@ -999,5 +1152,10 @@ object Pb {
         this += xs(k)
         k += 1
     def result: Array[A] = java.util.Arrays.copyOf(a.asInstanceOf[Array[AnyRef]], n).asInstanceOf[Array[A]]
+  }
+  object RefAcc {
+    def apply[A >: Null <: AnyRef : ClassTag](): RefAcc[A] = new RefAcc[A]
+    /** An accumulator seeded with prior contents (the merge-append form). */
+    def apply[A >: Null <: AnyRef : ClassTag](prior: Array[A]): RefAcc[A] = { val acc = new RefAcc[A]; acc ++= prior; acc }
   }
 }
