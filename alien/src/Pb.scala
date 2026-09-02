@@ -381,6 +381,11 @@ object Pb {
     final def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[A] = decode(bs, i0, iN)(readFrom)
     final def parse(m: Mem[Byte]): Ask[A] = decode(m)(readFrom)
     final def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[A] = decode(m, i0, iN)(readFrom)
+    /** Parse a whole stream (read to its end; the stream is not closed).  This is the shape
+      * stream-framed transports hand a message in -- e.g. a gRPC marshaller's `parse`.
+      */
+    final def parse(in: java.io.InputStream): Ask[A] =
+      nice{ in.readAllBytes() }.flatMap(bs => decode(bs)(readFrom))
   }
 
   /** Spec merge for a singular message field: decode the next length-delimited value on top

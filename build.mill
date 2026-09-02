@@ -114,8 +114,18 @@ object twodee extends Common with PublishKse3 {
 
 object alien extends Common with PublishKse3 {
   def moduleDeps = Seq(basics, flow, maths, loom, eio)
+  // grpc is compile-only: `kse.alien.Grpc` compiles against it, but a Pb/Proto/PbGen user
+  // pulls no grpc jars.  Anyone who uses `Grpc` adds grpc-api + grpc-stub plus a transport
+  // (grpc-netty-shaded, grpc-okhttp, or grpc-inprocess) to their own build.
+  override def compileMvnDeps = Task { Seq(
+    mvn"io.grpc:grpc-api:1.83.1",
+    mvn"io.grpc:grpc-stub:1.83.1",
+    mvn"io.grpc:grpc-inprocess:1.83.1"
+  ) }
   override def extraTestIvy = Task { Seq(
-    mvn"com.google.protobuf:protobuf-java:4.28.3"   // differential oracle for the Pb wire codec; test-only
+    mvn"com.google.protobuf:protobuf-java:4.28.3",  // differential oracle for the Pb wire codec; test-only
+    mvn"io.grpc:grpc-stub:1.83.1",                  // gRPC layer tests run client and server
+    mvn"io.grpc:grpc-inprocess:1.83.1"              //   over the in-process transport
   ) }
 }
 
