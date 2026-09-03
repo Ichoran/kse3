@@ -7,6 +7,10 @@ package kse.maths
 import scala.annotation.targetName
 import scala.util.boundary
 
+import scala.collection.immutable.{Range => Rg}
+
+import kse.basics.{given, _}
+import kse.basics.intervals._
 import kse.basics.Mem
 
 
@@ -314,18 +318,24 @@ object EiselLemire {
 
   /** The `Double` whose decimal rendering is exactly `s`, correctly rounded; `parseFailD` if not a number. */
   inline def parseDouble(s: String): Double = parseDouble(s, 0, s.length)
+  /** As `parseDouble(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseDouble[R <: Iv.X | Rg](s: String, inline r: R): Double = Iv.dispatch(r, s)((i0, iN) => parseDouble(s, i0, iN))
 
   /** As the String `parseDouble`, over ASCII bytes. */
   def parseDouble(ab: Array[Byte], i0: Int, iN: Int): Double = parseArrB(ab, i0, iN, false)
 
   /** As the String `parseDouble`, over a whole ASCII byte array. */
   inline def parseDouble(ab: Array[Byte]): Double = parseDouble(ab, 0, ab.length)
+  /** As `parseDouble(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseDouble[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Double = Iv.dispatch(r, ab)((i0, iN) => parseDouble(ab, i0, iN))
 
   /** As the String `parseDouble`, over chars. */
   def parseDouble(ac: Array[Char], i0: Int, iN: Int): Double = parseArrC(ac, i0, iN, false)
 
   /** As the String `parseDouble`, over a whole char array. */
   inline def parseDouble(ac: Array[Char]): Double = parseDouble(ac, 0, ac.length)
+  /** As `parseDouble(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseDouble[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Double = Iv.dispatch(r, ac)((i0, iN) => parseDouble(ac, i0, iN))
 
   /** As the String `parseDouble`, over ASCII bytes in memory. */
   @targetName("parseDoubleMemByte")
@@ -351,18 +361,24 @@ object EiselLemire {
 
   /** The `Float` whose decimal rendering is exactly `s`, correctly rounded; `parseFailF` if not a number. */
   inline def parseFloat(s: String): Float = parseFloat(s, 0, s.length)
+  /** As `parseFloat(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseFloat[R <: Iv.X | Rg](s: String, inline r: R): Float = Iv.dispatch(r, s)((i0, iN) => parseFloat(s, i0, iN))
 
   /** As the String `parseFloat`, over ASCII bytes. */
   def parseFloat(ab: Array[Byte], i0: Int, iN: Int): Float = narrow(parseArrB(ab, i0, iN, true))
 
   /** As the String `parseFloat`, over a whole ASCII byte array. */
   inline def parseFloat(ab: Array[Byte]): Float = parseFloat(ab, 0, ab.length)
+  /** As `parseFloat(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseFloat[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Float = Iv.dispatch(r, ab)((i0, iN) => parseFloat(ab, i0, iN))
 
   /** As the String `parseFloat`, over chars. */
   def parseFloat(ac: Array[Char], i0: Int, iN: Int): Float = narrow(parseArrC(ac, i0, iN, true))
 
   /** As the String `parseFloat`, over a whole char array. */
   inline def parseFloat(ac: Array[Char]): Float = parseFloat(ac, 0, ac.length)
+  /** As `parseFloat(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def parseFloat[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Float = Iv.dispatch(r, ac)((i0, iN) => parseFloat(ac, i0, iN))
 
   /** As the String `parseFloat`, over ASCII bytes in memory. */
   @targetName("parseFloatMemByte")

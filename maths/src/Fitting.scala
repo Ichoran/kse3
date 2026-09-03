@@ -302,43 +302,17 @@ sealed abstract class Fit2D() {
     else if jN >= j0 then mismatch = true
     if mismatch then throw new IllegalArgumentException(s"Range length mismatch: ${iN.toLong - i0.toLong} vs ${jN.toLong - j0.toLong}")
 
-  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yrg: Rg): Unit =
-    val jv = Iv of yrg
-    addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yv: Iv.X): Unit =
-    val jv = yv of ys
-    addRange(xs, i0, iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], j0: Int, jN: Int): Unit =
-    val iv = Iv of xrg
-    addRange(xs, iv.i0, iv.iN)(ys, j0, jN)
-  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yrg: Rg): Unit =
-    val iv = Iv of xrg
-    val jv = Iv of yrg
-    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xrg: Rg)(ys: Array[Double], inline yv: Iv.X): Unit =
-    val iv = Iv of xrg
-    val jv = yv of ys
-    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], j0: Int, jN: Int): Unit =
-    val iv = xv of xs
-    addRange(xs, iv.i0, iv.iN)(ys, j0, jN)
-  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], inline yrg: Rg): Unit =
-    val iv = xv of xs
-    val jv = Iv of yrg
-    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
-  inline def addRange(xs: Array[Double], inline xv: Iv.X)(ys: Array[Double], inline yv: Iv.X): Unit =
-    val iv = xv of xs
-    val jv = yv of ys
-    addRange(xs, iv.i0, iv.iN)(ys, jv.i0, jv.iN)
+  inline def addRange[R <: Iv.X | Rg](xs: Array[Double], i0: Int, iN: Int)(ys: Array[Double], inline yv: R): Unit =
+    Iv.dispatch(yv, ys)((j0, jN) => addRange(xs, i0, iN)(ys, j0, jN))
+  inline def addRange[R <: Iv.X | Rg](xs: Array[Double], inline xv: R)(ys: Array[Double], j0: Int, jN: Int): Unit =
+    Iv.dispatch(xv, xs)((i0, iN) => addRange(xs, i0, iN)(ys, j0, jN))
+  inline def addRange[X <: Iv.X | Rg, Y <: Iv.X | Rg](xs: Array[Double], inline xv: X)(ys: Array[Double], inline yv: Y): Unit =
+    Iv.dispatch(xv, xs)((i0, iN) => Iv.dispatch(yv, ys)((j0, jN) => addRange(xs, i0, iN)(ys, j0, jN)))
 
   def addRange(vs: Array[Vc], i0: Int, iN: Int): Unit
   
-  inline def addRange(vs: Array[Vc], inline rg: Rg): Unit =
-    val iv = Iv of rg
-    addRange(vs, iv.i0, iv.iN)
-  inline def addRange(vs: Array[Vc], inline v: Iv.X): Unit =
-    val iv = v of vs
-    addRange(vs, iv.i0, iv.iN)
+  inline def addRange[R <: Iv.X | Rg](vs: Array[Vc], inline v: R): Unit =
+    Iv.dispatch(v, vs)((i0, iN) => addRange(vs, i0, iN))
 
   inline def addRangeWith[A](a: Array[A], i0: Int, iN: Int)(inline fx: A => Double, inline fy: A => Double): Unit =
     if iN > i0 then
@@ -348,12 +322,8 @@ sealed abstract class Fit2D() {
         val ai = a(i)
         this += (fx(ai), fy(ai))
         i += 1
-  inline def addRangeWith[A](a: Array[A], inline rg: Rg)(inline fx: A => Double, inline fy: A => Double): Unit =
-    val iv = Iv of rg
-    addRangeWith(a, iv.i0, iv.iN)(fx, fy)
-  inline def addRangeWith[A](a: Array[A], inline v: Iv.X)(inline fx: A => Double, inline fy: A => Double): Unit =
-    val iv = v of a
-    addRangeWith(a, iv.i0, iv.iN)(fx, fy)
+  inline def addRangeWith[A, R <: Iv.X | Rg](a: Array[A], inline v: R)(inline fx: A => Double, inline fy: A => Double): Unit =
+    Iv.dispatch(v, a)((i0, iN) => addRangeWith(a, i0, iN)(fx, fy))
 
   def reset(): Unit
 }
@@ -718,6 +688,12 @@ object TheilSen {
     val ru = jm.min(jm.round((p - z * sigma) / 2.0).toInt, p - 1)
     val rl = jm.max(jm.round((p + z * sigma) / 2.0).toInt - 1, 0)
     new Fit(medslope, medinter, ss(rl), ss(ru), n, p, cc)
+
+  /** As `fit(xs, ys, i0, iN, conf)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def fit[R <: Iv.X | Rg](xs: Array[Double], ys: Array[Double], inline r: R, conf: Double): Fit = Iv.dispatch(r, xs)((i0, iN) => fit(xs, ys, i0, iN, conf))
+
+  /** As `fit(xs, ys, i0, iN)` at the default confidence, with the range given as a literal or an `Iv.X` interval. */
+  inline def fit[R <: Iv.X | Rg](xs: Array[Double], ys: Array[Double], inline r: R): Fit = Iv.dispatch(r, xs)((i0, iN) => fit(xs, ys, i0, iN))
 
   /** Theil-Sen fit over all finite points, with a slope confidence interval at level `conf`. */
   inline def fit(xs: Array[Double], ys: Array[Double]): Fit = fit(xs, ys, 0, jm.min(xs.length, ys.length), 0.95)

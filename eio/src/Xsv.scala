@@ -349,12 +349,8 @@ class Xsv private (
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
-  inline def visit[U](content: Array[Byte], inline rg: Rg, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
-    val iv = Iv of rg
-    visit(content, iv.i0, iv.iN, visitor)
-  inline def visit[U](content: Array[Byte], inline v: Iv.X, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
-    val iv = v of content
-    visit(content, iv.i0, iv.iN, visitor)
+  inline def visit[U, R <: Iv.X | Rg](content: Array[Byte], inline v: R, visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
+    Iv.dispatch(v, content)((i0, iN) => visit(content, i0, iN, visitor))
 
   @targetName("visitByteArrays")
   def visit[U](content: IOnce[Array[Byte]], visitor: Xsv.Visitor[Array[Byte], U]): Ask[U] =
@@ -414,12 +410,8 @@ class Xsv private (
     index = j0
     visitRange(content, j0, jN, visitor, EoF) && visitor.complete(line)
 
-  inline def visit[U](content: String, inline rg: Rg, visitor: Xsv.Visitor[String, U]): Ask[U] =
-    val iv = Iv of rg
-    visit(content, iv.i0, iv.iN, visitor)
-  inline def visit[U](content: String, inline v: Iv.X, visitor: Xsv.Visitor[String, U]): Ask[U] =
-    val iv = v of content
-    visit(content, iv.i0, iv.iN, visitor)
+  inline def visit[U, R <: Iv.X | Rg](content: String, inline v: R, visitor: Xsv.Visitor[String, U]): Ask[U] =
+    Iv.dispatch(v, content)((i0, iN) => visit(content, i0, iN, visitor))
 
   @targetName("visitStrings")
   def visit[U](content: IOnce[String], visitor: Xsv.Visitor[String, U]): Ask[U] =

@@ -483,3 +483,36 @@ the goal was "not embarrassing," not victory.
   lopsided line at 3.2x).
 - `det` is ojAlgo's best showing (2.79 ns, they special-case tiny determinants) but the
   cofactor expansion still runs 2.2x faster.
+
+
+## benchmarks/intervals — Iv.dispatch: one method for Range literals and interval flavors
+
+`Iv.dispatch` lets an API take either a Range literal (`2 to n - 3`, packed at compile time by
+the existing macro) or any interval flavor (`2 to End - 2`, `Iv(2, 5)`, ...) through **one**
+method, where Data.scala today keeps a pair of overloads for each such method.  The dispatch is
+on the argument's static type alone (`inline erasedValue[R] match`), so the argument is never
+evaluated early, never boxed, and never bound at a type wider than its own; `useBounds` on
+`Array[A]` is the trial consumer.  `IvDispatchBench` sums a slice of an `Array[Int]` through
+`use` (the existing overloads), `useBounds` (one method), and a hand-written while loop.
+
+### Findings (2026-09-02, JDK 25, i9-14900HX, `taskset -c 4`, `-f 2 -wi 5 -i 5 -r 1 -w 1`)
+
+| ns/op (avgt)          | n = 16 | n = 1024 |
+|---|---|---|
+| while loop            | 1.50 | 170.9 |
+| `use`, Iv.X flavor    | 1.51 | 168.7 |
+| `useBounds`, flavor   | 1.54 | 169.2 |
+| `use`, Range literal  | 1.81 | 169.1 |
+| `useBounds`, Range    | 1.84 | 169.8 |
+| `useBounds`, `Iv(..)` | 1.86 | 169.6 |
+
+- **The one-method form costs nothing measurable**: `useBounds` tracks `use` within 0.03 ns
+  on every argument shape, and both sit on the while loop at n = 1024.
+- The ~0.3 ns that separates the Range and `Iv(..)` rows from the flavor rows at n = 16 is
+  shared by old and new alike: `packRangeInLongInclusive` and `Iv.apply` are ordinary (non-inline)
+  methods with an overflow guard, so the JIT inlines them but keeps the branch.  The flavor
+  path is pure inline shift/mask arithmetic.
+- Bytecode check (javap, done during development): no `BoxesRunTime`, no `Range`, no `RichInt`,
+  no `checkcast` on any path; both `Iv.X` and `R & Iv.X` erase to `long`.
+- Later the same day the `use` overload pairs themselves were retrofitted onto `Iv.dispatch`, so
+  `useBounds` no longer exists as a separate method; the benchmark's `useBounds*` rows call `use`.

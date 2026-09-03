@@ -243,7 +243,7 @@ class JsaunFuzzTest {
       T ~ unwrap(Json.parseFmt(Mem.of(text.getBytes(u8)))).print ==== text
       // the visitor stays structurally in sync: a full visit and a skip-everything visit both
       // consume the whole document (the latter exercises the structural skip over the entire tree)
-      def ok(a: Ask[Unit]) = a match { case Alt(_) => false; case _ => true }
+      def ok(a: Ask[Unit]) = a.isIs
       T ~ ok(Json.stream(text)(new Jvisitor {})) ==== true
       T ~ ok(Json.stream(text)(new Jvisitor { override def objStart() = false; override def arrStart() = false })) ==== true
       // exact mode keeps the exact decimal value: printing then re-parsing in exact
@@ -295,7 +295,7 @@ class JsaunFuzzTest {
   @Test
   def streamedCrossSourceFuzz(): Unit =
     val r = Pcg64(0x65A0F6L)
-    def ok(a: Ask[Unit]) = a match { case Alt(_) => false; case _ => true }
+    def ok(a: Ask[Unit]) = a.isIs
     var iter = 0
     while iter < 800 do
       val sb = new java.lang.StringBuilder

@@ -7,9 +7,11 @@ package kse.alien
 import java.lang.{Math as jm}
 import java.lang.foreign.MemorySegment
 
+import scala.collection.immutable.{Range => Rg}
 import scala.reflect.ClassTag
 
 import kse.basics.{given, _}
+import kse.basics.intervals._
 import kse.flow.{given, _}
 import kse.maths.{given, _}
 
@@ -303,6 +305,9 @@ object Pb {
       case h: Halt => Alt(Err(h.message))
       case e if e.catchable => Alt(Err(e))
 
+  /** Decode from the span of `bs` given by a range literal or an `Iv.X` interval. */
+  inline def decode[A, R <: Iv.X | Rg](bs: Array[Byte], inline r: R)(inline f: In => A): Ask[A] = Iv.dispatch(r, bs)((i0, iN) => decode(bs, i0, iN)(f))
+
   /** Decode straight out of memory — no copy of the payload into the heap first. */
   inline def decode[A](m: Mem[Byte])(inline f: In => A): Ask[A] =
     try Is(f(In.of(m)))
@@ -379,6 +384,7 @@ object Pb {
     final def readFrom(in: In): A = readFrom(in, default)
     final def parse(bs: Array[Byte]): Ask[A] = decode(bs)(readFrom)
     final def parse(bs: Array[Byte], i0: Int, iN: Int): Ask[A] = decode(bs, i0, iN)(readFrom)
+    final inline def parse[R <: Iv.X | Rg](bs: Array[Byte], inline r: R): Ask[A] = Iv.dispatch(r, bs)((i0, iN) => parse(bs, i0, iN))
     final def parse(m: Mem[Byte]): Ask[A] = decode(m)(readFrom)
     final def parse(m: Mem[Byte], i0: Long, iN: Long): Ask[A] = decode(m, i0, iN)(readFrom)
     /** Parse a whole stream (read to its end; the stream is not closed).  This is the shape
@@ -1074,6 +1080,7 @@ object Pb {
   object In {
     def of(bs: Array[Byte]): In = new ArrIn(bs, 0L, bs.length.toLong, 0)
     def of(bs: Array[Byte], i0: Int, iN: Int): In = new ArrIn(bs, i0.toLong, iN.toLong, 0)
+    inline def of[R <: Iv.X | Rg](bs: Array[Byte], inline r: R): In = Iv.dispatch(r, bs)((i0, iN) => of(bs, i0, iN))
     def of(m: Mem[Byte]): In = new MemIn(m, 0L, m.length, 0)
     def of(m: Mem[Byte], i0: Long, iN: Long): In = new MemIn(m, i0, iN, 0)
   }

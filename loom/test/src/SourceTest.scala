@@ -12,6 +12,7 @@ import org.junit._
 import org.junit.Assert._
 
 import kse.basics._
+import kse.basics.intervals._
 import kse.flow._
 import kse.loom._
 
@@ -34,6 +35,14 @@ class SourceTest {
   @Test(timeout = 30000)
   def sourceOverSlice(): Unit = Reps.times:
     val s = Chan.Source(Array(10, 20, 30, 40, 50), 1, 4)
+    assertEquals(20, s.tryRecv().getOrElse(_ => -1))
+    assertEquals(30, s.tryRecv().getOrElse(_ => -1))
+    assertEquals(40, s.tryRecv().getOrElse(_ => -1))
+    assertTrue(s.tryRecv().isAlt)
+
+  @Test(timeout = 30000)
+  def sourceOverRange(): Unit = Reps.times:
+    val s = Chan.Source(Array(10, 20, 30, 40, 50), 1 to End - 1)
     assertEquals(20, s.tryRecv().getOrElse(_ => -1))
     assertEquals(30, s.tryRecv().getOrElse(_ => -1))
     assertEquals(40, s.tryRecv().getOrElse(_ => -1))

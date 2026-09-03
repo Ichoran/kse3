@@ -52,14 +52,15 @@ final class IsBox[+X](val get: X) extends BoxedOr[X]() {
 
 /** The disfavored branch of an `Or`.
   *
-  * The value is stored in `alt`.
-  * 
-  * It can also be extracted by pattern matching into `case Alt(y)` or accessed through
-  * various extension methods on `Or`.
-  * 
-  * Note that you cannot extract `Is` values by pattern matching because `Is` is a
-  * fictional type, and the pattern matching exaustiveness checks work poorly in that
-  * case.
+  * The value is stored in `alt`, and is reached through the extension methods on `Or`
+  * (`fold`, `alt`, `mapAlt`, `getOrElse`, ...).
+  *
+  * **Do not pattern-match on an `Or`** (`case _: Alt[?]`, `case a: Alt[Err]`, or
+  * `case Alt(y)`) outside this file, `Flow.scala`, and `OverloadedExtensions.scala`.  The
+  * `Alt(y)` extractor exists for partial-function arguments such as `reject`/`rescue`;
+  * everywhere else, `fold` or a sibling combinator says the same thing without allocating
+  * and without depending on the representation.  There is no `Is(x)` extractor at all,
+  * because `Is` is a fictional type and exhaustiveness checking works poorly on it.
   */
 final class Alt[+Y](val alt: Y) extends BoxedOr[Y]() {
   def get: Nothing = throw new NoSuchElementException("get on Alt")
@@ -126,9 +127,11 @@ extension[Y](alt: Alt[Y]) {
 /** The favored branch of an `Or`.
   *
   * Internally, the value is stored bare if possible, or in a `IsBox` if not.
-  * 
-  * You can retrieve the value with `get`, by pattern matching into `Is(x)`, or by
-  * using various exension methods on `Or`.
+  *
+  * Retrieve the value with `get` or the extension methods on `Or` (`fold`, `map`,
+  * `getOrElse`, `.?`, ...).  There is no `Is(x)` extractor, and `Is unwrap x` behind an
+  * `asInstanceOf[Is[X]]` is this file's business only: outside it, unwrapping by hand is
+  * wrong exactly when the value is a nested `Or`.
   */
 type Is[+X] = kse.flow.IsJust[X] | IsBox[X]
 object Is {
@@ -270,6 +273,17 @@ extension [X](is: Is[X]) {
   * Alternatively, use `x.or[Y]` to specify that `x` is a favored branch and the alternative
   * type is `Y`, and `y.isnt[X]` to pack `y` as a disfavored branch and specify that the
   * favored branch's type is `X`.
+  *
+  * **Never pattern-match on or cast an `Or` outside this file and `Flow.scala`** (and
+  * `OverloadedExtensions.scala`, which is part of them in all but name).  Not
+  * `case _: Alt[?]`, not `case Alt(y)`, not `(o: Any) match`, not `asInstanceOf[Alt[Y]]`,
+  * `asInstanceOf[Is[X]]`, or `asInstanceOf[X Or Y]`, and not `Is unwrap`.  The
+  * representation is unboxed and layered (`Is(Alt(y))` is a box, `Is(null)` is `null`), so a
+  * hand-rolled match is wrong in exactly the cases that are hard to test.  Route through
+  * the extension methods: `fold`, `map`/`mapAlt`/`mapThem`, `flatMap`/`flatMapAlt`,
+  * `getOrElse`/`altOrElse`, `exists`/`forall`, `foreach`/`use`/`peek`, `isIs`/`isAlt`,
+  * `.?`, `||`.  If none says what you need, add a combinator here instead of working
+  * around them.
   */
 infix type Or[+X, +Y] = Is[X] | Alt[Y]
 object Or {

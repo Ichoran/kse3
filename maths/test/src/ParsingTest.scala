@@ -14,6 +14,7 @@ import org.junit.Assert._
 @RunWith(classOf[JUnit4])
 class ParsingTest {
   import kse.basics.testutilities.TestUtilities.{_, given}
+  import kse.basics.intervals._
   import kse.basics.{given, _}
   import kse.flow.{_, given}
   import kse.maths.{_, given}
@@ -32,6 +33,13 @@ class ParsingTest {
     T ~ Parse.long("-42")                   ==== -42L
     T ~ Parse.long("-0")                    ==== 0L
     T ~ Parse.long("0000000000000000000042")==== 42L
+    T ~ Parse.long("x42y", 1 to End - 1)                    ==== 42L
+    T ~ Parse.long("x42y", 1 until 3)                       ==== 42L
+    T ~ Parse.long("x42y".getBytes, 1 to End - 1)           ==== 42L
+    T ~ Parse.long("x42y".toCharArray, Iv(1, 3))            ==== 42L
+    T ~ Parse.spellsFailLong("x42y", 1 to End - 1)          ==== false
+    T ~ EiselLemire.parseDouble("<1.5>", 1 to End - 1)      ==== 1.5
+    T ~ EiselLemire.parseFloat("<2.5>".getBytes, 1 until 4) ==== 2.5f
     T ~ Parse.long("-007")                  ==== -7L
     T ~ Parse.long("9223372036854775807")   ==== Long.MaxValue
     T ~ Parse.long("-9223372036854775808")  ==== Long.MinValue        // a boundary, not the sentinel

@@ -358,21 +358,19 @@ object FromJson {
           val vs = aa.vs
           var k = 0
           while !badly && k < aa.n do
-            fj.from(vs(k)) match
-              case Alt(e) =>
-                bad = e.explainBy(s"in element $k:")
-                badly = true
-              case x => b.addOne(Is unwrap x.asInstanceOf[Is[A]]) __ Unit
+            fj.from(vs(k)).fold{ x => b.addOne(x) __ Unit }{ e =>
+              bad = e.explainBy(s"in element $k:")
+              badly = true
+            }
             k += 1
         case _ =>
           var k = 0
           val n = a.size
           while !badly && k < n do
-            fj.from(a.elem(k)) match
-              case Alt(e) =>
-                bad = e.explainBy(s"in element $k:")
-                badly = true
-              case x => b.addOne(Is unwrap x.asInstanceOf[Is[A]]) __ Unit
+            fj.from(a.elem(k)).fold{ x => b.addOne(x) __ Unit }{ e =>
+              bad = e.explainBy(s"in element $k:")
+              badly = true
+            }
             k += 1
       if badly then Alt(bad) else Is(b.result())
     case x => Alt(Json.expectErr("an array", x))
@@ -388,11 +386,10 @@ object FromJson {
       var k = 0
       while !badly && k < o.n do
         if o.ks(k) ne null then   // null = removed-entry hole
-          fj.from(o.vs(k)) match
-            case Alt(e) =>
-              bad = e.explainBy(s"in value for key \"${o.ks(k)}\":")
-              badly = true
-            case x => b.addOne(o.ks(k) -> (Is unwrap x.asInstanceOf[Is[A]])) __ Unit
+          fj.from(o.vs(k)).fold{ x => b.addOne(o.ks(k) -> x) __ Unit }{ e =>
+            bad = e.explainBy(s"in value for key \"${o.ks(k)}\":")
+            badly = true
+          }
         k += 1
       if badly then Alt(bad) else Is(b.result())
     case x => Alt(Json.expectErr("an object", x))
@@ -454,9 +451,7 @@ object FromJson {
             val fj = fjs(k).asInstanceOf[FromJson[Any]]
             val v = if pos then o.vs(k) else o.get(labels(k))
             val r = if v eq null then fj.missing(labels(k)) else fj.from(v)
-            r match
-              case Alt(e) => errs = e.explainBy(s"in field \"${labels(k)}\":") :: errs
-              case x => args(k) = Is unwrap x.asInstanceOf[Is[Any]]
+            r.fold{ x => args(k) = x }{ e => errs = e.explainBy(s"in field \"${labels(k)}\":") :: errs }
             k += 1
           errs match
             case Nil => Is(pm.fromProduct(new ArgsProduct(args)))
@@ -468,23 +463,16 @@ object FromJson {
   private[jsaun] def sumInstance[A](labels: Array[String], elems: Array[() => FromJson[?]]): FromJson[A] =
     new FromJson[A] {
       private lazy val fjs = elems.map(_())
-      def from(j: Json): Ask[A] = j("type").str match
-        case Alt(e) => Alt(e.explainBy("decoding the \"type\" discriminator:"))
-        case t =>
-          val name = Is unwrap t.asInstanceOf[Is[String]]
+      def from(j: Json): Ask[A] =
+        j("type").str.mapAlt(_.explainBy("decoding the \"type\" discriminator:")).flatMap{ name =>
           val ord = labels.indexOf(name)
           if ord < 0 then Alt(Err(s"unknown type \"$name\" (expected one of ${labels.mkString(", ")})"))
           else
             val fj = fjs(ord).asInstanceOf[FromJson[A]]
-            val r = fj.from(j) match
-              case Alt(e) =>
-                j("value").ask match   // non-object children were wrapped; unwrap and retry
-                  case Alt(_) => Alt(e)
-                  case v => fj.from(Is unwrap v.asInstanceOf[Is[Json]])
-              case ok => ok
-            r match
-              case Alt(e) => Alt(e.explainBy(s"decoding \"$name\":"))
-              case ok => ok
+            fj.from(j)
+              .flatMapAlt{ e => j("value").ask.fold(v => fj.from(v))(_ => Alt(e)) }   // non-object children were wrapped; unwrap and retry
+              .mapAlt(_.explainBy(s"decoding \"$name\":"))
+        }
     }
 }
 
@@ -495,6 +483,4 @@ extension (j: Json)
 
 extension (ja: JAny)
   /** Decode into an `A`; an error already present just flows through. */
-  def to[A](using fj: FromJson[A]): Ask[A] = (ja: Any) match
-    case _: Alt[?] => ja.asInstanceOf[Ask[A]]
-    case j => fj.from(j.asInstanceOf[Json])
+  def to[A](using fj: FromJson[A]): Ask[A] = ja.ask.flatMap(fj.from)

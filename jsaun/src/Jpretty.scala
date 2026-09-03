@@ -50,8 +50,8 @@ private[jsaun] object Jpretty {
     sc.depth = out.depth
     sc
 
-  private inline def fresh(fmt: Jfmt | Null, sty: Jfmt.Local | Null, sc: Jout): Boolean =
-    sc.ignoreFmt || ((fmt eq null) && (sty eq null))
+  private inline def fresh(fmt: Jfmt | Jfmt.Local | Null, sc: Jout): Boolean =
+    sc.ignoreFmt || (fmt eq null)
 
   /** Reflow `j` (a collection already known to be style-fresh and nonempty) onto `out`. */
   def printTo(j: Json, out: Jout): Unit =
@@ -67,7 +67,7 @@ private[jsaun] object Jpretty {
     val st = sc.style
     val sep = if st.spaceAfterComma then ", " else ","
     j match
-      case a: Jarr.A if fresh(a.fmt, a.sty, sc) =>
+      case a: Jarr.A if fresh(a.fmt, sc) =>
         val start = sc.pos
         val slots = new Array[Long](a.n)
         var kids: Array[Plan] | Null = null
@@ -99,7 +99,7 @@ private[jsaun] object Jpretty {
           k += 1
         sc.add(']')
         new Plan(false, nums, slots, kids, spanOf(start, sc.pos, ml))
-      case d: Jarr.D if fresh(d.fmt, d.sty, sc) =>
+      case d: Jarr.D if fresh(d.fmt, sc) =>
         val start = sc.pos
         val slots = new Array[Long](d.n)
         sc.add('[')
@@ -112,7 +112,7 @@ private[jsaun] object Jpretty {
           k += 1
         sc.add(']')
         new Plan(false, true, slots, null, spanOf(start, sc.pos, false))
-      case f: Jarr.F if fresh(f.fmt, f.sty, sc) =>
+      case f: Jarr.F if fresh(f.fmt, sc) =>
         val start = sc.pos
         val slots = new Array[Long](f.n)
         sc.add('[')
@@ -125,7 +125,7 @@ private[jsaun] object Jpretty {
           k += 1
         sc.add(']')
         new Plan(false, true, slots, null, spanOf(start, sc.pos, false))
-      case i: Jarr.I if fresh(i.fmt, i.sty, sc) =>
+      case i: Jarr.I if fresh(i.fmt, sc) =>
         val start = sc.pos
         val slots = new Array[Long](i.n)
         sc.add('[')
@@ -138,7 +138,7 @@ private[jsaun] object Jpretty {
           k += 1
         sc.add(']')
         new Plan(false, true, slots, null, spanOf(start, sc.pos, false))
-      case o: Jobj if fresh(o.fmt, o.sty, sc) =>
+      case o: Jobj if fresh(o.fmt, sc) =>
         val mid = if st.spaceAfterColon then ": " else ":"
         val start = sc.pos
         val live = o.size

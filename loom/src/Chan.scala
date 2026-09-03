@@ -5,7 +5,10 @@ package kse.loom
 
 import java.util.concurrent.locks.LockSupport
 
+import scala.collection.immutable.{Range => Rg}
+
 import kse.basics._
+import kse.basics.intervals._
 import kse.flow._
 
 
@@ -500,6 +503,9 @@ object Chan {
       if i0 < 0 || iN > xs.length || i0 > iN then
         throw new ArrayIndexOutOfBoundsException(s"range $i0 until $iN in array of length ${xs.length}")
       new ArraySource(xs, i0, iN)
+
+    /** A source over the slice of `xs` given by a range literal or an `Iv.X` interval.  The slice must not be mutated while the source is live. */
+    inline def apply[A, R <: Iv.X | Rg](xs: Array[A], inline r: R): Source[A] = Iv.dispatch(r, xs)((i0, iN) => apply(xs, i0, iN))
 
     /** A source over any `Iterable` or `Iterator` (drives its `iterator` once). */
     def apply[A](xs: IterableOnce[A]): Source[A] = new IteratorSource(xs.iterator)

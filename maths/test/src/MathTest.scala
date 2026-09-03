@@ -3806,6 +3806,40 @@ class MathTest {
 
 
   @Test
+  def rangeVariantTest(): Unit =
+    import kse.maths.fitting.TheilSen
+    // typed Prng shuffles accept a range literal or any interval flavor
+    val rng = Pcg64(0x1234L)
+    val is = Array(0, 1, 2, 3, 4, 5, 6, 7)
+    rng.shuffleRangeI(is)(1 to End - 1)
+    T ~ is(0)                                      ==== 0
+    T ~ is(7)                                      ==== 7
+    T ~ is.slice(1, 7).sorted                      =**= Array(1, 2, 3, 4, 5, 6)
+    // Stats over a slice
+    val xs = Array(9.0, 1, 2, 3, 4, 5, 9)
+    T ~ xs.median(1 to End - 1)                    ==== 3.0
+    T ~ xs.quantile(1 until 6)(0.5)                ==== 3.0
+    T ~ xs.iqr(Iv(1, 6))                           ==== 2.0
+    T ~ Quantile.finiteSorted(xs, 1 to End - 1)    =**= Array(1.0, 2, 3, 4, 5)
+    T ~ Quantile.ofSorted(Array(0.0, 1, 2, 3, 4), 1 to End)(0.5) ==== 2.5
+    T ~ Ranks.of(xs, 1 to End - 1)                 =**= Array(1.0, 2, 3, 4, 5)
+    // Theil-Sen over a slice, with and without an explicit confidence
+    val px = Array(100.0, 0, 1, 2, 3, 4, 100)
+    val py = Array(-5.0, 1, 3, 5, 7, 9, -5)
+    T ~ TheilSen.fit(px, py, 1 to End - 1).slope        =~~= 2.0
+    T ~ TheilSen.fit(px, py, 1 until 6, 0.9).intercept  =~~= 1.0
+    // hashes: every trait-level (i0, iN) form has an interval twin
+    val hb = "the quick brown fox".getBytes
+    val hs = "the quick brown fox"
+    T ~ XxHash.hash32(hb, 4 to End - 4)                    ==== XxHash.hash32(hb, 4, hb.length - 4)
+    T ~ XxHash.hash64(7L, hs, 4 until 9)                   ==== XxHash.hash64(7L, hs, 4, 9)
+    T ~ MurmurHash.hash128(1L, 2L, hb, Iv(4, 9))           ==== MurmurHash.hash128(1L, 2L, hb, 4, 9)
+    T ~ (new XxHash32()).append(hb, 4 to End - 4).result() ==== XxHash.hash32(hb, 4, hb.length - 4)
+    T ~ (new XxHash64()).result(hs, 4 until 9)             ==== XxHash.hash64(hs, 4, 9)
+    T ~ (new XxHash64()).freshHash(7L, hb, 4 to End - 4)   ==== XxHash.hash64(7L, hb, 4, hb.length - 4)
+    T ~ (new XxHash64()).freshHash(hs, 4 until 9)          ==== XxHash.hash64(hs, 4, 9)
+
+  @Test
   def theilSenTest(): Unit =
     import kse.maths.fitting.{TheilSen, FitLine}
 

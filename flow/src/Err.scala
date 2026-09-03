@@ -199,6 +199,10 @@ object ErrFrom {
 }
 
 
+/** The standard result-or-error type: `A Or Err`.  It is an `Or`, so it is used through
+  * `Or`'s extension methods (`fold`, `map`, `flatMap`, `getOrElse`, `.?`, ...) and never by
+  * pattern matching or casting -- see the warning on `Or`.
+  */
 type Ask[A] = A Or Err
 object Ask {
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.

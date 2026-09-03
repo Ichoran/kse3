@@ -200,22 +200,12 @@ object MkStr {
     inline def add(xs: RangeAddable, i0: Int, iN: Int) = inline xs match
       case ac: Array[Char]  => (sb: StB).append(ac, i0, iN - i0): Unit
       case cs: CharSequence => (sb: StB).append(cs, i0, iN): Unit
-    inline def add(xs: RangeAddable, ivx: Iv.X): Unit = inline xs match
+    inline def add[R <: Iv.X | Rg](xs: RangeAddable, inline r: R): Unit = inline xs match
       case ac: Array[Char] =>
-        val i0 = ivx.index0(ac)
-        val n = ivx.indexN(ac) - i0
-        (sb: StB).append(ac, i0, n): Unit
+        Iv.dispatch(r, ac)((i0, iN) => (sb: StB).append(ac, i0, iN - i0): Unit)
       case cs: CharSequence =>
         val n = cs.length()
-        (sb: StB).append(cs, ivx.index0(n), ivx.indexN(n)): Unit
-    inline def add(xs: RangeAddable, inline rg: Range): Unit =
-      val iv = Iv of rg
-      inline xs match
-        case ac: Array[Char] =>
-          val i0 = iv.i0
-          (sb: StB).append(ac, i0, iv.iN - i0): Unit
-        case cs: CharSequence =>
-          (sb: StB).append(cs, iv.i0, iv.iN): Unit
+        Iv.dispatch(r, n)((i0, iN) => (sb: StB).append(cs, i0, iN): Unit)
 
     inline def addln(): Unit =
       (sb: StB).append('\n'): Unit
@@ -225,11 +215,8 @@ object MkStr {
     inline def addln(xs: RangeAddable, i0: Int, iN: Int): Unit =
       MkStr.add(sb)(xs, i0, iN)
       (sb: StB).append('\n'): Unit
-    inline def addln(xs: RangeAddable, ivx: Iv.X): Unit =
-      MkStr.add(sb)(xs, ivx)
-      (sb: StB).append('\n'): Unit
-    inline def addln(xs: RangeAddable, inline rg: Rg): Unit =
-      MkStr.add(sb)(xs, rg)
+    inline def addln[R <: Iv.X | Rg](xs: RangeAddable, inline r: R): Unit =
+      MkStr.add(sb)(xs, r)
       (sb: StB).append('\n'): Unit
 
     inline def capacity: Int = (sb: StB).capacity()
@@ -239,26 +226,20 @@ object MkStr {
     inline def codept(i: Int): CodePoint = CodePoint((sb: StB).codePointAt(i))
 
     inline def codeCount(i0: Int, iN: Int): Int = (sb: StB).codePointCount(i0, iN)
-    inline def codeCount(ivx: Iv.X): Int =
-      val i0 = ivx.index0(sb.length)
-      val iN = ivx.indexN(sb.length)
-      (sb: StB).codePointCount(i0, iN)
-    inline def codeCount(inline rg: Rg): Int =
-      val iv = Iv of rg
-      (sb: StB).codePointCount(iv.i0, iv.iN)
+    inline def codeCount[R <: Iv.X | Rg](inline r: R): Int =
+      val n = (sb: StB).length()
+      Iv.dispatch(r, n)((i0, iN) => (sb: StB).codePointCount(i0, iN))
 
     inline def del(target: Iv.Pt): Unit = (sb: StB).deleteCharAt(Iv.point(target, (sb: StB).length())): Unit
     inline def del(i0: Int, iN: Int): Unit = (sb: StB).delete(i0, iN): Unit
-    inline def del(ivx: Iv.X): Unit = (sb: StB).delete(ivx.index0((sb: StB).length()), ivx.indexN(((sb: StB).length()))): Unit
-    inline def del(inline rg: Rg): Unit =
-      val iv = Iv of rg
-      (sb: StB).delete(iv.i0, iv.iN): Unit
+    inline def del[R <: Iv.X | Rg](inline r: R): Unit =
+      val n = (sb: StB).length()
+      Iv.dispatch(r, n)((i0, iN) => (sb: StB).delete(i0, iN): Unit)
 
     inline def getChars(i0: Int, iN: Int, target: Array[Char], where: Iv.Pt): Unit = (sb: StB).getChars(i0, iN, target, Iv.point(where, target))
-    inline def getChars(ivx: Iv.X, target: Array[Char], where: Iv.Pt): Unit = (sb: StB).getChars(ivx.index0((sb: StB).length()), ivx.indexN((sb: StB).length()), target, Iv.point(where, target))
-    inline def getChars(inline rg: Rg, target: Array[Char], where: Iv.Pt): Unit =
-      val iv = Iv of rg
-      (sb: StB).getChars(iv.i0, iv.iN, target, Iv.point(where, target))
+    inline def getChars[R <: Iv.X | Rg](inline r: R, target: Array[Char], where: Iv.Pt): Unit =
+      val n = (sb: StB).length()
+      Iv.dispatch(r, n)((i0, iN) => (sb: StB).getChars(i0, iN, target, Iv.point(where, target)))
 
     def indexOf(c: Char, i0: Int = 0): Int =
       if i0 >= (sb: StB).length() then -1
@@ -294,21 +275,12 @@ object MkStr {
       inline ra match
         case ac: Array[Char]  => (sb: StB).insert(j, ac, i0, iN - i0): Unit
         case cs: CharSequence => (sb: StB).insert(j, cs, i0, iN): Unit
-    inline def ins(target: Iv.Pt, ra: RangeAddable, ivx: Iv.X): Unit =
+    inline def ins[R <: Iv.X | Rg](target: Iv.Pt, ra: RangeAddable, inline r: R): Unit =
       val n = (sb: StB).length()
       val j = Iv.point(target, n)
-      val i0 = ivx.index0(n)
-      val iN = ivx.indexN(n)
       inline ra match
-        case ac: Array[Char]  => (sb: StB).insert(j, ac, i0, iN - i0): Unit
-        case cs: CharSequence => (sb: StB).insert(j, cs, i0, iN): Unit
-    inline def ins(target: Iv.Pt, ra: RangeAddable, inline rg: Rg): Unit =
-      val j = Iv.point(target, (sb: StB).length())
-      val iv = Iv of rg
-      val i0 = iv.i0
-      inline ra match
-        case ac: Array[Char]  => (sb: StB).insert(j, ac, i0, iv.iN - i0): Unit
-        case cs: CharSequence => (sb: StB).insert(j, cs, i0, iv.iN): Unit
+        case ac: Array[Char]  => Iv.dispatch(r, n)((i0, iN) => (sb: StB).insert(j, ac, i0, iN - i0): Unit)
+        case cs: CharSequence => Iv.dispatch(r, n)((i0, iN) => (sb: StB).insert(j, cs, i0, iN): Unit)
 
     inline def length: Int = (sb: StB).length()
     inline def length_=(n: Int): Unit = (sb: StB).setLength(n)
@@ -323,12 +295,9 @@ object MkStr {
 
     inline def str(): String = (sb: StB).toString
     inline def str(i0: Int, iN: Int): String = (sb: StB).substring(i0, iN)
-    inline def str(ivx: Iv.X): String =
+    inline def str[R <: Iv.X | Rg](inline r: R): String =
       val n = (sb: StB).length()
-      (sb: StB).substring(ivx.index0(n), ivx.indexN(n))
-    inline def str(inline rg: Rg): String = 
-      val iv = Iv of rg
-      (sb: StB).substring(iv.i0, iv.iN)
+      Iv.dispatch(r, n)((i0, iN) => (sb: StB).substring(i0, iN))
 
     inline def use()(inline f: Char => Unit): Unit =
       var i = 0
@@ -344,12 +313,9 @@ object MkStr {
       while i < n do
         f((sb: StB).charAt(i))
         i += 1
-    inline def use(ivx: Iv.X)(inline f: Char => Unit): Unit =
+    inline def use[R <: Iv.X | Rg](inline r: R)(inline f: Char => Unit): Unit =
       val n = (sb: StB).length()
-      use(ivx.index0(n), ivx.indexN(n))(f)
-    inline def use(inline rg: Rg)(inline f: Char => Unit): Unit =
-      val iv = Iv of rg
-      use(iv.i0, iv.iN)(f)
+      Iv.dispatch(r, n)((i0, iN) => use(i0, iN)(f))
     inline def use(indices: Array[Int])(inline f: Char => Unit): Unit =
       var k = 0
       val n = (sb: StB).length()
@@ -386,12 +352,9 @@ object MkStr {
       while i < n do
         (sb: StB).setCharAt(i, f((sb: StB).charAt(i)))
         i += 1
-    inline def alter(ivx: Iv.X)(inline f: Char => Char): Unit =
+    inline def alter[R <: Iv.X | Rg](inline r: R)(inline f: Char => Char): Unit =
       val n = (sb: StB).length()
-      alter(ivx.index0(n), ivx.indexN(n))(f)
-    inline def alter(inline rg: Rg)(inline f: Char => Char): Unit =
-      val iv = Iv of rg
-      alter(iv.i0, iv.iN)(f)
+      Iv.dispatch(r, n)((i0, iN) => alter(i0, iN)(f))
     inline def alter(indices: Array[Int])(inline f: Char => Char): Unit =
       var k = 0
       val n = (sb: StB).length()
@@ -428,12 +391,9 @@ object MkStr {
       while i < n do
         f((sb: StB).charAt(i), i)
         i += 1
-    inline def visit(ivx: Iv.X)(inline f: (Char, Int) => Unit): Unit =
+    inline def visit[R <: Iv.X | Rg](inline r: R)(inline f: (Char, Int) => Unit): Unit =
       val n = (sb: StB).length()
-      visit(ivx.index0(n), ivx.indexN(n))(f)
-    inline def visit(inline rg: Rg)(inline f: (Char, Int) => Unit): Unit =
-      val iv = Iv of rg
-      visit(iv.i0, iv.iN)(f)
+      Iv.dispatch(r, n)((i0, iN) => visit(i0, iN)(f))
     inline def visit(indices: Array[Int])(inline f: (Char, Int) => Unit): Unit =
       var k = 0
       val n = (sb: StB).length()
@@ -470,12 +430,9 @@ object MkStr {
       while i < n do
         (sb: StB).setCharAt(i, f((sb: StB).charAt(i), i))
         i += 1
-    inline def edit(ivx: Iv.X)(inline f: (Char, Int) => Char): Unit =
+    inline def edit[R <: Iv.X | Rg](inline r: R)(inline f: (Char, Int) => Char): Unit =
       val n = (sb: StB).length()
-      edit(ivx.index0(n), ivx.indexN(n))(f)
-    inline def edit(inline rg: Rg)(inline f: (Char, Int) => Char): Unit =
-      val iv = Iv of rg
-      edit(iv.i0, iv.iN)(f)
+      Iv.dispatch(r, n)((i0, iN) => edit(i0, iN)(f))
     inline def edit(indices: Array[Int])(inline f: (Char, Int) => Char): Unit =
       var k = 0
       val n = (sb: StB).length()

@@ -80,84 +80,42 @@ object JAny {
     inline def ask: Ask[Json] = ja
 
     /** True if this holds an error rather than a JSON value. */
-    inline def isErr: Boolean = ja.isInstanceOf[Alt[?]]
+    inline def isErr: Boolean = (ja: Ask[Json]).isAlt
 
     /** The JSON value, or a jump to the enclosing boundary with the error. */
     inline def json_?[E >: Alt[Err]](using Label[E]): Json = (ja: Ask[Json]).?
 
     /** The JSON value, or `alt` if this is an error. */
-    def jsonOr(alt: Json): Json = (ja: Any) match
-      case _: Alt[?] => alt
-      case j => j.asInstanceOf[Json]
+    def jsonOr(alt: Json): Json = (ja: Ask[Json]).getOrElse(_ => alt)
 
     /** The value at `key`, or an error if this is an error, not an object, or lacks the key. */
-    def apply(key: String): JAny = (ja: Any) match
-      case _: Alt[?] => ja
-      case j => j.asInstanceOf[Json].apply(key)
+    def apply(key: String): JAny = (ja: Ask[Json]).flatMap(_.apply(key))
 
     /** The element at `i`, or an error if this is an error, not an array, or out of bounds. */
-    def apply(i: Int): JAny = (ja: Any) match
-      case _: Alt[?] => ja
-      case j => j.asInstanceOf[Json].apply(i)
+    def apply(i: Int): JAny = (ja: Ask[Json]).flatMap(_.apply(i))
 
     /** True if this is an object that contains `key`; an error (or non-object) does not. */
-    def has(key: String): Boolean = (ja: Any) match
-      case _: Alt[?] => false
-      case j => j.asInstanceOf[Json].has(key)
+    def has(key: String): Boolean = (ja: Ask[Json]).exists(_.has(key))
 
     /** True if this is an array with an element at `i`; an error (or non-array) does not. */
-    def has(i: Int): Boolean = (ja: Any) match
-      case _: Alt[?] => false
-      case j => j.asInstanceOf[Json].has(i)
+    def has(i: Int): Boolean = (ja: Ask[Json]).exists(_.has(i))
 
-    def str: Ask[String] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[String]]
-      case j => j.asInstanceOf[Json].str
+    def str: Ask[String] = (ja: Ask[Json]).flatMap(_.str)
+    def bool: Ask[Boolean] = (ja: Ask[Json]).flatMap(_.bool)
+    def long: Ask[Long] = (ja: Ask[Json]).flatMap(_.long)
+    def dbl: Ask[Double] = (ja: Ask[Json]).flatMap(_.dbl)
+    def arr: Ask[Jarr] = (ja: Ask[Json]).flatMap(_.arr)
+    def obj: Ask[Jobj] = (ja: Ask[Json]).flatMap(_.obj)
 
-    def bool: Ask[Boolean] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[Boolean]]
-      case j => j.asInstanceOf[Json].bool
+    def strOr(alt: String): String = (ja: Ask[Json]).fold(_.strOr(alt))(_ => alt)
+    def boolOr(alt: Boolean): Boolean = (ja: Ask[Json]).fold(_.boolOr(alt))(_ => alt)
+    def longOr(alt: Long): Long = (ja: Ask[Json]).fold(_.longOr(alt))(_ => alt)
+    def dblOr(alt: Double): Double = (ja: Ask[Json]).fold(_.dblOr(alt))(_ => alt)
 
-    def long: Ask[Long] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[Long]]
-      case j => j.asInstanceOf[Json].long
-
-    def dbl: Ask[Double] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[Double]]
-      case j => j.asInstanceOf[Json].dbl
-
-    def arr: Ask[Jarr] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[Jarr]]
-      case j => j.asInstanceOf[Json].arr
-
-    def obj: Ask[Jobj] = (ja: Any) match
-      case _: Alt[?] => ja.asInstanceOf[Ask[Jobj]]
-      case j => j.asInstanceOf[Json].obj
-
-    def strOr(alt: String): String = (ja: Any) match
-      case _: Alt[?] => alt
-      case j => j.asInstanceOf[Json].strOr(alt)
-
-    def boolOr(alt: Boolean): Boolean = (ja: Any) match
-      case _: Alt[?] => alt
-      case j => j.asInstanceOf[Json].boolOr(alt)
-
-    def longOr(alt: Long): Long = (ja: Any) match
-      case _: Alt[?] => alt
-      case j => j.asInstanceOf[Json].longOr(alt)
-
-    def dblOr(alt: Double): Double = (ja: Any) match
-      case _: Alt[?] => alt
-      case j => j.asInstanceOf[Json].dblOr(alt)
-
-    def isNull: Boolean = (ja: Any) match
-      case _: Alt[?] => false
-      case j => j.asInstanceOf[Json].isNull
+    def isNull: Boolean = (ja: Ask[Json]).exists(_.isNull)
 
     /** Number of elements or keys, 0 for simple values, -1 for an error. */
-    def size: Int = (ja: Any) match
-      case _: Alt[?] => -1
-      case j => j.asInstanceOf[Json].size
+    def size: Int = (ja: Ask[Json]).fold(_.size)(_ => -1)
 }
 
 
@@ -228,38 +186,15 @@ sealed abstract class Json protected () {
     printTo(out)
     out.result
 
-  /** Trade byte-exact preserved formatting for each collection's compact inferred style,
-    * releasing the retained source text for garbage collection.  Values are untouched, and
-    * uniformly formatted documents still print the same; only irregular spacing normalizes.
-    * The format sidecars are updated in place (they never participate in equality).
+  /** Trade byte-exact preserved formatting for each collection's inferred separator style
+    * (`Jfmt.Local`), releasing the retained source text for garbage collection.  Uniformly
+    * formatted documents still print with the same layout; irregular spacing normalizes, and
+    * scalars re-serialize from their values (`1.50` prints as `1.5`).  Nodes that sampled the
+    * same layout share one `Local`, so what remains costs a reference per collection.  The
+    * format sidecars are updated in place (they never participate in equality).
     */
   final def compactFormat(): this.type =
-    this match
-      case a: Jarr.A =>
-        val f = a.fmt
-        if f ne null then
-          a.sty = Jfmt.Local.ofArr(f, a.n)
-          a.fmt = null
-        var k = 0
-        while k < a.n do
-          a.vs(k).compactFormat() __ Unit
-          k += 1
-      case d: Jarr.D =>
-        val f = d.fmt
-        if f ne null then
-          d.sty = Jfmt.Local.ofArr(f, d.n)
-          d.fmt = null
-      case o: Jobj =>
-        val f = o.fmt
-        if f ne null then
-          o.sty = Jfmt.Local.ofObj(f, o.n)
-          o.fmt = null
-        var k = 0
-        while k < o.n do
-          val v = o.vs(k)
-          if v ne null then v.compactFormat() __ Unit   // null = removed-entry hole
-          k += 1
-      case _ => ()
+    Json.compactFormat(this, new java.util.HashMap[Jfmt.Local, Jfmt.Local])
     this
 
   final override def toString = print(using Jstyle.compact)
@@ -512,24 +447,57 @@ object Json {
     * replacement dirties the parent's slot instead).
     */
   private[jsaun] def cleanBelow(j: Json): Boolean = j match
-    case a: Jarr.A =>
-      val f = a.fmt
-      (f ne null) && !f.anyDirty && {
+    case a: Jarr.A => a.fmt match
+      case f: Jfmt => !f.anyDirty && {
         var k = 0
         while k < a.n && cleanBelow(a.vs(k)) do k += 1
         k == a.n
       }
-    case d: Jarr.D =>
-      val f = d.fmt
-      (f ne null) && !f.anyDirty
-    case o: Jobj =>
-      val f = o.fmt
-      (f ne null) && !f.anyDirty && {
+      case _ => false
+    case d: Jarr.D => d.fmt match
+      case f: Jfmt => !f.anyDirty
+      case _ => false
+    case o: Jobj => o.fmt match
+      case f: Jfmt => !f.anyDirty && {
         var k = 0
         while k < o.n && cleanBelow(o.vs(k)) do k += 1
         k == o.n
       }
+      case _ => false
     case _ => true
+
+  private def intern(seen: java.util.HashMap[Jfmt.Local, Jfmt.Local], l: Jfmt.Local): Jfmt.Local =
+    val d = seen.putIfAbsent(l, l)
+    if d eq null then l else d
+
+  // The walk behind Json.compactFormat: every Jfmt demotes to a Local, and every Local (new or
+  // left by an earlier edit) is replaced by the first equal one seen
+  private def compactFormat(j: Json, seen: java.util.HashMap[Jfmt.Local, Jfmt.Local]): Unit = j match
+    case a: Jarr.A =>
+      a.fmt match
+        case f: Jfmt => a.fmt = intern(seen, Jfmt.Local.ofArr(f, a.n))
+        case l: Jfmt.Local => a.fmt = intern(seen, l)
+        case null => ()
+      var k = 0
+      while k < a.n do
+        compactFormat(a.vs(k), seen)
+        k += 1
+    case d: Jarr.D =>
+      d.fmt match
+        case f: Jfmt => d.fmt = intern(seen, Jfmt.Local.ofArr(f, d.n))
+        case l: Jfmt.Local => d.fmt = intern(seen, l)
+        case null => ()
+    case o: Jobj =>
+      o.fmt match
+        case f: Jfmt => o.fmt = intern(seen, Jfmt.Local.ofObj(f, o.n))
+        case l: Jfmt.Local => o.fmt = intern(seen, l)
+        case null => ()
+      var k = 0
+      while k < o.n do
+        val v = o.vs(k)
+        if v ne null then compactFormat(v, seen)   // null = removed-entry hole
+        k += 1
+    case _ => ()
 }
 
 
@@ -747,11 +715,11 @@ sealed abstract class Jarr protected () extends Json {
   override def arr: Ask[Jarr] = Is(this)
   final override def has(i: Int): Boolean = i >= 0 && i < size
 
-  /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
-  private[jsaun] var fmt: Jfmt | Null = null
-
-  /** Inferred separator style, kept when a structural edit invalidates `fmt`. */
-  private[jsaun] var sty: Jfmt.Local | Null = null
+  /** Format sidecar: a `Jfmt` from a format-preserving parse (byte-exact spans into retained
+    * source), or the `Jfmt.Local` separator style it demotes to when an edit or
+    * `compactFormat` releases that source; null when neither exists.
+    */
+  private[jsaun] var fmt: Jfmt | Jfmt.Local | Null = null
 
   def foreach(f: Json => Unit): Unit
 
@@ -885,9 +853,8 @@ object Jarr {
       out.add(close)
       out.add(']')
 
-    def printTo(out: Jout): Unit =
-      val f = fmt
-      if (f ne null) && !out.ignoreFmt then
+    def printTo(out: Jout): Unit = fmt match
+      case f: Jfmt if !out.ignoreFmt =>
         if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
         else
           var prev = f.start
@@ -900,17 +867,15 @@ object Jarr {
             prev = Jfmt.end(sp)
             k += 1
           f.src.copyTo(out, prev, f.end)
-      else
-        val s = sty
-        if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+      case s: Jfmt.Local if !out.ignoreFmt => emitWith(out, s.open, s.sep, s.close)
+      case _ =>
+        val st = out.style
+        if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else if st.width > 0 then Jpretty.printTo(this, out)
         else
-          val st = out.style
-          if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
-          else if st.width > 0 then Jpretty.printTo(this, out)
-          else
-            out.depth += 1
-            emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
-            out.depth -= 1
+          out.depth += 1
+          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+          out.depth -= 1
   }
   object A {
     /** Growable editable general array; upcast to `Jarr.A`/`Jarr` to hand off a view with no
@@ -930,16 +895,14 @@ object Jarr {
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
         vs(i) = v
         fmt match
-          case null => ()
-          case f => f.markDirty(i)
+          case f: Jfmt => f.markDirty(i)
+          case _ => ()
 
       // Structural changes invalidate the span bookkeeping, but the layout style is inferred
       // from it first, so edits keep matching their siblings' formatting
-      private def demoteFmt(): Unit =
-        val f = fmt
-        if f ne null then
-          sty = Jfmt.Local.ofArr(f, n)
-          fmt = null
+      private def demoteFmt(): Unit = fmt match
+        case f: Jfmt => fmt = Jfmt.Local.ofArr(f, n)
+        case _ => ()
 
       def add(v: Json): this.type =
         demoteFmt()
@@ -1015,9 +978,8 @@ object Jarr {
       out.add(close)
       out.add(']')
 
-    def printTo(out: Jout): Unit =
-      val f = fmt
-      if (f ne null) && !out.ignoreFmt then
+    def printTo(out: Jout): Unit = fmt match
+      case f: Jfmt if !out.ignoreFmt =>
         if !f.anyDirty then f.src.copyTo(out, f.start, f.end)
         else
           var prev = f.start
@@ -1030,17 +992,15 @@ object Jarr {
             prev = Jfmt.end(sp)
             k += 1
           f.src.copyTo(out, prev, f.end)
-      else
-        val s = sty
-        if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
+      case s: Jfmt.Local if !out.ignoreFmt => emitWith(out, s.open, s.sep, s.close)
+      case _ =>
+        val st = out.style
+        if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
+        else if st.width > 0 then Jpretty.printTo(this, out)
         else
-          val st = out.style
-          if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
-          else if st.width > 0 then Jpretty.printTo(this, out)
-          else
-            out.depth += 1
-            emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
-            out.depth -= 1
+          out.depth += 1
+          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth), Jstyle.pad(st.indent, out.depth - 1))
+          out.depth -= 1
   }
   object D {
     /** Growable editable packed-Double array; upcast to `Jarr.D`/`Jarr` to hand off a view
@@ -1060,15 +1020,13 @@ object Jarr {
         if i < 0 || i >= n then throw new IndexOutOfBoundsException(s"index $i of array of size $n")
         xs(i) = x
         fmt match
-          case null => ()
-          case f => f.markDirty(i)
+          case f: Jfmt => f.markDirty(i)
+          case _ => ()
 
       // See Jarr.A.M.demoteFmt
-      private def demoteFmt(): Unit =
-        val f = fmt
-        if f ne null then
-          sty = Jfmt.Local.ofArr(f, n)
-          fmt = null
+      private def demoteFmt(): Unit = fmt match
+        case f: Jfmt => fmt = Jfmt.Local.ofArr(f, n)
+        case _ => ()
 
       def add(x: Double): this.type =
         demoteFmt()
@@ -1145,10 +1103,9 @@ object Jarr {
       out.add(close)
       out.add(']')
 
-    def printTo(out: Jout): Unit =
-      val s = sty
-      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
-      else
+    def printTo(out: Jout): Unit = fmt match
+      case s: Jfmt.Local if !out.ignoreFmt => emitWith(out, s.open, s.sep, s.close)
+      case _ =>
         val st = out.style
         if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
         else if st.width > 0 then Jpretty.printTo(this, out)
@@ -1195,10 +1152,9 @@ object Jarr {
       out.add(close)
       out.add(']')
 
-    def printTo(out: Jout): Unit =
-      val s = sty
-      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.close)
-      else
+    def printTo(out: Jout): Unit = fmt match
+      case s: Jfmt.Local if !out.ignoreFmt => emitWith(out, s.open, s.sep, s.close)
+      case _ =>
         val st = out.style
         if st.indent.isEmpty || n == 0 then emitWith(out, "", if st.spaceAfterComma then ", " else ",", "")
         else if st.width > 0 then Jpretty.printTo(this, out)
@@ -1228,14 +1184,14 @@ sealed class Jobj private[jsaun] (
   final override def size: Int = n - gaps
   final override def obj: Ask[Jobj] = Is(this)
 
-  /** Format info from a format-preserving parse (see `Jfmt`); null when none exists. */
-  private[jsaun] var fmt: Jfmt | Null = null
+  /** Format sidecar: a `Jfmt` from a format-preserving parse (byte-exact spans into retained
+    * source), or the `Jfmt.Local` separator style it demotes to when an edit or
+    * `compactFormat` releases that source; null when neither exists.
+    */
+  private[jsaun] var fmt: Jfmt | Jfmt.Local | Null = null
 
-  /** Inferred separator style, kept when a structural edit invalidates `fmt`. */
-  private[jsaun] var sty: Jfmt.Local | Null = null
-
-  /** Removed-entry holes (null `ks` slots) below `n`.  Holes imply `fmt` is gone: removal
-    * is a structural edit, so the span bookkeeping never has to describe them.
+  /** Removed-entry holes (null `ks` slots) below `n`.  Holes imply any `Jfmt` is gone:
+    * removal is a structural edit, so the span bookkeeping never has to describe them.
     */
   private[jsaun] var gaps: Int = 0
 
@@ -1357,9 +1313,8 @@ sealed class Jobj private[jsaun] (
     out.add(close)
     out.add('}')
 
-  def printTo(out: Jout): Unit =
-    val f = fmt
-    if (f ne null) && !out.ignoreFmt then
+  def printTo(out: Jout): Unit = fmt match
+    case f: Jfmt if !out.ignoreFmt =>
       if Json.cleanBelow(this) then f.src.copyTo(out, f.start, f.end)
       else
         var prev = f.start
@@ -1376,19 +1331,17 @@ sealed class Jobj private[jsaun] (
           prev = Jfmt.end(vsp)
           k += 1
         f.src.copyTo(out, prev, f.end)
-    else
-      val s = sty
-      if (s ne null) && !out.ignoreFmt then emitWith(out, s.open, s.sep, s.mid, s.close)
+    case s: Jfmt.Local if !out.ignoreFmt => emitWith(out, s.open, s.sep, s.mid, s.close)
+    case _ =>
+      val st = out.style
+      if st.indent.isEmpty || size == 0 then
+        emitWith(out, "", if st.spaceAfterComma then ", " else ",", if st.spaceAfterColon then ": " else ":", "")
+      else if st.width > 0 then Jpretty.printTo(this, out)
       else
-        val st = out.style
-        if st.indent.isEmpty || size == 0 then
-          emitWith(out, "", if st.spaceAfterComma then ", " else ",", if st.spaceAfterColon then ": " else ":", "")
-        else if st.width > 0 then Jpretty.printTo(this, out)
-        else
-          out.depth += 1
-          emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth),
-                   if st.spaceAfterColon then ": " else ":", Jstyle.pad(st.indent, out.depth - 1))
-          out.depth -= 1
+        out.depth += 1
+        emitWith(out, Jstyle.pad(st.indent, out.depth), "," + Jstyle.pad(st.indent, out.depth),
+                 if st.spaceAfterColon then ": " else ":", Jstyle.pad(st.indent, out.depth - 1))
+        out.depth -= 1
 }
 object Jobj {
   def apply(kvs: (String, Json)*): Jobj =
@@ -1449,11 +1402,9 @@ object Jobj {
           vs = java.util.Arrays.copyOf(vs, m)
 
     // See Jarr.A.M.demoteFmt
-    private def demoteFmt(): Unit =
-      val f = fmt
-      if f ne null then
-        sty = Jfmt.Local.ofObj(f, n)
-        fmt = null
+    private def demoteFmt(): Unit = fmt match
+      case f: Jfmt => fmt = Jfmt.Local.ofObj(f, n)
+      case _ => ()
 
     /** Append an entry, permitting duplicate keys. */
     def add(key: String, v: Json): this.type =
@@ -1478,8 +1429,8 @@ object Jobj {
       if k >= 0 then
         vs(k) = v
         fmt match
-          case null => ()
-          case f => f.markDirty(2 * k + 1)   // holes cannot coexist with fmt, so k is the entry ordinal
+          case f: Jfmt => f.markDirty(2 * k + 1)   // holes cannot coexist with a Jfmt, so k is the entry ordinal
+          case _ => ()
       else add(key, v) __ Unit
       this
 

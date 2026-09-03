@@ -26,11 +26,13 @@ final class Jsrc private (private val content: String | Array[Byte] | Array[Char
     case b: Array[Byte] => out.add(b, i0, iN)
     case c: Array[Char] => out.add(new String(c, i0, iN - i0))
 
-  /** The raw span `[i0, iN)` as a String (bytes decoded as UTF-8). */
-  def substring(i0: Int, iN: Int): String = content match
-    case s: String => s.substring(i0, iN)
-    case b: Array[Byte] => new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)
-    case c: Array[Char] => new String(c, i0, iN - i0)
+  /** The raw span `[i0, iN)` as a String (bytes decoded as UTF-8); an empty span is the shared `""`. */
+  def substring(i0: Int, iN: Int): String =
+    if iN <= i0 then ""
+    else content match
+      case s: String => s.substring(i0, iN)
+      case b: Array[Byte] => new String(b, i0, iN - i0, java.nio.charset.StandardCharsets.UTF_8)
+      case c: Array[Char] => new String(c, i0, iN - i0)
 }
 object Jsrc {
   def apply(s: String): Jsrc = new Jsrc(s)
@@ -78,16 +80,26 @@ object Jfmt {
   inline def start(span: Long): Int = (span >>> 32).toInt
   inline def end(span: Long): Int = (span & 0xFFFFFFFFL).toInt
 
-  /** A collection's own separator style, inferred from its preserved format the moment a
-    * structural edit invalidates the span bookkeeping: the node re-serializes with these
-    * verbatim-sampled pieces (`'[' open elem sep elem ... close ']'`; objects put `mid`
-    * between key and value), so an insertion comes out matching its siblings' layout while
-    * unedited children still print from their own retained source.
+  /** A collection's own separator style, inferred from its preserved format when that is
+    * released -- by a structural edit that invalidates the span bookkeeping, or by
+    * `compactFormat`: the node re-serializes with these verbatim-sampled pieces
+    * (`'[' open elem sep elem ... close ']'`; objects put `mid` between key and value), so an
+    * insertion comes out matching its siblings' layout while unedited children still print
+    * from their own retained source.  Immutable and structurally equal, so one instance can
+    * serve every node that sampled the same layout.
     */
-  final class Local private[jsaun] (val open: String, val sep: String, val mid: String, val close: String) {}
+  final class Local private[jsaun] (val open: String, val sep: String, val mid: String, val close: String) {
+    override def equals(a: Any): Boolean = a match
+      case l: Local => open == l.open && sep == l.sep && mid == l.mid && close == l.close
+      case _ => false
+    override def hashCode: Int = ((open.## * 31 + sep.##) * 31 + mid.##) * 31 + close.##
+  }
   object Local {
+    /** The style an empty collection gets: nothing was there to sample, so single-line spaced. */
+    val default: Local = new Local("", ", ", ": ", "")
+
     private[jsaun] def ofArr(f: Jfmt, n: Int): Local =
-      if n == 0 then new Local("", ", ", ": ", "")
+      if n == 0 then default
       else
         val open = f.src.substring(f.start + 1, start(f.spans(0)))
         val sep =
@@ -96,7 +108,7 @@ object Jfmt {
         new Local(open, sep, ": ", f.src.substring(end(f.spans(n - 1)), f.end - 1))
 
     private[jsaun] def ofObj(f: Jfmt, n: Int): Local =
-      if n == 0 then new Local("", ", ", ": ", "")
+      if n == 0 then default
       else
         val open = f.src.substring(f.start + 1, start(f.spans(0)))
         val mid = f.src.substring(end(f.spans(0)), start(f.spans(1)))

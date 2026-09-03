@@ -72,6 +72,7 @@ object TestProtos {
 @RunWith(classOf[JUnit4])
 class AlienTest {
   import kse.basics.testutilities.TestUtilities.{given, _}
+  import kse.basics.intervals._
   import kse.basics.{given, _}
   import kse.flow.{given, _}
   import kse.maths.{given, _}
@@ -223,6 +224,8 @@ class AlienTest {
       (top, five, deep, seven)
     T ~ got(Pb.decode(bs)(read))          ==== ("top", 5, "deep", 7)
     T ~ got(Pb.decode(Mem of bs)(read))   ==== ("top", 5, "deep", 7)
+    T ~ got(Pb.decode(bs, 0 to End)(read))        ==== ("top", 5, "deep", 7)
+    T ~ got(Pb.decode(bs, Iv(0, bs.length))(read)) ==== ("top", 5, "deep", 7)
     // an empty present message is two bytes and reads as all-defaults
     T ~ enc(_.msg(4, Pb.Out())) =**= Array[Byte](0x22, 0x00)
 

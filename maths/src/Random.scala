@@ -301,35 +301,20 @@ sealed abstract class Prng {
   final inline def fillOp[A](target: Array[A])(inline f: Prng => A): Unit =
     fillRangeOp(target)(0, target.length)(f)
 
-  final inline def fillRangeZ(target: Array[Boolean])(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeZ(target)(iv.i0, iv.iN) }
-  final inline def fillRangeB(target: Array[Byte]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeB(target)(iv.i0, iv.iN) }
-  final inline def fillRangeS(target: Array[Short]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeS(target)(iv.i0, iv.iN) }
-  final inline def fillRangeC(target: Array[Char]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeC(target)(iv.i0, iv.iN) }
-  final inline def fillRangeI(target: Array[Int]    )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeI(target)(iv.i0, iv.iN) }
-  final inline def fillRangeL(target: Array[Long]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeL(target)(iv.i0, iv.iN) }
-  final inline def fillRangeF(target: Array[Float]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeF(target)(iv.i0, iv.iN) }
-  final inline def fillRangeD(target: Array[Double] )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeD(target)(iv.i0, iv.iN) }
-  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeModI(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeModL(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeGaussian(     target: Array[Double])(inline rg: Rg): Unit = { val iv = Iv of rg; fillRangeGaussian(target)(iv.i0, iv.iN) }
-  final inline def fillRangeOp[A](target: Array[A])(inline rg: Rg)(inline f: Prng => A): Unit =
-    val iv = Iv of rg
-    fillRangeOp(target)(iv.i0, iv.iN)(f)
 
-  final inline def fillRangeZ(target: Array[Boolean])(inline v: Iv.X): Unit = { val iv = v of target; fillRangeZ(target)(iv.i0, iv.iN) }
-  final inline def fillRangeB(target: Array[Byte]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeB(target)(iv.i0, iv.iN) }
-  final inline def fillRangeS(target: Array[Short]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeS(target)(iv.i0, iv.iN) }
-  final inline def fillRangeC(target: Array[Char]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeC(target)(iv.i0, iv.iN) }
-  final inline def fillRangeI(target: Array[Int]    )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeI(target)(iv.i0, iv.iN) }
-  final inline def fillRangeL(target: Array[Long]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeL(target)(iv.i0, iv.iN) }
-  final inline def fillRangeF(target: Array[Float]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeF(target)(iv.i0, iv.iN) }
-  final inline def fillRangeD(target: Array[Double] )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeD(target)(iv.i0, iv.iN) }
-  final inline def fillRangeModI(m: Int)( target: Array[Int]   )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeModI(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeModL(m: Long)(target: Array[Long]  )(inline v: Iv.X): Unit = { val iv = v of target; fillRangeModL(m)( target)(iv.i0, iv.iN) }
-  final inline def fillRangeGaussian(     target: Array[Double])(inline v: Iv.X): Unit = { val iv = v of target; fillRangeGaussian(target)(iv.i0, iv.iN) }
-  final inline def fillRangeOp[A](target: Array[A])(inline v: Iv.X)(inline f: Prng => A): Unit =
-    val iv = v of target
-    fillRangeOp(target)(iv.i0, iv.iN)(f)
+  final inline def fillRangeZ[R <: Iv.X | Rg](target: Array[Boolean])(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeZ(target)(i0, iN))
+  final inline def fillRangeB[R <: Iv.X | Rg](target: Array[Byte]   )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeB(target)(i0, iN))
+  final inline def fillRangeS[R <: Iv.X | Rg](target: Array[Short]  )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeS(target)(i0, iN))
+  final inline def fillRangeC[R <: Iv.X | Rg](target: Array[Char]   )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeC(target)(i0, iN))
+  final inline def fillRangeI[R <: Iv.X | Rg](target: Array[Int]    )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeI(target)(i0, iN))
+  final inline def fillRangeL[R <: Iv.X | Rg](target: Array[Long]   )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeL(target)(i0, iN))
+  final inline def fillRangeF[R <: Iv.X | Rg](target: Array[Float]  )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeF(target)(i0, iN))
+  final inline def fillRangeD[R <: Iv.X | Rg](target: Array[Double] )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeD(target)(i0, iN))
+  final inline def fillRangeModI[R <: Iv.X | Rg](m: Int)( target: Array[Int]   )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeModI(m)( target)(i0, iN))
+  final inline def fillRangeModL[R <: Iv.X | Rg](m: Long)(target: Array[Long]  )(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeModL(m)( target)(i0, iN))
+  final inline def fillRangeGaussian[R <: Iv.X | Rg](     target: Array[Double])(inline v: R): Unit = Iv.dispatch(v, target)((i0, iN) => fillRangeGaussian(target)(i0, iN))
+  final inline def fillRangeOp[A, R <: Iv.X | Rg](target: Array[A])(inline v: R)(inline f: Prng => A): Unit =
+    Iv.dispatch(v, target)((i0, iN) => fillRangeOp(target)(i0, iN)(f))
 
   final inline def arrayZ(            n: Int): Array[Boolean] = { val a = new Array[Boolean](if n < 0 then 0 else n); fillZ(       a); a }
   final inline def arrayB(            n: Int): Array[Byte]    = { val a = new Array[Byte]   (if n < 0 then 0 else n); fillB(       a); a }
@@ -359,6 +344,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeZ[R <: Iv.X | Rg](a: Array[Boolean])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeZ(a)(i0, iN))
 
   final def shuffleRangeB(a: Array[Byte])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -372,6 +358,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeB[R <: Iv.X | Rg](a: Array[Byte])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeB(a)(i0, iN))
 
   final def shuffleRangeS(a: Array[Short])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -385,6 +372,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeS[R <: Iv.X | Rg](a: Array[Short])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeS(a)(i0, iN))
 
   final def shuffleRangeC(a: Array[Char])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -398,6 +386,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeC[R <: Iv.X | Rg](a: Array[Char])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeC(a)(i0, iN))
 
   final def shuffleRangeI(a: Array[Int])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -411,6 +400,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeI[R <: Iv.X | Rg](a: Array[Int])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeI(a)(i0, iN))
 
   final def shuffleRangeF(a: Array[Float])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -424,6 +414,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeF[R <: Iv.X | Rg](a: Array[Float])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeF(a)(i0, iN))
 
   final def shuffleRangeL(a: Array[Long])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -437,6 +428,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeL[R <: Iv.X | Rg](a: Array[Long])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeL(a)(i0, iN))
 
   final def shuffleRangeD(a: Array[Double])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -450,6 +442,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeD[R <: Iv.X | Rg](a: Array[Double])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeD(a)(i0, iN))
 
   final def shuffleRangeO[A <: AnyRef](a: Array[A])(i0: Int, iN: Int): Unit =
     var i = a.length - 1
@@ -463,6 +456,7 @@ sealed abstract class Prng {
         a(i) = x
       i -= 1
       n -= 1
+  final inline def shuffleRangeO[A <: AnyRef, R <: Iv.X | Rg](a: Array[A])(inline v: R): Unit = Iv.dispatch(v, a)((i0, iN) => shuffleRangeO(a)(i0, iN))
 
   inline final def shuffleRange[A](a: Array[A])(i0: Int, iN: Int): Unit = inline a match
     case az: Array[Boolean] => shuffleRangeZ(az)(i0, iN)
@@ -490,12 +484,8 @@ sealed abstract class Prng {
     }
 
   final inline def shuffle[A](a: Array[A]): Unit = shuffleRange(a)(0, a.length)
-  final inline def shuffleRange[A](a: Array[A])(inline rg: Rg): Unit =
-    val iv = Iv of rg
-    shuffleRange(a)(iv.i0, iv.iN)
-  final inline def shuffleRange[A](a: Array[A])(inline v: Iv.X): Unit =
-    val iv = v of a
-    shuffleRange(a)(iv.i0, iv.iN)
+  final inline def shuffleRange[A, R <: Iv.X | Rg](a: Array[A])(inline v: R): Unit =
+    Iv.dispatch(v, a)((i0, iN) => shuffleRange(a)(i0, iN))
 
   private def liAlgorithmL(n: Int, k: Int): Array[Int] =
     val ans = new Array[Int](k)
@@ -576,12 +566,8 @@ sealed abstract class Prng {
   final inline def sampleRange[A](a: Array[A])(i0: Int, iN: Int): A =
     if i0 >= iN then throw new IllegalArgumentException("sample of empty range")
     else a(i0 + (this % (iN - i0)))
-  final inline def sampleRange[A](a: Array[A])(inline rg: Rg): A =
-    val iv = Iv of rg
-    sampleRange(a)(iv.i0, iv.iN)
-  final inline def sampleRange[A](a: Array[A])(inline v: Iv.X): A =
-    val iv = v of a
-    sampleRange(a)(iv.i0, iv.iN)
+  final inline def sampleRange[A, R <: Iv.X | Rg](a: Array[A])(inline v: R): A =
+    Iv.dispatch(v, a)((i0, iN) => sampleRange(a)(i0, iN))
 
   final inline def sampleRange[A](k: Int)(a: Array[A])(i0: Int, iN: Int)(using ClassTag[A]): Array[A] =
     if k <= 0 then new Array[A](0)
@@ -607,12 +593,8 @@ sealed abstract class Prng {
           h += 1
       ans
 
-  final inline def sampleRange[A](k: Int)(a: Array[A])(inline rg: Rg)(using ClassTag[A]): Array[A] =
-    val iv = Iv of rg
-    sampleRange(k)(a)(iv.i0, iv.iN)
-  final inline def sampleRange[A](k: Int)(a: Array[A])(inline v: Iv.X)(using ClassTag[A]): Array[A] =
-    val iv = v of a
-    sampleRange(k)(a)(iv.i0, iv.iN)
+  final inline def sampleRange[A, R <: Iv.X | Rg](k: Int)(a: Array[A])(inline v: R)(using ClassTag[A]): Array[A] =
+    Iv.dispatch(v, a)((i0, iN) => sampleRange(k)(a)(i0, iN))
 
   final inline def sample(a: String): Char = a.charAt(this % a.length)
   final inline def sample(k: Int)(a: String): String = sampleRange(k)(a)(0, a.length)
@@ -620,12 +602,8 @@ sealed abstract class Prng {
   final inline def sampleRange(a: String)(i0: Int, iN: Int): Char =
     if i0 >= iN then throw new IllegalArgumentException("sample of empty range")
     else a.charAt(i0 + (this % (iN - i0)))
-  final inline def sampleRange(a: String)(inline rg: Rg): Char =
-    val iv = Iv of rg
-    sampleRange(a)(iv.i0, iv.iN)
-  final inline def sampleRange(a: String)(inline v: Iv.X): Char =
-    val iv = v of a
-    sampleRange(a)(iv.i0, iv.iN)
+  final inline def sampleRange[R <: Iv.X | Rg](a: String)(inline v: R): Char =
+    Iv.dispatch(v, a)((i0, iN) => sampleRange(a)(i0, iN))
 
   final inline def sampleRange(k: Int)(a: String)(i0: Int, iN: Int): String =
     if k <= 0 then ""
@@ -649,12 +627,8 @@ sealed abstract class Prng {
             i += 1
             h += 1
 
-  final inline def sampleRange(k: Int)(a: String)(inline rg: Rg): String =
-    val iv = Iv of rg
-    sampleRange(k)(a)(iv.i0, iv.iN)
-  final inline def sampleRange(k: Int)(a: String)(inline v: Iv.X): String =
-    val iv = v of a
-    sampleRange(k)(a)(iv.i0, iv.iN)
+  final inline def sampleRange[R <: Iv.X | Rg](k: Int)(a: String)(inline v: R): String =
+    Iv.dispatch(v, a)((i0, iN) => sampleRange(k)(a)(i0, iN))
 
   final def sampleIndexedSeq[A, CC <: IndexedSeq[A]](k: Int)(coll: CC)(using factory: scala.collection.Factory[A, CC]): CC =
     val b = factory.newBuilder
@@ -882,139 +856,109 @@ extension [A](a: Array[A])
   @targetName("auto_shuffle") inline def shuffle()(using ar: AutoPrng): Unit = AutoPrng.get(ar).shuffleRange(a)(0, a.length)
   @targetName("that_shuffle") inline def shuffle(i0: Int, iN: Int)(r: Prng): Unit = r.shuffleRange(a)(i0, iN)
   @targetName("auto_shuffle") inline def shuffle(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).shuffleRange(a)(i0, iN)
-  @targetName("that_shuffle") inline def shuffle(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.shuffleRange(a)(iv.i0, iv.iN) }
-  @targetName("auto_shuffle") inline def shuffle(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN) }
-  @targetName("that_shuffle") inline def shuffle(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.shuffleRange(a)(iv.i0, iv.iN) }
-  @targetName("auto_shuffle") inline def shuffle(inline v: Iv.X)(using ar: AutoPrng):  Unit= { val iv = v of a; AutoPrng.get(ar).shuffleRange(a)(iv.i0, iv.iN) }
+  @targetName("that_shuffle") inline def shuffle[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.shuffleRange(a)(i0, iN))
+  @targetName("auto_shuffle") inline def shuffle[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).shuffleRange(a)(i0, iN))
   inline def randomFillOp()(r: Prng)(f: Prng => A): Unit = r.fillRangeOp(a)(0, a.length)(f)
   inline def randomFillOp()(f: Prng => A)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeOp(a)(0, a.length)(f)
   inline def randomFillOp(i0: Int, iN: Int)(r: Prng)(f: Prng => A): Unit = r.fillRangeOp(a)(i0, iN)(f)
   inline def randomFillOp(i0: Int, iN: Int)(f: Prng => A)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeOp(a)(i0, iN)(f)
-  inline def randomFillOp(inline rg: Rg)(r: Prng)(f: Prng => A): Unit = { val iv = Iv of rg; r.fillRangeOp(a)(iv.i0, iv.iN)(f) }
-  inline def randomFillOp(inline rg: Rg)(f: Prng => A)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f) }
-  inline def randomFillOp(inline v: Iv.X)(r: Prng)(f: Prng => A): Unit = { val iv = v of a; r.fillRangeOp(a)(iv.i0, iv.iN)(f) }
-  inline def randomFillOp(inline v: Iv.X)(f: Prng => A)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeOp(a)(iv.i0, iv.iN)(f) }
+  inline def randomFillOp[R <: Iv.X | Rg](inline v: R)(r: Prng)(f: Prng => A): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeOp(a)(i0, iN)(f))
+  inline def randomFillOp[R <: Iv.X | Rg](inline v: R)(f: Prng => A)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeOp(a)(i0, iN)(f))
   // inline def %(r: Prng): A = r.sample(a)    ===>   In OverloadedExtensions
   @targetName("that_sample") inline def sample()(r: Prng): A = r.sample(a)
   @targetName("auto_sample") inline def sample()(using ar: AutoPrng): A = AutoPrng.get(ar).sample(a)
   @targetName("that_sample") inline def sample(i0: Int, iN: Int)(r: Prng): A = r.sampleRange(a)(i0, iN)
   @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(i0, iN)
-  @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): A = r.sampleRange(a)(rg)
-  @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(rg)
-  @targetName("that_sample") inline def sample(inline v: Iv.X)(r: Prng): A = r.sampleRange(a)(v)
-  @targetName("auto_sample") inline def sample(inline v: Iv.X)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample[R <: Iv.X | Rg](inline v: R)(r: Prng): A = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): A = AutoPrng.get(ar).sampleRange(a)(v)
   @targetName("that_sample") inline def sample(k: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sample(k)(a)
   @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sample(k)(a)
   @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(i0, iN)
   @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
-  @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(rg)
-  @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(rg)
-  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv.X)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
-  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv.X)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
+  @targetName("that_sample") inline def sample[R <: Iv.X | Rg](k: Int)(inline v: R)(r: Prng)(using ClassTag[A]): Array[A] = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample[R <: Iv.X | Rg](k: Int)(inline v: R)(using ar: AutoPrng, tag: ClassTag[A]): Array[A] = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension (a: Array[Boolean])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillZ(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillZ(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeZ(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeZ(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeZ(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeZ(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeZ(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeZ(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeZ(a)(i0, iN))
 
 extension (a: Array[Byte])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillB(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillB(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeB(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeB(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeB(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeB(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeB(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeB(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeB(a)(i0, iN))
 
 extension (a: Array[Short])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillS(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillS(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeS(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeS(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeS(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeS(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeS(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeS(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeS(a)(i0, iN))
 
 extension (a: Array[Char])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillC(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillC(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeC(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeC(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeC(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeC(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeC(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeC(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeC(a)(i0, iN))
 
 extension (a: Array[Int])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillI(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillI(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeI(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeI(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeI(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeI(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeI(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeI(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeI(a)(i0, iN))
   @targetName("that_randMod") inline def randomMod(m: Int)(r: Prng): Unit = r.fillModI(m)(a)
   @targetName("auto_randMod") inline def randomMod(m: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillModI(m)(a)
   @targetName("that_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeModI(m)(a)(i0, iN)
   @targetName("auto_randMod") inline def randomMod(m: Int)(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeModI(m)(a)(i0, iN)
-  @targetName("that_randMod") inline def randomMod(m: Int)(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeModI(m)(a)(iv.i0, iv.iN) }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN) }
-  @targetName("that_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeModI(m)(a)(iv.i0, iv.iN) }
-  @targetName("auto_randMod") inline def randomMod(m: Int)(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeModI(m)(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod[R <: Iv.X | Rg](m: Int)(inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeModI(m)(a)(i0, iN))
+  @targetName("auto_randMod") inline def randomMod[R <: Iv.X | Rg](m: Int)(inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeModI(m)(a)(i0, iN))
 
 extension (a: Array[Long])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillL(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillL(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeL(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeL(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeL(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeL(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeL(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeL(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeL(a)(i0, iN))
   @targetName("that_randMod") inline def randomMod(m: Long)(r: Prng): Unit = r.fillModL(m)(a)
   @targetName("auto_randMod") inline def randomMod(m: Long)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillModL(m)(a)
   @targetName("that_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeModL(m)(a)(i0, iN)
   @targetName("auto_randMod") inline def randomMod(m: Long)(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeModL(m)(a)(i0, iN)
-  @targetName("that_randMod") inline def randomMod(m: Long)(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeModL(m)(a)(iv.i0, iv.iN) }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN) }
-  @targetName("that_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeModL(m)(a)(iv.i0, iv.iN) }
-  @targetName("auto_randMod") inline def randomMod(m: Long)(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeModL(m)(a)(iv.i0, iv.iN) }
+  @targetName("that_randMod") inline def randomMod[R <: Iv.X | Rg](m: Long)(inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeModL(m)(a)(i0, iN))
+  @targetName("auto_randMod") inline def randomMod[R <: Iv.X | Rg](m: Long)(inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeModL(m)(a)(i0, iN))
 
 extension (a: Array[Float])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillF(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillF(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeF(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeF(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeF(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeF(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeF(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeF(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeF(a)(i0, iN))
 
 extension (a: Array[Double])
   @targetName("that_ranFill") inline def randomFill(r: Prng): Unit = r.fillD(a)
   @targetName("auto_ranFill") inline def randomFill(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillD(a)
   @targetName("that_ranFill") inline def randomFill(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeD(a)(i0, iN)
   @targetName("auto_ranFill") inline def randomFill(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeD(a)(i0, iN)
-  @targetName("that_ranFill") inline def randomFill(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeD(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN) }
-  @targetName("that_ranFill") inline def randomFill(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeD(a)(iv.i0, iv.iN) }
-  @targetName("auto_ranFill") inline def randomFill(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeD(a)(iv.i0, iv.iN) }
+  @targetName("that_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeD(a)(i0, iN))
+  @targetName("auto_ranFill") inline def randomFill[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeD(a)(i0, iN))
   @targetName("that_randGau") inline def randomGaussian(r: Prng): Unit = r.fillGaussian(a)
   @targetName("auto_randGau") inline def randomGaussian(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillGaussian(a)
   @targetName("that_randGau") inline def randomGaussian(i0: Int, iN: Int)(r: Prng): Unit = r.fillRangeGaussian(a)(i0, iN)
   @targetName("auto_randGau") inline def randomGaussian(i0: Int, iN: Int)(using ar: AutoPrng): Unit = AutoPrng.get(ar).fillRangeGaussian(a)(i0, iN)
-  @targetName("that_randGau") inline def randomGaussian(inline rg: Rg)(r: Prng): Unit = { val iv = Iv of rg; r.fillRangeGaussian(a)(iv.i0, iv.iN) }
-  @targetName("auto_randGau") inline def randomGaussian(inline rg: Rg)(using ar: AutoPrng): Unit = { val iv = Iv of rg; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN) }
-  @targetName("that_randGau") inline def randomGaussian(inline v: Iv.X)(r: Prng): Unit = { val iv = v of a; r.fillRangeGaussian(a)(iv.i0, iv.iN) }
-  @targetName("auto_randGau") inline def randomGaussian(inline v: Iv.X)(using ar: AutoPrng): Unit = { val iv = v of a; AutoPrng.get(ar).fillRangeGaussian(a)(iv.i0, iv.iN) }
+  @targetName("that_randGau") inline def randomGaussian[R <: Iv.X | Rg](inline v: R)(r: Prng): Unit = Iv.dispatch(v, a)((i0, iN) => r.fillRangeGaussian(a)(i0, iN))
+  @targetName("auto_randGau") inline def randomGaussian[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Unit = Iv.dispatch(v, a)((i0, iN) => AutoPrng.get(ar).fillRangeGaussian(a)(i0, iN))
 
 extension (a: String)
   // inline def %(r: Prng): Char = r.sample(a)    ===>   In OverloadedExtensions
@@ -1022,18 +966,14 @@ extension (a: String)
   @targetName("auto_sample") inline def sample()(using ar: AutoPrng): Char = AutoPrng.get(ar).sample(a)
   @targetName("that_sample") inline def sample(i0: Int, iN: Int)(r: Prng): Char = r.sampleRange(a)(i0, iN)
   @targetName("auto_sample") inline def sample(i0: Int, iN: Int)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(i0, iN)
-  @targetName("that_sample") inline def sample(inline rg: Rg)(r: Prng): Char = r.sampleRange(a)(rg)
-  @targetName("auto_sample") inline def sample(inline rg: Rg)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(rg)
-  @targetName("that_sample") inline def sample(inline v: Iv.X)(r: Prng): Char = r.sampleRange(a)(v)
-  @targetName("auto_sample") inline def sample(inline v: Iv.X)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
+  @targetName("that_sample") inline def sample[R <: Iv.X | Rg](inline v: R)(r: Prng): Char = r.sampleRange(a)(v)
+  @targetName("auto_sample") inline def sample[R <: Iv.X | Rg](inline v: R)(using ar: AutoPrng): Char = AutoPrng.get(ar).sampleRange(a)(v)
   @targetName("that_sample") inline def sample(k: Int)(r: Prng): String = r.sample(k)(a)
   @targetName("auto_sample") inline def sample(k: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sample(k)(a)
   @targetName("that_sample") inline def sample(k: Int)(i0: Int, iN: Int)(r: Prng): String = r.sampleRange(k)(a)(i0, iN)
   @targetName("auto_sample") inline def sample(k: Int)(i0: Int, iN: Int)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(i0, iN)
-  @targetName("that_sample") inline def sample(k: Int)(inline rg: Rg)(r: Prng): String = r.sampleRange(k)(a)(rg)
-  @targetName("auto_sample") inline def sample(k: Int)(inline rg: Rg)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(rg)
-  @targetName("that_sample") inline def sample(k: Int)(inline v: Iv.X)(r: Prng): String = r.sampleRange(k)(a)(v)
-  @targetName("auto_sample") inline def sample(k: Int)(inline v: Iv.X)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
+  @targetName("that_sample") inline def sample[R <: Iv.X | Rg](k: Int)(inline v: R)(r: Prng): String = r.sampleRange(k)(a)(v)
+  @targetName("auto_sample") inline def sample[R <: Iv.X | Rg](k: Int)(inline v: R)(using ar: AutoPrng): String = AutoPrng.get(ar).sampleRange(k)(a)(v)
 
 extension [A, CC <: scala.collection.IterableOnce[A]](coll: CC)
   @targetName("that_coll_sample") inline def sample()(r: Prng): A = inline coll match

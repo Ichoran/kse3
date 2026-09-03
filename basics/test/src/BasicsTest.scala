@@ -653,6 +653,21 @@ class BasicsTest() {
     T ~ Iv.of(3 to 4).where()                      =**= Array(3, 4)
     T ~ (1 to End-1).of(Array(1, 2, 3, 4)).where() =**= Array(1, 2)
     T ~ (1 to End-1).of("abcd").where()            =**= Array(1, 2)
+    // use takes a Range literal or any flavor through one method (Iv.dispatch)
+    val ub = Array(1, 2, 3, 4, 5, 6, 7)
+    var ubs = 0
+    T ~ { ubs = 0; ub.use(1 to 3)(ubs += _); ubs }          ==== 9
+    T ~ { ubs = 0; ub.use(1 until 3)(ubs += _); ubs }       ==== 5
+    T ~ { ubs = 0; ub.use(1 to End - 1)(ubs += _); ubs }    ==== 20
+    T ~ { ubs = 0; ub.use(End - 2 to End)(ubs += _); ubs }  ==== 18
+    T ~ { ubs = 0; ub.use(Start + 1 to 3)(ubs += _); ubs }  ==== 9
+    T ~ { ubs = 0; ub.use(Iv(2, 4))(ubs += _); ubs }        ==== 7
+    // ArrayReform conversions accept a range literal or any flavor too
+    val rb = ArrayReform.toBytes(Array(1, 2, 3))
+    T ~ ArrayReform.rangeToInts(rb, 4 to End)                          =**= Array(2, 3)
+    T ~ ArrayReform.rangeToInts(rb, 4 until 12)                        =**= Array(2, 3)
+    T ~ ArrayReform.rangeToInts(rb, Iv(0, 4))                          =**= Array(1)
+    T ~ ArrayReform.rangeIntoInts(rb, 4 to End)(new Array[Int](3), 1)  =**= Array(0, 2, 3)
     T ~ Iv(3, 8).whereBy(2)                        =**= Array(3, 5, 7)
     T ~ Iv(3, 9).whereBy(2)                        =**= Array(3, 5, 7)
     T ~ Iv(3, 8).whereBy(-2)                       =**= Array(7, 5, 3)

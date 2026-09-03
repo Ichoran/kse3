@@ -6,6 +6,10 @@ package kse.maths
 
 import scala.annotation.targetName
 
+import scala.collection.immutable.{Range => Rg}
+
+import kse.basics.{given, _}
+import kse.basics.intervals._
 import kse.basics.Mem
 
 
@@ -233,18 +237,24 @@ object Parse {
 
   /** As the range `long`, over the whole string. */
   inline def long(s: String): Long = long(s, 0, s.length)
+  /** As `long(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def long[R <: Iv.X | Rg](s: String, inline r: R): Long = Iv.dispatch(r, s)((i0, iN) => long(s, i0, iN))
 
   /** As the String `long`, over ASCII bytes. */
   def long(ab: Array[Byte], i0: Int, iN: Int): Long = longArrB(ab, i0, iN)
 
   /** As the String `long`, over a whole ASCII byte array. */
   inline def long(ab: Array[Byte]): Long = long(ab, 0, ab.length)
+  /** As `long(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def long[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Long = Iv.dispatch(r, ab)((i0, iN) => long(ab, i0, iN))
 
   /** As the String `long`, over chars. */
   def long(ac: Array[Char], i0: Int, iN: Int): Long = longArrC(ac, i0, iN)
 
   /** As the String `long`, over a whole char array. */
   inline def long(ac: Array[Char]): Long = long(ac, 0, ac.length)
+  /** As `long(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def long[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Long = Iv.dispatch(r, ac)((i0, iN) => long(ac, i0, iN))
 
   /** As the String `long`, over ASCII bytes in memory. */
   @targetName("longMemByte")
@@ -269,18 +279,24 @@ object Parse {
 
   /** As the range `uLong`, over the whole string. */
   inline def uLong(s: String): ULong = uLong(s, 0, s.length)
+  /** As `uLong(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def uLong[R <: Iv.X | Rg](s: String, inline r: R): ULong = Iv.dispatch(r, s)((i0, iN) => uLong(s, i0, iN))
 
   /** As the String `uLong`, over ASCII bytes. */
   def uLong(ab: Array[Byte], i0: Int, iN: Int): ULong = ULong.wrap(uLongArrB(ab, i0, iN))
 
   /** As the String `uLong`, over a whole ASCII byte array. */
   inline def uLong(ab: Array[Byte]): ULong = uLong(ab, 0, ab.length)
+  /** As `uLong(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def uLong[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): ULong = Iv.dispatch(r, ab)((i0, iN) => uLong(ab, i0, iN))
 
   /** As the String `uLong`, over chars. */
   def uLong(ac: Array[Char], i0: Int, iN: Int): ULong = ULong.wrap(uLongArrC(ac, i0, iN))
 
   /** As the String `uLong`, over a whole char array. */
   inline def uLong(ac: Array[Char]): ULong = uLong(ac, 0, ac.length)
+  /** As `uLong(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def uLong[R <: Iv.X | Rg](ac: Array[Char], inline r: R): ULong = Iv.dispatch(r, ac)((i0, iN) => uLong(ac, i0, iN))
 
   /** As the String `uLong`, over ASCII bytes in memory. */
   @targetName("uLongMemByte")
@@ -306,18 +322,24 @@ object Parse {
 
   /** As the range `hex`, over the whole string. */
   inline def hex(s: String): Long = hex(s, 0, s.length)
+  /** As `hex(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def hex[R <: Iv.X | Rg](s: String, inline r: R): Long = Iv.dispatch(r, s)((i0, iN) => hex(s, i0, iN))
 
   /** As the String `hex`, over ASCII bytes. */
   def hex(ab: Array[Byte], i0: Int, iN: Int): Long = hexArrB(ab, i0, iN)
 
   /** As the String `hex`, over a whole ASCII byte array. */
   inline def hex(ab: Array[Byte]): Long = hex(ab, 0, ab.length)
+  /** As `hex(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def hex[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Long = Iv.dispatch(r, ab)((i0, iN) => hex(ab, i0, iN))
 
   /** As the String `hex`, over chars. */
   def hex(ac: Array[Char], i0: Int, iN: Int): Long = hexArrC(ac, i0, iN)
 
   /** As the String `hex`, over a whole char array. */
   inline def hex(ac: Array[Char]): Long = hex(ac, 0, ac.length)
+  /** As `hex(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def hex[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Long = Iv.dispatch(r, ac)((i0, iN) => hex(ac, i0, iN))
 
   /** As the String `hex`, over ASCII bytes in memory. */
   @targetName("hexMemByte")
@@ -342,18 +364,24 @@ object Parse {
 
   /** As the range `spellsFailLong`, over the whole string. */
   inline def spellsFailLong(s: String): Boolean = spellsFailLong(s, 0, s.length)
+  /** As `spellsFailLong(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailLong[R <: Iv.X | Rg](s: String, inline r: R): Boolean = Iv.dispatch(r, s)((i0, iN) => spellsFailLong(s, i0, iN))
 
   /** As the String `spellsFailLong`, over ASCII bytes. */
   def spellsFailLong(ab: Array[Byte], i0: Int, iN: Int): Boolean = sfLongArrB(ab, i0, iN)
 
   /** As the String `spellsFailLong`, over a whole ASCII byte array. */
   inline def spellsFailLong(ab: Array[Byte]): Boolean = spellsFailLong(ab, 0, ab.length)
+  /** As `spellsFailLong(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailLong[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Boolean = Iv.dispatch(r, ab)((i0, iN) => spellsFailLong(ab, i0, iN))
 
   /** As the String `spellsFailLong`, over chars. */
   def spellsFailLong(ac: Array[Char], i0: Int, iN: Int): Boolean = sfLongArrC(ac, i0, iN)
 
   /** As the String `spellsFailLong`, over a whole char array. */
   inline def spellsFailLong(ac: Array[Char]): Boolean = spellsFailLong(ac, 0, ac.length)
+  /** As `spellsFailLong(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailLong[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Boolean = Iv.dispatch(r, ac)((i0, iN) => spellsFailLong(ac, i0, iN))
 
   /** As the String `spellsFailLong`, over ASCII bytes in memory. */
   @targetName("spellsFailLongMemByte")
@@ -378,18 +406,24 @@ object Parse {
 
   /** As the range `spellsFailULong`, over the whole string. */
   inline def spellsFailULong(s: String): Boolean = spellsFailULong(s, 0, s.length)
+  /** As `spellsFailULong(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailULong[R <: Iv.X | Rg](s: String, inline r: R): Boolean = Iv.dispatch(r, s)((i0, iN) => spellsFailULong(s, i0, iN))
 
   /** As the String `spellsFailULong`, over ASCII bytes. */
   def spellsFailULong(ab: Array[Byte], i0: Int, iN: Int): Boolean = sfULongArrB(ab, i0, iN)
 
   /** As the String `spellsFailULong`, over a whole ASCII byte array. */
   inline def spellsFailULong(ab: Array[Byte]): Boolean = spellsFailULong(ab, 0, ab.length)
+  /** As `spellsFailULong(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailULong[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Boolean = Iv.dispatch(r, ab)((i0, iN) => spellsFailULong(ab, i0, iN))
 
   /** As the String `spellsFailULong`, over chars. */
   def spellsFailULong(ac: Array[Char], i0: Int, iN: Int): Boolean = sfULongArrC(ac, i0, iN)
 
   /** As the String `spellsFailULong`, over a whole char array. */
   inline def spellsFailULong(ac: Array[Char]): Boolean = spellsFailULong(ac, 0, ac.length)
+  /** As `spellsFailULong(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailULong[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Boolean = Iv.dispatch(r, ac)((i0, iN) => spellsFailULong(ac, i0, iN))
 
   /** As the String `spellsFailULong`, over ASCII bytes in memory. */
   @targetName("spellsFailULongMemByte")
@@ -414,18 +448,24 @@ object Parse {
 
   /** As the range `spellsFailHex`, over the whole string. */
   inline def spellsFailHex(s: String): Boolean = spellsFailHex(s, 0, s.length)
+  /** As `spellsFailHex(s, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailHex[R <: Iv.X | Rg](s: String, inline r: R): Boolean = Iv.dispatch(r, s)((i0, iN) => spellsFailHex(s, i0, iN))
 
   /** As the String `spellsFailHex`, over ASCII bytes. */
   def spellsFailHex(ab: Array[Byte], i0: Int, iN: Int): Boolean = sfHexArrB(ab, i0, iN)
 
   /** As the String `spellsFailHex`, over a whole ASCII byte array. */
   inline def spellsFailHex(ab: Array[Byte]): Boolean = spellsFailHex(ab, 0, ab.length)
+  /** As `spellsFailHex(ab, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailHex[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Boolean = Iv.dispatch(r, ab)((i0, iN) => spellsFailHex(ab, i0, iN))
 
   /** As the String `spellsFailHex`, over chars. */
   def spellsFailHex(ac: Array[Char], i0: Int, iN: Int): Boolean = sfHexArrC(ac, i0, iN)
 
   /** As the String `spellsFailHex`, over a whole char array. */
   inline def spellsFailHex(ac: Array[Char]): Boolean = spellsFailHex(ac, 0, ac.length)
+  /** As `spellsFailHex(ac, i0, iN)`, with the range given as a literal or an `Iv.X` interval. */
+  inline def spellsFailHex[R <: Iv.X | Rg](ac: Array[Char], inline r: R): Boolean = Iv.dispatch(r, ac)((i0, iN) => spellsFailHex(ac, i0, iN))
 
   /** As the String `spellsFailHex`, over ASCII bytes in memory. */
   @targetName("spellsFailHexMemByte")

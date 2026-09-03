@@ -17,7 +17,10 @@ import java.nio.{ByteBuffer, ByteOrder}
 import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.{CRC32 => ZipCRC32, CRC32C => ZipCRC32C}
 
+import scala.collection.immutable.{Range => Rg}
+
 import kse.basics._
+import kse.basics.intervals._
 
 
 /** Accumulates a hash of whatever is appended; no seeding or finalization is promised, so this
@@ -37,7 +40,9 @@ trait SimpleIncrementalHash {
   def appendLong(l: Long): this.type
 
   inline final def append(ab: Array[Byte]): this.type = append(ab, 0, ab.length)
+  inline final def append[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): this.type = Iv.dispatch(r, ab)((i0, iN) => append(ab, i0, iN))
   inline final def append(s: String): this.type = append(s, 0, s.length)
+  inline final def append[R <: Iv.X | Rg](s: String, inline r: R): this.type = Iv.dispatch(r, s)((i0, iN) => append(s, i0, iN))
   inline final def append[A <: Mem.Type](m: Mem[A]): this.type = appendRaw(m.as[Byte])
 
   inline final def +=(z: Boolean):      Unit = appendByte(if z then 1 else 0)
@@ -68,14 +73,18 @@ trait HashInto[Z] extends SimpleIncrementalHash {
   def result(): Z
 
   inline final def result(ab: Array[Byte]): Z = result(ab, 0, ab.length)
+  inline final def result[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Z = Iv.dispatch(r, ab)((i0, iN) => result(ab, i0, iN))
   inline final def result(s: String): Z = result(s, 0, s.length)
+  inline final def result[R <: Iv.X | Rg](s: String, inline r: R): Z = Iv.dispatch(r, s)((i0, iN) => result(s, i0, iN))
   inline final def result[A <: Mem.Type](m: Mem[A]): Z = appendRaw(m.as[Byte]).result()
 
   final def freshHash(bb: ByteBuffer): Z = begin().result(bb)
   final def freshHash(ab: Array[Byte], i0: Int, iN: Int): Z = begin().result(ab, i0, iN)
   final def freshHash(ab: Array[Byte]): Z = begin().result(ab, 0, ab.length)
+  inline final def freshHash[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Z = Iv.dispatch(r, ab)((i0, iN) => begin().result(ab, i0, iN))
   final def freshHash(s: String, i0: Int, iN: Int): Z = begin().result(s, i0, iN)
   final def freshHash(s: String): Z = begin().result(s, 0, s.length)
+  inline final def freshHash[R <: Iv.X | Rg](s: String, inline r: R): Z = Iv.dispatch(r, s)((i0, iN) => begin().result(s, i0, iN))
   inline final def freshHash[A <: Mem.Type](m: Mem[A]): Z = begin().appendRaw(m.as[Byte]).result()
 
   def copy: HashInto[Z]
@@ -89,8 +98,10 @@ trait IncrementalHash[A, Z] extends HashInto[Z] with SeededIncrementalHash[A] {
   final def freshHash(seed: A, bb: ByteBuffer): Z = begin(seed).result(bb)
   final def freshHash(seed: A, ab: Array[Byte], i0: Int, iN: Int): Z = begin(seed).result(ab, i0, iN)
   final def freshHash(seed: A, ab: Array[Byte]): Z = begin(seed).result(ab, 0, ab.length)
+  inline final def freshHash[R <: Iv.X | Rg](seed: A, ab: Array[Byte], inline r: R): Z = Iv.dispatch(r, ab)((i0, iN) => begin(seed).result(ab, i0, iN))
   final def freshHash(seed: A, s: String, i0: Int, iN: Int): Z = begin(seed).result(s, i0, iN)
   final def freshHash(seed: A, s: String): Z = begin(seed).result(s, 0, s.length)
+  inline final def freshHash[R <: Iv.X | Rg](seed: A, s: String, inline r: R): Z = Iv.dispatch(r, s)((i0, iN) => begin(seed).result(s, i0, iN))
   inline final def freshHash[M <: Mem.Type](seed: A, m: Mem[M]): Z = begin(seed).appendRaw(m.as[Byte]).result()
   def copy: IncrementalHash[A, Z]
 }
@@ -100,16 +111,19 @@ trait IncrementalHash[A, Z] extends HashInto[Z] with SeededIncrementalHash[A] {
 trait SimpleFullHash32 {
   def hash32(ab: Array[Byte], i0: Int, iN: Int): Int
   inline final def hash32(ab: Array[Byte]): Int = hash32(ab, 0, ab.length)
+  inline final def hash32[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Int = Iv.dispatch(r, ab)((i0, iN) => hash32(ab, i0, iN))
 
   def hash32(bb: ByteBuffer): Int
 
   def hash32(s: String, i0: Int, iN: Int): Int
   inline final def hash32(s: String): Int = hash32(s, 0, s.length)
+  inline final def hash32[R <: Iv.X | Rg](s: String, inline r: R): Int = Iv.dispatch(r, s)((i0, iN) => hash32(s, i0, iN))
 }
 
 trait FullHash32 extends SimpleFullHash32 {
   def hash32(seed: Int, ab: Array[Byte], i0: Int, iN: Int): Int
   inline final def hash32(seed: Int, ab: Array[Byte]): Int = hash32(seed, ab, 0, ab.length)
+  inline final def hash32[R <: Iv.X | Rg](seed: Int, ab: Array[Byte], inline r: R): Int = Iv.dispatch(r, ab)((i0, iN) => hash32(seed, ab, i0, iN))
   def hash32(ab: Array[Byte], i0: Int, iN: Int): Int = hash32(0, ab, i0, iN)
 
   def hash32(seed: Int, bb: ByteBuffer): Int
@@ -117,6 +131,7 @@ trait FullHash32 extends SimpleFullHash32 {
 
   def hash32(seed: Int, s: String, i0: Int, iN: Int): Int
   inline final def hash32(seed: Int, s: String): Int = hash32(seed, s, 0, s.length)
+  inline final def hash32[R <: Iv.X | Rg](seed: Int, s: String, inline r: R): Int = Iv.dispatch(r, s)((i0, iN) => hash32(seed, s, i0, iN))
   def hash32(s: String, i0: Int, iN: Int): Int = hash32(0, s, i0, iN)
 }
 
@@ -137,16 +152,19 @@ trait Hash32 extends FullHash32 with IncrementalHash[Int, Int] {
 trait SimpleFullHash64 {
   def hash64(ab: Array[Byte], i0: Int, iN: Int): Long
   inline final def hash64(ab: Array[Byte]): Long = hash64(ab, 0, ab.length)
+  inline final def hash64[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): Long = Iv.dispatch(r, ab)((i0, iN) => hash64(ab, i0, iN))
 
   def hash64(bb: ByteBuffer): Long
 
   def hash64(s: String, i0: Int, iN: Int): Long
   inline final def hash64(s: String): Long = hash64(s, 0, s.length)
+  inline final def hash64[R <: Iv.X | Rg](s: String, inline r: R): Long = Iv.dispatch(r, s)((i0, iN) => hash64(s, i0, iN))
 }
 
 trait FullHash64 extends SimpleFullHash64 {
   def hash64(seed: Long, ab: Array[Byte], i0: Int, iN: Int): Long
   inline final def hash64(seed: Long, ab: Array[Byte]): Long = hash64(seed, ab, 0, ab.length)
+  inline final def hash64[R <: Iv.X | Rg](seed: Long, ab: Array[Byte], inline r: R): Long = Iv.dispatch(r, ab)((i0, iN) => hash64(seed, ab, i0, iN))
   def hash64(ab: Array[Byte], i0: Int, iN: Int): Long = hash64(0L, ab, i0, iN)
 
   def hash64(seed: Long, bb: ByteBuffer): Long
@@ -154,6 +172,7 @@ trait FullHash64 extends SimpleFullHash64 {
 
   def hash64(seed: Long, s: String, i0: Int, iN: Int): Long
   inline final def hash64(seed: Long, s: String): Long = hash64(seed, s, 0, s.length)
+  inline final def hash64[R <: Iv.X | Rg](seed: Long, s: String, inline r: R): Long = Iv.dispatch(r, s)((i0, iN) => hash64(seed, s, i0, iN))
   def hash64(s: String, i0: Int, iN: Int): Long = hash64(0L, s, i0, iN)
 }
 
@@ -186,16 +205,19 @@ object HashCode128 {
 trait SimpleFullHash128 {
   def hash128(ab: Array[Byte], i0: Int, iN: Int): HashCode128
   inline final def hash128(ab: Array[Byte]): HashCode128 = hash128(ab, 0, ab.length)
+  inline final def hash128[R <: Iv.X | Rg](ab: Array[Byte], inline r: R): HashCode128 = Iv.dispatch(r, ab)((i0, iN) => hash128(ab, i0, iN))
 
   def hash128(bb: ByteBuffer): HashCode128
 
   def hash128(s: String, i0: Int, iN: Int): HashCode128
   inline final def hash128(s: String): HashCode128 = hash128(s, 0, s.length)
+  inline final def hash128[R <: Iv.X | Rg](s: String, inline r: R): HashCode128 = Iv.dispatch(r, s)((i0, iN) => hash128(s, i0, iN))
 }
 
 trait FullHash128 extends SimpleFullHash128 {
   def hash128(seed0: Long, seed1: Long, ab: Array[Byte], i0: Int, iN: Int): HashCode128
   inline final def hash128(seed0: Long, seed1: Long, ab: Array[Byte]): HashCode128 = hash128(seed0, seed1, ab, 0, ab.length)
+  inline final def hash128[R <: Iv.X | Rg](seed0: Long, seed1: Long, ab: Array[Byte], inline r: R): HashCode128 = Iv.dispatch(r, ab)((i0, iN) => hash128(seed0, seed1, ab, i0, iN))
   def hash128(ab: Array[Byte], i0: Int, iN: Int): HashCode128 = hash128(0L, 0L, ab, i0, iN)
 
   def hash128(seed0: Long, seed1: Long, bb: ByteBuffer): HashCode128
@@ -203,6 +225,7 @@ trait FullHash128 extends SimpleFullHash128 {
 
   def hash128(seed0: Long, seed1: Long, s: String, i0: Int, iN: Int): HashCode128
   inline final def hash128(seed0: Long, seed1: Long, s: String): HashCode128 = hash128(seed0, seed1, s, 0, s.length)
+  inline final def hash128[R <: Iv.X | Rg](seed0: Long, seed1: Long, s: String, inline r: R): HashCode128 = Iv.dispatch(r, s)((i0, iN) => hash128(seed0, seed1, s, i0, iN))
   def hash128(s: String, i0: Int, iN: Int): HashCode128 = hash128(0L, 0L, s, i0, iN)
 }
 

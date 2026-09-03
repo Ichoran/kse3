@@ -412,14 +412,12 @@ sealed abstract class Jparse protected () {
 
   /** Record whether the builder accepted a value; a refusal becomes the walk's failure, with
     * the builder's own error wrapped in the value's position (the caller adds whose-key
-    * context on the way out).  The happy path is one type test against the prewrapped
-    * `Is.unit`.
+    * context on the way out).  The happy path is one type test.
     */
-  private def accept(r: Ask[Unit], v0: Long): Boolean = r match
-    case Alt(e) =>
-      eErr = e.explainBy(s"at ${posText(v0)}:")
-      false
-    case _ => true
+  private def accept(r: Ask[Unit], v0: Long): Boolean = r.fold(_ => true){ e =>
+    eErr = e.explainBy(s"at ${posText(v0)}:")
+    false
+  }
 
   private def buildValue[B](c: Int, vis: Jbuilder[B, ?], b: B): Boolean =
     val v0 = i

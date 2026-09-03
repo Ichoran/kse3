@@ -91,18 +91,10 @@ object EioBase64 {
         a(j+1) = encode64urlTable((chunk >>> 12) & 0x3F)
         a(j+2) = encode64urlTable((chunk >>>  6) & 0x3F)
     a
-  inline def encodeUrlRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
-    val iv = Iv of rg
-    encodeUrlRange(raw, iv.i0, iv.iN)
-  inline def encodeUrlRange(raw: Array[Byte], inline rg: Rg, lineLength: Int): Array[Byte] =
-    val iv = Iv of rg
-    encodeUrlRange(raw, iv.i0, iv.iN, lineLength)
-  inline def encodeUrlRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
-    val iv = v of raw
-    encodeUrlRange(raw, iv.i0, iv.iN)
-  inline def encodeUrlRange(raw: Array[Byte], inline v: Iv.X, lineLength: Int): Array[Byte] =
-    val iv = v of raw
-    encodeUrlRange(raw, iv.i0, iv.iN, lineLength)
+  inline def encodeUrlRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeUrlRange(raw, i0, iN))
+  inline def encodeUrlRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R, lineLength: Int): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeUrlRange(raw, i0, iN, lineLength))
 
   def encodeUrl(raw: Array[Byte], lineLength: Int = Int.MaxValue): Array[Byte] =
     encodeUrlRange(raw, 0, raw.length, lineLength)
@@ -151,18 +143,10 @@ object EioBase64 {
     j - index
   inline def decodeRangeInto(encoded: Array[Byte], i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
-  inline def decodeRangeInto(encoded: Array[Byte], inline rg: Rg)(target: Array[Byte], index: Int): Ask[Int] =
-    val iv = Iv of rg
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
-  inline def decodeRangeInto(encoded: Array[Byte], inline v: Iv.X)(target: Array[Byte], index: Int): Ask[Int] =
-    val iv = v of encoded
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
-  inline def decodeRangeInto(encoded: Array[Byte], inline rg: Rg)(target: Array[Byte]): Ask[Int] =
-    val iv = Iv of rg
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
-  inline def decodeRangeInto(encoded: Array[Byte], inline v: Iv.X)(target: Array[Byte]): Ask[Int] =
-    val iv = v of encoded
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
+  inline def decodeRangeInto[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R)(target: Array[Byte], index: Int): Ask[Int] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRangeInto(encoded, i0, iN)(target, index))
+  inline def decodeRangeInto[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R)(target: Array[Byte]): Ask[Int] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRangeInto(encoded, i0, iN)(target, 0))
 
   def decodeInto(encoded: Array[Byte])(target: Array[Byte], index: Int): Ask[Int] =
     decodeRangeInto(encoded, 0, encoded.length)(target, index)
@@ -174,12 +158,8 @@ object EioBase64 {
     else
       val a = new Array[Byte]((((iN - i0).toLong*3 + 2) / 4).toInt)
       decodeRangeInto(encoded, i0, iN)(a, 0).map(i => a.shrinkCopy(i))
-  inline def decodeRange(encoded: Array[Byte], inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeRange(encoded, iv.i0, iv.iN)
-  inline def decodeRange(encoded: Array[Byte], inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRange(encoded, i0, iN))
 
   def decode(encoded: Array[Byte]): Ask[Array[Byte]] =
     val a = new Array[Byte](((encoded.length.toLong*3 + 2)/4).toInt)
@@ -226,18 +206,10 @@ object EioBase64 {
     j - index
   inline def decodeRangeInto(encoded: String, i0: Int, iN: Int)(target: Array[Byte]): Ask[Int] =
     decodeRangeInto(encoded, i0, iN)(target, 0)
-  inline def decodeRangeInto(encoded: String, inline rg: Rg)(target: Array[Byte], index: Int): Ask[Int] =
-    val iv = Iv of rg
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
-  inline def decodeRangeInto(encoded: String, inline v: Iv.X)(target: Array[Byte], index: Int): Ask[Int] =
-    val iv = v of encoded
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, index)
-  inline def decodeRangeInto(encoded: String, inline rg: Rg)(target: Array[Byte]): Ask[Int] =
-    val iv = Iv of rg
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
-  inline def decodeRangeInto(encoded: String, inline v: Iv.X)(target: Array[Byte]): Ask[Int] =
-    val iv = v of encoded
-    decodeRangeInto(encoded, iv.i0, iv.iN)(target, 0)
+  inline def decodeRangeInto[R <: Iv.X | Rg](encoded: String, inline v: R)(target: Array[Byte], index: Int): Ask[Int] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRangeInto(encoded, i0, iN)(target, index))
+  inline def decodeRangeInto[R <: Iv.X | Rg](encoded: String, inline v: R)(target: Array[Byte]): Ask[Int] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRangeInto(encoded, i0, iN)(target, 0))
 
   def decodeInto(encoded: String)(target: Array[Byte], index: Int): Ask[Int] =
     decodeRangeInto(encoded, 0, encoded.length)(target, index)
@@ -249,12 +221,8 @@ object EioBase64 {
     else
       val a = new Array[Byte]((((iN - i0).toLong*3) / 4).toInt)
       decodeRangeInto(encoded, i0, iN)(a, 0).map(i => a.shrinkCopy(i))
-  inline def decodeRange(encoded: String, inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeRange(encoded, iv.i0, iv.iN)
-  inline def decodeRange(encoded: String, inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange[R <: Iv.X | Rg](encoded: String, inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRange(encoded, i0, iN))
 
   def decode(encoded: String): Ask[Array[Byte]] =
     val a = new Array[Byte](((encoded.length.toLong*3)/4).toInt)
@@ -349,12 +317,8 @@ object EioBase85 {
     result
 
   def encodeZmqRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeZmqTable)
-  inline def encodeZmqRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
-    val iv = Iv of rg
-    encodeZmqRange(raw, iv.i0, iv.iN)
-  inline def encodeZmqRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
-    val iv = v of raw
-    encodeZmqRange(raw, iv.i0, iv.iN)
+  inline def encodeZmqRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeZmqRange(raw, i0, iN))
 
   def encodeZmq(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeZmqTable)
 
@@ -363,12 +327,8 @@ object EioBase85 {
   def stringEncodeZmq(raw: Array[Byte]): String = new String(encodeZmq(raw), ISO_8859_1)
 
   def encodeAsciiRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeAsciiTable)
-  inline def encodeAsciiRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
-    val iv = Iv of rg
-    encodeAsciiRange(raw, iv.i0, iv.iN)
-  inline def encodeAsciiRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
-    val iv = v of raw
-    encodeAsciiRange(raw, iv.i0, iv.iN)
+  inline def encodeAsciiRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeAsciiRange(raw, i0, iN))
 
   def encodeAscii(raw: Array[Byte]): Array[Byte] =
     inline def table(i: Int) = (i + 33).toByte
@@ -471,20 +431,12 @@ object EioBase85 {
     a.shrinkCopy(j)
 
   def decodeZmqRange(encoded: Array[Byte], i0: Int, iN: Int): Ask[Array[Byte]] = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
-  inline def decodeZmqRange(encoded: Array[Byte], inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeZmqRange(encoded, iv.i0, iv.iN)
-  inline def decodeZmqRange(encoded: Array[Byte], inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeZmqRange(encoded, iv.i0, iv.iN)
+  inline def decodeZmqRange[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeZmqRange(encoded, i0, iN))
 
   def decodeAsciiRange(encoded: Array[Byte], i0: Int, iN: Int): Ask[Array[Byte]] = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
-  inline def decodeAsciiRange(encoded: Array[Byte], inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeAsciiRange(encoded, iv.i0, iv.iN)
-  inline def decodeAsciiRange(encoded: Array[Byte], inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeAsciiRange(encoded, iv.i0, iv.iN)
+  inline def decodeAsciiRange[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeAsciiRange(encoded, i0, iN))
 
   def decodeZmq(encoded: Array[Byte]): Ask[Array[Byte]] = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
@@ -542,20 +494,12 @@ object EioBase85 {
     a.shrinkCopy(j)
 
   def decodeZmqRange(encoded: String, i0: Int, iN: Int): Ask[Array[Byte]] = decodeRangeWithTable(encoded, i0, iN, decodeZmqTable)
-  inline def decodeZmqRange(encoded: String, inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeZmqRange(encoded, iv.i0, iv.iN)
-  inline def decodeZmqRange(encoded: String, inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeZmqRange(encoded, iv.i0, iv.iN)
+  inline def decodeZmqRange[R <: Iv.X | Rg](encoded: String, inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeZmqRange(encoded, i0, iN))
 
   def decodeAsciiRange(encoded: String, i0: Int, iN: Int): Ask[Array[Byte]] = decodeRangeWithTable(encoded, i0, iN, decodeAsciiTable)
-  inline def decodeAsciiRange(encoded: String, inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeAsciiRange(encoded, iv.i0, iv.iN)
-  inline def decodeAsciiRange(encoded: String, inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeAsciiRange(encoded, iv.i0, iv.iN)
+  inline def decodeAsciiRange[R <: Iv.X | Rg](encoded: String, inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeAsciiRange(encoded, i0, iN))
 
   def decodeZmq(encoded: String): Ask[Array[Byte]] = decodeRangeWithTable(encoded, 0, encoded.length, decodeZmqTable)
 
@@ -601,20 +545,12 @@ object EioHex {
     a
 
   def encodeRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeHiTable)
-  inline def encodeRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
-    val iv = Iv of rg
-    encodeRange(raw, iv.i0, iv.iN)
-  inline def encodeRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
-    val iv = v of raw
-    encodeRange(raw, iv.i0, iv.iN)
+  inline def encodeRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeRange(raw, i0, iN))
 
   def encodeLoRange(raw: Array[Byte], i0: Int, iN: Int): Array[Byte] = encodeRangeWithTable(raw, i0, iN, encodeLoTable)
-  inline def encodeLoRange(raw: Array[Byte], inline rg: Rg): Array[Byte] =
-    val iv = Iv of rg
-    encodeLoRange(raw, iv.i0, iv.iN)
-  inline def encodeLoRange(raw: Array[Byte], inline v: Iv.X): Array[Byte] =
-    val iv = v of raw
-    encodeLoRange(raw, iv.i0, iv.iN)
+  inline def encodeLoRange[R <: Iv.X | Rg](raw: Array[Byte], inline v: R): Array[Byte] =
+    Iv.dispatch(v, raw)((i0, iN) => encodeLoRange(raw, i0, iN))
 
   def encode(raw: Array[Byte]): Array[Byte] = encodeRangeWithTable(raw, 0, raw.length, encodeHiTable)
 
@@ -645,12 +581,8 @@ object EioHex {
       i += 1
     if half then Err ?# s"Odd number of hexadecimal digits: input ends mid-byte at $iN"
     a.shrinkCopy(j)
-  inline def decodeRange(encoded: Array[Byte], inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeRange(encoded, iv.i0, iv.iN)
-  inline def decodeRange(encoded: Array[Byte], inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange[R <: Iv.X | Rg](encoded: Array[Byte], inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRange(encoded, i0, iN))
 
   def decode(encoded: Array[Byte]): Ask[Array[Byte]] = decodeRange(encoded, 0, encoded.length)
 
@@ -675,12 +607,8 @@ object EioHex {
       i += 1
     if half then Err ?# s"Odd number of hexadecimal digits: input ends mid-byte at $iN"
     a.shrinkCopy(j)
-  inline def decodeRange(encoded: String, inline rg: Rg): Ask[Array[Byte]] =
-    val iv = Iv of rg
-    decodeRange(encoded, iv.i0, iv.iN)
-  inline def decodeRange(encoded: String, inline v: Iv.X): Ask[Array[Byte]] =
-    val iv = v of encoded
-    decodeRange(encoded, iv.i0, iv.iN)
+  inline def decodeRange[R <: Iv.X | Rg](encoded: String, inline v: R): Ask[Array[Byte]] =
+    Iv.dispatch(v, encoded)((i0, iN) => decodeRange(encoded, i0, iN))
 
   def decode(encoded: String): Ask[Array[Byte]] = decodeRange(encoded, 0, encoded.length)
 }
@@ -1030,30 +958,18 @@ object CountedTransfer {
 extension (underlying: Array[Byte]) {
   inline def buffer(): ByteBuffer = ByteBuffer.wrap(underlying).order(ByteOrder.LITTLE_ENDIAN)
   inline def buffer(i0: Int, iN: Int): ByteBuffer = ByteBuffer.wrap(underlying, i0, iN-i0).order(ByteOrder.LITTLE_ENDIAN)
-  inline def buffer(inline rg: collection.immutable.Range): ByteBuffer =
-    val iv = Iv of rg
-    ByteBuffer.wrap(underlying, iv.i0, iv.length).order(ByteOrder.LITTLE_ENDIAN)
-  inline def buffer(v: Iv.X): ByteBuffer =
-    val iv = v of underlying
-    ByteBuffer.wrap(underlying, iv.i0, iv.length).order(ByteOrder.LITTLE_ENDIAN)
+  inline def buffer[R <: Iv.X | Rg](inline v: R): ByteBuffer =
+    Iv.dispatch(v, underlying)((i0, iN) => ByteBuffer.wrap(underlying, i0, iN - i0).order(ByteOrder.LITTLE_ENDIAN))
 
   inline def input(): ByteArrayInputStream = new ByteArrayInputStream(underlying)
   inline def input(i0: Int, iN: Int): ByteArrayInputStream = new ByteArrayInputStream(underlying, i0, iN - i0)
-  inline def input(inline rg: collection.immutable.Range): ByteArrayInputStream =
-    val iv = Iv of rg
-    new ByteArrayInputStream(underlying, iv.i0, iv.length)
-  inline def input(v: Iv.X): ByteArrayInputStream =
-    val iv = v of underlying
-    new ByteArrayInputStream(underlying, iv.i0, iv.length)
+  inline def input[R <: Iv.X | Rg](inline v: R): ByteArrayInputStream =
+    Iv.dispatch(v, underlying)((i0, iN) => new ByteArrayInputStream(underlying, i0, iN - i0))
 
   inline def output(): FixedArrayOutputStream = new FixedArrayOutputStream(underlying, 0, underlying.length)
   inline def output(i0: Int, iN: Int): FixedArrayOutputStream = new FixedArrayOutputStream(underlying, i0, iN)
-  inline def output(inline rg: collection.immutable.Range): FixedArrayOutputStream =
-    val iv = Iv of rg
-    new FixedArrayOutputStream(underlying, iv.i0, iv.iN)
-  inline def output(v: Iv.X): FixedArrayOutputStream =
-    val iv = v of underlying
-    new FixedArrayOutputStream(underlying, iv.i0, iv.iN)
+  inline def output[R <: Iv.X | Rg](inline v: R): FixedArrayOutputStream =
+    Iv.dispatch(v, underlying)((i0, iN) => new FixedArrayOutputStream(underlying, i0, iN))
 
   inline def readChannel() = MultiArrayChannel.fixedBuffer(underlying, underlying.length)
   inline def writeChannel() = MultiArrayChannel.fixedBuffer(underlying, 0)

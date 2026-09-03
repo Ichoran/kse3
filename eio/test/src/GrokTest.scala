@@ -25,13 +25,9 @@ class GrokTest {
     assertTrue
   )
 
-  private def bad[A](ask: Ask[A]): Boolean = ask match
-    case Alt(_) => true
-    case _ => false
+  private def bad[A](ask: Ask[A]): Boolean = ask.isAlt
 
-  private def errText[A](ask: Ask[A]): String = ask match
-    case Alt(e) => e.toString
-    case _ => "SUCCESS: " + ask.toString
+  private def errText[A](ask: Ask[A]): String = ask.fold(_ => "SUCCESS: " + ask.toString)(_.toString)
 
   @Test
   def grokIntegerTest(): Unit =
@@ -49,24 +45,22 @@ class GrokTest {
 
   @Test
   def grokErrorDataTest(): Unit =
-    Grok("2025-06b-25", partial = true)(g => (g.I, (g < '-').I, (g < '-').I)) match
-      case Alt(e) => e.underlying match
-        case f: Grok.Failure =>
-          T ~ f.position                              ==== 7L
-          T ~ f.line                                  ==== 1
-          T ~ f.column                                ==== 8
-          T ~ f.description.contains("expected '-'")  ==== true
-          T ~ f.description.contains("found 'b'")     ==== true
-          T ~ f.message.contains("line 1, pos 8")     ==== true
-        case u => assertTrue("not a Grok.Failure: " + u, false)
-      case v => assertTrue("unexpected success: " + v, false)
-    Grok("one\ntwo\nth?ee")(g => { g.skip(2); g.I }) match
-      case Alt(e) => e.underlying match
-        case f: Grok.Failure =>
-          T ~ f.line   ==== 3
-          T ~ f.column ==== 1
-        case u => assertTrue("not a Grok.Failure: " + u, false)
-      case v => assertTrue("unexpected success: " + v, false)
+    Grok("2025-06b-25", partial = true)(g => (g.I, (g < '-').I, (g < '-').I)).fold{ v => assertTrue("unexpected success: " + v, false) }{ e => e.underlying match
+      case f: Grok.Failure =>
+        T ~ f.position                              ==== 7L
+        T ~ f.line                                  ==== 1
+        T ~ f.column                                ==== 8
+        T ~ f.description.contains("expected '-'")  ==== true
+        T ~ f.description.contains("found 'b'")     ==== true
+        T ~ f.message.contains("line 1, pos 8")     ==== true
+      case u => assertTrue("not a Grok.Failure: " + u, false)
+    }
+    Grok("one\ntwo\nth?ee")(g => { g.skip(2); g.I }).fold{ v => assertTrue("unexpected success: " + v, false) }{ e => e.underlying match
+      case f: Grok.Failure =>
+        T ~ f.line   ==== 3
+        T ~ f.column ==== 1
+      case u => assertTrue("not a Grok.Failure: " + u, false)
+    }
 
   @Test
   def grokDoubleTest(): Unit =
@@ -570,13 +564,12 @@ class GrokTest {
     T ~ Grok(b("3.14159 true"), Delim.white, false, false)(g => (g.D, g.Z))                   ==== Is((3.14159, true))
     T ~ Grok(b("π = 3.25"), Delim.white, false, false)(g => (g.tok, (g < "=").D))        ==== Is(("π", 3.25))
     T ~ bad(Grok(b("06b"), Delim.lines, false, false)(g => g.I))                              ==== true
-    Grok(b("2025-06b-25"), Delim.lines, true, false)(g => (g.I, (g < '-').I, (g < '-').I)) match
-      case Alt(e) => e.underlying match
-        case f: Grok.Failure =>
-          T ~ f.position ==== 7L
-          T ~ f.description.contains("expected '-'") ==== true
-        case u => assertTrue("not a Grok.Failure: " + u, false)
-      case v => assertTrue("unexpected success: " + v, false)
+    Grok(b("2025-06b-25"), Delim.lines, true, false)(g => (g.I, (g < '-').I, (g < '-').I)).fold{ v => assertTrue("unexpected success: " + v, false) }{ e => e.underlying match
+      case f: Grok.Failure =>
+        T ~ f.position ==== 7L
+        T ~ f.description.contains("expected '-'") ==== true
+      case u => assertTrue("not a Grok.Failure: " + u, false)
+    }
 
   @Test
   def grokDigitKernelTest(): Unit =
@@ -763,11 +756,10 @@ class GrokTest {
     val viaBuffered = Grok.buffered(b(mixed), Delim.white)(g => Array.fill(25)((g.tok, g.I, g.D, g.Z)).toSeq)
     T ~ viaBuffered ==== viaBytes
     // Error positions remain absolute even after scooting
-    Grok.buffered(b(" " * 40 + "12x34"), Delim.white)(g => g.I) match
-      case Alt(e) => e.underlying match
-        case f: Grok.Failure => T ~ f.position ==== 42L
-        case u => assertTrue("not a Grok.Failure: " + u, false)
-      case v => assertTrue("unexpected success: " + v, false)
+    Grok.buffered(b(" " * 40 + "12x34"), Delim.white)(g => g.I).fold{ v => assertTrue("unexpected success: " + v, false) }{ e => e.underlying match
+      case f: Grok.Failure => T ~ f.position ==== 42L
+      case u => assertTrue("not a Grok.Failure: " + u, false)
+    }
     // ByteBuffer-fed window, starting at a nonzero position
     val bb = java.nio.ByteBuffer.wrap(b("XX[1, 22, 333] true"))
     bb.position(2) __ Unit
@@ -818,14 +810,13 @@ class GrokTest {
     T ~ bad(Grok("\"a\"\"")(g => g.str(Quote.csv)))                     ==== true   // doubled quote then end: unclosed
     T ~ bad(Grok(" \"x\"", delim = Delim.white, exact = true)(g => g.str)) ==== true
     T ~ errText(Grok("\"unclosed")(g => g.str)).contains("unclosed quoted string") ==== true
-    Grok("\"oops\\q\"")(g => g.str) match
-      case Alt(e) => e.underlying match
-        case f: Grok.Failure =>
-          T ~ f.position                                    ==== 6L
-          T ~ f.description.contains("expected a valid escape") ==== true
-          T ~ f.description.contains("found 'q'")           ==== true
-        case u => assertTrue("not a Grok.Failure: " + u, false)
-      case v => assertTrue("unexpected success: " + v, false)
+    Grok("\"oops\\q\"")(g => g.str).fold{ v => assertTrue("unexpected success: " + v, false) }{ e => e.underlying match
+      case f: Grok.Failure =>
+        T ~ f.position                                    ==== 6L
+        T ~ f.description.contains("expected a valid escape") ==== true
+        T ~ f.description.contains("found 'q'")           ==== true
+      case u => assertTrue("not a Grok.Failure: " + u, false)
+    }
     // A failed str is an ordinary select alternative
     T ~ Grok("plain", delim = Delim.white)(g => g.select(g.str, g.tok)) ==== Is("plain")
 

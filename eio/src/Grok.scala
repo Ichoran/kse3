@@ -748,13 +748,12 @@ sealed abstract class Grok protected () {
     partialMode = pm0
     skipMode = sm0
     skipped = false
-    r match
-      case a: Alt[Err @unchecked] => boundary.break(Alt(subErr(t0, a.alt)))
-      case _ =>
-        i = e
-        loadWork()
-        sepOk = true
-        r.get
+    r.fold{ b =>
+      i = e
+      loadWork()
+      sepOk = true
+      b
+    }{ err => boundary.break(Alt(subErr(t0, err))) }
 
   /** Try each alternative in order; the first to succeed supplies the answer.  A failed
     * alternative restores the cursor (and view, delimiter, and modes) before the next is tried.
@@ -777,21 +776,22 @@ sealed abstract class Grok protected () {
     var searching = true
     var k = 0
     while searching && k < alts.length do
-      boundary[A Or Err]{ Is(alts(k)) } match
-        case a: Alt[Err @unchecked] =>
-          errs = a.alt :: errs
-          i = p0
-          iA = a0
-          iZ = z0
-          dlm = d0
-          partialMode = pm0
-          skipMode = sm0
-          cc = cc0
-          skipped = sk0
-          sepOk = so0
-        case r =>
-          found = r
-          searching = false
+      val r = boundary[A Or Err]{ Is(alts(k)) }
+      r.fold{ _ =>
+        found = r
+        searching = false
+      }{ err =>
+        errs = err :: errs
+        i = p0
+        iA = a0
+        iZ = z0
+        dlm = d0
+        partialMode = pm0
+        skipMode = sm0
+        cc = cc0
+        skipped = sk0
+        sepOk = so0
+      }
       k += 1
     releaseWork(pin0)
     if searching then boundary.break(Alt(failAt(p0, "no alternative matched (" + alts.length + " tried)", errs.reverse)): E)(using lb)

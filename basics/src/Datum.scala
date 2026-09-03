@@ -58,6 +58,28 @@ extension (ivx: Iv.X) {
     case rxy: Iv.Rxy => Iv.up(rxy.i1(target))
 }
 
+extension (o: Iv.type)
+  /** Run `body` on the absolute bounds `[i0, iN)` that `r` names within `target`, where `r` is
+    * either a Range literal (`x to y` / `x until y`, packed at compile time as `Iv of` does)
+    * or any interval flavor.  This is how one method accepts both spellings: the dispatch is
+    * on the type `R` alone, so `r` is evaluated exactly once, never boxed, never bound at a
+    * type wider than its own (a val typed `R & Iv.X` is precise after substitution, which is
+    * what keeps `index0`/`indexN` reducing), and a Range literal reaches the macro as its
+    * original tree rather than as a runtime `Range`.
+    *
+    * Lives here rather than in `object Iv` on purpose: inlined out of the opaque type's own
+    * scope, the target's type came through as the declared union and the flavor dispatch
+    * could no longer reduce.
+    */
+  inline def dispatch[R <: Iv.X | Rg, Z](inline r: R, inline target: Int | String | Array[?] | Iv)(inline body: (Int, Int) => Z): Z =
+    inline erasedValue[R] match
+      case _: Rg =>
+        val iv = Iv.wrap(basicsMacroImpl.untypedRangePackedInLong(r))
+        body(iv.i0, iv.iN)
+      case _ =>
+        val x: R & Iv.X = r.asInstanceOf[R & Iv.X]
+        body(x.index0(target), x.indexN(target))
+
 extension(ivy: Iv.Y) {
   transparent inline def zero = inline ivy match
     case iv:  Iv     => iv.i0

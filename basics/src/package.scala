@@ -175,7 +175,10 @@ package kse
   * such as `1ꓺ-2`.  (These are also a type of `Iv.X` so they can be converted to an absolute range by giving the thing they're relative to.)
   * 
   * Scala range literals of the form `1 to 3` or `5 until 9` can also be converted into `Iv`-style intervals with `Iv.of(1 to 3)`;
-  * if you want to use these as an argument, it must be inline, e.g. `inline foo(inline rg: Range) = Iv.of(rg)`.
+  * if you want to use these as an argument, it must be inline, e.g. `inline foo(inline rg: Range) = Iv.of(rg)`.  To accept a range
+  * literal or any `Iv.X` flavor through one method, dispatch on the argument's type:
+  * `inline def foo[R <: Iv.X | Range](inline r: R) = Iv.dispatch(r, a)((i0, iN) => ...)`.  Nothing is boxed, a literal still
+  * packs at compile time, and `a` (an `Array`, `String`, length, or absolute interval) resolves the relative flavors.
   * 
   * This enables easy length-relative creation of intervals.  For instance, `1 to End-1` is the interval that leaves off the first
   * and last elements of an `Array` or `String`.

@@ -44,13 +44,9 @@ class JsaunTest {
     assertTrue
   )
 
-  private def bad[A](ask: Ask[A]): Boolean = ask match
-    case Alt(_) => true
-    case _ => false
+  private def bad[A](ask: Ask[A]): Boolean = ask.isAlt
 
-  private def errText[A](ask: Ask[A]): String = ask match
-    case Alt(e) => e.toString
-    case _ => "SUCCESS: " + ask.toString
+  private def errText[A](ask: Ask[A]): String = ask.fold(_ => "SUCCESS: " + ask.toString)(_.toString)
 
   private def rootJerr(e: Err): Jerr =
     e.underlying match
@@ -198,24 +194,22 @@ class JsaunTest {
 
   @Test
   def errorReportingTest(): Unit =
-    Json.parse("{\"a\": [1, 2, x]}").ask match
-      case Alt(e) =>
-        val text = e.toString
-        T ~ text.contains("in element 2 of array")      ==== true
-        T ~ text.contains("in value for key \"a\"")     ==== true
-        T ~ text.contains("expected a JSON value")      ==== true
-        val root = rootJerr(e)
-        T ~ root.pos  ==== 13L
-        T ~ root.line ==== 1
-        T ~ root.col  ==== 14
-      case v => assertTrue("unexpected success: " + v, false)
-    Json.parse("[\n  4,\n  ?\n]").ask match
-      case Alt(e) =>
-        val root = rootJerr(e)
-        T ~ root.line ==== 3
-        T ~ root.col  ==== 3
-        T ~ e.toString.contains("^") ==== true   // caret-marked excerpt
-      case v => assertTrue("unexpected success: " + v, false)
+    Json.parse("{\"a\": [1, 2, x]}").ask.fold{ v => assertTrue("unexpected success: " + v, false) }{ e =>
+      val text = e.toString
+      T ~ text.contains("in element 2 of array")      ==== true
+      T ~ text.contains("in value for key \"a\"")     ==== true
+      T ~ text.contains("expected a JSON value")      ==== true
+      val root = rootJerr(e)
+      T ~ root.pos  ==== 13L
+      T ~ root.line ==== 1
+      T ~ root.col  ==== 14
+    }
+    Json.parse("[\n  4,\n  ?\n]").ask.fold{ v => assertTrue("unexpected success: " + v, false) }{ e =>
+      val root = rootJerr(e)
+      T ~ root.line ==== 3
+      T ~ root.col  ==== 3
+      T ~ e.toString.contains("^") ==== true   // caret-marked excerpt
+    }
     T ~ errText(Json.parse("[" * 600).ask).contains("512 levels") ==== true
     T ~ errText(Json.parse("\u0007").ask).contains("control character 7") ==== true
 
@@ -309,12 +303,11 @@ class JsaunTest {
     T ~ errText(Json.parse(new java.io.StringReader("[\"ab")).ask)  ==== errText(Json.parse("[\"ab").ask)
     // line/col stay exact even once newlines have slid out of a tiny window
     val ml = "[" + " " * 100 + "\n 4,\n ?\n]"
-    Json.parse(new java.io.ByteArrayInputStream(ml.getBytes(u8)), 16).ask match
-      case Alt(e) =>
-        val root = rootJerr(e)
-        T ~ root.line ==== 3
-        T ~ root.col  ==== 2
-      case v => assertTrue("unexpected success: " + v, false)
+    Json.parse(new java.io.ByteArrayInputStream(ml.getBytes(u8)), 16).ask.fold{ v => assertTrue("unexpected success: " + v, false) }{ e =>
+      val root = rootJerr(e)
+      T ~ root.line ==== 3
+      T ~ root.col  ==== 2
+    }
     // an IOException mid-stream comes back as an Err, not a throw
     class Boom extends java.io.InputStream {
       private var n = 0
@@ -356,14 +349,13 @@ class JsaunTest {
     val rows = List(Row(1, "["), Row(2, " 42,"), Row(3, " true"), Row(4, "]"))
     T ~ Json.parse(rows.iterator)(_.text).ask ==== Is(Jarr(Jnum(42), Jbool.True))
     // errors report exact (line, char within line); pos packs the pair
-    Json.parse(List("[", "  4,", "  ?", "]")).ask match
-      case Alt(e) =>
-        val root = rootJerr(e)
-        T ~ root.line ==== 3
-        T ~ root.col  ==== 3
-        T ~ root.pos  ==== ((2L << 32) | 2L)
-        T ~ e.toString.contains("^") ==== true
-      case v => assertTrue("unexpected success: " + v, false)
+    Json.parse(List("[", "  4,", "  ?", "]")).ask.fold{ v => assertTrue("unexpected success: " + v, false) }{ e =>
+      val root = rootJerr(e)
+      T ~ root.line ==== 3
+      T ~ root.col  ==== 3
+      T ~ root.pos  ==== ((2L << 32) | 2L)
+      T ~ e.toString.contains("^") ==== true
+    }
     // no token can span lines: the implied newline splits it
     T ~ Json.parse(List("[tr", "ue]")).isErr     ==== true
     T ~ Json.parse(List("[12", "34]")).isErr     ==== true
@@ -773,9 +765,7 @@ class JsaunTest {
   @Test
   def nonFiniteTest(): Unit =
     val u8 = java.nio.charset.StandardCharsets.UTF_8
-    def no[A](a: Ask[A]): Boolean = a match
-      case Alt(_) => true
-      case _ => false
+    def no[A](a: Ask[A]): Boolean = a.isAlt
     // canonical scalar writing: the Double.toString / Python json / JSON5 spellings
     // (packed double ARRAYS quote non-finite instead -- see packModesTest)
     T ~ Jnum(Double.NaN).print              ==== "NaN"
@@ -1120,6 +1110,17 @@ class JsaunTest {
     T ~ Json.parseFmt(uni).jsonOr(Jnull).compactFormat().print   ==== uni
     T ~ Json.M.parseFmt(uni).jsonOr(Jnull).compactFormat().print ==== uni
     T ~ Json.parseFmt("[1,   2, 3]").jsonOr(Jnull).compactFormat().print ==== "[1,   2,   3]"
+    // an edited node already carries an inferred style; compactFormat keeps it while demoting the rest
+    val ed = Json.M.parseFmt(uni).jsonOr(Jnull)
+    ed match
+      case o: Jobj.M => o.add("c", Jnum(3)) __ Unit
+      case _ => assertTrue("object not mutable", false)
+    T ~ ed.compactFormat().print ==== "{\n  \"a\": 1,\n  \"b\": 2,\n  \"c\": 3\n}"
+    val nest = Json.M.parseFmt("{\n  \"xs\": [\n    1,\n    2\n  ],\n  \"n\": 1\n}").jsonOr(Jnull)
+    nest("xs").jsonOr(Jnull) match
+      case t: Jarr.A.M => t.add(Jnum(3)) __ Unit
+      case _ => assertTrue("xs not mutable", false)
+    T ~ nest.compactFormat().print ==== "{\n  \"xs\": [\n    1,\n    2,\n    3\n  ],\n  \"n\": 1\n}"
 
   @Test
   def codecTest(): Unit =
