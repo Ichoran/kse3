@@ -31,15 +31,15 @@ def scalaVersion = "3.8.4"
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.9.1"
-mvn"com.github.ichoran::kse3-flow:0.9.1"
-mvn"com.github.ichoran::kse3-maths:0.9.1"
-mvn"com.github.ichoran::kse3-loom:0.9.1"
-mvn"com.github.ichoran::kse3-thyme:0.9.1"
-mvn"com.github.ichoran::kse3-eio:0.9.1"
-mvn"com.github.ichoran::kse3-jsaun:0.9.1"
-mvn"com.github.ichoran::kse3-twodee:0.9.1"
-mvn"com.github.ichoran::kse3-alien:0.9.1"
+mvn"com.github.ichoran::kse3-basics:0.9.2"
+mvn"com.github.ichoran::kse3-flow:0.9.2"
+mvn"com.github.ichoran::kse3-maths:0.9.2"
+mvn"com.github.ichoran::kse3-loom:0.9.2"
+mvn"com.github.ichoran::kse3-thyme:0.9.2"
+mvn"com.github.ichoran::kse3-eio:0.9.2"
+mvn"com.github.ichoran::kse3-jsaun:0.9.2"
+mvn"com.github.ichoran::kse3-twodee:0.9.2"
+mvn"com.github.ichoran::kse3-alien:0.9.2"
 ```
 
 to try it out; `kse3-foundation` (same version) is an aggregator with no code of its own
@@ -49,15 +49,15 @@ header equivalent:
 ```scala
 //> using scala 3.8.4
 //> using jvm 25
-//> using dep com.github.ichoran::kse3-basics:0.9.1
-//> using dep com.github.ichoran::kse3-flow:0.9.1
-//> using dep com.github.ichoran::kse3-maths:0.9.1
-//> using dep com.github.ichoran::kse3-loom:0.9.1
-//> using dep com.github.ichoran::kse3-thyme:0.9.1
-//> using dep com.github.ichoran::kse3-eio:0.9.1
-//> using dep com.github.ichoran::kse3-jsaun:0.9.1
-//> using dep com.github.ichoran::kse3-twodee:0.9.1
-//> using dep com.github.ichoran::kse3-alien:0.9.1
+//> using dep com.github.ichoran::kse3-basics:0.9.2
+//> using dep com.github.ichoran::kse3-flow:0.9.2
+//> using dep com.github.ichoran::kse3-maths:0.9.2
+//> using dep com.github.ichoran::kse3-loom:0.9.2
+//> using dep com.github.ichoran::kse3-thyme:0.9.2
+//> using dep com.github.ichoran::kse3-eio:0.9.2
+//> using dep com.github.ichoran::kse3-jsaun:0.9.2
+//> using dep com.github.ichoran::kse3-twodee:0.9.2
+//> using dep com.github.ichoran::kse3-alien:0.9.2
 ```
 
 The `//> using jvm 25` line is not optional: scala-cli picks an older JVM by default, and the
