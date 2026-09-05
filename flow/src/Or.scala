@@ -11,6 +11,8 @@ import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
 import scala.util.boundary
 
+import kse.basics.Translucent
+
 
 /** Supertype of any boxed branch of an `Or`.
   * 
@@ -98,6 +100,16 @@ object Alt {
 
   /** A canonical instance for Alt[Boolean] which is true. */
   val T = Alt(true)
+
+  /** `X Or Y` is always a reference at runtime: `Alt` is a class, so whatever `X` is, the erased
+    * union is `Object` and a primitive favored value is boxed on the way in.  The type system
+    * cannot see this because `IsJust[X]` promises nothing, so tools below flow that pick a
+    * representation from the type (`Atom`, `Copies` of arrays, `Mem.As`) are told through
+    * `Translucent`.  It lives here because `Alt` is an implicit-scope anchor of every `Or`,
+    * unlike the plain aliases `Or` and `Is`.  This says nothing about a bare `IsJust[X]`, which
+    * erases to `X` itself.
+    */
+  inline given [X, Y]: Translucent[X Or Y, AnyRef] = Translucent.instance
 }
 extension[Y](alt: Alt[Y]) {
   /** Extracts the value stored in this `Alt`, if we are sure that the type is `Alt` and not an `Or`. */

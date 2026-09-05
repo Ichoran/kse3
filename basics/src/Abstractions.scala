@@ -26,7 +26,13 @@ object Translucent {
     given translucency: Translucent[O, I] = instance
   }
 
-  inline def isEventually[A, Z]: Boolean = inline erasedValue[A] match
+  /** True when `A` is a `Z` or reaches one through a chain of `Translucent` witnesses.
+    *
+    * Transparent so that the answer keeps its literal type all the way up the chain: a hop
+    * through a witness comes back inside a `summonFrom` block, and an `inline if` on the
+    * result can only reduce if that block's type is still the constant.
+    */
+  transparent inline def isEventually[A, Z]: Boolean = inline erasedValue[A] match
     case _: Z => true
     case _ => summonFrom:
         case _: Translucent[A, b] => isEventually[b, Z]

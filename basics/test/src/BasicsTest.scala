@@ -386,6 +386,22 @@ class BasicsTest() {
     T ~ Mu(3L).tap(_.--)() ==== 2L
     T ~ Mu(3L).tap(_.++)() ==== 4L
 
+    // The specialization is chosen from X alone, so an X spanning several is refused up front
+    T ~ compiletime.testing.typeChecks("kse.basics.Mu.T[Int | Long](5)") ==== false
+    T ~ compiletime.testing.typeChecks("kse.basics.Mu[Int | Long](5)")   ==== false
+    T ~ Mu[Any](5)() ==== 5 --: typed[Any]
+
+    // Generic receivers fall back to the virtual accessors, for Mu.T as well as Mu
+    def muGet[A](m: Mu[A]): A = m()
+    def muTGet[A](t: Mu.T[A]): A = t()
+    def muTSet[A](t: Mu.T[A], a: A): Unit = t := a
+    def muTZap[A](t: Mu.T[A], f: A => A): A = t.zapAndGet(f)
+    T ~ muGet(Mu(5))               ==== 5
+    T ~ muTGet(Mu.T(5))            ==== 5
+    T ~ muTGet(Mu.T(Meter(1.5)))   ==== 1.5 --: typed[Meter.Type]
+    T ~ { val t = Mu.T(1.5); muTSet(t, 2.5); t() } ==== 2.5
+    T ~ { val t = Mu.T('e'); muTZap(t, c => (c + 1).toChar) } ==== 'f'
+
     val az = Atom(true)
     val ab = Atom(2: Byte)
     val as = Atom(2: Short)
@@ -464,6 +480,23 @@ class BasicsTest() {
     T ~ ai.tap(_.++)() ==== 11
     T ~ al.tap(_.--)() ==== 10
     T ~ al.tap(_.++)() ==== 11
+
+    // The backing object is chosen from A alone, never from the argument's static type, so an A
+    // with no single representation is refused at construction and a setter cannot disagree
+    T ~ compiletime.testing.typeChecks("kse.basics.Atom[Any](5)")                                    ==== false
+    T ~ compiletime.testing.typeChecks("kse.basics.Atom[Int | String](5)")                           ==== false
+    T ~ compiletime.testing.typeChecks("""{ val q: kse.basics.Atom[Any] = kse.basics.Atom("s"); () }""") ==== false
+    T ~ compiletime.testing.typeChecks("kse.basics.Atom[Any](5: Any)")                               ==== false
+    T ~ Atom[Long](2)()      ==== 2L  --: typed[Long]
+    T ~ Atom[Double](1)()    ==== 1.0 --: typed[Double]
+
+    // An unbounded generic A fails closed rather than guessing; a bound that fixes the class is enough
+    T ~ compiletime.testing.typeChecks("{ def f[A](a: kse.basics.Atom[A]): A = a(); () }")                 ==== false
+    T ~ compiletime.testing.typeChecks("{ def f[A](a: kse.basics.Atom[A], x: A): Unit = a := x; () }")     ==== false
+    T ~ compiletime.testing.typeChecks("{ def f[A](a: A): kse.basics.Atom[A] = kse.basics.Atom(a); () }")  ==== false
+    def refAtom[R <: AnyRef](r: R): Atom[R] = Atom(r)
+    def refGet[R <: AnyRef](a: Atom[R]): R = a()
+    T ~ refGet(refAtom("eel")) ==== "eel"
 
     val na = Atom.Count.from(1)
     T ~ na()              ==== 1 --: typed[Long]

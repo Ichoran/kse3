@@ -188,16 +188,16 @@ object Mu {
     override def copy: T[A]
   }
   object T {
-    inline def apply[X <: Primitive](x: X): T[X] = inline x match
-      case u: Unit    => MuUnit.asInstanceOf[T[X]]
-      case z: Boolean => (new MuBoolean(z)).asInstanceOf[T[X]]
-      case b: Byte    => (new MuByte(b)).asInstanceOf[T[X]]
-      case s: Short   => (new MuShort(s)).asInstanceOf[T[X]]
-      case c: Char    => (new MuChar(c)).asInstanceOf[T[X]]
-      case i: Int     => (new MuInt(i)).asInstanceOf[T[X]]
-      case l: Long    => (new MuLong(l)).asInstanceOf[T[X]]
-      case f: Float   => (new MuFloat(f)).asInstanceOf[T[X]]
-      case d: Double  => (new MuDouble(d)).asInstanceOf[T[X]]
+    inline def apply[X <: Primitive](x: X): T[X] = inline erasedValue[X] match
+      case _: Unit    => MuUnit.asInstanceOf[T[X]]
+      case _: Boolean => (new MuBoolean(x.asInstanceOf[Boolean])).asInstanceOf[T[X]]
+      case _: Byte    => (new MuByte(x.asInstanceOf[Byte])).asInstanceOf[T[X]]
+      case _: Short   => (new MuShort(x.asInstanceOf[Short])).asInstanceOf[T[X]]
+      case _: Char    => (new MuChar(x.asInstanceOf[Char])).asInstanceOf[T[X]]
+      case _: Int     => (new MuInt(x.asInstanceOf[Int])).asInstanceOf[T[X]]
+      case _: Long    => (new MuLong(x.asInstanceOf[Long])).asInstanceOf[T[X]]
+      case _: Float   => (new MuFloat(x.asInstanceOf[Float])).asInstanceOf[T[X]]
+      case _: Double  => (new MuDouble(x.asInstanceOf[Double])).asInstanceOf[T[X]]
 
     inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): T[A] = summonFrom {
       case t: Translucent.Chain[A, Unit]    => MuUnit.asInstanceOf[T[A]]
@@ -237,16 +237,16 @@ object Mu {
   final class MuDouble (init: Double)  extends  T[Double]  { def copy: MuDouble  = new MuDouble(myValue)  ; var myValue = init ; def getValue = myValue ; def setValue(a: Double ): Unit = { myValue = a} }
   final class MuAny[A] (init: A)       extends Mu[A]       { def copy: MuAny[A]  = new MuAny[A](myValue)  ; var myValue = init ; def getValue = myValue ; def setValue(a: A      ): Unit = { myValue = a} }
 
-  transparent inline def apply[X <: Primitive](x: X): Specialized[X] = inline x match
-    case u: Unit    => MuUnit
-    case z: Boolean => new MuBoolean(z)
-    case b: Byte    => new MuByte(b)
-    case s: Short   => new MuShort(s)
-    case c: Char    => new MuChar(c)
-    case i: Int     => new MuInt(i)
-    case l: Long    => new MuLong(l)
-    case f: Float   => new MuFloat(f)
-    case d: Double  => new MuDouble(d)
+  transparent inline def apply[X <: Primitive](x: X): Specialized[X] = inline erasedValue[X] match
+    case _: Unit    => MuUnit
+    case _: Boolean => new MuBoolean(x.asInstanceOf[Boolean])
+    case _: Byte    => new MuByte(x.asInstanceOf[Byte])
+    case _: Short   => new MuShort(x.asInstanceOf[Short])
+    case _: Char    => new MuChar(x.asInstanceOf[Char])
+    case _: Int     => new MuInt(x.asInstanceOf[Int])
+    case _: Long    => new MuLong(x.asInstanceOf[Long])
+    case _: Float   => new MuFloat(x.asInstanceOf[Float])
+    case _: Double  => new MuDouble(x.asInstanceOf[Double])
 
   transparent inline def apply[A](a: A)(using scala.util.NotGiven[A <:< Primitive]): Mu[A] = summonFrom {
     case t: Translucent.Chain[A, Unit]    => MuUnit.asInstanceOf[T[A]]
@@ -296,6 +296,7 @@ extension [A, M <: Mu[A]](mu: M) {
         case t: Translucent.Chain[A, Long]    => t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)
         case t: Translucent.Chain[A, Float]   => t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)
         case t: Translucent.Chain[A, Double]  => t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)
+        case _ => mut.getValue
       }
     case _ => inline erasedValue[A] match
       case _: Unit    => ().asInstanceOf[A]
@@ -382,6 +383,7 @@ extension [A, M <: Mu[A]](mu: M) {
         case t: Translucent.Chain[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(a)
         case t: Translucent.Chain[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(a)
         case t: Translucent.Chain[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(a)
+        case _ => mut.setValue(a)
       }
     case _ => inline erasedValue[A] match
       case _: Unit    => ()
@@ -473,6 +475,7 @@ extension [A, M <: Mu[A]](mu: M) {
           case t: Translucent.Chain[A, Long]    => mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)))
           case t: Translucent.Chain[A, Float]   => mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)))
           case t: Translucent.Chain[A, Double]  => mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(f(t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)))
+          case _ => mut.setValue(f(mut.getValue))
         }
       case _ => inline erasedValue[A] match
         case _: Unit    => ()
@@ -564,6 +567,7 @@ extension [A, M <: Mu[A]](mu: M) {
           case t: Translucent.Chain[A, Long]    => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue)); mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(v); v }
           case t: Translucent.Chain[A, Float]   => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue)); mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(v); v }
           case t: Translucent.Chain[A, Double]  => { val v = f(t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue)); mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(v); v }
+          case _ => { val v = f(mut.getValue); mut.setValue(v); v }
         }
       case _ => inline erasedValue[A] match
         case _: Unit    => ().asInstanceOf[A]
@@ -651,6 +655,7 @@ extension [A, M <: Mu[A]](mu: M) {
           case t: Translucent.Chain[A, Long]    => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuLong   ].myValue); mut.asInstanceOf[Mu.MuLong   ].myValue = t.witness.reveal(f(v)); v }
           case t: Translucent.Chain[A, Float]   => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuFloat  ].myValue); mut.asInstanceOf[Mu.MuFloat  ].myValue = t.witness.reveal(f(v)); v }
           case t: Translucent.Chain[A, Double]  => { val v = t.witness.conceal(mut.asInstanceOf[Mu.MuDouble ].myValue); mut.asInstanceOf[Mu.MuDouble ].myValue = t.witness.reveal(f(v)); v }
+          case _ => { val v = mut.getValue; mut.setValue(f(v)); v }
         }
       case _ => inline erasedValue[A] match
         case _: Unit    => ().asInstanceOf[A]
@@ -762,6 +767,10 @@ extension [A <: Int | Long, M <: Mu[A]](mu: M) {
   * You still need to be careful not to pull data out, modify it, and put it back in without realizing that you've missed an update.
   * Use op, zap, getAndOp, or opAndGet depending on whether you just need to compute the new value, or whether you need the Atom, the value
   * you computed on, or the value you computed.
+  *
+  * The backing object is chosen from `A` alone, never from the static type of a value passed in, so every site that builds,
+  * reads, or writes an `Atom[A]` agrees on the representation.  An `A` with no single backing class (`Any`, `Int | String`,
+  * an unbounded type parameter) is refused at compile time rather than guessed at.
   */
 opaque type Atom[A] <: AnyRef = AtomicInteger | AtomicLong | AtomicBoolean | AtomicReference[AnyRef]
 object Atom {
@@ -775,16 +784,16 @@ object Atom {
     case "load-load" => java.lang.invoke.VarHandle.loadLoadFence()
     case "store-store" => java.lang.invoke.VarHandle.storeStoreFence()
 
-  inline def apply[A](a: A): kse.basics.Atom[A] = inline a match
-    case i: Int     => new AtomicInteger(i)
-    case l: Long    => new AtomicLong(l)
-    case b: Byte    => new AtomicInteger(b)
-    case s: Short   => new AtomicInteger(s)
-    case c: Char    => new AtomicInteger(c)
-    case f: Float   => new AtomicInteger(f2i(f))
-    case d: Double  => new AtomicLong(d2l(d))
-    case z: Boolean => new AtomicBoolean(z)
-    case x: AnyRef  => new AtomicReference(x)
+  inline def apply[A](a: A): kse.basics.Atom[A] = inline erasedValue[A] match
+    case _: Int     => new AtomicInteger(a.asInstanceOf[Int])
+    case _: Long    => new AtomicLong(a.asInstanceOf[Long])
+    case _: Byte    => new AtomicInteger(a.asInstanceOf[Byte].toInt)
+    case _: Short   => new AtomicInteger(a.asInstanceOf[Short].toInt)
+    case _: Char    => new AtomicInteger(a.asInstanceOf[Char].toInt)
+    case _: Float   => new AtomicInteger(f2i(a.asInstanceOf[Float]))
+    case _: Double  => new AtomicLong(d2l(a.asInstanceOf[Double]))
+    case _: Boolean => new AtomicBoolean(a.asInstanceOf[Boolean])
+    case _: AnyRef  => new AtomicReference[AnyRef](a.asInstanceOf[AnyRef])
     case _ => summonFrom{
       case _: Translucent.Chain[A, Int]     => new AtomicInteger(a.asInstanceOf[Int])
       case _: Translucent.Chain[A, Long]    => new AtomicLong(a.asInstanceOf[Long])
@@ -805,7 +814,9 @@ object Atom {
       case _: Long => a.asInstanceOf[AtomicLong]
       case _: Boolean => a.asInstanceOf[AtomicBoolean]
       case _: AnyRef => a.asInstanceOf[AtomicReference[A]]
-      case _ => compiletime.error("The underlying instance is virtually wrapped")
+      case _ =>
+        inline if Translucent.isEventually[A, AnyRef] then a.asInstanceOf[AtomicReference[AnyRef]]
+        else compiletime.error("The underlying instance is virtually wrapped")
 
     inline def apply(): A = inline erasedValue[A] match
       case _: Int     => a.asInstanceOf[AtomicInteger].get().asInstanceOf[A]
@@ -831,16 +842,16 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline def :=(x: A): Unit = inline x match
-      case i: Int     => a.asInstanceOf[AtomicInteger].set(i)
-      case l: Long    => a.asInstanceOf[AtomicLong   ].set(l)
-      case b: Byte    => a.asInstanceOf[AtomicInteger].set(b)
-      case s: Short   => a.asInstanceOf[AtomicInteger].set(s)
-      case c: Char    => a.asInstanceOf[AtomicInteger].set(c)
-      case f: Float   => a.asInstanceOf[AtomicInteger].set(f2i(f))
-      case d: Double  => a.asInstanceOf[AtomicLong   ].set(d2l(d))
-      case z: Boolean => a.asInstanceOf[AtomicBoolean ].set(z)
-      case _: AnyRef  => a.asInstanceOf[AtomicReference[A]].set(x)
+    inline def :=(x: A): Unit = inline erasedValue[A] match
+      case _: Int     => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Int])
+      case _: Long    => a.asInstanceOf[AtomicLong   ].set(x.asInstanceOf[Long])
+      case _: Byte    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Byte].toInt)
+      case _: Short   => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Short].toInt)
+      case _: Char    => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Char].toInt)
+      case _: Float   => a.asInstanceOf[AtomicInteger].set(f2i(x.asInstanceOf[Float]))
+      case _: Double  => a.asInstanceOf[AtomicLong   ].set(d2l(x.asInstanceOf[Double]))
+      case _: Boolean => a.asInstanceOf[AtomicBoolean ].set(x.asInstanceOf[Boolean])
+      case _: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].set(x.asInstanceOf[AnyRef])
       case _ => summonFrom{
         case _: Translucent.Chain[A, Int]     => a.asInstanceOf[AtomicInteger].set(x.asInstanceOf[Int])
         case _: Translucent.Chain[A, Long]    => a.asInstanceOf[AtomicLong   ].set(x.asInstanceOf[Long])
@@ -855,15 +866,15 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline infix def swap(x: A): A = inline x match
-      case i: Int     => a.asInstanceOf[AtomicInteger].getAndSet(i).asInstanceOf[A]
-      case l: Long    => a.asInstanceOf[AtomicLong   ].getAndSet(l).asInstanceOf[A]
-      case b: Byte    => a.asInstanceOf[AtomicInteger].getAndSet(b).toByte .asInstanceOf[A]
-      case s: Short   => a.asInstanceOf[AtomicInteger].getAndSet(s).toShort.asInstanceOf[A]
-      case c: Char    => a.asInstanceOf[AtomicInteger].getAndSet(c).toChar .asInstanceOf[A]
-      case f: Float   => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(f))).asInstanceOf[A]
-      case d: Double  => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(d))).asInstanceOf[A]
-      case z: Boolean => a.asInstanceOf[AtomicBoolean  ].getAndSet(z).asInstanceOf[A]
+    inline infix def swap(x: A): A = inline erasedValue[A] match
+      case _: Int     => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Int]).asInstanceOf[A]
+      case _: Long    => a.asInstanceOf[AtomicLong   ].getAndSet(x.asInstanceOf[Long]).asInstanceOf[A]
+      case _: Byte    => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Byte].toInt).toByte .asInstanceOf[A]
+      case _: Short   => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Short].toInt).toShort.asInstanceOf[A]
+      case _: Char    => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Char].toInt).toChar .asInstanceOf[A]
+      case _: Float   => i2f(a.asInstanceOf[AtomicInteger].getAndSet(f2i(x.asInstanceOf[Float]))).asInstanceOf[A]
+      case _: Double  => l2d(a.asInstanceOf[AtomicLong   ].getAndSet(d2l(x.asInstanceOf[Double]))).asInstanceOf[A]
+      case _: Boolean => a.asInstanceOf[AtomicBoolean  ].getAndSet(x.asInstanceOf[Boolean]).asInstanceOf[A]
       case _: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].getAndSet(x.asInstanceOf[AnyRef]).asInstanceOf[A]
       case _ => summonFrom{
         case _: Translucent.Chain[A, Int]     => a.asInstanceOf[AtomicInteger].getAndSet(x.asInstanceOf[Int ]).asInstanceOf[A]
@@ -879,16 +890,16 @@ object Atom {
           else compiletime.error("Context missing to support atomic operations on values of this type")
       }
 
-    inline infix def cas(expected: A, update: A): Boolean = inline update match
-      case i: Int     => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Int], i)
-      case l: Long    => a.asInstanceOf[AtomicLong   ].compareAndSet(expected.asInstanceOf[Long], l)
-      case b: Byte    => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Byte].toInt, b.toInt)
-      case s: Short   => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Short].toInt, s.toInt)
-      case c: Char    => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Char].toInt, c.toInt)
-      case f: Float   => a.asInstanceOf[AtomicInteger].compareAndSet(f2i(expected.asInstanceOf[Float]), f2i(f))
-      case d: Double  => a.asInstanceOf[AtomicLong   ].compareAndSet(d2l(expected.asInstanceOf[Double]), d2l(d))
-      case z: Boolean => a.asInstanceOf[AtomicBoolean].compareAndSet(expected.asInstanceOf[Boolean], z)
-      case x: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(expected.asInstanceOf[AnyRef], x.asInstanceOf[AnyRef])
+    inline infix def cas(expected: A, update: A): Boolean = inline erasedValue[A] match
+      case _: Int     => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Int], update.asInstanceOf[Int])
+      case _: Long    => a.asInstanceOf[AtomicLong   ].compareAndSet(expected.asInstanceOf[Long], update.asInstanceOf[Long])
+      case _: Byte    => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Byte].toInt, update.asInstanceOf[Byte].toInt)
+      case _: Short   => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Short].toInt, update.asInstanceOf[Short].toInt)
+      case _: Char    => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Char].toInt, update.asInstanceOf[Char].toInt)
+      case _: Float   => a.asInstanceOf[AtomicInteger].compareAndSet(f2i(expected.asInstanceOf[Float]), f2i(update.asInstanceOf[Float]))
+      case _: Double  => a.asInstanceOf[AtomicLong   ].compareAndSet(d2l(expected.asInstanceOf[Double]), d2l(update.asInstanceOf[Double]))
+      case _: Boolean => a.asInstanceOf[AtomicBoolean].compareAndSet(expected.asInstanceOf[Boolean], update.asInstanceOf[Boolean])
+      case _: AnyRef  => a.asInstanceOf[AtomicReference[AnyRef]].compareAndSet(expected.asInstanceOf[AnyRef], update.asInstanceOf[AnyRef])
       case _ => summonFrom{
         case _: Translucent.Chain[A, Int]     => a.asInstanceOf[AtomicInteger].compareAndSet(expected.asInstanceOf[Int], update.asInstanceOf[Int])
         case _: Translucent.Chain[A, Long]    => a.asInstanceOf[AtomicLong   ].compareAndSet(expected.asInstanceOf[Long], update.asInstanceOf[Long])

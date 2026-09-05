@@ -408,6 +408,79 @@ class FlowTest {
 
 
   @Test
+  def orAtomTest(): Unit =
+    // An Or is always a reference at runtime (Alt is a class), so Atom keeps it in an
+    // AtomicReference; the type system learns this from Alt's Translucent[X Or Y, AnyRef].
+    // Note the explicit type: Atom(Is(5)) would infer Atom[Is[Int]], which cannot hold an Alt.
+    val a = Atom[Int Or String](Is(5))
+    T ~ a()                        ==== 5           --: typed[Int Or String]
+    T ~ { a := Alt("cod"); a() }   ==== Alt("cod")
+    T ~ (a swap Is(7))             ==== Alt("cod")
+    T ~ a()                        ==== 7
+    T ~ a.getAndZap(_.map(_ + 1))  ==== 7
+    T ~ a()                        ==== 8
+    T ~ a.zapAndGet(_.map(_ * 2))  ==== 16
+    a.zap(_.map(_ - 1))
+    T ~ a()                        ==== 15
+    T ~ a.cas(a(), Is(9))          ==== true
+    T ~ a()                        ==== 9
+    T ~ a.cas(Alt("eel"), Is(1))   ==== false
+    T ~ a()                        ==== 9
+    T ~ a.underlying.getClass      ==== classOf[java.util.concurrent.atomic.AtomicReference[?]]
+
+    val ask = Atom[Ask[Int]](Is(1))
+    T ~ ask().fold(_.toString)(_ => "err") ==== "1"
+    ask := Alt(Err("bad"))
+    T ~ ask().isAlt                        ==== true
+    T ~ ask().fold(_.toString)(_ => "err") ==== "err"
+
+    // Generic and concrete sites must agree on the representation
+    def atomOf[X, Y](o: X Or Y): Atom[X Or Y] = Atom(o)
+    def readOf[X, Y](at: Atom[X Or Y]): X Or Y = at()
+    val g = atomOf[Int, String](Is(3))
+    T ~ g()       ==== 3   --: typed[Int Or String]
+    T ~ readOf(a) ==== 9
+    g := Alt("bass")
+    T ~ readOf(g) ==== Alt("bass")
+
+    // A boxed favored value round-trips
+    val inner: Int Or String = Alt("cod")
+    val n = Atom[(Int Or String) Or Boolean](Is(inner))
+    T ~ n().isBoxed ==== true
+    T ~ n().get     ==== inner
+    T ~ n().get.alt ==== "cod"
+    n := Alt(false)
+    T ~ n().alt     ==== false
+
+    // null is a bare favored value
+    val z = Atom[String Or Int](Is(null))
+    T ~ z().isIs ==== true
+    T ~ z().get  ==== null
+
+    // The witness is found through implicit scope alone, and speaks only about Or
+    val tr = summon[Translucent[Int Or String, AnyRef]]
+    T ~ tr.reveal(Is(5): Int Or String)    ==== 5
+    T ~ tr.reveal(Alt("x"): Int Or String) ==== Alt("x")
+    T ~ compiletime.testing.typeChecks("summon[kse.basics.Translucent[kse.flow.IsJust[Int], AnyRef]]") ==== false
+    T ~ compiletime.testing.typeChecks("summon[kse.basics.Translucent[kse.flow.Is[Int], AnyRef]]")     ==== false
+    T ~ compiletime.testing.typeChecks("val u: Int | String = 5; kse.basics.Atom(u)")                   ==== false
+
+    // An opaque type over an Or chains through to AnyRef
+    val w = Atom(FlowTest.Guarded(Is(2)))
+    T ~ w().value ==== 2
+    w := FlowTest.Guarded(Alt("w"))
+    T ~ w().value ==== Alt("w")
+
+    // Arrays of Or copy as reference arrays
+    val xs = new Array[Int Or String](2)
+    xs(0) = Is(1)
+    xs(1) = Alt("two")
+    val ys = xs.copy
+    T ~ (ys ne xs) ==== true
+    T ~ ys.toList  ==== xs.toList
+
+
+  @Test
   def orAccessTest(): Unit =
     val valueProvider = new ProvideVariousOrValues()
     import valueProvider._
@@ -2579,6 +2652,16 @@ class FlowTest {
     T ~ acc ==== 2
 }
 object FlowTest {
+  import kse.basics.Translucent
+  import kse.flow.*
+
+  /** An opaque type over an `Or`, to check that `Translucent` chains reach the `Or` fact. */
+  opaque type Guarded = Int Or String
+  object Guarded extends Translucent.Companion[Guarded, Int Or String] {
+    def apply(o: Int Or String): Guarded = o
+    extension (g: Guarded) def value: Int Or String = g
+  }
+
   // @BeforeClass
   // def before(): Unit = { println("Before") }
 
