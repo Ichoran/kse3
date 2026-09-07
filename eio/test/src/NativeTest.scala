@@ -43,6 +43,9 @@ class NativeTest {
   /** The errno inside a failed `Ask`, or -1 for success or a failure that is not a system call's. */
   private def errnoOf[A](a: Ask[A]): Int = a.fold(_ => -1)(e => PosixSocket.errnoOf(e))
 
+  /** Whether `a` failed for a reason that names `word`. */
+  private def saysWhy[A](a: Ask[A], word: String): Boolean = a.fold(_ => false)(e => e.toString.contains(word))
+
   private def handoff[X](sq: SynchronousQueue[X]): X =
     val x = sq.poll(10, TimeUnit.SECONDS)
     if x == null then throw new RuntimeException("handoff timed out")
@@ -681,6 +684,18 @@ class NativeTest {
         } ==== Is((true, 9L))
         s1.close(); s2.close()
 
+      // a bad count is an Err, never a throw, and a descriptor handed to attachFd is consumed even then
+      T ~ saysWhy(SharedMemory.createFd[Long](0), "count")                           ==== true
+      T ~ saysWhy(SharedMemory.createFd[Long](1L << 61), "overflow")                 ==== true
+      T ~ saysWhy(SharedMemory.offerFd[Long](dir.resolve("never.sock"), -1), "count") ==== true
+      T ~ dir.resolve("never.sock").exists                                          ==== false
+      locally:
+        val (c1, c2) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        val f = c1.disown()
+        T ~ saysWhy(Resource.nice(SharedMemory.attachFd[Long](f, -1))(_.close())(_ => 0), "count") ==== true
+        T ~ FdSock.adopt(f).isAlt                                                   ==== true   // already closed
+        c2.close()
+
       T ~ FdSock.adopt(-1).isAlt  ==== true
       T ~ FdSock.adopt(999_999).isAlt ==== true   // fd numbers allocate lowest-first; this one cannot be open
 
@@ -728,13 +743,18 @@ class NativeTest {
 
     // a count is judged before it is multiplied, so an overflow can pass neither for a size nor for the
     // discovery signal; and a name with a NUL, which the OS would cut short, is refused on both sides
-    def saysWhy[A](a: Ask[A], word: String): Boolean = a.fold(_ => false)(e => e.toString.contains(word))
     T ~ saysWhy(Resource.nice(SharedMemory.attach[Long]("/kse-any", 1L << 61))(_.close())(_ => 0), "overflow") ==== true
     T ~ saysWhy(SharedMemory.createNamed[Long](Long.MaxValue), "overflow")                                    ==== true
     T ~ saysWhy(SharedMemory.createNamed[Long]("/kse-huge", 1L << 61), "overflow")                            ==== true
     T ~ saysWhy(SharedMemory.createNamed[Long]("/kse-nul\u0000x", 1), "NUL")                                 ==== true
     T ~ saysWhy(Resource.nice(SharedMemory.attach[Long]("/kse-nul\u0000x", 0))(_.close())(_ => 0), "NUL")   ==== true
     T ~ SharedMemory.freshName().startsWith("/kse-")                                                          ==== true
+    SharedMemory.ramDirectory.foreach{ ram =>   // a rejected count leaves no temp file behind
+      def shmFiles = { val l = Files.list(ram); try l.filter(_.getFileName.toString.startsWith("kse-shm-")).count() finally l.close() }
+      val before = shmFiles
+      T ~ saysWhy(Resource.nice(SharedMemory.create[Long](0))(_.close())(_ => 0), "count") ==== true
+      T ~ shmFiles ==== before
+    }
 
     // a name of the caller's choosing, and a size the object itself reports: the receiving side of a
     // protocol, where a peer says "attach to X" and nothing more
@@ -767,6 +787,16 @@ class NativeTest {
     val odd = SharedMemory.Access.Custom(0x180, "this is not SDDL")
     if windows then T ~ saysWhy(SharedMemory.createNamed[Long](chosen, 1, odd), "security descriptor") ==== true
     else T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 1, odd))(_.close()){ _.op(_.name) } ==== Is(chosen)
+    if windows then
+      // a DACL granting only FILE_MAP_WRITE admits a writable attach, which asks for that right alone,
+      // and refuses a read-only one, which asks for FILE_MAP_READ; the creator's own handle has every right
+      val writeOnly = SharedMemory.Access.Custom(0x180, "D:(A;;0x2;;;WD)")
+      T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 2, writeOnly))(_.close()){ later =>
+        later.use(_.use(m => m(1) = 5L))
+        T ~ Resource.nice(SharedMemory.attach[Long](chosen, 0))(_.close()){ _.op(_(1)) } ==== Is(5L)
+        T ~ Resource.nice(SharedMemory.attach[Long](chosen, 0, readOnly = true))(_.close())(_ => 0).isAlt ==== true
+        later.op(_.op(_(1)))
+      } ==== Is(5L)
     T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 2))(_.close()){ _.op(_.name) } ==== Is(chosen)   // free again once closed
     T ~ SharedMemory.createNamed[Long]("", 1).isAlt ==== true
     if PosixSocket.supported then T ~ SharedMemory.createNamed[Long]("/a/b", 1).isAlt ==== true
