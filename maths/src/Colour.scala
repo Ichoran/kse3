@@ -491,7 +491,9 @@ object Oklab {
       else
         val l = Colour.float_to_bits(Colour.bits_to_float((y >>> 42).toInt) * x)
         if l < 0 then -1L else (y & 0x3FFFFFFFFFFL) | (l.toLong << 42)
+    inline def *(x: Double): Oklab = Oklab.*(color)(x.toFloat)
     inline def /(x: Float): Oklab = Oklab.*(color)(1f/x)
+    inline def /(x: Double): Oklab = Oklab.*(color)((1.0/x).toFloat)
     inline def +(other: Oklab): Oklab = Oklab.blend(color, 1.0)(other, 1.0)
 
     inline def rgbFn[A](inline rgbf: (Float, Float, Float) => A): A =
@@ -520,5 +522,5 @@ object Oklab {
   given Sayable[Oklab] = (x, m, _) => m += x.pr
 }
 
-extension (f: Float)
-  inline def *(color: Oklab): Oklab = Oklab.*(color)(f)
+// `f * oklab` lives in OverloadedExtensions.scala with Float's other left-hand operators: a top-level
+// `*` on Float here would hide every one of them wherever both packages are wildcard-imported.

@@ -159,23 +159,9 @@ extension (value: Int) {
   inline def -(f: kse.maths.Frac): kse.maths.Frac =
     (-f) + value
 
-  @targetName("Int_mul_Frac")
-  inline def *(f: kse.maths.Frac): kse.maths.Frac =
-    f * value
-
   @targetName("Int_div_Frac")
   inline def /(f: kse.maths.Frac): kse.maths.Frac =
     Frac.divide(value, f)
-
-
-  /////////////////////////////////////
-  // Time operators (Temporal.scala) //
-  /////////////////////////////////////
-  @targetName("Int_mul_NanoDuration")
-  inline def *(nd: NanoDuration): NanoDuration = nd * value.toLong
-
-  @targetName("Int_mul_Duration")
-  inline def *(d: Duration): Duration = DurationCompanion.mul(d, value)
 }
 
 
@@ -205,13 +191,33 @@ extension (value: Long) {
   inline def checkIn(lo: Long, hi: Long) =
     if value < lo || value > hi then throw new ArithmeticException("long overflow")
     else value
+}
 
 
-  /////////////////////////////////////
-  // Time operators (Temporal.scala) //
-  /////////////////////////////////////
-  @targetName("Long_mul_NanoDuration")
-  inline def *(nd: NanoDuration): NanoDuration = nd * value
+
+extension (value: Int | Long) {
+  /////////////////////////////////////////////////////////  NOTE: one method for both receivers, over an argument
+  // Int | Long _ Frac, NanoDuration, Duration Operators //  union.  Separate Int and Long alternatives agreeing on
+  /////////////////////////////////////////////////////////  the argument list are an ambiguity the compiler swallows
+  //                                                           (`2 * nd` resolved to nothing while `2L * nd` worked),
+  //                                                           and an exact-Int alternative beside a union receiver
+  //                                                           wins the receiver list and then fails on the argument,
+  //                                                           so every Int- or Long-scaled type is listed here.
+
+  @targetName("IntLong_mul_Frac_NanoDuration_Duration_DoubleDuration")
+  transparent inline def *(inline that: kse.maths.Frac | NanoDuration | Duration | DoubleDuration) = inline that match
+    case dt: DoubleDuration => inline value match
+      case i: Int => dt * i.toDouble
+      case l: Long => dt * l.toDouble
+    case f: kse.maths.Frac => inline value match
+      case i: Int => f * i
+      case _: Long => scala.compiletime.error("Frac is scaled by an Int, not a Long")
+    case nd: NanoDuration => inline value match
+      case i: Int => nd * i.toLong
+      case l: Long => nd * l
+    case d: Duration => inline value match
+      case i: Int => DurationCompanion.mul(d, i)
+      case _: Long => scala.compiletime.error("Duration is scaled by an Int, not a Long")
 }
 
 
@@ -248,30 +254,67 @@ extension (value: Float) {
   inline def closeTo(that: Float): Boolean = closeTo(that, 1e-6f, 1e-6f)
 
 
-  //////////////////////////////////////////////////////  NOTE: need argument union to resolve successfully
-  // Float _ Vc and PlusMinus Operators (Maths.scala) //  when not only are there opaque arguments with identical
-  //////////////////////////////////////////////////////  types but also an overload shared with Double (or anything??)
+  //////////////////////////////////////////////////////  NOTE: one method over an argument union, not overloads.
+  // Float _ Vc, PlusMinus, Vec, Mat, Oklab Operators   //  Overload resolution settles on an alternative from the
+  //////////////////////////////////////////////////////  receiver list alone, so a Float (or widened Int) receiver
+  //                                                      never falls through to Double's overloads: everything a
+  //                                                      Float may combine with is listed here, Double-typed
+  //                                                      arguments included.  The reverse is deliberate: no Double
+  //                                                      receiver takes a Float-typed argument (Vc, Vec3F, the F
+  //                                                      matrices), so `5.2 * m33f` fails just as `m33f * 5.2` does.
+  //                                                      Oklab is a colour, not a number, and takes either scalar.
+  //                                                      And a same-named top-level extension on Float anywhere
+  //                                                      else, even in another package, hides this one wherever
+  //                                                      both are wildcard-imported, which is why Oklab's lives
+  //                                                      here rather than in Colour.scala.
 
   @targetName("Float_add_Vc_PM_Bf16")
-  transparent inline def +(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
+  transparent inline def +(
+    inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F |
+                 kse.maths.Vec2D | kse.maths.Vec3D
+  ) = inline that match
     case bf: kse.maths.Bf16 => value + bf.toFloat
     case v: kse.maths.Vc => Vc(value + v.x, value + v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value + pm.value)
     case w: kse.maths.Vec3F => kse.maths.Vec3F(value + w.x, value + w.y, value + w.z)
+    case v: kse.maths.Vec2D => kse.maths.Vec2D(value + v.x, value + v.y)
+    case w: kse.maths.Vec3D => kse.maths.Vec3D(value + w.x, value + w.y, value + w.z)
 
   @targetName("Float_sub_Vc_PM_Bf16")
-  transparent inline def -(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
+  transparent inline def -(
+    inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F |
+                 kse.maths.Vec2D | kse.maths.Vec3D
+  ) = inline that match
     case bf: kse.maths.Bf16 => value - bf.toFloat
     case v: kse.maths.Vc => Vc(value - v.x, value - v.y)
     case pm: kse.maths.PlusMinus => pm.valueTo(value - pm.value)
     case w: kse.maths.Vec3F => kse.maths.Vec3F(value - w.x, value - w.y, value - w.z)
+    case v: kse.maths.Vec2D => kse.maths.Vec2D(value - v.x, value - v.y)
+    case w: kse.maths.Vec3D => kse.maths.Vec3D(value - w.x, value - w.y, value - w.z)
 
   @targetName("Float_mul_Vc_PM_Bf16")
-  transparent inline def *(inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F) = inline that match
+  transparent inline def *(
+    inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F |
+                 kse.maths.Vec2D | kse.maths.Vec3D | kse.maths.colours.Oklab | DoubleDuration |
+                 kse.maths.Mat22F | kse.maths.Mat23F | kse.maths.Mat32F | kse.maths.Mat33F |
+                 kse.maths.Mat22D | kse.maths.Mat23D | kse.maths.Mat32D | kse.maths.Mat33D
+  ) = inline that match
     case bf: kse.maths.Bf16 => value * bf.toFloat
+    case dt: DoubleDuration => dt * value.toDouble
     case v: kse.maths.Vc => Vc(value * v.x, value * v.y)
     case pm: kse.maths.PlusMinus => PlusMinus(value * pm.value, value * pm.error)
     case w: kse.maths.Vec3F => kse.maths.Vec3F(value * w.x, value * w.y, value * w.z)
+    case v: kse.maths.Vec2D => kse.maths.Vec2D(value * v.x, value * v.y)
+    case w: kse.maths.Vec3D => kse.maths.Vec3D(value * w.x, value * w.y, value * w.z)
+    case m: kse.maths.Mat22F => m * value
+    case m: kse.maths.Mat23F => m * value
+    case m: kse.maths.Mat32F => m * value
+    case m: kse.maths.Mat33F => m * value
+    case m: kse.maths.Mat22D => m * value
+    case m: kse.maths.Mat23D => m * value
+    case m: kse.maths.Mat32D => m * value
+    case m: kse.maths.Mat33D => m * value
+    case c: kse.maths.colours.Oklab => c * value
 
   @targetName("Float_div_PlusMinus_Bf16")
   transparent inline def /(inline that: kse.maths.Bf16 | kse.maths.PlusMinus) = inline that match
@@ -381,6 +424,39 @@ extension (value: Double) {
 
   @targetName("Double_mul_Vec3D")
   inline def *(v: kse.maths.Vec3D): kse.maths.Vec3D = kse.maths.Vec3D(value * v.x, value * v.y, value * v.z)
+
+
+  /////////////////////////////////////////////////////
+  // Double _ Mat22D .. Mat33D Operators (Mat.scala) //
+  /////////////////////////////////////////////////////
+
+  @targetName("Double_mul_Mat22D")
+  inline def *(m: kse.maths.Mat22D): kse.maths.Mat22D = m * value
+
+  @targetName("Double_mul_Mat23D")
+  inline def *(m: kse.maths.Mat23D): kse.maths.Mat23D = m * value
+
+  @targetName("Double_mul_Mat32D")
+  inline def *(m: kse.maths.Mat32D): kse.maths.Mat32D = m * value
+
+  @targetName("Double_mul_Mat33D")
+  inline def *(m: kse.maths.Mat33D): kse.maths.Mat33D = m * value
+
+
+  /////////////////////////////////////////////
+  // Double _ Oklab Operators (Colour.scala) //
+  /////////////////////////////////////////////
+
+  @targetName("Double_mul_Oklab")
+  inline def *(c: kse.maths.colours.Oklab): kse.maths.colours.Oklab = c * value
+
+
+  ////////////////////////////////////////////////////////
+  // Double _ DoubleDuration Operators (Temporal.scala) //
+  ////////////////////////////////////////////////////////
+
+  @targetName("Double_mul_DoubleDuration")
+  inline def *(dt: DoubleDuration): DoubleDuration = dt * value
 }
 
 

@@ -53,6 +53,10 @@ class TemporalTest() {
     T ~ 2.0.days             ==== DoubleDuration(86400*2)        --: typed[DoubleDuration]
     T ~ 3.0.h                ==== DoubleDuration(10.8e3)         --: typed[DoubleDuration]
     T ~ 4.0.m                ==== DoubleDuration(240.0)          --: typed[DoubleDuration]
+    T ~ (2.0 * 3.0.h)        ==== (3.0.h * 2.0)                  --: typed[DoubleDuration]
+    T ~ (2f * 3.0.h)         ==== (3.0.h * 2f)                   --: typed[DoubleDuration]
+    T ~ (2 * 3.0.h)          ==== (3.0.h * 2)                    --: typed[DoubleDuration]
+    T ~ (2L * 3.0.h)         ==== (3.0.h * 2L)                   --: typed[DoubleDuration]
     T ~ 5.0.s                ==== DoubleDuration(5)              --: typed[DoubleDuration]
     T ~ 6.0.ms               ==== DoubleDuration(0.006)          --: typed[DoubleDuration]
     T ~ 7.0.us               ==== DoubleDuration(0.000007)       --: typed[DoubleDuration]
@@ -100,6 +104,7 @@ class TemporalTest() {
     T ~ ( 999.h*twoB*twoB) ==== dmax
     T ~ (d * 1234567890)   ==== dmax
     T ~ (d * 10985802)     ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
+    T ~ (10985802 * d)     ==== (d * 10985802)
     T ~ (d * -10985802)    ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
     T ~ (-d * 10985802)    ==== Duration.ofSeconds(-9223371736495794944L, 836198630)
     T ~ (-d * -10985802)   ==== Duration.ofSeconds( 9223371736495794943L, 163801370)
@@ -117,6 +122,7 @@ class TemporalTest() {
     T ~ (-d *! 10985803)   ==== thrown[ArithmeticException]
     T ~ (-d *! -10985803)  ==== thrown[ArithmeticException]
     T ~ (d * sfrac)        ==== Duration.ofSeconds( 9223372016353127662L, 122172765)
+    T ~ (sfrac * d)        ==== (d * sfrac)
     T ~ (d * -sfrac)       ==== Duration.ofSeconds(-9223372016353127663L, 877827235)
     T ~ (-d * sfrac)       ==== Duration.ofSeconds(-9223372016353127663L, 877827235)
     T ~ (-d * -sfrac)      ==== Duration.ofSeconds( 9223372016353127662L, 122172765)
@@ -853,10 +859,15 @@ class TemporalTest() {
     T ~ (ndmin -! nd)                 ==== thrown[ArithmeticException]
     T ~ -nd                           ==== -(nd.unwrap)             --: typed[NanoDuration]
     T ~ (nd * 2)                      ==== (nd + nd)                --: typed[NanoDuration]
+    T ~ (2 * nd)                      ==== (nd * 2)                 --: typed[NanoDuration]
+    T ~ (2L * nd)                     ==== (nd * 2)                 --: typed[NanoDuration]
+    T ! """2L * (3 over 4)"""   // Frac is Int-scaled, so a Long scalar is rejected on either side
+    T \ """2 * (3 over 4)"""
     T ~ (nd * 9158718951L)            ==== ndmax
     T ~ (nd *! 2)                     ==== (nd * 2)                 --: typed[NanoDuration]
     T ~ (nd *! 9158718951L)           ==== thrown[ArithmeticException]
     T ~ (nd * ndf)                    ==== 338936338552L            --: typed[NanoDuration]
+    T ~ (ndf * nd)                    ==== (nd * ndf)               --: typed[NanoDuration]
     T ~ (nd * sfrac)                  ==== 9223372036742004812L     --: typed[NanoDuration]
     T ~ (nd * bfrac)                  ==== Long.MaxValue
     T ~ ((-nd) * sfrac)               ==== -(nd * sfrac)

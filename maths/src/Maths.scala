@@ -2948,6 +2948,11 @@ object Frac {
     def *(g: Frac): kse.maths.Frac =
       gcdReduceAny(f.numerL * g.numerL, f.denomL * g.denomL) | f.overflowBit | g.overflowBit
 
+    def *(d: java.time.Duration): java.time.Duration = DurationCompanion.mul(d, f)
+
+    @targetName("Frac_mul_NanoDuration")
+    def *(nd: kse.maths.NanoDuration): kse.maths.NanoDuration = NanoDuration(scaleClamped(NanoDuration.unwrap(nd), f))
+
     def /(i: Int): kse.maths.Frac =
       if i == 0 then apply(f.numer, 0)
       else

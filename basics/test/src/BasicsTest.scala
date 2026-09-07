@@ -264,18 +264,20 @@ class BasicsTest() {
     T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.skip_?(true); z += 1 }; z += 3 }; z } ==== 18
     T ~ Corral{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; shortcut.hopped.quit_?(true); z += 1 }; z += 3 }; z } ==== 21
 
-    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?();      z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 1); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 3); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?();      z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?(z > 5); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?(z > 7); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.quit_?(); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.skip_?(); z += 1 } }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.skip_?(); z += 1 }; z += 3 } }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.quit_?(); z += 1 }; z += 3 } }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.skip_?(); z += 1 } }; z += 3 }; z }"""
-    T ! """{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.quit_?(); z += 1 } }; z += 3 }; z }"""
+    T ~ cc("""{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(true); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 1); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.quittable{ z += 1; Corral{ shortcut.hopped.quit_?(z > 3); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?(true); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?(z > 5); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.skippable{ z += 1; Corral{ shortcut.hopped.skip_?(z > 7); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.quit_?(true); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.skip_?(true); z += 1 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.skip_?(true); z += 1 }; z += 3 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; Corral{ shortcut.hopped.inner{ z += 1; shortcut.hopped.quit_?(true); z += 1 }; z += 3 } }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.skip_?(true); z += 1 } }; z += 3 }; z }""") ==== false
+    T ~ cc("""{ shortcut.hopped.outer{ z += 2; shortcut.hopped.inner{ z += 1; Corral{ shortcut.hopped.quit_?(true); z += 1 } }; z += 3 }; z }""") ==== false
+    T ~ cc("""Corral{ shortcut.hopped.quittable{ z += 1; shortcut.hopped.quit_?(true); z += 1 }; z }""") ==== true   // control: same shape, Corral outside
+    // Direct `cc` rather than `T !`: the inline helper neither sees method locals like `z` nor adapts a block to a context function.
 
 
   @Test

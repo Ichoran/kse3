@@ -2287,6 +2287,8 @@ class MathTest {
     T ~ (bf * 2f)  ==== 3.40625f   --: typed[Float]
     T ~ (bf * 2.0) ==== 3.40625    --: typed[Double]
     T ~ (2f * bf)  ==== 3.40625f   --: typed[Float]
+    T ! """Bf16(1.7f) * 2"""   // integer scalars are refused (`T !` cannot see method-local vals)
+    T \ """Bf16(1.7f) * 2f"""
     T ~ (2.0 * bf) ==== 3.40625    --: typed[Double]
     T ~ (bf / bf)  ==== 1f         --: typed[Float]
     T ~ (bf / 2f)  ==== 0.8515625f --: typed[Float]
@@ -2988,7 +2990,12 @@ class MathTest {
     T ~ (v - Vc(-1, 1)).y          =~~= 2.1f
     T ~ (v * 2f).x                 =~~= 2.4f
     T ~ (v * 2f).y                 =~~= 6.2f
-//    T ~ (2f * v)                   ==== (v * 2f)
+    T ~ (2f * v)                   ==== (v * 2f)
+    T ~ (2 * v)                    ==== (v * 2f)
+    T ~ { import kse.maths.colours.{given, *}; 2f * v } ==== (v * 2f)   // colours must not shadow Float's operators
+    T ! """2.0 * Vc(1.2f, 3.1f)"""   // a Double scalar never meets a Float-typed value, on either side
+    T ! """Vc(1.2f, 3.1f) * 2.0"""   // (`T !` cannot see method-local vals, so these spell the value out)
+    T \ """2f * Vc(1.2f, 3.1f)"""
     T ~ v.*(-1.5f, 0.7f).f32       =~~= 0.37f
     T ~ (v * u)                    ==== v.*(-1.5f, 0.7f)
     T ~ v.X(-1.5f, 0.7f).f32       =~~= 5.49f
@@ -4736,6 +4743,13 @@ class MathTest {
     val di = DoubleInstant(1.5e9)
     val rgb = Rgb(255, 0, 100)
     val lab = Oklab(0.5f, 0.1f, -0.1f)
+    T ~ (2f * lab) ==== (lab * 2f)
+    T ~ (0.5 * lab) ==== (lab * 0.5f)
+    T ~ (lab * 0.5) ==== (lab * 0.5f)
+    T ~ (lab / 2.0) ==== (lab / 2f)
+    val half = 0.5
+    T ~ (half * lab) ==== (lab * half)
+    T ~ { import kse.maths.colours.{given, *}; 2f * lab } ==== (lab * 2f)
     val m22 = Mat22D(1.0, 2.0)(3.0, 4.0)
     T ~ say"$vc"  ==== vc.pr
     T ~ say"$pm"  ==== pm.pr

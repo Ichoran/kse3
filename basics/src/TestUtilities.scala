@@ -211,7 +211,19 @@ object TestUtilities {
     def ~[A](a: => A)(using ii: IsIterable[A], asr: Asserter, sl: SourceLine.Text): LabeledCollection[A, ii.type] =
       LabeledCollection[A, ii.type](message, () => a, ii)
 
+    /** Asserts that `code` does not compile.  The string is typechecked by the compiler inside this inline
+      * expansion, which has two consequences: method-local vals and vars are not visible (only class members,
+      * imports, and constructors are), and a block is not adapted to a context function, so `Corral{ ... }`,
+      * `quittable{ ... }` and other hop code fails for that reason alone.  Either makes the assertion vacuous.
+      * Write such strings self-contained, pair each with a `\` twin of the same shape to prove the shape compiles,
+      * and check hop code with a direct `compiletime.testing.typeChecks` call at the site instead.
+      */
     inline def !(inline code: String)(using Asserter, SourceLine.Text): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "fails to compile")
+
+    /** Asserts that `code` compiles.  Same context and limits as `!`; its main use is as the twin that keeps a
+      * `!` assertion honest.
+      */
+    inline def \(inline code: String)(using Asserter, SourceLine.Text): Unit = (this ~ compileAnswer(compiletime.testing.typeChecks(code)) ==== "successfully compiles")
   }
 
   object T extends GenLabeled {
