@@ -378,6 +378,10 @@ object Resource {
     * value with [[undo]] and the transient with nothing, or think again about which one survives.)
     */
   opaque type Guarded[+R] <: R = R
+  extension [R](g: Guarded[R])
+    /** A result built from a survivor is a survivor: the form for handing out a `Region` made of a guarded
+      * arena rather than the arena itself, without pretending the result needs an undo of its own. */
+    def into[S](f: R => S): Guarded[S] = f(g)
 
   /** The registry an [[assemble]] block adds to.  Releases run newest first, so a chain unwinds in reverse:
     * [[apply]] for what survives on success and is released on failure, [[scoped]] for what is released either
@@ -422,7 +426,8 @@ object Resource {
     * every transient releases cleanly — if one does not, the survivors are undone too and that failure is
     * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
     * return there is nothing to attach it to, and it is dropped.  Only [[Guarded]] values, singly or in a
-    * tuple, may be returned: the caller receives them bare.
+    * tuple, may be returned — what [[undo]] answered, or what `into` built from it — and the caller receives
+    * them bare.
     * {{{
     * Resource.assemble:
     *   val tmp = scoped(Arena.ofConfined())(_.close())     // gone when the block exits
@@ -430,7 +435,7 @@ object Resource {
     *   size(fd, bytes)
     *   undo(name)(unlink) __ Unit                          // only if we fail from here on
     *   val arena = undo(Arena.ofShared())(_.close())       // survives: Guarded[Arena], usable as an Arena
-    *   undo(new Region(name, map(fd, arena)))(_.close())   // the result, guarded because it is the last undo
+    *   arena.into(a => new Region(name, map(fd, a)))       // the result, guarded because it is built from one
     * }}}
     */
   def assemble[T](f: Undo ?=> T)(using as: Assembled[T]): as.Out =

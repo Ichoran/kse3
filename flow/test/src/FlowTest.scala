@@ -2707,10 +2707,13 @@ class FlowTest {
     } ==== (("a", "b")) --: typed[(String, String)]
     T ~ log.toList ==== List("+t", "+a", "+b", "-t")
 
-    // one guarded value comes back bare too
+    // one guarded value comes back bare too, and so does a result built from one
     log.clear()
     T ~ Resource.assemble{ scoped(acquire("t"))(release) __ Unit; undo(acquire("a"))(release) } ==== "a" --: typed[String]
     T ~ log.toList ==== List("+t", "+a", "-t")
+    log.clear()
+    T ~ Resource.assemble{ undo(acquire("a"))(release).into(_ + "!") } ==== "a!" --: typed[String]
+    T ~ log.toList ==== List("+a")
 
     // an exception unwinds everything newest first, and a release that fails rides along as suppressed
     log.clear()
