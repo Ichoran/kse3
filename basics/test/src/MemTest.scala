@@ -212,6 +212,21 @@ class MemTest() {
     T ~ (Mem of ai).inject(new Array[Int](7))(ix)       ==== 4L
     T ~ (Mem of ai).inject(new Array[Int](7))(_ > 4)    ==== 3L
 
+    // copy / select into a fresh array
+    T ~ (Mem of ai).copyToArray()                     =**= Array(2, 3, 5, 7, 11)
+    T ~ (Mem of ai).copyToArray()                     ==== typed[Array[Int]]
+    T ~ (Mem of ai).copyToArrayWith(_ * 2L)           =**= Array[Long](4, 6, 10, 14, 22)
+    T ~ (Mem of ai).copyToArrayWith(_.toString)       =**= Array("2", "3", "5", "7", "11")
+    T ~ (Mem of ai).selectToArray(1L, 4L)             =**= Array(3, 5, 7)
+    T ~ (Mem of ai).selectToArray(2L, 2L).length      ==== 0
+    T ~ Try{ (Mem of ai).selectToArray(3L, 1L) }.isFailure ==== true
+    T ~ (Mem of ai).selectToArray(ix)                 =**= Array(7, 3, 11, 3)
+    T ~ (Mem of ai).selectToArray(st)                 =**= Array(7, 3, 11, 3)
+    T ~ (Mem of ai).selectToArray(_ > 4)              =**= Array(5, 7, 11)
+    val big = Mem of Array.tabulate(20)(i => i)   // more than the 8-element seed buffer, so collection must grow
+    T ~ big.selectToArray(_ % 2 == 0)                 =**= Array(0, 2, 4, 6, 8, 10, 12, 14, 16, 18)
+    T ~ big.selectToArray(Array.tabulate(12)(i => 19L - i).stepper) =**= Array(19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8)
+
     // inject
     T ~ into(7)(d => (Mem of ai).inject(d))            =**= Array(2, 3, 5, 7, 11, 0, 0)
     T ~ into(7)(d => (Mem of ai).inject(d, 2L))        =**= Array(0, 0, 2, 3, 5, 7, 11)
@@ -231,6 +246,18 @@ class MemTest() {
     T ~ intoL(5)(d => (Mem of ai).injectOp(d)(ix)((x, i) => x + i))       =**= Array[Long](10, 4, 15, 4, 0)
     T ~ intoL(5)(d => (Mem of ai).injectOp(d)(_ > 4)((x, i) => x + i))    =**= Array[Long](7, 10, 15, 0, 0)
     T ~ (Mem of ai).injectOp(Mem of new Array[Long](5))()((x, i) => x + i) ==== 5L
+
+    // injectOp into an array (any element type)
+    T ~ { val d = new Array[Long](5); (Mem of ai).injectOp(d)()((x, i) => x + i) __ Unit; d }         =**= Array[Long](2, 4, 7, 10, 15)
+    T ~ { val d = new Array[Long](6); (Mem of ai).injectOp(d, 1)()((x, i) => x + i) __ Unit; d }      =**= Array[Long](0, 2, 4, 7, 10, 15)
+    T ~ { val d = new Array[Long](5); (Mem of ai).injectOp(d)(1L, 4L)((x, i) => x + i) __ Unit; d }   =**= Array[Long](4, 7, 10, 0, 0)
+    T ~ { val d = new Array[Long](5); (Mem of ai).injectOp(d)(ix)((x, i) => x + i) __ Unit; d }       =**= Array[Long](10, 4, 15, 4, 0)
+    T ~ { val d = new Array[Long](5); (Mem of ai).injectOp(d)(st)((x, i) => x + i) __ Unit; d }       =**= Array[Long](10, 4, 15, 4, 0)
+    T ~ { val d = new Array[Long](5); (Mem of ai).injectOp(d)(_ > 4)((x, i) => x + i) __ Unit; d }    =**= Array[Long](7, 10, 15, 0, 0)
+    T ~ { val d = new Array[String](3); (Mem of ai).injectOp(d)(1L, 3L)((x, i) => s"$x@$i") __ Unit; d.mkString(",") } ==== "3@1,5@2,null"
+    T ~ (Mem of ai).injectOp(new Array[Long](5))()((x, i) => x + i)        ==== 5L
+    T ~ (Mem of ai).injectOp(new Array[Long](5))(ix)((x, i) => x + i)      ==== 4L
+    T ~ (Mem of ai).injectOp(new Array[Long](5))(_ > 4)((x, i) => x + i)   ==== 3L
 
     // visitCuts
     def acut = Array(1, 1, 2, 2, 2, 3)
@@ -341,6 +368,16 @@ class MemTest() {
     T ~ (Mem of ai).clip.inject(new Array[Int](3))          ==== 3L
     T ~ (Mem of ai).clip.inject(new Array[Int](7))(ix)      ==== 2L
     T ~ (Mem of ai).clip.inject(new Array[Int](2))(_ > 4)   ==== 2L
+
+    // copy / select into a fresh array, clipped to the valid range
+    T ~ (Mem of ai).clip.copyToArray()                =**= Array(2, 3, 5, 7, 11)
+    T ~ (Mem of ai).clip.copyToArrayWith(_ * 2L)      =**= Array[Long](4, 6, 10, 14, 22)
+    T ~ (Mem of ai).clip.selectToArray(1L, 99L)       =**= Array(3, 5, 7, 11)
+    T ~ (Mem of ai).clip.selectToArray(-3L, 2L)       =**= Array(2, 3)
+    T ~ (Mem of ai).clip.selectToArray(4L, 1L).length ==== 0
+    T ~ (Mem of ai).clip.selectToArray(ix)            =**= Array(3, 7)
+    T ~ (Mem of ai).clip.selectToArray(st)            =**= Array(3, 7)
+    T ~ (Mem of ai).clip.selectToArray(_ > 4)         =**= Array(5, 7, 11)
 
     // visitCuts (clamped)
     def acut = Array(1, 1, 2, 2, 2, 3)
@@ -582,6 +619,20 @@ class MemTest() {
     // injectOp across element types (Count -> Meter)
     val md = Mem.As.alloc[Meter.Type](5)
     T ~ (Mem.As of ai).injectOp(md)()((x, i) => Meter(x.value + i.toDouble)) ==== 5L
+
+    // copy / select into a fresh array; injectOp into an array
+    T ~ tc.reveal((Mem.As of ai).copyToArray())          =**= Array(2, 3, 5, 7, 11)
+    T ~ (Mem.As of ai).copyToArray()                           ==== typed[Array[Count.Type]]
+    T ~ (Mem.As of ai).copyToArrayWith(x => x.value * 2L)      =**= Array[Long](4, 6, 10, 14, 22)
+    T ~ tc.reveal((Mem.As of ai).selectToArray(1L, 4L))  =**= Array(3, 5, 7)
+    T ~ tc.reveal((Mem.As of ai).selectToArray(ix))      =**= Array(7, 3, 11, 3)
+    T ~ tc.reveal((Mem.As of ai).selectToArray(st))      =**= Array(7, 3, 11, 3)
+    T ~ tc.reveal((Mem.As of ai).selectToArray(x => x.value > 4)) =**= Array(5, 7, 11)
+    T ~ { val d = new Array[Long](5); (Mem.As of ai).injectOp(d)()((x, i) => x.value + i) __ Unit; d }      =**= Array[Long](2, 4, 7, 10, 15)
+    T ~ { val d = new Array[Long](5); (Mem.As of ai).injectOp(d)(1L, 4L)((x, i) => x.value + i) __ Unit; d } =**= Array[Long](4, 7, 10, 0, 0)
+    T ~ { val d = new Array[Long](5); (Mem.As of ai).injectOp(d)(ix)((x, i) => x.value + i) __ Unit; d }    =**= Array[Long](10, 4, 15, 4, 0)
+    T ~ { val d = new Array[Long](5); (Mem.As of ai).injectOp(d)(x => x.value > 4)((x, i) => x.value + i) __ Unit; d } =**= Array[Long](7, 10, 15, 0, 0)
+    T ~ (Mem.As of ai).injectOp(new Array[Long](5))(st)((x, i) => x.value + i) ==== 4L
     T ~ md.prim ==== typed[Mem[Double]]
     T ~ md.prim.vec =**= Vector(2.0, 4.0, 7.0, 10.0, 15.0)
 
@@ -685,6 +736,15 @@ class MemTest() {
     T ~ into(3)(d => (Mem.As of ai).clip.inject(d) __ Unit)           =**= Array(2, 3, 5)
     T ~ intoA(7)(d => (Mem.As of ai).clip.inject(d) __ Unit)          =**= Array(2, 3, 5, 7, 11, 0, 0)
     T ~ intoA(3)(d => (Mem.As of ai).clip.inject(d) __ Unit)          =**= Array(2, 3, 5)
+
+    // copy / select into a fresh array, clipped to the valid range
+    T ~ tc.reveal((Mem.As of ai).clip.copyToArray())          =**= Array(2, 3, 5, 7, 11)
+    T ~ (Mem.As of ai).clip.copyToArrayWith(x => x.value * 2L)      =**= Array[Long](4, 6, 10, 14, 22)
+    T ~ tc.reveal((Mem.As of ai).clip.selectToArray(1L, 99L)) =**= Array(3, 5, 7, 11)
+    T ~ tc.reveal((Mem.As of ai).clip.selectToArray(-3L, 2L)) =**= Array(2, 3)
+    T ~ tc.reveal((Mem.As of ai).clip.selectToArray(ix))      =**= Array(3, 7)
+    T ~ tc.reveal((Mem.As of ai).clip.selectToArray(st))      =**= Array(3, 7)
+    T ~ tc.reveal((Mem.As of ai).clip.selectToArray(x => x.value > 4)) =**= Array(5, 7, 11)
 
     T ~ (Mem.As of ai).clip.getI(1)  ==== Some(3)
     T ~ (Mem.As of ai).clip.getI(5)  ==== None
@@ -884,6 +944,12 @@ class MemTest() {
       T ~ m2(0)     ==== 0x01000000
       T ~ m2.length ==== 4L
       T ~ m2.mem(0) ==== 0x1
+      T ~ m2.copyToArray()                    =**= Array(0x01000000, 0x00010000, 0x00000100, 0x1)
+      T ~ m2.copyToArrayWith(_ >> 8)          =**= Array(0x10000, 0x100, 0x1, 0)
+      T ~ m2.selectToArray(2L, 4L)            =**= Array(0x100, 0x1)
+      T ~ m2.selectToArray(Array[Long](3, 0)) =**= Array(0x1, 0x01000000)
+      T ~ m2.selectToArray(Array[Long](3, 0).stepper) =**= Array(0x1, 0x01000000)
+      T ~ m2.selectToArray(_ > 0x1000)        =**= Array(0x01000000, 0x00010000)
     locally:
       import Mem.LE
       val m2 = m1.orderAware
@@ -1105,6 +1171,12 @@ class MemTest() {
     ai.alter(0L, 4L)(_ + 1)
     val out = new Array[Int](8)
     T ~ ai.inject(out) ==== 8L
+    T ~ ai.copyToArray()                    =**= out
+    T ~ ai.copyToArrayWith(_ + 1L)          =**= out.copyWith(_ + 1L)
+    T ~ ai.selectToArray(2L, 5L)            =**= out.select(2, 5)
+    T ~ ai.selectToArray(Array[Long](7, 0)) =**= Array(out(7), out(0))
+    T ~ ai.selectToArray(Array[Long](7, 0).stepper) =**= Array(out(7), out(0))
+    T ~ ai.selectToArray(_ > out(3))        =**= out.select(_ > out(3))
     T ~ out.toVector ==== Vector(1, 12, 23, 34, 44, 55, 66, 77)
 
     // heap Mem of an int array: element size aligns, so atomics work in place

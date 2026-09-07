@@ -10,6 +10,7 @@ import java.lang.foreign.ValueLayout.*
 import scala.annotation.targetName
 import scala.collection.LongStepper
 import scala.compiletime.{erasedValue, error, summonFrom}
+import scala.reflect.ClassTag
 import scala.language.dynamics
 import scala.util.boundary
 
@@ -51,6 +52,40 @@ object Mem {
     case _: Long    => JAVA_LONG_UNALIGNED
     case _: Double  => JAVA_DOUBLE_UNALIGNED
     case _          => error("Mem only supports primitive element types")
+
+  /** A fresh array of `n` elements of `A`; `A` is resolved at inline time, so no `ClassTag` is needed. */
+  inline def newArray[A <: Type](n: Int): Array[A] = inline erasedValue[A] match
+    case _: Byte    => (new Array[Byte](n)).asInstanceOf[Array[A]]
+    case _: Short   => (new Array[Short](n)).asInstanceOf[Array[A]]
+    case _: Char    => (new Array[Char](n)).asInstanceOf[Array[A]]
+    case _: Int     => (new Array[Int](n)).asInstanceOf[Array[A]]
+    case _: Float   => (new Array[Float](n)).asInstanceOf[Array[A]]
+    case _: Long    => (new Array[Long](n)).asInstanceOf[Array[A]]
+    case _: Double  => (new Array[Double](n)).asInstanceOf[Array[A]]
+    case _          => error("Mem only supports primitive element types")
+
+  /** A copy of `xs` with `n` elements, truncated or zero-padded. */
+  inline def resizeArray[A <: Type](xs: Array[A], n: Int): Array[A] = inline erasedValue[A] match
+    case _: Byte    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Byte]], n).asInstanceOf[Array[A]]
+    case _: Short   => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Short]], n).asInstanceOf[Array[A]]
+    case _: Char    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Char]], n).asInstanceOf[Array[A]]
+    case _: Int     => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Int]], n).asInstanceOf[Array[A]]
+    case _: Float   => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Float]], n).asInstanceOf[Array[A]]
+    case _: Long    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Long]], n).asInstanceOf[Array[A]]
+    case _: Double  => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Double]], n).asInstanceOf[Array[A]]
+    case _          => error("Mem only supports primitive element types")
+
+  /** `n` as an array length, or an exception if no array can hold `n` elements (`Array.MaxSize` is the limit). */
+  inline def arrayLength(n: Long): Int =
+    if n < 0 then throw new NegativeArraySizeException(String.valueOf(n))
+    else if n > Array.MaxSize then throw new IllegalArgumentException(s"$n elements exceed the array limit of ${Array.MaxSize}")
+    else n.toInt
+
+  /** A larger copy of `xs` to keep collecting into, capped at `Array.MaxSize` (an exception once there). */
+  inline def grownArray[A <: Type](xs: Array[A]): Array[A] =
+    if xs.length >= Array.MaxSize then throw new IllegalArgumentException(s"more than ${Array.MaxSize} elements do not fit in an array")
+    val n = xs.length | (xs.length << 1)
+    resizeArray(xs, if n < 0 || n > Array.MaxSize then Array.MaxSize else n)
 
   /** Allocate `n` elements of off-heap memory, reclaimed by the GC when unreachable. */
   inline def alloc[A <: Type](n: Long): Mem[A] =
@@ -985,6 +1020,102 @@ object Mem {
         i += 1
       j - where
 
+
+    /** Map elements into a caller-provided array; returns the number written. */
+    inline def injectOp[B](that: Array[B])()(inline f: (A, Long) => B): Long =
+      injectOp(that, 0)(0L, m.length)(f)
+    inline def injectOp[B](that: Array[B], where: Int)()(inline f: (A, Long) => B): Long =
+      injectOp(that, where)(0L, m.length)(f)
+    inline def injectOp[B](that: Array[B])(i0: Long, iN: Long)(inline f: (A, Long) => B): Long =
+      injectOp(that, 0)(i0, iN)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(i0: Long, iN: Long)(inline f: (A, Long) => B): Long =
+      var i = i0
+      var j = where
+      while i < iN do
+        that(j) = f(m(i), i)
+        j += 1
+        i += 1
+      iN - i0
+    inline def injectOp[B](that: Array[B])(indices: Array[Long])(inline f: (A, Long) => B): Long =
+      injectOp(that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Long])(inline f: (A, Long) => B): Long =
+      var i = 0
+      var j = where
+      while i < indices.length do
+        val k = indices(i)
+        that(j) = f(m(k), k)
+        i += 1
+        j += 1
+      i
+    inline def injectOp[B](that: Array[B])(indices: LongStepper)(inline f: (A, Long) => B): Long =
+      injectOp(that, 0)(indices)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(indices: LongStepper)(inline f: (A, Long) => B): Long =
+      var j = where
+      while indices.hasStep do
+        val i = indices.nextStep()
+        that(j) = f(m(i), i)
+        j += 1
+      j - where
+    inline def injectOp[B](that: Array[B])(inline pick: A => Boolean)(inline f: (A, Long) => B): Long =
+      injectOp(that, 0)(pick)(f)
+    inline def injectOp[B](that: Array[B], where: Int)(inline pick: A => Boolean)(inline f: (A, Long) => B): Long =
+      var i = 0L
+      val n = m.length
+      var j = where
+      while i < n do
+        val x = m(i)
+        if pick(x) then
+          that(j) = f(x, i)
+          j += 1
+        i += 1
+      j - where
+
+    /** A new array holding every element. */
+    inline def copyToArray(): Array[A] = selectToArray(0L, m.length)
+    /** A new array holding `f` of every element. */
+    inline def copyToArrayWith[B](inline f: A => B)(using ClassTag[B]): Array[B] =
+      val n = m.length
+      val b = new Array[B](arrayLength(n))
+      var i = 0L
+      while i < n do
+        b(i.toInt) = f(m(i))
+        i += 1
+      b
+    /** A new array holding the elements in `[i0, iN)`. */
+    inline def selectToArray(i0: Long, iN: Long): Array[A] =
+      val b = newArray[A](arrayLength(iN - i0))
+      MemorySegment.copy(m, layoutOf[A], i0 * bytesOf[A], b, 0, b.length)
+      b
+    /** A new array holding the elements at `indices`, in that order. */
+    inline def selectToArray(indices: Array[Long]): Array[A] =
+      val b = newArray[A](indices.length)
+      var i = 0
+      while i < indices.length do
+        b(i) = m(indices(i))
+        i += 1
+      b
+    inline def selectToArray(indices: LongStepper): Array[A] =
+      var b = newArray[A](if m.length <= 8 then m.length.toInt else 8)
+      var j = 0
+      while indices.hasStep do
+        if j >= b.length then b = grownArray(b)
+        b(j) = m(indices.nextStep())
+        j += 1
+      if j == b.length then b else resizeArray(b, j)
+    /** A new array holding the elements that pass `pick`, in order. */
+    inline def selectToArray(inline pick: A => Boolean): Array[A] =
+      val n = m.length
+      var b = newArray[A](if n <= 8 then n.toInt else 8)
+      var i = 0L
+      var j = 0
+      while i < n do
+        val x = m(i)
+        if pick(x) then
+          if j >= b.length then b = grownArray(b)
+          b(j) = x
+          j += 1
+        i += 1
+      if j == b.length then b else resizeArray(b, j)
     /** Visit maximal runs delimited where `cut(prev, next)` holds, passing each run's [i, j). */
     inline def visitCuts()(inline cut: (A, A) => Boolean)(inline f: (Long, Long) => Unit): Unit =
       visitCuts(0L, m.length)(cut)(f)
@@ -1545,6 +1676,7 @@ object Mem {
       inline def whereIsBkw(i0: Long, iN: Long)(value: A)(using o: Order): Long =
         Mem.whereIsBkw[A](Mem.wrap[A](m))(i0, iN)(seekBits[A](o, value))
 
+
       /** Visit maximal runs delimited where `cut(prev, next)` holds, passing each run's [i, j). */
       inline def visitCuts()(inline cut: (A, A) => Boolean)(inline f: (Long, Long) => Unit)(using o: Order): Unit =
         visitCuts(0L, m.length)(cut)(f)
@@ -1573,6 +1705,58 @@ object Mem {
       /** Zero-copy view of elements `[i0, iN)` (indices in units of `A`) reinterpreted as another primitive. */
       inline def viewAs[B <: Type](i0: Long, iN: Long): OrderAware[B] =
         wrap[B]((m: MemorySegment).asSlice(i0 * bytesOf[A], (iN - i0) * bytesOf[A]))
+
+      /** A new array holding every element. */
+      inline def copyToArray()(using o: Order): Array[A] = selectToArray(0L, m.length)
+      /** A new array holding `f` of every element. */
+      inline def copyToArrayWith[B](inline f: A => B)(using o: Order, ct: ClassTag[B]): Array[B] =
+        val n = m.length
+        val b = new Array[B](arrayLength(n))
+        var i = 0L
+        while i < n do
+          b(i.toInt) = f(read[A]((m: MemorySegment), o, i))
+          i += 1
+        b
+      /** A new array holding the elements in `[i0, iN)`. */
+      inline def selectToArray(i0: Long, iN: Long)(using o: Order): Array[A] =
+        val b = newArray[A](arrayLength(iN - i0))
+        var i = i0
+        var j = 0
+        while i < iN do
+          b(j) = read[A]((m: MemorySegment), o, i)
+          i += 1
+          j += 1
+        b
+      /** A new array holding the elements at `indices`, in that order. */
+      inline def selectToArray(indices: Array[Long])(using o: Order): Array[A] =
+        val b = newArray[A](indices.length)
+        var i = 0
+        while i < indices.length do
+          b(i) = read[A]((m: MemorySegment), o, indices(i))
+          i += 1
+        b
+      inline def selectToArray(indices: LongStepper)(using o: Order): Array[A] =
+        var b = newArray[A](if m.length <= 8 then m.length.toInt else 8)
+        var j = 0
+        while indices.hasStep do
+          if j >= b.length then b = grownArray(b)
+          b(j) = read[A]((m: MemorySegment), o, indices.nextStep())
+          j += 1
+        if j == b.length then b else resizeArray(b, j)
+      /** A new array holding the elements that pass `pick`, in order. */
+      inline def selectToArray(inline pick: A => Boolean)(using o: Order): Array[A] =
+        val n = m.length
+        var b = newArray[A](if n <= 8 then n.toInt else 8)
+        var i = 0L
+        var j = 0
+        while i < n do
+          val x = read[A]((m: MemorySegment), o, i)
+          if pick(x) then
+            if j >= b.length then b = grownArray(b)
+            b(j) = x
+            j += 1
+          i += 1
+        if j == b.length then b else resizeArray(b, j)
     }
   }
 
@@ -1766,6 +1950,38 @@ object Mem {
         case _: Double  => MemorySegment.ofArray(xs.asInstanceOf[Array[Double]])
         case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
 
+
+    /** A fresh array of `n` elements of `O`; at runtime it is an array of the backing primitive. */
+    inline def newArray[O](n: Int): Array[O] = summonFrom:
+      case _: Translucent[O, b] => newArray[b](n).asInstanceOf[Array[O]]
+      case _ => inline erasedValue[O] match
+        case _: Byte    => (new Array[Byte](n)).asInstanceOf[Array[O]]
+        case _: Short   => (new Array[Short](n)).asInstanceOf[Array[O]]
+        case _: Char    => (new Array[Char](n)).asInstanceOf[Array[O]]
+        case _: Int     => (new Array[Int](n)).asInstanceOf[Array[O]]
+        case _: Float   => (new Array[Float](n)).asInstanceOf[Array[O]]
+        case _: Long    => (new Array[Long](n)).asInstanceOf[Array[O]]
+        case _: Double  => (new Array[Double](n)).asInstanceOf[Array[O]]
+        case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
+
+    /** A copy of `xs` with `n` elements, truncated or zero-padded. */
+    inline def resizeArray[O](xs: Array[O], n: Int): Array[O] = summonFrom:
+      case _: Translucent[O, b] => resizeArray[b](xs.asInstanceOf[Array[b]], n).asInstanceOf[Array[O]]
+      case _ => inline erasedValue[O] match
+        case _: Byte    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Byte]], n).asInstanceOf[Array[O]]
+        case _: Short   => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Short]], n).asInstanceOf[Array[O]]
+        case _: Char    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Char]], n).asInstanceOf[Array[O]]
+        case _: Int     => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Int]], n).asInstanceOf[Array[O]]
+        case _: Float   => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Float]], n).asInstanceOf[Array[O]]
+        case _: Long    => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Long]], n).asInstanceOf[Array[O]]
+        case _: Double  => java.util.Arrays.copyOf(xs.asInstanceOf[Array[Double]], n).asInstanceOf[Array[O]]
+        case _          => error("Mem.As elements must be a non-Boolean primitive or Translucent-reducible to one")
+
+    /** A larger copy of `xs` to keep collecting into, capped at `Array.MaxSize` (an exception once there). */
+    inline def grownArray[O](xs: Array[O]): Array[O] =
+      if xs.length >= Array.MaxSize then throw new IllegalArgumentException(s"more than ${Array.MaxSize} elements do not fit in an array")
+      val n = xs.length | (xs.length << 1)
+      resizeArray(xs, if n < 0 || n > Array.MaxSize then Array.MaxSize else n)
     /** Any primitive-typed `Mem`; the upper bound for `prim`'s computed type. */
     type AnyMem = Mem[Byte] | Mem[Short] | Mem[Char] | Mem[Int] | Mem[Float] | Mem[Long] | Mem[Double]
 
@@ -2373,6 +2589,101 @@ object Mem {
           i += 1
         j - where
 
+      /** Map elements into a caller-provided array; returns the number written. */
+      inline def injectOp[B](that: Array[B])()(inline f: (O, Long) => B): Long =
+        injectOp(that, 0)(0L, m.length)(f)
+      inline def injectOp[B](that: Array[B], where: Int)()(inline f: (O, Long) => B): Long =
+        injectOp(that, where)(0L, m.length)(f)
+      inline def injectOp[B](that: Array[B])(i0: Long, iN: Long)(inline f: (O, Long) => B): Long =
+        injectOp(that, 0)(i0, iN)(f)
+      inline def injectOp[B](that: Array[B], where: Int)(i0: Long, iN: Long)(inline f: (O, Long) => B): Long =
+        var i = i0
+        var j = where
+        while i < iN do
+          that(j) = f(m(i), i)
+          j += 1
+          i += 1
+        iN - i0
+      inline def injectOp[B](that: Array[B])(indices: Array[Long])(inline f: (O, Long) => B): Long =
+        injectOp(that, 0)(indices)(f)
+      inline def injectOp[B](that: Array[B], where: Int)(indices: Array[Long])(inline f: (O, Long) => B): Long =
+        var i = 0
+        var j = where
+        while i < indices.length do
+          val k = indices(i)
+          that(j) = f(m(k), k)
+          i += 1
+          j += 1
+        i
+      inline def injectOp[B](that: Array[B])(indices: LongStepper)(inline f: (O, Long) => B): Long =
+        injectOp(that, 0)(indices)(f)
+      inline def injectOp[B](that: Array[B], where: Int)(indices: LongStepper)(inline f: (O, Long) => B): Long =
+        var j = where
+        while indices.hasStep do
+          val i = indices.nextStep()
+          that(j) = f(m(i), i)
+          j += 1
+        j - where
+      inline def injectOp[B](that: Array[B])(inline pick: O => Boolean)(inline f: (O, Long) => B): Long =
+        injectOp(that, 0)(pick)(f)
+      inline def injectOp[B](that: Array[B], where: Int)(inline pick: O => Boolean)(inline f: (O, Long) => B): Long =
+        var i = 0L
+        val n = m.length
+        var j = where
+        while i < n do
+          val x = m(i)
+          if pick(x) then
+            that(j) = f(x, i)
+            j += 1
+          i += 1
+        j - where
+
+      /** A new array holding every element. */
+      inline def copyToArray(): Array[O] = selectToArray(0L, m.length)
+      /** A new array holding `f` of every element. */
+      inline def copyToArrayWith[B](inline f: O => B)(using ClassTag[B]): Array[B] =
+        val n = m.length
+        val b = new Array[B](Mem.arrayLength(n))
+        var i = 0L
+        while i < n do
+          b(i.toInt) = f(m(i))
+          i += 1
+        b
+      /** A new array holding the elements in `[i0, iN)`. */
+      inline def selectToArray(i0: Long, iN: Long): Array[O] =
+        val b = newArray[O](Mem.arrayLength(iN - i0))
+        MemorySegment.copy(m, layoutOf[O], i0 * bytesOf[O], b, 0, b.length)
+        b
+      /** A new array holding the elements at `indices`, in that order. */
+      inline def selectToArray(indices: Array[Long]): Array[O] =
+        val b = newArray[O](indices.length)
+        var i = 0
+        while i < indices.length do
+          b(i) = m(indices(i))
+          i += 1
+        b
+      inline def selectToArray(indices: LongStepper): Array[O] =
+        var b = newArray[O](if m.length <= 8 then m.length.toInt else 8)
+        var j = 0
+        while indices.hasStep do
+          if j >= b.length then b = grownArray(b)
+          b(j) = m(indices.nextStep())
+          j += 1
+        if j == b.length then b else resizeArray(b, j)
+      /** A new array holding the elements that pass `pick`, in order. */
+      inline def selectToArray(inline pick: O => Boolean): Array[O] =
+        val n = m.length
+        var b = newArray[O](if n <= 8 then n.toInt else 8)
+        var i = 0L
+        var j = 0
+        while i < n do
+          val x = m(i)
+          if pick(x) then
+            if j >= b.length then b = grownArray(b)
+            b(j) = x
+            j += 1
+          i += 1
+        if j == b.length then b else resizeArray(b, j)
       /** Visit maximal runs delimited where `cut(prev, next)` holds, passing each run's [i, j). */
       inline def visitCuts()(inline cut: (O, O) => Boolean)(inline f: (Long, Long) => Unit): Unit =
         visitCuts(0L, m.length)(cut)(f)
@@ -3223,6 +3534,58 @@ object Mem {
           w += 1
           i += 1
         iN - i0
+
+      /** A new array holding every element (volatile reads). */
+      inline def copyToArray(): Array[A] = selectToArray(0L, length)
+      /** A new array holding `f` of every element. */
+      inline def copyToArrayWith[B](inline f: A => B)(using ClassTag[B]): Array[B] =
+        val n = length
+        val b = new Array[B](arrayLength(n))
+        var i = 0L
+        while i < n do
+          b(i.toInt) = f(apply(i))
+          i += 1
+        b
+      /** A new array holding the elements in `[i0, iN)`. */
+      inline def selectToArray(i0: Long, iN: Long): Array[A] =
+        val b = newArray[A](arrayLength(iN - i0))
+        var i = i0
+        var j = 0
+        while i < iN do
+          b(j) = apply(i)
+          i += 1
+          j += 1
+        b
+      /** A new array holding the elements at `indices`, in that order. */
+      inline def selectToArray(indices: Array[Long]): Array[A] =
+        val b = newArray[A](indices.length)
+        var i = 0
+        while i < indices.length do
+          b(i) = apply(indices(i))
+          i += 1
+        b
+      inline def selectToArray(indices: LongStepper): Array[A] =
+        var b = newArray[A](if length <= 8 then length.toInt else 8)
+        var j = 0
+        while indices.hasStep do
+          if j >= b.length then b = grownArray(b)
+          b(j) = apply(indices.nextStep())
+          j += 1
+        if j == b.length then b else resizeArray(b, j)
+      /** A new array holding the elements that pass `pick`, in order. */
+      inline def selectToArray(inline pick: A => Boolean): Array[A] =
+        val n = length
+        var b = newArray[A](if n <= 8 then n.toInt else 8)
+        var i = 0L
+        var j = 0
+        while i < n do
+          val x = apply(i)
+          if pick(x) then
+            if j >= b.length then b = grownArray(b)
+            b(j) = x
+            j += 1
+          i += 1
+        if j == b.length then b else resizeArray(b, j)
     }
   }
 
@@ -3628,6 +3991,70 @@ object ClippedMem {
             j += 1
         f(i, j)
         i = j
+
+    /** A new array holding every element, or as many as an array can hold. */
+    inline def copyToArray(): Array[A] = selectToArray(0L, cm.length)
+    /** A new array holding `f` of every element, or of as many as an array can hold. */
+    inline def copyToArrayWith[B](inline f: A => B)(using ClassTag[B]): Array[B] =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      val b = new Array[B](if n > Array.MaxSize then Array.MaxSize else n.toInt)
+      var i = 0
+      while i < b.length do
+        b(i) = f(Mem.apply(m)(i))
+        i += 1
+      b
+    /** A new array holding the elements in `[i0, iN)` clipped to the valid range and to what an array can hold. */
+    inline def selectToArray(i0: Long, iN: Long): Array[A] =
+      val m = cm.unclip
+      val i = if i0 < 0 then 0L else i0
+      val j = if iN >= Mem.length(m) then Mem.length(m) else iN
+      var n = if i < j then j - i else 0L
+      if n > Array.MaxSize then n = Array.MaxSize
+      val b = Mem.newArray[A](n.toInt)
+      if b.length > 0 then MemorySegment.copy(Mem.segment(m), Mem.layoutOf[A], i * Mem.bytesOf[A], b, 0, b.length)
+      b
+    /** A new array holding the elements at the in-range `indices`, in that order. */
+    inline def selectToArray(indices: Array[Long]): Array[A] =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      val b = Mem.newArray[A](indices.length)
+      var i = 0
+      var j = 0
+      while i < indices.length do
+        val k = indices(i)
+        if k >= 0 && k < n then
+          b(j) = Mem.apply(m)(k)
+          j += 1
+        i += 1
+      if j == b.length then b else Mem.resizeArray(b, j)
+    inline def selectToArray(indices: LongStepper): Array[A] =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      var b = Mem.newArray[A](if n <= 8 then n.toInt else 8)
+      var j = 0
+      while indices.hasStep && j < Array.MaxSize do
+        val k = indices.nextStep()
+        if k >= 0 && k < n then
+          if j >= b.length then b = Mem.grownArray(b)
+          b(j) = Mem.apply(m)(k)
+          j += 1
+      if j == b.length then b else Mem.resizeArray(b, j)
+    /** A new array holding the elements that pass `pick`, in order, up to what an array can hold. */
+    inline def selectToArray(inline pick: A => Boolean): Array[A] =
+      val m = cm.unclip
+      val n = Mem.length(m)
+      var b = Mem.newArray[A](if n <= 8 then n.toInt else 8)
+      var i = 0L
+      var j = 0
+      while i < n && j < Array.MaxSize do
+        val x = Mem.apply(m)(i)
+        if pick(x) then
+          if j >= b.length then b = Mem.grownArray(b)
+          b(j) = x
+          j += 1
+        i += 1
+      if j == b.length then b else Mem.resizeArray(b, j)
   }
 
   // === ClippedMem.As: the bounds-clipping twin of Mem.As ===
@@ -4024,6 +4451,70 @@ object ClippedMem {
               j += 1
           f(i, j)
           i = j
+
+      /** A new array holding every element, or as many as an array can hold. */
+      inline def copyToArray(): Array[O] = selectToArray(0L, cm.length)
+      /** A new array holding `f` of every element, or of as many as an array can hold. */
+      inline def copyToArrayWith[B](inline f: O => B)(using ClassTag[B]): Array[B] =
+        val m = cm.unclip
+        val n = Mem.As.length(m)
+        val b = new Array[B](if n > Array.MaxSize then Array.MaxSize else n.toInt)
+        var i = 0
+        while i < b.length do
+          b(i) = f(Mem.As.apply(m)(i))
+          i += 1
+        b
+      /** A new array holding the elements in `[i0, iN)` clipped to the valid range and to what an array can hold. */
+      inline def selectToArray(i0: Long, iN: Long): Array[O] =
+        val m = cm.unclip
+        val i = if i0 < 0 then 0L else i0
+        val j = if iN >= Mem.As.length(m) then Mem.As.length(m) else iN
+        var n = if i < j then j - i else 0L
+        if n > Array.MaxSize then n = Array.MaxSize
+        val b = Mem.As.newArray[O](n.toInt)
+        if b.length > 0 then MemorySegment.copy(Mem.As.segment(m), Mem.As.layoutOf[O], i * Mem.As.bytesOf[O], b, 0, b.length)
+        b
+      /** A new array holding the elements at the in-range `indices`, in that order. */
+      inline def selectToArray(indices: Array[Long]): Array[O] =
+        val m = cm.unclip
+        val n = Mem.As.length(m)
+        val b = Mem.As.newArray[O](indices.length)
+        var i = 0
+        var j = 0
+        while i < indices.length do
+          val k = indices(i)
+          if k >= 0 && k < n then
+            b(j) = Mem.As.apply(m)(k)
+            j += 1
+          i += 1
+        if j == b.length then b else Mem.As.resizeArray(b, j)
+      inline def selectToArray(indices: LongStepper): Array[O] =
+        val m = cm.unclip
+        val n = Mem.As.length(m)
+        var b = Mem.As.newArray[O](if n <= 8 then n.toInt else 8)
+        var j = 0
+        while indices.hasStep && j < Array.MaxSize do
+          val k = indices.nextStep()
+          if k >= 0 && k < n then
+            if j >= b.length then b = Mem.As.grownArray(b)
+            b(j) = Mem.As.apply(m)(k)
+            j += 1
+        if j == b.length then b else Mem.As.resizeArray(b, j)
+      /** A new array holding the elements that pass `pick`, in order, up to what an array can hold. */
+      inline def selectToArray(inline pick: O => Boolean): Array[O] =
+        val m = cm.unclip
+        val n = Mem.As.length(m)
+        var b = Mem.As.newArray[O](if n <= 8 then n.toInt else 8)
+        var i = 0L
+        var j = 0
+        while i < n && j < Array.MaxSize do
+          val x = Mem.As.apply(m)(i)
+          if pick(x) then
+            if j >= b.length then b = Mem.As.grownArray(b)
+            b(j) = x
+            j += 1
+          i += 1
+        if j == b.length then b else Mem.As.resizeArray(b, j)
     }
   }
 }
