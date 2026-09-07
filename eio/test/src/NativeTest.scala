@@ -767,6 +767,10 @@ class NativeTest {
           |shm.unlink()
           |""".stripMargin, pyName)
       T ~ Resource.nice(eventually(SharedMemory.attach[Long](kseName, 0)))(_.close()){ o =>
+        var w = 0                                   // the name exists before python has filled the region (on macOS
+        while o.op(_(3)) != 8L && w < 200 do        // its resource tracker starts in between), so wait for the data too
+          Thread.sleep(25)
+          w += 1
         val v = (o.op(_.length) >= 4L, o.op(_(0)), o.op(_(3)))
         o.use(m => m(3) = 55L)
         v
