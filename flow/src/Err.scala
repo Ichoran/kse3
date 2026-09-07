@@ -46,6 +46,9 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
   def or[E](e: E)(using ef: ErrFrom[E]): kse.flow.Alt[kse.flow.Err] = Alt(ef(e))
 
   inline def ?#[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
+
+  /** Exits early with an error carrying a message and this source line (`msg @ file:line`). */
+  inline def ?@#[L >: Alt[Err]](inline s: String)(using lb: Label[L], sl: SourceLine.Text): Nothing = boundary.break(Alt(apply(s + " @ " + sl)))
 }
 
 

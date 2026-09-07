@@ -310,9 +310,21 @@ class FlowTest {
     T ~ List("cod", null).map(_.isCase{  case "cod" => true}) ==== List(true, Alt(null))
     T ~ List("cod", null).map(_.altCase{ case "cod" => true}) ==== List(Alt(true), null)
 
-    T ~ null.nn           ==== Alt(()) --: typed[Null Or Unit]
-    T ~ (null: String).nn ==== Alt(()) --: typed[String Or Unit]
-    T ~ "cod".nn          ==== "cod"   --: typed[String Or Unit]
+    // The null family is gated to reference types: `2.unnull` etc. are not members of Int (proven
+    // by a scratch compile, since JUnit cannot assert non-compilation).  A binds with Null stripped.
+    T ~ (null: String).unnull           ==== Alt(()) --: typed[String Or Unit]
+    T ~ "cod".unnull                    ==== "cod"   --: typed[String Or Unit]
+    T ~ ("cod": String | Null).unnull   ==== "cod"   --: typed[String Or Unit]
+    T ~ ("cod": AnyRef).unnull          ==== "cod"   --: typed[AnyRef Or Unit]
+    T ~ ("cod": Any).unnull             ==== "cod"   --: typed[Any Or Unit]
+    T ~ (null: String | Null).unnull    ==== Alt(()) --: typed[String Or Unit]
+    T ~ "cod".notNullOrThrow            ==== "cod"   --: typed[String]
+    T ~ { try { (null: String).notNullOrThrow __ Unit; "no" } catch { case e: NullPointerException => e.getMessage } } ==== s"null @ FlowTest.scala:${SourceLine.line}"
+    T ~ Ask{ "cod".nn_?#("bad") }             ==== Is("cod")
+    T ~ Ask{ (null: String).nn_?#("bad") }    ==== Err.or("bad")
+    T ~ Ask{ (null: String).nn_?@#("bad") }   ==== Err.or(s"bad @ FlowTest.scala:${SourceLine.line}")
+    T ~ Ask{ (null: String).nn_?@ }           ==== Err.or(s"null @ FlowTest.scala:${SourceLine.line}")
+    T ~ Ask{ ("cod": String | Null).nn_?@ }   ==== Is("cod") --: typed[Ask[String]]
 
 
   class ProvideVariousOrValues() {
@@ -1920,6 +1932,10 @@ class FlowTest {
     T ~ { var x = 0; boundary{ x = oiN.getOrBreak }; x } ==== 0
 
 
+  /** Kept small so its bytecode can be inspected: every site string below should be one `ldc`. */
+  def atSiteProbe(o: Option[Int], a: Ask[Int], s: String | Null): Ask[Int] = Ask:
+    o.?@ + (o ?@# "opt") + a.?@ + (a ?@# "ask") + s.nn_?@.length + s.nn_?@#("str").length
+
   @Test
   def qmarkTest(): Unit =
     var cuml = 0
@@ -1961,6 +1977,30 @@ class FlowTest {
     T ~ e{ val xs = j2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
     T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no";                     "yes" }                   ==== (Is("yes"), 8)
     T ~ e{ val xs = e2; cuml += xs ?# "no"; cuml += xs ?# "no"; cuml += xs ?# "no"; "yes" }                   ==== (Err.or("no"), 8)
+
+    // ?@ stamps the site; ?@# stamps a message with the site
+    T ~ e{ val xs = o2; cuml += xs(0).?@; cuml += xs(1).?@;                    "yes" } ==== (Is("yes"), 8)
+    T ~ e{ val xs = o2; cuml += xs(0).?@; cuml += xs(1).?@; cuml += xs(2).?@; "yes" } ==== (Err.or(s"None @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = i2; cuml += xs.?@; cuml += xs.?@; cuml += xs.?@; "yes" }           ==== (Err.or(s"exhausted @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = s2; cuml += xs.?@; cuml += xs.?@; cuml += xs.?@; "yes" }           ==== (Err.or(s"exhausted @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = j2; cuml += xs.?@; cuml += xs.?@; cuml += xs.?@; "yes" }           ==== (Err.or(s"exhausted @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = e2; cuml += xs.?@; cuml += xs.?@; cuml += xs.?@; "yes" }           ==== (Err.or(s"exhausted @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = o2; cuml += xs(0) ?@# "no"; cuml += xs(2) ?@# "no"; "yes" }        ==== (Err.or(s"no @ FlowTest.scala:${SourceLine.line}"), 3)
+    T ~ e{ val xs = i2; cuml += xs ?@# "no"; cuml += xs ?@# "no"; cuml += xs ?@# "no"; "yes" } ==== (Err.or(s"no @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = s2; cuml += xs ?@# "no"; cuml += xs ?@# "no"; cuml += xs ?@# "no"; "yes" } ==== (Err.or(s"no @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = j2; cuml += xs ?@# "no"; cuml += xs ?@# "no"; cuml += xs ?@# "no"; "yes" } ==== (Err.or(s"no @ FlowTest.scala:${SourceLine.line}"), 8)
+    T ~ e{ val xs = e2; cuml += xs ?@# "no"; cuml += xs ?@# "no"; cuml += xs ?@# "no"; "yes" } ==== (Err.or(s"no @ FlowTest.scala:${SourceLine.line}"), 8)
+    val bad: Ask[Int] = Err.or("broken")
+    val good: Ask[Int] = Is(4)
+    T ~ e{ cuml += good.?@; cuml += good ?@# "ctx"; "yes" } ==== (Is("yes"), 8)
+    T ~ e{ cuml += bad.?@; "yes" }        ==== (Alt(Err("broken") explainBy s"@ FlowTest.scala:${SourceLine.line}"), 0)
+    T ~ e{ cuml += bad ?@# "ctx"; "yes" } ==== (Alt(Err("broken") explainBy s"ctx @ FlowTest.scala:${SourceLine.line}"), 0)
+    val alt: Int Or String = Alt("s")
+    T ~ e{ cuml += alt.?@+(s => Err("mapped " + s)); "yes" } ==== (Alt(Err("mapped s") explainBy s"@ FlowTest.scala:${SourceLine.line}"), 0)
+    T ~ e{ cuml += (Is(2): Int Or String).?@+(s => Err(s)); "yes" } ==== (Is("yes"), 2)
+    given (String AutoMap Err) = s => Err("auto " + s)
+    T ~ e{ cuml += alt.?@*; "yes" }       ==== (Alt(Err("auto s") explainBy s"@ FlowTest.scala:${SourceLine.line}"), 0)
+    T ~ e{ Err ?@# "boom"; "yes" }        ==== (Err.or(s"boom @ FlowTest.scala:${SourceLine.line}"), 0)
 
 
   @Test

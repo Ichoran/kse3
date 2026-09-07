@@ -11,7 +11,7 @@ import scala.util.NotGiven
 import scala.util.{Try, Success, Failure}
 import scala.util.boundary
 
-import kse.basics.Translucent
+import kse.basics.{Translucent, SourceLine}
 
 
 /** Supertype of any boxed branch of an `Or`.
@@ -718,10 +718,3 @@ extension [A](a: A) {
       case y if y.asInstanceOf[AnyRef] eq Or.defaultApplyOrElse.asInstanceOf[AnyRef] => Alt.unit
       case z => Is(z.asInstanceOf[Z])
 }
-
-extension [A >: Null] (a: A) {
-  /** Ensures that a value is not null and places it as the favored branch; null is converted to a disfavored Unit value */
-  inline def nn: A Or Unit =
-    if a == null then Alt.unit else Is(a)
-}
-

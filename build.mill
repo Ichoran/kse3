@@ -16,11 +16,12 @@ trait Base extends ScalaModule {
   def scalaVersion = "3.8.4"
 
   // scaladoc 3.8.x has a parallel-rendering race (SignatureBuilder NPE) that maths trips on
-  // nearly every run and other modules occasionally; 3.9 fixes it.  Override the doc tool
-  // only -- the compiler stays at scalaVersion until 3.9.0 final (3.9.0-RC6 verified clean
-  // against the full build and test suite).  Drop this override when scalaVersion reaches 3.9.
+  // nearly every run and other modules occasionally; 3.9 fixes it.  Override the doc tool only:
+  // the compiler stays at 3.8 because 3.9 emits TASTy 28.9, which a 3.8 compiler refuses to read
+  // ("forward incompatible"), and 3.9 dropped -scala-output-version, so building on 3.9 would
+  // force every kse3 user onto 3.9 too.  Docs have no such constraint.
   override def scalaDocClasspath = Task {
-    defaultResolver().classpath(Seq(mvn"org.scala-lang:scaladoc_3:3.9.0-RC6")) ++ super.scalaDocClasspath()
+    defaultResolver().classpath(Seq(mvn"org.scala-lang:scaladoc_3:3.9.0")) ++ super.scalaDocClasspath()
   }
 
   def scalacOptions = Seq(

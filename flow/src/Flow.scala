@@ -13,6 +13,7 @@ import scala.util.boundary
 import scala.util.boundary.Label
 
 import scala.util.{Try, Success, Failure}
+import scala.util.NotGiven
 
 
 import kse.basics.{given, _}
@@ -39,6 +40,16 @@ extension [X, Y](or: X Or Y)
   inline def ?*[YY, L >: Alt[YY]](using lb: Label[L], m: Y AutoMap YY): X =
     or.mapAlt(m).?
 
+  /** Delivers the favored branch or remaps the disfavored branch to an `Err`, stamps it with this source line, and returns it perhaps nonlocally. */
+  inline def ?@+[L >: Alt[Err]](inline f: Y => Err)(using lb: Label[L], sl: SourceLine.Text): X = (or: @unchecked) match
+    case y: Alt[Y @unchecked] => boundary.break(Alt(f(y.alt) explainBy ("@ " + sl)))
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
+  /** Delivers the favored branch or automatically remaps the disfavored branch to an `Err`, stamps it with this source line, and returns it perhaps nonlocally. */
+  inline def ?@*[L >: Alt[Err]](using lb: Label[L], m: Y AutoMap Err, sl: SourceLine.Text): X = (or: @unchecked) match
+    case y: Alt[Y @unchecked] => boundary.break(Alt(m(y.alt) explainBy ("@ " + sl)))
+    case _ => Is unwrap or.asInstanceOf[Is[X]]
+
   /** Delivers the favored branch or jumps to a skip boundary if not. */
   inline def skip_?[S >: shortcut.Skips.type <: shortcut.Type](using lb: Label[S]): X = (or: @unchecked) match
     case y: Alt[?] => boundary.break(shortcut.Skips: S)
@@ -58,6 +69,16 @@ extension [A](or: A Or Err)
   /** Adds an explanation for an error (independent of error content) */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A = (or: @unchecked) match
     case e: Alt[Err] => boundary.break(Alt(e.alt explainBy msg))
+    case _ => Is unwrap or.asInstanceOf[Is[A]]
+
+  /** Delivers the favored branch, or stamps the error with this source line (`@ file:line`) before returning it perhaps nonlocally. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A = (or: @unchecked) match
+    case e: Alt[Err] => boundary.break(Alt(e.alt explainBy ("@ " + sl)))
+    case _ => Is unwrap or.asInstanceOf[Is[A]]
+
+  /** Adds an explanation and this source line (`msg @ file:line`) to an error before returning it perhaps nonlocally. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A = (or: @unchecked) match
+    case e: Alt[Err] => boundary.break(Alt(e.alt explainBy (msg + " @ " + sl)))
     case _ => Is unwrap or.asInstanceOf[Is[A]]
 
 
@@ -119,6 +140,16 @@ extension [A](option: Option[A])
     case Some(a) => a
     case _ => boundary.break(Alt(Err(msg)))
 
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` naming this source line. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A = option match
+    case Some(a) => a
+    case _ => boundary.break(Alt(Err("None @ " + sl)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message and this source line. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A = option match
+    case Some(a) => a
+    case _ => boundary.break(Alt(Err(msg + " @ " + sl)))
+
 
 extension [A](iterator: Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return to an escape/loop boundary. */
@@ -140,6 +171,14 @@ extension [A](iterator: Iterator[A])
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if iterator.hasNext then iterator.next() else boundary.break(Alt(Err(msg)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` naming this source line. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A =
+    if iterator.hasNext then iterator.next() else boundary.break(Alt(Err("exhausted @ " + sl)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message and this source line. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A =
+    if iterator.hasNext then iterator.next() else boundary.break(Alt(Err(msg + " @ " + sl)))
 
 
 extension [A](stepper: scala.collection.Stepper[A])
@@ -163,6 +202,14 @@ extension [A](stepper: scala.collection.Stepper[A])
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if stepper.hasStep then stepper.nextStep() else boundary.break(Alt(Err(msg)))
 
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` naming this source line. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A =
+    if stepper.hasStep then stepper.nextStep() else boundary.break(Alt(Err("exhausted @ " + sl)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message and this source line. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A =
+    if stepper.hasStep then stepper.nextStep() else boundary.break(Alt(Err(msg + " @ " + sl)))
+
 
 extension [A](iterator: java.util.Iterator[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
@@ -185,6 +232,14 @@ extension [A](iterator: java.util.Iterator[A])
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg)))
 
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` naming this source line. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A =
+    if iterator.hasNext then iterator.next else boundary.break(Alt(Err("exhausted @ " + sl)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message and this source line. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A =
+    if iterator.hasNext then iterator.next else boundary.break(Alt(Err(msg + " @ " + sl)))
+
 
 extension [A](enumerator: java.util.Enumeration[A])
   /** Delivers the value if it exists, or does a perhaps nonlocal return of `Unit`. */
@@ -206,6 +261,14 @@ extension [A](enumerator: java.util.Enumeration[A])
   /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message. */
   inline def ?#[L >: Alt[Err]](inline msg: String)(using Label[L]): A =
     if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(Alt(Err(msg)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` naming this source line. */
+  inline def ?@[L >: Alt[Err]](using lb: Label[L], sl: SourceLine.Text): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(Alt(Err("exhausted @ " + sl)))
+
+  /** Delivers the value if it exists, or exits early with an `Alt[Err]` with a message and this source line. */
+  inline def ?@#[L >: Alt[Err]](inline msg: String)(using lb: Label[L], sl: SourceLine.Text): A =
+    if enumerator.hasMoreElements then enumerator.nextElement else boundary.break(Alt(Err(msg + " @ " + sl)))
 
 
 extension (double: Double)
@@ -1029,3 +1092,47 @@ extension [A](a: A)
   inline def attemptCaseSafe[B](pf: PartialFunction[A, B]): kse.flow.Attempt[B] =
     attempt.safe:
       a.case_!(pf)
+
+
+/** The null family.  The receiver must be a reference type (one that *can* be null): the
+  * `NotGiven[A <:< AnyVal]` gate rejects `Int`, `Double`, `Boolean` and the like at compile time —
+  * `2.notNullOrThrow` is not a member of `Int` — because a value type is never null and asking is a
+  * mistake, not a runtime check.  `A` binds with `Null` stripped, as `Predef.nn` does, so
+  * `(s: String | Null).unnull` is `String Or Unit`; a type that is nullable but not a `T | Null`
+  * union (`AnyRef`, `Any`) simply keeps its own type, `AnyRef Or Unit`.  Under `-Yexplicit-nulls` a
+  * Java-sourced flexible type `T?` binds `A` as `T?`, again as `nn` does; ascribe `T | Null` first
+  * for a clean `T`.  The gate is an `inline` parameter so no witness reaches bytecode: an unused
+  * plain `using` parameter is still fetched and bound, and each method here is a null check only.
+  */
+extension [A](x: A | Null)(using inline ev: NotGiven[A <:< AnyVal]) {
+  /** Refuses to compile.  `Predef.nn` throws a `NullPointerException` on null, which is rarely the
+    * behavior wanted: a null that can be handled should be, and one that cannot should be declared,
+    * legibly.  This method shadows `Predef.nn` so that neither is reachable by accident on a reference
+    * type; on a value type neither applies and the error is that the value cannot be null.
+    */
+  inline def nn: Nothing =
+    compiletime.error("`.nn` would throw a NullPointerException on null.  Use `unnull` for a `T Or Unit`, `nn_?#(msg)` or `nn_?@#(msg)` to jump to an `Or Err` boundary, or `notNullOrThrow` if throwing is truly intended.")
+
+  /** The value as the favored branch, or null as a disfavored `Unit`. */
+  inline def unnull: A Or Unit =
+    if x == null then Alt.unit else Is(x.asInstanceOf[A])
+
+  /** The value, or a `NullPointerException` naming this source line.  The long name is the point:
+    * throwing on null is a declaration that null cannot happen here, and it should look like one.
+    */
+  inline def notNullOrThrow(using sl: SourceLine.Text): A =
+    if x == null then throw new NullPointerException("null @ " + sl) else x.asInstanceOf[A]
+
+  /** The value, or an early exit to an `Or Err` boundary with a message. */
+  inline def nn_?#[L >: Alt[Err]](inline msg: String)(using boundary.Label[L]): A =
+    if x == null then boundary.break(Alt(Err(msg))) else x.asInstanceOf[A]
+
+  /** The value, or an early exit to an `Or Err` boundary naming this source line. */
+  inline def nn_?@[L >: Alt[Err]](using lb: boundary.Label[L], sl: SourceLine.Text): A =
+    if x == null then boundary.break(Alt(Err("null @ " + sl))) else x.asInstanceOf[A]
+
+  /** The value, or an early exit to an `Or Err` boundary with a message and this source line. */
+  inline def nn_?@#[L >: Alt[Err]](inline msg: String)(using lb: boundary.Label[L], sl: SourceLine.Text): A =
+    if x == null then boundary.break(Alt(Err(msg + " @ " + sl))) else x.asInstanceOf[A]
+}
+
