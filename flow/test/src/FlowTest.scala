@@ -2690,6 +2690,77 @@ class FlowTest {
     f.use(_ => ())
     f.close()
     T ~ acc ==== 2
+
+  @Test
+  def assembleTest(): Unit =
+    val log = collection.mutable.ArrayBuffer.empty[String]
+    def acquire(name: String): String = { log += s"+$name"; name }
+    def release(name: String): Unit = log += s"-$name"
+
+    // success: the survivors come back bare, the transient is released, the survivors are not
+    T ~ Resource.assemble{
+      scoped(acquire("t"))(release) __ Unit
+      val a = undo(acquire("a"))(release)
+      val b = undo(acquire("b"))(release)
+      T ~ (a: String) ==== "a"                    // a Guarded is its value inside the block
+      (a, b)
+    } ==== (("a", "b")) --: typed[(String, String)]
+    T ~ log.toList ==== List("+t", "+a", "+b", "-t")
+
+    // one guarded value comes back bare too
+    log.clear()
+    T ~ Resource.assemble{ scoped(acquire("t"))(release) __ Unit; undo(acquire("a"))(release) } ==== "a" --: typed[String]
+    T ~ log.toList ==== List("+t", "+a", "-t")
+
+    // an exception unwinds everything newest first, and a release that fails rides along as suppressed
+    log.clear()
+    val boom = new RuntimeException("boom")
+    val thrown =
+      try
+        Resource.assemble{
+          scoped(acquire("t"))(release) __ Unit
+          undo(acquire("a"))(_ => throw new IllegalStateException("bad release")) __ Unit
+          undo(acquire("b"))(release) __ Unit
+          throw boom
+        }
+        null
+      catch case e: RuntimeException => e
+    T ~ (thrown eq boom)                                        ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "+b", "-b", "-t")
+    T ~ thrown.getSuppressed.map(_.getMessage).toList           ==== List("bad release")
+
+    // an early return unwinds everything too, and the Alt is what comes out
+    log.clear()
+    val early = Ask.flat{
+      val x = Resource.assemble{
+        scoped(acquire("t"))(release) __ Unit
+        undo(acquire("a"))(release) __ Unit
+        (Err.or("nope"): Ask[Int]).? __ Unit
+        undo(acquire("b"))(release)
+      }
+      Is(x)
+    }
+    T ~ early.fold(_ => "")(_.toString).contains("nope")        ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "-a", "-t")
+
+    // a transient that will not release on success undoes the survivors and is the failure
+    log.clear()
+    val stuck =
+      try
+        Resource.assemble{ scoped(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit; undo(acquire("a"))(release) } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ stuck                                                   ==== "stuck"
+    T ~ log.toList                                              ==== List("+t", "+a", "-a")
+
+    // the types: only what was registered with undo can be handed out, singly or as a whole tuple.  (The
+    // T ! / T \ helpers cannot see into a context-function block, so the check is made directly.)
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.scoped(new AnyRef)(_ => ()) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.undo(new AnyRef)(_ => ()) }""").isEmpty  ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.undo(1)(_ => ()), 2) }""").nonEmpty  ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.undo(1)(_ => ()), kse.flow.undo(2)(_ => ())) }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ 3 }""").nonEmpty ==== true
+
 }
 object FlowTest {
   import kse.basics.Translucent

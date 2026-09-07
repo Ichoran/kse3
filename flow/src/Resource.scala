@@ -366,6 +366,97 @@ object Resource {
       Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
 
+  ////////////////////////////////////////////////////////////////////////
+  /// assemble: acquire a chain of things and hand the survivors on      ///
+  ////////////////////////////////////////////////////////////////////////
+
+  /** A value acquired inside [[assemble]] and registered with [[undo]], to be released only if the assembly
+    * fails: the one kind of thing an `assemble` block may hand out, since anything [[scoped]] to it is released
+    * as the block exits.  A `Guarded[R]` is an `R` — use it as one inside the block — but a bare `R` is never a
+    * `Guarded[R]`, so a transient cannot be returned by mistake.  (A value *derived* from a transient, such as
+    * a handle built around a deferred descriptor, is beyond what a type can catch: register the derived
+    * value with [[undo]] and the transient with nothing, or think again about which one survives.)
+    */
+  opaque type Guarded[+R] <: R = R
+
+  /** The registry an [[assemble]] block adds to.  Releases run newest first, so a chain unwinds in reverse:
+    * [[apply]] for what survives on success and is released on failure, [[scoped]] for what is released either
+    * way.  For one thread's use, within one block.
+    */
+  final class Undo private[Resource] () {
+    private final class Entry(val release: () => Unit, val always: Boolean)
+    private var entries: List[Entry] = Nil
+
+    /** Registers `r` to be released only if the assembly fails, answering it as the [[Guarded]] the block may hand out. */
+    def apply[R](r: R)(release: R => Unit): Guarded[R] =
+      entries = new Entry(() => release(r), false) :: entries
+      r
+
+    /** Registers `r` to be released whichever way the block exits: a transient, usable inside and nowhere else. */
+    def scoped[R](r: R)(release: R => Unit): R =
+      entries = new Entry(() => release(r), true) :: entries
+      r
+
+    /** Runs and drops every registered release (or only the `always` ones), newest first, answering the
+      * first failure with the rest suppressed into it, or `null` if all went well. */
+    private[Resource] def unwind(all: Boolean): Throwable =
+      var first: Throwable = null
+      var es = entries
+      var keep: List[Entry] = Nil
+      while es ne Nil do
+        val e = es.head
+        es = es.tail
+        if all || e.always then
+          try e.release()
+          catch case t if t.catchable => if first eq null then first = t else first.addSuppressed(t)
+        else keep = e :: keep
+      entries = keep.reverse
+      first
+  }
+
+  /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
+    * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, [[undo]] registers what is
+    * meant to survive, releasing it only if the block fails; [[scoped]] registers a transient, released either
+    * way.  Releases run newest first, so the chain unwinds in reverse of its acquisition.  The block fails by
+    * exception or by early return (`.?` to an enclosing boundary) alike, and succeeds only if it completes and
+    * every transient releases cleanly — if one does not, the survivors are undone too and that failure is
+    * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
+    * return there is nothing to attach it to, and it is dropped.  Only [[Guarded]] values, singly or in a
+    * tuple, may be returned: the caller receives them bare.
+    * {{{
+    * Resource.assemble:
+    *   val tmp = scoped(Arena.ofConfined())(_.close())     // gone when the block exits
+    *   val fd  = scoped(open(name))(close)                 // the mapping keeps the memory, so the fd is transient too
+    *   size(fd, bytes)
+    *   undo(name)(unlink) __ Unit                          // only if we fail from here on
+    *   val arena = undo(Arena.ofShared())(_.close())       // survives: Guarded[Arena], usable as an Arena
+    *   undo(new Region(name, map(fd, arena)))(_.close())   // the result, guarded because it is the last undo
+    * }}}
+    */
+  def assemble[T](f: Undo ?=> T)(using as: Assembled[T]): as.Out =
+    val u = new Undo()
+    var done = false
+    var exit: Throwable = null
+    var t: T = null.asInstanceOf[T]
+    try
+      t = f(using u)
+      done = true
+    catch
+      case e if e.catchable =>
+        exit = e
+        throw e
+    finally
+      if done then
+        val bad = u.unwind(all = false)
+        if bad ne null then
+          val more = u.unwind(all = true)
+          if more ne null then bad.addSuppressed(more)
+          throw bad
+      else
+        val bad = u.unwind(all = true)
+        if (bad ne null) && (exit ne null) then exit.addSuppressed(bad)
+    as.out(t)
+
   final class Manager() extends Tidy.CanClose {
     private var items: List[Tidy.CanClose] = Nil
     private def closeItems(exceptions: List[Throwable] = Nil, n: Int = 0): Unit = items match
@@ -402,6 +493,33 @@ def manage_closeably[A](rsc: Tidy[A] ?=> A)(done: Tidy[A])(using manager: Resour
   val mg = Tidy.Managed(r, done)
   manager += mg
   (r, mg: Tidy.CanClose)
+
+/** What a [[Resource.assemble]] block may hand out — one [[Resource.Guarded]] value, or a tuple of them — and the
+  * same with the guards taken off, which is what the caller receives.  Lives outside `Resource` because a match
+  * type can only take a `Guarded` apart where it is opaque, not where it is the alias it is defined as. */
+sealed trait Assembled[T] {
+  type Out
+  def out(t: T): Out
+}
+object Assembled {
+  given one[A]: (Assembled[Resource.Guarded[A]] { type Out = A }) = new Assembled[Resource.Guarded[A]] {
+    type Out = A
+    def out(t: Resource.Guarded[A]): A = t
+  }
+  given many[T <: Tuple](using Tuple.IsMappedBy[Resource.Guarded][T]): (Assembled[T] { type Out = Tuple.InverseMap[T, Resource.Guarded] }) =
+    new Assembled[T] {
+      type Out = Tuple.InverseMap[T, Resource.Guarded]
+      def out(t: T): Out = t.asInstanceOf[Out]   // a Guarded is its value, so the tuple already is its own unguarded form
+    }
+}
+
+/** Within [[Resource.assemble]]: registers `r` to be released only if the assembly fails, and answers it as a
+  * [[Resource.Guarded]], the form the block may hand out. */
+def undo[R](r: R)(release: R => Unit)(using u: Resource.Undo): Resource.Guarded[R] = u(r)(release)
+
+/** Within [[Resource.assemble]]: registers `r` to be released whichever way the block exits — a transient,
+  * scoped to the assembly and never handed out of it. */
+def scoped[R](r: R)(release: R => Unit)(using u: Resource.Undo): R = u.scoped(r)(release)
 
 def manage[A](rsc: Tidy[A] ?=> A)(done: Tidy[A])(using manager: Resource.Manager): A =
   val r = rsc(using done)
