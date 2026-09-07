@@ -2699,9 +2699,9 @@ class FlowTest {
 
     // success: the survivors come back bare, the transient is released, the survivors are not
     T ~ Resource.assemble{
-      scoped(acquire("t"))(release) __ Unit
-      val a = undo(acquire("a"))(release)
-      val b = undo(acquire("b"))(release)
+      Resource.whileAssembling(acquire("t"))(release) __ Unit
+      val a = guarded(acquire("a"))(release)
+      val b = guarded(acquire("b"))(release)
       T ~ (a: String) ==== "a"                    // a Guarded is its value inside the block
       (a, b)
     } ==== (("a", "b")) --: typed[(String, String)]
@@ -2709,10 +2709,10 @@ class FlowTest {
 
     // one guarded value comes back bare too, and so does a result built from one
     log.clear()
-    T ~ Resource.assemble{ scoped(acquire("t"))(release) __ Unit; undo(acquire("a"))(release) } ==== "a" --: typed[String]
+    T ~ Resource.assemble{ Resource.whileAssembling(acquire("t"))(release) __ Unit; guarded(acquire("a"))(release) } ==== "a" --: typed[String]
     T ~ log.toList ==== List("+t", "+a", "-t")
     log.clear()
-    T ~ Resource.assemble{ undo(acquire("a"))(release).into(_ + "!") } ==== "a!" --: typed[String]
+    T ~ Resource.assemble{ guarded(acquire("a"))(release).mapGuarded(_ + "!") } ==== "a!" --: typed[String]
     T ~ log.toList ==== List("+a")
 
     // an exception unwinds everything newest first, and a release that fails rides along as suppressed
@@ -2721,9 +2721,9 @@ class FlowTest {
     val thrown =
       try
         Resource.assemble{
-          scoped(acquire("t"))(release) __ Unit
-          undo(acquire("a"))(_ => throw new IllegalStateException("bad release")) __ Unit
-          undo(acquire("b"))(release) __ Unit
+          Resource.whileAssembling(acquire("t"))(release) __ Unit
+          guarded(acquire("a"))(_ => throw new IllegalStateException("bad release")) __ Unit
+          guarded(acquire("b"))(release) __ Unit
           throw boom
         }
         null
@@ -2736,10 +2736,10 @@ class FlowTest {
     log.clear()
     val early = Ask.flat{
       val x = Resource.assemble{
-        scoped(acquire("t"))(release) __ Unit
-        undo(acquire("a"))(release) __ Unit
+        Resource.whileAssembling(acquire("t"))(release) __ Unit
+        guarded(acquire("a"))(release) __ Unit
         (Err.or("nope"): Ask[Int]).? __ Unit
-        undo(acquire("b"))(release)
+        guarded(acquire("b"))(release)
       }
       Is(x)
     }
@@ -2750,18 +2750,18 @@ class FlowTest {
     log.clear()
     val stuck =
       try
-        Resource.assemble{ scoped(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit; undo(acquire("a"))(release) } __ Unit
+        Resource.assemble{ Resource.whileAssembling(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit; guarded(acquire("a"))(release) } __ Unit
         "no"
       catch case e: IllegalStateException => e.getMessage
     T ~ stuck                                                   ==== "stuck"
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
 
-    // the types: only what was registered with undo can be handed out, singly or as a whole tuple.  (The
+    // the types: only what was guarded can be handed out, singly or as a whole tuple.  (The
     // T ! / T \ helpers cannot see into a context-function block, so the check is made directly.)
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.scoped(new AnyRef)(_ => ()) }""").nonEmpty ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.undo(new AnyRef)(_ => ()) }""").isEmpty  ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.undo(1)(_ => ()), 2) }""").nonEmpty  ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.undo(1)(_ => ()), kse.flow.undo(2)(_ => ())) }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.whileAssembling(new AnyRef)(_ => ()) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.guarded(new AnyRef)(_ => ()) }""").isEmpty  ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.guarded(1)(_ => ()), 2) }""").nonEmpty  ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.guarded(1)(_ => ()), kse.flow.guarded(2)(_ => ())) }""").isEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ 3 }""").nonEmpty ==== true
 
 }
