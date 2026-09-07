@@ -404,7 +404,9 @@ object Resource {
       r
 
     /** Runs and drops every registered release (or only the `always` ones), newest first, answering the
-      * first failure with the rest suppressed into it, or `null` if all went well. */
+      * first failure with the rest suppressed into it, or `null` if all went well.  An interrupted release
+      * does not stop the unwind: the interruption is kept as a failure like any other, and propagates after
+      * the rest have had their turn. */
     private[Resource] def unwind(all: Boolean): Throwable =
       var first: Throwable = null
       var es = entries
@@ -414,11 +416,24 @@ object Resource {
         es = es.tail
         if all || e.always then
           try e.release()
-          catch case t if t.catchable => if first eq null then first = t else first.addSuppressed(t)
+          catch
+            case t: InterruptedException => first = fold(first, t)
+            case t if t.catchable => first = fold(first, t)
         else keep = e :: keep
       entries = keep.reverse
       first
   }
+
+  /** `extra` joined to `primary` as suppressed — never itself, which Java refuses — answering the primary, or
+    * `extra` alone when there was none.  An interruption swallowed this way restores the thread's interrupt
+    * status, so it is delayed by the cleanup rather than lost to it. */
+  private def fold(primary: Throwable, extra: Throwable): Throwable =
+    if primary eq null then extra
+    else
+      if (extra ne null) && (extra ne primary) then
+        primary.addSuppressed(extra)
+        if extra.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()
+      primary
 
   /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
     * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, `x.onFailure(release)`
@@ -427,7 +442,9 @@ object Resource {
     * exception or by early return (`.?` to an enclosing boundary) alike, and succeeds only if it completes and
     * every transient releases cleanly — if one does not, the survivors are undone too and that failure is
     * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
-    * return there is nothing to attach it to, and it is dropped.  Only [[Guarded]] values, singly or in a
+    * return there is nothing to attach it to, and it is dropped.  An interrupted release never cuts the
+    * unwind short: the interruption is thrown once the rest are released, or, where another failure is
+    * already on its way out, suppressed into it with the thread's interrupt status restored.  Only [[Guarded]] values, singly or in a
     * tuple, may be returned — what `onFailure` answered, or what `mapGuarded` built from it — and the caller
     * receives them bare.
     * {{{
@@ -449,19 +466,21 @@ object Resource {
       t = f(using u)
       done = true
     catch
+      case e: InterruptedException =>
+        exit = e
+        throw e
       case e if e.catchable =>
         exit = e
         throw e
     finally
       if done then
         val bad = u.unwind(all = false)
-        if bad ne null then
-          val more = u.unwind(all = true)
-          if more ne null then bad.addSuppressed(more)
-          throw bad
+        if bad ne null then throw fold(bad, u.unwind(all = true))
       else
         val bad = u.unwind(all = true)
-        if (bad ne null) && (exit ne null) then exit.addSuppressed(bad)
+        if bad ne null then
+          if exit ne null then fold(exit, bad) __ Unit
+          else if bad.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()   // an early return cannot carry it
     as.out(t)
 
   /** Within [[assemble]]: holds `r` only while assembling, released whichever way the block exits — a

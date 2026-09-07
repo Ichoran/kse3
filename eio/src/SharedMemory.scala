@@ -691,7 +691,7 @@ object SharedMemory {
     */
   inline def attachFd[A <: Mem.Type](fd: Int, n: Long = 0L, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
     Ask.flat:
-      val bytes = bytesFor(n, Mem.bytesOf[A], discoverable = true).peekAlt(_ => PosixSocket.closeQuietly(fd)).?   // consumed either way
+      val bytes = bytesFor(n, Mem.bytesOf[A], discoverable = true).peekAlt(_ => if PosixSocket.supported then PosixSocket.closeQuietly(fd)).?   // consumed either way, where descriptors exist
       attachFdBytes[A](fd, bytes, readOnly)
 
   /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure it, see [[attachFd]]), consuming the descriptor.

@@ -185,6 +185,7 @@ class NativeTest {
       T ~ unsupported(FdSock.Raw.pair())                           ==== true
       T ~ unsupported(SharedMemory.createFd[Long](4))              ==== true
       T ~ unsupported(SharedMemory.attachFdBytes[Long](0, 32L, false)) ==== true
+      T ~ saysWhy(Resource.nice(SharedMemory.attachFd[Long](0, -1))(_.close())(_ => 0), "count") ==== true   // a bad count never reaches the POSIX bindings
       T ~ unsupported(SharedMemory.offerFd[Long](sock, 4, 1.s))    ==== true
       T ~ unsupported(Resource.nice(SharedMemory.acceptFd[Long](sock, timeout = 1.s))(_.close())(_ => 0)) ==== true
       T ~ sock.exists                                              ==== false

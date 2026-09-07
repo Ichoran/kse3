@@ -2756,6 +2756,69 @@ class FlowTest {
     T ~ stuck                                                   ==== "stuck"
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
 
+    // a release that throws the very exception already in hand is not suppressed into itself, and the unwind goes on
+    log.clear()
+    val same = new IllegalStateException("same")
+    val boom2 = new RuntimeException("boom2")
+    val twice =
+      try
+        Resource.assemble{
+          Resource.whileAssembling(acquire("t"))(_ => throw same) __ Unit
+          acquire("a").onFailure(release) __ Unit
+          acquire("b").onFailure(_ => throw same) __ Unit
+          throw boom2
+        }
+        null
+      catch case e: RuntimeException => e
+    T ~ (twice eq boom2)                                        ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "+b", "-a")
+    T ~ twice.getSuppressed.toList                              ==== List(same)
+
+    // an interrupted release does not abandon the rest: on a success path it is the failure, thrown once the
+    // unwind is complete; beside another failure it rides as suppressed and the interrupt status is restored
+    log.clear()
+    val stopped =
+      try
+        Resource.assemble{
+          acquire("a").onFailure(release) __ Unit
+          Resource.whileAssembling(acquire("u"))(release) __ Unit
+          Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+          acquire("b").onFailure(release)
+        } __ Unit
+        "no"
+      catch case e: InterruptedException => e.getMessage
+    T ~ stopped                                                 ==== "stop"
+    T ~ log.toList                                              ==== List("+a", "+u", "+t", "+b", "-u", "-b", "-a")
+    T ~ Thread.interrupted()                                    ==== false
+    log.clear()
+    val boom3 = new RuntimeException("boom3")
+    val both =
+      try
+        Resource.assemble{
+          acquire("a").onFailure(release) __ Unit
+          Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+          throw boom3
+        }
+        null
+      catch case e: RuntimeException => e
+    T ~ (both eq boom3)                                         ==== true
+    T ~ log.toList                                              ==== List("+a", "+t", "-a")
+    T ~ both.getSuppressed.map(_.getMessage).toList             ==== List("stop")
+    T ~ Thread.interrupted()                                    ==== true
+    log.clear()
+    val gone = Ask.flat{
+      val x = Resource.assemble{
+        Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+        acquire("a").onFailure(release) __ Unit
+        (Err.or("nope"): Ask[Int]).? __ Unit
+        acquire("b").onFailure(release)
+      }
+      Is(x)
+    }
+    T ~ gone.isAlt                                              ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "-a")
+    T ~ Thread.interrupted()                                    ==== true
+
     // the types: only what was guarded can be handed out, singly or as a whole tuple.  (The
     // T ! / T \ helpers cannot see into a context-function block, so the check is made directly.)
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.whileAssembling(new AnyRef)(_ => ()) }""").nonEmpty ==== true
