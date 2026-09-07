@@ -854,6 +854,228 @@ class EioTest {
 
 
   @Test
+  def fdSockRawTest(): Unit =
+    if FdSock.supported then
+      def must[A](a: Ask[A]): A = a.fold(x => x)(_.toss)
+
+      // errno as data: names, classifiers, the count-or-code Result, and the code inside an Err
+      T ~ PosixSocket.Errno.name(PosixSocket.Errno.EAGAIN)                       ==== "EAGAIN"
+      T ~ PosixSocket.Errno.name(PosixSocket.Errno.ECONNREFUSED)                 ==== "ECONNREFUSED"
+      T ~ PosixSocket.Errno.name(123456)                                   ==== "errno 123456"
+      T ~ PosixSocket.Result.success(7L).count                             ==== 7L
+      T ~ PosixSocket.Result.success(7L).ok                                ==== true
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EAGAIN).wouldBlock        ==== true
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EAGAIN).backpressure      ==== true
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).peerGone           ==== true
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).count              ==== 0L
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).errno              ==== PosixSocket.Errno.EPIPE
+      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EINTR).name               ==== "EINTR"
+      T ~ PosixSocket.Result.success(3L).ask("send").fold(x => x)(_ => -1L) ==== 3L
+      val bad = PosixSocket.Result.failure(PosixSocket.Errno.ENOENT).ask("open", "the thing")
+      T ~ bad.fold(_ => -1)(e => PosixSocket.errnoOf(e))                   ==== PosixSocket.Errno.ENOENT
+      T ~ bad.fold(_ => "")(e => e.toString)                         ==== "open failed: ENOENT (the thing)"
+      T ~ bad.mapAlt(_ +# "while starting").fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.ENOENT
+      T ~ PosixSocket.errnoOf(Err("just words"))                           ==== -1
+      val missing = Files.createTempDirectory("kse-raw-").resolve("nothing.sock")
+      T ~ FdSock.connect(missing, 1.s).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.ENOENT
+
+      // a SEQPACKET pair, non-blocking, polled: one call per datagram, nothing hidden
+      val (a, b) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET))
+      val poller = new PosixSocket.Poller(2)
+      try
+        T ~ must(a.sockType)                     ==== PosixSocket.SOCK_SEQPACKET
+        T ~ must(a.isNonblocking)                ==== false
+        T ~ a.nonblocking().isIs                 ==== true
+        T ~ b.nonblocking().isIs                 ==== true
+        T ~ must(a.isNonblocking)                ==== true
+        val buf = Mem.alloc[Byte](64L)
+        T ~ a.recvMsg(buf).wouldBlock            ==== true
+        poller.set(0, a.descriptor)
+        poller.set(1, b.descriptor)
+        T ~ poller.poll(50).count                ==== 0L
+        val msg = Mem.alloc[Byte](5L)                 // off-heap: the kernel reads it in place
+        (Mem of "hello".bytes).inject(msg) __ Unit
+        T ~ b.sendOnce(msg).count                ==== 5L
+        T ~ b.sendOnce(msg, 2L).count            ==== 2L
+        T ~ poller.poll(1000).count              ==== 1L
+        T ~ poller.readable(0)                   ==== true
+        T ~ poller.readable(1)                   ==== false
+        T ~ a.recvMsg(buf).count                 ==== 5L
+        T ~ new String(buf.selectToArray(0L, 5L)) ==== "hello"
+        T ~ a.fdCount                            ==== 0
+        T ~ a.trunc                              ==== false
+        T ~ a.recvMsg(buf).count                 ==== 2L
+        T ~ new String(buf.selectToArray(0L, 2L)) ==== "he"
+        T ~ a.recvMsg(buf, 3L).wouldBlock        ==== true
+
+        // a datagram longer than the buffer offered is reported as truncated, not silently cut
+        T ~ b.sendOnce(msg).count                ==== 5L
+        T ~ a.recvMsg(buf, 3L).count             ==== 3L
+        T ~ a.trunc                              ==== true
+
+        // a descriptor rides along and is counted, not hidden; the copy is live and ours
+        val (c, d) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        T ~ b.sendOnceWithFd(msg, 1L, c.descriptor).count ==== 1L
+        T ~ a.recvMsg(buf).count                 ==== 1L
+        T ~ a.fdCount                            ==== 1
+        T ~ a.ctrunc                             ==== false
+        val got = a.takeFd()
+        T ~ (got >= 0)                           ==== true
+        T ~ a.takeFd()                           ==== -1
+        val g = must(FdSock.Raw.adopt(got))
+        T ~ d.nonblocking().isIs                 ==== true
+        T ~ g.sendOnce(msg).count                ==== 5L
+        T ~ d.recvMsg(buf).count                 ==== 5L
+        T ~ new String(buf.selectToArray(0L, 5L)) ==== "hello"
+
+        // several descriptors in one message are all counted; one more than the slots is truncation, never
+        // a quiet trim (CMSG_SPACE padding would otherwise admit a stray one at odd slot counts)
+        val (m3, n3) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 3))
+        val (u1, u2) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        T ~ n3.sendOnceWithFds(msg, 1L, Array(c.descriptor, u1.descriptor, u2.descriptor)).count ==== 1L
+        T ~ m3.recvMsg(buf).count                ==== 1L
+        T ~ m3.fdCount                           ==== 3
+        T ~ m3.ctrunc                            ==== false
+        val t1 = m3.takeFd(); val t2 = m3.takeFd(); val t3 = m3.takeFd()
+        T ~ (t1 >= 0 && t2 >= 0 && t3 >= 0)      ==== true
+        T ~ m3.takeFd()                          ==== -1
+        PosixSocket.closeQuietly(t1); PosixSocket.closeQuietly(t2); PosixSocket.closeQuietly(t3)
+        T ~ n3.sendOnceWithFds(msg, 1L, Array(c.descriptor, u1.descriptor, u2.descriptor, u1.descriptor)).errno ==== PosixSocket.Errno.EINVAL
+        T ~ n3.sendOnceWithFds(msg, 1L, Array.empty[Int]).errno ==== PosixSocket.Errno.EINVAL
+        m3.close(); n3.close()
+        val (o1, o2) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 2))
+        val one = must(FdSock.Raw.adopt(o1.disown(), 1))
+        T ~ o2.sendOnceWithFds(msg, 1L, Array(u1.descriptor, u2.descriptor)).count ==== 1L
+        T ~ one.recvMsg(buf).count               ==== 1L
+        T ~ one.fdCount                          ==== 1
+        T ~ one.ctrunc                           ==== true
+        one.close(); o2.close(); u1.close(); u2.close()
+
+        // more descriptors than slots: truncation is a reported fact and the extra is closed
+        val (e0, e1) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 0))
+        T ~ e1.sendOnceWithFd(msg, 1L, c.descriptor).count ==== 1L
+        T ~ e0.recvMsg(buf).count                ==== 1L
+        T ~ e0.ctrunc                            ==== true
+        T ~ e0.fdCount                           ==== 0
+        e0.close()
+        e1.close()
+        T ~ e0.recvMsg(buf).errno                ==== PosixSocket.Errno.EBADF
+
+        // the peer goes away: a send answers EPIPE as data, never a signal
+        c.close()
+        d.close()
+        val gone = g.sendOnce(msg)
+        T ~ gone.peerGone                        ==== true
+        T ~ gone.name                            ==== "EPIPE"
+        g.close()
+        T ~ g.isClosed                           ==== true
+
+        // the descriptor moves between tiers: a Conn's can be taken and driven raw, and a Raw's adopted as a Conn
+        val (p, q) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        val conn = must(FdSock.adopt(p.disown()))
+        T ~ (conn.descriptor >= 0)               ==== true
+        T ~ conn.write("via conn".bytes).isIs    ==== true
+        T ~ q.nonblocking().isIs                 ==== true
+        T ~ q.recvMsg(buf).count                 ==== 8L
+        T ~ new String(buf.selectToArray(0L, 8L)) ==== "via conn"
+        val back = must(FdSock.Raw.adopt(conn.disown()))
+        T ~ conn.descriptor                      ==== -1
+        T ~ conn.write("x".bytes).isIs           ==== false
+        T ~ back.nonblocking().isIs              ==== true
+        T ~ q.sendOnce(msg).count                ==== 5L
+        T ~ back.recvMsg(buf).count              ==== 5L
+        val qc = must(FdSock.adopt(q.disown()))
+        T ~ q.descriptor                         ==== -1
+        T ~ qc.write("hello".bytes).isIs         ==== true
+        T ~ back.recvMsg(buf).count              ==== 5L
+        back.close()
+        qc.close()
+
+        // shutdown wakes a peer's poll with end of stream
+        T ~ b.shutdown().isIs                    ==== true
+        T ~ poller.poll(1000).count              ==== 2L
+        T ~ a.recvMsg(buf).count                 ==== 0L
+      finally
+        poller.close()
+        a.close()
+        b.close()
+
+      // a control message cut short (Darwin keeps cmsg_len past the copied bytes): the descriptors that fit are still visited
+      locally:
+        val arena = java.lang.foreign.Arena.ofConfined()
+        try
+          val ctrl = arena.allocate(PosixSocket.CMsg.space(12L))
+          val hdr = PosixSocket.CMsg.hdr
+          if PosixSocket.mac then ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, 0L, (hdr + 12L).toInt)
+          else ctrl.set(java.lang.foreign.ValueLayout.JAVA_LONG, 0L, hdr + 12L)
+          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, PosixSocket.CMsg.levelOff, PosixSocket.SOL_SOCKET)
+          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, PosixSocket.CMsg.typeOff, PosixSocket.SCM_RIGHTS)
+          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr, 41)
+          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr + 4, 42)
+          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr + 8, 43)
+          val seen = collection.mutable.ArrayBuffer.empty[Int]
+          PosixSocket.CMsg.forEachFd(ctrl, hdr + 12L)(seen += _)
+          T ~ seen.toList                        ==== List(41, 42, 43)
+          seen.clear()
+          PosixSocket.CMsg.forEachFd(ctrl, hdr + 8L)(seen += _)    // declared 12 bytes of descriptors, only 8 copied
+          T ~ seen.toList                        ==== List(41, 42)
+          seen.clear()
+          PosixSocket.CMsg.forEachFd(ctrl, hdr + 2L)(seen += _)    // not even one whole descriptor
+          T ~ seen.toList                        ==== Nil
+        finally arena.close()
+
+      // a blocked raw receive is released by shutdown from another thread, after which close is safe
+      locally:
+        val (x, y) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        val buf2 = Mem.alloc[Byte](16L)
+        val waiter = Fu:
+          x.recvMsg(buf2)                          // blocking: nothing arrives
+        Thread.sleep(100)
+        T ~ x.shutdown().isIs                    ==== true
+        T ~ waiter.await().fold(_.count)(_ => -9L) ==== 0L
+        x.close()
+        y.close()
+        T ~ x.isClosed                           ==== true
+        T ~ x.recvMsg(buf2).errno                ==== PosixSocket.Errno.EBADF
+
+      // an idle server's accept times out even where accept ignores SO_RCVTIMEO (Darwin): it is a poll
+      locally:
+        val dir = Files.createTempDirectory("kse-accept-")
+        val srv = must(FdSock.listen(dir.resolve("idle.sock"), 200.ms))
+        try
+          val t0 = System.nanoTime
+          val r = srv.accept()
+          val dt = (System.nanoTime - t0) / 1000000L
+          T ~ r.fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
+          T ~ (dt >= 150L && dt < 5000L)         ==== true
+        finally srv.close()
+
+      // the tiniest timeout still accepts a queued connection and still reads queued bytes; an empty one still times out
+      locally:
+        val dir = Files.createTempDirectory("kse-tiny-")
+        val path = dir.resolve("tiny.sock")
+        val srv = must(FdSock.listen(path, 1.ms))
+        try
+          T ~ srv.accept().fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
+          val client = must(FdSock.connect(path, 1.ms))
+          try
+            val server = must(srv.accept())
+            try
+              T ~ client.write("queued".bytes).isIs  ==== true
+              val buf = new Array[Byte](16)
+              T ~ server.read(buf).fold(n => new String(buf, 0, n))(_ => "?") ==== "queued"
+              T ~ server.read(buf).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
+              T ~ server.setTimeout(150.ms).isIs   ==== true
+              val t0 = System.nanoTime
+              T ~ server.read(buf).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
+              T ~ ((System.nanoTime - t0) / 1000000L >= 100L) ==== true
+              T ~ client.write("more".bytes).isIs    ==== true
+              T ~ server.recvMsgOrFd(buf).fold(r => r.count)(_ => -1) ==== 4
+            finally server.close()
+          finally client.close()
+        finally srv.close()
+
+  @Test
   def fdSharedMemoryTest(): Unit =
     if FdSock.supported then
       def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
@@ -1116,6 +1338,7 @@ class EioTest {
 
     T ! """'e' ~ "eel""""
     T ! """("eel" ~ 'e').x"""
+    T \ """("eel" ~ 'e').short"""
 
     T ~ ("eel"   ~ _int)         ==== typed[Opt[Int, '-', "eel"]]
     T ~ ("eel"   ~ _int).label   ==== "eel"
@@ -1347,8 +1570,9 @@ class EioTest {
     T ~ c0.parse(Array("-zh"))                                ==== runtype[Alt[?]]
     T ~ c0.parse(Array("eel", "-z"))                          ==== runtype[Alt[?]]
 
-    T ! """c0 ~ 'b'"""
-    T ! """c0 ~ "t""""
+    T ! """(Cleasy() -- "eel" -- 'h' -- "bass" ~ 'b' -- "minnow".x -- 't'.x -- "salmon".x ~ 's') ~ 'b'"""   // c0 restated: `T !` cannot see method-local vals
+    T ! """(Cleasy() -- "eel" -- 'h' -- "bass" ~ 'b' -- "minnow".x -- 't'.x -- "salmon".x ~ 's') ~ "t""""
+    T \ """(Cleasy() -- "eel" -- 'h' -- "bass" ~ 'b' -- "minnow".x -- 't'.x -- "salmon".x ~ 's').parse(Array("--salmon", "-s")).get("salmon")"""   // control: the restated c0 compiles
 
     val c1 = Cleasy()
       + Opt("perch", _int)
@@ -1384,9 +1608,11 @@ class EioTest {
     T ~ c2.parse(Array("--cod")).get("cod")                       ==== List(None)
     T ~ c2.parse(Array("--cod=7", "--cod")).get("cod")            ==== List(Some(7), None)
 
-    T ! """c2 + OptN("perch", _tf)"""
-    T ! """c2 + Opt("perch", _tf)"""
-    T ! """c2 + OptD("perch", _tf, () => true)"""
+    T ! """(Cleasy() + OptN("perch", _int) + OptN("bass", _int.maybe) + OptN("minnow", _int, () => 2) + OptN("cod", _int.maybe, () => Some(6))) + OptN("perch", _tf)"""   // c2 restated: `T !` cannot see method-local vals
+    T ! """(Cleasy() + OptN("perch", _int) + OptN("bass", _int.maybe) + OptN("minnow", _int, () => 2) + OptN("cod", _int.maybe, () => Some(6))) + Opt("perch", _tf)"""
+    T ! """(Cleasy() + OptN("perch", _int) + OptN("bass", _int.maybe) + OptN("minnow", _int, () => 2) + OptN("cod", _int.maybe, () => Some(6))) + OptD("perch", _tf, () => true)"""
+    T \ """(Cleasy() + OptN("perch", _int) + OptN("bass", _int.maybe) + OptN("minnow", _int, () => 2) + OptN("cod", _int.maybe, () => Some(6))).parse(Array("foo")).get("minnow")"""   // control: the restated c2 compiles, as does a fresh perch
+    T \ """(Cleasy() + OptN("perch", _int) + OptN("bass", _int.maybe) + OptN("minnow", _int, () => 2) + OptN("cod", _int.maybe, () => Some(6))) + OptN("trout", _tf)"""
 
     val c3 = Cleasy()
       + Opt('x')

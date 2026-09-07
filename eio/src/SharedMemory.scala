@@ -183,7 +183,12 @@ object SharedMemory {
     private val captureErr = Linker.Option.captureCallState("errno")
     val captureLayout = Linker.Option.captureStateLayout()
     val errnoVH       = captureLayout.varHandle(java.lang.foreign.MemoryLayout.PathElement.groupElement("errno"))
-    val shmOpen   = bind("shm_open",   FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT), captureErr)
+    // Darwin declares shm_open(const char*, int, ...): the mode is variadic, and Apple's arm64 ABI passes
+    // variadic arguments on the stack, so the binding must say so or the mode is read from the wrong place.
+    // glibc's is a plain three-argument function.
+    val shmOpen   =
+      if onMac then bind("shm_open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT), Linker.Option.firstVariadicArg(2), captureErr)
+      else          bind("shm_open", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT), captureErr)
     val mmap      = bind("mmap",       FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG), captureErr)
     val ftruncate = bind("ftruncate",  FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG), captureErr)
     val munmap    = bind("munmap",     FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG))
