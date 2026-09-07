@@ -97,16 +97,35 @@ class NativeTest {
         finally PosixSocket.closeQuietly(fd)
     finally tmp.close()
 
-  /** A python3 that speaks `SCM_RIGHTS` (`socket.send_fds`, 3.9+) and POSIX shared memory, if there is one. */
-  private lazy val python: Option[String] =
-    List("/usr/bin/python3", "python3").find{ py =>
+  private val windows = System.getProperty("os.name", "").toLowerCase.contains("win")
+
+  /** A python3 that can run `check`, if there is one (Windows runners spell it `python`). */
+  private def pythonWith(check: String): Option[String] =
+    val candidates = if windows then List("python", "python3") else List("/usr/bin/python3", "python3")
+    candidates.find{ py =>
       try
-        val p = new ProcessBuilder(py, "-c", "import socket, multiprocessing.shared_memory; socket.send_fds").start()
+        val p = new ProcessBuilder(py, "-c", check).start()
         val done = p.waitFor(20, TimeUnit.SECONDS)
         if !done then p.destroyForcibly() __ Unit
         done && p.exitValue == 0
       catch case e if e.catchable => false
     }
+
+  /** Speaks `SCM_RIGHTS` (`socket.send_fds`, 3.9+) and POSIX shared memory: the descriptor-passing peer. */
+  private lazy val pythonFds: Option[String] = pythonWith("import socket, multiprocessing.shared_memory; socket.send_fds")
+
+  /** Has `multiprocessing.shared_memory` (3.8+): the named-object peer, on Windows too. */
+  private lazy val pythonShm: Option[String] = pythonWith("import multiprocessing.shared_memory")
+
+  /** Retries an `Ask` for up to five seconds, for a peer that is still getting started. */
+  private def eventually[A](a: => Ask[A]): Ask[A] =
+    var r = a
+    var tries = 0
+    while r.isAlt && tries < 200 do
+      Thread.sleep(25)
+      r = a
+      tries += 1
+    r
 
   private def startPython(py: String, dir: Path, name: String, script: String, args: String*): Process =
     val file = dir.resolve(name)
@@ -515,7 +534,9 @@ class NativeTest {
 
       // Honest interop: python speaks SCM_RIGHTS natively.  The region is a memfd where there is one
       // (Linux) and a POSIX shared-memory object otherwise (macOS, through multiprocessing.shared_memory).
-      python.foreach{ py =>
+      // Every Linux and macOS runner has a python 3.9+, so the interop must not quietly skip.
+      T ~ pythonFds.isDefined ==== true
+      pythonFds.foreach{ py =>
         // python offers a region with the kse header; we accept, read, and write back where python can see it
         val hostSock = dir.resolve("pyhost.sock")
         val host = startPython(py, dir, "pyhost.py",
@@ -642,6 +663,23 @@ class NativeTest {
         T ~ finish(db) ==== "ok"
       }
 
+      // a received descriptor is measured when no count is given: exact on Linux (lseek on a memfd), whole
+      // pages on macOS (fstat on a shm object, which does not seek)
+      locally:
+        val (s1, s2) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
+        val one = Mem.alloc[Byte](1L)
+        T ~ Resource.nice(SharedMemory.createFd[Long](3))(_.close()){ anon =>
+          anon.use(_.use(m => m(2) = 9L))
+          T ~ s1.sendOnceWithFd(one, 1L, anon.op(_.fd)).count ==== 1L
+          T ~ s2.recvMsg(one).count ==== 1L
+          val got = s2.takeFd()
+          must(Resource.nice(SharedMemory.attachFd[Long](got))(_.close()){ o =>
+            val n = o.op(_.length)
+            (n == 3L || (n > 3L && (n * 8) % 4096 == 0), o.op(_(2)))
+          })
+        } ==== Is((true, 9L))
+        s1.close(); s2.close()
+
       T ~ FdSock.adopt(-1).isAlt  ==== true
       T ~ FdSock.adopt(999_999).isAlt ==== true   // fd numbers allocate lowest-first; this one cannot be open
 
@@ -683,6 +721,80 @@ class NativeTest {
     if SharedMemory.ramDirectory.isDefined then T ~ SharedMemory.posixShmDir.resolve(made.stripPrefix("/")).exists ==== false
     // a name that never existed, or a size that makes no sense, is an error, not a throw
     T ~ Resource.nice(SharedMemory.attach[Long]("/kse-never-made-this", 1))(_.close())(_ => 0).isAlt ==== true
-    T ~ Resource.nice(SharedMemory.attach[Long](made, 0))(_.close())(_ => 0).isAlt                   ==== true
+    T ~ Resource.nice(SharedMemory.attach[Long]("/kse-never-made-this", 0))(_.close())(_ => 0).isAlt ==== true
+    T ~ Resource.nice(SharedMemory.attach[Long](made, -1))(_.close())(_ => 0).isAlt                  ==== true
     T ~ SharedMemory.createNamed[Long](0).isAlt                                                      ==== true
+
+    // a name of the caller's choosing, and a size the object itself reports: the receiving side of a
+    // protocol, where a peer says "attach to X" and nothing more
+    val pid = ProcessHandle.current().pid()
+    val chosen = s"/kse-chosen-$pid"
+    T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 4))(_.close()){ later =>
+      T ~ later.op(_.name) ==== chosen
+      later.use(_.use(_.set()(i => i + 1)))    // 1, 2, 3, 4
+      T ~ Resource.nice(SharedMemory.attach[Long](chosen, 0))(_.close()){ o =>
+        val n = o.op(_.length)
+        T ~ (n == 4L || (n > 4L && (n * 8) % 4096 == 0)) ==== true   // exact on Linux; whole pages elsewhere
+        o.op(_(3))
+      } ==== 4L
+      T ~ SharedMemory.createNamed[Long](chosen, 4).isAlt ==== true   // the name is taken: an error, not a retry
+      later.op(_.op(_(0)))
+    } ==== 1L
+    T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 2))(_.close()){ _.op(_.name) } ==== Is(chosen)   // free again once closed
+    T ~ SharedMemory.createNamed[Long]("", 1).isAlt ==== true
+    if PosixSocket.supported then T ~ SharedMemory.createNamed[Long]("/a/b", 1).isAlt ==== true
+
+    // a foreign creator: python makes a named object and we attach by name alone; then the reverse.  The
+    // same script runs on all three platforms; python supplies the POSIX slash itself.  Linux and macOS
+    // always have a python that can do this, so there the interop must not quietly skip.
+    if PosixSocket.supported then T ~ pythonShm.isDefined ==== true
+    pythonShm.foreach{ py =>
+      val dir = Files.createTempDirectory("kse-pyshm-")
+      val pyName = s"kse-pyshm-$pid"
+      val kseName = if windows then pyName else "/" + pyName
+      val host = startPython(py, dir, "pyhost.py",
+        """import struct, sys, time
+          |from multiprocessing import shared_memory
+          |shm = shared_memory.SharedMemory(name=sys.argv[1], create=True, size=32)
+          |m = shm.buf
+          |m[0:32] = struct.pack('<4q', 5, 6, 7, 8)
+          |deadline = time.time() + 10
+          |while time.time() < deadline and struct.unpack('<q', m[24:32])[0] != 55:
+          |    time.sleep(0.01)
+          |print(struct.unpack('<q', m[24:32])[0])
+          |del m
+          |shm.close()
+          |shm.unlink()
+          |""".stripMargin, pyName)
+      T ~ Resource.nice(eventually(SharedMemory.attach[Long](kseName, 0)))(_.close()){ o =>
+        val v = (o.op(_.length) >= 4L, o.op(_(0)), o.op(_(3)))
+        o.use(m => m(3) = 55L)
+        v
+      } ==== Is((true, 5L, 8L))
+      T ~ finish(host) ==== "55"
+
+      T ~ Resource.nice(SharedMemory.createNamed[Long](kseName, 3))(_.close()){ later =>
+        later.use(_.use(m => m(0) = 123L))
+        val cl = startPython(py, dir, "pyclient.py",
+          """import struct, sys, os
+            |from multiprocessing import shared_memory
+            |try:
+            |    shm = shared_memory.SharedMemory(name=sys.argv[1], track=False)
+            |except TypeError:
+            |    shm = shared_memory.SharedMemory(name=sys.argv[1])
+            |    if os.name != 'nt':
+            |        from multiprocessing import resource_tracker
+            |        resource_tracker.unregister(shm._name, 'shared_memory')
+            |m = shm.buf
+            |print(struct.unpack('<q', m[0:8])[0], shm.size >= 24)
+            |m[8:16] = struct.pack('<q', 777)
+            |del m
+            |shm.close()
+            |""".stripMargin, pyName)
+        T ~ finish(cl) ==== "123 True"
+        later.op(_.op(_(1)))
+      } ==== Is(777L)
+      List("pyhost.py", "pyclient.py").foreach(f => Files.deleteIfExists(dir.resolve(f)) __ Unit)
+      Files.deleteIfExists(dir) __ Unit
+    }
 }

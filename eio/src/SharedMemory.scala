@@ -27,8 +27,20 @@ import kse.flow.{given, _}
   * process, in any language) — POSIX `shm_open` names on Linux/macOS, `CreateFileMapping` names on Windows —
   * via native `shm_open`/`mmap` (macOS) and `OpenFileMapping`/`MapViewOfFile` (Windows), and a plain
   * `FileChannel.map` of `<posixShmDir>/name` on Linux.  [[createNamed]] is the matching write side: it
-  * creates a fresh, randomly-named, RAM-resident object and returns the owning `Tidy.Later`, whose cleanup
-  * (at `close`, JVM shutdown, or GC) unmaps and destroys it.
+  * creates a fresh RAM-resident object under a random name, or under a name the caller (or a protocol)
+  * chose, and returns the owning `Tidy.Later`, whose cleanup (at `close`, JVM shutdown, or GC) unmaps and
+  * destroys it.  Either side can start: a process told only a name attaches with a count of 0 and takes the
+  * size from the object itself, so memory is received as easily as it is given.
+  *
+  * Names and lifetimes differ between the platforms in ways a protocol must know.  A POSIX name is unlinked
+  * when its creator closes: the name is gone for newcomers at once, while every existing mapping stays valid
+  * and the memory is freed when the last unmaps.  A Windows section has no unlink: the name is findable
+  * while any handle to the section is open, and the creator holds one until `close`, so the same rule
+  * follows — attach while the creator lives — with the difference that an attacher who has closed its own
+  * handle (as [[attach]] does, keeping only the view) does not keep the name alive for a third party.  A
+  * discovered size is the object's, not the creator's: exact on Linux, where a tmpfs file has the length it
+  * was given, but rounded up to whole pages on macOS and Windows, so a protocol that needs the logical
+  * length must carry it.
   *
   * [[createFd]] / [[attachFd]], with [[FdSock]] sockets to carry the descriptor, are the anonymous
   * (`SCM_RIGHTS`) alternative on Linux and macOS: no name in any namespace, kernel-refcounted lifetime
@@ -126,11 +138,11 @@ object SharedMemory {
   private def posixName(name: String): String = if name.startsWith("/") then name else "/" + name
 
   /** Attach to a named shared-memory object created elsewhere (another process, possibly another language)
-    * and view its first `n` elements of type `A` as a `Mem.Owned`.  We do not own the object's name or
-    * lifetime, so `close` only unmaps our view — it never unlinks the object.
+    * and view its first `n` elements of type `A` as a `Mem.Owned` — or, with `n = 0`, all of it, sized by the
+    * object itself (exact on Linux; rounded up to whole pages on macOS and Windows, see the class note).  We
+    * do not own the object's name or lifetime, so `close` only unmaps our view — it never unlinks the object.
     *
-    * The element count `n` is supplied rather than discovered: it must be agreed out-of-band anyway, and
-    * taking it lets us skip platform-specific size queries.  `name` is interpreted in the host OS namespace:
+    * `name` is interpreted in the host OS namespace:
     *  - Linux: a POSIX `shm_open` name (`/foo`), exposed as the file `<posixShmDir>/foo` and mapped directly.
     *  - macOS: a POSIX `shm_open` name (`/foo`), attached via native `shm_open` + `mmap`.
     *  - Windows: a `CreateFileMapping` object name (optionally `Local\`/`Global\`-qualified), opened via
@@ -140,11 +152,12 @@ object SharedMemory {
     Ask:
       attachBytes[A](name, n * Mem.bytesOf[A], readOnly)
 
-  /** Worker for [[attach]]: map `bytes` bytes of the named object, dispatched by host OS.  Throws on failure
-    * (callers wrap it in `Ask`); the returned `Mem.Owned` unmaps but never unlinks on `close`.
+  /** Worker for [[attach]]: map `bytes` bytes of the named object (0 = all of it, as measured), dispatched by
+    * host OS.  Throws on failure (callers wrap it in `Ask`); the returned `Mem.Owned` unmaps but never
+    * unlinks on `close`.
     */
   def attachBytes[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
-    if bytes <= 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, got $bytes bytes")
+    if bytes < 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, or 0 to discover it; got $bytes bytes")
     if onLinux then attachPosixFile[A](name, bytes, readOnly)
     else if onMac then attachPosixNative[A](name, bytes, readOnly)
     else if onWindows then attachWindows[A](name, bytes, readOnly)
@@ -161,7 +174,10 @@ object SharedMemory {
         val ch =
           if readOnly then FileChannel.open(p, StandardOpenOption.READ)
           else FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE)
-        try ch.map(if readOnly then FileChannel.MapMode.READ_ONLY else FileChannel.MapMode.READ_WRITE, 0L, bytes, a)
+        try
+          val n = if bytes > 0 then bytes else ch.size()
+          if n <= 0 then throw new java.io.IOException(s"shared-memory object '$name' is empty")
+          ch.map(if readOnly then FileChannel.MapMode.READ_ONLY else FileChannel.MapMode.READ_WRITE, 0L, n, a)
         finally ch.close()
       }
     catch
@@ -197,7 +213,18 @@ object SharedMemory {
     val lseek     = bind("lseek",      FunctionDescriptor.of(JAVA_LONG, JAVA_INT, JAVA_LONG, JAVA_INT), captureErr)
     val fcntl     = bind("fcntl",      FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_INT, JAVA_INT), Linker.Option.firstVariadicArg(2), captureErr)
     lazy val memfdCreate = bind("memfd_create", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT), captureErr)   // Linux-only symbol; touch only there
+    // Darwin only: the 64-bit-inode fstat is plain `fstat` on arm64 and `fstat$INODE64` on x86_64, and glibc
+    // before 2.33 exports neither name (Linux measures with lseek instead).  st_size is byte 96 of that struct.
+    lazy val fstat =
+      val sym = look.find("fstat$INODE64").or(() => look.find("fstat")).orElseThrow(() => new UnsatisfiedLinkError("missing native symbol: fstat"))
+      linker.downcallHandle(sym, FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS), captureErr)
   }
+
+  /** macOS: the size of the object behind `fd` by `fstat` (page-rounded for a `shm_open` object); -1 on
+    * failure, with the errno left in `cap`. */
+  private def darwinSize(cap: MemorySegment, tmp: Arena, fd: Int): Long =
+    val st = tmp.allocate(512L)
+    if (PosixNative.fstat.invoke(cap, fd, st): Int) != 0 then -1L else st.get(JAVA_LONG, 96L)
 
   private def attachPosixNative[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
     val arena = Arena.ofShared()
@@ -209,10 +236,12 @@ object SharedMemory {
           val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(posixName(name)), if readOnly then 0 else 0x2, 0)  // O_RDONLY / O_RDWR
           if fd < 0 then throw new java.io.IOException(s"shm_open failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
           try
+            val n = if bytes > 0 then bytes else darwinSize(cap, tmp, fd)
+            if n <= 0 then throw new java.io.IOException(s"could not measure '$name' (fstat gave $n, errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
             val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
-            val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, prot, 0x1, fd, 0L)  // MAP_SHARED
+            val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, n, prot, 0x1, fd, 0L)  // MAP_SHARED
             if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")  // MAP_FAILED
-            val whole = view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
+            val whole = view.reinterpret(n, a, s => (PosixNative.munmap.invoke(s, n): Int) __ Unit)
             if readOnly then whole.asReadOnly else whole   // the pages are PROT_READ: a write must throw, not fault
           finally (PosixNative.close.invoke(fd): Int) __ Unit
         finally tmp.close()
@@ -239,7 +268,15 @@ object SharedMemory {
     val mapView       = bind("MapViewOfFile",      FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT, JAVA_LONG), captureErr)
     val unmapView     = bind("UnmapViewOfFile",    FunctionDescriptor.of(JAVA_INT, ADDRESS))
     val closeHandle   = bind("CloseHandle",        FunctionDescriptor.of(JAVA_INT, ADDRESS))
+    val virtualQuery  = bind("VirtualQuery",       FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG), captureErr)
   }
+
+  /** Windows: the size of the mapped view at `view` — `RegionSize`, byte 24 of a 64-bit `MEMORY_BASIC_INFORMATION`,
+    * which for a view of a pagefile section is its page-rounded length; 0 on failure, with the code in `cap`. */
+  private def windowsViewSize(cap: MemorySegment, tmp: Arena, view: MemorySegment): Long =
+    val mbi = tmp.allocate(48L)
+    val got: Long = WindowsNative.virtualQuery.invoke(cap, view, mbi, 48L)
+    if got == 0L then 0L else mbi.get(JAVA_LONG, 24L)
 
   private def attachWindows[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
     val access = if readOnly then 0x0004 else 0x0004 | 0x0002   // FILE_MAP_READ [| FILE_MAP_WRITE]
@@ -252,9 +289,13 @@ object SharedMemory {
           val handle: MemorySegment = WindowsNative.openMapping.invoke(cap, access, 0, tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
           if handle.address() == 0L then throw new java.io.IOException(s"OpenFileMapping failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
           try
-            val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)
+            val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)   // 0 bytes maps the whole section
             if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-            val whole = view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
+            val n = if bytes > 0 then bytes else windowsViewSize(cap, tmp, view)
+            if n <= 0 then
+              (WindowsNative.unmapView.invoke(view): Int) __ Unit
+              throw new java.io.IOException(s"could not measure the view of '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+            val whole = view.reinterpret(n, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
             if readOnly then whole.asReadOnly else whole   // FILE_MAP_READ pages: a write must throw, not fault
           finally (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
         finally tmp.close()
@@ -297,16 +338,55 @@ object SharedMemory {
     Ask:
       createdLater[A](n * Mem.bytesOf[A])
 
-  /** Worker for [[createNamed]]: create `bytes` bytes and wrap the result in a backstopped `Tidy.Later`. */
+  /** As [[createNamed]], under a name of the caller's choosing — the form for a protocol whose peer dictates
+    * the rendezvous name, so that this side can receive as well as give.  A name already in use is an error,
+    * never a retry.  On Linux and macOS the name is a POSIX one (a leading `/` is supplied if missing; no
+    * other `/`; at most 31 bytes on macOS); on Windows it is a `CreateFileMapping` name, `Local\`/`Global\`
+    * prefix and all, used exactly as given.
+    */
+  inline def createNamed[A <: Mem.Type](name: String, n: Long): Ask[Tidy.Later[Created[A]]] =
+    Ask:
+      createdLater[A](name, n * Mem.bytesOf[A])
+
+  /** Worker for [[createNamed]]: create `bytes` bytes under a random name and wrap the result in a
+    * backstopped `Tidy.Later`. */
   def createdLater[A <: Mem.Type](bytes: Long): Tidy.Later[Created[A]] =
     if bytes <= 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, got $bytes bytes")
     Resource.closedLater(createBytes[A](bytes))(_.close())
 
+  /** Worker for the named [[createNamed]]: create `bytes` bytes under `name` and wrap the result in a
+    * backstopped `Tidy.Later`. */
+  def createdLater[A <: Mem.Type](name: String, bytes: Long): Tidy.Later[Created[A]] =
+    if bytes <= 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, got $bytes bytes")
+    Resource.closedLater(createBytesAs[A](name, bytes))(_.close())
+
+  /** A random name, drawn again on a clash. */
   private def createBytes[A <: Mem.Type](bytes: Long): Created[A] =
-    if onLinux then createPosixFile[A](bytes)
-    else if onMac then createPosixNative[A](bytes)
-    else if onWindows then createWindows[A](bytes)
+    if onLinux then withRetries(createPosixFile[A](freshName(), bytes))
+    else if onMac then withRetries(createPosixNative[A](freshName(), bytes))
+    else if onWindows then withRetries(createWindows[A](freshName(), bytes))
     else throw new UnsupportedOperationException(s"shared-memory creation is unsupported on '$osName'")
+
+  /** The caller's name, checked for the platform's form; a clash is a failure. */
+  private def createBytesAs[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+    val c =
+      if onLinux then createPosixFile[A](checkedPosixName(name), bytes)
+      else if onMac then createPosixNative[A](checkedPosixName(name), bytes)
+      else if onWindows then
+        if name.isEmpty then throw new IllegalArgumentException("a shared-memory name must not be empty")
+        createWindows[A](name, bytes)
+      else throw new UnsupportedOperationException(s"shared-memory creation is unsupported on '$osName'")
+    if c eq null then throw new java.io.IOException(s"a shared-memory object named '$name' already exists")
+    c
+
+  /** A caller's POSIX name in canonical form: one leading `/`, no other, and within macOS's 31 bytes there. */
+  private def checkedPosixName(name: String): String =
+    val n = posixName(name)
+    if n.length < 2 || n.indexOf('/', 1) >= 0 then
+      throw new IllegalArgumentException(s"'$name' is not a POSIX shared-memory name (one leading '/', no other)")
+    if onMac && n.getBytes(StandardCharsets.UTF_8).length > 31 then
+      throw new IllegalArgumentException(s"'$name' is longer than the 31 bytes a macOS shared-memory name may have")
+    n
 
   /** Fail unless `posixShmDir` is a RAM filesystem, so a Linux create never silently spills to disk. */
   private def ensureRam(): Unit =
@@ -316,8 +396,9 @@ object SharedMemory {
     if fsType != "tmpfs" && fsType != "ramfs" then
       throw new java.io.IOException(s"$posixShmDir is on '$fsType', not a RAM filesystem; refusing to create disk-backed shared memory")
 
-  /** Draw random names until one is unused.  `once` returns `null` to signal a name clash (retry); a real
-    * post-creation failure throws straight through (no retry).  Five clashes means the namespace is borked. */
+  /** Draw random names until one is unused.  Each creator answers `null` for a name clash and nothing else, so
+    * a caller with a chosen name reports the clash while this one draws again; a real post-creation failure
+    * throws straight through.  Five clashes means the namespace is borked. */
   private def withRetries[A <: Mem.Type](once: => Created[A]): Created[A] =
     var c: Created[A] = null
     var i = 0
@@ -334,97 +415,91 @@ object SharedMemory {
 
   /** Linux: a POSIX object is a tmpfs file under `posixShmDir`, created exclusively (`CREATE_NEW`).  Destroy
     * = delete the file (= `shm_unlink`); the arena's `close` unmaps. */
-  private def createPosixFile[A <: Mem.Type](bytes: Long): Created[A] =
+  private def createPosixFile[A <: Mem.Type](name: String, bytes: Long): Created[A] =
     ensureRam()
-    withRetries:
-      val name = freshName()
-      val p = posixShmDir.resolve(name.stripPrefix("/"))
-      val ch =
-        try FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)
-        catch case _: java.nio.file.FileAlreadyExistsException => null
-      if ch eq null then null
+    val p = posixShmDir.resolve(name.stripPrefix("/"))
+    val ch =
+      try FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)
+      catch case _: java.nio.file.FileAlreadyExistsException => null
+    if ch eq null then null
+    else
+      val arena = Arena.ofShared()
+      try
+        val owned = Mem.Owned.create[A](arena){ a =>
+          try ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a) finally ch.close()
+        }
+        new Created[A](name, owned, () => Files.deleteIfExists(p) __ Unit)
+      catch
+        case e if e.catchable =>
+          arena.close()
+          Files.deleteIfExists(p) __ Unit
+          throw e
+
+  /** macOS: native `shm_open(O_CREAT|O_EXCL|O_RDWR)` + `ftruncate` + `mmap`.  Destroy = `shm_unlink`.  `errno`
+    * distinguishes a name clash (`EEXIST` → `null`) from a real failure (→ fail loud with the code). */
+  private def createPosixNative[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+    val tmp = Arena.ofConfined()
+    try
+      val cap = tmp.allocate(PosixNative.captureLayout)
+      val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(name), 0x0200 | 0x0800 | 0x0002, 0x180)  // O_CREAT|O_EXCL|O_RDWR, 0600
+      if fd < 0 then
+        val e = (PosixNative.errnoVH.get(cap, 0L): Int)
+        if e == 17 then null    // EEXIST: a clash, for the caller to retry or report
+        else throw new java.io.IOException(s"shm_open failed for '$name' (errno=$e)")
       else
         val arena = Arena.ofShared()
         try
+          if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
+            throw new java.io.IOException(s"ftruncate failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
           val owned = Mem.Owned.create[A](arena){ a =>
-            try ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a) finally ch.close()
+            val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, 0x3, 0x1, fd, 0L)  // PROT_READ|WRITE, MAP_SHARED
+            if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+            view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
           }
-          new Created[A](name, owned, () => Files.deleteIfExists(p) __ Unit)
+          new Created[A](name, owned, () => shmUnlink(name))
         catch
           case e if e.catchable =>
             arena.close()
-            Files.deleteIfExists(p) __ Unit
+            shmUnlink(name)
             throw e
-
-  /** macOS: native `shm_open(O_CREAT|O_EXCL|O_RDWR)` + `ftruncate` + `mmap`.  Destroy = `shm_unlink`.  `errno`
-    * distinguishes a name clash (`EEXIST` → retry) from a real failure (→ fail loud with the code). */
-  private def createPosixNative[A <: Mem.Type](bytes: Long): Created[A] =
-    withRetries:
-      val name = freshName()
-      val tmp = Arena.ofConfined()
-      try
-        val cap = tmp.allocate(PosixNative.captureLayout)
-        val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(name), 0x0200 | 0x0800 | 0x0002, 0x180)  // O_CREAT|O_EXCL|O_RDWR, 0600
-        if fd < 0 then
-          val e = (PosixNative.errnoVH.get(cap, 0L): Int)
-          if e == 17 then null    // EEXIST: name clash, retry
-          else throw new java.io.IOException(s"shm_open failed for '$name' (errno=$e)")
-        else
-          val arena = Arena.ofShared()
-          try
-            if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
-              throw new java.io.IOException(s"ftruncate failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-            val owned = Mem.Owned.create[A](arena){ a =>
-              val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, 0x3, 0x1, fd, 0L)  // PROT_READ|WRITE, MAP_SHARED
-              if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-              view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
-            }
-            new Created[A](name, owned, () => shmUnlink(name))
-          catch
-            case e if e.catchable =>
-              arena.close()
-              shmUnlink(name)
-              throw e
-          finally (PosixNative.close.invoke(fd): Int) __ Unit
-      finally tmp.close()
+        finally (PosixNative.close.invoke(fd): Int) __ Unit
+    finally tmp.close()
 
   /** Windows: native `CreateFileMappingW(INVALID_HANDLE_VALUE, …)` — a pagefile-backed (RAM) section — then
     * `MapViewOfFile`.  The creator *holds the section handle* for the region's lifetime so the name stays
     * openable by attachers; destroy = `CloseHandle` (after the arena unmaps the view). */
-  private def createWindows[A <: Mem.Type](bytes: Long): Created[A] =
-    withRetries:
-      val name = freshName()
-      val tmp = Arena.ofConfined()
-      try
-        val cap = tmp.allocate(WindowsNative.captureLayout)
-        val handle: MemorySegment = WindowsNative.createMapping.invoke(
-          cap,                                                     // captured GetLastError (prepended arg)
-          MemorySegment.ofAddress(-1L),                            // INVALID_HANDLE_VALUE: pagefile-backed, not a file
-          MemorySegment.NULL,                                      // default security
-          0x04,                                                    // PAGE_READWRITE
-          (bytes >>> 32).toInt, (bytes & 0xFFFFFFFFL).toInt,
-          tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
-        val lastErr = (WindowsNative.lastErrorVH.get(cap, 0L): Int)
-        if handle.address() == 0L then
-          throw new java.io.IOException(s"CreateFileMapping failed for '$name' (GetLastError=$lastErr)")   // real failure: fail loud
-        else if lastErr == 183 then                                // ERROR_ALREADY_EXISTS: name clash, retry
-          (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
-          null
-        else
-          val arena = Arena.ofShared()
-          try
-            val owned = Mem.Owned.create[A](arena){ a =>
-              val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, 0x0006, 0, 0, bytes)  // FILE_MAP_READ|WRITE
-              if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-              view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
-            }
-            new Created[A](name, owned, () => (WindowsNative.closeHandle.invoke(handle): Int) __ Unit)
-          catch
-            case e if e.catchable =>
-              arena.close()
-              (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
-              throw e
-      finally tmp.close()
+  private def createWindows[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+    val tmp = Arena.ofConfined()
+    try
+      val cap = tmp.allocate(WindowsNative.captureLayout)
+      val handle: MemorySegment = WindowsNative.createMapping.invoke(
+        cap,                                                     // captured GetLastError (prepended arg)
+        MemorySegment.ofAddress(-1L),                            // INVALID_HANDLE_VALUE: pagefile-backed, not a file
+        MemorySegment.NULL,                                      // default security
+        0x04,                                                    // PAGE_READWRITE
+        (bytes >>> 32).toInt, (bytes & 0xFFFFFFFFL).toInt,
+        tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
+      val lastErr = (WindowsNative.lastErrorVH.get(cap, 0L): Int)
+      if handle.address() == 0L then
+        throw new java.io.IOException(s"CreateFileMapping failed for '$name' (GetLastError=$lastErr)")   // real failure: fail loud
+      else if lastErr == 183 then                                // ERROR_ALREADY_EXISTS: a clash, for the caller to retry or report
+        (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
+        null
+      else
+        val arena = Arena.ofShared()
+        try
+          val owned = Mem.Owned.create[A](arena){ a =>
+            val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, 0x0006, 0, 0, bytes)  // FILE_MAP_READ|WRITE
+            if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+            view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
+          }
+          new Created[A](name, owned, () => (WindowsNative.closeHandle.invoke(handle): Int) __ Unit)
+        catch
+          case e if e.catchable =>
+            arena.close()
+            (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
+            throw e
+    finally tmp.close()
 
 
   ///////////////////////////////////////////////////////////////////////
@@ -533,16 +608,17 @@ object SharedMemory {
     finally tmp.close()
 
   /** Map a shared-memory descriptor received from another process (see [[FdSock.Conn.recvFd]]) as `n`
-    * items of `A`.  With `n = 0` the size is discovered from the descriptor itself (`lseek` to the end —
-    * works for any Linux descriptor and for plain files; macOS `shm_open`-style descriptors cannot be
-    * measured that way, so pass `n` there).  The descriptor is consumed either way: once mapped, the
+    * items of `A`.  With `n = 0` the size is discovered from the descriptor itself: `lseek` to the end on
+    * Linux (exact for a memfd or a file), `fstat` on macOS (where a `shm_open` object reports its length
+    * rounded up to whole pages, so a protocol that needs the logical length must carry it).  The descriptor
+    * is consumed either way: once mapped, the
     * mapping keeps the memory alive and the descriptor is closed; on failure it is closed too.
     * Linux/macOS only; needs `--enable-native-access`.
     */
   inline def attachFd[A <: Mem.Type](fd: Int, n: Long = 0L, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
     attachFdBytes[A](fd, n * Mem.bytesOf[A], readOnly)
 
-  /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure via `lseek`), consuming the descriptor.
+  /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure it, see [[attachFd]]), consuming the descriptor.
     * Unlike `attachFd`, nothing here asks how the mapping will be released: the caller owns the
     * returned `Mem.Owned` outright, and losing it leaks the mapping until process exit.  Prefer
     * `attachFd` (whose `Tidy.Nice` witness makes an enclosing `Resource` scope state the cleanup),
@@ -560,8 +636,8 @@ object SharedMemory {
             val size =
               if bytes > 0 then bytes
               else
-                val z: Long = PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END
-                if z <= 0 then Err ?# s"could not measure the shared descriptor (lseek gave $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
+                val z: Long = if onMac then darwinSize(cap, tmp, fd) else PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END; Darwin's shm descriptors do not seek
+                if z <= 0 then Err ?# s"could not measure the shared descriptor (got $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
                 z
             mapOwned[A](fd, size, readOnly, cap)
         finally (PosixNative.close.invoke(fd): Int) __ Unit   // consumed either way; a successful mapping keeps the memory
