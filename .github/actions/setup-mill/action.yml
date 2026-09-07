@@ -25,11 +25,16 @@ runs:
     - name: Fetch the Mill launcher
       shell: bash
       run: |
-        version=$(sed -nE 's|^//\| *mill-version: *||p' build.mill | tr -d ' \r')
+        version=$(sed -nE 's#^//[|] *mill-version: *##p' build.mill | tr -d ' \r')
+        if [ -z "$version" ]; then
+          echo "build.mill has no '//| mill-version:' header" >&2
+          exit 1
+        fi
         base="https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/$version/mill-dist-$version"
         if [ "$RUNNER_OS" = Windows ]; then
           curl -fsSL -o mill.bat "$base-mill.bat"
         else
-          curl -fsSL -o mill "$base-mill.sh" && chmod +x mill
+          curl -fsSL -o mill "$base-mill.sh"
+          chmod +x mill
         fi
         echo "Mill $version"
