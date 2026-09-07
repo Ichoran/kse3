@@ -426,8 +426,8 @@ object PosixSocket {
         val cap = capture(tmp)
         val sv = tmp.allocate(8L)
         if (Sys.socketpair.invoke(cap, AF_UNIX, sockType, 0, sv): Int) != 0 then Failed("socketpair", errnoOf(cap)).?
-        val a = guarded(sv.get(JAVA_INT, 0L))(closeQuietly)
-        val b = guarded(sv.get(JAVA_INT, 4L))(closeQuietly)
+        val a = sv.get(JAVA_INT, 0L).onFailure(closeQuietly)
+        val b = sv.get(JAVA_INT, 4L).onFailure(closeQuietly)
         val ca: Long = cloexec(cap, a)   // Result is transparent here: negative means -errno
         val cb: Long = if ca >= 0 then cloexec(cap, b) else ca
         if cb < 0 then Failed("fcntl(F_SETFD)", (-cb).toInt, "on a new socket pair").?

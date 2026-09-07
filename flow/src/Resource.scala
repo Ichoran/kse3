@@ -370,7 +370,7 @@ object Resource {
   /// assemble: acquire a chain of things and hand the survivors on      ///
   ////////////////////////////////////////////////////////////////////////
 
-  /** A value acquired inside [[assemble]] and registered with [[guarded]], to be released only if the assembly
+  /** A value acquired inside [[assemble]] and registered with `onFailure`, to be released only if the assembly
     * fails: the one kind of thing an `assemble` block may hand out, since anything held [[whileAssembling]] is
     * released as the block exits.  A `Guarded[R]` is an `R` — use it as one inside the block — but a bare `R`
     * is never a `Guarded[R]`, so a transient cannot be returned by mistake.  (A value *derived* from a
@@ -386,7 +386,7 @@ object Resource {
     def mapGuarded[S](f: R => S): Guarded[S] = f(g)
 
   /** The registry an [[assemble]] block adds to.  Releases run newest first, so a chain unwinds in reverse:
-    * [[apply]] for what survives on success and is released on failure, [[whileAssembling]] for what is
+    * [[onFailure]] for what survives on success and is released on failure, [[whileAssembling]] for what is
     * released either way.  For one thread's use, within one block.
     */
   final class Undo private[Resource] () {
@@ -394,7 +394,7 @@ object Resource {
     private var entries: List[Entry] = Nil
 
     /** Registers `r` to be released only if the assembly fails, answering it as the [[Guarded]] the block may hand out. */
-    def apply[R](r: R)(release: R => Unit): Guarded[R] =
+    def onFailure[R](r: R)(release: R => Unit): Guarded[R] =
       entries = new Entry(() => release(r), false) :: entries
       r
 
@@ -421,22 +421,22 @@ object Resource {
   }
 
   /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
-    * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, [[guarded]] registers what
-    * is meant to survive, releasing it only if the block fails; [[whileAssembling]] registers a transient,
-    * released either way.  Releases run newest first, so the chain unwinds in reverse of its acquisition.  The block fails by
+    * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, `x.onFailure(release)`
+    * registers `x` as meant to survive, releasing it only if the block fails; [[whileAssembling]] registers a
+    * transient, released either way.  Releases run newest first, so the chain unwinds in reverse of its acquisition.  The block fails by
     * exception or by early return (`.?` to an enclosing boundary) alike, and succeeds only if it completes and
     * every transient releases cleanly — if one does not, the survivors are undone too and that failure is
     * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
     * return there is nothing to attach it to, and it is dropped.  Only [[Guarded]] values, singly or in a
-    * tuple, may be returned — what [[guarded]] answered, or what `mapGuarded` built from it — and the caller
+    * tuple, may be returned — what `onFailure` answered, or what `mapGuarded` built from it — and the caller
     * receives them bare.
     * {{{
     * Resource.assemble:
     *   val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())   // gone when the block exits
     *   val fd  = Resource.whileAssembling(open(name))(close)               // the mapping keeps the memory: transient too
     *   size(fd, bytes)
-    *   guarded(name)(unlink) __ Unit                                       // only if we fail from here on
-    *   val arena = guarded(Arena.ofShared())(_.close())                    // survives: Guarded[Arena], usable as an Arena
+    *   name.onFailure(unlink) __ Unit                                      // only if we fail from here on
+    *   val arena = Arena.ofShared().onFailure(_.close())                   // survives: Guarded[Arena], usable as an Arena
     *   arena.mapGuarded(a => new Region(name, map(fd, a)))                 // the result, guarded because built from one
     * }}}
     */
@@ -524,9 +524,11 @@ object Assembled {
     }
 }
 
-/** Within [[Resource.assemble]]: registers `r` to be released only if the assembly fails, and answers it as a
-  * [[Resource.Guarded]], the form the block may hand out. */
-def guarded[R](r: R)(release: R => Unit)(using u: Resource.Undo): Resource.Guarded[R] = u(r)(release)
+extension [R](r: R)
+  /** Within [[Resource.assemble]]: `r`, already made, is released only if the assembly fails, and is answered
+    * as a [[Resource.Guarded]], the form the block may hand out.  Reads in the order things happen — the value
+    * exists, and from here its undo is armed — which `guarded(r)` did not. */
+  def onFailure(release: R => Unit)(using u: Resource.Undo): Resource.Guarded[R] = u.onFailure(r)(release)
 
 def manage[A](rsc: Tidy[A] ?=> A)(done: Tidy[A])(using manager: Resource.Manager): A =
   val r = rsc(using done)

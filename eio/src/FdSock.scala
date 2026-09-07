@@ -250,7 +250,7 @@ object FdSock {
             else if e != PosixSocket.Errno.EINTR then PosixSocket.Failed("recvmsg", e).?
         var first = -1
         PosixSocket.CMsg.forEachFd(ctrl, PosixSocket.MsgHdr.controlLength(mh)){ f2 => if first < 0 then first = f2 else PosixSocket.closeQuietly(f2) }
-        val got = guarded(first)(PosixSocket.closeQuietly)   // -1 closes nothing; a failure from here on discards the descriptor
+        val got = first.onFailure(PosixSocket.closeQuietly)   // -1 closes nothing; a failure from here on discards the descriptor
         val flags = PosixSocket.MsgHdr.flagsOf(mh)
         if (flags & PosixSocket.MSG_CTRUNC) != 0 then Err ?# "control data truncated; descriptor discarded"
         if (flags & PosixSocket.MSG_TRUNC) != 0 then Err ?# s"message truncated (buffer holds only ${buf.length} bytes); descriptor discarded"
@@ -316,7 +316,7 @@ object FdSock {
             val e = PosixSocket.errnoOf(cap)
             if e == PosixSocket.Errno.EAGAIN then PosixSocket.Failed("accept", e, s"timed out at $path").?
             else if e != PosixSocket.Errno.EINTR then PosixSocket.Failed("accept", e, s"at $path").?
-        val accepted = guarded(c)(PosixSocket.closeQuietly)
+        val accepted = c.onFailure(PosixSocket.closeQuietly)
         PosixSocket.cloexec(cap, accepted) __ Unit
         setRcvTimeout(cap, tmp, accepted, timeoutMs).?
         accepted.mapGuarded(new Conn(_, timeoutMs))
@@ -353,11 +353,11 @@ object FdSock {
     Resource.assemble:
       val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
       val cap = PosixSocket.capture(tmp)
-      val fd = guarded(newSocket(cap).?)(PosixSocket.closeQuietly)
+      val fd = (newSocket(cap).?).onFailure(PosixSocket.closeQuietly)
       val sa = sockaddr(tmp, path).?
       if (PosixSocket.Sys.bind.invoke(cap, fd, sa, PosixSocket.SockAddrUn.size): Int) != 0 then
         PosixSocket.Failed("bind", PosixSocket.errnoOf(cap), s"at $path").?
-      guarded(path)(p => Files.deleteIfExists(p) __ Unit) __ Unit   // bind made the socket file; a failure from here on must not leave it
+      path.onFailure(p => Files.deleteIfExists(p) __ Unit) __ Unit   // bind made the socket file; a failure from here on must not leave it
       if (PosixSocket.Sys.listen.invoke(cap, fd, 16): Int) != 0 then
         PosixSocket.Failed("listen", PosixSocket.errnoOf(cap), s"at $path").?
       val ms = millisOf(timeout)
@@ -370,7 +370,7 @@ object FdSock {
     Resource.assemble:
       val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
       val cap = PosixSocket.capture(tmp)
-      val fd = guarded(newSocket(cap).?)(PosixSocket.closeQuietly)
+      val fd = (newSocket(cap).?).onFailure(PosixSocket.closeQuietly)
       val sa = sockaddr(tmp, path).?
       if (PosixSocket.Sys.connect.invoke(cap, fd, sa, PosixSocket.SockAddrUn.size): Int) != 0 then
         PosixSocket.Failed("connect", PosixSocket.errnoOf(cap), s"at $path").?
