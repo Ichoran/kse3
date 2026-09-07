@@ -12,6 +12,7 @@ import org.junit.Assert._
 import java.lang.foreign.{Arena, Linker, FunctionDescriptor}
 import java.lang.foreign.ValueLayout.{ADDRESS, JAVA_INT, JAVA_LONG, JAVA_SHORT}
 import java.nio.file.{Files, Path}
+import java.nio.file.attribute.PosixFilePermissions
 import java.util.concurrent.{SynchronousQueue, TimeUnit}
 
 
@@ -725,6 +726,16 @@ class NativeTest {
     T ~ Resource.nice(SharedMemory.attach[Long](made, -1))(_.close())(_ => 0).isAlt                  ==== true
     T ~ SharedMemory.createNamed[Long](0).isAlt                                                      ==== true
 
+    // a count is judged before it is multiplied, so an overflow can pass neither for a size nor for the
+    // discovery signal; and a name with a NUL, which the OS would cut short, is refused on both sides
+    def saysWhy[A](a: Ask[A], word: String): Boolean = a.fold(_ => false)(e => e.toString.contains(word))
+    T ~ saysWhy(Resource.nice(SharedMemory.attach[Long]("/kse-any", 1L << 61))(_.close())(_ => 0), "overflow") ==== true
+    T ~ saysWhy(SharedMemory.createNamed[Long](Long.MaxValue), "overflow")                                    ==== true
+    T ~ saysWhy(SharedMemory.createNamed[Long]("/kse-huge", 1L << 61), "overflow")                            ==== true
+    T ~ saysWhy(SharedMemory.createNamed[Long]("/kse-nul\u0000x", 1), "NUL")                                 ==== true
+    T ~ saysWhy(Resource.nice(SharedMemory.attach[Long]("/kse-nul\u0000x", 0))(_.close())(_ => 0), "NUL")   ==== true
+    T ~ SharedMemory.freshName().startsWith("/kse-")                                                          ==== true
+
     // a name of the caller's choosing, and a size the object itself reports: the receiving side of a
     // protocol, where a peer says "attach to X" and nothing more
     val pid = ProcessHandle.current().pid()
@@ -738,8 +749,24 @@ class NativeTest {
         o.op(_(3))
       } ==== 4L
       T ~ SharedMemory.createNamed[Long](chosen, 4).isAlt ==== true   // the name is taken: an error, not a retry
+      if PosixSocket.linux then   // the default is the creator's account alone, whatever the umask
+        T ~ PosixFilePermissions.toString(Files.getPosixFilePermissions(SharedMemory.posixShmDir.resolve(chosen.drop(1)))) ==== "rw-------"
       later.op(_.op(_(0)))
     } ==== 1L
+
+    // who may open it: Everyone admits any local account that learns the name.  Windows builds a DACL from
+    // SDDL (a bad string is an error, so the binding is live); Linux applies the mode exactly; macOS asks
+    // shm_open for it and the umask may narrow the writes, never the reads
+    T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 2, SharedMemory.Access.Everyone))(_.close()){ later =>
+      T ~ Resource.nice(SharedMemory.attach[Long](chosen, 0))(_.close()){ _.op(_.length) >= 2L } ==== Is(true)
+      if PosixSocket.linux then
+        T ~ PosixFilePermissions.toString(Files.getPosixFilePermissions(SharedMemory.posixShmDir.resolve(chosen.drop(1)))) ==== "rw-rw-rw-"
+      if PosixSocket.mac then T ~ (darwinShmMode(chosen) & 0x124) ==== 0x124
+      later.op(_.op(_.length))
+    } ==== Is(2L)
+    val odd = SharedMemory.Access.Custom(0x180, "this is not SDDL")
+    if windows then T ~ saysWhy(SharedMemory.createNamed[Long](chosen, 1, odd), "security descriptor") ==== true
+    else T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 1, odd))(_.close()){ _.op(_.name) } ==== Is(chosen)
     T ~ Resource.nice(SharedMemory.createNamed[Long](chosen, 2))(_.close()){ _.op(_.name) } ==== Is(chosen)   // free again once closed
     T ~ SharedMemory.createNamed[Long]("", 1).isAlt ==== true
     if PosixSocket.supported then T ~ SharedMemory.createNamed[Long]("/a/b", 1).isAlt ==== true

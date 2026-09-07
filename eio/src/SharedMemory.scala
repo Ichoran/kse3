@@ -10,10 +10,12 @@ import java.lang.invoke.MethodHandle
 import java.nio.channels.FileChannel
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Path, Files, StandardOpenOption}
+import java.nio.file.attribute.{PosixFilePermission, PosixFilePermissions}
 import java.time.Duration
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
+import kse.maths.{given, _}
 
 
 /** RAM-backed off-heap memory shared between processes (or threads) by mapping the same path read-write.
@@ -42,6 +44,30 @@ import kse.flow.{given, _}
   * was given, but rounded up to whole pages on macOS and Windows, so a protocol that needs the logical
   * length must carry it.
   *
+  * A Windows service and its clients need two things a single-session program does not.  Sessions have
+  * separate namespaces, so a name created by a service (session 0) is invisible to a desktop client unless
+  * it is `Global\`-qualified; creating a `Global\` name takes `SeCreateGlobalPrivilege`, which services have
+  * and desktop programs do not, while opening one takes nothing.  And the default DACL admits only the
+  * creating account, as POSIX mode 0600 does.  So the working pattern is: the service creates `Global\<name>`
+  * with an [[Access]] that admits its clients, and the clients attach — whichever way the data flows after.
+  * The same [[Access]] sets the POSIX mode, so one program serves all three platforms:
+  * {{{
+  * // the service, at start-up: a namespaced name it chose, open to every local account
+  * val name = (if windows then "Global\\" else "/") + "my-svc-" + SharedMemory.freshName().drop(5)
+  * Resource.nice(SharedMemory.createNamed[Long](name, 1024, SharedMemory.Access.Everyone))(_.close()){ later =>
+  *   later.use(_.use(m => m(0) = 0L))       // element 0 says how many elements are meaningful; write it last
+  *   tell(name)                             // over whatever channel the clients already have
+  *   serve(later)
+  * }
+  * // a client, in any session and account, told only the name
+  * Resource.nice(SharedMemory.attach[Long](name, 0))(_.close()){ view =>   // sized by the OS: whole pages, not 1024
+  *   val used = view.op(_(0))                                              // the meaningful length is the protocol's
+  *   ...
+  * }
+  * }}}
+  * `Mem.Atom` gives the atomics such a protocol needs inside the region; the protocol itself — who writes
+  * what, and how a reader knows it is complete — is the caller's to state.
+  *
   * [[createFd]] / [[attachFd]], with [[FdSock]] sockets to carry the descriptor, are the anonymous
   * (`SCM_RIGHTS`) alternative on Linux and macOS: no name in any namespace, kernel-refcounted lifetime
   * (kill every holder, however rudely, and the memory is reclaimed), and on Linux a seal against shrinking
@@ -67,6 +93,17 @@ object SharedMemory {
       Option(System.getProperty("kse.eio.shmdir")).map(Path.of(_)).toList :::
       List(Path.of("/dev/shm"), Path.of("/run/shm"))
     candidates.find(p => Files.isDirectory(p) && Files.isWritable(p))
+  /** The byte size of `n` elements of `per` bytes each, judged before it is multiplied: a negative count is
+    * refused, a zero count is refused unless `discoverable` (where it means "the object's own size" and stays
+    * 0), and a product that would not fit a `Long` throws rather than wrap — so no overflow can pass for a
+    * size, or for the discovery signal.  Public only because the inline entry points call it.
+    */
+  def bytesFor(n: Long, per: Long, discoverable: Boolean): Long =
+    if n < 0 || (n == 0 && !discoverable) then
+      throw new IllegalArgumentException(s"element count must be positive${if discoverable then " (or 0 to discover the size)" else ""}, got $n")
+    else if n == 0 then 0L
+    else n *! per
+
   /** A shared region: the owned mapping plus the `path` others can attach to.  `close` unmaps and unlinks
     * the backing file — POSIX semantics, so a mapping already open elsewhere stays valid until it too
     * closes, while the name disappears (no new attachers) and the memory is reclaimed once all unmap.
@@ -109,14 +146,14 @@ object SharedMemory {
         case None =>
           if allowBackingFile then Files.createTempFile("kse-shm-", ".mem")
           else Err ?# "No RAM-backed (tmpfs) directory found; pass allowBackingFile = true to fall back to a disk-backed temp file"
-      mapShared[A](file, n * Mem.bytesOf[A])
+      mapShared[A](file, bytesFor(n, Mem.bytesOf[A], discoverable = false))
 
   /** Share `n` items of `A` through `p` (created if absent), a path you or another party chose.  For RAM
     * residence, `p` must live on a tmpfs mount (e.g. under [[ramDirectory]]); that is the caller's to ensure.
     */
   inline def createFrom[A <: Mem.Type](p: Path, n: Long)(using Tidy.Nice[Region[A]]): Ask[Region[A]] =
     Ask:
-      mapShared[A](p, n * Mem.bytesOf[A])
+      mapShared[A](p, bytesFor(n, Mem.bytesOf[A], discoverable = false))
 
 
   //////////////////////////////////////////////////////////////////////
@@ -137,6 +174,12 @@ object SharedMemory {
   /** POSIX `shm_open` names must begin with a single leading `/`. */
   private def posixName(name: String): String = if name.startsWith("/") then name else "/" + name
 
+  /** A name the OS would not read as given — empty, or holding a NUL that would cut it short — is refused. */
+  private def checkName(name: String): String =
+    if name.isEmpty then throw new IllegalArgumentException("a shared-memory name must not be empty")
+    if name.indexOf('\u0000') >= 0 then throw new IllegalArgumentException("a shared-memory name must not contain NUL")
+    name
+
   /** Attach to a named shared-memory object created elsewhere (another process, possibly another language)
     * and view its first `n` elements of type `A` as a `Mem.Owned` — or, with `n = 0`, all of it, sized by the
     * object itself (exact on Linux; rounded up to whole pages on macOS and Windows, see the class note).  We
@@ -150,7 +193,7 @@ object SharedMemory {
     */
   inline def attach[A <: Mem.Type](name: String, n: Long, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
     Ask:
-      attachBytes[A](name, n * Mem.bytesOf[A], readOnly)
+      attachBytes[A](name, bytesFor(n, Mem.bytesOf[A], discoverable = true), readOnly)
 
   /** Worker for [[attach]]: map `bytes` bytes of the named object (0 = all of it, as measured), dispatched by
     * host OS.  Throws on failure (callers wrap it in `Ask`); the returned `Mem.Owned` unmaps but never
@@ -158,8 +201,9 @@ object SharedMemory {
     */
   def attachBytes[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
     if bytes < 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, or 0 to discover it; got $bytes bytes")
-    if onLinux then attachPosixFile[A](name, bytes, readOnly)
-    else if onMac then attachPosixNative[A](name, bytes, readOnly)
+    checkName(name) __ Unit
+    if onLinux then attachPosixFile[A](checkedPosixName(name), bytes, readOnly)
+    else if onMac then attachPosixNative[A](checkedPosixName(name), bytes, readOnly)
     else if onWindows then attachWindows[A](name, bytes, readOnly)
     else throw new UnsupportedOperationException(s"shared-memory attach is unsupported on '$osName'")
 
@@ -269,7 +313,31 @@ object SharedMemory {
     val unmapView     = bind("UnmapViewOfFile",    FunctionDescriptor.of(JAVA_INT, ADDRESS))
     val closeHandle   = bind("CloseHandle",        FunctionDescriptor.of(JAVA_INT, ADDRESS))
     val virtualQuery  = bind("VirtualQuery",       FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG), captureErr)
+    val localFree     = bind("LocalFree",          FunctionDescriptor.of(ADDRESS, ADDRESS))
+    private val adv   = SymbolLookup.libraryLookup("advapi32", arena)
+    val sddlToSd      = linker.downcallHandle(
+      adv.find("ConvertStringSecurityDescriptorToSecurityDescriptorW").orElseThrow(() => new UnsatisfiedLinkError("missing native symbol: ConvertStringSecurityDescriptorToSecurityDescriptorW")),
+      FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS, ADDRESS), captureErr
+    )
   }
+
+  /** Windows: runs `f` with a `SECURITY_ATTRIBUTES` for `access` (`NULL` for the default DACL), freeing the
+    * descriptor that `ConvertStringSecurityDescriptorToSecurityDescriptorW` allocated once `f` returns. */
+  private def withSecurity[T](cap: MemorySegment, tmp: Arena, access: Access)(f: MemorySegment => T): T =
+    val sddl = access.descriptor
+    if sddl.isEmpty then f(MemorySegment.NULL)
+    else
+      val out = tmp.allocate(ADDRESS)
+      if (WindowsNative.sddlToSd.invoke(cap, tmp.allocateFrom(sddl, StandardCharsets.UTF_16LE), 1, out, MemorySegment.NULL): Int) == 0 then   // SDDL_REVISION_1
+        throw new java.io.IOException(s"'$sddl' is not a valid security descriptor (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      val sd = out.get(ADDRESS, 0L)
+      try
+        val sa = tmp.allocate(24L)               // { DWORD nLength; LPVOID lpSecurityDescriptor; BOOL bInheritHandle }, 64-bit
+        sa.set(JAVA_INT, 0L, 24)
+        sa.set(ADDRESS, 8L, sd)
+        sa.set(JAVA_INT, 16L, 0)
+        f(sa)
+      finally (WindowsNative.localFree.invoke(sd): MemorySegment) __ Unit
 
   /** Windows: the size of the mapped view at `view` — `RegionSize`, byte 24 of a 64-bit `MEMORY_BASIC_INFORMATION`,
     * which for a view of a pagefile section is its page-rounded length; 0 on failure, with the code in `cap`. */
@@ -312,9 +380,36 @@ object SharedMemory {
 
   private val rng = new java.security.SecureRandom()
 
+  /** Who may open a created object, stated once for all three platforms.  `Owner`, the default, is the
+    * creating account alone: POSIX mode 0600, Windows' default DACL.  `Everyone` admits any local account
+    * that learns the name — what a service and a desktop client under different accounts need — as POSIX
+    * mode 0666 and a Windows DACL granting Everyone full access.  `Custom` states both forms outright, a
+    * POSIX mode and a Windows SDDL string, each used on its own platform only.  On macOS the process umask
+    * still narrows the mode (a shared-memory object cannot be chmod'ed afterwards); on Linux the mode is
+    * applied exactly.
+    */
+  enum Access {
+    case Owner
+    case Everyone
+    case Custom(posixMode: Int, sddl: String)
+
+    /** The POSIX permission bits asked for. */
+    def mode: Int = this match
+      case Owner => 0x180
+      case Everyone => 0x1B6
+      case Custom(m, _) => m & 0xFFF
+
+    /** The Windows security descriptor in SDDL, or empty for the default DACL. */
+    def descriptor: String = this match
+      case Owner => ""
+      case Everyone => "D:(A;;GA;;;WD)"
+      case Custom(_, d) => d
+  }
+
   /** A fresh, opaque, hard-to-guess name in POSIX form (leading `/`, no other `/`, short enough for macOS
-    * `PSHMNAMLEN`).  Forward slash is legal in a Windows mapping name too, so one form serves all platforms. */
-  private def freshName(): String =
+    * `PSHMNAMLEN`).  Forward slash is legal in a Windows mapping name too, so one form serves all platforms;
+    * a caller who wants a namespace prefix drops the slash: `"Global\\" + freshName().drop(1)`. */
+  def freshName(): String =
     val bs = new Array[Byte](15)   // 120 bits
     rng.nextBytes(bs)
     "/kse-" + java.util.Base64.getUrlEncoder.withoutPadding.encodeToString(bs)
@@ -336,52 +431,55 @@ object SharedMemory {
     */
   inline def createNamed[A <: Mem.Type](n: Long): Ask[Tidy.Later[Created[A]]] =
     Ask:
-      createdLater[A](n * Mem.bytesOf[A])
+      createdLater[A](bytesFor(n, Mem.bytesOf[A], discoverable = false), Access.Owner)
+
+  /** As [[createNamed]], stating who may open the object (see [[Access]]). */
+  inline def createNamed[A <: Mem.Type](n: Long, access: Access): Ask[Tidy.Later[Created[A]]] =
+    Ask:
+      createdLater[A](bytesFor(n, Mem.bytesOf[A], discoverable = false), access)
 
   /** As [[createNamed]], under a name of the caller's choosing — the form for a protocol whose peer dictates
     * the rendezvous name, so that this side can receive as well as give.  A name already in use is an error,
     * never a retry.  On Linux and macOS the name is a POSIX one (a leading `/` is supplied if missing; no
     * other `/`; at most 31 bytes on macOS); on Windows it is a `CreateFileMapping` name, `Local\`/`Global\`
-    * prefix and all, used exactly as given.
+    * prefix and all, used exactly as given (a name holding a NUL is refused).  `access` says who may open it.
     */
-  inline def createNamed[A <: Mem.Type](name: String, n: Long): Ask[Tidy.Later[Created[A]]] =
+  inline def createNamed[A <: Mem.Type](name: String, n: Long, access: Access = Access.Owner): Ask[Tidy.Later[Created[A]]] =
     Ask:
-      createdLater[A](name, n * Mem.bytesOf[A])
+      createdLater[A](name, bytesFor(n, Mem.bytesOf[A], discoverable = false), access)
 
   /** Worker for [[createNamed]]: create `bytes` bytes under a random name and wrap the result in a
     * backstopped `Tidy.Later`. */
-  def createdLater[A <: Mem.Type](bytes: Long): Tidy.Later[Created[A]] =
+  def createdLater[A <: Mem.Type](bytes: Long, access: Access): Tidy.Later[Created[A]] =
     if bytes <= 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, got $bytes bytes")
-    Resource.closedLater(createBytes[A](bytes))(_.close())
+    Resource.closedLater(createBytes[A](bytes, access))(_.close())
 
   /** Worker for the named [[createNamed]]: create `bytes` bytes under `name` and wrap the result in a
     * backstopped `Tidy.Later`. */
-  def createdLater[A <: Mem.Type](name: String, bytes: Long): Tidy.Later[Created[A]] =
+  def createdLater[A <: Mem.Type](name: String, bytes: Long, access: Access): Tidy.Later[Created[A]] =
     if bytes <= 0 then throw new IllegalArgumentException(s"shared-memory size must be positive, got $bytes bytes")
-    Resource.closedLater(createBytesAs[A](name, bytes))(_.close())
+    Resource.closedLater(createBytesAs[A](name, bytes, access))(_.close())
 
   /** A random name, drawn again on a clash. */
-  private def createBytes[A <: Mem.Type](bytes: Long): Created[A] =
-    if onLinux then withRetries(createPosixFile[A](freshName(), bytes))
-    else if onMac then withRetries(createPosixNative[A](freshName(), bytes))
-    else if onWindows then withRetries(createWindows[A](freshName(), bytes))
+  private def createBytes[A <: Mem.Type](bytes: Long, access: Access): Created[A] =
+    if onLinux then withRetries(createPosixFile[A](freshName(), bytes, access))
+    else if onMac then withRetries(createPosixNative[A](freshName(), bytes, access))
+    else if onWindows then withRetries(createWindows[A](freshName(), bytes, access))
     else throw new UnsupportedOperationException(s"shared-memory creation is unsupported on '$osName'")
 
   /** The caller's name, checked for the platform's form; a clash is a failure. */
-  private def createBytesAs[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+  private def createBytesAs[A <: Mem.Type](name: String, bytes: Long, access: Access): Created[A] =
     val c =
-      if onLinux then createPosixFile[A](checkedPosixName(name), bytes)
-      else if onMac then createPosixNative[A](checkedPosixName(name), bytes)
-      else if onWindows then
-        if name.isEmpty then throw new IllegalArgumentException("a shared-memory name must not be empty")
-        createWindows[A](name, bytes)
+      if onLinux then createPosixFile[A](checkedPosixName(name), bytes, access)
+      else if onMac then createPosixNative[A](checkedPosixName(name), bytes, access)
+      else if onWindows then createWindows[A](checkName(name), bytes, access)
       else throw new UnsupportedOperationException(s"shared-memory creation is unsupported on '$osName'")
     if c eq null then throw new java.io.IOException(s"a shared-memory object named '$name' already exists")
     c
 
   /** A caller's POSIX name in canonical form: one leading `/`, no other, and within macOS's 31 bytes there. */
   private def checkedPosixName(name: String): String =
-    val n = posixName(name)
+    val n = posixName(checkName(name))
     if n.length < 2 || n.indexOf('/', 1) >= 0 then
       throw new IllegalArgumentException(s"'$name' is not a POSIX shared-memory name (one leading '/', no other)")
     if onMac && n.getBytes(StandardCharsets.UTF_8).length > 31 then
@@ -415,16 +513,18 @@ object SharedMemory {
 
   /** Linux: a POSIX object is a tmpfs file under `posixShmDir`, created exclusively (`CREATE_NEW`).  Destroy
     * = delete the file (= `shm_unlink`); the arena's `close` unmaps. */
-  private def createPosixFile[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+  private def createPosixFile[A <: Mem.Type](name: String, bytes: Long, access: Access): Created[A] =
     ensureRam()
     val p = posixShmDir.resolve(name.stripPrefix("/"))
+    val perms = posixPerms(access.mode)
     val ch =
-      try FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)
+      try FileChannel.open(p, java.util.EnumSet.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), PosixFilePermissions.asFileAttribute(perms))
       catch case _: java.nio.file.FileAlreadyExistsException => null
     if ch eq null then null
     else
       val arena = Arena.ofShared()
       try
+        Files.setPosixFilePermissions(p, perms) __ Unit   // the umask narrowed the create; this is the mode asked for
         val owned = Mem.Owned.create[A](arena){ a =>
           try ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a) finally ch.close()
         }
@@ -435,13 +535,23 @@ object SharedMemory {
           Files.deleteIfExists(p) __ Unit
           throw e
 
+  /** The `PosixFilePermission`s of a mode's nine low bits. */
+  private def posixPerms(mode: Int): java.util.Set[PosixFilePermission] =
+    val all = PosixFilePermission.values   // OWNER_READ .. OTHERS_EXECUTE: the bits from 0400 down
+    val s = java.util.EnumSet.noneOf(classOf[PosixFilePermission])
+    var i = 0
+    while i < 9 do
+      if (mode & (0x100 >> i)) != 0 then s.add(all(i)) __ Unit
+      i += 1
+    s
+
   /** macOS: native `shm_open(O_CREAT|O_EXCL|O_RDWR)` + `ftruncate` + `mmap`.  Destroy = `shm_unlink`.  `errno`
     * distinguishes a name clash (`EEXIST` → `null`) from a real failure (→ fail loud with the code). */
-  private def createPosixNative[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+  private def createPosixNative[A <: Mem.Type](name: String, bytes: Long, access: Access): Created[A] =
     val tmp = Arena.ofConfined()
     try
       val cap = tmp.allocate(PosixNative.captureLayout)
-      val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(name), 0x0200 | 0x0800 | 0x0002, 0x180)  // O_CREAT|O_EXCL|O_RDWR, 0600
+      val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(name), 0x0200 | 0x0800 | 0x0002, access.mode)  // O_CREAT|O_EXCL|O_RDWR
       if fd < 0 then
         val e = (PosixNative.errnoVH.get(cap, 0L): Int)
         if e == 17 then null    // EEXIST: a clash, for the caller to retry or report
@@ -468,17 +578,19 @@ object SharedMemory {
   /** Windows: native `CreateFileMappingW(INVALID_HANDLE_VALUE, …)` — a pagefile-backed (RAM) section — then
     * `MapViewOfFile`.  The creator *holds the section handle* for the region's lifetime so the name stays
     * openable by attachers; destroy = `CloseHandle` (after the arena unmaps the view). */
-  private def createWindows[A <: Mem.Type](name: String, bytes: Long): Created[A] =
+  private def createWindows[A <: Mem.Type](name: String, bytes: Long, access: Access): Created[A] =
     val tmp = Arena.ofConfined()
     try
       val cap = tmp.allocate(WindowsNative.captureLayout)
-      val handle: MemorySegment = WindowsNative.createMapping.invoke(
-        cap,                                                     // captured GetLastError (prepended arg)
-        MemorySegment.ofAddress(-1L),                            // INVALID_HANDLE_VALUE: pagefile-backed, not a file
-        MemorySegment.NULL,                                      // default security
-        0x04,                                                    // PAGE_READWRITE
-        (bytes >>> 32).toInt, (bytes & 0xFFFFFFFFL).toInt,
-        tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
+      val handle: MemorySegment = withSecurity(cap, tmp, access){ sa =>
+        WindowsNative.createMapping.invoke(
+          cap,                                                     // captured GetLastError (prepended arg)
+          MemorySegment.ofAddress(-1L),                            // INVALID_HANDLE_VALUE: pagefile-backed, not a file
+          sa,                                                      // who may open it; NULL is the default DACL
+          0x04,                                                    // PAGE_READWRITE
+          (bytes >>> 32).toInt, (bytes & 0xFFFFFFFFL).toInt,
+          tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
+      }
       val lastErr = (WindowsNative.lastErrorVH.get(cap, 0L): Int)
       if handle.address() == 0L then
         throw new java.io.IOException(s"CreateFileMapping failed for '$name' (GetLastError=$lastErr)")   // real failure: fail loud
@@ -528,7 +640,7 @@ object SharedMemory {
     * `--enable-native-access`.
     */
   inline def createFd[A <: Mem.Type](n: Long): Ask[Tidy.Later[Anon[A]]] =
-    anonLater[A](n * Mem.bytesOf[A])
+    anonLater[A](bytesFor(n, Mem.bytesOf[A], discoverable = false))
 
   /** Worker for [[createFd]]: create `bytes` bytes and wrap the result in a backstopped `Tidy.Later`. */
   def anonLater[A <: Mem.Type](bytes: Long): Ask[Tidy.Later[Anon[A]]] =
@@ -616,7 +728,7 @@ object SharedMemory {
     * Linux/macOS only; needs `--enable-native-access`.
     */
   inline def attachFd[A <: Mem.Type](fd: Int, n: Long = 0L, readOnly: Boolean = false)(using Tidy.Nice[Mem.Owned[A]]): Ask[Mem.Owned[A]] =
-    attachFdBytes[A](fd, n * Mem.bytesOf[A], readOnly)
+    attachFdBytes[A](fd, bytesFor(n, Mem.bytesOf[A], discoverable = true), readOnly)
 
   /** Worker for [[attachFd]]: map `bytes` bytes (0 = measure it, see [[attachFd]]), consuming the descriptor.
     * Unlike `attachFd`, nothing here asks how the mapping will be released: the caller owns the
@@ -691,7 +803,7 @@ object SharedMemory {
     * memory once the last holder is gone.  Linux/macOS only; needs `--enable-native-access`.
     */
   inline def offerFd[A <: Mem.Type](path: Path, n: Long, timeout: Duration = FdSock.defaultTimeout): Ask[Tidy.Later[Offer[A]]] =
-    offeredLater[A](path, n * Mem.bytesOf[A], timeout)
+    offeredLater[A](path, bytesFor(n, Mem.bytesOf[A], discoverable = false), timeout)
 
   /** Worker for [[offerFd]]: create `bytes` bytes, listen at `path`, wrap in a backstopped `Tidy.Later`. */
   def offeredLater[A <: Mem.Type](path: Path, bytes: Long, timeout: Duration): Ask[Tidy.Later[Offer[A]]] =
