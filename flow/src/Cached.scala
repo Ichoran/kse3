@@ -213,12 +213,12 @@ object Soft {
   * val contents = Hold.fixed(filename)
   *   .map(p => java.nio.file.Files.readAllBytes(p))
   *   .expireIn(java.time.Duration.ofHours(1))
-  * println(s"On first load, the file has ${contents.value.length} bytes")
+  * println(s"On first load, the file has \${contents.value.length} bytes")
   * // Hint--while testing this code, don't run the below unless you actually want to wait an hour!
   * Thread.sleep(3_590_000)
-  * println(s"We still are holding ${contents.value.length} bytes")
+  * println(s"We still are holding \${contents.value.length} bytes")
   * Thread.sleep(20_000)
-  * println(s"Now the answer might be different--${contents.value.length}")
+  * println(s"Now the answer might be different--\${contents.value.length}")
   * }}}
   * 
   * Example--create a string on demand from two mutable values

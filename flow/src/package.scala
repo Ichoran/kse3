@@ -54,7 +54,7 @@ package kse
   * 
   * def little(i: Int): Int Or String = i match
   *   case x if x >= -99 && x <= 99 => Is(x)
-  *   case _                        => Alt(s"$i is not little")
+  *   case _                        => Alt(s"\$i is not little")
   * 
   * val a = little(10).map(_ > 0)   // == Is(true)
   * val b = little(100).map(_ > 0)  // == Alt("100 is not little"), typed as Boolean Or String
@@ -98,7 +98,7 @@ package kse
   * {{{
   * def small(i: Int): Either[String, Int] = i match
   *   case x if x >= -99 && x <= 99 => Right(x)
-  *   case _                        => Left(s"$i is not small")
+  *   case _                        => Left(s"\$i is not small")
   * 
   * def addSmall(i: Int, j: Int): Either[String, Int] =
   *   small(i).flatMap(x => small(j).map(y => x + y))

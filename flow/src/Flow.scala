@@ -560,7 +560,7 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
   *   case _: StringIndexOutOfBoundsException => "out of bounds"
   * }{
   *   case 'e' => "eel has lots of e's!"
-  *   case c   => s"the letter was '$c'" 
+  *   case c   => s"the letter was '\$c'" 
   * }
   * }}}
   */
