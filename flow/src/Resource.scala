@@ -392,6 +392,9 @@ object Resource {
   final class Undo private[Resource] () {
     private final class Entry(val release: () => Unit, val always: Boolean)
     private var entries: List[Entry] = Nil
+    /** Whether any release was interrupted, kept apart from the failures so [[assemble]] can signal it once
+      * every release has run — a release run in between could otherwise consume the thread's interrupt status. */
+    private[Resource] var interrupted: Boolean = false
 
     /** Registers `r` to be released only if the assembly fails, answering it as the [[Guarded]] the block may hand out. */
     def onFailure[R](r: R)(release: R => Unit): Guarded[R] =
@@ -417,7 +420,9 @@ object Resource {
         if all || e.always then
           try e.release()
           catch
-            case t: InterruptedException => first = fold(first, t)
+            case t: InterruptedException =>
+              interrupted = true
+              first = fold(first, t)
             case t if t.catchable => first = fold(first, t)
         else keep = e :: keep
       entries = keep.reverse
@@ -425,14 +430,11 @@ object Resource {
   }
 
   /** `extra` joined to `primary` as suppressed — never itself, which Java refuses — answering the primary, or
-    * `extra` alone when there was none.  An interruption swallowed this way restores the thread's interrupt
-    * status, so it is delayed by the cleanup rather than lost to it. */
+    * `extra` alone when there was none. */
   private def fold(primary: Throwable, extra: Throwable): Throwable =
     if primary eq null then extra
     else
-      if (extra ne null) && (extra ne primary) then
-        primary.addSuppressed(extra)
-        if extra.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()
+      if (extra ne null) && (extra ne primary) then primary.addSuppressed(extra)
       primary
 
   /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
@@ -444,7 +446,9 @@ object Resource {
     * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
     * return there is nothing to attach it to, and it is dropped.  An interrupted release never cuts the
     * unwind short: the interruption is thrown once the rest are released, or, where another failure is
-    * already on its way out, suppressed into it with the thread's interrupt status restored.  Only [[Guarded]] values, singly or in a
+    * already on its way out, suppressed into it — and in every case where the interruption is not itself
+    * the exception leaving, the thread's interrupt status is set once the last release has run, so no
+    * release in between can consume it.  Only [[Guarded]] values, singly or in a
     * tuple, may be returned — what `onFailure` answered, or what `mapGuarded` built from it — and the caller
     * receives them bare.
     * {{{
@@ -473,14 +477,17 @@ object Resource {
         exit = e
         throw e
     finally
-      if done then
-        val bad = u.unwind(all = false)
-        if bad ne null then throw fold(bad, u.unwind(all = true))
-      else
-        val bad = u.unwind(all = true)
-        if bad ne null then
-          if exit ne null then fold(exit, bad) __ Unit
-          else if bad.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()   // an early return cannot carry it
+      val bad =
+        if done then
+          val b = u.unwind(all = false)
+          if b ne null then fold(b, u.unwind(all = true)) else null
+        else u.unwind(all = true)
+      val leaving: Throwable =                        // the exception this block exits by, if any
+        if done then bad
+        else if exit ne null then fold(exit, bad)
+        else null                                     // an early return: a release failure has nowhere to go
+      if u.interrupted && !leaving.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()
+      if done && (bad ne null) then throw bad
     as.out(t)
 
   /** Within [[assemble]]: holds `r` only while assembling, released whichever way the block exits — a

@@ -2819,6 +2819,26 @@ class FlowTest {
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
     T ~ Thread.interrupted()                                    ==== true
 
+    // an interruption swallowed beside another failure is signalled only after the last release has run,
+    // so a release in between that consumes the interrupt status cannot lose it
+    log.clear()
+    val seen = collection.mutable.ArrayBuffer.empty[Boolean]
+    val io =
+      try
+        Resource.assemble{
+          acquire("s").onFailure(release) __ Unit
+          Resource.whileAssembling(acquire("c"))(x => { seen += Thread.interrupted(); release(x) }) __ Unit   // runs after the two failures
+          Resource.whileAssembling(acquire("i"))(_ => throw new InterruptedException("stop")) __ Unit
+          Resource.whileAssembling(acquire("e"))(_ => throw new java.io.IOException("io")) __ Unit
+          acquire("b").onFailure(release)
+        } __ Unit
+        "no"
+      catch case e: java.io.IOException => e.getMessage
+    T ~ io                                                      ==== "io"
+    T ~ seen.toList                                             ==== List(false)
+    T ~ Thread.interrupted()                                    ==== true
+    T ~ log.toList                                              ==== List("+s", "+c", "+i", "+e", "+b", "-c", "-b", "-s")
+
     // the types: only what was guarded can be handed out, singly or as a whole tuple.  (The
     // T ! / T \ helpers cannot see into a context-function block, so the check is made directly.)
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.whileAssembling(new AnyRef)(_ => ()) }""").nonEmpty ==== true
