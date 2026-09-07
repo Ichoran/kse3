@@ -2,10 +2,11 @@
 # and shared memory (PosixSocket, FdSock, SharedMemory) are written for Linux, macOS on both
 # architectures, and Windows (named shared memory only), and eio's NativeTest pins each platform's
 # behaviour with real system calls -- struct layouts, errno values, the per-message descriptor limit,
-# close-on-exec on received descriptors, shm_open's variadic mode on Darwin, and Windows answering
-# "unsupported" cleanly.  The suite job is the ordinary regression run; thyme stays off shared runners
-# because its tests are timing-calibrated, and Windows runs only the platform-neutral modules until the
-# file-system-heavy eio suite has been made Windows-aware.
+# close-on-exec on received descriptors, shm_open's variadic mode on Darwin, size discovery, and Windows
+# answering "unsupported" cleanly.  Only that class runs on the other platforms: what needs checking is
+# our own cross-platform awareness (native linking, and behaviour that branches on the OS), not the
+# JVM's portability, so the ordinary suite runs once, on Linux.  thyme stays off shared runners because
+# its tests are timing-calibrated.
 name: CI
 
 on:
@@ -37,22 +38,11 @@ jobs:
         run: ./mill${{ runner.os == 'Windows' && '.bat' || '' }} eio.test.testOnly kse.test.eio.NativeTest
 
   suite:
-    name: suite (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: suite (ubuntu-latest)
+    runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            tasks: basics.test + flow.test + maths.test + loom.test + eio.test + jsaun.test + alien.test
-          - os: macos-15
-            tasks: basics.test + flow.test + maths.test + eio.test
-          - os: windows-latest
-            tasks: basics.test + flow.test + maths.test
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mill
       - name: Test
-        shell: bash
-        run: ./mill${{ runner.os == 'Windows' && '.bat' || '' }} ${{ matrix.tasks }}
+        run: ./mill basics.test + flow.test + maths.test + loom.test + eio.test + jsaun.test + alien.test
