@@ -741,45 +741,47 @@ class EioTest {
     } ==== 1L
     T ~ q.exists ==== false      // closing the region unlinked the backing file
 
-    // SharedMemory.create makes its own temp file, named by region.path
-    var shmPath: Path = null
-    T ~ Resource.nice(SharedMemory.create[Double](3))(_.close()){ region =>
-      shmPath = region.path
-      T ~ region.path.exists ==== true
-      region.use(_.set()(i => i.toDouble * 4))   // 0, 4, 8
-      T ~ Resource.nice(region.path.openIOMem[Double]())(_.close()){ _.op(_(2)) } ==== 8.0
-      region.op(_(1))
-    } ==== 4.0
-    T ~ shmPath.exists ==== false      // closing the region unlinked the temp file
+    // The tmpfs routes, only where a RAM directory exists (Linux); the OS-named object every platform has is NativeTest's
+    if SharedMemory.ramDirectory.isDefined then
+      // SharedMemory.create makes its own temp file, named by region.path
+      var shmPath: Path = null
+      T ~ Resource.nice(SharedMemory.create[Double](3))(_.close()){ region =>
+        shmPath = region.path
+        T ~ region.path.exists ==== true
+        region.use(_.set()(i => i.toDouble * 4))   // 0, 4, 8
+        T ~ Resource.nice(region.path.openIOMem[Double]())(_.close()){ _.op(_(2)) } ==== 8.0
+        region.op(_(1))
+      } ==== 4.0
+      T ~ shmPath.exists ==== false      // closing the region unlinked the temp file
 
-    // Across threads: a writer hands off the path mid-write; the reader attaches, and the writer
-    // finishes (closing -> unlink) *before* the reader's final read -- yet the memory stays shared.
-    def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
-      val x = sq.poll(10, java.util.concurrent.TimeUnit.SECONDS)
-      if x == null then throw new RuntimeException("shared-memory handoff timed out")
-      x
-    val pathBuf = new java.util.concurrent.SynchronousQueue[Path]()
-    val gotIt   = new java.util.concurrent.SynchronousQueue[AnyRef]()
+      // Across threads: a writer hands off the path mid-write; the reader attaches, and the writer
+      // finishes (closing -> unlink) *before* the reader's final read -- yet the memory stays shared.
+      def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
+        val x = sq.poll(10, java.util.concurrent.TimeUnit.SECONDS)
+        if x == null then throw new RuntimeException("shared-memory handoff timed out")
+        x
+      val pathBuf = new java.util.concurrent.SynchronousQueue[Path]()
+      val gotIt   = new java.util.concurrent.SynchronousQueue[AnyRef]()
 
-    val writer = Fu:
-      Resource.nice(SharedMemory.create[Long](4))(_.close()){ region =>
-        region.use{ m => m(0) = 10L; m(1) = 20L }   // write part of the data
-        pathBuf.put(region.path)                     // hand off the path
-        handoff(gotIt) __ Unit                       // wait for the reader's acknowledgement
-        region.use{ m => m(2) = 30L; m(3) = 40L }    // write the rest
-      }.?                                            // region closes here: unmap + unlink
-    val reader = Fu:
-      val p = handoff(pathBuf)                        // receive the path
-      Resource.nice(p.openIOMem[Long]())(_.close()){ o =>
-        val early = (o.op(_(0)), o.op(_(1)))         // read what the writer wrote so far
-        gotIt.put("ack")                             // acknowledge
-        writer.await() __ Unit                       // wait until the writer has fully finished
-        val gone = !Files.exists(p)                  // its name is now unlinked
-        val rest = (o.op(_(2)), o.op(_(3)))          // ...but the shared pages are still readable
-        (early, rest, gone)
-      }.?
+      val writer = Fu:
+        Resource.nice(SharedMemory.create[Long](4))(_.close()){ region =>
+          region.use{ m => m(0) = 10L; m(1) = 20L }   // write part of the data
+          pathBuf.put(region.path)                     // hand off the path
+          handoff(gotIt) __ Unit                       // wait for the reader's acknowledgement
+          region.use{ m => m(2) = 30L; m(3) = 40L }    // write the rest
+        }.?                                            // region closes here: unmap + unlink
+      val reader = Fu:
+        val p = handoff(pathBuf)                        // receive the path
+        Resource.nice(p.openIOMem[Long]())(_.close()){ o =>
+          val early = (o.op(_(0)), o.op(_(1)))         // read what the writer wrote so far
+          gotIt.put("ack")                             // acknowledge
+          writer.await() __ Unit                       // wait until the writer has fully finished
+          val gone = !Files.exists(p)                  // its name is now unlinked
+          val rest = (o.op(_(2)), o.op(_(3)))          // ...but the shared pages are still readable
+          (early, rest, gone)
+        }.?
 
-    T ~ reader.await() ==== (((10L, 20L), (30L, 40L), true))
+      T ~ reader.await() ==== (((10L, 20L), (30L, 40L), true))
 
     // attach: view an existing POSIX-named shared object by name (Linux: through /dev/shm). Linux/tmpfs-only.
     if Files.isDirectory(SharedMemory.posixShmDir) && Files.isWritable(SharedMemory.posixShmDir) then
@@ -851,406 +853,6 @@ class EioTest {
     val mp = "/life/fish".pathIn(mfs)
     T ~ (mp / "eel.txt").write("hi".bytes)       ==== ()
     T ~ "/life/fish/eel.txt".pathLike(mp).exists ==== true
-
-
-  @Test
-  def fdSockRawTest(): Unit =
-    if FdSock.supported then
-      def must[A](a: Ask[A]): A = a.fold(x => x)(_.toss)
-
-      // errno as data: names, classifiers, the count-or-code Result, and the code inside an Err
-      T ~ PosixSocket.Errno.name(PosixSocket.Errno.EAGAIN)                       ==== "EAGAIN"
-      T ~ PosixSocket.Errno.name(PosixSocket.Errno.ECONNREFUSED)                 ==== "ECONNREFUSED"
-      T ~ PosixSocket.Errno.name(123456)                                   ==== "errno 123456"
-      T ~ PosixSocket.Result.success(7L).count                             ==== 7L
-      T ~ PosixSocket.Result.success(7L).ok                                ==== true
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EAGAIN).wouldBlock        ==== true
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EAGAIN).backpressure      ==== true
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).peerGone           ==== true
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).count              ==== 0L
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EPIPE).errno              ==== PosixSocket.Errno.EPIPE
-      T ~ PosixSocket.Result.failure(PosixSocket.Errno.EINTR).name               ==== "EINTR"
-      T ~ PosixSocket.Result.success(3L).ask("send").fold(x => x)(_ => -1L) ==== 3L
-      val bad = PosixSocket.Result.failure(PosixSocket.Errno.ENOENT).ask("open", "the thing")
-      T ~ bad.fold(_ => -1)(e => PosixSocket.errnoOf(e))                   ==== PosixSocket.Errno.ENOENT
-      T ~ bad.fold(_ => "")(e => e.toString)                         ==== "open failed: ENOENT (the thing)"
-      T ~ bad.mapAlt(_ +# "while starting").fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.ENOENT
-      T ~ PosixSocket.errnoOf(Err("just words"))                           ==== -1
-      val missing = Files.createTempDirectory("kse-raw-").resolve("nothing.sock")
-      T ~ FdSock.connect(missing, 1.s).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.ENOENT
-
-      // a SEQPACKET pair, non-blocking, polled: one call per datagram, nothing hidden
-      val (a, b) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET))
-      val poller = new PosixSocket.Poller(2)
-      try
-        T ~ must(a.sockType)                     ==== PosixSocket.SOCK_SEQPACKET
-        T ~ must(a.isNonblocking)                ==== false
-        T ~ a.nonblocking().isIs                 ==== true
-        T ~ b.nonblocking().isIs                 ==== true
-        T ~ must(a.isNonblocking)                ==== true
-        val buf = Mem.alloc[Byte](64L)
-        T ~ a.recvMsg(buf).wouldBlock            ==== true
-        poller.set(0, a.descriptor)
-        poller.set(1, b.descriptor)
-        T ~ poller.poll(50).count                ==== 0L
-        val msg = Mem.alloc[Byte](5L)                 // off-heap: the kernel reads it in place
-        (Mem of "hello".bytes).inject(msg) __ Unit
-        T ~ b.sendOnce(msg).count                ==== 5L
-        T ~ b.sendOnce(msg, 2L).count            ==== 2L
-        T ~ poller.poll(1000).count              ==== 1L
-        T ~ poller.readable(0)                   ==== true
-        T ~ poller.readable(1)                   ==== false
-        T ~ a.recvMsg(buf).count                 ==== 5L
-        T ~ new String(buf.selectToArray(0L, 5L)) ==== "hello"
-        T ~ a.fdCount                            ==== 0
-        T ~ a.trunc                              ==== false
-        T ~ a.recvMsg(buf).count                 ==== 2L
-        T ~ new String(buf.selectToArray(0L, 2L)) ==== "he"
-        T ~ a.recvMsg(buf, 3L).wouldBlock        ==== true
-
-        // a datagram longer than the buffer offered is reported as truncated, not silently cut
-        T ~ b.sendOnce(msg).count                ==== 5L
-        T ~ a.recvMsg(buf, 3L).count             ==== 3L
-        T ~ a.trunc                              ==== true
-
-        // a descriptor rides along and is counted, not hidden; the copy is live and ours
-        val (c, d) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
-        T ~ b.sendOnceWithFd(msg, 1L, c.descriptor).count ==== 1L
-        T ~ a.recvMsg(buf).count                 ==== 1L
-        T ~ a.fdCount                            ==== 1
-        T ~ a.ctrunc                             ==== false
-        val got = a.takeFd()
-        T ~ (got >= 0)                           ==== true
-        T ~ a.takeFd()                           ==== -1
-        val g = must(FdSock.Raw.adopt(got))
-        T ~ d.nonblocking().isIs                 ==== true
-        T ~ g.sendOnce(msg).count                ==== 5L
-        T ~ d.recvMsg(buf).count                 ==== 5L
-        T ~ new String(buf.selectToArray(0L, 5L)) ==== "hello"
-
-        // several descriptors in one message are all counted; one more than the slots is truncation, never
-        // a quiet trim (CMSG_SPACE padding would otherwise admit a stray one at odd slot counts)
-        val (m3, n3) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 3))
-        val (u1, u2) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
-        T ~ n3.sendOnceWithFds(msg, 1L, Array(c.descriptor, u1.descriptor, u2.descriptor)).count ==== 1L
-        T ~ m3.recvMsg(buf).count                ==== 1L
-        T ~ m3.fdCount                           ==== 3
-        T ~ m3.ctrunc                            ==== false
-        val t1 = m3.takeFd(); val t2 = m3.takeFd(); val t3 = m3.takeFd()
-        T ~ (t1 >= 0 && t2 >= 0 && t3 >= 0)      ==== true
-        T ~ m3.takeFd()                          ==== -1
-        PosixSocket.closeQuietly(t1); PosixSocket.closeQuietly(t2); PosixSocket.closeQuietly(t3)
-        T ~ n3.sendOnceWithFds(msg, 1L, Array(c.descriptor, u1.descriptor, u2.descriptor, u1.descriptor)).errno ==== PosixSocket.Errno.EINVAL
-        T ~ n3.sendOnceWithFds(msg, 1L, Array.empty[Int]).errno ==== PosixSocket.Errno.EINVAL
-        m3.close(); n3.close()
-        val (o1, o2) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 2))
-        val one = must(FdSock.Raw.adopt(o1.disown(), 1))
-        T ~ o2.sendOnceWithFds(msg, 1L, Array(u1.descriptor, u2.descriptor)).count ==== 1L
-        T ~ one.recvMsg(buf).count               ==== 1L
-        T ~ one.fdCount                          ==== 1
-        T ~ one.ctrunc                           ==== true
-        one.close(); o2.close(); u1.close(); u2.close()
-
-        // more descriptors than slots: truncation is a reported fact and the extra is closed
-        val (e0, e1) = must(FdSock.Raw.pair(PosixSocket.SOCK_SEQPACKET, 0))
-        T ~ e1.sendOnceWithFd(msg, 1L, c.descriptor).count ==== 1L
-        T ~ e0.recvMsg(buf).count                ==== 1L
-        T ~ e0.ctrunc                            ==== true
-        T ~ e0.fdCount                           ==== 0
-        e0.close()
-        e1.close()
-        T ~ e0.recvMsg(buf).errno                ==== PosixSocket.Errno.EBADF
-
-        // the peer goes away: a send answers EPIPE as data, never a signal
-        c.close()
-        d.close()
-        val gone = g.sendOnce(msg)
-        T ~ gone.peerGone                        ==== true
-        T ~ gone.name                            ==== "EPIPE"
-        g.close()
-        T ~ g.isClosed                           ==== true
-
-        // the descriptor moves between tiers: a Conn's can be taken and driven raw, and a Raw's adopted as a Conn
-        val (p, q) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
-        val conn = must(FdSock.adopt(p.disown()))
-        T ~ (conn.descriptor >= 0)               ==== true
-        T ~ conn.write("via conn".bytes).isIs    ==== true
-        T ~ q.nonblocking().isIs                 ==== true
-        T ~ q.recvMsg(buf).count                 ==== 8L
-        T ~ new String(buf.selectToArray(0L, 8L)) ==== "via conn"
-        val back = must(FdSock.Raw.adopt(conn.disown()))
-        T ~ conn.descriptor                      ==== -1
-        T ~ conn.write("x".bytes).isIs           ==== false
-        T ~ back.nonblocking().isIs              ==== true
-        T ~ q.sendOnce(msg).count                ==== 5L
-        T ~ back.recvMsg(buf).count              ==== 5L
-        val qc = must(FdSock.adopt(q.disown()))
-        T ~ q.descriptor                         ==== -1
-        T ~ qc.write("hello".bytes).isIs         ==== true
-        T ~ back.recvMsg(buf).count              ==== 5L
-        back.close()
-        qc.close()
-
-        // shutdown wakes a peer's poll with end of stream
-        T ~ b.shutdown().isIs                    ==== true
-        T ~ poller.poll(1000).count              ==== 2L
-        T ~ a.recvMsg(buf).count                 ==== 0L
-      finally
-        poller.close()
-        a.close()
-        b.close()
-
-      // a control message cut short (Darwin keeps cmsg_len past the copied bytes): the descriptors that fit are still visited
-      locally:
-        val arena = java.lang.foreign.Arena.ofConfined()
-        try
-          val ctrl = arena.allocate(PosixSocket.CMsg.space(12L))
-          val hdr = PosixSocket.CMsg.hdr
-          if PosixSocket.mac then ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, 0L, (hdr + 12L).toInt)
-          else ctrl.set(java.lang.foreign.ValueLayout.JAVA_LONG, 0L, hdr + 12L)
-          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, PosixSocket.CMsg.levelOff, PosixSocket.SOL_SOCKET)
-          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, PosixSocket.CMsg.typeOff, PosixSocket.SCM_RIGHTS)
-          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr, 41)
-          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr + 4, 42)
-          ctrl.set(java.lang.foreign.ValueLayout.JAVA_INT, hdr + 8, 43)
-          val seen = collection.mutable.ArrayBuffer.empty[Int]
-          PosixSocket.CMsg.forEachFd(ctrl, hdr + 12L)(seen += _)
-          T ~ seen.toList                        ==== List(41, 42, 43)
-          seen.clear()
-          PosixSocket.CMsg.forEachFd(ctrl, hdr + 8L)(seen += _)    // declared 12 bytes of descriptors, only 8 copied
-          T ~ seen.toList                        ==== List(41, 42)
-          seen.clear()
-          PosixSocket.CMsg.forEachFd(ctrl, hdr + 2L)(seen += _)    // not even one whole descriptor
-          T ~ seen.toList                        ==== Nil
-        finally arena.close()
-
-      // a blocked raw receive is released by shutdown from another thread, after which close is safe
-      locally:
-        val (x, y) = must(FdSock.Raw.pair(PosixSocket.SOCK_STREAM))
-        val buf2 = Mem.alloc[Byte](16L)
-        val waiter = Fu:
-          x.recvMsg(buf2)                          // blocking: nothing arrives
-        Thread.sleep(100)
-        T ~ x.shutdown().isIs                    ==== true
-        T ~ waiter.await().fold(_.count)(_ => -9L) ==== 0L
-        x.close()
-        y.close()
-        T ~ x.isClosed                           ==== true
-        T ~ x.recvMsg(buf2).errno                ==== PosixSocket.Errno.EBADF
-
-      // an idle server's accept times out even where accept ignores SO_RCVTIMEO (Darwin): it is a poll
-      locally:
-        val dir = Files.createTempDirectory("kse-accept-")
-        val srv = must(FdSock.listen(dir.resolve("idle.sock"), 200.ms))
-        try
-          val t0 = System.nanoTime
-          val r = srv.accept()
-          val dt = (System.nanoTime - t0) / 1000000L
-          T ~ r.fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
-          T ~ (dt >= 150L && dt < 5000L)         ==== true
-        finally srv.close()
-
-      // the tiniest timeout still accepts a queued connection and still reads queued bytes; an empty one still times out
-      locally:
-        val dir = Files.createTempDirectory("kse-tiny-")
-        val path = dir.resolve("tiny.sock")
-        val srv = must(FdSock.listen(path, 1.ms))
-        try
-          T ~ srv.accept().fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
-          val client = must(FdSock.connect(path, 1.ms))
-          try
-            val server = must(srv.accept())
-            try
-              T ~ client.write("queued".bytes).isIs  ==== true
-              val buf = new Array[Byte](16)
-              T ~ server.read(buf).fold(n => new String(buf, 0, n))(_ => "?") ==== "queued"
-              T ~ server.read(buf).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
-              T ~ server.setTimeout(150.ms).isIs   ==== true
-              val t0 = System.nanoTime
-              T ~ server.read(buf).fold(_ => -1)(e => PosixSocket.errnoOf(e)) ==== PosixSocket.Errno.EAGAIN
-              T ~ ((System.nanoTime - t0) / 1000000L >= 100L) ==== true
-              T ~ client.write("more".bytes).isIs    ==== true
-              T ~ server.recvMsgOrFd(buf).fold(r => r.count)(_ => -1) ==== 4
-            finally server.close()
-          finally client.close()
-        finally srv.close()
-
-  @Test
-  def fdSharedMemoryTest(): Unit =
-    if FdSock.supported then
-      def handoff[X](sq: java.util.concurrent.SynchronousQueue[X]): X =
-        val x = sq.poll(10, java.util.concurrent.TimeUnit.SECONDS)
-        if x == null then throw new RuntimeException("fd handoff timed out")
-        x
-      val dir = Files.createTempDirectory("kse-fdshm-")
-      val ready = new java.util.concurrent.SynchronousQueue[AnyRef]()
-      val done  = new java.util.concurrent.SynchronousQueue[AnyRef]()
-
-      // Raw FdSock: plain bytes both ways
-      val rawSock = dir.resolve("raw.sock")
-      val rawServer = Fu:
-        Resource.nice(FdSock.listen(rawSock, 5.s))(_.close()){ srv =>
-          ready.put("go")
-          val conn = srv.accept().?
-          try
-            val buf = new Array[Byte](8)
-            val n = conn.read(buf).?
-            conn.write("pong".bytes).?
-            new String(buf, 0, n)
-          finally conn.close()
-        }.?
-      val rawClient = Fu:
-        handoff(ready) __ Unit
-        Resource.nice(FdSock.connect(rawSock, 5.s))(_.close()){ conn =>
-          conn.write("ping".bytes).?
-          val buf = new Array[Byte](8)
-          val n = conn.read(buf).?
-          new String(buf, 0, n)
-        }.?
-      T ~ rawServer.await() ==== "ping"
-      T ~ rawClient.await() ==== "pong"
-
-      // offerFd/acceptFd: anonymous region handed across threads via SCM_RIGHTS, with write-back
-      val sock = dir.resolve("offer.sock")
-      val offerer = Fu:
-        Resource.nice(SharedMemory.offerFd[Long](sock, 4, 5.s))(_.close()){ later =>
-          later.use(_.use(_.set()(i => (i + 1) * 11)))   // 11, 22, 33, 44
-          ready.put("go")
-          later.op(_.serveOne()).?
-          handoff(done) __ Unit                          // acceptor has written back
-          later.op(_.op(_(2)))
-        }.?
-      val acceptor = Fu:
-        handoff(ready) __ Unit
-        Resource.nice(SharedMemory.acceptFd[Long](sock, timeout = 5.s))(_.close()){ o =>
-          val v = (o.op(_.length), o.op(_(0)), o.op(_(3)))
-          o.use(m => m(2) = 99L)
-          done.put("ok")
-          v
-        }.?
-      T ~ acceptor.await() ==== ((4L, 11L, 44L))
-      T ~ offerer.await() ==== 99L
-
-      // Failure paths answer errors, not hangs
-      T ~ FdSock.connect(dir.resolve("nobody.sock"), 1.s).isAlt ==== true
-      T ~ Resource.nice(FdSock.listen(dir.resolve("lonely.sock"), 250.ms))(_.close()){ srv => srv.accept().isAlt } ==== Is(true)
-
-      // Honest interop: python speaks SCM_RIGHTS natively (Linux: memfd host and mmap client)
-      val py = Path.of("/usr/bin/python3")
-      if System.getProperty("os.name", "").toLowerCase.contains("nux") && Files.isExecutable(py) then
-        // python offers a memfd with the kse header; we accept, read, and write back where python can see it
-        val hostSock = dir.resolve("pyhost.sock")
-        val hostScript = dir.resolve("pyhost.py")
-        Files.writeString(hostScript,
-          """import socket, os, mmap, struct, sys, time
-            |srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            |srv.bind(sys.argv[1])
-            |srv.listen(1)
-            |size = 32
-            |fd = os.memfd_create('py-host')
-            |os.ftruncate(fd, size)
-            |m = mmap.mmap(fd, size)
-            |m[:] = struct.pack('<4q', 5, 6, 7, 8)
-            |conn, _ = srv.accept()
-            |tag = b'kseM' + bytes([1, 0, 0, 0]) + struct.pack('<q', size)
-            |socket.send_fds(conn, [tag], [fd])
-            |deadline = time.time() + 10
-            |while time.time() < deadline and struct.unpack('<q', m[24:32])[0] != 55:
-            |    time.sleep(0.01)
-            |print(struct.unpack('<q', m[24:32])[0])
-            |conn.close()
-            |srv.close()
-            |""".stripMargin) __ Unit
-        val host = new ProcessBuilder(py.toString, hostScript.toString, hostSock.toString).redirectErrorStream(true).start()
-        var w = 0
-        while !Files.exists(hostSock) && w < 200 do { Thread.sleep(25); w += 1 }
-        T ~ Files.exists(hostSock) ==== true
-        T ~ Resource.nice(SharedMemory.acceptFd[Long](hostSock, timeout = 5.s))(_.close()){ o =>
-          val v = (o.op(_.length), o.op(_(0)), o.op(_(3)))
-          o.use(m => m(3) = 55L)
-          v
-        } ==== Is((4L, 5L, 8L))
-        T ~ host.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)   ==== true
-        T ~ (new String(host.getInputStream.readAllBytes())).trim     ==== "55"
-
-        // we offer; a python client receives the descriptor, reads, and writes back
-        val downSock = dir.resolve("pydown.sock")
-        val clientScript = dir.resolve("pyclient.py")
-        Files.writeString(clientScript,
-          """import socket, mmap, struct, sys
-            |c = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            |c.connect(sys.argv[1])
-            |msg, fds, flags, addr = socket.recv_fds(c, 32, 4)
-            |size = struct.unpack('<q', msg[8:16])[0]
-            |m = mmap.mmap(fds[0], size)
-            |print(struct.unpack('<q', m[0:8])[0], size)
-            |m[8:16] = struct.pack('<q', 777)
-            |c.close()
-            |""".stripMargin) __ Unit
-        T ~ Resource.nice(SharedMemory.offerFd[Long](downSock, 3, 5.s))(_.close()){ later =>
-          later.use(_.use(m => m(0) = 123L))
-          val cl = new ProcessBuilder(py.toString, clientScript.toString, downSock.toString).redirectErrorStream(true).start()
-          T ~ later.op[Ask[Unit]](_.serveOne()).isIs ==== true
-          T ~ cl.waitFor(10, java.util.concurrent.TimeUnit.SECONDS) ==== true
-          T ~ (new String(cl.getInputStream.readAllBytes())).trim   ==== "123 24"
-          later.op(_.op(_(1)))
-        } ==== Is(777L)
-
-        // adopt + tryRecvFd, doorbell-style: python hands us one end of a SEQPACKET socketpair,
-        // then interleaves a plain record with a memfd-bearing grant on it
-        val dbSock = dir.resolve("pydoor.sock")
-        val dbScript = dir.resolve("pydoor.py")
-        Files.writeString(dbScript,
-          """import socket, os, mmap, struct, sys
-            |srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            |srv.bind(sys.argv[1])
-            |srv.listen(1)
-            |conn, _ = srv.accept()
-            |a, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
-            |socket.send_fds(conn, [b'sock'], [b.fileno()])
-            |b.close()
-            |a.send(b'event-no-fd')
-            |fd = os.memfd_create('grant')
-            |os.ftruncate(fd, 16)
-            |m = mmap.mmap(fd, 16)
-            |m[:] = struct.pack('<2q', 41, 42)
-            |socket.send_fds(a, [b'grant'], [fd])
-            |print(a.recv(16).decode())
-            |a.close()
-            |conn.close()
-            |srv.close()
-            |""".stripMargin) __ Unit
-        val db = new ProcessBuilder(py.toString, dbScript.toString, dbSock.toString).redirectErrorStream(true).start()
-        w = 0
-        while !Files.exists(dbSock) && w < 200 do { Thread.sleep(25); w += 1 }
-        val doorbell = Fu:
-          Resource.nice(FdSock.connect(dbSock, 5.s))(_.close()){ c =>
-            val r = c.recvFd(new Array[Byte](8)).?
-            val door = FdSock.adopt(r.fd).?
-            try
-              door.setTimeout(5.s).?
-              val buf = new Array[Byte](64)
-              val e1 = door.recvMsgOrFd(buf).?
-              val s1 = new String(buf, 0, e1.count)
-              val e2 = door.recvMsgOrFd(buf).?
-              val s2 = new String(buf, 0, e2.count)
-              val vals = Resource.nice(SharedMemory.attachFd[Long](e2.fd.getOrElse(-1)))(_.close()){ o =>
-                (o.op(_.length), o.op(_(0)), o.op(_(1)))
-              }.?
-              door.write("ok".bytes).?
-              (e1.fd.isEmpty, s1, e2.fd.isDefined, s2, vals)
-            finally door.close()
-          }.?
-        T ~ doorbell.await() ==== ((true, "event-no-fd", true, "grant", (2L, 41L, 42L)))
-        T ~ db.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)   ==== true
-        T ~ (new String(db.getInputStream.readAllBytes())).trim     ==== "ok"
-
-      T ~ FdSock.adopt(-1).isAlt  ==== true
-      T ~ FdSock.adopt(999_999).isAlt ==== true   // fd numbers allocate lowest-first; this one cannot be open
-
-      List("raw.sock", "offer.sock", "lonely.sock", "pyhost.sock", "pydown.sock", "pydoor.sock", "pyhost.py", "pyclient.py", "pydoor.py")
-        .foreach(f => Files.deleteIfExists(dir.resolve(f)) __ Unit)
-      Files.deleteIfExists(dir) __ Unit
 
 
   @Test

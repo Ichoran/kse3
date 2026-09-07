@@ -3,9 +3,11 @@
 # scala-cli build state (.scala-build/), local secrets (.sonatype-*), agent
 # scratch (.claude/), OS cruft (.DS_Store), Cursor/Windsurf/Copilot rule files
 # (.cursorrules, .cursor/, .windsurfrules, .github/copilot-instructions.md),
-# and so on.
+# and so on.  The GitHub Actions workflows are the one other exception.
 .*
 !.gitignore
+!.github/
+.github/copilot-instructions.md
 
 # Build output: Mill's top-level ./out and any nested out/ (e.g. test scratch).
 out/

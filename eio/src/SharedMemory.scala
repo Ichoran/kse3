@@ -212,7 +212,8 @@ object SharedMemory {
             val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
             val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, prot, 0x1, fd, 0L)  // MAP_SHARED
             if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")  // MAP_FAILED
-            view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
+            val whole = view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
+            if readOnly then whole.asReadOnly else whole   // the pages are PROT_READ: a write must throw, not fault
           finally (PosixNative.close.invoke(fd): Int) __ Unit
         finally tmp.close()
       }
@@ -253,7 +254,8 @@ object SharedMemory {
           try
             val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)
             if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-            view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
+            val whole = view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
+            if readOnly then whole.asReadOnly else whole   // FILE_MAP_READ pages: a write must throw, not fault
           finally (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
         finally tmp.close()
       }

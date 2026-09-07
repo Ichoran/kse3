@@ -1,0 +1,35 @@
+name: Set up JDK 25 and Mill
+description: Temurin 25, the Coursier and Mill caches, and the Mill bootstrap launcher (which then fetches the version build.mill names)
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: '25'
+
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cache/mill
+          ~/.cache/coursier
+          ~/Library/Caches/mill
+          ~/Library/Caches/Coursier
+          ~/AppData/Local/mill
+          ~/AppData/Local/Coursier/Cache
+        key: mill-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build.mill') }}
+        restore-keys: |
+          mill-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Fetch the Mill launcher
+      shell: bash
+      run: |
+        version=$(sed -nE 's|^//\| *mill-version: *||p' build.mill | tr -d ' \r')
+        base="https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/$version/mill-dist-$version"
+        if [ "$RUNNER_OS" = Windows ]; then
+          curl -fsSL -o mill.bat "$base-mill.bat"
+        else
+          curl -fsSL -o mill "$base-mill.sh" && chmod +x mill
+        fi
+        echo "Mill $version"
