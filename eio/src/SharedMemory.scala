@@ -121,20 +121,11 @@ object SharedMemory {
 
   /** Map `p` (created if absent) read-write shared, sized to exactly `bytes`, in a fresh shared `Arena`. */
   def mapShared[A <: Mem.Type](p: Path, bytes: Long): Region[A] =
-    val arena = Arena.ofShared()
-    try
-      val owned = Mem.Owned.create[A](arena){ a =>
-        val ch = FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
-        try
-          if bytes < ch.size then ch.truncate(bytes) __ Unit
-          ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a)
-        finally ch.close()
-      }
-      new Region[A](p, owned)
-    catch
-      case e if e.catchable =>
-        arena.close()
-        throw e
+    Resource.assemble:
+      val arena = undo(Arena.ofShared())(_.close())
+      val ch = scoped(FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE))(_.close())
+      if bytes < ch.size then ch.truncate(bytes) __ Unit
+      arena.into(a => new Region[A](p, Mem.Owned.create[A](a)(_ => ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a))))
 
   /** Create a fresh file and share `n` items of `A` through it; the region's `path` is the new file.
     * Prefers a RAM filesystem (see [[ramDirectory]]).  With `allowBackingFile = false` (default) this
@@ -149,10 +140,9 @@ object SharedMemory {
         case None =>
           if allowBackingFile then Files.createTempFile("kse-shm-", ".mem")
           else Err ?# "No RAM-backed (tmpfs) directory found; pass allowBackingFile = true to fall back to a disk-backed temp file"
-      try mapShared[A](file, bytes)
-      catch case e if e.catchable =>
-        Files.deleteIfExists(file) __ Unit   // ours, and never shared: nothing to keep
-        throw e
+      Resource.assemble:
+        undo(file)(f => Files.deleteIfExists(f) __ Unit) __ Unit   // ours, and never shared: nothing to keep on failure
+        undo(mapShared[A](file, bytes))(_.close())
 
   /** Share `n` items of `A` through `p` (created if absent), a path you or another party chose.  For RAM
     * residence, `p` must live on a tmpfs mount (e.g. under [[ramDirectory]]); that is the caller's to ensure.
@@ -218,22 +208,16 @@ object SharedMemory {
     */
   private def attachPosixFile[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
     val p = posixShmDir.resolve(name.stripPrefix("/"))
-    val arena = Arena.ofShared()
-    try
-      Mem.Owned.create[A](arena){ a =>
-        val ch =
-          if readOnly then FileChannel.open(p, StandardOpenOption.READ)
-          else FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE)
-        try
-          val n = if bytes > 0 then bytes else ch.size()
-          if n <= 0 then throw new java.io.IOException(s"shared-memory object '$name' is empty")
-          ch.map(if readOnly then FileChannel.MapMode.READ_ONLY else FileChannel.MapMode.READ_WRITE, 0L, n, a)
-        finally ch.close()
-      }
-    catch
-      case e if e.catchable =>
-        arena.close()
-        throw e
+    Resource.assemble:
+      val arena = undo(Arena.ofShared())(_.close())
+      val ch = scoped(
+        if readOnly then FileChannel.open(p, StandardOpenOption.READ)
+        else FileChannel.open(p, StandardOpenOption.READ, StandardOpenOption.WRITE)
+      )(_.close())
+      val n = if bytes > 0 then bytes else ch.size()
+      if n <= 0 then throw new java.io.IOException(s"shared-memory object '$name' is empty")
+      val mode = if readOnly then FileChannel.MapMode.READ_ONLY else FileChannel.MapMode.READ_WRITE
+      arena.into(a => Mem.Owned.create[A](a)(_ => ch.map(mode, 0L, n, a)))
 
   /** Native libc/libSystem bindings for POSIX shared memory: macOS names (where `shm_open` objects are
     * *not* files and so cannot be reached through a `FileChannel`) plus the descriptor-based routes on both
@@ -277,29 +261,22 @@ object SharedMemory {
     if (PosixNative.fstat.invoke(cap, fd, st): Int) != 0 then -1L else st.get(JAVA_LONG, 96L)
 
   private def attachPosixNative[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
-    val arena = Arena.ofShared()
-    try
-      Mem.Owned.create[A](arena){ a =>
-        val tmp = Arena.ofConfined()
-        try
-          val cap = tmp.allocate(PosixNative.captureLayout)
-          val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(posixName(name)), if readOnly then 0 else 0x2, 0)  // O_RDONLY / O_RDWR
-          if fd < 0 then throw new java.io.IOException(s"shm_open failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-          try
-            val n = if bytes > 0 then bytes else darwinSize(cap, tmp, fd)
-            if n <= 0 then throw new java.io.IOException(s"could not measure '$name' (fstat gave $n, errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-            val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
-            val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, n, prot, 0x1, fd, 0L)  // MAP_SHARED
-            if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")  // MAP_FAILED
-            val whole = view.reinterpret(n, a, s => (PosixNative.munmap.invoke(s, n): Int) __ Unit)
-            if readOnly then whole.asReadOnly else whole   // the pages are PROT_READ: a write must throw, not fault
-          finally (PosixNative.close.invoke(fd): Int) __ Unit
-        finally tmp.close()
+    Resource.assemble:
+      val arena = undo(Arena.ofShared())(_.close())
+      val tmp = scoped(Arena.ofConfined())(_.close())
+      val cap = tmp.allocate(PosixNative.captureLayout)
+      val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(posixName(name)), if readOnly then 0 else 0x2, 0)  // O_RDONLY / O_RDWR
+      if fd < 0 then throw new java.io.IOException(s"shm_open failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+      scoped(fd)(PosixSocket.closeQuietly) __ Unit   // the mapping keeps the memory; the descriptor is transient
+      val n = if bytes > 0 then bytes else darwinSize(cap, tmp, fd)
+      if n <= 0 then throw new java.io.IOException(s"could not measure '$name' (fstat gave $n, errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+      val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
+      val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, n, prot, 0x1, fd, 0L)  // MAP_SHARED
+      if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")  // MAP_FAILED
+      arena.into{ a =>
+        val whole = view.reinterpret(n, a, s => (PosixNative.munmap.invoke(s, n): Int) __ Unit)
+        Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)   // the pages are PROT_READ: a write must throw, not fault
       }
-    catch
-      case e if e.catchable =>
-        arena.close()
-        throw e
 
   /** Native `kernel32` bindings for Windows named file mappings.  Initialized lazily on first Windows use. */
   private object WindowsNative {
@@ -354,30 +331,23 @@ object SharedMemory {
 
   private def attachWindows[A <: Mem.Type](name: String, bytes: Long, readOnly: Boolean): Mem.Owned[A] =
     val access = if readOnly then 0x0004 else 0x0002   // FILE_MAP_READ, or FILE_MAP_WRITE, which alone maps read-write and asks a DACL for no more
-    val arena = Arena.ofShared()
-    try
-      Mem.Owned.create[A](arena){ a =>
-        val tmp = Arena.ofConfined()
-        try
-          val cap = tmp.allocate(WindowsNative.captureLayout)
-          val handle: MemorySegment = WindowsNative.openMapping.invoke(cap, access, 0, tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
-          if handle.address() == 0L then throw new java.io.IOException(s"OpenFileMapping failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-          try
-            val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)   // 0 bytes maps the whole section
-            if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-            val n = if bytes > 0 then bytes else windowsViewSize(cap, tmp, view)
-            if n <= 0 then
-              (WindowsNative.unmapView.invoke(view): Int) __ Unit
-              throw new java.io.IOException(s"could not measure the view of '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-            val whole = view.reinterpret(n, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
-            if readOnly then whole.asReadOnly else whole   // FILE_MAP_READ pages: a write must throw, not fault
-          finally (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
-        finally tmp.close()
+    Resource.assemble:
+      val arena = undo(Arena.ofShared())(_.close())
+      val tmp = scoped(Arena.ofConfined())(_.close())
+      val cap = tmp.allocate(WindowsNative.captureLayout)
+      val handle: MemorySegment = WindowsNative.openMapping.invoke(cap, access, 0, tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
+      if handle.address() == 0L then throw new java.io.IOException(s"OpenFileMapping failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      scoped(handle)(h => (WindowsNative.closeHandle.invoke(h): Int) __ Unit) __ Unit   // the view keeps the section; the handle is transient
+      val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)   // 0 bytes maps the whole section
+      if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      val n = if bytes > 0 then bytes else windowsViewSize(cap, tmp, view)
+      if n <= 0 then
+        (WindowsNative.unmapView.invoke(view): Int) __ Unit
+        throw new java.io.IOException(s"could not measure the view of '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      arena.into{ a =>
+        val whole = view.reinterpret(n, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
+        Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)   // FILE_MAP_READ pages: a write must throw, not fault
       }
-    catch
-      case e if e.catchable =>
-        arena.close()
-        throw e
 
 
   ///////////////////////////////////////////////////////////////////////
@@ -530,21 +500,12 @@ object SharedMemory {
       try FileChannel.open(p, java.util.EnumSet.of(StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW), PosixFilePermissions.asFileAttribute(perms))
       catch case _: java.nio.file.FileAlreadyExistsException => null
     if ch eq null then null
-    else
-      val arena = Arena.ofShared()
-      try
-        val owned = Mem.Owned.create[A](arena){ a =>
-          try
-            Files.setPosixFilePermissions(p, perms) __ Unit   // the umask narrowed the create; this is the mode asked for
-            ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a)
-          finally ch.close()
-        }
-        new Created[A](name, owned, () => Files.deleteIfExists(p) __ Unit)
-      catch
-        case e if e.catchable =>
-          arena.close()
-          Files.deleteIfExists(p) __ Unit
-          throw e
+    else Resource.assemble:
+      scoped(ch)(_.close()) __ Unit
+      undo(p)(f => Files.deleteIfExists(f) __ Unit) __ Unit
+      Files.setPosixFilePermissions(p, perms) __ Unit   // the umask narrowed the create; this is the mode asked for
+      val arena = undo(Arena.ofShared())(_.close())
+      arena.into(a => new Created[A](name, Mem.Owned.create[A](a)(_ => ch.map(FileChannel.MapMode.READ_WRITE, 0L, bytes, a)), () => Files.deleteIfExists(p) __ Unit))
 
   /** The `PosixFilePermission`s of a mode's nine low bits. */
   private def posixPerms(mode: Int): java.util.Set[PosixFilePermission] =
@@ -567,23 +528,18 @@ object SharedMemory {
         val e = (PosixNative.errnoVH.get(cap, 0L): Int)
         if e == 17 then null    // EEXIST: a clash, for the caller to retry or report
         else throw new java.io.IOException(s"shm_open failed for '$name' (errno=$e)")
-      else
-        val arena = Arena.ofShared()
-        try
-          if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
-            throw new java.io.IOException(s"ftruncate failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-          val owned = Mem.Owned.create[A](arena){ a =>
-            val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, 0x3, 0x1, fd, 0L)  // PROT_READ|WRITE, MAP_SHARED
-            if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
-            view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit)
-          }
+      else Resource.assemble:
+        scoped(fd)(PosixSocket.closeQuietly) __ Unit   // the mapping keeps the memory; the descriptor is transient
+        undo(name)(shmUnlink) __ Unit                  // only if we fail from here on
+        if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
+          throw new java.io.IOException(s"ftruncate failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+        val arena = undo(Arena.ofShared())(_.close())
+        arena.into{ a =>
+          val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, 0x3, 0x1, fd, 0L)  // PROT_READ|WRITE, MAP_SHARED
+          if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+          val owned = Mem.Owned.create[A](a)(_ => view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit))
           new Created[A](name, owned, () => shmUnlink(name))
-        catch
-          case e if e.catchable =>
-            arena.close()
-            shmUnlink(name)
-            throw e
-        finally (PosixNative.close.invoke(fd): Int) __ Unit
+        }
     finally tmp.close()
 
   /** Windows: native `CreateFileMappingW(INVALID_HANDLE_VALUE, …)` — a pagefile-backed (RAM) section — then
@@ -608,20 +564,15 @@ object SharedMemory {
       else if lastErr == 183 then                                // ERROR_ALREADY_EXISTS: a clash, for the caller to retry or report
         (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
         null
-      else
-        val arena = Arena.ofShared()
-        try
-          val owned = Mem.Owned.create[A](arena){ a =>
-            val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, 0x0002, 0, 0, bytes)  // FILE_MAP_WRITE: a read-write view
-            if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
-            view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
-          }
+      else Resource.assemble:
+        undo(handle)(h => (WindowsNative.closeHandle.invoke(h): Int) __ Unit) __ Unit   // the creator holds the section handle for the region's life
+        val arena = undo(Arena.ofShared())(_.close())
+        arena.into{ a =>
+          val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, 0x0002, 0, 0, bytes)  // FILE_MAP_WRITE: a read-write view
+          if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+          val owned = Mem.Owned.create[A](a)(_ => view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit))
           new Created[A](name, owned, () => (WindowsNative.closeHandle.invoke(handle): Int) __ Unit)
-        catch
-          case e if e.catchable =>
-            arena.close()
-            (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
-            throw e
+        }
     finally tmp.close()
 
 
@@ -668,15 +619,16 @@ object SharedMemory {
     * read-only segments, so a stray write is an exception rather than a SIGSEGV.
     */
   private def mapOwned[A <: Mem.Type](fd: Int, size: Long, readOnly: Boolean, cap: MemorySegment): Ask[Mem.Owned[A]] =
-    val arena = Arena.ofShared()
     Ask:
-      val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
-      val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, size, prot, 0x1, fd, 0L)  // MAP_SHARED
-      if view.address() == -1L then Err ?# s"mmap failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
-      val whole = view.reinterpret(size, arena, s => (PosixNative.munmap.invoke(s, size): Int) __ Unit)
-      Mem.Owned.create[A](arena)(_ => if readOnly then whole.asReadOnly else whole)
-    .peekAlt: _ =>
-      arena.close()
+      Resource.assemble:
+        val arena = undo(Arena.ofShared())(_.close())
+        val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
+        val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, size, prot, 0x1, fd, 0L)  // MAP_SHARED
+        if view.address() == -1L then Err ?# s"mmap failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+        arena.into{ a =>
+          val whole = view.reinterpret(size, a, s => (PosixNative.munmap.invoke(s, size): Int) __ Unit)
+          Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)
+        }
 
   /** Map an anonymous fd read-write and take ownership of it (on failure the caller cleans up the fd). */
   private def mapAnonFd[A <: Mem.Type](fd: Int, bytes: Long, cap: MemorySegment): Ask[Anon[A]] =
@@ -687,17 +639,16 @@ object SharedMemory {
     val tmp = Arena.ofConfined()
     try
       val cap = tmp.allocate(PosixNative.captureLayout)
-      Ask.flat:
-        val fd: Int = PosixNative.memfdCreate.invoke(cap, tmp.allocateFrom("kse-shm"), 0x1 | 0x2)   // MFD_CLOEXEC | MFD_ALLOW_SEALING
-        if fd < 0 then Err ?# s"memfd_create failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
-        Ask.flat:
+      Ask:
+        Resource.assemble:
+          val fd: Int = PosixNative.memfdCreate.invoke(cap, tmp.allocateFrom("kse-shm"), 0x1 | 0x2)   // MFD_CLOEXEC | MFD_ALLOW_SEALING
+          if fd < 0 then Err ?# s"memfd_create failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+          undo(fd)(PosixSocket.closeQuietly) __ Unit   // the Anon owns it once mapped; until then it is ours to close
           if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
             Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
           if (PosixNative.fcntl.invoke(cap, fd, 1033, 0x2): Int) != 0 then                          // F_ADD_SEALS, F_SEAL_SHRINK
             Err ?# s"F_ADD_SEALS(F_SEAL_SHRINK) failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
-          mapAnonFd[A](fd, bytes, cap)
-        .peekAlt: _ =>
-          (PosixNative.close.invoke(fd): Int) __ Unit
+          undo(mapAnonFd[A](fd, bytes, cap).?)(_.close())
     finally tmp.close()
 
   /** macOS: `shm_open` a fresh name, size it, then `shm_unlink` at once — anonymous from birth. */
@@ -719,15 +670,13 @@ object SharedMemory {
             if e == 17 then clashing = true   // EEXIST: name clash, try another
             else Err ?# s"shm_open failed (errno=$e)"
           else
-            made =
-              Ask.flat:
+            made = Ask:
+              Resource.assemble:
+                undo(fd)(PosixSocket.closeQuietly) __ Unit   // the Anon owns it once mapped; until then it is ours to close
+                scoped(name)(shmUnlink) __ Unit              // anonymous from birth: the name goes once the region is mapped, or sooner
                 if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
                   Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
-                shmUnlink(name)              // from here on, the descriptor and mappings are the only handles
-                mapAnonFd[A](fd, bytes, cap)
-              .peekAlt: _ =>
-                shmUnlink(name)
-                (PosixNative.close.invoke(fd): Int) __ Unit
+                undo(mapAnonFd[A](fd, bytes, cap).?)(_.close())
         made
     finally tmp.close()
 
@@ -756,21 +705,18 @@ object SharedMemory {
     else if bytes < 0 then
       PosixSocket.closeQuietly(fd)
       Err.or(s"shared-memory size must be positive, or 0 to discover it; got $bytes bytes")
-    else
-      val tmp = Arena.ofConfined()
-      try
+    else Ask:
+      Resource.assemble:
+        scoped(fd)(PosixSocket.closeQuietly) __ Unit   // consumed either way; a successful mapping keeps the memory
+        val tmp = scoped(Arena.ofConfined())(_.close())
         val cap = tmp.allocate(PosixNative.captureLayout)
-        try
-          Ask.flat:
-            val size =
-              if bytes > 0 then bytes
-              else
-                val z: Long = if onMac then darwinSize(cap, tmp, fd) else PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END; Darwin's shm descriptors do not seek
-                if z <= 0 then Err ?# s"could not measure the shared descriptor (got $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
-                z
-            mapOwned[A](fd, size, readOnly, cap)
-        finally (PosixNative.close.invoke(fd): Int) __ Unit   // consumed either way; a successful mapping keeps the memory
-      finally tmp.close()
+        val size =
+          if bytes > 0 then bytes
+          else
+            val z: Long = if onMac then darwinSize(cap, tmp, fd) else PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END; Darwin's shm descriptors do not seek
+            if z <= 0 then Err ?# s"could not measure the shared descriptor (got $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
+            z
+        undo(mapOwned[A](fd, size, readOnly, cap).?)(_.close())
 
   // The 16-byte header sent ahead of an offered descriptor: magic, version, then the byte size (little-endian).
   private def fdTag(bytes: Long): Array[Byte] =
@@ -825,11 +771,12 @@ object SharedMemory {
 
   /** Worker for [[offerFd]]: create `bytes` bytes, listen at `path`, wrap in a backstopped `Tidy.Later`. */
   def offeredLater[A <: Mem.Type](path: Path, bytes: Long, timeout: Duration): Ask[Tidy.Later[Offer[A]]] =
-    Ask.flat:
-      val anon = anonBytes[A](bytes).?
-      FdSock.listen(path, timeout)
-        .peekAlt(_ => anon.close())
-        .map(server => Resource.closedLater(new Offer[A](anon, server))(_.close()))
+    Ask:
+      val offer = Resource.assemble:
+        val anon = undo(anonBytes[A](bytes).?)(_.close())
+        val server = undo(FdSock.listen(path, timeout).?)(_.close())
+        anon.into(a => new Offer[A](a, server))
+      Resource.closedLater(offer)(_.close())
 
   /** Connect to an [[offerFd]] socket at `path` and map the offered region; the element count comes from
     * the offer itself, so only the element type `A` need be agreed.  One call: connect, receive the
