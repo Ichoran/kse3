@@ -628,33 +628,51 @@ object procrastinator {
     try f(using p)
     finally catchup(p.asInstanceOf[Mu[List[() => Unit]]])
 
-  private def catchupNice(items: Mu[List[() => Unit]], errors: Mu[List[Err]]): Unit = items() match
-    case f :: more =>
-      items := more  // f() might add things to items!
-      try kse.flow.nice(f()).foreachAlt(e => errors.zap(e :: _))
-      finally catchupNice(items, errors)
-    case _ =>
+  // Runs every item through `unwind`, so none can cut the rest short; answers the first interruption
+  // among them (the rest suppressed into it), with every other failure added to `errors`.
+  private def catchupNice(items: Mu[List[() => Unit]], errors: Mu[List[Err]], unwind: Unwind): InterruptedException =
+    var stop: InterruptedException = null
+    var more = true
+    while more do items() match
+      case f :: rest =>
+        items := rest  // f() might add things to items!
+        unwind(f()) match
+          case null => ()
+          case ie: InterruptedException => if stop eq null then stop = ie else stop.addSuppressed(ie)
+          case t => errors.zap(Err(t) :: _)
+      case _ => more = false
+    stop
 
   /** Denotes a block where one will catch exceptions and defer code for later using a `later` block.
     * When the block ends, delayed items are run in the reverse order they were added (i.e. as a stack).
-    * 
-    * A best effort is made to run everything, even in case of repeated exceptions.  This may overflow
-    * the stack, so do not enqueue too many items (it is not stack-safe).
-    * 
-    * If no exceptions are encountered, the normal return value is given.  Otherwise, all errors will be
-    * accumulated into a single error value (both from the primary code block and from the later blocks).
+    *
+    * Everything runs, whatever any of it throws.  If no exceptions are encountered, the normal return
+    * value is given.  Otherwise, all errors will be accumulated into a single error value (both from
+    * the primary code block and from the later blocks).  An interruption among the later blocks does
+    * not stop the rest either (see `Unwind`): it is thrown once all have run, with any error value
+    * suppressed into it; one from the primary code block leaves as it would from `nice`, after the
+    * later blocks have run.
     */
   inline def nice[A](inline f: Procrastination ?=> A): Ask[A] =
     val p: Procrastination = Mu(Nil)
     val em = Mu(Nil: List[Err])
     var a = Ask.ghosted[A]
+    var leaving: Throwable = null
     try a = kse.flow.nice(f(using p))
+    catch case t: Throwable => { leaving = t; throw t }
     finally
-      try catchupNice(p.asInstanceOf[Mu[List[() => Unit]]], em)
-      finally
-        val es = em()
-        if es.nonEmpty then
-          a.foreachThem{ _ => a = Alt(Err(ErrType.Many(es))) }{ e => a = Alt(Err(ErrType.Many(e :: es))) }
+      val unwind = new Unwind
+      val stop = catchupNice(p.asInstanceOf[Mu[List[() => Unit]]], em, unwind)
+      val es = em()
+      if es.nonEmpty then
+        a.foreachThem{ _ => a = Alt(Err(ErrType.Many(es))) }{ e => a = Alt(Err(ErrType.Many(e :: es))) }
+      if leaving ne null then
+        if es.nonEmpty then leaving.addSuppressed(Err(ErrType.Many(es)).toThrowable)
+        unwind.restore(leaving)
+      else if stop ne null then
+        a.foreachAlt(e => stop.addSuppressed(e.toThrowable))
+        throw stop
+      else unwind.restore()
     a
 }
 

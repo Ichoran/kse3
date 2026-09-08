@@ -59,6 +59,33 @@ class GoChanTest {
     t.join(2000)
     assertEquals(42, got.get())
 
+  // === Mode B: an interrupted blocking send/recv answers a terminal AND leaves the flag set ===
+
+  @Test(timeout = 30000)
+  def blockingInterruptKeepsFlag(): Unit =
+    val ch = Chan[Int](1)
+    assertEquals(RunStatus.Okay, ch.trySend(1))           // fill it, so a send must block
+    Thread.currentThread.interrupt()
+    val s = ch.send(2)
+    assertTrue(s"send should answer a terminal, got $s", s match { case RunStatus.Fail(_) => true; case _ => false })
+    assertTrue("the flag survives an interrupted send", Thread.currentThread.isInterrupted)
+    assertEquals(1, ch.tryRecv().getOrElse(_ => -1))      // drain, so a recv must block
+    val r = ch.recv()
+    assertTrue(s"recv should answer a terminal, got $r", r.existsAlt{ case RunStatus.Fail(_) => true; case _ => false })
+    assertTrue("the flag survives an interrupted recv", Thread.interrupted())   // read-and-clear so it doesn't leak to the next test
+
+  @Test(timeout = 30000)
+  def interruptedBlockingLeavesChannelUsable(): Unit =
+    // The interrupt is the blocked thread's, not the channel's: the channel stays open for everyone else.
+    val ch = Chan[Int](1)
+    ch.trySend(1) __ Unit
+    Thread.currentThread.interrupt()
+    ch.send(2) __ Unit                                    // interrupted, returns a terminal
+    Thread.interrupted() __ Unit                          // clear our flag
+    assertTrue(ch.isOpen)                                 // channel untouched
+    assertEquals(1, ch.tryRecv().getOrElse(_ => -1))
+    assertEquals(RunStatus.Okay, ch.trySend(3))           // still fully usable
+
 
   // === Go as a future-with-no-result ===
 
@@ -388,6 +415,49 @@ class GoChanTest {
               boundary.break()
       val r = h.await()                          // must complete, not hang on the un-published result
       assertTrue(r.isAlt)                        // the stranded break is bundled as an error
+
+
+  // === cancel() lets every Defer run: one that blocks (briefly) is not cut, and the ones after it still run ===
+
+  @Test(timeout = 30000)
+  def cancelRunsEveryDefer(): Unit = SleepReps.times:
+    val log = new java.util.concurrent.ConcurrentLinkedQueue[String]()
+    val ch = Chan[Int](4)
+    val h = Go.session:
+      Go:
+        ch.get{ i => Thread.sleep(5) }                          // in something interruptible when cancelled
+        Defer { log.add("outer") __ Unit }
+        Defer { Thread.sleep(20); log.add("middle") __ Unit }   // interruptible, but shorter than the nag period
+        Defer { log.add("inner") __ Unit }
+      Go { ch.put { Thread.sleep(1); 1 } }
+    Thread.sleep(30)
+    h.cancel()
+    val r = h.await()
+    assertEquals(List("inner", "middle", "outer"), log.toArray(new Array[String](0)).toList)
+    assertTrue(s"expected the cancellation as the error, got $r", r.existsAlt(_.toString == "cancelled"))
+
+  // === cancel() nags: a Defer that blocks past the nag period is cut, the rest still run, and the
+  //     interruption is not mistaken for an error of its own ===
+
+  @Test(timeout = 30000)
+  def cancelNagsBlockedDefer(): Unit = 3.times:
+    val log = new java.util.concurrent.ConcurrentLinkedQueue[String]()
+    val ch = Chan[Int](4)
+    val h = Go.session:
+      Go:
+        ch.get{ i => () }
+        Defer { log.add("outer") __ Unit }
+        Defer { Thread.sleep(10_000); log.add("not cut") __ Unit }
+        Defer { log.add("inner") __ Unit }
+      Go { ch.put { Thread.sleep(1); 1 } }
+    Thread.sleep(30)
+    val t0 = System.nanoTime
+    h.cancel()
+    val r = h.await()
+    val ms = (System.nanoTime - t0) / 1e6
+    assertTrue(s"cancel took $ms ms", ms < 2000)
+    assertEquals(List("inner", "outer"), log.toArray(new Array[String](0)).toList)
+    assertTrue(s"expected the cancellation as the error, got $r", r.existsAlt(_.toString == "cancelled"))
 
 
   private def info(s: String): Unit = println(s"[GoChanTest] $s")

@@ -7,6 +7,33 @@ import kse.basics._
 import kse.flow._
 
 
+/** Joining a thread in a teardown, where the wait can neither be cut short nor lose an interruption. */
+private[loom] object Join {
+  /** How often a cancelled tree re-interrupts a thread it is joining (see [[apply]]). */
+  val nagNanos = 100_000_000L  // 100 ms
+
+  /** Waits for `t` to end.  An interrupt that arrives meanwhile is remembered and the thread's interrupt
+    * status re-established once `t` has ended -- never re-set while still waiting, which would make every
+    * further `join` throw at once and turn the wait into a spin.  While `nagging` holds (re-read each
+    * period), `t` is interrupted again every `period` nanoseconds for as long as it lives, which is what
+    * makes a cancelled tree die: a cleanup step in `t` that blocks interruptibly is cut after at most one
+    * period, while one that does not block runs to the end (see `Unwind`). */
+  def apply(t: Thread, period: Long)(nagging: => Boolean): Unit =
+    var noted = false
+    var alive = true
+    while alive do
+      try
+        if nagging then
+          alive = !t.join(java.time.Duration.ofNanos(period))
+          if alive then t.interrupt()
+        else
+          t.join()
+          alive = false
+      catch case _: InterruptedException => noted = true
+    if noted then Thread.currentThread.interrupt()
+}
+
+
 /** The outcome of a non-blocking step on a channel, a select-loop handler, or a muncher mailbox:
   * progress, a transient block, a clean finish, or an error.  Sends and select-loop steps return it
   * directly; a receive carries its value in the `Is` of an `A Or RunStatus`, so there a success *is*

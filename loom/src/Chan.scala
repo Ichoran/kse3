@@ -254,6 +254,14 @@ final class Chan[A] private (buffer: Array[AnyRef]) extends ChanIn[A], ChanOut[A
 
 
   // === Blocking ===
+  //
+  // These are the imperative blocking calls — a `Go` task's handlers use the non-blocking `try*` forms
+  // instead.  On an interrupt each answers a terminal `RunStatus` (never throws — the whole loom surface
+  // is status-valued) but leaves the thread's interrupt status *set*, not consumed: the value tells this
+  // caller to stop, and the flag reaches whoever owns the thread (a hold-aside cleanup upstream, a thread
+  // top).  The channel is never touched — an interrupt is aimed at a thread, and the channel is shared;
+  // tearing the network down is a separate, explicit `close`/`fail`.  Because each loop re-checks the
+  // channel before the flag, a channel `fail(cause)` racing the interrupt still answers the useful cause.
 
   /** Block until the value is sent, or the channel is closed/failed. */
   def send(a: A): RunStatus =
@@ -268,7 +276,7 @@ final class Chan[A] private (buffer: Array[AnyRef]) extends ChanIn[A], ChanOut[A
             p.armed = true
             res = trySend(a)
             if res == RunStatus.Wait then
-              if Thread.interrupted() then res = RunStatus.Fail(Err("interrupted while sending"))
+              if Thread.currentThread.isInterrupted then res = RunStatus.Fail(Err("interrupted while sending"))
               else LockSupport.parkNanos(Chan.parkCapNanos)
           res
         finally
@@ -290,7 +298,7 @@ final class Chan[A] private (buffer: Array[AnyRef]) extends ChanIn[A], ChanOut[A
         p.armed = true
         res = tryRecv()
         if res.existsAlt(_ == RunStatus.Wait) then
-          if Thread.interrupted() then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
+          if Thread.currentThread.isInterrupted then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally

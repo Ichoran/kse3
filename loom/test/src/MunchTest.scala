@@ -224,4 +224,62 @@ class MunchTest {
     assertEquals("every connection's socket closed", 20, closed.get())
     assertTrue("all retired", conns.keys.isEmpty)
     sup.stop().foreachThem(_ => ())(e => fail(e.toString))
+
+
+  // === cancel() reaches a handler blocked in an interruptible call: the stop is what gets recorded,
+  //     the muncher's Defers run, and nothing is printed or lost ===
+
+  @Test(timeout = 30000)
+  def cancelInterruptsBlockedHandler(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val reg = sup.registry[String, Int]("blocked")
+    val cleaned = new AtomicInteger(0)
+    val ref = reg.spawn("a"){
+      Defer { cleaned.incrementAndGet() __ Unit }
+      (i: Int) => Thread.sleep(10_000)
+    }
+    ref ! 1
+    Thread.sleep(30)
+    val t0 = System.nanoTime
+    val r = sup.cancel()
+    val ms = (System.nanoTime - t0) / 1e6
+    assertTrue(s"cancel took $ms ms", ms < 2000)
+    assertTrue(s"expected the stop as the error, got $r", r.existsAlt(_.toString.contains("supervisor cancelled")))
+    assertFalse(s"the interruption is the stop, not an error of its own: $r", r.existsAlt(_.toString.contains("InterruptedException")))
+    assertEquals(1, cleaned.get())
+    assertFalse(ref.isLive)
+
+  // === cancel() of a muncher idle in recv records the useful cause, not the interrupt text ===
+
+  @Test(timeout = 30000)
+  def cancelIdleRecordsCause(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val reg = sup.registry[String, Int]("idle")
+    reg.spawn("a"){ (i: Int) => () } __ Unit             // blocks in recv on an empty mailbox
+    Thread.sleep(20)
+    val r = sup.cancel()
+    assertTrue(s"expected the cancel cause, got $r", r.existsAlt(_.toString.contains("supervisor cancelled")))
+    assertFalse(s"the channel cause wins over the interrupt text: $r", r.existsAlt(_.toString.contains("interrupted while")))
+
+
+  // === cancel() nags: a Defer that blocks past the nag period is cut, and the ones after it still run ===
+
+  @Test(timeout = 30000)
+  def cancelNagsBlockedDefer(): Unit = 3.times:
+    val sup = Munch.supervisor()
+    val reg = sup.registry[String, Int]("slow")
+    val after = new AtomicInteger(0)
+    val ref = reg.spawn("a"){
+      Defer { after.incrementAndGet() __ Unit }          // registered first: runs last, after the blocking one
+      Defer { Thread.sleep(10_000) }
+      (i: Int) => ()
+    }
+    ref ! 1
+    Thread.sleep(30)
+    val t0 = System.nanoTime
+    val r = sup.cancel()
+    val ms = (System.nanoTime - t0) / 1e6
+    assertTrue(s"cancel took $ms ms", ms < 2000)
+    assertEquals(1, after.get())
+    assertFalse(s"the interruption is the stop, not an error of its own: $r", r.existsAlt(_.toString.contains("InterruptedException")))
 }

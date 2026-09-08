@@ -170,10 +170,15 @@ extension [A](a: Array[kse.loom.Fu[A]]) {
 
 
 
+/** A thread with a result: `await()` answers what the body produced, or the error it failed with -- an
+  * interruption included, reported rather than swallowed, since a `Threaded` owns no scope that could act on
+  * it.  Nothing leaves the thread without a result being published, so `await()` cannot hang. */
 class Threaded[A] private (f: () => A) extends Thread {
   private val result = new java.util.concurrent.CompletableFuture[Ask[A]]()
   override def run(): Unit =
-    result.complete(threadnice(f())): Unit
+    try result.complete(threadnice(f())) __ Unit
+    catch case e: InterruptedException => result.complete(Alt(Err(e))) __ Unit
+    finally result.complete(Alt(Err("thread ended without a result"))) __ Unit   // only if nothing above did: a fatal error is leaving
   def await(): Ask[A] =
     try result.get()
     catch case e if e.catchable => Alt(Err(e))

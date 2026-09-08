@@ -79,29 +79,41 @@ object Tidy {
         catch case e if e.catchable => Err.or(e)
       else Alt(Err("Already closed"))
 
-    /** [[use]] then [[close]].  If both throw, the close failure is added as suppressed to the op's. */
+    /** [[use]] then [[close]].  If both throw, the close failure is added as suppressed to the op's — an
+      * interrupted op included, so a close that fails cannot replace the interruption; a close interrupted
+      * beside an op failure rides as suppressed too, with the thread's interrupt status re-set. */
     def useAndClose(f: R => Unit): Unit =
       var primary: Throwable = null
       try use(f)
       catch
+        case t: InterruptedException =>
+          primary = t
+          throw t
         case t if t.catchable =>
           primary = t
           throw t
-      finally
-        if primary eq null then close()
-        else try close() catch case e if e.catchable => primary.addSuppressed(e)
+      finally closeAfter(primary)
 
-    /** [[op]] then [[close]].  If both throw, the close failure is added as suppressed to the op's. */
+    /** [[op]] then [[close]].  If both throw, the close failure is added as suppressed to the op's, an
+      * interrupted op included (see [[useAndClose]]). */
     def opAndClose[A](f: R => A): A =
       var primary: Throwable = null
       try op(f)
       catch
+        case t: InterruptedException =>
+          primary = t
+          throw t
         case t if t.catchable =>
           primary = t
           throw t
-      finally
-        if primary eq null then close()
-        else try close() catch case e if e.catchable => primary.addSuppressed(e)
+      finally closeAfter(primary)
+
+    private def closeAfter(primary: Throwable): Unit =
+      if primary eq null then close()
+      else
+        val unwind = new Unwind
+        Unwind.fold(primary, unwind(close())) __ Unit
+        unwind.restore(primary)
 
     /** [[nice]] then [[close]].  A close failure is never dropped: folded into a successful result as an
       * explanation of its value, or combined with the op's own error when both fail. */
@@ -114,13 +126,15 @@ object Tidy {
       * a guard against a concurrent [[close]] (see the class note). */
     def isOpen: Boolean = reap.open
 
+    // An interruption leaves as the exception once the close has run, as everywhere in the nice family:
+    // see Resource.closing.
     inline private def andClose[A](inline ans: => Ask[A]): Ask[A] =
+      var exit: Throwable = null
       var wrong: Throwable = null
-      val a =
-        try ans  // NOTE: catch not necessary because we only wrap thunks that already catch
-        finally
-          try close()
-          catch case e if e.catchable => wrong = e
+      var a = Ask.ghosted[A]
+      try a = ans  // NOTE: catch not necessary because we only wrap thunks that already catch
+      catch case t: Throwable => { exit = t; throw t }
+      finally wrong = Resource.closing(close(), exit, a.fold(_ => null)(_.toThrowable))
       if wrong eq null then a
       else a.fold{ 
           x => Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", x))
@@ -142,10 +156,10 @@ object Tidy {
     private def reapAll(): Unit =
       val es = new java.util.ArrayList(pending.entrySet)
       es.sort((a, b) => b.getValue.compareTo(a.getValue))   // newest first
+      val unwind = new Unwind
       val it = es.iterator
-      while it.hasNext do
-        try it.next.getKey.close()
-        catch case e if e.catchable => ()
+      while it.hasNext do unwind(it.next.getKey.close()) __ Unit
+      unwind.restore()
 
     /** Run every still-pending backstopped cleanup now, newest first (for tests or explicit teardown). */
     def reapNow(): Unit = reapAll()
@@ -270,6 +284,57 @@ object Tidy {
 }
 
 
+/** Runs the steps of a teardown so that none of them can cut the rest short, and keeps the thread's
+  * interruption aside while they run.  Each step goes through [[apply]], which answers what the step threw
+  * instead of throwing it, so the caller decides how failures combine ([[Unwind.fold]] is the one rule for
+  * joining a second to a first).  Before every step a pending interrupt status is cleared, and remembered:
+  * each step runs as though never interrupted, so a release that must block to be clean gets to, and a step
+  * that blocks is cut only by a fresh interrupt from outside, which is remembered too and cuts only that
+  * step.  Once the last step has run, [[restore]] re-establishes what was remembered.  One per teardown.
+  */
+final class Unwind {
+  private var noted = false
+  private var stop: InterruptedException = null
+
+  /** Runs `step` in isolation, answering what it threw — `null` if nothing.  A stray control-flow break is
+    * caught too (`threadCatchable`, not `catchable`): a teardown step is no place for a non-local exit, and
+    * one that escaped would abandon every step after it. */
+  def apply(step: => Unit): Throwable =
+    if Thread.interrupted() then noted = true
+    try
+      step
+      null
+    catch
+      case t: InterruptedException =>
+        noted = true
+        if stop eq null then stop = t
+        t
+      case t if t.threadCatchable => t
+
+  /** Whether an interruption has been seen: pending before a step, or thrown by one. */
+  def interrupted: Boolean = noted
+
+  /** The first interruption a step threw, or `null` — for a caller that must let it leave as the exception
+    * it is, where what was leaving could not carry it (an early return, say), rather than [[restore]] it. */
+  def interruption: InterruptedException = stop
+
+  /** Re-establishes the thread's interrupt status if an interruption was seen, unless `leaving` — the
+    * exception about to leave the enclosing block, if any — is that interruption itself, which needs no
+    * flag beside it.  Call once every step has run. */
+  def restore(leaving: Throwable = null): Unit =
+    if noted && !leaving.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()
+}
+object Unwind {
+  /** `extra` joined to `primary` as suppressed — never itself, which Java refuses — answering the primary,
+    * or `extra` alone when there was none. */
+  def fold(primary: Throwable, extra: Throwable): Throwable =
+    if primary eq null then extra
+    else
+      if (extra ne null) && (extra ne primary) then primary.addSuppressed(extra)
+      primary
+}
+
+
 object Resource {
   // TODO: handle more thoughtfully the case where there is an exception during closing the resource
   // in combination with nonlocal control flow--if we have normal control flow BUT an exception in
@@ -283,40 +348,79 @@ object Resource {
     try f(r)
     finally done(r)
 
+  /** The close of a use-scope, run as one [[Unwind]] step: with the thread's interrupt status clear, and that
+    * status restored after.  Answers a catchable close failure for the caller to report, or `null`.  An
+    * interruption never becomes a value here, as it never does in `nice`: it leaves as the exception, once
+    * the close has run, with whatever else there was to report suppressed into it — a close failure into the
+    * body's interruption (`exit`), or the body's failure (`failed`; `null` for a success, whose value is
+    * dropped, since a close cut short makes it unreliable) into the close's.  An early return in flight
+    * cannot carry the close's interruption, so the interruption leaves in its place.  A stray control-flow
+    * break from the close flies, as it always did. */
+  private[flow] def closing(close: => Unit, exit: Throwable, failed: => Throwable): Throwable =
+    val unwind = new Unwind
+    val t = unwind(close)
+    if exit ne null then
+      if t.isInstanceOf[InterruptedException] && isJump(exit) then throw t
+      Unwind.fold(exit, t) __ Unit
+      unwind.restore(exit)
+      null
+    else if t eq null then
+      unwind.restore()
+      null
+    else if t.isInstanceOf[InterruptedException] then
+      Unwind.fold(t, failed) __ Unit
+      throw t
+    else
+      unwind.restore(t)
+      if t.catchable then t else throw t
+
+  private def isJump(t: Throwable): Boolean =
+    t.isInstanceOf[scala.util.control.ControlThrowable] || t.isInstanceOf[scala.util.boundary.Break[?]]
+
   def safe[R, A](rsc: Tidy[R] ?=> R)(done: Tidy[R])(f: R => A): A Or Throwable = boundary:
+    val r = try { rsc(using done) } catch { case e if e.catchable => boundary.break(Alt(e)) }
+    var exit: Throwable = null
+    var failed: Throwable = null
     var wrong: Throwable = null
     val result =
-      val r = try { rsc(using done) } catch { case e if e.catchable => boundary.break(Alt(e)) }
       try Is(f(r))
-      catch case e if e.catchable => Alt(e)
-      finally
-        try done(r)
-        catch case e if e.catchable => wrong = e
+      catch
+        case e if e.catchable => { failed = e; Alt(e) }
+        case t: Throwable => { exit = t; throw t }
+      finally wrong = closing(done(r), exit, failed)
     if result.isIs && (wrong ne null) then Alt(wrong) else result
 
+  /** Acquires a resource, uses it, and closes it, as values: a failure to acquire, a failure of the use, or a
+    * failure of the close after a success is the `Alt`.  An interruption is not a failure and leaves as the
+    * exception it is, once the close has run (see [[closing]]). */
   def nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(f: R => A): Ask[A] = boundary:
+    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    var exit: Throwable = null
+    var failed: Throwable = null
     var wrong: Throwable = null
     val result =
-      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
       try Is(f(r))
-      catch case e if e.catchable => Err.or(e)
-      finally
-        try done(r)
-        catch case e if e.catchable => wrong = e
+      catch
+        case e if e.catchable => { failed = e; Err.or(e) }
+        case t: Throwable => { exit = t; throw t }
+      finally wrong = closing(done(r), exit, failed)
     if result.isIs && (wrong ne null) then
       Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
 
+  /** [[nice]] with `.?` early-return available inside `f`. */
   inline def Nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(inline f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] =
     boundary:
+      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+      var exit: Throwable = null
+      var failed: Throwable = null
       var wrong: Throwable = null
       val result =
-        val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
         try Is(f(r))
-        catch case e if e.catchable => Err.or(e)
-        finally
-          try done(r)
-          catch case e if e.catchable => wrong = e
+        catch
+          case e if e.catchable => { failed = e; Err.or(e) }
+          case t: Throwable => { exit = t; throw t }
+        finally wrong = closing(done(r), exit, failed)
       if result.isIs && (wrong ne null) then
         Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
       else result
@@ -338,30 +442,34 @@ object Resource {
     * so a `SIGTERM`/`SIGINT` (or normal exit) mid-`f` still releases it — which the `finally` alone cannot
     * guarantee.  Requires a [[Tidy.Clean]] (cleanup safe to run from the hook thread). */
   def clean[R, A](rsc: Tidy.Clean[R] ?=> Ask[R])(done: Tidy.Clean[R])(f: R => A): Ask[A] = boundary:
+    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    val keep = Tidy.Later.keepScoped(r, done)
+    var exit: Throwable = null
+    var failed: Throwable = null
     var wrong: Throwable = null
     val result =
-      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
-      val keep = Tidy.Later.keepScoped(r, done)
       try Is(f(r))
-      catch case e if e.catchable => Err.or(e)
-      finally
-        try keep.close()
-        catch case e if e.catchable => wrong = e
+      catch
+        case e if e.catchable => { failed = e; Err.or(e) }
+        case t: Throwable => { exit = t; throw t }
+      finally wrong = closing(keep.close(), exit, failed)
     if result.isIs && (wrong ne null) then
       Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
 
   /** [[clean]] with `.?` early-return available inside `f`. */
   def Clean[R, A](rsc: Tidy.Clean[R] ?=> Ask[R])(done: Tidy.Clean[R])(f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] = boundary:
+    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    val keep = Tidy.Later.keepScoped(r, done)
+    var exit: Throwable = null
+    var failed: Throwable = null
     var wrong: Throwable = null
     val result =
-      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
-      val keep = Tidy.Later.keepScoped(r, done)
       try Is(f(r))
-      catch case e if e.catchable => Err.or(e)
-      finally
-        try keep.close()
-        catch case e if e.catchable => wrong = e
+      catch
+        case e if e.catchable => { failed = e; Err.or(e) }
+        case t: Throwable => { exit = t; throw t }
+      finally wrong = closing(keep.close(), exit, failed)
     if result.isIs && (wrong ne null) then
       Alt(Err(wrong).explainValue("Operation succeeded but error encountered while closing resource", result.get))
     else result
@@ -392,9 +500,9 @@ object Resource {
   final class Undo private[Resource] () {
     private final class Entry(val release: () => Unit, val always: Boolean)
     private var entries: List[Entry] = Nil
-    /** Whether any release was interrupted, kept apart from the failures so [[assemble]] can signal it once
-      * every release has run — a release run in between could otherwise consume the thread's interrupt status. */
-    private[Resource] var interrupted: Boolean = false
+    /** Every release runs through this, so an interruption among them is kept aside and re-established by
+      * [[assemble]] once the last has run — a release run in between cannot consume it. */
+    private[Resource] val steps = new Unwind
 
     /** Registers `r` to be released only if the assembly fails, answering it as the [[Guarded]] the block may hand out. */
     def onFailure[R](r: R)(release: R => Unit): Guarded[R] =
@@ -417,25 +525,11 @@ object Resource {
       while es ne Nil do
         val e = es.head
         es = es.tail
-        if all || e.always then
-          try e.release()
-          catch
-            case t: InterruptedException =>
-              interrupted = true
-              first = fold(first, t)
-            case t if t.catchable => first = fold(first, t)
+        if all || e.always then first = Unwind.fold(first, steps(e.release()))
         else keep = e :: keep
       entries = keep.reverse
       first
   }
-
-  /** `extra` joined to `primary` as suppressed — never itself, which Java refuses — answering the primary, or
-    * `extra` alone when there was none. */
-  private def fold(primary: Throwable, extra: Throwable): Throwable =
-    if primary eq null then extra
-    else
-      if (extra ne null) && (extra ne primary) then primary.addSuppressed(extra)
-      primary
 
   /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
     * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, `x.onFailure(release)`
@@ -446,9 +540,11 @@ object Resource {
     * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
     * return there is nothing to attach it to, and it is dropped.  An interrupted release never cuts the
     * unwind short: the interruption is thrown once the rest are released, or, where another failure is
-    * already on its way out, suppressed into it — and in every case where the interruption is not itself
-    * the exception leaving, the thread's interrupt status is set once the last release has run, so no
-    * release in between can consume it.  Only [[Guarded]] values, singly or in a
+    * already on its way out, suppressed into it — and where an early return is on its way out, which cannot
+    * carry it, the interruption leaves in the return's place, since an interruption never becomes a value.
+    * In every case where the interruption is not itself the exception leaving, the thread's interrupt status
+    * is set once the last release has run, so no release in between can consume it.  Every release runs with
+    * that status clear (see [[Unwind]]), so one that must block to be clean gets to.  Only [[Guarded]] values, singly or in a
     * tuple, may be returned — what `onFailure` answered, or what `mapGuarded` built from it — and the caller
     * receives them bare.
     * {{{
@@ -480,14 +576,14 @@ object Resource {
       val bad =
         if done then
           val b = u.unwind(all = false)
-          if b ne null then fold(b, u.unwind(all = true)) else null
+          if b ne null then Unwind.fold(b, u.unwind(all = true)) else null
         else u.unwind(all = true)
       val leaving: Throwable =                        // the exception this block exits by, if any
         if done then bad
-        else if exit ne null then fold(exit, bad)
-        else null                                     // an early return: a release failure has nowhere to go
-      if u.interrupted && !leaving.isInstanceOf[InterruptedException] then Thread.currentThread.interrupt()
-      if done && (bad ne null) then throw bad
+        else if exit ne null then Unwind.fold(exit, bad)
+        else u.steps.interruption                     // an early return: a release failure has nowhere to go, but an interruption leaves in its place
+      u.steps.restore(leaving)
+      if (leaving ne null) && (exit eq null) then throw leaving
     as.out(t)
 
   /** Within [[assemble]]: holds `r` only while assembling, released whichever way the block exits — a
@@ -496,23 +592,28 @@ object Resource {
 
   final class Manager() extends Tidy.CanClose {
     private var items: List[Tidy.CanClose] = Nil
-    private def closeItems(exceptions: List[Throwable] = Nil, n: Int = 0): Unit = items match
-      case item :: rest =>
-        items = rest
-        var es = exceptions
-        try item.close()
-        catch case e if e.catchable => es = e :: es
-        closeItems(es, n + 1)
-      case _ => exceptions match
-        case Nil =>
-        case e :: Nil => throw e
-        case lots => Err(ErrType.Many(lots.map(Err.apply), s"${lots.length} exceptions while closing $n resources")).toss
     def +=(cc: Tidy.CanClose): Unit =
       items = cc :: items
+    /** Closes everything, newest first, and lets nothing cut that short (see [[Unwind]]): the one failure is
+      * thrown, or all of them as one, with an interruption among them re-set as the thread's interrupt status. */
     def close(): Unit =
       if items ne null then
-        closeItems()
+        val unwind = new Unwind
+        var es: List[Throwable] = Nil
+        var n = 0
+        while items ne Nil do
+          val item = items.head
+          items = items.tail
+          val t = unwind(item.close())
+          if t ne null then es = t :: es
+          n += 1
         items = null
+        val thrown: Throwable = es match
+          case Nil => null
+          case e :: Nil => e
+          case lots => Err(ErrType.Many(lots.map(Err.apply), s"${lots.length} exceptions while closing $n resources")).toThrowable
+        unwind.restore(thrown)
+        if thrown ne null then throw thrown
   }
 }
 

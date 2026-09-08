@@ -2528,6 +2528,38 @@ class FlowTest {
         }                                                            ==== Err.or("bad")
     T ~ m()                                                          ==== -5
 
+    // an interruption never becomes a value: it leaves as the exception once the close has run, with
+    // whatever else there was to report suppressed into it
+    val boomclose: Tidy.Nice[Mu[Int]] = _ => throw new RuntimeException("boomclose")
+    val stopclose: Tidy.Nice[Mu[Int]] = _ => throw new InterruptedException("stopclose")
+    var px1: Throwable = null
+    try Resource.nice(m.orErr)(boomclose){ _ => throw new InterruptedException("stop") } __ Unit
+    catch case e: InterruptedException => px1 = e
+    T ~ px1.getMessage                                               ==== "stop"             // body interrupted...
+    T ~ px1.getSuppressed.map(_.getMessage).toList                   ==== List("boomclose")  // ...and the close failure rides along
+    T ~ Thread.interrupted()                                         ==== false
+    var px2: Throwable = null
+    try Resource.nice(m.orErr)(stopclose){ _ => oops() } __ Unit
+    catch case e: InterruptedException => px2 = e
+    T ~ px2.getMessage                                               ==== "stopclose"        // close interrupted after the body failed...
+    T ~ px2.getSuppressed.map(_.getMessage).toList                   ==== List("oops")       // ...and the body's failure rides along
+    T ~ Thread.interrupted()                                         ==== false
+    var px3: Throwable = null
+    try Resource.nice(m.orErr)(stopclose){ x => x() } __ Unit
+    catch case e: InterruptedException => px3 = e
+    T ~ px3.getMessage                                               ==== "stopclose"        // close interrupted after a success: the value is dropped
+    T ~ px3.getSuppressed.length                                     ==== 0
+    var px4: Throwable = null
+    try Resource.Nice(m.orErr)(stopclose){ x => Err ?# "early"; x() } __ Unit
+    catch case e: InterruptedException => px4 = e
+    T ~ px4.getMessage                                               ==== "stopclose"        // an early return cannot carry it: the interruption leaves in its place
+    // the close runs with the interrupt status clear even when it arrives set, and the status is restored after
+    var sawSet = true
+    Thread.currentThread.interrupt()
+    T ~ Resource.nice(m.orErr)(_ => sawSet = Thread.currentThread.isInterrupted){ x => x() } ==== -5
+    T ~ sawSet                                                       ==== false
+    T ~ Thread.interrupted()                                         ==== true
+
   @Test
   def laterTest: Unit =
     val log = scala.collection.mutable.ArrayBuffer.empty[Int]
@@ -2577,11 +2609,57 @@ class FlowTest {
     val both = Tidy.Later(5)(using boom).niceAndClose(r => { Err ?# "opfail"; r })
     T ~ both.existsAlt(_.toString.contains("opfail"))              ==== true                // both fail: op kept
     T ~ both.existsAlt(_.toString.contains("boomclose"))           ==== true                // both fail: close kept
+    // an interruption leaves niceAndClose as the exception once the close has run: the op's error, or a
+    // close failure, rides as suppressed, and a computed value is dropped
+    val stopclean: Tidy.Clean[Int] = _ => throw new InterruptedException("stopclose")
+    var nie1: Throwable = null
+    try Tidy.Later(5)(using stopclean).niceAndClose(r => { Err ?# "opfail"; r }) __ Unit
+    catch case e: InterruptedException => nie1 = e
+    T ~ nie1.getMessage                                            ==== "stopclose"
+    T ~ nie1.getSuppressed.map(_.getMessage).toList                ==== List("opfail")
+    T ~ Thread.interrupted()                                       ==== false
+    var nie2: Throwable = null
+    try Tidy.Later(5)(using boom).niceAndClose[Int](r => throw new InterruptedException("stop")) __ Unit
+    catch case e: InterruptedException => nie2 = e
+    T ~ nie2.getMessage                                            ==== "stop"
+    T ~ nie2.getSuppressed.map(_.getMessage).toList                ==== List("boomclose")
+    var nie3: Throwable = null
+    try Tidy.Later(5)(using stopclean).niceAndClose(r => r + 1) __ Unit
+    catch case e: InterruptedException => nie3 = e
+    T ~ nie3.getMessage                                            ==== "stopclose"
+    T ~ nie3.getSuppressed.length                                  ==== 0
     var sup: Throwable = null
     try Tidy.Later(0)(using boom).opAndClose(_ => throw new Exception("opboom"))
     catch case e if e.catchable => sup = e
     T ~ sup.getMessage                                  ==== "opboom"
     T ~ sup.getSuppressed.exists(_.getMessage == "boomclose") ==== true
+
+    // an interrupted op keeps a failing close as suppressed rather than being replaced by it
+    var iop: Throwable = null
+    try Tidy.Later(0)(using boom).opAndClose(_ => throw new InterruptedException("stop"))
+    catch case e: InterruptedException => iop = e
+    T ~ iop.getMessage                                        ==== "stop"
+    T ~ iop.getSuppressed.exists(_.getMessage == "boomclose") ==== true
+    T ~ Thread.interrupted()                                  ==== false
+    // an interrupted close beside an op failure rides as suppressed, with the interrupt status re-set
+    val stopclose: Tidy.Clean[Int] = _ => throw new InterruptedException("stopclose")
+    var oip: Throwable = null
+    try Tidy.Later(0)(using stopclose).useAndClose(_ => throw new Exception("opboom"))
+    catch case e if e.catchable => oip = e
+    T ~ oip.getMessage                                        ==== "opboom"
+    T ~ oip.getSuppressed.exists(_.getMessage == "stopclose") ==== true
+    T ~ Thread.interrupted()                                  ==== true
+
+    // reapNow runs every pending cleanup even when one is interrupted, and re-sets the status after
+    val stopreap: Tidy.Clean[Int] = i => { log.synchronized{ log += i } __ Unit; throw new InterruptedException("reap") }
+    log.clear()
+    val r1 = Tidy.Later(201)
+    val r2 = Tidy.Later(202)(using stopreap)
+    val r3 = Tidy.Later(203)
+    Tidy.Later.reapNow()
+    T ~ log.toList            ==== List(203, 202, 201)
+    T ~ Thread.interrupted()  ==== true
+    T ~ (r1.isOpen || r2.isOpen || r3.isOpen) ==== false
 
     // closedLater: acquire and hand back the owning Later (unmanaged-but-backstopped)
     val l77 = Resource.closedLater(77)(i => log.synchronized{ log += i } __ Unit)
@@ -2775,7 +2853,8 @@ class FlowTest {
     T ~ twice.getSuppressed.toList                              ==== List(same)
 
     // an interrupted release does not abandon the rest: on a success path it is the failure, thrown once the
-    // unwind is complete; beside another failure it rides as suppressed and the interrupt status is restored
+    // unwind is complete; beside another failure it rides as suppressed and the interrupt status is restored;
+    // on an early return, which cannot carry it, it leaves in the return's place
     log.clear()
     val stopped =
       try
@@ -2806,18 +2885,22 @@ class FlowTest {
     T ~ both.getSuppressed.map(_.getMessage).toList             ==== List("stop")
     T ~ Thread.interrupted()                                    ==== true
     log.clear()
-    val gone = Ask.flat{
-      val x = Resource.assemble{
-        Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
-        acquire("a").onFailure(release) __ Unit
-        (Err.or("nope"): Ask[Int]).? __ Unit
-        acquire("b").onFailure(release)
-      }
-      Is(x)
-    }
-    T ~ gone.isAlt                                              ==== true
+    val gone =
+      try
+        Ask.flat{
+          val x = Resource.assemble{
+            Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+            acquire("a").onFailure(release) __ Unit
+            (Err.or("nope"): Ask[Int]).? __ Unit
+            acquire("b").onFailure(release)
+          }
+          Is(x)
+        } __ Unit
+        "no"
+      catch case e: InterruptedException => e.getMessage
+    T ~ gone                                                    ==== "stop"      // an early return cannot carry it: the interruption leaves in its place
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
-    T ~ Thread.interrupted()                                    ==== true
+    T ~ Thread.interrupted()                                    ==== false
 
     // an interruption swallowed beside another failure is signalled only after the last release has run,
     // so a release in between that consumes the interrupt status cannot lose it
@@ -2846,6 +2929,106 @@ class FlowTest {
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ ((1).onFailure(_ => ()), 2) }""").nonEmpty  ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ ((1).onFailure(_ => ()), (2).onFailure(_ => ())) }""").isEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ 3 }""").nonEmpty ==== true
+
+
+  @Test
+  def unwindTest(): Unit =
+    // Unwind: each step in isolation, answering what it threw; a pending interrupt is cleared before a
+    // step and remembered; restore re-establishes it unless the interruption itself is what leaves
+    val u = new Unwind
+    T ~ (u(()) eq null)                                          ==== true
+    T ~ u.interrupted                                            ==== false
+    val oops = new RuntimeException("oops")
+    T ~ (u(throw oops) eq oops)                                  ==== true
+    var lbl: scala.util.boundary.Label[Unit] = null
+    scala.util.boundary[Unit]{ l ?=> lbl = l }
+    T ~ u(scala.util.boundary.break()(using lbl)).isInstanceOf[scala.util.boundary.Break[?]] ==== true
+    Thread.currentThread.interrupt()
+    var sawFlag = true
+    T ~ (u{ sawFlag = Thread.currentThread.isInterrupted } eq null) ==== true
+    T ~ sawFlag                                                  ==== false    // cleared before the step
+    T ~ u.interrupted                                            ==== true     // and remembered
+    T ~ Thread.interrupted()                                     ==== false    // still clear after it
+    u.restore(oops)
+    T ~ Thread.interrupted()                                     ==== true     // re-established beside another failure
+    u.restore(new InterruptedException("me"))
+    T ~ Thread.interrupted()                                     ==== false    // not beside the interruption itself
+    val v = new Unwind
+    val ie = new InterruptedException("stop")
+    T ~ (v(throw ie) eq ie)                                      ==== true
+    T ~ v.interrupted                                            ==== true
+    T ~ Thread.interrupted()                                     ==== false
+    v.restore()
+    T ~ Thread.interrupted()                                     ==== true
+    T ~ (Unwind.fold(null, oops) eq oops)                        ==== true
+    T ~ (Unwind.fold(oops, oops) eq oops)                        ==== true
+    T ~ oops.getSuppressed.length                                ==== 0
+    val extra = new RuntimeException("extra")
+    T ~ (Unwind.fold(oops, extra) eq oops)                       ==== true
+    T ~ oops.getSuppressed.toList                                ==== List(extra)
+
+    // resourced: an interrupted close does not stop the others; alone it is what is thrown, and beside
+    // other failures it is one of them, with the interrupt status re-set
+    val log = collection.mutable.ArrayBuffer.empty[String]
+    def closing(fail: Throwable = null): Tidy[String] = s => { log += s; if fail ne null then throw fail }
+    val ie1 = new InterruptedException("stop")
+    val m1 =
+      try
+        resourced{ manage("a")(closing()) __ Unit; manage("i")(closing(ie1)) __ Unit; manage("b")(closing()) __ Unit; 1 } __ Unit
+        null
+      catch case t: Throwable => t
+    T ~ (m1 eq ie1)                     ==== true
+    T ~ log.toList                      ==== List("b", "i", "a")
+    T ~ Thread.interrupted()            ==== false
+    log.clear()
+    val io = new java.io.IOException("io")
+    val m2 =
+      try
+        resourced{ manage("a")(closing(io)) __ Unit; manage("i")(closing(ie1)) __ Unit; manage("b")(closing()) __ Unit; 1 } __ Unit
+        null
+      catch case t: Throwable => t
+    T ~ m2.getMessage.contains("2 exceptions while closing 3") ==== true
+    T ~ log.toList                      ==== List("b", "i", "a")
+    T ~ Thread.interrupted()            ==== true
+
+    // procrastinator.nice: everything runs; errors are the value
+    log.clear()
+    T ~ procrastinator.nice{ defer{ (log += "x") __ Unit }; 3 }   ==== 3
+    T ~ log.toList                                             ==== List("x")
+    T ~ procrastinator.nice{ defer{ throw new RuntimeException("d") }; throw new RuntimeException("b") }
+          .existsAlt(e => e.toString.contains("d") && e.toString.contains("b")) ==== true
+    // an interrupted deferral does not stop the rest; the interruption is thrown once all have run,
+    // with the errors collected suppressed into it
+    log.clear()
+    val pn =
+      try
+        procrastinator.nice{
+          defer{ (log += "first-registered") __ Unit }
+          defer{ (log += "boom") __ Unit; throw new RuntimeException("boom") }
+          defer{ (log += "stop") __ Unit; throw new InterruptedException("stop") }
+          defer{ (log += "last-registered") __ Unit }
+          5
+        } __ Unit
+        null
+      catch case t: Throwable => t
+    T ~ pn.isInstanceOf[InterruptedException]                  ==== true
+    T ~ pn.getMessage                                          ==== "stop"
+    T ~ log.toList                                             ==== List("last-registered", "stop", "boom", "first-registered")
+    T ~ pn.getSuppressed.exists(_.getMessage.contains("boom")) ==== true
+    T ~ Thread.interrupted()                                   ==== false
+    // an interrupted primary block still runs the deferrals, and leaves as it came
+    log.clear()
+    val pi =
+      try
+        procrastinator.nice{
+          defer{ (log += "ran") __ Unit }
+          throw new InterruptedException("body")
+        } __ Unit
+        null
+      catch case t: Throwable => t
+    T ~ pi.getMessage            ==== "body"
+    T ~ log.toList               ==== List("ran")
+    T ~ Thread.interrupted()     ==== false
 
 }
 object FlowTest {

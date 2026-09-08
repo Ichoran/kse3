@@ -148,9 +148,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       // --- init phase ---
       try body(using this)
       catch
-        case e: InterruptedException =>
-          Thread.currentThread().interrupt()
-          fail(Err(e))
+        case e: InterruptedException => interrupted(e)
         case e if e.threadCatchable =>      // packages a stray control-flow break too, so it can't
           fail(Err(e))                      // skip the barrier decrement below and hang our siblings
       inInit = false
@@ -163,9 +161,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       if errs.isEmpty && (coord.failure() eq null) && !stopRequested then
         runLoop()
     catch
-      case e: InterruptedException =>
-        Thread.currentThread().interrupt()
-        if errs.isEmpty then errs = Err(e) :: errs
+      case e: InterruptedException => interrupted(e)
       case e if e.threadCatchable =>        // a break that escaped the loop is stranded here — package it
         if errs.isEmpty then errs = Err(e) :: errs
     finally
@@ -175,6 +171,13 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   private def fail(err: Err): Unit =
     errs = err :: errs
     coord.cancel(err)
+
+  /** An interruption is ours if the tree is being cancelled — expected, its cause already on record — and
+    * otherwise a failure of this task like any other, which cancels the tree.  Either way the status is
+    * re-set, for `cleanup` to keep aside. */
+  private def interrupted(e: InterruptedException): Unit =
+    Thread.currentThread().interrupt()
+    if coord.failure() eq null then fail(Err(e))
 
   /** Are we still producing/consuming new work, or stopping (explicit stop, or a Stop.on
     * condition has fired)?  When not producing, handlers only flush what they already hold. */
@@ -282,32 +285,32 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     false
 
   private def cleanup(): Unit =
+    val unwind = new Unwind
     try
       // 1. Tell every channel we write to that one writer is gone (cascade-closes channels).
       writingTo.keySet.forEach(c => c.writerDone())
 
-      // 2. Join children (tolerating interruption, since they're being torn down too) and fold
-      //    their errors into ours, so a failing tree reports every distinct cause.
+      // 2. Join children and fold their errors into ours, so a failing tree reports every distinct
+      //    cause.  An interrupt meanwhile is kept rather than consumed, and under cancellation the
+      //    join nags the child (see `Join`), so a child whose cleanup blocks cannot hold us.
       var j = 0
       while j < children.size do
         val c = children.get(j)
         val ct = c.thread
-        if ct ne null then
-          var joined = false
-          while !joined do
-            try { ct.join(); joined = true }
-            catch case _: InterruptedException => Thread.currentThread().interrupt()
+        if ct ne null then Join(ct, Join.nagNanos)(coord.failure() ne null)
         c.errors.foreach(e => errs = e :: errs)
         j += 1
 
-      // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure); a
-      //    throwing defer adds its error to the bundle and the rest still run.  `threadCatchable`,
-      //    not `catchable`, so a stray control-flow break from a defer body is captured too.
+      // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure), each in
+      //    isolation (see `Unwind`): a throwing defer adds its error to the bundle and the rest still
+      //    run, a stray control-flow break from a defer body is captured too, and one cut by an
+      //    interrupt cuts only itself.  An interruption under cancellation is the cancellation, already
+      //    on record; any other is a failure like the rest.
       while deferred.nonEmpty do
         val f = deferred.head
         deferred = deferred.tail
-        try f(coord.failure().fn(e => if e eq null then errs else e.asInstanceOf[Alt[Err]].alt :: errs))
-        catch case e if e.threadCatchable => errs = Err(e) :: errs
+        val t = unwind(f(coord.failure().fn(e => if e eq null then errs else e.asInstanceOf[Alt[Err]].alt :: errs)))
+        if (t ne null) && !(t.isInstanceOf[InterruptedException] && (coord.failure() ne null)) then errs = Err(t) :: errs
     catch
       // Steps 1-2 aren't expected to throw, but if a bug ever makes them, capture it rather than
       // letting it unwind past the result publication below (which would hang every `await()`).
@@ -316,6 +319,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       // 4. Publish our result — in a `finally`, so it runs even if the above threw and `await()`
       //    can never hang.  With no error of our own (or below us) we still report the tree-wide
       //    cause if cancelled/failed elsewhere (a graceful `stop()` leaves that unset → success).
+      //    The thread ends here, so what `unwind` kept aside has nowhere to go.
       val out: Ask[Unit] = errs match
         case Nil      => coord.failure().fn(x => if x eq null then Is.unit else x.asInstanceOf[Alt[Err]])
         case e :: Nil => Alt(e)

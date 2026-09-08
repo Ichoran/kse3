@@ -300,6 +300,11 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
 
 
   // === Blocking ===
+  //
+  // As in `Chan`: the imperative blocking calls (a `Go` task uses the non-blocking `try*` forms).  An
+  // interrupt answers a terminal `RunStatus` and leaves the thread's interrupt status set rather than
+  // consuming it, so the flag reaches the thread's owner; the channel is untouched, and a `fail(cause)`
+  // racing the interrupt still answers the useful cause since each loop re-checks the channel first.
 
   /** Block until the value is sent, or the channel is closed/failed. */
   def send(a: A): RunStatus =
@@ -314,7 +319,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
             p.armed = true
             res = trySend(a)
             if res == RunStatus.Wait then
-              if Thread.interrupted() then res = RunStatus.Fail(Err("interrupted while sending"))
+              if Thread.currentThread.isInterrupted then res = RunStatus.Fail(Err("interrupted while sending"))
               else LockSupport.parkNanos(Chan.parkCapNanos)
           res
         finally
@@ -336,7 +341,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
         p.armed = true
         res = tryRecv()
         if res.existsAlt(_ == RunStatus.Wait) then
-          if Thread.interrupted() then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
+          if Thread.currentThread.isInterrupted then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally
@@ -369,7 +374,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
           if i >= xN then res = RunStatus.Okay
         }{ st =>
           if st != RunStatus.Wait then res = st
-          else if Thread.interrupted() then res = RunStatus.Fail(Err("interrupted while sending"))
+          else if Thread.currentThread.isInterrupted then res = RunStatus.Fail(Err("interrupted while sending"))
           else LockSupport.parkNanos(Chan.parkCapNanos)
         }
       res
@@ -407,7 +412,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
         p.armed = true
         res = tryRecvHow(target, where, n, full)
         if res.existsAlt(_ == RunStatus.Wait) then
-          if Thread.interrupted() then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
+          if Thread.currentThread.isInterrupted then res = Alt(RunStatus.Fail(Err("interrupted while receiving")))
           else LockSupport.parkNanos(Chan.parkCapNanos)
       res
     finally

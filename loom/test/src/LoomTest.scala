@@ -130,6 +130,19 @@ class LoomTest {
       (nine.? + eight.? + seven.? + six.?).orErr
     T ~ { Thread.sleep(80); v1.get + v2.get + v3.get + v4.get } ==== 52
     T ~ thirty.await() ==== runtype[Alt[?]]
+
+
+  @Test
+  def threadedTest(): Unit =
+    T ~ Threaded{ 7 }.await() ==== 7 --: typed[Int Or Err]
+    T ~ Threaded{ throw new Exception("no") }.await().existsAlt(_.toString.contains("no")) ==== true
+    // an interrupted thread reports the interruption; await() does not hang on it
+    val slow = Threaded{ Thread.sleep(10_000); 1 }
+    Thread.sleep(20)
+    slow.interrupt()
+    T ~ slow.await().existsAlt(_.toString.contains("InterruptedException")) ==== true
+    T ~ slow.isComplete ==== true
+    T ~ Thread.interrupted() ==== false
 }
 object LoomTest {
   // @BeforeClass

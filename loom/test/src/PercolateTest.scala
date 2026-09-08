@@ -359,4 +359,39 @@ class PercolateTest {
       case d              => fail(s"expected [12], got $d")
     a.seal()
     assertEquals(Drawn.Done, a.draw())
+
+
+  // === An interruption is never the engine's own doing, so it ends the run as an error -- recorded,
+  //     accounted for, torn down -- rather than hanging it or silently losing a thread ===
+
+  class Bull(parallelism: Int, n: Int, at: Int) extends Percolate(parallelism) {
+    val ran = Atom(0)
+    val toreDown = Atom(false)
+    private var seeded = 0
+    def setup(): Ask[Unit] = Is.unit
+    def teardown(): Ask[Unit] = { toreDown := true; Is.unit }
+    final class Leaf(k: Int) extends Work() {
+      def work(): Ask[Array[Work]] =
+        if k == at then throw new InterruptedException("bull")
+        ran.++
+        Is(Work.none)
+    }
+    def newWork(): Ask[Work] =
+      if seeded < n then { seeded += 1; Is(new Leaf(seeded)) }
+      else Is(Work.Empty)
+    def inFlight: Int = incomplete()
+  }
+
+  @Test(timeout = 30000)
+  def interruptionEndsRun(): Unit =
+    for par <- List(0, 2) do (Reps / 5).times:
+      val p = new Bull(par, 200, 50)
+      val r = p.go()
+      val flag = Thread.interrupted()                     // clear what an item run on this thread re-set
+      assertTrue(s"expected an error, got $r", r.isAlt)
+      assertTrue(s"expected the interruption as the error, got $r", r.existsAlt(_.toString.contains("InterruptedException")))
+      assertTrue(p.toreDown())
+      if par == 0 then
+        assertEquals(0, p.inFlight)                        // main ran it alone, so nothing was left admitted
+        assertTrue("the status is re-set on the thread that ran the item", flag)
 }

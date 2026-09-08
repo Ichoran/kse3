@@ -378,10 +378,17 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     if errors().nonEmpty then w.cancel()
     else
       val t0 = System.nanoTime
-      val result = threadnice:
-        w.touch.foreach(_())
-        w.work()
-      .flatten
+      val result: Ask[Array[Work]] =
+        try
+          threadnice{
+            w.touch.foreach(_())
+            w.work()
+          }.flatten
+        catch case e: InterruptedException =>
+          // Not ours -- the engine never interrupts its own threads -- so it ends the run: an error like any
+          // other, with the status re-set so that whatever this thread runs next fails at once as well.
+          Thread.currentThread().interrupt()
+          Alt(Err(e))
       busyNanos += (System.nanoTime - t0)
       result.foreachThem(ws => todone(w, ws))(e => errored(w, e))
 
@@ -390,7 +397,8 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
 
   final class Worker extends Thread {
     override def run(): Unit =
-      threadnice{ runloop() }.foreachAlt(e => errors.zap(e :: _))
+      try threadnice{ runloop() }.foreachAlt(e => errors.zap(e :: _))
+      catch case e: InterruptedException => errors.zap(Err(e) :: _)   // not ours: the run ends on it, and so does this worker
 
     private def runloop(): Unit =
       while running do
@@ -415,21 +423,24 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
   private var ownThreads: Array[Thread] = Array.empty[Thread]
 
   private def ownLoop(r: Resource): Unit =
-    threadnice:
-      while running do
-        var did = r.tryServe()                                  // sole server: tryLock always succeeds
-        var producing = false
-        if !did then
-          r match
-            case p: Producer if !p.producerDone =>
-              producing = true
-              if admit(() => pullFrom(p), () => p.producerDone = true) then did = true
-            case _ =>
-        if !did && running then
-          if producing then Thread.`yield`()                    // permit-blocked but more to make: spin
-          else r.ownSignal.acquireUninterruptibly()             // idle: wait for routed work / shutdown
-    .foreachAlt(e => errors.zap(e :: _))
-    r.closeIfOpen()                                             // close on this (the pinned) thread
+    try
+      try
+        threadnice:
+          while running do
+            var did = r.tryServe()                                // sole server: tryLock always succeeds
+            var producing = false
+            if !did then
+              r match
+                case p: Producer if !p.producerDone =>
+                  producing = true
+                  if admit(() => pullFrom(p), () => p.producerDone = true) then did = true
+                case _ =>
+            if !did && running then
+              if producing then Thread.`yield`()                  // permit-blocked but more to make: spin
+              else r.ownSignal.acquireUninterruptibly()           // idle: wait for routed work / shutdown
+        .foreachAlt(e => errors.zap(e :: _))
+      finally r.closeIfOpen()                                     // close on this (the pinned) thread
+    catch case e: InterruptedException => errors.zap(Err(e) :: _) // not ours: the run ends on it, and so does this thread
 
   private def startOwnThreads(): Unit =
     val ot = ArrayBuffer.empty[Thread]
@@ -451,13 +462,10 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
       wk.start()
       i += 1
 
-  // Join, tolerating interruption (we're tearing down, so we don't want to abandon a thread mid-exit).
+  // Join, tolerating interruption: we're tearing down, so we don't abandon a thread mid-exit, and the
+  // interruption is kept for once the join is done (see `Join`).
   private def joinThread(t: Thread): Unit =
-    if t ne null then
-      var joined = false
-      while !joined do
-        try { t.join(); joined = true }
-        catch case _: InterruptedException => Thread.currentThread().interrupt()
+    if t ne null then Join(t, 0L)(false)
 
   protected def stopWorkers(): Unit =
     running = false

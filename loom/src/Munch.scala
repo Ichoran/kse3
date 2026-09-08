@@ -136,6 +136,7 @@ object Munch {
   ) extends Context[M] {
     private val mailbox = Chan[M](capacity)
     @volatile private var live = true
+    @volatile private var hardStop: Err Or Unit = Alt.unit   // the cause of a hard stop, once one is under way
     private val pending = ConcurrentHashMap.newKeySet[CompletableFuture[?]]()
     private var defers: List[List[Err] => Unit] = Nil
     private var thread: Thread = null
@@ -163,7 +164,10 @@ object Munch {
       Fu.wrap(cf)
 
     private[loom] def start(): Unit =
-      val t = Thread.ofVirtual().name(name).unstarted(() => threadnice{ run() }.foreachAlt(sup.record))
+      val t = Thread.ofVirtual().name(name).unstarted(() =>
+        try threadnice{ run() }.foreachAlt(sup.record)
+        catch case e: InterruptedException => sup.record(Err(e))   // the thread ends here; nothing above to hand it to
+      )
       thread = t
       t.start()
 
@@ -172,21 +176,26 @@ object Munch {
     /** Hard end: fail the mailbox and interrupt, so a blocking handler unwinds. */
     private[loom] def stopHard(e: Err): Unit =
       live = false
+      hardStop = Is(e)
       mailbox.fail(e) __ Unit
       val t = thread
       if t ne null then t.interrupt()
-    private[loom] def join(): Unit =
+    /** Waits for the thread to end; under a hard stop the wait nags (see [[Join]]). */
+    private[loom] def join(nag: Boolean): Unit =
       val t = thread
-      if t ne null then
-        var joined = false
-        while !joined do
-          try { t.join(); joined = true }
-          catch case _: InterruptedException => Thread.currentThread().interrupt()
+      if t ne null then Join(t, Join.nagNanos)(nag)
 
+    // Each defer runs in isolation (see `Unwind`), so one that throws, or is cut by an interrupt, does not
+    // stop the rest.  An interruption under a hard stop is the stop, already on record; any other is a failure.
     private def runDefers(errs: List[Err]): Unit =
       val ds = defers
       defers = Nil
-      ds.foreach(d => try d(errs) catch case e if e.threadCatchable => sup.record(Err(e)))
+      val unwind = new Unwind
+      ds.foreach{ d =>
+        val t = unwind(d(errs))
+        if (t ne null) && !(t.isInstanceOf[InterruptedException] && hardStop.isIs) then sup.record(Err(t))
+      }
+      unwind.restore()
 
     private def build(): Behavior[M] =
       defers = Nil
@@ -204,7 +213,15 @@ object Munch {
       var looping = true
       while looping do
         mailbox.recv().fold{ m =>
-          Go.attempt(behavior(m)).foreachAlt: e =>
+          val outcome: Ask[Unit] =
+            try Go.attempt(behavior(m))
+            catch case e: InterruptedException =>
+              // The handler was interrupted, by a hard stop (its cause is what gets recorded) or by an
+              // outsider; either way this muncher ends.  The decider is not asked: there is nothing to retry.
+              sup.record(hardStop.getOrElse(_ => Err(e)))
+              looping = false
+              Is.unit
+          outcome.foreachAlt: e =>
             runDefers(e :: Nil)                          // this incarnation's cleanup sees the error
             decider(e, restarts) match
               case Directive.Stop     => sup.record(e); looping = false
@@ -299,7 +316,7 @@ object Munch {
       if !stopped.swap(true) then
         val snap = snapshot()
         snap.foreach(_.stopGraceful())
-        snap.foreach(_.join())
+        snap.foreach(_.join(nag = false))
         done.complete(aggregate()) __ Unit
       await()
 
@@ -308,7 +325,7 @@ object Munch {
       if !stopped.swap(true) then
         val snap = snapshot()
         snap.foreach(_.stopHard(Err("supervisor cancelled")))
-        snap.foreach(_.join())
+        snap.foreach(_.join(nag = true))
         done.complete(aggregate()) __ Unit
       await()
 
