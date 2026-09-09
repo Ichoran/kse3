@@ -422,16 +422,16 @@ object PosixSocket {
     if !supported then Err.or(s"AF_UNIX socket pairs are unsupported on '$osName'")
     else Ask:
       Resource.assemble:
-        val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
+        val tmp = Resource.temp(Arena.ofConfined())(_.close())
         val cap = capture(tmp)
         val sv = tmp.allocate(8L)
         if (Sys.socketpair.invoke(cap, AF_UNIX, sockType, 0, sv): Int) != 0 then Failed("socketpair", errnoOf(cap)).?
-        val a = sv.get(JAVA_INT, 0L).onFailure(closeQuietly)
-        val b = sv.get(JAVA_INT, 4L).onFailure(closeQuietly)
+        val a = Resource.guard(sv.get(JAVA_INT, 0L))(closeQuietly)
+        val b = Resource.guard(sv.get(JAVA_INT, 4L))(closeQuietly)
         val ca: Long = cloexec(cap, a)   // Result is transparent here: negative means -errno
         val cb: Long = if ca >= 0 then cloexec(cap, b) else ca
         if cb < 0 then Failed("fcntl(F_SETFD)", (-cb).toInt, "on a new socket pair").?
-        (a, b)
+        (Resource.release(a), Resource.release(b))
 
 
   /** A reusable `poll` over a fixed number of descriptors.  Set each slot once (or whenever the

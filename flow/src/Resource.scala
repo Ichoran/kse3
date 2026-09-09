@@ -475,47 +475,60 @@ object Resource {
     else result
 
   ////////////////////////////////////////////////////////////////////////
-  /// assemble: acquire a chain of things and hand the survivors on      ///
+  /// assemble: acquire a chain of things and hand some of them on       ///
   ////////////////////////////////////////////////////////////////////////
 
-  /** A value acquired inside [[assemble]] and registered with `onFailure`, to be released only if the assembly
-    * fails: the one kind of thing an `assemble` block may hand out, since anything held [[whileAssembling]] is
-    * released as the block exits.  A `Guarded[R]` is an `R` — use it as one inside the block — but a bare `R`
-    * is never a `Guarded[R]`, so a transient cannot be returned by mistake.  (A value *derived* from a
-    * transient, such as a handle built around a descriptor held only while assembling, is beyond what a type
-    * can catch: guard the derived value and hold the transient with nothing, or think again about which one
-    * survives.)
+  /** A value acquired inside [[assemble]] with [[guard]]: torn down as the block exits, whichever way, unless
+    * released or unguarded first.  A `Guarded[X, U]` is an `X` — use it as one inside the block — but it cannot
+    * be handed out; only a [[Released]] can.  `U` is the block it belongs to, the singleton type of that block's
+    * [[Undo]], so an inner `assemble` cannot release an outer block's guard: `release` finds the innermost `Undo`
+    * and demands that the guard's tag be its type.  A guard's fate is decided by the block that armed it.
     */
-  opaque type Guarded[+R] <: R = R
-  extension [R](g: Guarded[R])
-    /** The monadic map: a result built from a survivor is a survivor, which is how a `Region` made of a guarded
-      * arena is handed out rather than the arena itself, without pretending the result needs an undo of its
-      * own.  Named in full because a `Guarded[R]` is an `R`, and `R` may well have a `map` of its own. */
-    def mapGuarded[S](f: R => S): Guarded[S] = f(g)
+  opaque type Guarded[+X, +U <: Undo] <: X = X
 
-  /** The registry an [[assemble]] block adds to.  Releases run newest first, so a chain unwinds in reverse:
-    * [[onFailure]] for what survives on success and is released on failure, [[whileAssembling]] for what is
-    * released either way.  For one thread's use, within one block.
+  /** A value [[release]]d inside [[assemble]]: the only thing the block may hand out, singly or in a tuple, and
+    * nothing else can be done with it — it is on its way out, and the caller receives it bare.  A released value
+    * is still torn down if the block then fails: release says what survives a success, not that its undo is
+    * forgotten.  `U` is the block that released it.
+    */
+  opaque type Released[+X, +U <: Undo] = X
+
+  /** The registry an [[assemble]] block adds to, and the block's identity in the types of what it guards.
+    * Tear-downs run newest first, so a chain unwinds in reverse.  For one thread's use, within one block, through
+    * the verbs [[guard]], [[temp]], [[release]], [[releaseOp]], [[unguarded]] and [[unguardedOp]].
     */
   final class Undo private[Resource] () {
-    private final class Entry(val release: () => Unit, val always: Boolean)
+    private[Resource] final class Entry(val value: Any, val undo: () => Unit, val guarded: Boolean) { var released = false }
     private var entries: List[Entry] = Nil
-    /** Every release runs through this, so an interruption among them is kept aside and re-established by
-      * [[assemble]] once the last has run — a release run in between cannot consume it. */
+    /** Every tear-down runs through this, so an interruption among them is kept aside and re-established by
+      * [[assemble]] once the last has run — a tear-down run in between cannot consume it. */
     private[Resource] val steps = new Unwind
 
-    /** Registers `r` to be released only if the assembly fails, answering it as the [[Guarded]] the block may hand out. */
-    def onFailure[R](r: R)(release: R => Unit): Guarded[R] =
-      entries = new Entry(() => release(r), false) :: entries
-      r
+    private[Resource] def add(value: Any, undo: () => Unit, guarded: Boolean): Unit =
+      entries = new Entry(value, undo, guarded) :: entries
 
-    /** Registers `r` to be released whichever way the block exits: a transient, usable inside and nowhere else. */
-    def whileAssembling[R](r: R)(release: R => Unit): R =
-      entries = new Entry(() => release(r), true) :: entries
-      r
+    private[Resource] def drop(e: Entry): Unit =
+      entries = entries.filterNot(_ eq e)
 
-    /** Runs and drops every registered release (or only the `always` ones), newest first, answering the
-      * first failure with the rest suppressed into it, or `null` if all went well.  An interrupted release
+    /** Identity, or equality for the box a primitive guard passes through, since an `Int` descriptor is boxed anew each time. */
+    private def same(a: Any, b: Any): Boolean =
+      (a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]) ||
+      ((a.isInstanceOf[java.lang.Number] || a.isInstanceOf[java.lang.Character] || a.isInstanceOf[java.lang.Boolean]) && a.getClass == b.getClass && a == b)
+
+    /** The live guard for `g`, newest first: an error if `g` was never guarded here, or has been released already. */
+    private[Resource] def guardOf(g: Any): Entry =
+      var es = entries
+      var found: Entry = null
+      while (found eq null) && (es ne Nil) do
+        val e = es.head
+        if e.guarded && same(e.value, g) then found = e
+        es = es.tail
+      if found eq null then throw new IllegalStateException(s"not guarded by this assembly: $g")
+      if found.released then throw new IllegalStateException(s"already released: $g")
+      found
+
+    /** Runs and drops every registered tear-down (or only those not released), newest first, answering the
+      * first failure with the rest suppressed into it, or `null` if all went well.  An interrupted tear-down
       * does not stop the unwind: the interruption is kept as a failure like any other, and propagates after
       * the rest have had their turn. */
     private[Resource] def unwind(all: Boolean): Throwable =
@@ -525,36 +538,40 @@ object Resource {
       while es ne Nil do
         val e = es.head
         es = es.tail
-        if all || e.always then first = Unwind.fold(first, steps(e.release()))
+        if all || !e.released then first = Unwind.fold(first, steps(e.undo()))
         else keep = e :: keep
       entries = keep.reverse
       first
   }
 
-  /** Acquires a chain of things in order to hand the survivors on, which neither a use-scope (release
-    * everything at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, `x.onFailure(release)`
-    * registers `x` as meant to survive, releasing it only if the block fails; [[whileAssembling]] registers a
-    * transient, released either way.  Releases run newest first, so the chain unwinds in reverse of its acquisition.  The block fails by
-    * exception or by early return (`.?` to an enclosing boundary) alike, and succeeds only if it completes and
-    * every transient releases cleanly — if one does not, the survivors are undone too and that failure is
-    * thrown.  A release that fails during a failed unwind is suppressed into the exception; on an early
-    * return there is nothing to attach it to, and it is dropped.  An interrupted release never cuts the
-    * unwind short: the interruption is thrown once the rest are released, or, where another failure is
-    * already on its way out, suppressed into it — and where an early return is on its way out, which cannot
-    * carry it, the interruption leaves in the return's place, since an interruption never becomes a value.
-    * In every case where the interruption is not itself the exception leaving, the thread's interrupt status
-    * is set once the last release has run, so no release in between can consume it.  Every release runs with
-    * that status clear (see [[Unwind]]), so one that must block to be clean gets to.  Only [[Guarded]] values, singly or in a
-    * tuple, may be returned — what `onFailure` answered, or what `mapGuarded` built from it — and the caller
-    * receives them bare.
+  /** Acquires a chain of things in order to hand some of them on, which neither a use-scope (release everything
+    * at the end) nor an owner ([[Tidy.Later]]) expresses.  Inside `f`, everything acquired is registered by one
+    * of two verbs: [[guard]] for what may be handed out, [[temp]] for what may not.  Both are torn down as the
+    * block exits — a guard that is never released is torn down on success too, so nothing acquired can simply be
+    * lost — and a guard survives only through the one expression that consumes it: [[release]] where the guard
+    * itself is the result, [[releaseOp]] where something built from it is, or [[unguardedOp]] where that
+    * something is a new owner, to be guarded in its turn.  Tear-downs run newest first, so the chain unwinds in
+    * reverse of its acquisition.  The block fails by exception or by early return (`.?` to an enclosing boundary)
+    * alike, and then everything is torn down, released or not: a failed assembly hands out nothing, so it keeps
+    * nothing.  It succeeds only if it completes and every tear-down that runs is clean — if one is not, the
+    * released values are torn down too and that failure is thrown.  A tear-down that fails during a failed
+    * unwind is suppressed into the exception; on an early return there is nothing to attach it to, and it is
+    * dropped.  An interrupted tear-down never cuts the unwind short: the interruption is thrown once the rest
+    * are done, or, where another failure is already on its way out, suppressed into it — and where an early
+    * return is on its way out, which cannot carry it, the interruption leaves in the return's place, since an
+    * interruption never becomes a value.  In every case where the interruption is not itself the exception
+    * leaving, the thread's interrupt status is set once the last tear-down has run, so none in between can
+    * consume it.  Every tear-down runs with that status clear (see [[Unwind]]), so one that must block to be
+    * clean gets to.  Only [[Released]] values, singly or in a tuple, may be returned, and the caller receives
+    * them bare.
     * {{{
     * Resource.assemble:
-    *   val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())   // gone when the block exits
-    *   val fd  = Resource.whileAssembling(open(name))(close)               // the mapping keeps the memory: transient too
+    *   val tmp = Resource.temp(Arena.ofConfined())(_.close())      // gone when the block exits
+    *   val fd  = Resource.temp(open(name))(close)                  // the mapping keeps the memory: transient too
     *   size(fd, bytes)
-    *   name.onFailure(unlink) __ Unit                                      // only if we fail from here on
-    *   val arena = Arena.ofShared().onFailure(_.close())                   // survives: Guarded[Arena], usable as an Arena
-    *   arena.mapGuarded(a => new Region(name, map(fd, a)))                 // the result, guarded because built from one
+    *   val file  = Resource.guard(name)(unlink)                    // torn down unless released: the file goes if we fail from here
+    *   val arena = Resource.guard(Arena.ofShared())(_.close())     // likewise, and usable as an Arena meanwhile
+    *   Resource.releaseOp(file, arena)((n, a) => new Region(n, map(fd, a)))   // the result, built from both and handed out in their place
     * }}}
     */
   def assemble[T](f: Undo ?=> T)(using as: Assembled[T]): as.Out =
@@ -581,14 +598,75 @@ object Resource {
       val leaving: Throwable =                        // the exception this block exits by, if any
         if done then bad
         else if exit ne null then Unwind.fold(exit, bad)
-        else u.steps.interruption                     // an early return: a release failure has nowhere to go, but an interruption leaves in its place
+        else u.steps.interruption                     // an early return: a tear-down failure has nowhere to go, but an interruption leaves in its place
       u.steps.restore(leaving)
       if (leaving ne null) && (exit eq null) then throw leaving
     as.out(t)
 
-  /** Within [[assemble]]: holds `r` only while assembling, released whichever way the block exits — a
+  /** Within [[assemble]]: `x` is torn down as the block exits unless released or unguarded first — a thing the
+    * block is making, tagged as this block's.  Its fate is decided by exactly one later expression: [[release]]
+    * where it is handed out itself, or the [[releaseOp]] or [[unguardedOp]] that builds from it. */
+  def guard[X](x: X)(undo: X => Unit)(using u: Undo): Guarded[X, u.type] =
+    u.add(x, () => undo(x), guarded = true)
+    x
+
+  /** Within [[assemble]]: holds `x` only while assembling, torn down whichever way the block exits — a
     * transient, usable inside and never handed out. */
-  def whileAssembling[R](r: R)(release: R => Unit)(using u: Undo): R = u.whileAssembling(r)(release)
+  def temp[X](x: X)(undo: X => Unit)(using u: Undo): X =
+    u.add(x, () => undo(x), guarded = false)
+    x
+
+  /** Within [[assemble]]: `g` is meant to survive — not torn down on success, still torn down on failure — and
+    * is answered as the [[Released]] the block may hand out.  Only this block's own guards can be released here.
+    * This is the block's result, alone or in a tuple: a `release(g)` whose value is discarded has released `g`
+    * early and says nothing about what carries it — build that thing with [[releaseOp]] instead. */
+  def release[X, U <: Undo & Singleton](g: Guarded[X, U])(using u: Undo)(using U =:= u.type): Released[X, u.type] =
+    u.guardOf(g).released = true
+    g
+
+  /** Within [[assemble]]: hands out `f(g)` in place of `g`, which is released once `f` has succeeded and not
+    * before, so a failure building the result still tears `g` down — a handle around a descriptor, say, without
+    * pretending it needs an undo of its own. */
+  def releaseOp[X, U <: Undo & Singleton, Y](g: Guarded[X, U])(f: X => Y)(using u: Undo)(using U =:= u.type): Released[Y, u.type] =
+    val e = u.guardOf(g)
+    val y = f(g)
+    e.released = true
+    y
+
+  /** [[releaseOp]] over two guards, for a result that carries both — a server around a descriptor and the
+    * socket file it is bound to.  Both are released once `f` has succeeded, and neither before. */
+  def releaseOp[X1, X2, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U])(f: (X1, X2) => Y)(using u: Undo)(using U =:= u.type): Released[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val y = f(g1, g2)
+    e1.released = true
+    e2.released = true
+    y
+
+  /** Within [[assemble]]: forgets `g`'s undo and answers `g` bare, for a call that consumes it whichever way that
+    * call ends — `consume(Resource.unguarded(g))` — where a guard still armed would close it a second time.
+    * Where the new owner is something to be built, use [[unguardedOp]], which keeps `g` guarded until it is. */
+  def unguarded[X, U <: Undo & Singleton](g: Guarded[X, U])(using u: Undo)(using U =:= u.type): X =
+    u.drop(u.guardOf(g))
+    g
+
+  /** Within [[assemble]]: `f(g)`, an owner that tears `g` down itself from now on, so `g`'s own undo is forgotten
+    * once `f` has succeeded — and not before, so a failure building the owner still tears `g` down.  The owner
+    * comes back bare, to be guarded (or released) in its turn. */
+  def unguardedOp[X, U <: Undo & Singleton, Y](g: Guarded[X, U])(f: X => Y)(using u: Undo)(using U =:= u.type): Y =
+    val e = u.guardOf(g)
+    val y = f(g)
+    u.drop(e)
+    y
+
+  /** [[unguardedOp]] over two guards, for an owner that takes both. */
+  def unguardedOp[X1, X2, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U])(f: (X1, X2) => Y)(using u: Undo)(using U =:= u.type): Y =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val y = f(g1, g2)
+    u.drop(e1)
+    u.drop(e2)
+    y
 
   final class Manager() extends Tidy.CanClose {
     private var items: List[Tidy.CanClose] = Nil
@@ -632,30 +710,26 @@ def manage_closeably[A](rsc: Tidy[A] ?=> A)(done: Tidy[A])(using manager: Resour
   manager += mg
   (r, mg: Tidy.CanClose)
 
-/** What a [[Resource.assemble]] block may hand out — one [[Resource.Guarded]] value, or a tuple of them — and the
-  * same with the guards taken off, which is what the caller receives.  Lives outside `Resource` because a match
-  * type can only take a `Guarded` apart where it is opaque, not where it is the alias it is defined as. */
+/** What a [[Resource.assemble]] block may hand out — one [[Resource.Released]] value, or a tuple of them — and the
+  * same with the wrappers taken off, which is what the caller receives.  Lives outside `Resource` because a match
+  * type can only take a `Released` apart where it is opaque, not where it is the alias it is defined as.  By the
+  * time a block's result reaches here its tag has widened to `Undo`, the block's own `Undo` being out of scope,
+  * so the tag is checked where it matters — at [[Resource.release]] — and taken as read here. */
 sealed trait Assembled[T] {
   type Out
   def out(t: T): Out
 }
 object Assembled {
-  given one[A]: (Assembled[Resource.Guarded[A]] { type Out = A }) = new Assembled[Resource.Guarded[A]] {
+  given one[A, U <: Resource.Undo]: (Assembled[Resource.Released[A, U]] { type Out = A }) = new Assembled[Resource.Released[A, U]] {
     type Out = A
-    def out(t: Resource.Guarded[A]): A = t
+    def out(t: Resource.Released[A, U]): A = t.asInstanceOf[A]   // a Released is its value
   }
-  given many[T <: Tuple](using Tuple.IsMappedBy[Resource.Guarded][T]): (Assembled[T] { type Out = Tuple.InverseMap[T, Resource.Guarded] }) =
+  given many[T <: Tuple](using Tuple.IsMappedBy[[x] =>> Resource.Released[x, Resource.Undo]][T]): (Assembled[T] { type Out = Tuple.InverseMap[T, [x] =>> Resource.Released[x, Resource.Undo]] }) =
     new Assembled[T] {
-      type Out = Tuple.InverseMap[T, Resource.Guarded]
-      def out(t: T): Out = t.asInstanceOf[Out]   // a Guarded is its value, so the tuple already is its own unguarded form
+      type Out = Tuple.InverseMap[T, [x] =>> Resource.Released[x, Resource.Undo]]
+      def out(t: T): Out = t.asInstanceOf[Out]   // each Released is its value, so the tuple already is its own bare form
     }
 }
-
-extension [R](r: R)
-  /** Within [[Resource.assemble]]: `r`, already made, is released only if the assembly fails, and is answered
-    * as a [[Resource.Guarded]], the form the block may hand out.  Reads in the order things happen — the value
-    * exists, and from here its undo is armed — which `guarded(r)` did not. */
-  def onFailure(release: R => Unit)(using u: Resource.Undo): Resource.Guarded[R] = u.onFailure(r)(release)
 
 def manage[A](rsc: Tidy[A] ?=> A)(done: Tidy[A])(using manager: Resource.Manager): A =
   val r = rsc(using done)

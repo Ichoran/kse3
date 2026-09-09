@@ -231,7 +231,7 @@ object FdSock {
       val f = live.?
       if buf.length == 0 then Err ?# "receive buffer must hold at least one byte"
       Resource.assemble:
-        val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
+        val tmp = Resource.temp(Arena.ofConfined())(_.close())
         val cap = PosixSocket.capture(tmp)
         if timeoutMs > 0 then awaitReadable(cap, tmp, f, timeoutMs, "recvmsg", "").?
         val data = tmp.allocate(buf.length.toLong)
@@ -250,17 +250,16 @@ object FdSock {
             else if e != PosixSocket.Errno.EINTR then PosixSocket.Failed("recvmsg", e).?
         var first = -1
         PosixSocket.CMsg.forEachFd(ctrl, PosixSocket.MsgHdr.controlLength(mh)){ f2 => if first < 0 then first = f2 else PosixSocket.closeQuietly(f2) }
-        val got = first.onFailure(PosixSocket.closeQuietly)   // -1 closes nothing; a failure from here on discards the descriptor
+        val got = Resource.guard(first)(PosixSocket.closeQuietly)   // -1 closes nothing; a failure from here on discards the descriptor
         val flags = PosixSocket.MsgHdr.flagsOf(mh)
         if (flags & PosixSocket.MSG_CTRUNC) != 0 then Err ?# "control data truncated; descriptor discarded"
         if (flags & PosixSocket.MSG_TRUNC) != 0 then Err ?# s"message truncated (buffer holds only ${buf.length} bytes); descriptor discarded"
-        if n == 0 then
-          PosixSocket.closeQuietly(got)   // no bytes means the peer is gone; a stray descriptor is not a grant
-          got.mapGuarded[(fd: Option[Int], count: Int)](_ => (fd = None, count = 0))
+        if n == 0 then   // no bytes means the peer is gone; a stray descriptor is not a grant, so got stays guarded and goes with the block
+          Resource.release(Resource.guard[(fd: Option[Int], count: Int)]((fd = None, count = 0))(_ => ()))   // only the news to hand out, which has no undo
         else
           if got >= 0 && PosixSocket.mac then PosixSocket.cloexec(cap, got) __ Unit   // Linux already got it via MSG_CMSG_CLOEXEC
           MemorySegment.copy(data, JAVA_BYTE, 0L, buf, 0, n.toInt)
-          got.mapGuarded(g => (fd = if g >= 0 then Some(g) else None, count = n.toInt))
+          Resource.releaseOp(got)(g => (fd = if g >= 0 then Some(g) else None, count = n.toInt))
 
     /** Receives a file descriptor plus its accompanying bytes into `buf` (which must hold at least one),
       * answering the descriptor and the byte count; a message without a descriptor is an error here — use
@@ -306,7 +305,7 @@ object FdSock {
     def accept(): Ask[Conn] = Ask:
       val f = live.?
       Resource.assemble:
-        val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
+        val tmp = Resource.temp(Arena.ofConfined())(_.close())
         val cap = PosixSocket.capture(tmp)
         if timeoutMs > 0 then awaitReadable(cap, tmp, f, timeoutMs, "accept", s"at $path").?
         var c = -1
@@ -316,10 +315,10 @@ object FdSock {
             val e = PosixSocket.errnoOf(cap)
             if e == PosixSocket.Errno.EAGAIN then PosixSocket.Failed("accept", e, s"timed out at $path").?
             else if e != PosixSocket.Errno.EINTR then PosixSocket.Failed("accept", e, s"at $path").?
-        val accepted = c.onFailure(PosixSocket.closeQuietly)
+        val accepted = Resource.guard(c)(PosixSocket.closeQuietly)
         PosixSocket.cloexec(cap, accepted) __ Unit
         setRcvTimeout(cap, tmp, accepted, timeoutMs).?
-        accepted.mapGuarded(new Conn(_, timeoutMs))
+        Resource.releaseOp(accepted)(new Conn(_, timeoutMs))
 
     def close(): Unit =
       if fd >= 0 then
@@ -351,32 +350,32 @@ object FdSock {
   def listen(path: Path, timeout: Duration = defaultTimeout): Ask[Server] = Ask:
     checkSupported().?
     Resource.assemble:
-      val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
+      val tmp = Resource.temp(Arena.ofConfined())(_.close())
       val cap = PosixSocket.capture(tmp)
-      val fd = (newSocket(cap).?).onFailure(PosixSocket.closeQuietly)
+      val fd = Resource.guard(newSocket(cap).?)(PosixSocket.closeQuietly)
       val sa = sockaddr(tmp, path).?
       if (PosixSocket.Sys.bind.invoke(cap, fd, sa, PosixSocket.SockAddrUn.size): Int) != 0 then
         PosixSocket.Failed("bind", PosixSocket.errnoOf(cap), s"at $path").?
-      path.onFailure(p => Files.deleteIfExists(p) __ Unit) __ Unit   // bind made the socket file; a failure from here on must not leave it
+      val bound = Resource.guard(path)(p => Files.deleteIfExists(p) __ Unit)   // bind made the socket file; a failure from here on must not leave it
       if (PosixSocket.Sys.listen.invoke(cap, fd, 16): Int) != 0 then
         PosixSocket.Failed("listen", PosixSocket.errnoOf(cap), s"at $path").?
       val ms = millisOf(timeout)
       setRcvTimeout(cap, tmp, fd, ms).?
-      fd.mapGuarded(new Server(_, path, ms))
+      Resource.releaseOp(fd, bound)((f, p) => new Server(f, p, ms))
 
   /** Connects to the listening socket at `path`; receives on the connection are bounded by the timeout. */
   def connect(path: Path, timeout: Duration = defaultTimeout): Ask[Conn] = Ask:
     checkSupported().?
     Resource.assemble:
-      val tmp = Resource.whileAssembling(Arena.ofConfined())(_.close())
+      val tmp = Resource.temp(Arena.ofConfined())(_.close())
       val cap = PosixSocket.capture(tmp)
-      val fd = (newSocket(cap).?).onFailure(PosixSocket.closeQuietly)
+      val fd = Resource.guard(newSocket(cap).?)(PosixSocket.closeQuietly)
       val sa = sockaddr(tmp, path).?
       if (PosixSocket.Sys.connect.invoke(cap, fd, sa, PosixSocket.SockAddrUn.size): Int) != 0 then
         PosixSocket.Failed("connect", PosixSocket.errnoOf(cap), s"at $path").?
       val ms = millisOf(timeout)
       setRcvTimeout(cap, tmp, fd, ms).?
-      fd.mapGuarded(new Conn(_, ms))
+      Resource.releaseOp(fd)(new Conn(_, ms))
 
 
   ///////////////////////////////////////////////////////////////////////

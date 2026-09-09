@@ -2775,33 +2775,120 @@ class FlowTest {
     def acquire(name: String): String = { log += s"+$name"; name }
     def release(name: String): Unit = log += s"-$name"
 
-    // success: the survivors come back bare, the transient is released, the survivors are not
+    // success: what was released comes back bare and is kept; the transient and the guard nobody released are torn down, newest first
     T ~ Resource.assemble{
-      Resource.whileAssembling(acquire("t"))(release) __ Unit
-      val a = acquire("a").onFailure(release)
-      val b = acquire("b").onFailure(release)
+      Resource.temp(acquire("t"))(release) __ Unit
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      Resource.guard(acquire("c"))(release) __ Unit
       T ~ (a: String) ==== "a"                    // a Guarded is its value inside the block
-      (a, b)
+      (Resource.release(a), Resource.release(b))
     } ==== (("a", "b")) --: typed[(String, String)]
-    T ~ log.toList ==== List("+t", "+a", "+b", "-t")
+    T ~ log.toList ==== List("+t", "+a", "+b", "+c", "-c", "-t")
 
-    // one guarded value comes back bare too, and so does a result built from one
+    // one released value comes back bare too; releaseOp hands out what is built from a guard; an unguarded value is nobody's to tear down
     log.clear()
-    T ~ Resource.assemble{ Resource.whileAssembling(acquire("t"))(release) __ Unit; acquire("a").onFailure(release) } ==== "a" --: typed[String]
+    T ~ Resource.assemble{ Resource.temp(acquire("t"))(release) __ Unit; Resource.release(Resource.guard(acquire("a"))(release)) } ==== "a" --: typed[String]
     T ~ log.toList ==== List("+t", "+a", "-t")
     log.clear()
-    T ~ Resource.assemble{ acquire("a").onFailure(release).mapGuarded(_ + "!") } ==== "a!" --: typed[String]
+    T ~ Resource.assemble{ Resource.releaseOp(Resource.guard(acquire("a"))(release))(_ + "!") } ==== "a!" --: typed[String]
     T ~ log.toList ==== List("+a")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      T ~ Resource.unguarded(a) ==== "a" --: typed[String]
+      Resource.release(b)
+    } ==== "b"
+    T ~ log.toList ==== List("+a", "+b")
 
-    // an exception unwinds everything newest first, and a release that fails rides along as suppressed
+    // releaseOp over two guards releases both once the result is built, and a failure building it leaves both guarded
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      Resource.releaseOp(a, b)((x, y) => x + y)
+    } ==== "ab" --: typed[String]
+    T ~ log.toList ==== List("+a", "+b")
+    log.clear()
+    val unbuilt =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          val b = Resource.guard(acquire("b"))(release)
+          Resource.releaseOp(a, b)((x, y) => throw new IllegalStateException(s"no $x$y"))
+        }
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ unbuilt                                                 ==== "no ab"
+    T ~ log.toList                                              ==== List("+a", "+b", "-b", "-a")
+
+    // unguardedOp hands a guard to the owner it builds, which comes back bare to be guarded in its turn; the guard is
+    // forgotten only once the owner exists, so a failure building the owner still tears the guard down, and a failure
+    // after it tears down the owner alone
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val owner = Resource.guard(Resource.unguardedOp(a)(x => acquire(x + "!")))(release)
+      T ~ (owner: String) ==== "a!"
+      Resource.release(owner)
+    } ==== "a!"
+    T ~ log.toList ==== List("+a", "+a!")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      Resource.release(Resource.guard(Resource.unguardedOp(a, b)((x, y) => acquire(x + y)))(release))
+    } ==== "ab"
+    T ~ log.toList ==== List("+a", "+b", "+ab")
+    log.clear()
+    val unowned =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          Resource.release(Resource.guard(Resource.unguardedOp(a)(x => throw new IllegalStateException(s"no $x")))(release))
+        } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ unowned                                                 ==== "no a"
+    T ~ log.toList                                              ==== List("+a", "-a")
+    log.clear()
+    val ownerGoes =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          val owner = Resource.guard(Resource.unguardedOp(a)(x => acquire(x + "!")))(release)
+          throw new IllegalStateException(s"after $owner")
+        }
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ ownerGoes                                               ==== "after a!"
+    T ~ log.toList                                              ==== List("+a", "+a!", "-a!")
+
+    // a guard on a primitive is found again by value, since it is boxed anew on the way back
+    log.clear()
+    T ~ Resource.assemble{ val n = Resource.guard(100000)(i => log += s"-$i"); Resource.release(n) } ==== 100000
+    T ~ log.toList ==== Nil
+
+    // releasing twice is an error, and one that fails the block, so the guard is torn down after all
+    log.clear()
+    val twiceReleased =
+      try
+        Resource.assemble{ val a = Resource.guard(acquire("a"))(release); (Resource.release(a), Resource.release(a)) } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ twiceReleased                                           ==== "already released: a"
+    T ~ log.toList                                              ==== List("+a", "-a")
+
+    // an exception unwinds everything newest first, released or not, and a tear-down that fails rides along as suppressed
     log.clear()
     val boom = new RuntimeException("boom")
     val thrown =
       try
         Resource.assemble{
-          Resource.whileAssembling(acquire("t"))(release) __ Unit
-          acquire("a").onFailure(_ => throw new IllegalStateException("bad release")) __ Unit
-          acquire("b").onFailure(release) __ Unit
+          Resource.temp(acquire("t"))(release) __ Unit
+          Resource.guard(acquire("a"))(_ => throw new IllegalStateException("bad release")) __ Unit
+          val kept = Resource.release(Resource.guard(acquire("b"))(release))   // released early, on purpose: a failure after still tears it down
           throw boom
         }
         null
@@ -2814,36 +2901,37 @@ class FlowTest {
     log.clear()
     val early = Ask.flat{
       val x = Resource.assemble{
-        Resource.whileAssembling(acquire("t"))(release) __ Unit
-        acquire("a").onFailure(release) __ Unit
+        Resource.temp(acquire("t"))(release) __ Unit
+        val a = Resource.guard(acquire("a"))(release)
         (Err.or("nope"): Ask[Int]).? __ Unit
-        acquire("b").onFailure(release)
+        val b = Resource.guard(acquire("b"))(release)
+        (Resource.release(a), Resource.release(b))
       }
       Is(x)
     }
     T ~ early.fold(_ => "")(_.toString).contains("nope")        ==== true
     T ~ log.toList                                              ==== List("+t", "+a", "-a", "-t")
 
-    // a transient that will not release on success undoes the survivors and is the failure
+    // a tear-down that will not run cleanly on success undoes the released too, and is the failure
     log.clear()
     val stuck =
       try
-        Resource.assemble{ Resource.whileAssembling(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit; acquire("a").onFailure(release) } __ Unit
+        Resource.assemble{ Resource.temp(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit; Resource.release(Resource.guard(acquire("a"))(release)) } __ Unit
         "no"
       catch case e: IllegalStateException => e.getMessage
     T ~ stuck                                                   ==== "stuck"
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
 
-    // a release that throws the very exception already in hand is not suppressed into itself, and the unwind goes on
+    // a tear-down that throws the very exception already in hand is not suppressed into itself, and the unwind goes on
     log.clear()
     val same = new IllegalStateException("same")
     val boom2 = new RuntimeException("boom2")
     val twice =
       try
         Resource.assemble{
-          Resource.whileAssembling(acquire("t"))(_ => throw same) __ Unit
-          acquire("a").onFailure(release) __ Unit
-          acquire("b").onFailure(_ => throw same) __ Unit
+          Resource.temp(acquire("t"))(_ => throw same) __ Unit
+          Resource.guard(acquire("a"))(release) __ Unit
+          Resource.guard(acquire("b"))(_ => throw same) __ Unit
           throw boom2
         }
         null
@@ -2852,17 +2940,18 @@ class FlowTest {
     T ~ log.toList                                              ==== List("+t", "+a", "+b", "-a")
     T ~ twice.getSuppressed.toList                              ==== List(same)
 
-    // an interrupted release does not abandon the rest: on a success path it is the failure, thrown once the
+    // an interrupted tear-down does not abandon the rest: on a success path it is the failure, thrown once the
     // unwind is complete; beside another failure it rides as suppressed and the interrupt status is restored;
     // on an early return, which cannot carry it, it leaves in the return's place
     log.clear()
     val stopped =
       try
         Resource.assemble{
-          acquire("a").onFailure(release) __ Unit
-          Resource.whileAssembling(acquire("u"))(release) __ Unit
-          Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
-          acquire("b").onFailure(release)
+          val a = Resource.guard(acquire("a"))(release)
+          Resource.temp(acquire("u"))(release) __ Unit
+          Resource.temp(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+          val b = Resource.guard(acquire("b"))(release)
+          (Resource.release(a), Resource.release(b))
         } __ Unit
         "no"
       catch case e: InterruptedException => e.getMessage
@@ -2874,8 +2963,8 @@ class FlowTest {
     val both =
       try
         Resource.assemble{
-          acquire("a").onFailure(release) __ Unit
-          Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+          Resource.guard(acquire("a"))(release) __ Unit
+          Resource.temp(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
           throw boom3
         }
         null
@@ -2889,10 +2978,10 @@ class FlowTest {
       try
         Ask.flat{
           val x = Resource.assemble{
-            Resource.whileAssembling(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
-            acquire("a").onFailure(release) __ Unit
+            Resource.temp(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+            Resource.guard(acquire("a"))(release) __ Unit
             (Err.or("nope"): Ask[Int]).? __ Unit
-            acquire("b").onFailure(release)
+            Resource.release(Resource.guard(acquire("b"))(release))
           }
           Is(x)
         } __ Unit
@@ -2902,18 +2991,19 @@ class FlowTest {
     T ~ log.toList                                              ==== List("+t", "+a", "-a")
     T ~ Thread.interrupted()                                    ==== false
 
-    // an interruption swallowed beside another failure is signalled only after the last release has run,
-    // so a release in between that consumes the interrupt status cannot lose it
+    // an interruption swallowed beside another failure is signalled only after the last tear-down has run,
+    // so one in between that consumes the interrupt status cannot lose it
     log.clear()
     val seen = collection.mutable.ArrayBuffer.empty[Boolean]
     val io =
       try
         Resource.assemble{
-          acquire("s").onFailure(release) __ Unit
-          Resource.whileAssembling(acquire("c"))(x => { seen += Thread.interrupted(); release(x) }) __ Unit   // runs after the two failures
-          Resource.whileAssembling(acquire("i"))(_ => throw new InterruptedException("stop")) __ Unit
-          Resource.whileAssembling(acquire("e"))(_ => throw new java.io.IOException("io")) __ Unit
-          acquire("b").onFailure(release)
+          val s = Resource.guard(acquire("s"))(release)
+          Resource.temp(acquire("c"))(x => { seen += Thread.interrupted(); release(x) }) __ Unit   // runs after the two failures
+          Resource.temp(acquire("i"))(_ => throw new InterruptedException("stop")) __ Unit
+          Resource.temp(acquire("e"))(_ => throw new java.io.IOException("io")) __ Unit
+          val b = Resource.guard(acquire("b"))(release)
+          (Resource.release(s), Resource.release(b))
         } __ Unit
         "no"
       catch case e: java.io.IOException => e.getMessage
@@ -2922,13 +3012,38 @@ class FlowTest {
     T ~ Thread.interrupted()                                    ==== true
     T ~ log.toList                                              ==== List("+s", "+c", "+i", "+e", "+b", "-c", "-b", "-s")
 
-    // the types: only what was guarded can be handed out, singly or as a whole tuple.  (The
-    // T ! / T \ helpers cannot see into a context-function block, so the check is made directly.)
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.whileAssembling(new AnyRef)(_ => ()) }""").nonEmpty ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (new AnyRef).onFailure(_ => ()) }""").isEmpty  ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ ((1).onFailure(_ => ()), 2) }""").nonEmpty  ==== true
-    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ ((1).onFailure(_ => ()), (2).onFailure(_ => ())) }""").isEmpty ==== true
+    // the types: only what was released can be handed out, singly or as a whole tuple; a Released is on its
+    // way out and nothing else can be done with it; and a guard belongs to the block that armed it, so an inner
+    // block cannot release it.  (The T ! / T \ helpers cannot see into a context-function block, so the checks
+    // are made directly.)
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.temp(new AnyRef)(_ => ()) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.guard(new AnyRef)(_ => ()) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.release(kse.flow.Resource.guard(new AnyRef)(_ => ())) }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.Resource.release(kse.flow.Resource.guard(1)(_ => ())), 2) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ (kse.flow.Resource.release(kse.flow.Resource.guard(1)(_ => ())), kse.flow.Resource.release(kse.flow.Resource.guard(2)(_ => ()))) }""").isEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ 3 }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); val n = r.length; r }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); kse.flow.Resource.release(r) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); kse.flow.Resource.unguarded(r) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""
+      kse.flow.Resource.assemble{
+        val a = kse.flow.Resource.guard("a")(_ => ())
+        val b: String = kse.flow.Resource.assemble{ kse.flow.Resource.release(a) }
+        kse.flow.Resource.release(a)
+      }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""
+      kse.flow.Resource.assemble{
+        val a = kse.flow.Resource.guard("a")(_ => ())
+        val b: String = kse.flow.Resource.assemble{ kse.flow.Resource.release(kse.flow.Resource.guard(a + "b")(_ => ())) }
+        kse.flow.Resource.release(a)
+      }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""
+      kse.flow.Resource.assemble{
+        val a = kse.flow.Resource.guard("a")(_ => ())
+        val b: String = kse.flow.Resource.assemble{ val c = kse.flow.Resource.guard("c")(_ => ()); kse.flow.Resource.releaseOp(a, c)(_ + _) }
+        kse.flow.Resource.release(a)
+      }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ kse.flow.Resource.unguardedOp(kse.flow.Resource.guard(1)(_ => ()))(_ + 1) }""").nonEmpty ==== true
 
 
   @Test
