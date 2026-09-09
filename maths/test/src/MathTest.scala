@@ -890,7 +890,80 @@ class MathTest {
 
     val pcgr = Pcg64(1276561648165L)
     randomTestWith(pcgr, "Pcg64")
+
+    val xo128 = Xo128(5551212L)
+    randomTestWith(xo128, "Xo128")
+
+    val xo256 = Xo256(31415926535L)
+    randomTestWith(xo256, "Xo256")
     ()
+
+  @Test
+  def xoshiroTest(): Unit =
+    // Reference vectors from the authors' public-domain C at prng.di.unimi.it, seeded through their splitmix64 from
+    // 8675309 exactly as Xo128 and Xo256 seed themselves: the state as seeded, the first draws, and the state and
+    // draws after a jump and then a long jump.
+    val r128 = Xo128(8675309L)
+    T ~ r128.getState(0) ==== 0x04771239FD283169L
+    T ~ r128.getState(1) ==== 0xF1744A47B71CB6A3L
+    for (d, i) <- Array(0xBD7A7AC3CD421D3FL, 0x5512A2AFFD4A7710L, 0xFA5744294FEA7D30L, 0x0CCA08EDF22D1A84L, 0xF36C9D4764597DABL, 0x75D52F96CE07BEEDL).zipWithIndex do
+      T(s"Xo128 draw $i") ~ r128.L ==== d
+    r128.jump() __ Unit
+    T ~ r128.getState(0) ==== 0x855F4267C8938580L
+    T ~ r128.getState(1) ==== 0xB160B2BB38849221L
+    T ~ r128.L ==== 0x6FA54497F7D5F2FFL
+    T ~ r128.L ==== 0xF89620F98C206DCAL
+    T ~ r128.L ==== 0xB8D9DCFD760D7EF0L
+    r128.longJump() __ Unit
+    T ~ r128.getState(0) ==== 0xBF0530259E081D61L
+    T ~ r128.getState(1) ==== 0xDF6DAC22AB072870L
+    T ~ r128.L ==== 0x7795C24429AB5A46L
+    T ~ r128.L ==== 0x48C75EC11CE6A43DL
+    T ~ r128.L ==== 0x4D3B5ABF10BE22B9L
+
+    val r256 = Xo256(8675309L)
+    T ~ r256.getState(0) ==== 0x04771239FD283169L
+    T ~ r256.getState(1) ==== 0xF1744A47B71CB6A3L
+    T ~ r256.getState(2) ==== 0x0A82397EC9563017L
+    T ~ r256.getState(3) ==== 0x6D0945A15A6F018FL
+    for (d, i) <- Array(0xF222DDD37960F194L, 0x4F634A1109E2FE1DL, 0x4FD77B3877B54AE6L, 0x1C797B4EED336CA9L, 0x2ED53E67B374B4BAL, 0x3325F9CED4A9E2FCL).zipWithIndex do
+      T(s"Xo256 draw $i") ~ r256.L ==== d
+    r256.jump() __ Unit
+    T ~ r256.getState(0) ==== 0x21C46FD6CD8EB81BL
+    T ~ r256.getState(1) ==== 0x5E5C394254DF322DL
+    T ~ r256.getState(2) ==== 0xDFA97AA8D6E2C372L
+    T ~ r256.getState(3) ==== 0xDA58975526435ED4L
+    T ~ r256.L ==== 0xB7BE58E2458CC69EL
+    T ~ r256.L ==== 0xC6EB2CA359AC84DBL
+    T ~ r256.L ==== 0x22035B0507421CD6L
+    r256.longJump() __ Unit
+    T ~ r256.getState(0) ==== 0x9B34F8B1F178092EL
+    T ~ r256.getState(1) ==== 0xB3741AA56DCCE4F5L
+    T ~ r256.getState(2) ==== 0x19898C039B487BBBL
+    T ~ r256.getState(3) ==== 0xBBE72E43FD878770L
+    T ~ r256.L ==== 0x162C787A40A39741L
+    T ~ r256.L ==== 0x488BB475BB3376E1L
+    T ~ r256.L ==== 0x52BB1D3F77BE8459L
+
+    // a jump drops the cache with the position it belonged to; a copy carries the cache and then goes its own way
+    val a = Xo128(1L)
+    a.Z __ Unit
+    T ~ a.isClean ==== false
+    a.jump() __ Unit
+    T ~ a.isClean ==== true
+    a.Z __ Unit
+    val b = a.copy
+    T ~ b.isClean ==== false
+    T ~ a.I ==== b.I
+    T ~ a.L ==== b.L
+    a.jump() __ Unit
+    T ~ (a.L != b.L) ==== true
+    val c = Xo256(1L)
+    c.Z __ Unit
+    val d = c.copy
+    T ~ c.L ==== d.L
+    c.longJump() __ Unit
+    T ~ (c.L != d.L) ==== true
 
 
   sealed trait H {
@@ -4789,14 +4862,104 @@ class MathTest {
     T ~ say"#is/are/ <#${silently(ULong(1L))}here" ==== "is here"
 
   @Test
+  def rgbTest(): Unit =
+    import kse.maths.colours.{Rgb, Argb}
+    T ~ Rgb.F(0.5f, 0.25f, 1f) ==== Rgb(128, 64, 255)
+    T ~ Rgb.D(0.5, 0.25, 1.0) ==== Rgb(128, 64, 255)
+    T ~ Argb.F(0.5f)(0.25f, 0.5f, 1f) ==== Argb(128)(64, 128, 255)
+    T ~ Argb.D(0.5)(0.25, 0.5, 1.0) ==== Argb(128)(64, 128, 255)
+    T ~ Argb.F(2f)(-1f, 0f, 1f) ==== Argb(255)(0, 0, 255)
+
+    // an alpha is added as a byte, a literal, or a fraction
+    T ~ Rgb(1, 2, 3).aTo(128) ==== Argb(128)(1, 2, 3)
+    T ~ Rgb(1, 2, 3).aTo(UByte(128)) ==== Argb(128)(1, 2, 3)
+    T ~ Rgb(1, 2, 3).aTo(0.5f) ==== Argb(128)(1, 2, 3)
+    T ~ Rgb(1, 2, 3).aTo(0.5) ==== Argb(128)(1, 2, 3)
+    T ~ Rgb(1, 2, 3).argb ==== Argb(255)(1, 2, 3)
+    T ~ Argb(128)(1, 2, 3).unwrap ==== 0x80010203
+
+    // the part is the channels alone; the flat form is what they look like over a background
+    T ~ Argb(128)(1, 2, 3).rgbPart ==== Rgb(1, 2, 3)
+    T ~ Argb(255)(10, 20, 30).rgbFlat() ==== Rgb(10, 20, 30)
+    T ~ Argb(0)(10, 20, 30).rgbFlat() ==== Rgb.Black
+    T ~ Argb(0)(10, 20, 30).rgbFlat(Rgb.White) ==== Rgb.White
+    T ~ Argb(128)(255, 0, 100).rgbFlat() ==== Rgb(128, 0, 50)
+    T ~ Argb(128)(255, 0, 100).rgbFlat(Rgb(0, 255, 100)) ==== Rgb(128, 127, 100)
+
+    // extended precision from an alpha colour is its light over black
+    T ~ Argb(255)(255, 128, 0).f21.rgb ==== Rgb(255, 128, 0)
+    T ~ say"${Argb(128)(255, 128, 0).f21}" ==== "Ergb[0.502 0.252 0.000]"
+    T ~ Argb(0)(255, 128, 0).f21.rgb ==== Rgb.Black
+
+    // the named colours
+    T ~ Rgb.Black ==== Rgb(0, 0, 0)
+    T ~ Rgb.White ==== Rgb(255, 255, 255)
+    T ~ Rgb.Red ==== Rgb(255, 0, 0)
+    T ~ Rgb.Lime ==== Rgb(0, 255, 0)
+    T ~ Rgb.Blue ==== Rgb(0, 0, 255)
+    T ~ Rgb.RebeccaPurple.pr ==== "#663399"
+    T ~ Rgb.Grey ==== Rgb.Gray
+    T ~ Rgb.DarkSlateGrey ==== Rgb.DarkSlateGray
+    T ~ Rgb.CornflowerBlue ==== Rgb(100, 149, 237)
+    T ~ Rgb.Red.f21.rgb ==== Rgb.Red
+
+  @Test
   def ergbTest(): Unit =
-    import kse.maths.colours.{Rgb, Ergb}
+    import kse.maths.colours.{Rgb, Ergb, Ehsv, Oklab, Colour}
     T ~ Ergb(0.25f, 0.5f, 1f).rgb ==== Rgb(64, 128, 255)
     T ~ Ergb(0f, 2f, 0f).rgb ==== Rgb(1, 255, 1)
     T ~ Ergb(300f, 300f, 300f).rgb ==== Rgb(255, 255, 255)
     T ~ Ergb(-1f, 0.5f, 0.25f).rgb ==== Rgb(0, 128, 64)
     T ~ Ergb.wrap(-1L).rgb ==== Rgb(0, 0, 0)
     T ~ Rgb(64, 128, 255).f21.rgb ==== Rgb(64, 128, 255)
+
+    // channels read, replaced, and updated; invalid stays invalid, and a NaN makes it so
+    val e = Ergb(0.25f, 0.5f, 2f)
+    T ~ e.r ==== 0.25f
+    T ~ e.g ==== 0.5f
+    T ~ e.b ==== 2f
+    T ~ e.unwrap ==== Colour.pack_floats(0.25f, 0.5f, 2f)
+    T ~ e.rTo(1f) ==== Ergb(1f, 0.5f, 2f)
+    T ~ e.gTo(1f) ==== Ergb(0.25f, 1f, 2f)
+    T ~ e.bTo(1f) ==== Ergb(0.25f, 0.5f, 1f)
+    T ~ e.rOp(_ * 2) ==== Ergb(0.5f, 0.5f, 2f)
+    T ~ e.gOp(_ + 1) ==== Ergb(0.25f, 1.5f, 2f)
+    T ~ e.bOp(_ / 2) ==== Ergb(0.25f, 0.5f, 1f)
+    T ~ e.rgbFn(_ + _ + _) ==== 2.75f
+    T ~ Ergb.wrap(-1L).r.isNaN ==== true
+    T ~ Ergb.wrap(-1L).rTo(1f) ==== Ergb.wrap(-1L)
+    T ~ e.rTo(Float.NaN) ==== Ergb.wrap(-1L)
+
+    // scaled and summed as light
+    T ~ (e * 2f) ==== Ergb(0.5f, 1f, 4f)
+    T ~ (e * 2.0) ==== Ergb(0.5f, 1f, 4f)
+    T ~ (2f * e) ==== Ergb(0.5f, 1f, 4f)
+    T ~ (2.0 * e) ==== Ergb(0.5f, 1f, 4f)
+    T ~ (e / 2f) ==== Ergb(0.125f, 0.25f, 1f)
+    T ~ (e / 2.0) ==== Ergb(0.125f, 0.25f, 1f)
+    T ~ (e + Ergb(1f, 1f, 1f)) ==== Ergb(1.25f, 1.5f, 3f)
+    T ~ (Ergb.wrap(-1L) * 2f) ==== Ergb.wrap(-1L)
+    T ~ (e + Ergb.wrap(-1L)) ==== Ergb.wrap(-1L)
+
+    // the other ways in and out
+    T ~ Ergb.D(0.25, 0.5, 2.0) ==== e
+    T ~ Ergb.from(Rgb(64, 128, 255)) ==== Rgb(64, 128, 255).f21
+    T ~ Ergb.from(Rgb(64, 128, 255).aTo(255)) ==== Rgb(64, 128, 255).aTo(255).f21
+    T ~ e.ehsv ==== Ehsv.from(e)
+    T ~ Oklab.lRGB(Ergb(0.25f, 0.75f, 1f)) ==== Oklab.from(0.25f, 0.75f, 1f)
+    T ~ Oklab.sRGB(Ergb(1f, 0f, 0f)) ==== Oklab.from(1f, 0f, 0f)
+    T ~ Oklab.from(0.25f, 0.75f, 1f).ergb.rgb ==== Rgb(64, 191, 255)
+    T ~ Oklab.wrap(-1L).lOp(_ => 0.5f) ==== Oklab.wrap(-1L)
+    summon[kse.basics.Translucent[Oklab, Long]] __ Unit
+
+    // every named Rgb has its Oklab twin, generated from it
+    T ~ Oklab.Red ==== Oklab.sRGB(Rgb.Red)
+    T ~ Oklab.White.rgbFn((r, g, b) => (r - 1).abs < 1e-4f && (g - 1).abs < 1e-4f && (b - 1).abs < 1e-4f) ==== true
+    val rgbNames = Rgb.getClass.getDeclaredMethods.filter(m => m.getParameterCount == 0 && m.getReturnType == classOf[Int] && m.getName.head.isUpper)
+    T ~ rgbNames.length ==== 148
+    for m <- rgbNames do
+      val c = Rgb.wrap(m.invoke(Rgb).asInstanceOf[Int])
+      T ~ Oklab.wrap(Oklab.getClass.getMethod(m.getName).invoke(Oklab).asInstanceOf[Long]) ==== Oklab.sRGB(c)
 
   @Test
   def ehsvTest(): Unit =
@@ -4809,6 +4972,18 @@ class MathTest {
     T ~ Ehsv(0.5f, 0.25f, 2f).h ==== 0.5f
     T ~ Ehsv(0.5f, 0.25f, 2f).s ==== 0.25f
     T ~ Ehsv(0.5f, 0.25f, 2f).v ==== 2f
+
+    // channels replaced and updated; invalid stays invalid
+    val c = Ehsv(0.5f, 0.25f, 2f)
+    T ~ c.hTo(0.25f) ==== Ehsv(0.25f, 0.25f, 2f)
+    T ~ c.sTo(1f) ==== Ehsv(0.5f, 1f, 2f)
+    T ~ c.vTo(1f) ==== Ehsv(0.5f, 0.25f, 1f)
+    T ~ c.hOp(_ + 0.25f) ==== Ehsv(0.75f, 0.25f, 2f)
+    T ~ c.sOp(_ * 2) ==== Ehsv(0.5f, 0.5f, 2f)
+    T ~ c.vOp(_ / 2) ==== Ehsv(0.5f, 0.25f, 1f)
+    T ~ Ehsv.D(0.5, 0.25, 2.0) ==== c
+    T ~ Ehsv.wrap(-1L).hTo(0f) ==== Ehsv.wrap(-1L)
+    T ~ c.vTo(Float.NaN) ==== Ehsv.wrap(-1L)
 
     T ~ Ehsv(0f, 1f, 1f).rgb ==== Rgb(255, 0, 0)
     T ~ Ehsv(1f/3, 1f, 1f).rgb ==== Rgb(0, 255, 0)

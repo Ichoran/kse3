@@ -841,6 +841,184 @@ object Pcg64 {
 }
 
 
+sealed abstract class PrngState128 extends Prng {
+  protected final var state0: Long = 0L
+  protected final var state1: Long = 0L
+
+  final def stateLength = 2
+  final def getState(i: Int): Long = if i == 0 then state0 else state1
+  final def setState(i: Int)(l: Long) = i match
+    case 0 => state0 = l; true
+    case 1 => state1 = l; true
+    case _ => false
+}
+
+sealed abstract class PrngState256 extends Prng {
+  protected final var state0: Long = 0L
+  protected final var state1: Long = 0L
+  protected final var state2: Long = 0L
+  protected final var state3: Long = 0L
+
+  final def stateLength = 4
+  final def getState(i: Int): Long = i match
+    case 0 => state0
+    case 1 => state1
+    case 2 => state2
+    case _ => state3
+  final def setState(i: Int)(l: Long) = i match
+    case 0 => state0 = l; true
+    case 1 => state1 = l; true
+    case 2 => state2 = l; true
+    case 3 => state3 = l; true
+    case _ => false
+}
+
+// xoroshiro128++ 1.0 by David Blackman and Sebastiano Vigna: "Scrambled Linear Pseudorandom Number Generators",
+// ACM Transactions on Mathematical Software 47(4), 2021 (arXiv:1805.01407).  Reference code, dedicated to the
+// public domain, at https://prng.di.unimi.it/xoroshiro128plusplus.c, jump polynomials included.
+/** 128 bits of state, 64 out, as fast as [[Pcg64]]: the small-state choice when 64 bits is not enough — many
+  * streams, or runs long enough that a 64-bit generator's never-repeating output shows.  `jump` and `longJump`
+  * partition the period into streams that cannot overlap, which independent seeding of a 64-bit generator cannot
+  * promise.  Seeded as the authors suggest, from a SplitMix64 (ShiftMix64 here) run from the seed, whose
+  * consecutive outputs are distinct, so the state is never all zero; that state is a fixed point, and
+  * `setState` is trusted not to make it.
+  */
+final class Xo128(initialSeed: Long = java.lang.System.nanoTime) extends PrngState128 {
+  locally {
+    val sm = new ShiftMix64(initialSeed)
+    state0 = sm.L
+    state1 = sm.L
+  }
+
+  def copy: Xo128 =
+    val ans = new Xo128(0L)
+    ans.state0 = state0
+    ans.state1 = state1
+    ans.bits = bits
+    ans.cache = cache
+    ans
+
+  def L =
+    bits = 0
+    val s0 = state0
+    var s1 = state1
+    val result = java.lang.Long.rotateLeft(s0 + s1, 17) + s0
+    s1 ^= s0
+    state0 = java.lang.Long.rotateLeft(s0, 49) ^ s1 ^ (s1 << 21)
+    state1 = java.lang.Long.rotateLeft(s1, 28)
+    result
+
+  /** Skips 2^64 draws in 128 steps: successive jumps from one seed start streams that cannot overlap, each good
+    * for 2^64 draws, for parallel work.  The cache is dropped with the position it belonged to. */
+  def jump(): this.type = jumpBy(Xo128.Jump)
+
+  /** Skips 2^96 draws: 2^32 starting points, from each of which `jump` gives 2^32 streams, for parallel work at
+    * two levels. */
+  def longJump(): this.type = jumpBy(Xo128.LongJump)
+
+  private def jumpBy(poly: Array[Long]): this.type =
+    var s0 = 0L
+    var s1 = 0L
+    var i = 0
+    while i < poly.length do
+      val p = poly(i)
+      var b = 0
+      while b < 64 do
+        if (p & (1L << b)) != 0 then
+          s0 ^= state0
+          s1 ^= state1
+        L __ Unit
+        b += 1
+      i += 1
+    state0 = s0
+    state1 = s1
+    bits = 0
+    this
+}
+object Xo128 {
+  private[maths] val Jump = Array(0x2BD7A6A6E99C2DDCL, 0x0992CCAF6A6FCA05L)
+  private[maths] val LongJump = Array(0x360FD5F2CF8D5D99L, 0x9C6E6877736C46E3L)
+
+  given Copies[Xo128] with
+    def copy(a: Xo128): Xo128 = a.copy
+}
+
+// xoshiro256++ 1.0 by David Blackman and Sebastiano Vigna, from the same paper; reference code, dedicated to the
+// public domain, at https://prng.di.unimi.it/xoshiro256plusplus.c, jump polynomials included.
+/** 256 bits of state, 64 out, nearly as fast as [[Xo128]] and with room for any amount of parallelism: `jump` skips
+  * 2^128 draws and `longJump` 2^192.  Seeded, and kept from the all-zero fixed point, the same way as [[Xo128]].
+  */
+final class Xo256(initialSeed: Long = java.lang.System.nanoTime) extends PrngState256 {
+  locally {
+    val sm = new ShiftMix64(initialSeed)
+    state0 = sm.L
+    state1 = sm.L
+    state2 = sm.L
+    state3 = sm.L
+  }
+
+  def copy: Xo256 =
+    val ans = new Xo256(0L)
+    ans.state0 = state0
+    ans.state1 = state1
+    ans.state2 = state2
+    ans.state3 = state3
+    ans.bits = bits
+    ans.cache = cache
+    ans
+
+  def L =
+    bits = 0
+    val result = java.lang.Long.rotateLeft(state0 + state3, 23) + state0
+    val t = state1 << 17
+    state2 ^= state0
+    state3 ^= state1
+    state1 ^= state2
+    state0 ^= state3
+    state2 ^= t
+    state3 = java.lang.Long.rotateLeft(state3, 45)
+    result
+
+  /** Skips 2^128 draws in 256 steps: successive jumps from one seed start streams that cannot overlap. */
+  def jump(): this.type = jumpBy(Xo256.Jump)
+
+  /** Skips 2^192 draws: 2^64 starting points, from each of which `jump` gives 2^64 streams. */
+  def longJump(): this.type = jumpBy(Xo256.LongJump)
+
+  private def jumpBy(poly: Array[Long]): this.type =
+    var s0 = 0L
+    var s1 = 0L
+    var s2 = 0L
+    var s3 = 0L
+    var i = 0
+    while i < poly.length do
+      val p = poly(i)
+      var b = 0
+      while b < 64 do
+        if (p & (1L << b)) != 0 then
+          s0 ^= state0
+          s1 ^= state1
+          s2 ^= state2
+          s3 ^= state3
+        L __ Unit
+        b += 1
+      i += 1
+    state0 = s0
+    state1 = s1
+    state2 = s2
+    state3 = s3
+    bits = 0
+    this
+}
+object Xo256 {
+  private[maths] val Jump = Array(0x180EC6D33CFD0ABAL, 0xD5A61266F0C9392CL, 0xA9582618E03FC9AAL, 0x39ABDC4529B1661CL)
+  private[maths] val LongJump = Array(0x76E15D3EFEFDCBBFL, 0xC5004E441C522FB3L, 0x77710069854EE241L, 0x39109BB02ACBE635L)
+
+  given Copies[Xo256] with
+    def copy(a: Xo256): Xo256 = a.copy
+}
+
+
 opaque type AutoPrng = Prng
 object AutoPrng {
   inline def wrap(prng: Prng): kse.maths.AutoPrng = prng

@@ -295,7 +295,7 @@ extension (value: Float) {
   @targetName("Float_mul_Vc_PM_Bf16")
   transparent inline def *(
     inline that: kse.maths.Bf16 | kse.maths.Vc | kse.maths.PlusMinus | kse.maths.Vec3F |
-                 kse.maths.Vec2D | kse.maths.Vec3D | kse.maths.colours.Oklab | DoubleDuration |
+                 kse.maths.Vec2D | kse.maths.Vec3D | kse.maths.colours.Oklab | kse.maths.colours.Ergb | DoubleDuration |
                  kse.maths.Mat22F | kse.maths.Mat23F | kse.maths.Mat32F | kse.maths.Mat33F |
                  kse.maths.Mat22D | kse.maths.Mat23D | kse.maths.Mat32D | kse.maths.Mat33D
   ) = inline that match
@@ -315,6 +315,7 @@ extension (value: Float) {
     case m: kse.maths.Mat32D => m * value
     case m: kse.maths.Mat33D => m * value
     case c: kse.maths.colours.Oklab => c * value
+    case c: kse.maths.colours.Ergb => c * value
 
   @targetName("Float_div_PlusMinus_Bf16")
   transparent inline def /(inline that: kse.maths.Bf16 | kse.maths.PlusMinus) = inline that match
@@ -443,12 +444,15 @@ extension (value: Double) {
   inline def *(m: kse.maths.Mat33D): kse.maths.Mat33D = m * value
 
 
-  /////////////////////////////////////////////
-  // Double _ Oklab Operators (Colour.scala) //
-  /////////////////////////////////////////////
+  ///////////////////////////////////////////////////
+  // Double _ Oklab, Ergb Operators (Colour.scala) //
+  ///////////////////////////////////////////////////
 
   @targetName("Double_mul_Oklab")
   inline def *(c: kse.maths.colours.Oklab): kse.maths.colours.Oklab = c * value
+
+  @targetName("Double_mul_Ergb")
+  inline def *(c: kse.maths.colours.Ergb): kse.maths.colours.Ergb = c * value
 
 
   ////////////////////////////////////////////////////////
