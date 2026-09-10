@@ -58,7 +58,7 @@ class SortingTest() {
     T ~ Array(5).indicesInOrder()     =**= Array(0)
     val ix = new Array[Int](8)
     val tmp = new Array[Int](8)
-    T ~ a.indicesInOrder(0, 4, ix, tmp) ==== 4
+    T ~ a.indicesInOrderInto(0, 4, ix, tmp) ==== 4
     T ~ ix.take(4)                      =**= Array(1, 3, 2, 0)
 
     T ~ Array(3L, 1L, 2L, 1L).indicesInOrder()                       =**= Array(1, 3, 2, 0)
@@ -73,7 +73,7 @@ class SortingTest() {
     // Values that do not compare with themselves go last, in original order; -0.0 and 0.0 are equal, so stable
     val d = Array(3.0, Double.NaN, 1.0, Double.NaN, 2.0, -0.0, 0.0)
     T ~ d.indicesInOrder()               =**= Array(5, 6, 2, 4, 0, 1, 3)
-    T ~ d.indicesInOrder(0, 7, ix, tmp)  ==== 5
+    T ~ d.indicesInOrderInto(0, 7, ix, tmp)  ==== 5
     T ~ ix.take(7)                       =**= Array(5, 6, 2, 4, 0, 1, 3)
     T ~ d.indicesInOrder(1, 4)           =**= Array(2, 1, 3)
     T ~ Array(2f, Float.NaN, 1f).indicesInOrder() =**= Array(2, 0, 1)
@@ -85,7 +85,7 @@ class SortingTest() {
     // Anything indexable, through an accessor
     val s = "salmon"
     T ~ Sorting.indicesInOrder(0, s.length)(i => s.charAt(i)) =**= Array(1, 2, 3, 5, 4, 0)
-    T ~ Sorting.indexSort(0, 7, ix, tmp)(i => d(i))             ==== 5
+    T ~ Sorting.indicesInOrderInto(0, 7, ix, tmp)(i => d(i))             ==== 5
     T ~ ix.take(7)                                              =**= Array(5, 6, 2, 4, 0, 1, 3)
 
   @Test
@@ -103,7 +103,7 @@ class SortingTest() {
     y.sortInOrder(1 to 3)
     T ~ y =**= Array(9, 1, 2, 3, 1, 0)
     val z = Array(9, 3, 1, 2, 1, 0)
-    T ~ z.sortInOrder(0, 6, new Array[Int](6)) ==== 6
+    z.sortInOrder(0, 6, new Array[Int](6))
     T ~ z                               =**= Array(0, 1, 1, 2, 3, 9)
     val q = Array(9, 3, 1, 2, 1, 0)
     T ~ q.sortWithIndices(1, 5) =**= Array(2, 4, 3, 1)
@@ -121,11 +121,11 @@ class SortingTest() {
     T ~ dv.sortWithIndices()  =**= Array(5, 6, 2, 4, 0, 1, 3)
     T ~ bits(dv)              =**= bits(Array(-0.0, 0.0, 1.0, 2.0, 3.0, Double.NaN, Double.NaN))
     val dw = d.clone()
-    T ~ dw.sortWithIndices(0, 7, ix, new Array[Double](7), new Array[Int](7)) ==== 5
+    T ~ dw.sortWithIndicesInto(0, 7, ix, new Array[Double](7), new Array[Int](7)) ==== 5
     T ~ ix.take(7)                                                            =**= Array(5, 6, 2, 4, 0, 1, 3)
     T ~ bits(dw)                                                              =**= bits(dv)
     val du = d.clone()
-    T ~ du.sortInOrder(0, 7, new Array[Double](7)) ==== 5
+    du.sortInOrder(0, 7, new Array[Double](7))
     T ~ bits(du)                            =**= bits(dv)
     val f = Array(2f, Float.NaN, 1f)
     f.sortInOrder()
@@ -187,7 +187,7 @@ class SortingTest() {
     T ~ m.indicesInOrder(1, 5) =**= Array(2L, 4L, 3L, 1L)
     val ix = new Array[Int](8)
     val tmp = new Array[Int](8)
-    T ~ m.indicesInOrder(1, 5, ix, tmp) ==== 4
+    T ~ m.indicesInOrderInto(1, 5, ix, tmp) ==== 4
     T ~ ix.take(4)                      =**= Array(1, 3, 2, 0)
     m.sortInOrder(1, 5)
     T ~ b =**= Array(9, 1, 1, 2, 3, 0)
@@ -196,10 +196,10 @@ class SortingTest() {
     val keys = new Array[Int](8)
     val tmpK = new Array[Int](8)
     val c = Array(5, 4, 4, 3)
-    T ~ (Mem of c).sortInOrder(0, 4, keys, tmpK) ==== 4
+    (Mem of c).sortInOrder(0, 4, keys, tmpK)
     T ~ c                                        =**= Array(3, 4, 4, 5)
     val c2 = Array(5, 4, 4, 3)
-    T ~ (Mem of c2).sortWithIndices(0, 4, ix, keys, tmpK, tmp) ==== 4
+    T ~ (Mem of c2).sortWithIndicesInto(0, 4, ix, keys, tmpK, tmp) ==== 4
     T ~ ix.take(4)                                             =**= Array(3, 1, 2, 0)
     T ~ c2                                                     =**= Array(3, 4, 4, 5)
     val empty = Array[Int]()
@@ -225,7 +225,7 @@ class SortingTest() {
     val dd = Array(3.0, Double.NaN, 1.0, Double.NaN, 2.0, -0.0, 0.0)
     val mdd = Mem of dd
     T ~ mdd.indicesInOrder() =**= Array(5L, 6L, 2L, 4L, 0L, 1L, 3L)
-    T ~ mdd.sortInOrder(0, 7, new Array[Double](7), new Array[Double](7)) ==== 5
+    mdd.sortInOrder(0, 7, new Array[Double](7), new Array[Double](7))
     T ~ bits(dd) =**= bits(Array(-0.0, 0.0, 1.0, 2.0, 3.0, Double.NaN, Double.NaN))
 
     // Mem.As over an opaque type sorts by that type's own (reversed) order, and over a primitive as Mem does
@@ -274,7 +274,7 @@ class SortingTest() {
       T ~ viewed(v)           =**= Array(0x02000000, 0x00000001, 0x01000000)
       T ~ v.indicesInOrder()  =**= Array(1L, 2L, 0L)
       val ix = new Array[Int](4)
-      T ~ v.indicesInOrder(0, 3, ix, new Array[Int](4)) ==== 3
+      T ~ v.indicesInOrderInto(0, 3, ix, new Array[Int](4)) ==== 3
       T ~ ix.take(3)                                     =**= Array(1, 2, 0)
       T ~ v.sortWithIndices() =**= Array(1L, 2L, 0L)
       T ~ viewed(v)           =**= Array(0x00000001, 0x01000000, 0x02000000)
@@ -289,7 +289,7 @@ class SortingTest() {
         vd(i) = src(i)
         i += 1
       T ~ vd.indicesInOrder() =**= Array(5L, 6L, 2L, 4L, 0L, 1L, 3L)
-      T ~ vd.sortInOrder(0, 7, new Array[Double](7), new Array[Double](7)) ==== 5
+      vd.sortInOrder(0, 7, new Array[Double](7), new Array[Double](7))
       T ~ bits(viewed(vd))    =**= bits(Array(-0.0, 0.0, 1.0, 2.0, 3.0, Double.NaN, Double.NaN))
       T ~ (d(0) == -0.0)      ==== false
 
@@ -328,7 +328,7 @@ class SortingTest() {
     T ~ dv.sortWithIndices()(using DescDoubles) =**= Array(2, 4, 3, 0, 1)
     T ~ bits(dv) =**= bits(Array(3.0, 3.0, 2.0, 1.0, Double.NaN))
     val dw = d.clone()
-    T ~ dw.sortInOrder(0, 5, new Array[Double](5))(using DescDoubles) ==== 4
+    dw.sortInOrder(0, 5, new Array[Double](5))(using DescDoubles)
     T ~ bits(dw) =**= bits(dv)
     T ~ DescDoubles.leqRt(1.0, 2.0) ==== false
     T ~ DescDoubles.leqRt(2.0, 1.0) ==== true
@@ -356,7 +356,7 @@ class SortingTest() {
     val d = Array(3.0, Double.NaN, 1.0, Double.NaN, 2.0)
     T ~ Sorting.indicesInOrderBy(0, 5, true)((i, j) => d(i) <= d(j)) =**= Array(2, 4, 0, 1, 3)
     val ix = new Array[Int](5)
-    T ~ Sorting.indexSortBy(0, 5, ix, new Array[Int](5))((i, j) => d(i) <= d(j), true) ==== 3
+    T ~ Sorting.indicesInOrderByInto(0, 5, ix, new Array[Int](5))((i, j) => d(i) <= d(j), true) ==== 3
     T ~ ix =**= Array(2, 4, 0, 1, 3)
     T ~ Sorting.indicesInOrderBy(0, 0, false)((i, j) => true) =**= Array[Int]()
     // Larger, against the key-based sort, with heavy ties
@@ -384,7 +384,7 @@ class SortingTest() {
     T ~ xs.indicesInOrderBy()((i, j) => xs.name(i) < xs.name(j) || (xs.name(i) == xs.name(j) && xs.score(i) <= xs.score(j))) =**= Array(3L, 1L, 5L, 0L, 4L, 2L)
     T ~ xs.indicesInOrderBy(1, 5)((i, j) => xs.name(i) <= xs.name(j)) =**= Array(1L, 3L, 2L, 4L)
     val rx = new Array[Int](6)
-    T ~ xs.indicesInOrderBy(1, 5, rx, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
+    T ~ xs.indicesInOrderByInto(1, 5, rx, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
     T ~ rx.take(4) =**= Array(3, 2, 0, 1)
     T ~ xs.name(2) ==== 2
     T ~ xs.score(2).isNaN ==== true
@@ -405,7 +405,7 @@ class SortingTest() {
     // A range, with relative indices from the buffered form and a supplied scratch record
     val scratch = Mem.Struct.of[(name: Int, score: Double)]
     val rix2 = new Array[Int](6)
-    T ~ xs.indicesInOrderBy(2, 6, rix2, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
+    T ~ xs.indicesInOrderByInto(2, 6, rix2, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
     T ~ rix2.take(4) =**= Array(1, 2, 0, 3)
     xs.reorder(rix2, 2, 6, scratch)
     T ~ Array.tabulate(6)(i => xs.name(i))        =**= Array(1, 1, 3, 3, 2, 2)
@@ -437,6 +437,105 @@ class SortingTest() {
     T ~ Array.tabulate(1200)(i => big.key(i)) =**= bk.sorted
 
   @Test
+  def sortingRankTest(): Unit =
+    // Ranks are positions in the stable ascending order, the inverse of the index order
+    val a = Array(3, 1, 2, 1)
+    T ~ a.rankOrder()       =**= Array(3, 0, 2, 1)
+    T ~ a.rankOrder(1, 3)   =**= Array(0, 1)
+    T ~ a.rankOrder(1 to 3) =**= Array(0, 2, 1)
+    val both = a.rankAndSortOrder()
+    T ~ both.ranks   =**= Array(3, 0, 2, 1)
+    T ~ both.inOrder =**= Array(1, 3, 2, 0)
+    val (ranks, inOrder) = a.rankAndSortOrder(1, 4)
+    T ~ ranks   =**= Array(0, 2, 1)
+    T ~ inOrder =**= Array(1, 3, 2)
+    T ~ a.rankAndSortOrder(1 to End).ranks =**= Array(0, 2, 1)
+    val rk = new Array[Int](8)
+    val ix = new Array[Int](8)
+    T ~ a.rankOrderInto(0, 4, rk, ix)        ==== 4
+    T ~ rk.take(4)                           =**= Array(3, 0, 2, 1)
+    T ~ a.rankAndSortOrderInto(0, 4, rk, ix) ==== 4
+    T ~ rk.take(4)                           =**= Array(3, 0, 2, 1)
+    T ~ ix.take(4)                           =**= Array(1, 3, 2, 0)
+    T ~ Array[Int]().rankOrder()             =**= Array[Int]()
+    val d = Array(3.0, Double.NaN, 1.0, Double.NaN, 2.0, -0.0, 0.0)
+    T ~ d.rankOrder()                 =**= Array(4, 5, 2, 6, 3, 0, 1)
+    T ~ d.rankOrderInto(0, 7, rk, ix) ==== 5
+
+    // Accessor and slot-comparison forms
+    val s = "salmon"
+    T ~ Sorting.rankOrder(0, 6)(i => s.charAt(i)) =**= Array(5, 0, 1, 2, 4, 3)
+    val w = Array("eel", "cod", "bass", "gar")
+    T ~ Sorting.rankOrderBy(0, 4, false)((i, j) => w(i) <= w(j)) =**= Array(2, 1, 0, 3)
+    val rs = Sorting.rankAndSortOrder(0, 6)(i => s.charAt(i))
+    T ~ rs.ranks   =**= Array(5, 0, 1, 2, 4, 3)
+    T ~ rs.inOrder =**= Array(1, 2, 3, 5, 4, 0)
+    val rsb = Sorting.rankAndSortOrderBy(0, 4, false)((i, j) => w(i) <= w(j))
+    T ~ rsb.ranks   =**= Array(2, 1, 0, 3)
+    T ~ rsb.inOrder =**= Array(2, 1, 0, 3)
+    T ~ Sorting.rankOrderInto(0, 6, rk, ix)(i => s.charAt(i))                        ==== 6
+    T ~ rk.take(6)                                                                    =**= Array(5, 0, 1, 2, 4, 3)
+    T ~ Sorting.rankOrderByInto(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)          ==== 4
+    T ~ rk.take(4)                                                                    =**= Array(2, 1, 0, 3)
+    T ~ Sorting.rankAndSortOrderInto(0, 6, rk, ix)(i => s.charAt(i))                 ==== 6
+    T ~ ix.take(6)                                                                    =**= Array(1, 2, 3, 5, 4, 0)
+    T ~ Sorting.rankAndSortOrderByInto(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)   ==== 4
+    T ~ ix.take(4)                                                                    =**= Array(2, 1, 0, 3)
+
+    // Mem, Mem.As, and a big-endian view
+    val m = Mem of Array(9, 3, 1, 2, 1, 0)
+    T ~ m.rankOrder()     =**= Array(5, 4, 1, 3, 2, 0)
+    T ~ m.rankOrder(1, 5) =**= Array(3, 0, 2, 1)
+    val mb = m.rankAndSortOrder()
+    T ~ mb.ranks   =**= Array(5, 4, 1, 3, 2, 0)
+    T ~ mb.inOrder =**= Array(5L, 2L, 4L, 3L, 1L, 0L)
+    T ~ m.rankOrderInto(1, 5, rk, ix)        ==== 4
+    T ~ rk.take(4)                           =**= Array(3, 0, 2, 1)
+    T ~ m.rankAndSortOrderInto(1, 5, rk, ix) ==== 4
+    T ~ ix.take(4)                           =**= Array(1, 3, 2, 0)
+    T ~ (Mem.As of Rev.arr(5, 4, 6, 5)).rankOrder() =**= Array(1, 3, 0, 2)
+    locally {
+      import Mem.BE
+      val v = (Mem of Array(0x00000002, 0x01000000, 0x00000001)).orderAware
+      T ~ v.rankOrder()                =**= Array(2, 0, 1)
+      T ~ v.rankAndSortOrder().inOrder =**= Array(1L, 2L, 0L)
+    }
+
+    // Records, by a comparison on slots
+    val xs = Mem.AoS.alloc[(name: Int, score: Double)](4)
+    var i = 0
+    while i < 4 do
+      xs.name(i) = Array(3, 1, 2, 1)(i)
+      xs.score(i) = i.toDouble
+      i += 1
+    T ~ xs.rankOrderBy()((i, j) => xs.name(i) <= xs.name(j)) =**= Array(3, 0, 2, 1)
+    val xb = xs.rankAndSortOrderBy()((i, j) => xs.name(i) <= xs.name(j))
+    T ~ xb.ranks   =**= Array(3, 0, 2, 1)
+    T ~ xb.inOrder =**= Array(1L, 3L, 2L, 0L)
+    T ~ xs.rankOrderByInto(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j))        ==== 3
+    T ~ rk.take(3)                                                                    =**= Array(0, 2, 1)
+    T ~ xs.rankAndSortOrderByInto(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j)) ==== 3
+    T ~ ix.take(3)                                                                    =**= Array(0, 2, 1)
+    locally {
+      import Mem.BE
+      val v = xs.orderAware
+      T ~ v.rankOrderBy()((i, j) => v.name(i) <= v.name(j)) =**= Array(3, 0, 2, 1)
+    }
+
+    // The two orders invert each other, at scale and with heavy ties
+    val rng = new java.util.Random(24601L)
+    val big = Array.fill(3000)(rng.nextInt(100))
+    val bo = big.rankAndSortOrder()
+    var k = 0
+    var inverse = true
+    while k < 3000 do
+      if bo.ranks(bo.inOrder(k)) != k || bo.inOrder(bo.ranks(k)) != k then inverse = false
+      k += 1
+    T ~ inverse    ==== true
+    T ~ bo.inOrder =**= big.indicesInOrder()
+    T ~ bo.ranks   =**= big.rankOrder()
+
+  @Test
   def sortingStressTest(): Unit =
     val rng = new java.util.Random(8675309L)
     val sizes = Array(2, 3, 15, 16, 17, 31, 32, 33, 47, 64, 100, 255, 256, 257, 1000, 1023, 1024, 1025, 5000)
@@ -458,7 +557,7 @@ class SortingTest() {
       val dref = Array.range(0, n).filter(i => !d(i).isNaN).sortBy(i => d(i))(using Ordering.Double.TotalOrdering) ++ nan
       T ~ d.indicesInOrder() =**= dref
       val ix = new Array[Int](n)
-      T ~ d.indicesInOrder(0, n, ix, new Array[Int](n)) ==== n - nan.length
+      T ~ d.indicesInOrderInto(0, n, ix, new Array[Int](n)) ==== n - nan.length
       T ~ ix =**= dref
       val l = a.map(x => x.toLong - 3)
       T ~ l.indicesInOrder() =**= ref
@@ -484,7 +583,7 @@ class SortingTest() {
       T ~ dv.sortWithIndices() =**= dref
       T ~ bits(dv)             =**= bits(dref.map(i => d(i)))
       val dv2 = d.clone()
-      T ~ dv2.sortInOrder(0, n, new Array[Double](n)) ==== n - nan.length
+      dv2.sortInOrder(0, n, new Array[Double](n))
       T ~ bits(dv2)                            =**= bits(dv)
       val sv = str.clone()
       sv.sortInOrder()

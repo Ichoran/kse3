@@ -64,32 +64,32 @@ class DoubleSortBench {
 
   @Benchmark def valueSort(): Array[Double] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortInOrder(0, n, tmp) __ Unit
+    work.sortInOrder(0, n, tmp)
     work
 
   @Benchmark def valueSortWithIndices(): Array[Int] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortWithIndices(0, n, ix, tmp, tmpIx) __ Unit
+    work.sortWithIndicesInto(0, n, ix, tmp, tmpIx) __ Unit
     ix
 
   @Benchmark def indexSort(): Int =
-    pristine.indicesInOrder(0, n, ix, tmpIx)
+    pristine.indicesInOrderInto(0, n, ix, tmpIx)
 
   @Benchmark def boxedSortBy(): Array[Int] =
     Array.range(0, n).sortBy(i => pristine(i))
 
   @Benchmark def valueSortCompiled(): Array[Double] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortInOrder(0, n, tmp)(using CompiledDoubles) __ Unit
+    work.sortInOrder(0, n, tmp)(using CompiledDoubles)
     work
 
   @Benchmark def valueSortWithIndicesCompiled(): Array[Int] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortWithIndices(0, n, ix, tmp, tmpIx)(using CompiledDoubles) __ Unit
+    work.sortWithIndicesInto(0, n, ix, tmp, tmpIx)(using CompiledDoubles) __ Unit
     ix
 
   @Benchmark def indexSortCompiled(): Int =
-    pristine.indicesInOrder(0, n, ix, tmpIx)(using CompiledDoubles)
+    pristine.indicesInOrderInto(0, n, ix, tmpIx)(using CompiledDoubles)
 }
 
 
@@ -125,16 +125,16 @@ class IntSortBench {
 
   @Benchmark def valueSort(): Array[Int] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortInOrder(0, n, tmp) __ Unit
+    work.sortInOrder(0, n, tmp)
     work
 
   @Benchmark def valueSortWithIndices(): Array[Int] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortWithIndices(0, n, ix, tmp, tmpIx) __ Unit
+    work.sortWithIndicesInto(0, n, ix, tmp, tmpIx) __ Unit
     ix
 
   @Benchmark def indexSort(): Int =
-    pristine.indicesInOrder(0, n, ix, tmpIx)
+    pristine.indicesInOrderInto(0, n, ix, tmpIx)
 }
 
 
@@ -171,9 +171,9 @@ class StringSortBench {
 
   @Benchmark def valueSort(): Array[String] =
     System.arraycopy(pristine, 0, work, 0, n)
-    work.sortInOrder(0, n, tmp) __ Unit
+    work.sortInOrder(0, n, tmp)
     work
 
   @Benchmark def indexSort(): Int =
-    pristine.indicesInOrder(0, n, ix, tmpIx)
+    pristine.indicesInOrderInto(0, n, ix, tmpIx)
 }

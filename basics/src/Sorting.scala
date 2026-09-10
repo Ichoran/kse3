@@ -21,15 +21,70 @@ import kse.basics.intervals._
   * The primary operation is an index sort: given keys reachable by index, produce the indices in ascending key order,
   * ties keeping their original order, without moving the keys.  Comparison is supplied by a `Sorting.Order`, whose
   * comparison is `inline` so that every sort kernel is compiled with the comparison in place--no boxing, no virtual
-  * call per comparison, for primitives, opaque types with their own `<=`, and `Comparable` objects alike.
+  * call per comparison, for primitives, opaque types with their own `<=`, and `Comparable` objects alike.  Keys that
+  * do not compare with themselves, such as `NaN`, sort after all others, in their original order.  Every sort here
+  * is a stable merge sort: binary insertion within blocks of `MinRun`, then bottom-up merges through a scratch
+  * buffer, skipping a merge whose halves are already in order; `reorder` is a cycle walk over the permutation.
   *
-  * Arrays also have a value sort, `sortInOrder`, which is faster because it moves keys and indices together in sequential
-  * passes rather than reaching back into the array for every comparison; it sorts in place, and can be given a
-  * scratch buffer so repeated sorts allocate nothing.  `reorder` applies an index order in place to anything with
-  * get and set, by walking the permutation's cycles, so data that must stay put can still be rearranged.
+  * Arrays also have a value sort, `sortInOrder`, which is faster because it moves keys and indices together in
+  * sequential passes rather than reaching back into the array for every comparison; it sorts in place, and can be
+  * given a scratch buffer so repeated sorts allocate nothing.  `reorder` applies an index order in place to anything
+  * with get and set, by walking the permutation's cycles, so data that must stay put can still be rearranged.
   *
-  * Arrays have `indicesInOrder`; anything else indexable goes through `Sorting.indexSort` with an accessor, which
-  * compiles the kernel at the call site (into its own method), so keep such call sites few.
+  * Arrays, `Mem`, `Mem.As` and `Mem.OrderAware` have all of these.  Anything else indexable goes through
+  * `Sorting.indicesInOrderInto` with an accessor, and anything whose order is a comparison between slots rather than a key,
+  * such as the records of a `Mem.AoS`, through `Sorting.indicesInOrderByInto`.  Those compile the kernel at the call site
+  * (into a method of its own), so keep such call sites few.
+  *
+  * Example--sort one array, and make another follow it:
+  * {{{
+  * val ages = Array(31, 25, 40, 25)
+  * val names = Array("eel", "cod", "gar", "ide")
+  * val order = ages.indicesInOrder()   // Array(1, 3, 0, 2); the two 25s keep their order
+  * ages.rankOrder()                    // Array(2, 0, 3, 1); each age's position in that order, the inverse of `order`
+  * names.reorder(order)                // names is now cod, ide, eel, gar
+  * ages.sortInOrder()                  // ages is now 25, 25, 31, 40
+  * }}}
+  *
+  * Example--keys that do not compare, and buffers for repeated sorts:
+  * {{{
+  * val xs = Array(2.0, Double.NaN, 1.0)
+  * xs.indicesInOrder()                 // Array(2, 0, 1); NaN last
+  * val ix = new Array[Int](xs.length)
+  * val tmp = new Array[Int](xs.length)
+  * xs.indicesInOrderInto(0, xs.length, ix, tmp)   // 2: two values compared, and ix(2) is the NaN's index
+  * xs.sortWithIndices()                // Array(2, 0, 1), and xs is now 1.0, 2.0, NaN
+  * }}}
+  *
+  * Example--anything indexable, and orders that are not a key:
+  * {{{
+  * val s = "salmon"
+  * Sorting.indicesInOrder(0, s.length)(i => s.charAt(i))   // Array(1, 2, 3, 5, 4, 0)
+  *
+  * val w = Array("eel", "cod", "bass", "gar")
+  * Sorting.indicesInOrderBy(0, w.length, false)((i, j) =>   // by length, then alphabetically
+  *   w(i).length < w(j).length || (w(i).length == w(j).length && w(i) <= w(j)))
+  *
+  * val fish = Mem.AoS.alloc[(name: Int, weight: Double)](100)
+  * // ... fill fish ...
+  * val byWeight = fish.indicesInOrderBy()((i, j) => fish.weight(i) <= fish.weight(j))
+  * fish.reorder(byWeight)              // whole records move; no record is materialized
+  * }}}
+  *
+  * Example--an order of your own, and choosing an order at a call site:
+  * {{{
+  * object Descending extends Sorting.Total[Int] {
+  *   inline def leq(a: Int, b: Int): Boolean = a >= b
+  *   val kernels = build()
+  * }
+  * Array(3, 1, 2).indicesInOrder()(using Descending)   // Array(0, 2, 1)
+  * locally {
+  *   given Descending.type = Descending                // every Array[Int] sort in this scope
+  *   Array(3, 1, 2).sortInOrder()                      // 3, 2, 1
+  * }
+  * }}}
+  * Use `Sorting.Partial` in place of `Sorting.Total` when some keys fail `leq(k, k)`, as `NaN` does.  An opaque
+  * type's order belongs in its companion, where the type's own `<=` is in scope and an array of it can be made.
   */
 object Sorting {
   /** How keys of type `A` compare for sorting, and the sort kernels compiled for that comparison.
@@ -58,18 +113,18 @@ object Sorting {
     def newKeys(n: Int): Array[A]
 
     /** Fills `ix(0 until iN - i0)` with the indices `i0 until iN` arranged so `keys` are ascending, ties in original
-      * order; `tmp` is scratch.  Both must hold at least `iN - i0` entries.  Returns how many keys compare (all of
+      * order, by a stable merge sort of the indices that reads keys in place; `tmp` is scratch.  Both must hold at least `iN - i0` entries.  Returns how many keys compare (all of
       * them unless `partial`); the rest are at the end of the filled part of `ix` in original order.
       */
     def indexSort(keys: Array[A], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int
 
-    /** Sorts `keys(i0 until iN)` in place, ties in original order, using `tmp` (at least `iN - i0` long) as scratch.
-      * Returns how many keys compare; the rest are at the end, in original order.
+    /** Sorts `keys(i0 until iN)` in place by a stable merge sort, ties in original order, using `tmp` (at least
+      * `iN - i0` long) as scratch.  Returns how many keys compare; the rest are at the end, in original order.
       */
     def sort(keys: Array[A], i0: Int, iN: Int, tmp: Array[A]): Int
 
-    /** As `sort`, and also fills `ix(0 until iN - i0)` with the original index of each key in its sorted position,
-      * using `tmpIx` (at least `iN - i0` long) as scratch.
+    /** As `sort`, carrying the indices along: also fills `ix(0 until iN - i0)` with the original index of each key in
+      * its sorted position, using `tmpIx` (at least `iN - i0` long) as scratch.
       */
     def sortIx(keys: Array[A], i0: Int, iN: Int, ix: Array[Int], tmp: Array[A], tmpIx: Array[Int]): Int
   }
@@ -266,12 +321,13 @@ object Sorting {
   /** Stands in for an index array in a kernel that is not tracking indices. */
   val noIndices: Array[Int] = new Array[Int](0)
 
-  /** The kernel of the index sort, as a template.  Fills `ix(0 until iN - i0)` with the indices `i0 until iN` in
+  /** The kernel of the index sort, as a template: a stable merge sort of the indices, binary insertion on blocks of
+    * `MinRun` and then bottom-up merges alternating between `ix` and `tmp`, reading keys through `key`.  Fills `ix(0 until iN - i0)` with the indices `i0 until iN` in
     * ascending order of `key`, ties in original order, using `tmp` (at least `iN - i0` long) as scratch.  Returns how
     * many keys compare; when `partial`, keys with `!leq(k, k)` come after them in `ix`, in original order.
     *
     * Every use compiles a copy with `key` and `leq` in place, so use it only to build an `Order`'s `indexSort` or,
-    * through `Sorting.indexSort`, at a few call sites that read keys from something other than an array.
+    * through `Sorting.indicesInOrderInto`, at a few call sites that read keys from something other than an array.
     */
   inline def indexSortImpl[A](i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline key: Int => A)(inline leq: (A, A) => Boolean, inline partial: Boolean): Int =
     val n = iN - i0
@@ -349,7 +405,8 @@ object Sorting {
       if src ne ix then System.arraycopy(src, 0, ix, 0, nc)
     nc
 
-  /** The kernel of the value sort, as a template.  Sorts `keys(i0 until iN)` in place, ties in original order, using
+  /** The kernel of the value sort, as a template: the same stable merge sort as `indexSortImpl`, but moving the keys
+    * themselves, and with `withIx` their indices, between `keys` and `tmp`.  Sorts `keys(i0 until iN)` in place, ties in original order, using
     * `tmp` (at least `iN - i0` long) as scratch; when `withIx`, also fills `ix(0 until iN - i0)` with each key's
     * original index, using `tmpIx` as scratch, and otherwise never touches `ix` or `tmpIx`.  Returns how many keys
     * compare; when `partial`, keys with `!leq(k, k)` come after them, in original order.
@@ -463,25 +520,26 @@ object Sorting {
     * `iN - i0` long).  Returns how many keys compare; see `Order.indexSort`.  The kernel is compiled here, in a method
     * of its own, with `key` and the order's comparison in place.
     */
-  inline def indexSort[A](i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline key: Int => A)(using ord: Order[A]): Int =
+  inline def indicesInOrderInto[A](i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline key: Int => A)(using ord: Order[A]): Int =
     def sortWork(): Int = indexSortImpl(i0, iN, ix, tmp)(key)((a, b) => ord.leq(a, b), ord.partial)
     sortWork()
 
   /** Indices `i0 until iN` in ascending order of `key`, ties in original order, in a new array.  Keys that do not
-    * compare come last.  The kernel is compiled here; see `indexSort`.
+    * compare come last.  The kernel is compiled here; see `indicesInOrderInto`.
     */
   inline def indicesInOrder[A](i0: Int, iN: Int)(inline key: Int => A)(using ord: Order[A]): Array[Int] =
     val n = iN - i0
     val ix = new Array[Int](n)
-    indexSort(i0, iN, ix, new Array[Int](n))(key) __ Unit
+    indicesInOrderInto(i0, iN, ix, new Array[Int](n))(key) __ Unit
     ix
 
-  /** The kernel of the index sort by a comparison on slots, as a template.  As `indexSortImpl`, but `leqAt(i, j)`
+  /** The kernel of the index sort by a comparison on slots, as a template: the same stable merge sort of the indices
+    * as `indexSortImpl`, but `leqAt(i, j)`
     * says whether whatever is at slot `i` sorts no later than whatever is at slot `j`, so no key is ever extracted;
     * when `partial`, a slot with `!leqAt(i, i)` comes after all others, in original order.  A merge step compares
     * afresh on every comparison, since there are no key values to hold.
     *
-    * Every use compiles a copy with `leqAt` in place, so prefer `Sorting.indexSortBy`, which puts it in a method of
+    * Every use compiles a copy with `leqAt` in place, so prefer `Sorting.indicesInOrderByInto`, which puts it in a method of
     * its own.
     */
   inline def indexSortByImpl(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
@@ -559,21 +617,21 @@ object Sorting {
     * compare; when `partial`, a slot with `!leqAt(i, i)` comes after all others, in original order.  The kernel is
     * compiled here, in a method of its own, with `leqAt` in place.
     */
-  inline def indexSortBy(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+  inline def indicesInOrderByInto(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
     def sortWork(): Int = indexSortByImpl(i0, iN, ix, tmp)(leqAt, partial)
     sortWork()
 
   /** Slots `i0 until iN` in ascending order under `leqAt`, ties in original order, in a new array; when `partial`,
-    * slots with `!leqAt(i, i)` come last.  The kernel is compiled here; see `indexSortBy`.
+    * slots with `!leqAt(i, i)` come last.  The kernel is compiled here; see `indicesInOrderByInto`.
     */
   inline def indicesInOrderBy(i0: Int, iN: Int, inline partial: Boolean)(inline leqAt: (Int, Int) => Boolean): Array[Int] =
     val n = iN - i0
     val ix = new Array[Int](n)
-    indexSortBy(i0, iN, ix, new Array[Int](n))(leqAt, partial) __ Unit
+    indicesInOrderByInto(i0, iN, ix, new Array[Int](n))(leqAt, partial) __ Unit
     ix
 
   /** Rearranges positions `i0 until iN` of something with `get` and `set` so that position `i0 + k` receives what
-    * was at `ix(k)`, in place, by following the cycles of the permutation.  `ix(0 until iN - i0)` must be a
+    * was at `ix(k)`, in place, by walking the cycles of the permutation with one element held aside at a time.  `ix(0 until iN - i0)` must be a
     * permutation of `i0 until iN`, such as `indicesInOrder` produces; it is used for bookkeeping while the walk runs
     * but is intact when it returns.
     */
@@ -681,14 +739,90 @@ object Sorting {
       a(k) = i0 + ix(k)
       k += 1
     a
+
+  /** Inverts an index order: for `k` in `0 until n`, sets `ranks(ix(k) - i0) = k`, so that `ranks` says which
+    * position each element of `i0 until iN` takes in the order that `ix` lists.
+    */
+  def ranksInto(ix: Array[Int], n: Int, i0: Int, ranks: Array[Int]): Unit =
+    var k = 0
+    while k < n do
+      ranks(ix(k) - i0) = k
+      k += 1
+
+  /** The rank of each of `i0 until iN` under `key`: position in the stable ascending order, so ties rank in original
+    * order and keys that do not compare rank last.  The inverse of `indicesInOrder`, by the same stable merge sort of
+    * the indices and an inversion pass.  The kernel is compiled here; see `indicesInOrderInto`.
+    */
+  inline def rankOrder[A](i0: Int, iN: Int)(inline key: Int => A)(using ord: Order[A]): Array[Int] =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    indicesInOrderInto(i0, iN, ix, ranks)(key) __ Unit
+    ranksInto(ix, n, i0, ranks)
+    ranks
+
+  /** As `rankOrder`, filling `ranks(0 until iN - i0)` and using `ix` as scratch (each at least `iN - i0` long).
+    * Returns how many keys compare.
+    */
+  inline def rankOrderInto[A](i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline key: Int => A)(using ord: Order[A]): Int =
+    val nc = indicesInOrderInto(i0, iN, ix, ranks)(key)
+    ranksInto(ix, iN - i0, i0, ranks)
+    nc
+
+  /** Both the rank of each of `i0 until iN` and the indices in ascending order, which are inverses of each other,
+    * from one stable merge sort of the indices.
+    */
+  inline def rankAndSortOrder[A](i0: Int, iN: Int)(inline key: Int => A)(using ord: Order[A]): (ranks: Array[Int], inOrder: Array[Int]) =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    indicesInOrderInto(i0, iN, ix, ranks)(key) __ Unit
+    ranksInto(ix, n, i0, ranks)
+    (ranks = ranks, inOrder = ix)
+
+  /** As `rankAndSortOrder`, filling `ranks` and `ix` (each at least `iN - i0` long).  Returns how many keys compare. */
+  inline def rankAndSortOrderInto[A](i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline key: Int => A)(using ord: Order[A]): Int =
+    val nc = indicesInOrderInto(i0, iN, ix, ranks)(key)
+    ranksInto(ix, iN - i0, i0, ranks)
+    nc
+
+  /** The rank of each of slots `i0 until iN` under a comparison on slots; see `rankOrder` and `indicesInOrderBy`. */
+  inline def rankOrderBy(i0: Int, iN: Int, inline partial: Boolean)(inline leqAt: (Int, Int) => Boolean): Array[Int] =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial) __ Unit
+    ranksInto(ix, n, i0, ranks)
+    ranks
+
+  /** As `rankOrderBy`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how many slots compare. */
+  inline def rankOrderByInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+    val nc = indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial)
+    ranksInto(ix, iN - i0, i0, ranks)
+    nc
+
+  /** Both the ranks and the ascending order of slots `i0 until iN` under a comparison on slots; see `rankAndSortOrder`. */
+  inline def rankAndSortOrderBy(i0: Int, iN: Int, inline partial: Boolean)(inline leqAt: (Int, Int) => Boolean): (ranks: Array[Int], inOrder: Array[Int]) =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial) __ Unit
+    ranksInto(ix, n, i0, ranks)
+    (ranks = ranks, inOrder = ix)
+
+  /** As `rankAndSortOrderBy`, filling `ranks` and `ix` (each at least `iN - i0` long).  Returns how many slots compare. */
+  inline def rankAndSortOrderByInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+    val nc = indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial)
+    ranksInto(ix, iN - i0, i0, ranks)
+    nc
 }
 
 
 /** Sorting for off-heap `Mem`, with the same verbs as arrays.  Indices are `Long`s here: the allocating forms return
   * absolute `Long` indices, while the buffered forms fill `Int` indices relative to `i0` and return how many values
-  * compared.  A range must be shorter than `Int.MaxValue`.  The index sort reads keys through the `Mem` at the call
-  * site, compiling the kernel there; the value sorts copy the range into a key array, sort that with the order's
-  * compiled kernel, and copy it back.
+  * compared.  A range must be shorter than `Int.MaxValue`.  The index sort is a stable merge sort of the indices that
+  * reads keys through the `Mem` at the call site, compiling the kernel there; the value sorts copy the range into a
+  * key array, run the order's stable merge sort on it, and copy it back; `reorder` walks the permutation's cycles.
   */
 extension [A <: Mem.Type](m: Mem[A]) {
   /** Absolute indices of `m` in ascending order of value, ties in original order; values that do not compare come last. */
@@ -699,14 +833,14 @@ extension [A <: Mem.Type](m: Mem[A]) {
   inline def indicesInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A]): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indexSort(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
+    Sorting.indicesInOrderInto(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with indices relative to `i0`, in ascending order of value, ties in original order,
     * with `tmp` as scratch (each at least `iN - i0` long).  Returns how many values compare; any that do not come last.
     */
-  inline def indicesInOrder(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A]): Int =
-    Sorting.indexSort(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
+  inline def indicesInOrderInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A]): Int =
+    Sorting.indicesInOrderInto(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
 
   /** Sorts `m` in place, ascending, ties in original order; values that do not compare come last, in original order. */
   inline def sortInOrder()(using ord: Sorting.Order[A]): Unit =
@@ -715,17 +849,16 @@ extension [A <: Mem.Type](m: Mem[A]) {
   /** Sorts `m(i0 until iN)` in place, ascending, ties in original order. */
   inline def sortInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A]): Unit =
     val n = Sorting.rangeSize(i0, iN)
-    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n)) __ Unit
+    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n))
 
   /** Sorts `m(i0 until iN)` in place, ascending, ties in original order, through `keys` and `tmp` (each at least
     * `iN - i0` long) so repeated sorts need not allocate.  Returns how many values compare; any that do not come last.
     */
-  inline def sortInOrder(i0: Long, iN: Long, keys: Array[A], tmp: Array[A])(using ord: Sorting.Order[A]): Int =
+  inline def sortInOrder(i0: Long, iN: Long, keys: Array[A], tmp: Array[A])(using ord: Sorting.Order[A]): Unit =
     val n = Sorting.rangeSize(i0, iN)
     m.inject(keys)(i0, iN) __ Unit
-    val nc = ord.sort(keys, 0, n, tmp)
+    ord.sort(keys, 0, n, tmp) __ Unit
     MemorySegment.copy(keys, 0, m.segment, Mem.layoutOf[A], i0 * Mem.bytesOf[A], n)
-    nc
 
   /** Sorts `m` in place as `sortInOrder()` does, and returns the original absolute index of the value now at each position. */
   inline def sortWithIndices()(using ord: Sorting.Order[A]): Array[Long] =
@@ -735,14 +868,14 @@ extension [A <: Mem.Type](m: Mem[A]) {
   inline def sortWithIndices(i0: Long, iN: Long)(using ord: Sorting.Order[A]): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    sortWithIndices(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
+    sortWithIndicesInto(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Sorts `m(i0 until iN)` in place and fills `ix(0 until iN - i0)` with the original index, relative to `i0`, of the
     * value now at each position, through `keys`, `tmp` and `tmpIx` (each at least `iN - i0` long) so repeated sorts
     * need not allocate.  Returns how many values compare; any that do not come last.
     */
-  inline def sortWithIndices(i0: Long, iN: Long, ix: Array[Int], keys: Array[A], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A]): Int =
+  inline def sortWithIndicesInto(i0: Long, iN: Long, ix: Array[Int], keys: Array[A], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A]): Int =
     val n = Sorting.rangeSize(i0, iN)
     m.inject(keys)(i0, iN) __ Unit
     val nc = ord.sortIx(keys, 0, n, ix, tmp, tmpIx)
@@ -767,6 +900,55 @@ extension [A <: Mem.Type](m: Mem[A]) {
     */
   inline def reorder(ix: Array[Int], i0: Long, iN: Long): Unit =
     Sorting.reorder(ix, 0, Sorting.rangeSize(i0, iN))(k => m(i0 + k))((k, v) => m(i0 + k) = v)
+
+  /** The rank of each value of `m`: its position in the stable ascending order, ties in original order, values that
+    * do not compare last; the inverse of `indicesInOrder()`, by the same stable merge sort of the indices and an
+    * inversion pass.
+    */
+  inline def rankOrder()(using ord: Sorting.Order[A]): Array[Int] =
+    rankOrder(0L, m.length)
+
+  /** The rank of each of `m(i0 until iN)` within that range: entry `k` is the rank of `m(i0 + k)`. */
+  inline def rankOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A]): Array[Int] =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    ranks
+
+  /** As `rankOrder(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
+    * many values compare.
+    */
+  inline def rankOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A]): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
+
+  /** Both the rank of each value and the absolute indices in ascending order, inverses of each other, from one sort:
+    * `ranks((inOrder(k) - i0).toInt) == k`.
+    */
+  inline def rankAndSortOrder()(using ord: Sorting.Order[A]): (ranks: Array[Int], inOrder: Array[Long]) =
+    rankAndSortOrder(0L, m.length)
+
+  /** Both the ranks within `m(i0 until iN)` and the absolute indices `i0 until iN` in ascending order, from one sort. */
+  inline def rankAndSortOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A]): (ranks: Array[Int], inOrder: Array[Long]) =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
+
+  /** As `rankAndSortOrder(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least `iN - i0`
+    * long).  Returns how many values compare.
+    */
+  inline def rankAndSortOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A]): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
 }
 
 
@@ -782,15 +964,15 @@ extension [O](m: Mem.As[O]) {
   inline def indicesInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[O]): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indexSort(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
+    Sorting.indicesInOrderInto(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with indices relative to `i0`, in ascending order of value, ties in original order,
     * with `tmp` as scratch (each at least `iN - i0` long).  Returns how many values compare; any that do not come last.
     */
-  @targetName("asIndicesInOrder")
-  inline def indicesInOrder(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[O]): Int =
-    Sorting.indexSort(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
+  @targetName("asIndicesInOrderInto")
+  inline def indicesInOrderInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[O]): Int =
+    Sorting.indicesInOrderInto(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
 
   /** Sorts `m` in place, ascending, ties in original order; values that do not compare come last, in original order. */
   @targetName("asSortInOrder")
@@ -801,18 +983,17 @@ extension [O](m: Mem.As[O]) {
   @targetName("asSortInOrder")
   inline def sortInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[O]): Unit =
     val n = Sorting.rangeSize(i0, iN)
-    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n)) __ Unit
+    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n))
 
   /** Sorts `m(i0 until iN)` in place, ascending, ties in original order, through `keys` and `tmp` (each at least
     * `iN - i0` long) so repeated sorts need not allocate.  Returns how many values compare; any that do not come last.
     */
   @targetName("asSortInOrder")
-  inline def sortInOrder(i0: Long, iN: Long, keys: Array[O], tmp: Array[O])(using ord: Sorting.Order[O]): Int =
+  inline def sortInOrder(i0: Long, iN: Long, keys: Array[O], tmp: Array[O])(using ord: Sorting.Order[O]): Unit =
     val n = Sorting.rangeSize(i0, iN)
     m.inject(keys)(i0, iN) __ Unit
-    val nc = ord.sort(keys, 0, n, tmp)
+    ord.sort(keys, 0, n, tmp) __ Unit
     MemorySegment.copy(keys, 0, m.segment, Mem.As.layoutOf[O], i0 * Mem.As.bytesOf[O], n)
-    nc
 
   /** Sorts `m` in place as `sortInOrder()` does, and returns the original absolute index of the value now at each position. */
   @targetName("asSortWithIndices")
@@ -824,15 +1005,15 @@ extension [O](m: Mem.As[O]) {
   inline def sortWithIndices(i0: Long, iN: Long)(using ord: Sorting.Order[O]): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    sortWithIndices(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
+    sortWithIndicesInto(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Sorts `m(i0 until iN)` in place and fills `ix(0 until iN - i0)` with the original index, relative to `i0`, of the
     * value now at each position, through `keys`, `tmp` and `tmpIx` (each at least `iN - i0` long) so repeated sorts
     * need not allocate.  Returns how many values compare; any that do not come last.
     */
-  @targetName("asSortWithIndices")
-  inline def sortWithIndices(i0: Long, iN: Long, ix: Array[Int], keys: Array[O], tmp: Array[O], tmpIx: Array[Int])(using ord: Sorting.Order[O]): Int =
+  @targetName("asSortWithIndicesInto")
+  inline def sortWithIndicesInto(i0: Long, iN: Long, ix: Array[Int], keys: Array[O], tmp: Array[O], tmpIx: Array[Int])(using ord: Sorting.Order[O]): Int =
     val n = Sorting.rangeSize(i0, iN)
     m.inject(keys)(i0, iN) __ Unit
     val nc = ord.sortIx(keys, 0, n, ix, tmp, tmpIx)
@@ -860,6 +1041,56 @@ extension [O](m: Mem.As[O]) {
   @targetName("asReorder")
   inline def reorder(ix: Array[Int], i0: Long, iN: Long): Unit =
     Sorting.reorder(ix, 0, Sorting.rangeSize(i0, iN))(k => m(i0 + k))((k, v) => m(i0 + k) = v)
+
+  /** The rank of each value of `m`, as for `Mem`: the inverse of `indicesInOrder()`. */
+  @targetName("asRankOrder")
+  inline def rankOrder()(using ord: Sorting.Order[O]): Array[Int] =
+    rankOrder(0L, m.length)
+
+  /** The rank of each of `m(i0 until iN)` within that range: entry `k` is the rank of `m(i0 + k)`. */
+  @targetName("asRankOrder")
+  inline def rankOrder(i0: Long, iN: Long)(using ord: Sorting.Order[O]): Array[Int] =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    ranks
+
+  /** As `rankOrder(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
+    * many values compare.
+    */
+  @targetName("asRankOrderInto")
+  inline def rankOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[O]): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
+
+  /** Both the rank of each value and the absolute indices in ascending order, from one sort. */
+  @targetName("asRankAndSortOrder")
+  inline def rankAndSortOrder()(using ord: Sorting.Order[O]): (ranks: Array[Int], inOrder: Array[Long]) =
+    rankAndSortOrder(0L, m.length)
+
+  /** Both the ranks within `m(i0 until iN)` and the absolute indices `i0 until iN` in ascending order, from one sort. */
+  @targetName("asRankAndSortOrder")
+  inline def rankAndSortOrder(i0: Long, iN: Long)(using ord: Sorting.Order[O]): (ranks: Array[Int], inOrder: Array[Long]) =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
+
+  /** As `rankAndSortOrder(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least `iN - i0`
+    * long).  Returns how many values compare.
+    */
+  @targetName("asRankAndSortOrderInto")
+  inline def rankAndSortOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[O]): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
 }
 
 
@@ -877,15 +1108,15 @@ extension [A <: Mem.Type](m: Mem.OrderAware[A]) {
   inline def indicesInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A], o: Mem.Order): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indexSort(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
+    Sorting.indicesInOrderInto(0, n, ix, new Array[Int](n))(k => m(i0 + k)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with indices relative to `i0`, in ascending order of value, ties in original order,
     * with `tmp` as scratch (each at least `iN - i0` long).  Returns how many values compare; any that do not come last.
     */
-  @targetName("orderAwareIndicesInOrder")
-  inline def indicesInOrder(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
-    Sorting.indexSort(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
+  @targetName("orderAwareIndicesInOrderInto")
+  inline def indicesInOrderInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
+    Sorting.indicesInOrderInto(0, Sorting.rangeSize(i0, iN), ix, tmp)(k => m(i0 + k))
 
   /** Sorts `m` in place, ascending, ties in original order; values that do not compare come last, in original order. */
   @targetName("orderAwareSortInOrder")
@@ -896,24 +1127,23 @@ extension [A <: Mem.Type](m: Mem.OrderAware[A]) {
   @targetName("orderAwareSortInOrder")
   inline def sortInOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A], o: Mem.Order): Unit =
     val n = Sorting.rangeSize(i0, iN)
-    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n)) __ Unit
+    sortInOrder(i0, iN, ord.newKeys(n), ord.newKeys(n))
 
   /** Sorts `m(i0 until iN)` in place, ascending, ties in original order, through `keys` and `tmp` (each at least
     * `iN - i0` long) so repeated sorts need not allocate.  Returns how many values compare; any that do not come last.
     */
   @targetName("orderAwareSortInOrder")
-  inline def sortInOrder(i0: Long, iN: Long, keys: Array[A], tmp: Array[A])(using ord: Sorting.Order[A], o: Mem.Order): Int =
+  inline def sortInOrder(i0: Long, iN: Long, keys: Array[A], tmp: Array[A])(using ord: Sorting.Order[A], o: Mem.Order): Unit =
     val n = Sorting.rangeSize(i0, iN)
     var k = 0
     while k < n do
       keys(k) = m(i0 + k)
       k += 1
-    val nc = ord.sort(keys, 0, n, tmp)
+    ord.sort(keys, 0, n, tmp) __ Unit
     k = 0
     while k < n do
       m(i0 + k) = keys(k)
       k += 1
-    nc
 
   /** Sorts `m` in place as `sortInOrder()` does, and returns the original absolute index of the value now at each position. */
   @targetName("orderAwareSortWithIndices")
@@ -925,15 +1155,15 @@ extension [A <: Mem.Type](m: Mem.OrderAware[A]) {
   inline def sortWithIndices(i0: Long, iN: Long)(using ord: Sorting.Order[A], o: Mem.Order): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    sortWithIndices(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
+    sortWithIndicesInto(i0, iN, ix, ord.newKeys(n), ord.newKeys(n), new Array[Int](n)) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Sorts `m(i0 until iN)` in place and fills `ix(0 until iN - i0)` with the original index, relative to `i0`, of the
     * value now at each position, through `keys`, `tmp` and `tmpIx` (each at least `iN - i0` long) so repeated sorts
     * need not allocate.  Returns how many values compare; any that do not come last.
     */
-  @targetName("orderAwareSortWithIndices")
-  inline def sortWithIndices(i0: Long, iN: Long, ix: Array[Int], keys: Array[A], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
+  @targetName("orderAwareSortWithIndicesInto")
+  inline def sortWithIndicesInto(i0: Long, iN: Long, ix: Array[Int], keys: Array[A], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
     val n = Sorting.rangeSize(i0, iN)
     var k = 0
     while k < n do
@@ -967,14 +1197,66 @@ extension [A <: Mem.Type](m: Mem.OrderAware[A]) {
   @targetName("orderAwareReorder")
   inline def reorder(ix: Array[Int], i0: Long, iN: Long)(using o: Mem.Order): Unit =
     Sorting.reorder(ix, 0, Sorting.rangeSize(i0, iN))(k => m(i0 + k))((k, v) => m(i0 + k) = v)
+
+  /** The rank of each value of `m` read under the byte order in scope, as for `Mem`. */
+  @targetName("orderAwareRankOrder")
+  inline def rankOrder()(using ord: Sorting.Order[A], o: Mem.Order): Array[Int] =
+    rankOrder(0L, m.length)
+
+  /** The rank of each of `m(i0 until iN)` within that range: entry `k` is the rank of `m(i0 + k)`. */
+  @targetName("orderAwareRankOrder")
+  inline def rankOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A], o: Mem.Order): Array[Int] =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    ranks
+
+  /** As `rankOrder(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
+    * many values compare.
+    */
+  @targetName("orderAwareRankOrderInto")
+  inline def rankOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
+
+  /** Both the rank of each value and the absolute indices in ascending order, from one sort. */
+  @targetName("orderAwareRankAndSortOrder")
+  inline def rankAndSortOrder()(using ord: Sorting.Order[A], o: Mem.Order): (ranks: Array[Int], inOrder: Array[Long]) =
+    rankAndSortOrder(0L, m.length)
+
+  /** Both the ranks within `m(i0 until iN)` and the absolute indices `i0 until iN` in ascending order, from one sort. */
+  @targetName("orderAwareRankAndSortOrder")
+  inline def rankAndSortOrder(i0: Long, iN: Long)(using ord: Sorting.Order[A], o: Mem.Order): (ranks: Array[Int], inOrder: Array[Long]) =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k)) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
+
+  /** As `rankAndSortOrder(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least `iN - i0`
+    * long).  Returns how many values compare.
+    */
+  @targetName("orderAwareRankAndSortOrderInto")
+  inline def rankAndSortOrderInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A], o: Mem.Order): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderInto(0, n, ix, ranks)(k => m(i0 + k))
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
 }
 
 
 /** Index ordering for `Mem.AoS`: records are compared by a function on their slots, e.g.
   * `xs.indicesInOrderBy()((i, j) => xs.age(i) <= xs.age(j))`, so no key is extracted and no record is materialized.
   * A record for which the comparison is false against itself (e.g. one with a `NaN` field it compares by) comes
-  * last, in original order.  Indices are `Long`s as for `Mem`: the allocating forms return absolute indices, the
-  * buffered form fills `Int` indices relative to `i0` and returns how many records compared.
+  * last, in original order.  The sort is a stable merge sort of the indices that compares slots; `reorder` then walks
+  * the permutation's cycles, moving whole records one at a time.  Indices are `Long`s as for `Mem`: the allocating
+  * forms return absolute indices, the buffered form fills `Int` indices relative to `i0` and returns how many
+  * records compared.
   */
 extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
   /** Absolute indices of the records of `xs` in ascending order under `leqAt`, ties in original order. */
@@ -985,14 +1267,14 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
   inline def indicesInOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indexSortBy(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderByInto(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with record indices relative to `i0` in ascending order under `leqAt`, ties in
     * original order, with `tmp` as scratch (each at least `iN - i0` long).  Returns how many records compare.
     */
-  inline def indicesInOrderBy(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
-    Sorting.indexSortBy(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
+  inline def indicesInOrderByInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    Sorting.indicesInOrderByInto(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
 
   /** Rearranges the records of `xs` in place so that slot `k` receives the record that was at `ix(k)`; `ix` must be
     * a permutation of the record indices, such as `indicesInOrderBy` produces, and is intact afterwards.  Records
@@ -1026,6 +1308,53 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
   @targetName("aosReorder")
   inline def reorder(ix: Array[Int], i0: Long, iN: Long, scratch: Mem.Struct[T]): Unit =
     Sorting.reorderRecords(ix, 0, Sorting.rangeSize(i0, iN))((from, to) => xs.copyRecord(i0 + from, i0 + to))(k => xs.copyRecordTo(i0 + k, scratch))(k => xs.copyRecordFrom(scratch, i0 + k))
+
+  /** The rank of each record of `xs` under `leqAt`: its position in the stable ascending order, ties in original
+    * order, records that fail against themselves last; the inverse of `indicesInOrderBy()`, by the same stable
+    * merge sort of the indices and an inversion pass.
+    */
+  inline def rankOrderBy()(inline leqAt: (Long, Long) => Boolean): Array[Int] =
+    rankOrderBy(0L, xs.length)(leqAt)
+
+  /** The rank of each of records `i0 until iN` within that range: entry `k` is the rank of record `i0 + k`. */
+  inline def rankOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Int] =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    ranks
+
+  /** As `rankOrderBy(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
+    * many records compare.
+    */
+  inline def rankOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
+
+  /** Both the rank of each record and the absolute record indices in ascending order under `leqAt`, from one sort. */
+  inline def rankAndSortOrderBy()(inline leqAt: (Long, Long) => Boolean): (ranks: Array[Int], inOrder: Array[Long]) =
+    rankAndSortOrderBy(0L, xs.length)(leqAt)
+
+  /** Both the ranks within records `i0 until iN` and their absolute indices in ascending order, from one sort. */
+  inline def rankAndSortOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): (ranks: Array[Int], inOrder: Array[Long]) =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
+
+  /** As `rankAndSortOrderBy(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least
+    * `iN - i0` long).  Returns how many records compare.
+    */
+  inline def rankAndSortOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
 }
 
 
@@ -1043,15 +1372,15 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS.OrderAware[T]) {
   inline def indicesInOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indexSortBy(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderByInto(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with record indices relative to `i0` in ascending order under `leqAt`, ties in
     * original order, with `tmp` as scratch (each at least `iN - i0` long).  Returns how many records compare.
     */
-  @targetName("orderAwareIndicesInOrderBy")
-  inline def indicesInOrderBy(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
-    Sorting.indexSortBy(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
+  @targetName("orderAwareIndicesInOrderByInto")
+  inline def indicesInOrderByInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    Sorting.indicesInOrderByInto(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
 
   /** Rearranges the records of `xs` in place so that slot `k` receives the record that was at `ix(k)`; `ix` is intact afterwards. */
   @targetName("aosOrderAwareReorder")
@@ -1079,12 +1408,62 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS.OrderAware[T]) {
   @targetName("aosOrderAwareReorder")
   inline def reorder(ix: Array[Int], i0: Long, iN: Long, scratch: Mem.Struct[T]): Unit =
     Sorting.reorderRecords(ix, 0, Sorting.rangeSize(i0, iN))((from, to) => xs.copyRecord(i0 + from, i0 + to))(k => xs.copyRecordTo(i0 + k, scratch))(k => xs.copyRecordFrom(scratch, i0 + k))
+
+  /** The rank of each record of `xs` under `leqAt`, as for `Mem.AoS`: the inverse of `indicesInOrderBy()`. */
+  @targetName("aosOrderAwareRankOrderBy")
+  inline def rankOrderBy()(inline leqAt: (Long, Long) => Boolean): Array[Int] =
+    rankOrderBy(0L, xs.length)(leqAt)
+
+  /** The rank of each of records `i0 until iN` within that range: entry `k` is the rank of record `i0 + k`. */
+  @targetName("aosOrderAwareRankOrderBy")
+  inline def rankOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Int] =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    ranks
+
+  /** As `rankOrderBy(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
+    * many records compare.
+    */
+  @targetName("aosOrderAwareRankOrderByInto")
+  inline def rankOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
+
+  /** Both the rank of each record and the absolute record indices in ascending order under `leqAt`, from one sort. */
+  @targetName("aosOrderAwareRankAndSortOrderBy")
+  inline def rankAndSortOrderBy()(inline leqAt: (Long, Long) => Boolean): (ranks: Array[Int], inOrder: Array[Long]) =
+    rankAndSortOrderBy(0L, xs.length)(leqAt)
+
+  /** Both the ranks within records `i0 until iN` and their absolute indices in ascending order, from one sort. */
+  @targetName("aosOrderAwareRankAndSortOrderBy")
+  inline def rankAndSortOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): (ranks: Array[Int], inOrder: Array[Long]) =
+    val n = Sorting.rangeSize(i0, iN)
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.ranksInto(ix, n, 0, ranks)
+    (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
+
+  /** As `rankAndSortOrderBy(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least
+    * `iN - i0` long).  Returns how many records compare.
+    */
+  @targetName("aosOrderAwareRankAndSortOrderByInto")
+  inline def rankAndSortOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    val n = Sorting.rangeSize(i0, iN)
+    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    Sorting.ranksInto(ix, n, 0, ranks)
+    nc
 }
 
 
 extension [A](a: Array[A]) {
-  /** Indices of `a` in ascending order of value, ties in original order, in a new array.  Values that do not compare
-    * (e.g. `NaN`) come last, in original order.
+  /** Indices of `a` in ascending order of value, ties in original order, in a new array, by a stable merge sort of
+    * the indices that reads keys in place.  Values that do not compare (e.g. `NaN`) come last, in original order.
     */
   inline def indicesInOrder()(using ord: Sorting.Order[A]): Array[Int] =
     val ix = new Array[Int](a.length)
@@ -1106,11 +1485,11 @@ extension [A](a: Array[A]) {
     * with `tmp` as scratch (each at least `iN - i0` long), so repeated sorts need not allocate.  Returns how many
     * values compare; any that do not come after them, in original order.
     */
-  inline def indicesInOrder(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A]): Int =
+  inline def indicesInOrderInto(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(using ord: Sorting.Order[A]): Int =
     ord.indexSort(a, i0, iN, ix, tmp)
 
-  /** Sorts `a` in place, ascending, ties in original order; values that do not compare (e.g. `NaN`) come last, in
-    * original order.
+  /** Sorts `a` in place by a stable merge sort through a scratch array, ascending, ties in original order; values
+    * that do not compare (e.g. `NaN`) come last, in original order.
     */
   inline def sortInOrder()(using ord: Sorting.Order[A]): Unit =
     ord.sort(a, 0, a.length, ord.newKeys(a.length)) __ Unit
@@ -1126,11 +1505,12 @@ extension [A](a: Array[A]) {
   /** Sorts `a(i0 until iN)` in place, ascending, ties in original order, with `tmp` (at least `iN - i0` long) as
     * scratch so repeated sorts need not allocate.  Returns how many values compare; any that do not come last.
     */
-  inline def sortInOrder(i0: Int, iN: Int, tmp: Array[A])(using ord: Sorting.Order[A]): Int =
-    ord.sort(a, i0, iN, tmp)
+  inline def sortInOrder(i0: Int, iN: Int, tmp: Array[A])(using ord: Sorting.Order[A]): Unit =
+    ord.sort(a, i0, iN, tmp) __ Unit
 
-  /** Sorts `a` in place as `sortInOrder()` does, and returns the original index of the value now at each position, so
-    * that other data can be rearranged to match (e.g. with `reorder`).
+  /** Sorts `a` in place as `sortInOrder()` does, by a stable merge sort that carries the indices along, and returns
+    * the original index of the value now at each position, so that other data can be rearranged to match (e.g. with
+    * `reorder`).
     */
   inline def sortWithIndices()(using ord: Sorting.Order[A]): Array[Int] =
     val ix = new Array[Int](a.length)
@@ -1150,11 +1530,11 @@ extension [A](a: Array[A]) {
     * each position, with `tmp` and `tmpIx` (each at least `iN - i0` long) as scratch so repeated sorts need not
     * allocate.  Returns how many values compare; any that do not come last.
     */
-  inline def sortWithIndices(i0: Int, iN: Int, ix: Array[Int], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A]): Int =
+  inline def sortWithIndicesInto(i0: Int, iN: Int, ix: Array[Int], tmp: Array[A], tmpIx: Array[Int])(using ord: Sorting.Order[A]): Int =
     ord.sortIx(a, i0, iN, ix, tmp, tmpIx)
 
-  /** Rearranges `a` in place so that position `k` receives what was at `ix(k)`; `ix` must be a permutation of the
-    * indices of `a`, such as `indicesInOrder` produces, and is intact afterwards.
+  /** Rearranges `a` in place, by walking the permutation's cycles, so that position `k` receives what was at `ix(k)`;
+    * `ix` must be a permutation of the indices of `a`, such as `indicesInOrder` produces, and is intact afterwards.
     */
   inline def reorder(ix: Array[Int]): Unit =
     Sorting.reorder(ix, 0, a.length)(i => a(i))((i, v) => a(i) = v)
@@ -1164,4 +1544,63 @@ extension [A](a: Array[A]) {
     */
   inline def reorder(ix: Array[Int], i0: Int, iN: Int): Unit =
     Sorting.reorder(ix, i0, iN)(i => a(i))((i, v) => a(i) = v)
+
+  /** The rank of each value of `a`: its position in the stable ascending order, so ties rank in original order and
+    * values that do not compare (e.g. `NaN`) rank last.  This is the inverse of `indicesInOrder()`, by the same stable
+    * merge sort of the indices and one inversion pass.
+    */
+  inline def rankOrder()(using ord: Sorting.Order[A]): Array[Int] =
+    rankOrder(0, a.length)
+
+  /** The rank of each of `a(i0 until iN)` within that range, in an array of length `iN - i0` whose entry `k` is the
+    * rank of `a(i0 + k)`; the inverse of `indicesInOrder(i0, iN)`.
+    */
+  inline def rankOrder(i0: Int, iN: Int)(using ord: Sorting.Order[A]): Array[Int] =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    ord.indexSort(a, i0, iN, ix, ranks) __ Unit
+    Sorting.ranksInto(ix, n, i0, ranks)
+    ranks
+
+  /** The rank of each of `a` within `r`, as `rankOrder(i0, iN)`. */
+  inline def rankOrder[R <: Iv.X | Rg](inline r: R)(using ord: Sorting.Order[A]): Array[Int] =
+    Iv.dispatch(r, a)((i0, iN) => rankOrder(i0, iN))
+
+  /** As `rankOrder(i0, iN)`, filling `ranks(0 until iN - i0)` and using `ix` as scratch (each at least `iN - i0`
+    * long), so repeated rankings need not allocate.  Returns how many values compare.
+    */
+  inline def rankOrderInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A]): Int =
+    val nc = ord.indexSort(a, i0, iN, ix, ranks)
+    Sorting.ranksInto(ix, iN - i0, i0, ranks)
+    nc
+
+  /** Both the rank of each value of `a` and the indices of `a` in ascending order, which are inverses of each other,
+    * from one stable merge sort of the indices: `ranks(inOrder(k)) == k`.
+    */
+  inline def rankAndSortOrder()(using ord: Sorting.Order[A]): (ranks: Array[Int], inOrder: Array[Int]) =
+    rankAndSortOrder(0, a.length)
+
+  /** Both the ranks within `a(i0 until iN)`, as `rankOrder(i0, iN)`, and the indices `i0 until iN` in ascending
+    * order, as `indicesInOrder(i0, iN)`, from one sort: `ranks(inOrder(k) - i0) == k`.
+    */
+  inline def rankAndSortOrder(i0: Int, iN: Int)(using ord: Sorting.Order[A]): (ranks: Array[Int], inOrder: Array[Int]) =
+    val n = iN - i0
+    val ix = new Array[Int](n)
+    val ranks = new Array[Int](n)
+    ord.indexSort(a, i0, iN, ix, ranks) __ Unit
+    Sorting.ranksInto(ix, n, i0, ranks)
+    (ranks = ranks, inOrder = ix)
+
+  /** Both the ranks and the ascending order of `a` within `r`, as `rankAndSortOrder(i0, iN)`. */
+  inline def rankAndSortOrder[R <: Iv.X | Rg](inline r: R)(using ord: Sorting.Order[A]): (ranks: Array[Int], inOrder: Array[Int]) =
+    Iv.dispatch(r, a)((i0, iN) => rankAndSortOrder(i0, iN))
+
+  /** As `rankAndSortOrder(i0, iN)`, filling `ranks` and `ix` (each at least `iN - i0` long).  Returns how many
+    * values compare.
+    */
+  inline def rankAndSortOrderInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(using ord: Sorting.Order[A]): Int =
+    val nc = ord.indexSort(a, i0, iN, ix, ranks)
+    Sorting.ranksInto(ix, iN - i0, i0, ranks)
+    nc
 }
