@@ -374,17 +374,9 @@ object NanoDuration {
     }
   }
 
-  object Order extends kse.basics.Sorting.Order[kse.maths.NanoDuration] {
+  object Order extends kse.basics.Sorting.Total[kse.maths.NanoDuration] {
     inline def leq(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration): Boolean = kse.maths.NanoDuration.<=(a)(b)
-    inline def partial: Boolean = false
-    def leqRt(a: kse.maths.NanoDuration, b: kse.maths.NanoDuration): Boolean = kse.maths.NanoDuration.<=(a)(b)
-    def newKeys(n: Int): Array[kse.maths.NanoDuration] = new Array[kse.maths.NanoDuration](n)
-    def indexSort(keys: Array[kse.maths.NanoDuration], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
-      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
-    def sort(keys: Array[kse.maths.NanoDuration], i0: Int, iN: Int, tmp: Array[kse.maths.NanoDuration]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
-    def sortIx(keys: Array[kse.maths.NanoDuration], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.NanoDuration], tmpIx: Array[Int]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+    val kernels = build()
   }
   given Order.type = Order
 
@@ -753,17 +745,9 @@ object DoubleDuration {
     }
   }
 
-  object Order extends kse.basics.Sorting.Order[kse.maths.DoubleDuration] {
+  object Order extends kse.basics.Sorting.Partial[kse.maths.DoubleDuration] {
     inline def leq(a: kse.maths.DoubleDuration, b: kse.maths.DoubleDuration): Boolean = kse.maths.DoubleDuration.<=(a)(b)
-    inline def partial: Boolean = true
-    def leqRt(a: kse.maths.DoubleDuration, b: kse.maths.DoubleDuration): Boolean = kse.maths.DoubleDuration.<=(a)(b)
-    def newKeys(n: Int): Array[kse.maths.DoubleDuration] = new Array[kse.maths.DoubleDuration](n)
-    def indexSort(keys: Array[kse.maths.DoubleDuration], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
-      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
-    def sort(keys: Array[kse.maths.DoubleDuration], i0: Int, iN: Int, tmp: Array[kse.maths.DoubleDuration]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
-    def sortIx(keys: Array[kse.maths.DoubleDuration], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.DoubleDuration], tmpIx: Array[Int]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+    val kernels = build()
   }
   given Order.type = Order
 
@@ -1570,17 +1554,9 @@ object NanoInstant {
       s"nanotime=${nt.unwrap}"
   }
 
-  object Order extends kse.basics.Sorting.Order[kse.maths.NanoInstant] {
+  object Order extends kse.basics.Sorting.Total[kse.maths.NanoInstant] {
     inline def leq(a: kse.maths.NanoInstant, b: kse.maths.NanoInstant): Boolean = kse.maths.NanoInstant.<=(a)(b)
-    inline def partial: Boolean = false
-    def leqRt(a: kse.maths.NanoInstant, b: kse.maths.NanoInstant): Boolean = kse.maths.NanoInstant.<=(a)(b)
-    def newKeys(n: Int): Array[kse.maths.NanoInstant] = new Array[kse.maths.NanoInstant](n)
-    def indexSort(keys: Array[kse.maths.NanoInstant], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
-      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
-    def sort(keys: Array[kse.maths.NanoInstant], i0: Int, iN: Int, tmp: Array[kse.maths.NanoInstant]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
-    def sortIx(keys: Array[kse.maths.NanoInstant], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.NanoInstant], tmpIx: Array[Int]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+    val kernels = build()
   }
   given Order.type = Order
 
@@ -1832,17 +1808,9 @@ object DoubleInstant {
     }
   }
 
-  object Order extends kse.basics.Sorting.Order[kse.maths.DoubleInstant] {
+  object Order extends kse.basics.Sorting.Total[kse.maths.DoubleInstant] {
     inline def leq(a: kse.maths.DoubleInstant, b: kse.maths.DoubleInstant): Boolean = kse.maths.DoubleInstant.<=(a)(b)
-    inline def partial: Boolean = false
-    def leqRt(a: kse.maths.DoubleInstant, b: kse.maths.DoubleInstant): Boolean = kse.maths.DoubleInstant.<=(a)(b)
-    def newKeys(n: Int): Array[kse.maths.DoubleInstant] = new Array[kse.maths.DoubleInstant](n)
-    def indexSort(keys: Array[kse.maths.DoubleInstant], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
-      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
-    def sort(keys: Array[kse.maths.DoubleInstant], i0: Int, iN: Int, tmp: Array[kse.maths.DoubleInstant]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
-    def sortIx(keys: Array[kse.maths.DoubleInstant], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.DoubleInstant], tmpIx: Array[Int]): Int =
-      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+    val kernels = build()
   }
   given Order.type = Order
 

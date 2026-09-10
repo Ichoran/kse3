@@ -2779,6 +2779,21 @@ object Mem {
       */
     inline def orderAware: AoS.OrderAware[T] = new AoS.OrderAware[T](segment)
 
+    /** Copies the record at `from` over the record at `to`, as bytes. */
+    inline def copyRecord(from: Long, to: Long): Unit =
+      val st = AoS.strideOf[T]
+      MemorySegment.copy(segment, from * st, segment, to * st, st)
+
+    /** Copies the record at `i` into `s`, as bytes. */
+    inline def copyRecordTo(i: Long, s: Mem.Struct[T]): Unit =
+      val st = AoS.strideOf[T]
+      MemorySegment.copy(segment, i * st, Mem.Struct.segmentOf(s), Mem.Struct.offsetOf(s), st)
+
+    /** Copies `s` over the record at `i`, as bytes. */
+    inline def copyRecordFrom(s: Mem.Struct[T], i: Long): Unit =
+      val st = AoS.strideOf[T]
+      MemorySegment.copy(Mem.Struct.segmentOf(s), Mem.Struct.offsetOf(s), segment, i * st, st)
+
     /** Run `f` on an instance-typed index for each complete struct in order.  This array is
       * contextually available inside `f`, so `idx.x` reads and `idx.x = v` writes its fields
       * (which subsumes alter/edit), the plain position is `idx.unwrap`, and neighbors are a
@@ -3029,6 +3044,21 @@ object Mem {
       * would be reversed as one unit.  This is the same memory as the [[AoS]] it views.
       */
     final class OrderAware[T <: NamedTuple.AnyNamedTuple](val segment: MemorySegment) extends AnyVal with Dynamic {
+      /** Copies the record at `from` over the record at `to`, as bytes, so no byte order is involved. */
+      inline def copyRecord(from: Long, to: Long): Unit =
+        val st = strideOf[T]
+        MemorySegment.copy(segment, from * st, segment, to * st, st)
+
+      /** Copies the record at `i` into `s`, as bytes. */
+      inline def copyRecordTo(i: Long, s: Mem.Struct[T]): Unit =
+        val st = strideOf[T]
+        MemorySegment.copy(segment, i * st, Mem.Struct.segmentOf(s), Mem.Struct.offsetOf(s), st)
+
+      /** Copies `s` over the record at `i`, as bytes. */
+      inline def copyRecordFrom(s: Mem.Struct[T], i: Long): Unit =
+        val st = strideOf[T]
+        MemorySegment.copy(Mem.Struct.segmentOf(s), Mem.Struct.offsetOf(s), segment, i * st, st)
+
       /** Bytes per struct: the packed sum of the field sizes. */
       inline def stride: Long = strideOf[T]
 

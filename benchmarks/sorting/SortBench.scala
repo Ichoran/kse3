@@ -18,6 +18,12 @@ import org.openjdk.jmh.annotations.*
 
 import kse.basics.{given, _}
 
+/** The same order as Order.Doubles, but in the three-line Partial form, to price the compiled-kernels plumbing. */
+object CompiledDoubles extends Sorting.Partial[Double] {
+  inline def leq(a: Double, b: Double): Boolean = a <= b
+  val kernels = build()
+}
+
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
@@ -71,6 +77,19 @@ class DoubleSortBench {
 
   @Benchmark def boxedSortBy(): Array[Int] =
     Array.range(0, n).sortBy(i => pristine(i))
+
+  @Benchmark def valueSortCompiled(): Array[Double] =
+    System.arraycopy(pristine, 0, work, 0, n)
+    work.sortInOrder(0, n, tmp)(using CompiledDoubles) __ Unit
+    work
+
+  @Benchmark def valueSortWithIndicesCompiled(): Array[Int] =
+    System.arraycopy(pristine, 0, work, 0, n)
+    work.sortWithIndices(0, n, ix, tmp, tmpIx)(using CompiledDoubles) __ Unit
+    ix
+
+  @Benchmark def indexSortCompiled(): Int =
+    pristine.indicesInOrder(0, n, ix, tmpIx)(using CompiledDoubles)
 }
 
 

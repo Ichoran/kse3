@@ -567,3 +567,21 @@ against `java.util.Arrays.sort` on a copy and, for doubles, against the boxed
 - Bytecode check (javap): the Doubles workers compare with bare `dcmpg`, the Ints worker has no
   NaN pre-pass (`inline if partial` reduced away), no `BoxesRunTime` anywhere; each accessor call
   site of `Sorting.indexSort` compiles into its own `sortWork$N` method.
+
+### Compiled orders (2026-09-10, same machine, `taskset -c 4`)
+
+An `Order` can be written as three lines over `Sorting.Total` or `Sorting.Partial` (`inline def leq`
+plus `val kernels = build()`), which stamps the kernels into lambdas held by a `Kernels` object instead
+of methods on the order itself.  `CompiledDoubles` in `SortBench` is `Order.Doubles` in that form, and
+the `*Compiled` rows run the same sorts through it.  Index sort and value sort were indistinguishable
+from the explicit rows in the same run at every size; the with-indices value sort, measured on its own
+with five forks and eight iterations, came out *faster* in the compiled form:
+
+| µs/op (avgt, 40 samples), `sortWithIndices` | n = 1000 | n = 100 000 |
+|---|---|---|
+| `Order.Doubles` (explicit object)          | 16.6 ± 0.9 | 7 937 ± 401 |
+| `CompiledDoubles` (`Sorting.Partial`)      | 15.3 ± 0.3 | 7 589 ± 146 |
+
+So the plumbing (one lambda call per sort, two ints unboxed at its bridge) costs nothing measurable, and
+the three-line form is the recommended way to write an order.  The eight library primitives stay explicit
+as the reference implementation.
