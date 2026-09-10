@@ -516,3 +516,54 @@ evaluated early, never boxed, and never bound at a type wider than its own; `use
   no `checkcast` on any path; both `Iv.X` and `R & Iv.X` erase to `long`.
 - Later the same day the `use` overload pairs themselves were retrofitted onto `Iv.dispatch`, so
   `useBounds` no longer exists as a separate method; the benchmark's `useBounds*` rows call `use`.
+
+## benchmarks/sorting — Sorting.Order: stable sorts compiled per key type
+
+`Sorting.Order[A]` carries an abstract `inline def leq`, so every sort kernel is compiled once per
+order from a shared inline template with the comparison in place: no boxing and no call per
+comparison, for primitives, opaque types with their own `<=`, and `Comparable` objects alike.
+Three kernels: `indicesInOrder` (index sort: the source is never moved, keys are read through the
+index array), `sortInOrder` (value sort in place, keys moved in sequential merge passes, scratch
+buffer optional), and `sortWithIndices` (the value sort that also reports the permutation).  All
+are stable; keys that fail `leq(k, k)` (`NaN`) go last in original order.  `SortBench` runs each
+against `java.util.Arrays.sort` on a copy and, for doubles, against the boxed
+`Array.range(0, n).sortBy` that `Stats.Ranks` used; in-place rows copy the pristine data first
+(`copyOnly` is that floor: 0.08 / 13 / 247 µs at the three sizes).
+
+### Findings (2026-09-09, JDK 25, i9-14900HX, `taskset -c 4`, `-f 1 -wi 3 -i 5 -r 1 -w 1`)
+
+| µs/op (avgt), Double keys, random  | n = 1000 | n = 100 000 | n = 1 000 000 |
+|---|---|---|---|
+| JDK `Arrays.sort` (unstable)       | 8.15 | 3 957 | 48 521 |
+| `sortInOrder`, cached buffer       | 11.3 | 6 871 | 84 047 |
+| `sortWithIndices`, cached buffers  | 15.5 | 7 717 | 94 503 |
+| `indicesInOrder`, cached buffers   | 11.0 | 7 102 | 101 021 |
+| boxed `sortBy`                     | 32.1 | 12 391 | 171 279 |
+
+| µs/op (avgt), Int keys, random     | n = 1000 | n = 100 000 | n = 1 000 000 |
+|---|---|---|---|
+| JDK `Arrays.sort`                  | 2.46 | 540 | 6 777 |
+| `sortInOrder`                      | 11.0 | 6 310 | 75 319 |
+| `sortWithIndices`                  | 17.6 | 7 157 | 82 356 |
+| `indicesInOrder`                   | 11.7 | 7 634 | 92 864 |
+
+| µs/op (avgt), String keys          | n = 1000 | n = 100 000 |
+|---|---|---|
+| JDK `Arrays.sort` (TimSort, stable) | 85.2 | 21 134 |
+| `sortInOrder`                       | 81.2 | 20 100 |
+| `indicesInOrder`                    | 83.5 | 21 110 |
+
+- **The stable value sort is 1.4–1.7× the JDK's unstable dual-pivot quicksort on doubles**, and the
+  index sort, which never touches the source, is within 20% of the value sort at every size (1.35×
+  the JDK at n = 1000, 2.1× at n = 1M): 16 MB of keys plus indices still sits in L3 on this
+  machine, so the random key reads are L3 hits, not DRAM misses.
+- **Strings are at parity with TimSort** in all three forms; `compareTo` dominates.
+- **JDK 25 sorts large `int[]` by radix**, so it is 11× faster than any comparison sort at n = 1M
+  (and its small-n quicksort is 4.5× faster at n = 1000).  A radix path for primitive keys, stable
+  by construction, is the natural next optimization if one is ever wanted.
+- The boxed `sortBy` is 1.7–2.9× slower than `indicesInOrder` and allocates n boxes plus an
+  `Integer[]`; `Stats.Ranks.of` now uses `indicesInOrder`.
+- `MinRun` (the binary-insertion block length, 16) has not been tuned; it is one constant.
+- Bytecode check (javap): the Doubles workers compare with bare `dcmpg`, the Ints worker has no
+  NaN pre-pass (`inline if partial` reduced away), no `BoxesRunTime` anywhere; each accessor call
+  site of `Sorting.indexSort` compiles into its own `sortWork$N` method.

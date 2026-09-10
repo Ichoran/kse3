@@ -1683,6 +1683,20 @@ object UByte {
     inline def hexString   = ToHexString.hi(b.signed)
   }
 
+  object Order extends kse.basics.Sorting.Order[kse.maths.UByte] {
+    inline def leq(a: kse.maths.UByte, b: kse.maths.UByte): Boolean = kse.maths.UByte.<=(a)(b)
+    inline def partial: Boolean = false
+    def leqRt(a: kse.maths.UByte, b: kse.maths.UByte): Boolean = kse.maths.UByte.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.UByte] = new Array[kse.maths.UByte](n)
+    def indexSort(keys: Array[kse.maths.UByte], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.UByte], i0: Int, iN: Int, tmp: Array[kse.maths.UByte]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.UByte], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.UByte], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
+
   given Ordering[kse.maths.UByte] with
     def compare(i: kse.maths.UByte, j: kse.maths.UByte): Int = java.lang.Integer.compare(i.signed & 0xFF, j.signed & 0xFF)
 
@@ -1829,6 +1843,20 @@ object UShort {
     inline def loHexString = ToHexString.lo(i.signed)
     inline def hexString   = ToHexString.hi(i.signed)
   }
+
+  object Order extends kse.basics.Sorting.Order[kse.maths.UShort] {
+    inline def leq(a: kse.maths.UShort, b: kse.maths.UShort): Boolean = kse.maths.UShort.<=(a)(b)
+    inline def partial: Boolean = false
+    def leqRt(a: kse.maths.UShort, b: kse.maths.UShort): Boolean = kse.maths.UShort.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.UShort] = new Array[kse.maths.UShort](n)
+    def indexSort(keys: Array[kse.maths.UShort], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.UShort], i0: Int, iN: Int, tmp: Array[kse.maths.UShort]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.UShort], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.UShort], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
 
   given Ordering[kse.maths.UShort] with
     def compare(i: kse.maths.UShort, j: kse.maths.UShort): Int = java.lang.Integer.compare(i.signed & 0xFFFF, j.signed & 0xFFFF)
@@ -1991,6 +2019,20 @@ object UInt {
     inline def loHexString = ToHexString.lo(i.signed)
     inline def hexString   = ToHexString.hi(i.signed)
   }
+
+  object Order extends kse.basics.Sorting.Order[kse.maths.UInt] {
+    inline def leq(a: kse.maths.UInt, b: kse.maths.UInt): Boolean = kse.maths.UInt.<=(a)(b)
+    inline def partial: Boolean = false
+    def leqRt(a: kse.maths.UInt, b: kse.maths.UInt): Boolean = kse.maths.UInt.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.UInt] = new Array[kse.maths.UInt](n)
+    def indexSort(keys: Array[kse.maths.UInt], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.UInt], i0: Int, iN: Int, tmp: Array[kse.maths.UInt]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.UInt], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.UInt], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
 
   given Ordering[kse.maths.UInt] with
     def compare(i: kse.maths.UInt, j: kse.maths.UInt): Int = java.lang.Integer.compareUnsigned(i.signed, j.signed)
@@ -2186,6 +2228,20 @@ object ULong {
     inline def hexString   = ToHexString.hi(i.signed)
   }
 
+  object Order extends kse.basics.Sorting.Order[kse.maths.ULong] {
+    inline def leq(a: kse.maths.ULong, b: kse.maths.ULong): Boolean = kse.maths.ULong.<=(a)(b)
+    inline def partial: Boolean = false
+    def leqRt(a: kse.maths.ULong, b: kse.maths.ULong): Boolean = kse.maths.ULong.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.ULong] = new Array[kse.maths.ULong](n)
+    def indexSort(keys: Array[kse.maths.ULong], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.ULong], i0: Int, iN: Int, tmp: Array[kse.maths.ULong]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.ULong], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.ULong], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
+
   given Ordering[kse.maths.ULong] with
     def compare(i: kse.maths.ULong, j: kse.maths.ULong): Int = java.lang.Long.compareUnsigned(i.signed, j.signed)
   
@@ -2363,6 +2419,20 @@ object Bf16 {
         else if af < 10f then "%.3f".format(f)
         else if af < 100f then "%.2f".format(f)
         else "%.1f".format(f)
+
+  object Order extends kse.basics.Sorting.Order[kse.maths.Bf16] {
+    inline def leq(a: kse.maths.Bf16, b: kse.maths.Bf16): Boolean = kse.maths.Bf16.<=(a)(b)
+    inline def partial: Boolean = true
+    def leqRt(a: kse.maths.Bf16, b: kse.maths.Bf16): Boolean = kse.maths.Bf16.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.Bf16] = new Array[kse.maths.Bf16](n)
+    def indexSort(keys: Array[kse.maths.Bf16], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.Bf16], i0: Int, iN: Int, tmp: Array[kse.maths.Bf16]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.Bf16], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.Bf16], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
 
   given Ordering[kse.maths.Bf16] with
     def compare(f: kse.maths.Bf16, g: kse.maths.Bf16): Int =
@@ -3151,6 +3221,20 @@ object Frac {
       (vq *! n) +! ((vr * n)/d)
 
   given Sayable[Frac] = (x, m, _) => m += x.pr
+
+  object Order extends kse.basics.Sorting.Order[kse.maths.Frac] {
+    inline def leq(a: kse.maths.Frac, b: kse.maths.Frac): Boolean = kse.maths.Frac.<=(a)(b)
+    inline def partial: Boolean = false
+    def leqRt(a: kse.maths.Frac, b: kse.maths.Frac): Boolean = kse.maths.Frac.<=(a)(b)
+    def newKeys(n: Int): Array[kse.maths.Frac] = new Array[kse.maths.Frac](n)
+    def indexSort(keys: Array[kse.maths.Frac], i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int]): Int =
+      kse.basics.Sorting.indexSortImpl(i0, iN, ix, tmp)(keys(_))((a, b) => leq(a, b), partial)
+    def sort(keys: Array[kse.maths.Frac], i0: Int, iN: Int, tmp: Array[kse.maths.Frac]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, kse.basics.Sorting.noIndices, tmp, kse.basics.Sorting.noIndices)((a, b) => leq(a, b), partial, false)
+    def sortIx(keys: Array[kse.maths.Frac], i0: Int, iN: Int, ix: Array[Int], tmp: Array[kse.maths.Frac], tmpIx: Array[Int]): Int =
+      kse.basics.Sorting.valueSortImpl(keys, i0, iN, ix, tmp, tmpIx)((a, b) => leq(a, b), partial, true)
+  }
+  given Order.type = Order
 
   given Ordering[kse.maths.Frac] = new {
     def compare(f: kse.maths.Frac, g: kse.maths.Frac) =

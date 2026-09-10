@@ -873,14 +873,14 @@ object Ranks {
     val n = if iN > i0 then iN - i0 else 0
     val rank = new Array[Double](n)
     if n == 0 then return rank
-    val ord = Array.range(0, n).sortBy(k => values(i0 + k))    // boxes; fine at this scale
+    val ord = values.indicesInOrder(i0, iN)
     var k = 0
     while k < n do
       var j = k
-      while j + 1 < n && values(i0 + ord(j + 1)) == values(i0 + ord(k)) do j += 1
+      while j + 1 < n && values(ord(j + 1)) == values(ord(k)) do j += 1
       val avg = (k + j) / 2.0 + 1.0
       var t = k
-      while t <= j do { rank(ord(t)) = avg; t += 1 }
+      while t <= j do { rank(ord(t) - i0) = avg; t += 1 }
       k = j + 1
     rank
 
