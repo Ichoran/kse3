@@ -2417,6 +2417,91 @@ class FlowTest {
     m.set("minnow")
     T ~ m2.get        ==== (6, 18)
 
+    // Six-tuple staleness check once compared the first slot against the second slot's count
+    val q6 = Hold.mutable("q")
+    val r6 = Hold.mutable("r")
+    r6.set("rr")
+    val s6 = Hold.them(q6, r6, c, c, c, c)
+    T ~ s6.get       ==== (("q", "rr", "cod", "cod", "cod", "cod"), 0)
+    T ~ s6.get       ==== (("q", "rr", "cod", "cod", "cod", "cod"), 0)
+    q6.set("qq")
+    T ~ s6.get       ==== (("qq", "rr", "cod", "cod", "cod", "cod"), 1)
+    r6.set("rrr")
+    T ~ s6.get       ==== (("qq", "rrr", "cod", "cod", "cod", "cod"), 2)
+
+    // A duration trust once started its clock at construction rather than at the first access
+    val dt = Hold.iterate(0)(_ + 1).trust(java.time.Duration.ofMillis(100))
+    Thread.sleep(200)
+    T ~ dt.get       ==== (0, 0)
+    T ~ dt.get       ==== (0, 0)
+    T ~ dt.getOrUnit ==== (0, 0) --: typed[(Int, Long) Or Unit]
+
+    // A released tuple or array drops its value at once, so a probe afterwards consults no source
+    var probes = 0
+    val px = c.expireIf((_, _) => { probes += 1; false })
+    val tp = Hold.them(px, c)
+    T ~ tp.get       ==== (("cod", "cod"), 0)
+    val p0 = probes
+    tp.release()
+    T ~ tp.getOrUnit ==== Alt.unit
+    T ~ probes       ==== p0
+    val ap = Hold.array(Array(px, c))
+    T ~ ap.value     =**= Array("cod", "cod")
+    val p1 = probes
+    ap.release()
+    T ~ ap.getOrUnit ==== Alt.unit
+    T ~ probes       ==== p1
+
+    // A recompute that throws leaves nothing cached, likewise
+    var explode = false
+    val boom = Hold{ if explode then throw new Exception("boom") else "ok" }
+    val tb = Hold.them(px, boom)
+    T ~ tb.get         ==== (("cod", "ok"), 0)
+    explode = true
+    boom.release()
+    T ~ tb.recompute() ==== thrown[Exception]
+    val p2 = probes
+    T ~ tb.getOrUnit   ==== Alt.unit
+    T ~ probes         ==== p2
+
+
+  @Test
+  def holdConcurrencyTest(): Unit =
+    // Three threads work different corners of a diamond of dependencies, mutating and releasing as they go.
+    // Recomputing more often than strictly necessary is fine; failing to finish is not.
+    val m = Hold.mutable(1)
+    val n = Hold.mutable(10)
+    val a = m.map(_ * 2)
+    val b = n.map(_ + 1).expireIn(3)
+    val c = Hold.them(a, b).map((x, y) => x + y).trust(2)
+    val d = Hold.them(b, a).softMap((y, x) => y - x)
+    val all = Hold.them(c, d, a, b, m, n)
+    val fails = new java.util.concurrent.atomic.AtomicInteger(0)
+    val stop = new java.util.concurrent.atomic.AtomicBoolean(false)
+    def worker(step: Int => Unit): Thread =
+      val t = new Thread(() => {
+        var i = 0
+        try
+          while !stop.get do
+            step(i)
+            i += 1
+        catch
+          case x if x.catchable => fails.incrementAndGet() __ Unit
+      })
+      t.setDaemon(true)
+      t.start()
+      t
+    val t1 = worker(i => { c.value __ Unit; if i % 7 == 0 then m.set(i); if i % 13 == 0 then c.release() })
+    val t2 = worker(i => { d.value __ Unit; if i % 5 == 0 then n.set(i); if i % 11 == 0 then d.force() __ Unit })
+    val t3 = worker(i => { all.value __ Unit; if i % 17 == 0 then a.release(); b.getOrUnit __ Unit })
+    Thread.sleep(100)
+    stop.set(true)
+    t1.join(10000)
+    t2.join(10000)
+    t3.join(10000)
+    T ~ (t1.isAlive || t2.isAlive || t3.isAlive) ==== false
+    T ~ fails.get                                ==== 0
+
 
   @Test
   def resourceTest: Unit =

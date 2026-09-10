@@ -164,12 +164,16 @@ object Soft {
   * Holds neither print nor serialize nor compare gracefully--it is your job to access the values in
   * a reasonable way.
   * 
-  * Holds are intended to be threadsafe, but if you do concurrent access from different entry points,
-  * it is possible to run into a deadlock, as they internally use synchronization.  For instance,
-  * if holds `c` and `d` both depend on `a` and `b`, and you operate on `c` in one thread and `d` in
-  * another, one thread may synchronize on `a` and need `b`, while the other has already obtained `b`
-  * and is waiting on `a`.  Thus, care should be taken to avoid this when using `Hold` in a multithreaded
-  * context.
+  * Holds are threadsafe.  Each `Hold` synchronizes on itself and, while holding its own lock, calls only
+  * the `Hold`s it depends on, one at a time; nothing ever calls a `Hold` that depends on it.  Locks are
+  * therefore only ever nested along a chain of dependencies, so however the `Hold`s that different threads
+  * touch overlap, they cannot deadlock--provided the dependency graph is acyclic.  That graph has hidden
+  * edges: a generator, mapping function, `zap` function or expiry test runs under its `Hold`'s lock, so any
+  * `Hold` it reads is a dependency too, and reading one that depends, directly or through such edges, on
+  * the `Hold` whose function is running is a cycle.  On one thread a cycle overflows the stack; on two it
+  * can deadlock.  The same goes for any other lock such a function takes while it runs.  Concurrent access
+  * may recompute a value more than once or miss a cache hit, because no lock is held across a read and
+  * the recomputation that follows it; that is the price of never deadlocking.
   * 
   * A `Hold` has three fundamental operations: `release()`, which tells `Hold` to stop caching any
   * values and to tell any `Hold`s it depends on to also stop caching their values, thereby causing
@@ -178,7 +182,7 @@ object Soft {
   * will be performed, and `getOrUnit`, which gets the value if it's cached, or `Alt.unit` if it's not.
   * 
   * If a `Hold` encounters an exception during a `recompute()`, it will throw the exception normally but
-  * discard any existing cached value, if possible.  To avoid exceptions. use `Try` or `safe`
+  * discard any existing cached value, if possible.  To avoid exceptions, use `Try` or `safe`
   * or some other error-handling mechanism.
   * 
   * Typically, one wishes to get the cached value without worrying about any of that, which one can do
@@ -188,7 +192,7 @@ object Soft {
   * in the `Alt` branch.  You can also `force()` as a shorthand for `release` followed by `recompute`.
   * 
   * Aside from `Hold.unit`, the canonical held unit value, you can wrap stable values with `Hold.fixed`,
-  * always recompute a block with `Hold.unheld`, lazily persist a block with `Hold.apply` (recomputes when relased),
+  * always recompute a block with `Hold.unheld`, lazily persist a block with `Hold.apply` (recomputes when released),
   * store a mutable value with `Hold.mutate`--Holds that depend on it will update once you mutate it--and iterate
   * from an initial value, updating every access, with `Hold.iterate`.  You can also use soft instead of lazy persistence
   * with `Hold.soft`.
@@ -198,8 +202,8 @@ object Soft {
   * or a `java.time.Duration` (e.g. `trust(Duration.ofSeconds(45))`); `trust()` alone will permanently cache
   * the value unless it's released.  In contrast, `expireIn` will force a release after a certain number of
   * accesses or a duration, and `expireIf` will force a release when a predicate on the value returns true.
-  * To prevent a subset of dependencies from being released by `expire`, use `.protect` to create a `Hold` that
-  * ignores any `releaese` requests.  Note that `Hold` has no threading itself--nothing will happen on its
+  * To shield a subset of dependencies from `expire`, `release()` and `recompute()` alike, use `.protect` to create a
+  * `Hold` that ignores both kinds of request.  Note that `Hold` has no threading itself--nothing will happen on its
   * own when a duration expires, but the next value access after the duration expires will cause a recomputation.
   * 
   * You can also `map` or `softMap` an existing `Hold` to a new value; the new value will stay cached until invalidated
@@ -278,13 +282,18 @@ sealed trait Hold[V] {
   /** After `count` accesses, release ourselves and all our dependencies. */
   final def expireIn(count: Long): Hold[V] = new Fragile(0L, this)(_ + 1, (_, c) => c >= count)
 
-  /** After a `Duration` `d` or longer from the last reload, access will release instead of using a cache */
+  /** After a `Duration` `d` or longer, measured from when this `Hold` last reloaded or first found a cached value, an
+    * access will release instead of using the cache.  Reloads made through other paths do not restart the clock: the
+    * expiry belongs to this `Hold`, not to the value.
+    */
   final def expireIn(d: Duration): Hold[V] = new Fragile(Instant.now, this)(t => t, (_, t) => Duration.between(t, Instant.now).compareTo(d) >= 0)
 
   /** Test the contents on access, releasing self and all dependencies if the test succeeds */
   final def expireIf(p: (V, Long) => Boolean): Hold[V] = new Fragile((), this)(u => u, (vcv, _) => p(vcv._1, vcv._2))
 
-  /** Do not allow dependencies to release this `Hold` */
+  /** Ignore every `release()` and `recompute()` request, including those cascading from `Hold`s that depend on this
+    * one.  The underlying `Hold` is computed if it has nothing cached, but otherwise changes only for its own reasons.
+    */
   final def protect(): Hold[V] = new Protect[V](this)
 
 
@@ -323,7 +332,7 @@ object Hold {
   /** Compute a value once and store it--equivalent to a lazy val unless `release()` or `recompute()` is called. */
   def apply[V](gen: => V): Hold[V] = new Lazy(gen)
 
-  /** Store a mutable value.  Don't change it, but allow users to set it; the changes may cascade. */
+  /** Store a mutable value.  It is never recomputed, but users can `set` it, and the change may cascade to whatever depends on it. */
   def mutable[V](initial: V): Mutable[V] = new Mutable(initial)
 
   /** From an initial value, produce a succession of values on each access. */
@@ -390,7 +399,8 @@ object Hold {
     * if you reset it, anything that has this as a dependency has the option to recompute itself.
     */
   final class Mutable[V](initial: V) extends Hold[V] {
-    private var myValue = (initial, 0L)
+    // Writers serialize on the lock so the count can't skip; readers need only the volatile publish of the tuple
+    @volatile private var myValue = (initial, 0L)
 
     /** Set the stored value. */
     def set(next: V): Unit = this.synchronized{ myValue = (next, myValue._2 + 1) }
@@ -399,7 +409,7 @@ object Hold {
     def zap(f: V => V): Unit = this.synchronized{ myValue = (f(myValue._1), myValue._2 + 1) }
 
     def release(): Unit = {}
-    def recompute(): (V, Long) = this.synchronized{ myValue }
+    def recompute(): (V, Long) = myValue
     def getOrUnit: (V, Long) Or Unit = Is(myValue)
   }
 
@@ -426,8 +436,7 @@ object Hold {
     def release(): Unit = this.synchronized{ myValue = Alt.unit; thatCount = -1L; that.release() }
     def recompute() = this.synchronized{
       myValue = Alt.unit  // In case of exception
-      if count >= 0 then
-        state = state0
+      state = state0
       val (v, c) = that.get
       thatCount = c
       count += 1
@@ -487,10 +496,12 @@ object Hold {
     private var vCount = -1L
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       hu.release(); uCount = -1
       hv.release(); vCount = -1
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val (u, cu) = hu.get
       val (v, cv) = hv.get
       count += 1
@@ -517,11 +528,13 @@ object Hold {
     private var vCount = -1L
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       ht.release(); tCount = -1
       hu.release(); uCount = -1
       hv.release(); vCount = -1
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val (t, ct) = ht.get
       val (u, cu) = hu.get
       val (v, cv) = hv.get
@@ -550,12 +563,14 @@ object Hold {
     private var vCount = -1L
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       hs.release(); sCount = -1
       ht.release(); tCount = -1
       hu.release(); uCount = -1
       hv.release(); vCount = -1
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val (s, cs) = hs.get
       val (t, ct) = ht.get
       val (u, cu) = hu.get
@@ -589,6 +604,7 @@ object Hold {
     private var vCount = -1L
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       hr.release(); rCount = -1
       hs.release(); sCount = -1
       ht.release(); tCount = -1
@@ -596,6 +612,7 @@ object Hold {
       hv.release(); vCount = -1
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val (r, cr) = hr.get
       val (s, cs) = hs.get
       val (t, ct) = ht.get
@@ -633,6 +650,7 @@ object Hold {
     private var vCount = -1L
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       hq.release(); qCount = -1
       hr.release(); rCount = -1
       hs.release(); sCount = -1
@@ -641,6 +659,7 @@ object Hold {
       hv.release(); vCount = -1
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val (q, cq) = hq.get
       val (r, cr) = hr.get
       val (s, cs) = hs.get
@@ -658,7 +677,7 @@ object Hold {
     }
     def getOrUnit = this.synchronized{
       myValue.foreach{ _ =>
-        if      hq.getOrUnit.forall{ qcq => rCount != qcq._2 } then myValue = Alt.unit
+        if      hq.getOrUnit.forall{ qcq => qCount != qcq._2 } then myValue = Alt.unit
         else if hr.getOrUnit.forall{ rcr => rCount != rcr._2 } then myValue = Alt.unit
         else if hs.getOrUnit.forall{ scs => sCount != scs._2 } then myValue = Alt.unit
         else if ht.getOrUnit.forall{ tct => tCount != tct._2 } then myValue = Alt.unit
@@ -675,9 +694,11 @@ object Hold {
     private val aCounts = Array.fill(holds.length)(-1L)
 
     def release(): Unit = this.synchronized{
+      myValue = Alt.unit
       holds.visit(){ (h, i) => h.release(); aCounts(i) = -1L }
     }
     def recompute() = this.synchronized{
+      myValue = Alt.unit  // In case of exception
       val a = new Array[V](holds.length)
       holds.visit(){ (h, i) =>
         val (v, c) = holds(i).get
@@ -704,7 +725,7 @@ object Hold {
     private var count = -1L
     private var sourceCount = -1L
 
-    def release(): Unit = { source.release(); sourceCount = -1L; myValue = Alt.unit }
+    def release(): Unit = this.synchronized{ myValue = Alt.unit; sourceCount = -1L; source.release() }
     def recompute() = this.synchronized{
       myValue = Alt.unit  // In case of exception
       val (a, ca) = source.get
@@ -730,7 +751,7 @@ object Hold {
       (compute(a), count)
     }
 
-    def release(): Unit = { source.release(); mySoft.forget() }
+    def release(): Unit = this.synchronized{ sourceCount = -1L; mySoft.forget(); source.release() }
     def recompute() = this.synchronized{ mySoft.forget(); mySoft.value }
     def getOrUnit = this.synchronized {
       if source.getOrUnit.forall{ scs => sourceCount != scs._2 } then
