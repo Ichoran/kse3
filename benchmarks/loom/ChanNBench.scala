@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmarks for ChanN, the chunked channel — same shapes as GoChanBench.scala so the
 // Chan benchmarks there (spsc / selectN / fanIn) and their ABQ controls are the direct
 // comparison points.  The thesis under test: chunked transport divides the per-item

@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: hex readers (xI/xL) vs the decimal readers (I/L) on the same values.
 //
 // JSON has no hex, so there is no external parser to race: the decimal readers are the

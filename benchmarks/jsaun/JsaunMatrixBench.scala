@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: numeric matrix (n×n doubles) -- exercises jsaun's PACKED array backing.
 //
 // When every element of a JSON array is a Double, jsaun's parser stores the row as a `Jarr.D`

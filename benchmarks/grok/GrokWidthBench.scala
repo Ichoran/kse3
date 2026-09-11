@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: does declared width intent matter?  The same 4-digit decimal values
 // (always fit Short; never hit any reader's digit cap) parsed with S, I, and L.
 // S orchestrates from the base class (smallLongWork: virtual skipDelims + digitsWork per

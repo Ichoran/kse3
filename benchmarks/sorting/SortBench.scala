@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark for kse.basics.Sorting: the stable value sort (with and without indices) and the
 // index sort, against java.util.Arrays.sort and the boxed Array.range(...).sortBy that Stats used.
 // Rows that sort in place first copy the pristine data, so `copyOnly` is the floor to subtract.

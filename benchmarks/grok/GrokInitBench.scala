@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: per-parse fixed cost, isolated by parsing almost nothing.
 //
 // Each benchmark parses one small value from a tiny input, so the score is dominated by

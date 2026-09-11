@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr and UCSF (Kato Lab).
+
 // Scratch dev runner: regenerate TrackProto.scala from TestProtos.track.
 // Usage: mill alien.test.runMain kse.test.alien.GenMain <output-dir>
 

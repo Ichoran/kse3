@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: shortest-round-trip Double rendering -- kse.maths.Ryu vs the JDK.
 //
 // The JDK's Double.toString (JDK 19+) already renders the shortest round-tripping decimal;

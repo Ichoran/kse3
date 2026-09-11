@@ -2,7 +2,7 @@
 //| mill-jvm-version: system
 
 // This file is distributed under the BSD 3-clause license.  See file LICENSE
-// Copyright 2021-2025 Rex Kerr, Calico Life Sciences, LLC, and UCSF (Kato Lab)
+// Copyright 2021-2026 Rex Kerr, Calico Life Sciences, LLC, and UCSF (Kato Lab)
 
 
 package build

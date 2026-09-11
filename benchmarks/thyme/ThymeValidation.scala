@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // Ground-truth validation for kse.thyme.Thyme: measure identical workloads with JMH and with
 // Thyme, then compare.  Thyme is a quick in-context estimator; JMH is the reference.  Thyme's
 // per-call time should land within roughly 1.5–2x of JMH's AverageTime score.  If Thyme reads

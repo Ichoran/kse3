@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: format-preserving read-modify-write, jsaun's headline feature.
 //
 // The task: parse a formatted JSON document, change ONE field, serialize.  jsaun's

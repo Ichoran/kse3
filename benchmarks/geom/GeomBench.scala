@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmarks for kse.maths little matrices/vectors against ojAlgo on tiny fixed-size
 // operations (the use case the kse types are designed for; ojAlgo is a general-purpose
 // linear algebra library, so this measures small-size overhead, not BLAS-scale skill).

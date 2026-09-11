@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: parsing a JSON array of strings when you KNOW it's a string array.
 //
 // Two workloads: "easy" is 50 short common words/numbers with no escapes (the clean fast

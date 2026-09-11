@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: jsaun parse / serialize / codec against three references spanning the
 // implementation spectrum -- Jackson (Java, reflective), jsoniter-scala (macro-specialized),
 // and uPickle/uJson (pure Scala).

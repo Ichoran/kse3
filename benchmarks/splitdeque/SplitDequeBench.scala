@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmarks for kse.loom.SplitDeque against common java.util(.concurrent) collections.
 //
 // These run against an *assembled* build of the library — exactly what an external user

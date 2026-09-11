@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: the SAX-style visitor (Json.stream) and its skip gates.
 //
 // The document is an array of records, each with two small fields we want (id, name) and bulk we

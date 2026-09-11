@@ -1,3 +1,6 @@
+// This file is distributed under the BSD 3-clause license.  See file LICENSE.
+// Copyright (c) 2026 Rex Kerr.
+
 // JMH benchmark: parsing a JSON array of ~100 random Ints when you KNOW it's an int array.
 //
 // Grok is a direct-mode parser, so it gets to cheat: no tokenizer state machine, just
