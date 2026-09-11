@@ -33,7 +33,7 @@ import kse.basics.intervals._
   *
   * Arrays, `Mem`, `Mem.As` and `Mem.OrderAware` have all of these.  Anything else indexable goes through
   * `Sorting.indicesInOrderInto` with an accessor, and anything whose order is a comparison between slots rather than a key,
-  * such as the records of a `Mem.AoS`, through `Sorting.indicesInOrderByInto`.  Those compile the kernel at the call site
+  * such as the records of a `Mem.AoS`, through `Sorting.indicesInOrderIntoBy`.  Those compile the kernel at the call site
   * (into a method of its own), so keep such call sites few.
   *
   * Example--sort one array, and make another follow it:
@@ -539,7 +539,7 @@ object Sorting {
     * when `partial`, a slot with `!leqAt(i, i)` comes after all others, in original order.  A merge step compares
     * afresh on every comparison, since there are no key values to hold.
     *
-    * Every use compiles a copy with `leqAt` in place, so prefer `Sorting.indicesInOrderByInto`, which puts it in a method of
+    * Every use compiles a copy with `leqAt` in place, so prefer `Sorting.indicesInOrderIntoBy`, which puts it in a method of
     * its own.
     */
   inline def indexSortByImpl(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
@@ -617,17 +617,17 @@ object Sorting {
     * compare; when `partial`, a slot with `!leqAt(i, i)` comes after all others, in original order.  The kernel is
     * compiled here, in a method of its own, with `leqAt` in place.
     */
-  inline def indicesInOrderByInto(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+  inline def indicesInOrderIntoBy(i0: Int, iN: Int, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
     def sortWork(): Int = indexSortByImpl(i0, iN, ix, tmp)(leqAt, partial)
     sortWork()
 
   /** Slots `i0 until iN` in ascending order under `leqAt`, ties in original order, in a new array; when `partial`,
-    * slots with `!leqAt(i, i)` come last.  The kernel is compiled here; see `indicesInOrderByInto`.
+    * slots with `!leqAt(i, i)` come last.  The kernel is compiled here; see `indicesInOrderIntoBy`.
     */
   inline def indicesInOrderBy(i0: Int, iN: Int, inline partial: Boolean)(inline leqAt: (Int, Int) => Boolean): Array[Int] =
     val n = iN - i0
     val ix = new Array[Int](n)
-    indicesInOrderByInto(i0, iN, ix, new Array[Int](n))(leqAt, partial) __ Unit
+    indicesInOrderIntoBy(i0, iN, ix, new Array[Int](n))(leqAt, partial) __ Unit
     ix
 
   /** Rearranges positions `i0 until iN` of something with `get` and `set` so that position `i0 + k` receives what
@@ -791,13 +791,13 @@ object Sorting {
     val n = iN - i0
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial) __ Unit
+    indicesInOrderIntoBy(i0, iN, ix, ranks)(leqAt, partial) __ Unit
     ranksInto(ix, n, i0, ranks)
     ranks
 
   /** As `rankOrderBy`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how many slots compare. */
-  inline def rankOrderByInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
-    val nc = indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial)
+  inline def rankOrderIntoBy(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+    val nc = indicesInOrderIntoBy(i0, iN, ix, ranks)(leqAt, partial)
     ranksInto(ix, iN - i0, i0, ranks)
     nc
 
@@ -806,13 +806,13 @@ object Sorting {
     val n = iN - i0
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial) __ Unit
+    indicesInOrderIntoBy(i0, iN, ix, ranks)(leqAt, partial) __ Unit
     ranksInto(ix, n, i0, ranks)
     (ranks = ranks, inOrder = ix)
 
   /** As `rankAndSortOrderBy`, filling `ranks` and `ix` (each at least `iN - i0` long).  Returns how many slots compare. */
-  inline def rankAndSortOrderByInto(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
-    val nc = indicesInOrderByInto(i0, iN, ix, ranks)(leqAt, partial)
+  inline def rankAndSortOrderIntoBy(i0: Int, iN: Int, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Int, Int) => Boolean, inline partial: Boolean): Int =
+    val nc = indicesInOrderIntoBy(i0, iN, ix, ranks)(leqAt, partial)
     ranksInto(ix, iN - i0, i0, ranks)
     nc
 }
@@ -1267,14 +1267,14 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
   inline def indicesInOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with record indices relative to `i0` in ascending order under `leqAt`, ties in
     * original order, with `tmp` as scratch (each at least `iN - i0` long).  Returns how many records compare.
     */
-  inline def indicesInOrderByInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
-    Sorting.indicesInOrderByInto(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
+  inline def indicesInOrderIntoBy(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    Sorting.indicesInOrderIntoBy(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
 
   /** Rearranges the records of `xs` in place so that slot `k` receives the record that was at `ix(k)`; `ix` must be
     * a permutation of the record indices, such as `indicesInOrderBy` produces, and is intact afterwards.  Records
@@ -1321,16 +1321,16 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.ranksInto(ix, n, 0, ranks)
     ranks
 
   /** As `rankOrderBy(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
     * many records compare.
     */
-  inline def rankOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+  inline def rankOrderIntoBy(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
     val n = Sorting.rangeSize(i0, iN)
-    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    val nc = Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
     Sorting.ranksInto(ix, n, 0, ranks)
     nc
 
@@ -1343,16 +1343,16 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS[T]) {
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.ranksInto(ix, n, 0, ranks)
     (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
 
   /** As `rankAndSortOrderBy(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least
     * `iN - i0` long).  Returns how many records compare.
     */
-  inline def rankAndSortOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+  inline def rankAndSortOrderIntoBy(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
     val n = Sorting.rangeSize(i0, iN)
-    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    val nc = Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
     Sorting.ranksInto(ix, n, 0, ranks)
     nc
 }
@@ -1372,15 +1372,15 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS.OrderAware[T]) {
   inline def indicesInOrderBy(i0: Long, iN: Long)(inline leqAt: (Long, Long) => Boolean): Array[Long] =
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, new Array[Int](n))((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.absoluteIndices(ix, n, i0)
 
   /** Fills `ix(0 until iN - i0)` with record indices relative to `i0` in ascending order under `leqAt`, ties in
     * original order, with `tmp` as scratch (each at least `iN - i0` long).  Returns how many records compare.
     */
-  @targetName("orderAwareIndicesInOrderByInto")
-  inline def indicesInOrderByInto(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
-    Sorting.indicesInOrderByInto(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
+  @targetName("orderAwareIndicesInOrderIntoBy")
+  inline def indicesInOrderIntoBy(i0: Long, iN: Long, ix: Array[Int], tmp: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+    Sorting.indicesInOrderIntoBy(0, Sorting.rangeSize(i0, iN), ix, tmp)((a, b) => leqAt(i0 + a, i0 + b), true)
 
   /** Rearranges the records of `xs` in place so that slot `k` receives the record that was at `ix(k)`; `ix` is intact afterwards. */
   @targetName("aosOrderAwareReorder")
@@ -1420,17 +1420,17 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS.OrderAware[T]) {
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.ranksInto(ix, n, 0, ranks)
     ranks
 
   /** As `rankOrderBy(i0, iN)`, filling `ranks` and using `ix` as scratch (each at least `iN - i0` long).  Returns how
     * many records compare.
     */
-  @targetName("aosOrderAwareRankOrderByInto")
-  inline def rankOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+  @targetName("aosOrderAwareRankOrderIntoBy")
+  inline def rankOrderIntoBy(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
     val n = Sorting.rangeSize(i0, iN)
-    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    val nc = Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
     Sorting.ranksInto(ix, n, 0, ranks)
     nc
 
@@ -1445,17 +1445,17 @@ extension [T <: NamedTuple.AnyNamedTuple](xs: Mem.AoS.OrderAware[T]) {
     val n = Sorting.rangeSize(i0, iN)
     val ix = new Array[Int](n)
     val ranks = new Array[Int](n)
-    Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
+    Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true) __ Unit
     Sorting.ranksInto(ix, n, 0, ranks)
     (ranks = ranks, inOrder = Sorting.absoluteIndices(ix, n, i0))
 
   /** As `rankAndSortOrderBy(i0, iN)`, filling `ranks` and `ix` with indices relative to `i0` (each at least
     * `iN - i0` long).  Returns how many records compare.
     */
-  @targetName("aosOrderAwareRankAndSortOrderByInto")
-  inline def rankAndSortOrderByInto(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
+  @targetName("aosOrderAwareRankAndSortOrderIntoBy")
+  inline def rankAndSortOrderIntoBy(i0: Long, iN: Long, ranks: Array[Int], ix: Array[Int])(inline leqAt: (Long, Long) => Boolean): Int =
     val n = Sorting.rangeSize(i0, iN)
-    val nc = Sorting.indicesInOrderByInto(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
+    val nc = Sorting.indicesInOrderIntoBy(0, n, ix, ranks)((a, b) => leqAt(i0 + a, i0 + b), true)
     Sorting.ranksInto(ix, n, 0, ranks)
     nc
 }

@@ -356,7 +356,7 @@ class SortingTest() {
     val d = Array(3.0, Double.NaN, 1.0, Double.NaN, 2.0)
     T ~ Sorting.indicesInOrderBy(0, 5, true)((i, j) => d(i) <= d(j)) =**= Array(2, 4, 0, 1, 3)
     val ix = new Array[Int](5)
-    T ~ Sorting.indicesInOrderByInto(0, 5, ix, new Array[Int](5))((i, j) => d(i) <= d(j), true) ==== 3
+    T ~ Sorting.indicesInOrderIntoBy(0, 5, ix, new Array[Int](5))((i, j) => d(i) <= d(j), true) ==== 3
     T ~ ix =**= Array(2, 4, 0, 1, 3)
     T ~ Sorting.indicesInOrderBy(0, 0, false)((i, j) => true) =**= Array[Int]()
     // Larger, against the key-based sort, with heavy ties
@@ -384,7 +384,7 @@ class SortingTest() {
     T ~ xs.indicesInOrderBy()((i, j) => xs.name(i) < xs.name(j) || (xs.name(i) == xs.name(j) && xs.score(i) <= xs.score(j))) =**= Array(3L, 1L, 5L, 0L, 4L, 2L)
     T ~ xs.indicesInOrderBy(1, 5)((i, j) => xs.name(i) <= xs.name(j)) =**= Array(1L, 3L, 2L, 4L)
     val rx = new Array[Int](6)
-    T ~ xs.indicesInOrderByInto(1, 5, rx, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
+    T ~ xs.indicesInOrderIntoBy(1, 5, rx, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
     T ~ rx.take(4) =**= Array(3, 2, 0, 1)
     T ~ xs.name(2) ==== 2
     T ~ xs.score(2).isNaN ==== true
@@ -405,7 +405,7 @@ class SortingTest() {
     // A range, with relative indices from the buffered form and a supplied scratch record
     val scratch = Mem.Struct.of[(name: Int, score: Double)]
     val rix2 = new Array[Int](6)
-    T ~ xs.indicesInOrderByInto(2, 6, rix2, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
+    T ~ xs.indicesInOrderIntoBy(2, 6, rix2, new Array[Int](6))((i, j) => xs.score(i) <= xs.score(j)) ==== 3
     T ~ rix2.take(4) =**= Array(1, 2, 0, 3)
     xs.reorder(rix2, 2, 6, scratch)
     T ~ Array.tabulate(6)(i => xs.name(i))        =**= Array(1, 1, 3, 3, 2, 2)
@@ -475,11 +475,11 @@ class SortingTest() {
     T ~ rsb.inOrder =**= Array(2, 1, 0, 3)
     T ~ Sorting.rankOrderInto(0, 6, rk, ix)(i => s.charAt(i))                        ==== 6
     T ~ rk.take(6)                                                                    =**= Array(5, 0, 1, 2, 4, 3)
-    T ~ Sorting.rankOrderByInto(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)          ==== 4
+    T ~ Sorting.rankOrderIntoBy(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)          ==== 4
     T ~ rk.take(4)                                                                    =**= Array(2, 1, 0, 3)
     T ~ Sorting.rankAndSortOrderInto(0, 6, rk, ix)(i => s.charAt(i))                 ==== 6
     T ~ ix.take(6)                                                                    =**= Array(1, 2, 3, 5, 4, 0)
-    T ~ Sorting.rankAndSortOrderByInto(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)   ==== 4
+    T ~ Sorting.rankAndSortOrderIntoBy(0, 4, rk, ix)((i, j) => w(i) <= w(j), false)   ==== 4
     T ~ ix.take(4)                                                                    =**= Array(2, 1, 0, 3)
 
     // Mem, Mem.As, and a big-endian view
@@ -512,9 +512,9 @@ class SortingTest() {
     val xb = xs.rankAndSortOrderBy()((i, j) => xs.name(i) <= xs.name(j))
     T ~ xb.ranks   =**= Array(3, 0, 2, 1)
     T ~ xb.inOrder =**= Array(1L, 3L, 2L, 0L)
-    T ~ xs.rankOrderByInto(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j))        ==== 3
+    T ~ xs.rankOrderIntoBy(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j))        ==== 3
     T ~ rk.take(3)                                                                    =**= Array(0, 2, 1)
-    T ~ xs.rankAndSortOrderByInto(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j)) ==== 3
+    T ~ xs.rankAndSortOrderIntoBy(1, 4, rk, ix)((i, j) => xs.name(i) <= xs.name(j)) ==== 3
     T ~ ix.take(3)                                                                    =**= Array(0, 2, 1)
     locally {
       import Mem.BE
