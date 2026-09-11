@@ -127,7 +127,7 @@ class FlowBench {
       timings(3*i+1) = ot
       timings(3*i+2) = gt
     }
-    ((eithers zip ors) zip grounds).foreach(println _)
+    ((eithers zip ors) zip grounds).foreach(println)
     for (i <- 0 until timings.length/3) {
       println(f"${timings(3*i)}%6.3f   vs  ${timings(3*i+1)}%6.3f   vs  ${timings(3*i+2)}%6.3f")
     }
@@ -163,7 +163,7 @@ class FlowBench {
     result.asInstanceOf[AnyRef]
 
   def sumBench(): Unit = {
-    println
+    println()
     println("Sum benchmark")
     val timings = new Array[Double](80)
     val eithers = new Array[Either[String, Int]](timings.length/3)
@@ -180,7 +180,7 @@ class FlowBench {
       timings(3*i+1) = ot
       timings(3*i+2) = gt
     }
-    ((eithers zip ors) zip grounds).foreach(println _)
+    ((eithers zip ors) zip grounds).foreach(println)
     for (i <- 0 until timings.length/3) {
       println(f"${timings(3*i)}%6.3f   vs  ${timings(3*i+1)}%6.3f   vs  ${timings(3*i+2)}%6.3f")
     }

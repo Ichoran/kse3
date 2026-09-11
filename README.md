@@ -14,7 +14,7 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.8 and later due to its use of
+**Warning: kse3 only works on Scala 3.9 and later due to its use of
 `scala.util.boundary` and named tuples; and requires JDK 25+ due to
 using virtual threading and foreign memory segments.**
 
@@ -25,7 +25,7 @@ The modules available in kse3 presently are listed below.
 You'll need to specify an appropriate version of Scala.  For example, in mill (1.0+):
 
 ```scala
-def scalaVersion = "3.8.4"
+def scalaVersion = "3.9.0"
 ```
 
 And add at least one of
@@ -47,7 +47,7 @@ that pulls in all of the above except `kse3-twodee` and `kse3-alien` with one li
 header equivalent:
 
 ```scala
-//> using scala 3.8.4
+//> using scala 3.9.0
 //> using jvm 25
 //> using dep com.github.ichoran::kse3-basics:0.9.5
 //> using dep com.github.ichoran::kse3-flow:0.9.5
