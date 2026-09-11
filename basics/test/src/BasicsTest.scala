@@ -679,6 +679,12 @@ class BasicsTest() {
     T ~ (End - 5 to 9)                             ==== typed[Iv.Rea]
     T ~ (End - 5 to End - 3)                       ==== typed[Iv.Ree]
     T ~ (End - 5 to Start + 5)                     ==== typed[Iv.Res]
+    T ~ (4 to 10)                                  ==== typed[collection.immutable.Range.Inclusive]
+    T ~ ('a' to 'e')                               ==== typed[collection.immutable.NumericRange.Inclusive[Char]]
+    T ~ ('a' to 'e').toList                        ==== List('a', 'b', 'c', 'd', 'e')
+    T ~ ('a' to 100).toList                        ==== List('a', 'b', 'c', 'd')
+    T ~ ('a' to 'e' by 2).toList                   ==== List('a', 'c', 'e')
+    T ~ (1 to 'e').length                          ==== 101
     T ~ Iv.of(3 to 4)                              ==== Iv(3, 5)
     T ~ Iv.of("salmon")                            ==== Iv(0, 6)
     T ~ Iv.of(Array(1, 2, 3, 4))                   ==== Iv(0, 4)

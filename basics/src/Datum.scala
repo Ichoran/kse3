@@ -107,7 +107,7 @@ extension(ivy: Iv.Y) {
 
 
 extension (i: Int) {
-  @targetName("to_Range") inline infix def to(j: Int): collection.immutable.Range.Inclusive = scala.runtime.RichInt(i).to(j)
+  @targetName("to_Range") inline infix def to(j: Int): collection.immutable.Range.Inclusive = collection.immutable.Range.inclusive(i, j)
 
   @targetName("to_End_type") inline infix def to(end: End.type): Iv.Rae = Iv.Rae.fromValues(i, 0)
 
@@ -133,6 +133,14 @@ extension (i: Int) {
     new Array[A](if i > 0 then i else 0)
 
   inline infix def span(n: Int): Iv = Iv(i, i+n)
+}
+
+
+extension (c: Char) {
+  /** The Char range the standard library gives.  Without this a Char receiver widens to Int and the Int
+    * `to` above answers with a range of code points. */
+  @targetName("to_CharRange") inline infix def to(d: Char): collection.immutable.NumericRange.Inclusive[Char] =
+    collection.immutable.NumericRange.inclusive(c, d, (1: Char))
 }
 
 inline def ꓺ:    Iv.Rxy = Iv.Rxy.wrap(0xFFFF_FFFF_0000_0000L)
