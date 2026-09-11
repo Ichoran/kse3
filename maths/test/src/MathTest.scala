@@ -4862,6 +4862,18 @@ class MathTest {
     T ~ say"#is/are/ <#${silently(ULong(1L))}here" ==== "is here"
 
   @Test
+  def rgbNamesTest(): Unit =
+    import kse.maths.colours.Rgb
+    T ~ Rgb.byName.size ==== 148
+    T ~ Rgb.byName("red") ==== Rgb.Red
+    T ~ Rgb.byName("rebeccapurple") ==== Rgb.RebeccaPurple
+    T ~ Rgb.byName("grey") ==== Rgb.byName("gray")
+    T ~ Rgb.byName("lightgoldenrodyellow") ==== Rgb(250, 250, 210)
+    T ~ Rgb.byName.keys.forall(k => k.nonEmpty && k.forall(c => c >= 'a' && c <= 'z')) ==== true
+    T ~ Rgb.byName.get("Red") ==== None
+    T ~ Rgb.byName.get("") ==== None
+
+  @Test
   def rgbTest(): Unit =
     import kse.maths.colours.{Rgb, Argb}
     T ~ Rgb.F(0.5f, 0.25f, 1f) ==== Rgb(128, 64, 255)

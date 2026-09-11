@@ -9,7 +9,7 @@ import java.lang.{Math => jm}
 import kse.flow.{given, _}
 
 
-/** Interpretation: spec → shared scales → protrusion-grid layout → glyphs → SVG.
+/** Interpretation: spec → shared scales → protrusion-grid layout → glyphs → a `Target`.
   * Panels are Blocks: tick labels, ticks, and facet strips are protrusions, so multi-panel
   * figures align on content by construction.  Facets come from the reserved `col`/`row`
   * columns: panels form a grid with shared x/y scales, tick labels only on outer edges,
@@ -1814,6 +1814,8 @@ object Render:
       case Parts.Config.Note(t, at, back, rad, shp) =>
         val _ = marks.addOne(Mark.Noted(t, at, back, rad, shp))
       case Parts.Config.Arrow(lbl, x1, y1, x2, y2, back, rad, col, al, shp) =>
+        if Paint.parse(col).isAlt then
+          Err ?# s"arrow${if lbl.isEmpty then "" else s" '$lbl'"}: color '$col' is not a colour; ${Paint.hint}"
         val _ = marks.addOne(Mark.Arrowed(lbl, x1, y1, x2, y2, back, rad, col, al, shp))
       case Parts.Config.LegendTitle(t) => legTitle = t
       case Parts.Config.FigTitle(t)    => figTitle = t
@@ -1833,6 +1835,8 @@ object Render:
       case Parts.Config.MinorGrid(a, on) =>
         if a == Parts.Axis.Horz then xMinorGrid = on else yMinorGrid = on
       case Parts.Config.AxisColor(a, c, al) =>
+        val which = if a == Parts.Axis.Horz then "horz" else "vert"
+        if Paint.parse(c).isAlt then Err ?# s"axis.$which.color: '$c' is not a colour; ${Paint.hint}"
         if a == Parts.Axis.Horz then xInkC = Ink(c, al) else yInkC = Ink(c, al)
       case Parts.Config.FreeAxis(h, v) =>
         freeX |= h
@@ -1951,6 +1955,8 @@ object Render:
       var styled = ""
       layer.look.style.entries.foreach: (k, v) =>
         if k eq Style.Color then styled = v.asInstanceOf[String]
+      if styled.nonEmpty && Paint.parse(styled).isAlt then
+        Err ?# s"layer ${li + 1}: color('$styled') is not a colour; ${Paint.hint}"
       var edge = plainEdge
       layer.look.style.entries.foreach: (k, v) =>
         if k eq Style.Arrow then edge = edge.copy(shape = v.asInstanceOf[ArrowShape])
@@ -2254,15 +2260,16 @@ object Render:
         case _ => ()
       i += 1
 
-  private def solveAndRender(root: Grid, width: Double, height: Double): String =
+  private def solveGlyphs(root: Grid, width: Double, height: Double): List[Glyph] =
     val lay = root.solve(width, height)
     val gs = List.newBuilder[Glyph]
     def put(g: Glyph): Unit = { gs += g; () }
     emitGrid(root, lay, put)
-    Svg.render(width, height, gs.result())
+    gs.result()
 
-  def figureSvg(fig: Figure, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
-    solveAndRender(buildFigure(fig, width, height).?, width, height)
+  /** The figure's solved display list at this size, in figure pixels, y-down. */
+  def figureGlyphs(fig: Figure, width: Double, height: Double)(using m: Measurer): Ask[List[Glyph]] = Ask:
+    solveGlyphs(buildFigure(fig, width, height).?, width, height)
 
   private def buildBoard(b: Board, estW: Double, estH: Double)(using m: Measurer): Ask[Grid] = Ask:
     b match
@@ -2280,14 +2287,47 @@ object Render:
           val _ = g.put(i, 0)(buildBoard(it, estW, ch).?)
         g
 
-  def boardSvg(b: Board, width: Double, height: Double)(using m: Measurer): Ask[String] = Ask:
-    solveAndRender(buildBoard(b, width, height).?, width, height)
+  /** The board's solved display list at this size, in figure pixels, y-down. */
+  def boardGlyphs(b: Board, width: Double, height: Double)(using m: Measurer): Ask[List[Glyph]] = Ask:
+    solveGlyphs(buildBoard(b, width, height).?, width, height)
 
 
 extension (fb: Figure | Board)
-  /** Renders a figure or a figure composition to SVG text; see `Render` for what is
-    * interpreted so far.
+  /** The solved display list of a figure or a figure composition at this size, measured
+    * with the given text metrics — the seam a custom `Target` consumes.  See `Render` for
+    * what is interpreted so far.
     */
-  def svg(width: Double = 640, height: Double = 480)(using Measurer): Ask[String] = fb match
-    case f: Figure => Render.figureSvg(f, width, height)
-    case b: Board  => Render.boardSvg(b, width, height)
+  def glyphs(width: Double = 640, height: Double = 480)(using Measurer): Ask[List[Glyph]] = fb match
+    case f: Figure => Render.figureGlyphs(f, width, height)
+    case b: Board  => Render.boardGlyphs(b, width, height)
+
+  /** Renders to a target, laid out against the target's own text metrics. */
+  def render[R](target: Target[R], width: Double = 640, height: Double = 480): Ask[R] = Ask:
+    target.render(width, height, glyphs(width, height)(using target.measurer).?)
+
+  /** Renders to SVG text. */
+  def svg(width: Double = 640, height: Double = 480)(using Measurer): Ask[String] = Ask:
+    Svg.render(width, height, glyphs(width, height).?)
+
+  /** Paints onto a Java2D graphics context — a component's, an image's, a printer's — in
+    * figure pixels from its origin, background included.
+    */
+  def draw(g: java.awt.Graphics2D, width: Double, height: Double): Ask[Unit] =
+    render(Java2D.On(g), width, height)
+
+  /** Rasterizes to an opaque image, `scale` device pixels per figure pixel. */
+  def image(width: Double = 640, height: Double = 480, scale: Double = 1.0): Ask[java.awt.image.BufferedImage] =
+    render(Java2D.Image(scale), width, height)
+
+  /** Writes a PNG at the path, `scale` device pixels per figure pixel, and returns the path. */
+  def png(path: java.nio.file.Path, width: Double = 640, height: Double = 480, scale: Double = 1.0): Ask[java.nio.file.Path] = Ask:
+    Java2D.png(image(width, height, scale).?, path)
+    path
+
+  /** Opens a window on the figure, laid out afresh as the window is resized, and returns
+    * it for the caller to dispose; closing the window by hand does the same.  Fails, as an
+    * `Err`, where there is no display or where the figure will not render.
+    */
+  def show(width: Double = 640, height: Double = 480, title: String = "twodee"): Ask[java.awt.Frame] = Ask:
+    val _ = image(width, height).?   // a full raster: colours this target cannot read refuse here, not in the window
+    Java2D.show(fb, width, height, title)

@@ -449,8 +449,9 @@ final class AxisWords private[twodee] (which: Parts.Axis):
   /** Faint gridlines at the minor tick positions; off by default. */
   def minorGrid(on: Boolean = true): Parts =
     Parts(Vector.empty, Vector(Parts.Config.MinorGrid(which, on)))
-  /** Ink for this axis's frame line and tick marks (labels keep their own colour).
-    * Translucent ink composites cleanly: frame, ticks, and gridlines never double-draw.
+  /** Ink for this axis's frame line and tick marks (labels keep their own colour), as a
+    * CSS colour (see `Paint`).  Translucent ink composites cleanly: frame, ticks, and
+    * gridlines never double-draw.
     */
   def color(c: String, alpha: Double = 1.0): Parts =
     Parts(Vector.empty, Vector(Parts.Config.AxisColor(which, c, alpha)))
@@ -524,6 +525,8 @@ trait Vocabulary:
     * attribute the resolution order is mapped column ▸ styled constant ▸ default, so a
     * colour *column* in the data still wins, but layers with no colour mapping — a band
     * and the line through it, say — can share one hue instead of cycling the palette.
+    * The colour is CSS — `#RRGGBB`, a colour name, `rgb()`, or `hsl()`, see `Paint` — and
+    * anything else refuses at interpretation, on every target alike.
     */
   def color(c: String): Look = Look(null, Nil, Style((Style.Color, c) :: Nil))
 

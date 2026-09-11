@@ -11,7 +11,8 @@ import kse.flow.{given, _}
 import kse.twodee.{given, _}
 
 
-/** Renders the example figures to SVG files for human review:
+/** Renders the example figures to SVG files, and the same figures through the Java2D
+  * target to PNG files beside them, for human review:
   * `mill twodee.test.runMain kse.test.twodee.TwodeeExamples <outdir>`
   */
 object TwodeeExamples:
@@ -264,3 +265,7 @@ object TwodeeExamples:
       val _ = Files.writeString(p, s)
       println(s"wrote $p (${s.length} chars)")
     }{ e => println(s"FAILED to render $name:\n$e") }
+    val pngName = name.stripSuffix(".svg") + ".png"
+    fig.png(dir.resolve(pngName), w, h).fold{ p =>
+      println(s"wrote $p (${Files.size(p)} bytes)")
+    }{ e => println(s"FAILED to render $pngName:\n$e") }

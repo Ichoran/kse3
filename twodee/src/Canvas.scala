@@ -6,6 +6,136 @@ package kse.twodee
 
 import java.lang.{Math => jm}
 
+import kse.flow.{given, _}
+import kse.maths.EiselLemire
+import kse.maths.colours.{Rgb, Argb}
+
+
+/** The colour vocabulary of the display list: what every target accepts, and what
+  * interpretation checks, so a figure never renders on one target and refuses on another.
+  * It is CSS: hex (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`), the colour names in any case,
+  * `transparent`, and `rgb()`, `rgba()`, `hsl()`, `hsla()` with comma or space
+  * separators, percentages, and an optional alpha as a number or percentage.
+  */
+object Paint:
+  private def nibble(c: Char): Int =
+    if c >= '0' && c <= '9' then c - '0'
+    else if c >= 'a' && c <= 'f' then c - 'a' + 10
+    else if c >= 'A' && c <= 'F' then c - 'A' + 10
+    else -1
+
+  private def hex(s: String): Argb Or Unit =
+    val n = s.length - 1
+    if n != 3 && n != 4 && n != 6 && n != 8 then return Alt.unit
+    var v = 0L
+    var i = 1
+    while i < s.length do
+      val d = nibble(s.charAt(i))
+      if d < 0 then return Alt.unit
+      v = (v << 4) | d
+      i += 1
+    inline def wide(k: Int): Long = ((v >> (4 * k)) & 0xF) * 0x11
+    val argb = n match
+      case 3 => 0xFF000000L | (wide(2) << 16) | (wide(1) << 8) | wide(0)
+      case 4 => (wide(0) << 24) | (wide(3) << 16) | (wide(2) << 8) | wide(1)
+      case 6 => 0xFF000000L | v
+      case _ => ((v & 0xFF) << 24) | (v >>> 8)
+    Is(Argb.wrap(argb.toInt))
+
+  private def sep(c: Char): Boolean = c == ',' || c == '/' || c == ' ' || c == '\t' || c == '\n' || c == '\r'
+
+  private def args(inner: String): Array[String] =
+    val b = Array.newBuilder[String]
+    val n = inner.length
+    var i = 0
+    while i < n do
+      while i < n && sep(inner.charAt(i)) do i += 1
+      val j = i
+      while i < n && !sep(inner.charAt(i)) do i += 1
+      if i > j then { val _ = b.addOne(inner.substring(j, i)) }
+    b.result()
+
+  // CSS lets a fraction start at its point, which the numeric kernel does not
+  private def number(t: String): Double =
+    val u =
+      if t.startsWith(".") then "0" + t
+      else if t.startsWith("-.") || t.startsWith("+.") then t.substring(0, 1) + "0" + t.substring(1)
+      else t
+    val d = EiselLemire.parseDouble(u)
+    if EiselLemire.failed(d) then Double.NaN else d
+
+  private def percent(t: String): Double = number(t.substring(0, t.length - 1))
+
+  private def channel(t: String): Double = if t.endsWith("%") then percent(t) * 255 / 100 else number(t)
+
+  private def fraction(t: String): Double = if t.endsWith("%") then percent(t) / 100 else number(t)
+
+  private def degrees(t: String): Double =
+    if t.endsWith("deg") then number(t.substring(0, t.length - 3))
+    else if t.endsWith("grad") then number(t.substring(0, t.length - 4)) * 0.9
+    else if t.endsWith("rad") then jm.toDegrees(number(t.substring(0, t.length - 3)))
+    else if t.endsWith("turn") then number(t.substring(0, t.length - 4)) * 360
+    else number(t)
+
+  private def u8(v: Double): Int = jm.round(jm.max(0.0, jm.min(255.0, v))).toInt
+
+  private def pack(a: Double, r: Int, g: Int, b: Int): Argb Or Unit =
+    if a.isNaN then Alt.unit
+    else Is(Argb.wrap((u8(a * 255) << 24) | (r << 16) | (g << 8) | b))
+
+  private def rgb(as: Array[String]): Argb Or Unit =
+    if as.length != 3 && as.length != 4 then return Alt.unit
+    val r = channel(as(0))
+    val g = channel(as(1))
+    val b = channel(as(2))
+    if r.isNaN || g.isNaN || b.isNaN then Alt.unit
+    else pack(if as.length == 4 then fraction(as(3)) else 1.0, u8(r), u8(g), u8(b))
+
+  private def hueTo(p: Double, q: Double, t0: Double): Double =
+    val t = t0 - jm.floor(t0)
+    if t < 1.0 / 6 then p + (q - p) * 6 * t
+    else if t < 0.5 then q
+    else if t < 2.0 / 3 then p + (q - p) * (2.0 / 3 - t) * 6
+    else p
+
+  private def hsl(as: Array[String]): Argb Or Unit =
+    if as.length != 3 && as.length != 4 then return Alt.unit
+    val h = degrees(as(0))
+    val sat = fraction(as(1))
+    val lum = fraction(as(2))
+    if h.isNaN || sat.isNaN || lum.isNaN then return Alt.unit
+    val s = jm.max(0.0, jm.min(1.0, sat))
+    val l = jm.max(0.0, jm.min(1.0, lum))
+    val q = if l < 0.5 then l * (1 + s) else l + s - l * s
+    val p = 2 * l - q
+    val t = h / 360
+    pack(if as.length == 4 then fraction(as(3)) else 1.0,
+         u8(hueTo(p, q, t + 1.0 / 3) * 255), u8(hueTo(p, q, t) * 255), u8(hueTo(p, q, t - 1.0 / 3) * 255))
+
+  /** The colour a string spells, with its alpha; `Alt.unit` if it spells none. */
+  def parse(s: String): Argb Or Unit =
+    val t = s.trim
+    if t.isEmpty then Alt.unit
+    else if t.charAt(0) == '#' then hex(t)
+    else
+      val low = t.toLowerCase(java.util.Locale.ROOT)
+      val open = low.indexOf('(')
+      if open < 0 then
+        if low == "transparent" then Is(Argb.wrap(0))
+        else Rgb.byName.get(low) match
+          case Some(c) => Is(c.argb)
+          case None => Alt.unit
+      else if low.charAt(low.length - 1) != ')' then Alt.unit
+      else
+        val as = args(low.substring(open + 1, low.length - 1))
+        low.substring(0, open).trim match
+          case "rgb" | "rgba" => rgb(as)
+          case "hsl" | "hsla" => hsl(as)
+          case _ => Alt.unit
+
+  /** How a refusal should say what is accepted. */
+  val hint: String = "use #RRGGBB, a CSS colour name, rgb(), or hsl()"
+
 
 /** Text measurement for layout.  The default is a deterministic per-character-class
   * approximation, good enough for margins and legends; font-table-accurate metrics replace
@@ -378,8 +508,24 @@ final class Occupancy(val x0: Double, val y0: Double, val w: Double, val h: Doub
     if m == 0 then 0.0 else s / m
 
 
-/** Plain-text SVG emission from a display list.  No dependencies, deterministic output. */
-object Svg:
+/** Where a solved display list ends up: SVG text, pixels on a `Graphics2D`, an image.
+  * A target carries the text metrics its layout must be measured with, because a figure
+  * laid out against one font and inked with another has labels touching that the layout
+  * kept apart; `Render` measures with `measurer` and hands `render` the glyphs.  The
+  * built-in targets are `Svg` and the `Java2D` family; anything else that can draw a
+  * handful of primitives is a small class away.
+  */
+trait Target[R]:
+  def measurer: Measurer
+  def render(width: Double, height: Double, glyphs: List[Glyph]): R
+
+
+/** Plain-text SVG emission from a display list.  No dependencies, deterministic output.
+  * The viewer supplies the font, so layout measures with the approximate metrics.
+  */
+object Svg extends Target[String]:
+  def measurer: Measurer = Measurer.approx
+
   def num(d: Double): String =
     val r = jm.rint(d * 100) / 100
     if r == jm.rint(r) && jm.abs(r) < 1e15 then r.toLong.toString else r.toString

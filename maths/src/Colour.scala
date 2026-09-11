@@ -267,6 +267,50 @@ object Rgb {
   final val WhiteSmoke: Rgb = 0xF5F5F5
   final val Yellow: Rgb = 0xFFFF00
   final val YellowGreen: Rgb = 0x9ACD32
+
+  /** Every named colour above under its CSS name, lowercase; the constants stay the way
+    * to spell a colour in code, and this is the way to find one from text.
+    */
+  val byName: Map[String, Rgb] = Map(
+    "aliceblue" -> AliceBlue, "antiquewhite" -> AntiqueWhite, "aqua" -> Aqua, "aquamarine" -> Aquamarine,
+    "azure" -> Azure, "beige" -> Beige, "bisque" -> Bisque, "black" -> Black, "blanchedalmond" -> BlanchedAlmond,
+    "blue" -> Blue, "blueviolet" -> BlueViolet, "brown" -> Brown, "burlywood" -> Burlywood, "cadetblue" -> CadetBlue,
+    "chartreuse" -> Chartreuse, "chocolate" -> Chocolate, "coral" -> Coral, "cornflowerblue" -> CornflowerBlue,
+    "cornsilk" -> Cornsilk, "crimson" -> Crimson, "cyan" -> Cyan, "darkblue" -> DarkBlue, "darkcyan" -> DarkCyan,
+    "darkgoldenrod" -> DarkGoldenrod, "darkgray" -> DarkGray, "darkgreen" -> DarkGreen, "darkgrey" -> DarkGrey,
+    "darkkhaki" -> DarkKhaki, "darkmagenta" -> DarkMagenta, "darkolivegreen" -> DarkOliveGreen,
+    "darkorange" -> DarkOrange, "darkorchid" -> DarkOrchid, "darkred" -> DarkRed, "darksalmon" -> DarkSalmon,
+    "darkseagreen" -> DarkSeaGreen, "darkslateblue" -> DarkSlateBlue, "darkslategray" -> DarkSlateGray,
+    "darkslategrey" -> DarkSlateGrey, "darkturquoise" -> DarkTurquoise, "darkviolet" -> DarkViolet,
+    "deeppink" -> DeepPink, "deepskyblue" -> DeepSkyBlue, "dimgray" -> DimGray, "dimgrey" -> DimGrey,
+    "dodgerblue" -> DodgerBlue, "firebrick" -> Firebrick, "floralwhite" -> FloralWhite, "forestgreen" -> ForestGreen,
+    "fuchsia" -> Fuchsia, "gainsboro" -> Gainsboro, "ghostwhite" -> GhostWhite, "gold" -> Gold,
+    "goldenrod" -> Goldenrod, "gray" -> Gray, "green" -> Green, "greenyellow" -> GreenYellow, "grey" -> Grey,
+    "honeydew" -> Honeydew, "hotpink" -> HotPink, "indianred" -> IndianRed, "indigo" -> Indigo, "ivory" -> Ivory,
+    "khaki" -> Khaki, "lavender" -> Lavender, "lavenderblush" -> LavenderBlush, "lawngreen" -> LawnGreen,
+    "lemonchiffon" -> LemonChiffon, "lightblue" -> LightBlue, "lightcoral" -> LightCoral, "lightcyan" -> LightCyan,
+    "lightgoldenrodyellow" -> LightGoldenrodYellow, "lightgray" -> LightGray, "lightgreen" -> LightGreen,
+    "lightgrey" -> LightGrey, "lightpink" -> LightPink, "lightsalmon" -> LightSalmon,
+    "lightseagreen" -> LightSeaGreen, "lightskyblue" -> LightSkyBlue, "lightslategray" -> LightSlateGray,
+    "lightslategrey" -> LightSlateGrey, "lightsteelblue" -> LightSteelBlue, "lightyellow" -> LightYellow,
+    "lime" -> Lime, "limegreen" -> LimeGreen, "linen" -> Linen, "magenta" -> Magenta, "maroon" -> Maroon,
+    "mediumaquamarine" -> MediumAquamarine, "mediumblue" -> MediumBlue, "mediumorchid" -> MediumOrchid,
+    "mediumpurple" -> MediumPurple, "mediumseagreen" -> MediumSeaGreen, "mediumslateblue" -> MediumSlateBlue,
+    "mediumspringgreen" -> MediumSpringGreen, "mediumturquoise" -> MediumTurquoise,
+    "mediumvioletred" -> MediumVioletRed, "midnightblue" -> MidnightBlue, "mintcream" -> MintCream,
+    "mistyrose" -> MistyRose, "moccasin" -> Moccasin, "navajowhite" -> NavajoWhite, "navy" -> Navy,
+    "oldlace" -> OldLace, "olive" -> Olive, "olivedrab" -> OliveDrab, "orange" -> Orange, "orangered" -> OrangeRed,
+    "orchid" -> Orchid, "palegoldenrod" -> PaleGoldenrod, "palegreen" -> PaleGreen, "paleturquoise" -> PaleTurquoise,
+    "palevioletred" -> PaleVioletRed, "papayawhip" -> PapayaWhip, "peachpuff" -> PeachPuff, "peru" -> Peru,
+    "pink" -> Pink, "plum" -> Plum, "powderblue" -> PowderBlue, "purple" -> Purple, "rebeccapurple" -> RebeccaPurple,
+    "red" -> Red, "rosybrown" -> RosyBrown, "royalblue" -> RoyalBlue, "saddlebrown" -> SaddleBrown,
+    "salmon" -> Salmon, "sandybrown" -> SandyBrown, "seagreen" -> SeaGreen, "seashell" -> Seashell,
+    "sienna" -> Sienna, "silver" -> Silver, "skyblue" -> SkyBlue, "slateblue" -> SlateBlue, "slategray" -> SlateGray,
+    "slategrey" -> SlateGrey, "snow" -> Snow, "springgreen" -> SpringGreen, "steelblue" -> SteelBlue, "tan" -> Tan,
+    "teal" -> Teal, "thistle" -> Thistle, "tomato" -> Tomato, "turquoise" -> Turquoise, "violet" -> Violet,
+    "wheat" -> Wheat, "white" -> White, "whitesmoke" -> WhiteSmoke, "yellow" -> Yellow, "yellowgreen" -> YellowGreen
+  )
+
   extension (color: Rgb) {
     inline def unwrap: Int = color
     inline def argb: Argb = (color: Int) | 0xFF000000
