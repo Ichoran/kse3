@@ -39,6 +39,7 @@ class LoomTest {
   @Test
   def loomTest(): Unit =
     import java.util.concurrent.atomic.{AtomicLong, AtomicInteger}
+    import java.util.concurrent.{CountDownLatch, TimeUnit}
     extension (ai: AtomicInteger)
       def ++ : Unit = ai.getAndIncrement __ Unit
       def :=(i: Integer): Unit = ai.getAndSet(i) __ Unit
@@ -63,20 +64,24 @@ class LoomTest {
     T ~ Fu.flat{ n.++; Is("eel") }.await() ==== "eel" --: typed[String Or Err]
     T ~ n.get                       ==== 2
     val fex = Fu.Executor.create()
-    val foo = Fu(using fex){ zzzz(50); n.++; 4 }
+    val gate = new CountDownLatch(1)
+    val foo = Fu(using fex){ gate.await(); n.++; 4 }
     T ~ foo.isComplete ==== false
+    gate.countDown()
     T ~ foo.await()      ==== Is(4)
     T ~ foo.isComplete ==== true
     T ~ n.get          ==== 3
     fex.unwrap.close()
-    val sluggish = Fu{ zzzz(100, 1); 100 }
-    T ~ time{ zzzz(1); sluggish.cancel(): Unit; sluggish.await() } ==== runtype[Alt[?]]
-    T ~ { dt.get() < 50000000L } ==== true
+    val sluggish = Fu{ zzzz(10_000, 1); 100 }
+    T ~ time{ sluggish.cancel(): Unit; sluggish.await() } ==== runtype[Alt[?]]
+    T ~ { dt.get() < 5_000_000_000L } ==== true     // the cancel interrupts the sleep rather than waiting it out
     val alnum = "abcdefghijklmnopqrstuvwxyzABCDEFHIJKLMNOPQRSTUVWXYZ0123456789"
-    val fs = alnum.arr.map(c => Fu{ zzzz(100); n.++; c })
-    val ans: Array[Char] Or Err = time{ fs.fu().await() }
-    T ~ (dt.get/1e9 > 0.05)  ==== true
-    T ~ (dt.get/1e9 < 0.15)  ==== true
+    val together = new CountDownLatch(alnum.length)   // opens only while every future is running at once
+    val fs = alnum.arr.map(c => Fu{
+      together.countDown()
+      if together.await(10, TimeUnit.SECONDS) then { n.++; c } else yikes("not all running at once")
+    })
+    val ans: Array[Char] Or Err = fs.fu().await()
     T ~ ans.map(_.mkString)  ==== alnum --: typed[String Or Err]
     T ~ fs.fu().await().get =**= alnum.arr.copyWith(x => x.orAlt[Err])
     T ~ n.get               ==== 3 + alnum.length
@@ -114,22 +119,26 @@ class LoomTest {
     val v2 = new AtomicInteger(0)
     val v3 = new AtomicInteger(0)
     val v4 = new AtomicInteger(0)
+    // A failing member cuts its siblings, so the member that fails waits until the ones that must land
+    // have landed and the ones that must be cut are asleep for far longer than the test lasts
+    val ready = new CountDownLatch(3)
     val ten = Fu.group:
-      val one = Fu{ v1 := 1 ; 1 }
-      val two = Fu{ Thread.sleep(20); v2 := 2; 2 }
-      val three = Fu{ Thread.sleep(40); v3 := 4; nice{ "three".toInt }.? }
-      val four = Fu{ Thread.sleep(60); v4 := 8; 4 }
+      val one = Fu{ v1 := 1; ready.countDown(); 1 }
+      val two = Fu{ v2 := 2; ready.countDown(); 2 }
+      val three = Fu{ ready.await(); v3 := 4; nice{ "three".toInt }.? }
+      val four = Fu{ ready.countDown(); Thread.sleep(10_000); v4 := 8; 4 }
       one.? + two.? + three.? + four.?
     T ~ ten.await() ==== runtype[Alt[?]]
-    T ~ { Thread.sleep(80); v1.get + v2.get + v3.get + v4.get } ==== 7
+    T ~ (v1.get + v2.get + v3.get + v4.get) ==== 7
+    val ready2 = new CountDownLatch(3)
     val thirty = Fu.flatGroup:
-      val six = Fu{ v1 := 16 ; 6 }
-      val seven = Fu.flat{ Thread.sleep(20); v2 := 32; nice{ "seven".toInt } }
-      val eight = Fu{ Thread.sleep(40); v3 := 64; 8 }
-      val nine = Fu{ Thread.sleep(60); v4 := 128; 9 }
+      val six = Fu{ v1 := 16; ready2.countDown(); 6 }
+      val seven = Fu.flat{ ready2.await(); v2 := 32; nice{ "seven".toInt } }
+      val eight = Fu{ ready2.countDown(); Thread.sleep(10_000); v3 := 64; 8 }
+      val nine = Fu{ ready2.countDown(); Thread.sleep(10_000); v4 := 128; 9 }
       (nine.? + eight.? + seven.? + six.?).orErr
-    T ~ { Thread.sleep(80); v1.get + v2.get + v3.get + v4.get } ==== 52
     T ~ thirty.await() ==== runtype[Alt[?]]
+    T ~ (v1.get + v2.get + v3.get + v4.get) ==== 52
 
 
   @Test

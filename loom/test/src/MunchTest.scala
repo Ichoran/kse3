@@ -4,7 +4,7 @@
 package kse.test.loom
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, CountDownLatch}
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -83,10 +83,10 @@ class MunchTest {
 
     good ! 1
     bad ! -1                       // kills only `bad`
-    Thread.sleep(20)
+    soon { conns.get("bad").isEmpty && cleaned.get() == 1 }
     good ! 2                       // survivor still serving AFTER the sibling died
     good ! 3
-    Thread.sleep(20)
+    soon { survivorSum.get() == 6L }
 
     assertFalse("bad must be gone", conns.get("bad").isDefined)
     assertTrue("good must still be live", conns.get("good").isDefined)
@@ -120,7 +120,7 @@ class MunchTest {
         case ConnMsg.Data(_)    => ()
     }
     c ! ConnMsg.Drain
-    Thread.sleep(20)
+    soon { conns.get(1).isEmpty }
     val r = conns(1).feed(ConnMsg.Stats(_)).await()
     assertTrue(r.isAlt)
     sup.stop() __ Unit
@@ -141,11 +141,9 @@ class MunchTest {
     }
     r ! 5
     r ! 5
-    Thread.sleep(10)
-    r ! -1            // crash; restart with sum=0
-    Thread.sleep(10)
+    r ! -1            // crash; restart with sum=0 on the same mailbox, so order holds
     r ! 5             // fresh muncher, same address
-    Thread.sleep(20)
+    soon { seen.get().size == 3 }
     assertTrue("same address still live after restart", reg.get("c").isDefined)
     val s = seen.get()
     assertTrue(s"running sums seen: $s", s.contains(10) && s.contains(5))
@@ -166,7 +164,7 @@ class MunchTest {
         n => box.addAndGet(n) __ Unit
       } ! amt
     bump("alice", 10); bump("alice", 5); bump("bob", 100)
-    Thread.sleep(20)
+    soon { tallies.size == 2 && tallies.get("alice").get() == 15L && tallies.get("bob").get() == 100L }
     assertEquals(15L, tallies.get("alice").get())
     assertEquals(100L, tallies.get("bob").get())
     assertEquals(Set("alice", "bob"), reg.keys)
@@ -185,7 +183,7 @@ class MunchTest {
     reg.get("live").foreach(_ ! 1)                                 // present → used
     assertEquals("used",     reg.get("live").fold("absent")(_ => "used"))
     assertEquals("fellback", reg.get("ghost").fold("fellback")(_ => "used"))  // absent → fall back
-    Thread.sleep(10)
+    soon { deliveredTo.get() == "live" }
     assertEquals("live", deliveredTo.get())
     sup.stop() __ Unit
 
@@ -220,7 +218,7 @@ class MunchTest {
     }{ e => fail(e.toString) }
 
     refs.foreach(_ ! ConnMsg.Drain)        // graceful retire
-    Thread.sleep(30)
+    soon { closed.get() == 20 && conns.keys.isEmpty }
     assertEquals("every connection's socket closed", 20, closed.get())
     assertTrue("all retired", conns.keys.isEmpty)
     sup.stop().foreachThem(_ => ())(e => fail(e.toString))
@@ -234,12 +232,13 @@ class MunchTest {
     val sup = Munch.supervisor()
     val reg = sup.registry[String, Int]("blocked")
     val cleaned = new AtomicInteger(0)
+    val blocked = new CountDownLatch(1)
     val ref = reg.spawn("a"){
       Defer { cleaned.incrementAndGet() __ Unit }
-      (i: Int) => Thread.sleep(10_000)
+      (i: Int) => { blocked.countDown(); Thread.sleep(10_000) }
     }
     ref ! 1
-    Thread.sleep(30)
+    blocked.await()
     val t0 = System.nanoTime
     val r = sup.cancel()
     val ms = (System.nanoTime - t0) / 1e6
@@ -269,17 +268,25 @@ class MunchTest {
     val sup = Munch.supervisor()
     val reg = sup.registry[String, Int]("slow")
     val after = new AtomicInteger(0)
+    val served = new CountDownLatch(1)
     val ref = reg.spawn("a"){
       Defer { after.incrementAndGet() __ Unit }          // registered first: runs last, after the blocking one
       Defer { Thread.sleep(10_000) }
-      (i: Int) => ()
+      (i: Int) => served.countDown()
     }
     ref ! 1
-    Thread.sleep(30)
+    served.await()
     val t0 = System.nanoTime
     val r = sup.cancel()
     val ms = (System.nanoTime - t0) / 1e6
     assertTrue(s"cancel took $ms ms", ms < 2000)
     assertEquals(1, after.get())
     assertFalse(s"the interruption is the stop, not an error of its own: $r", r.existsAlt(_.toString.contains("InterruptedException")))
+
+
+  /** Waits, up to five seconds, for something the munchers do asynchronously, so the assertion after it
+    * checks the settled state instead of racing a slow or loaded runner. */
+  private def soon(ready: => Boolean): Unit =
+    val deadline = System.nanoTime + 5_000_000_000L
+    while !ready && System.nanoTime < deadline do Thread.sleep(1)
 }

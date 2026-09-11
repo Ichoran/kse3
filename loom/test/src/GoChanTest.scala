@@ -4,6 +4,7 @@
 package kse.test.loom
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
+import java.util.concurrent.CountDownLatch
 import java.util.Collections
 
 import org.junit.runner.RunWith
@@ -417,20 +418,23 @@ class GoChanTest {
       assertTrue(r.isAlt)                        // the stranded break is bundled as an error
 
 
-  // === cancel() lets every Defer run: one that blocks (briefly) is not cut, and the ones after it still run ===
+  // === cancel() lets every Defer run: an interruptible one is not cut by the cancel's own interrupt, and the
+  //     ones after it still run ===
 
   @Test(timeout = 30000)
   def cancelRunsEveryDefer(): Unit = SleepReps.times:
     val log = new java.util.concurrent.ConcurrentLinkedQueue[String]()
     val ch = Chan[Int](4)
+    val running = new CountDownLatch(1)
     val h = Go.session:
       Go:
-        ch.get{ i => Thread.sleep(5) }                          // in something interruptible when cancelled
+        ch.get{ i => running.countDown() }
         Defer { log.add("outer") __ Unit }
-        Defer { Thread.sleep(20); log.add("middle") __ Unit }   // interruptible, but shorter than the nag period
+        // interruptible yet instant, so it is cut only if the cancel's interrupt were left pending
+        Defer { new CountDownLatch(0).await(); log.add("middle") __ Unit }
         Defer { log.add("inner") __ Unit }
       Go { ch.put { Thread.sleep(1); 1 } }
-    Thread.sleep(30)
+    running.await()                                             // the Defers are on record once the handler has run
     h.cancel()
     val r = h.await()
     assertEquals(List("inner", "middle", "outer"), log.toArray(new Array[String](0)).toList)
@@ -443,14 +447,15 @@ class GoChanTest {
   def cancelNagsBlockedDefer(): Unit = 3.times:
     val log = new java.util.concurrent.ConcurrentLinkedQueue[String]()
     val ch = Chan[Int](4)
+    val running = new CountDownLatch(1)
     val h = Go.session:
       Go:
-        ch.get{ i => () }
+        ch.get{ i => running.countDown() }
         Defer { log.add("outer") __ Unit }
         Defer { Thread.sleep(10_000); log.add("not cut") __ Unit }
         Defer { log.add("inner") __ Unit }
       Go { ch.put { Thread.sleep(1); 1 } }
-    Thread.sleep(30)
+    running.await()
     val t0 = System.nanoTime
     h.cancel()
     val r = h.await()

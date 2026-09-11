@@ -334,8 +334,10 @@ object Munch {
       try done.get()
       catch case e if e.catchable => Alt(Err(e))
 
+    // Sized by the copy, not up front: a muncher retiring between a size read and the copy would leave
+    // a null at the end of a pre-sized array.
     private def snapshot(): Array[Muncher[?]] =
-      munchers.toArray(new Array[Muncher[?]](munchers.size))
+      munchers.toArray(new Array[Muncher[?]](0))
   }
 
   /** Open a supervisor.  `report` sees each recorded error live (logging); `onDeadLetter` sees
