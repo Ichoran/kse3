@@ -47,6 +47,12 @@ object Err extends Translucent.Companion[Err, String | ErrType] {
 
   inline def ?#[L >: Alt[Err]](s: String)(using Label[L]): Nothing = boundary.break(Alt(apply(s)))
 
+  /** An `Or` whose disfavored side spells out what an `Err` is made of, seen as the `Ask` it already is.  Here,
+    * where `Err` is transparent, that is subtyping and not a cast, which lets [[Ask]] type its boundary on the
+    * label its block is given: a break to a label that has been cast is thrown, while a break to the boundary's
+    * own label is a jump. */
+  inline def narrowed[X](r: X Or (Err | String | ErrType)): Ask[X] = r
+
   /** Exits early with an error carrying a message and this source line (`msg @ file:line`). */
   inline def ?@#[L >: Alt[Err]](inline s: String)(using lb: Label[L], sl: SourceLine.Text): Nothing = boundary.break(Alt(apply(s + " @ " + sl)))
 }
@@ -218,10 +224,12 @@ object Ask {
     *   s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2
     * }}}
     */
-  inline def apply[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] = boundary[X Or Err] { label ?=>
-    try Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
+  inline def apply[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] =
+    // the try wraps the boundary rather than sitting inside it, and the boundary is typed on the label the
+    // block is given rather than casting one: either a try between a boundary and its break or a cast on the
+    // label makes every break a thrown exception, whereas this way `.?` is a jump
+    try Err.narrowed(boundary[X Or (Err | String | ErrType)] { Is(x) })
     catch case t if t.catchable => Alt(Err(t))
-  }
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow should return
     * something `Or Err` (i.e. an `Ask`).
@@ -234,10 +242,9 @@ object Ask {
     *   nice{ s.toInt.altCase{ case x if x >= 100000 => "Too big: " + x }.? * 2 }
     * }}}
     */
-  inline def flat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] = boundary[X Or Err] { label ?=>
-    try x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
+  inline def flat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] =
+    try Err.narrowed(boundary[X Or (Err | String | ErrType)] { x })
     catch case t if t.catchable => Alt(Err(t))
-  }
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted into an Err.  A `Label` is provided to break out user-created `Err`s.
@@ -250,10 +257,7 @@ object Ask {
     * }}}
     */
   inline def threadsafe[X](inline x: Label[X Or (Err | String | ErrType)] ?=> X): Ask[X] =
-    try
-      boundary[X Or Err]{ label ?=>
-        Is(x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]]))  // Cheat visibility of opaque type
-      }
+    try Err.narrowed(boundary[X Or (Err | String | ErrType)] { Is(x) })
     catch case t if t.threadCatchable => Alt(Err(t))
 
 
@@ -269,10 +273,7 @@ object Ask {
     * }}}
     */
   inline def threadsafeFlat[X](inline x: Label[X Or (Err | String | ErrType)] ?=> Ask[X]): Ask[X] =
-    try
-      boundary[X Or Err]{ label ?=>
-        x(using label.asInstanceOf[Label[X Or (Err | String | ErrType)]])  // Cheat visibility of opaque type
-      }
+    try Err.narrowed(boundary[X Or (Err | String | ErrType)] { x })
     catch case t if t.threadCatchable => Alt(Err(t))
 
   private val emptyAskErr = Alt(Err(""))

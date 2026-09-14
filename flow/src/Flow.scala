@@ -418,10 +418,9 @@ extension (objectOr: Or.type) {
     * }
     * }}}
     */
-  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: Label[X Or Y] ?=> X): X Or Y = boundary[X Or Y]{
-    try Is(x)
+  inline def Safe[X, Y](inline erf: Throwable => Y)(inline x: Label[X Or Y] ?=> X): X Or Y =
+    try boundary[X Or Y]{ Is(x) }   // the try around the boundary, not inside it, so `.?` is a jump
     catch case t if t.catchable => Alt(erf(t))
-  }
 
   /** Enables Rust-style early error returns into an `Or`.  The value from normal control flow is wrapped in `Is`.
     * Any exceptions are caught and converted into `Err`. 
@@ -433,10 +432,9 @@ extension (objectOr: Or.type) {
     * }
     * }}}
     */
-  inline def Nice[X](inline x: Label[X Or Err] ?=> X): X Or Err = boundary[X Or Err]{
-    try Is(x)
+  inline def Nice[X](inline x: Label[X Or Err] ?=> X): X Or Err =
+    try boundary[X Or Err]{ Is(x) }
     catch case t if t.catchable => Alt(Err(t))
-  }
 }
 
 
@@ -564,15 +562,11 @@ inline def ratchet[A](default: A)(inline f: A => A): A =
   * }
   * }}}
   */
-inline def catchmatch[A](inline a: => A)[Z](inline handler: PartialFunction[Throwable, Z])(inline f: A => Z) =
-  boundary[Z]: outer ?=>
-    f(
-      boundary[A]: inner ?=>
-        boundary.break(
-          try boundary.break(a)(using inner)
-          catch handler
-        )(using outer)
-    )
+inline def catchmatch[A](inline a: => A)[Z](inline handler: PartialFunction[Throwable, Z])(inline f: A => Z): Z =
+  val r: A Or Z =
+    try Is(a)
+    catch case t => Alt(handler.applyOrElse(t, (u: Throwable) => throw u))
+  r.fold(f)(z => z)
 
 /** Defer an action until the end of the block.  This form cannot be used in a procrastinator block.
   *

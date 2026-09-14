@@ -6,7 +6,9 @@ package kse.flow
 
 // import scala.language.`3.6-migration` -- tests whether opaque types use same-named methods on underlying type or the externally-visible extension
 
+import scala.annotation.publicInBinary
 import scala.util.boundary
+import scala.util.boundary.Label
 
 import java.lang.ref.Cleaner
 import java.util.concurrent.ConcurrentHashMap
@@ -378,7 +380,7 @@ object Resource {
     t.isInstanceOf[scala.util.control.ControlThrowable] || t.isInstanceOf[scala.util.boundary.Break[?]]
 
   def safe[R, A](rsc: Tidy[R] ?=> R)(done: Tidy[R])(f: R => A): A Or Throwable = boundary:
-    val r = try { rsc(using done) } catch { case e if e.catchable => boundary.break(Alt(e)) }
+    val r = (try Is(rsc(using done)) catch { case e if e.catchable => Alt(e) }).?   // the jump outside the try, so it is one
     var exit: Throwable = null
     var failed: Throwable = null
     var wrong: Throwable = null
@@ -394,7 +396,7 @@ object Resource {
     * failure of the close after a success is the `Alt`.  An interruption is not a failure and leaves as the
     * exception it is, once the close has run (see [[closing]]). */
   def nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(f: R => A): Ask[A] = boundary:
-    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    val r = (try rsc(using done) catch { case e if e.catchable => Err.or(e) }).?
     var exit: Throwable = null
     var failed: Throwable = null
     var wrong: Throwable = null
@@ -411,7 +413,7 @@ object Resource {
   /** [[nice]] with `.?` early-return available inside `f`. */
   inline def Nice[R, A](rsc: Tidy.Nice[R] ?=> Ask[R])(done: Tidy.Nice[R])(inline f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] =
     boundary:
-      val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+      val r = (try rsc(using done) catch { case e if e.catchable => Err.or(e) }).?
       var exit: Throwable = null
       var failed: Throwable = null
       var wrong: Throwable = null
@@ -442,7 +444,7 @@ object Resource {
     * so a `SIGTERM`/`SIGINT` (or normal exit) mid-`f` still releases it — which the `finally` alone cannot
     * guarantee.  Requires a [[Tidy.Clean]] (cleanup safe to run from the hook thread). */
   def clean[R, A](rsc: Tidy.Clean[R] ?=> Ask[R])(done: Tidy.Clean[R])(f: R => A): Ask[A] = boundary:
-    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    val r = (try rsc(using done) catch { case e if e.catchable => Err.or(e) }).?
     val keep = Tidy.Later.keepScoped(r, done)
     var exit: Throwable = null
     var failed: Throwable = null
@@ -459,7 +461,7 @@ object Resource {
 
   /** [[clean]] with `.?` early-return available inside `f`. */
   def Clean[R, A](rsc: Tidy.Clean[R] ?=> Ask[R])(done: Tidy.Clean[R])(f: boundary.Label[A Or Err] ?=> (R => A)): Ask[A] = boundary:
-    val r = try { rsc(using done).? } catch { case e if e.catchable => boundary.break(Err.or(e)) }
+    val r = (try rsc(using done) catch { case e if e.catchable => Err.or(e) }).?
     val keep = Tidy.Later.keepScoped(r, done)
     var exit: Throwable = null
     var failed: Throwable = null
@@ -495,9 +497,9 @@ object Resource {
 
   /** The registry an [[assemble]] block adds to, and the block's identity in the types of what it guards.
     * Tear-downs run newest first, so a chain unwinds in reverse.  For one thread's use, within one block, through
-    * the verbs [[guard]], [[temp]], [[release]], [[releaseOp]], [[unguarded]] and [[unguardedOp]].
+    * the verbs [[guard]], [[temp]], [[release]], [[releaseOp]], [[unguarded]], [[unguardedOp]] and [[delegate]].
     */
-  final class Undo private[Resource] () {
+  final class Undo @publicInBinary private[Resource] () {
     private[Resource] final class Entry(val value: Any, val undo: () => Unit, val guarded: Boolean) { var released = false }
     private var entries: List[Entry] = Nil
     /** Every tear-down runs through this, so an interruption among them is kept aside and re-established by
@@ -542,6 +544,22 @@ object Resource {
         else keep = e :: keep
       entries = keep.reverse
       first
+
+    /** The end of a block, run from its `finally` whichever way it ended — `done` if it completed, `exit` the
+      * exception it is leaving by, if any: unwinds, restores an interruption kept aside, and throws what should
+      * leave in the block's place when nothing else is leaving. */
+    private[Resource] def settle(done: Boolean, exit: Throwable): Unit =
+      val bad =
+        if done then
+          val b = unwind(all = false)
+          if b ne null then Unwind.fold(b, unwind(all = true)) else null
+        else unwind(all = true)
+      val leaving: Throwable =                        // the exception this block exits by, if any
+        if done then bad
+        else if exit ne null then Unwind.fold(exit, bad)
+        else steps.interruption                       // an early return: a tear-down failure has nowhere to go, but an interruption leaves in its place
+      steps.restore(leaving)
+      if (leaving ne null) && (exit eq null) then throw leaving
   }
 
   /** Acquires a chain of things in order to hand some of them on, which neither a use-scope (release everything
@@ -549,8 +567,9 @@ object Resource {
     * of two verbs: [[guard]] for what may be handed out, [[temp]] for what may not.  Both are torn down as the
     * block exits — a guard that is never released is torn down on success too, so nothing acquired can simply be
     * lost — and a guard survives only through the one expression that consumes it: [[release]] where the guard
-    * itself is the result, [[releaseOp]] where something built from it is, or [[unguardedOp]] where that
-    * something is a new owner, to be guarded in its turn.  Tear-downs run newest first, so the chain unwinds in
+    * itself is the result, [[releaseOp]] where something built from it is, [[unguardedOp]] where that
+    * something is a new owner, to be guarded in its turn, or [[delegate]], which guards the new owner in the
+    * same stroke.  Tear-downs run newest first, so the chain unwinds in
     * reverse of its acquisition.  The block fails by exception or by early return (`.?` to an enclosing boundary)
     * alike, and then everything is torn down, released or not: a failed assembly hands out nothing, so it keeps
     * nothing.  It succeeds only if it completes and every tear-down that runs is clean — if one is not, the
@@ -574,38 +593,56 @@ object Resource {
     *   Resource.releaseOp(file, arena)((n, a) => new Region(n, map(fd, a)))   // the result, built from both and handed out in their place
     * }}}
     */
-  def assemble[T](f: Undo ?=> T)(using as: Assembled[T]): as.Out =
+  inline def assemble[T](inline f: Undo ?=> T)(using as: Assembled[T]): as.Out =
     val u = new Undo()
     var done = false
     var exit: Throwable = null
-    var t: T = null.asInstanceOf[T]
-    try
-      t = f(using u)
-      done = true
-    catch
-      case e: InterruptedException =>
-        exit = e
-        throw e
-      case e if e.catchable =>
-        exit = e
-        throw e
-    finally
-      val bad =
-        if done then
-          val b = u.unwind(all = false)
-          if b ne null then Unwind.fold(b, u.unwind(all = true)) else null
-        else u.unwind(all = true)
-      val leaving: Throwable =                        // the exception this block exits by, if any
-        if done then bad
-        else if exit ne null then Unwind.fold(exit, bad)
-        else u.steps.interruption                     // an early return: a tear-down failure has nowhere to go, but an interruption leaves in its place
-      u.steps.restore(leaving)
-      if (leaving ne null) && (exit eq null) then throw leaving
+    val t =
+      try
+        val t0 = f(using u)
+        done = true
+        t0
+      catch
+        case e: InterruptedException =>
+          exit = e
+          throw e
+        case e if e.catchable =>
+          exit = e
+          throw e
+      finally u.settle(done, exit)
     as.out(t)
+
+  /** [[assemble]] inside an [[Ask]] boundary: the block may leave early with `.?`, a failure comes back as an
+    * `Err` rather than an exception, and what the block hands out comes back as the favored branch.  The unwind
+    * is the same either way. */
+  inline def assembleNice[T](inline f: (Label[T Or Err], Undo) ?=> T)(using as: Assembled[T]): Ask[as.Out] =
+    val u = new Undo()
+    var done = false
+    var exit: Throwable = null
+    try
+      val r =
+        // the boundary sits inside the try, not around it: a try between a boundary and its break makes the
+        // break a thrown exception, whereas here an early return is a jump
+        try
+          boundary[T Or Err] { label ?=>
+            val t = f(using label, u)
+            done = true
+            Is(t)
+          }
+        catch
+          case e: InterruptedException =>
+            exit = e
+            throw e
+          case e if e.catchable =>
+            exit = e
+            throw e
+        finally u.settle(done, exit)
+      r.map(as.out)
+    catch case e if e.catchable => Alt(Err(e))
 
   /** Within [[assemble]]: `x` is torn down as the block exits unless released or unguarded first — a thing the
     * block is making, tagged as this block's.  Its fate is decided by exactly one later expression: [[release]]
-    * where it is handed out itself, or the [[releaseOp]] or [[unguardedOp]] that builds from it. */
+    * where it is handed out itself, or the [[releaseOp]], [[unguardedOp]] or [[delegate]] that builds from it. */
   def guard[X](x: X)(undo: X => Unit)(using u: Undo): Guarded[X, u.type] =
     u.add(x, () => undo(x), guarded = true)
     x
@@ -618,11 +655,34 @@ object Resource {
 
   /** Within [[assemble]]: `g` is meant to survive — not torn down on success, still torn down on failure — and
     * is answered as the [[Released]] the block may hand out.  Only this block's own guards can be released here.
-    * This is the block's result, alone or in a tuple: a `release(g)` whose value is discarded has released `g`
+    * This is the block's result, alone or in a tuple — `release(g1, g2)` for a tuple of two to four guards at
+    * once: a `release(g)` whose value is discarded has released `g`
     * early and says nothing about what carries it — build that thing with [[releaseOp]] instead. */
   def release[X, U <: Undo & Singleton](g: Guarded[X, U])(using u: Undo)(using U =:= u.type): Released[X, u.type] =
     u.guardOf(g).released = true
     g
+
+  /** [[release]] over two guards, for a block whose result is both, as a tuple: `(release(g1), release(g2))` in
+    * one word, each released in turn, so a guard given twice is caught as released already. */
+  def release[X1, X2, U <: Undo & Singleton](g1: Guarded[X1, U], g2: Guarded[X2, U])(using u: Undo)(using U =:= u.type): (Released[X1, u.type], Released[X2, u.type]) =
+    u.guardOf(g1).released = true
+    u.guardOf(g2).released = true
+    (g1, g2)
+
+  /** [[release]] over three guards, as a tuple. */
+  def release[X1, X2, X3, U <: Undo & Singleton](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U])(using u: Undo)(using U =:= u.type): (Released[X1, u.type], Released[X2, u.type], Released[X3, u.type]) =
+    u.guardOf(g1).released = true
+    u.guardOf(g2).released = true
+    u.guardOf(g3).released = true
+    (g1, g2, g3)
+
+  /** [[release]] over four guards, as a tuple. */
+  def release[X1, X2, X3, X4, U <: Undo & Singleton](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U], g4: Guarded[X4, U])(using u: Undo)(using U =:= u.type): (Released[X1, u.type], Released[X2, u.type], Released[X3, u.type], Released[X4, u.type]) =
+    u.guardOf(g1).released = true
+    u.guardOf(g2).released = true
+    u.guardOf(g3).released = true
+    u.guardOf(g4).released = true
+    (g1, g2, g3, g4)
 
   /** Within [[assemble]]: hands out `f(g)` in place of `g`, which is released once `f` has succeeded and not
     * before, so a failure building the result still tears `g` down — a handle around a descriptor, say, without
@@ -643,6 +703,30 @@ object Resource {
     e2.released = true
     y
 
+  /** [[releaseOp]] over three guards. */
+  def releaseOp[X1, X2, X3, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U])(f: (X1, X2, X3) => Y)(using u: Undo)(using U =:= u.type): Released[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val y = f(g1, g2, g3)
+    e1.released = true
+    e2.released = true
+    e3.released = true
+    y
+
+  /** [[releaseOp]] over four guards. */
+  def releaseOp[X1, X2, X3, X4, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U], g4: Guarded[X4, U])(f: (X1, X2, X3, X4) => Y)(using u: Undo)(using U =:= u.type): Released[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val e4 = u.guardOf(g4)
+    val y = f(g1, g2, g3, g4)
+    e1.released = true
+    e2.released = true
+    e3.released = true
+    e4.released = true
+    y
+
   /** Within [[assemble]]: forgets `g`'s undo and answers `g` bare, for a call that consumes it whichever way that
     * call ends — `consume(Resource.unguarded(g))` — where a guard still armed would close it a second time.
     * Where the new owner is something to be built, use [[unguardedOp]], which keeps `g` guarded until it is. */
@@ -652,7 +736,7 @@ object Resource {
 
   /** Within [[assemble]]: `f(g)`, an owner that tears `g` down itself from now on, so `g`'s own undo is forgotten
     * once `f` has succeeded — and not before, so a failure building the owner still tears `g` down.  The owner
-    * comes back bare, to be guarded (or released) in its turn. */
+    * comes back bare, to be guarded (or released) in its turn; [[delegate]] guards it at once. */
   def unguardedOp[X, U <: Undo & Singleton, Y](g: Guarded[X, U])(f: X => Y)(using u: Undo)(using U =:= u.type): Y =
     val e = u.guardOf(g)
     val y = f(g)
@@ -666,6 +750,78 @@ object Resource {
     val y = f(g1, g2)
     u.drop(e1)
     u.drop(e2)
+    y
+
+  /** [[unguardedOp]] over three guards. */
+  def unguardedOp[X1, X2, X3, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U])(f: (X1, X2, X3) => Y)(using u: Undo)(using U =:= u.type): Y =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val y = f(g1, g2, g3)
+    u.drop(e1)
+    u.drop(e2)
+    u.drop(e3)
+    y
+
+  /** [[unguardedOp]] over four guards. */
+  def unguardedOp[X1, X2, X3, X4, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U], g4: Guarded[X4, U])(f: (X1, X2, X3, X4) => Y)(using u: Undo)(using U =:= u.type): Y =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val e4 = u.guardOf(g4)
+    val y = f(g1, g2, g3, g4)
+    u.drop(e1)
+    u.drop(e2)
+    u.drop(e3)
+    u.drop(e4)
+    y
+
+  /** Within [[assemble]]: `f(g)` guarded with `undo` in place of `g`, whose own undo is forgotten once `f` has
+    * succeeded — and not before, so a failure building it still tears `g` down.  The guard passes from a part
+    * to the whole built around it, which tears the part down as its own: `guard(f(unguarded(g)))(undo)` with
+    * nothing at risk between the two.  Where the whole is the block's result, [[releaseOp]] hands it out
+    * instead. */
+  def delegate[X, U <: Undo & Singleton, Y](g: Guarded[X, U])(f: X => Y)(undo: Y => Unit)(using u: Undo)(using U =:= u.type): Guarded[Y, u.type] =
+    val e = u.guardOf(g)
+    val y = f(g)
+    u.drop(e)
+    u.add(y, () => undo(y), guarded = true)
+    y
+
+  /** [[delegate]] over two guards, for a whole that takes both. */
+  def delegate[X1, X2, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U])(f: (X1, X2) => Y)(undo: Y => Unit)(using u: Undo)(using U =:= u.type): Guarded[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val y = f(g1, g2)
+    u.drop(e1)
+    u.drop(e2)
+    u.add(y, () => undo(y), guarded = true)
+    y
+
+  /** [[delegate]] over three guards. */
+  def delegate[X1, X2, X3, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U])(f: (X1, X2, X3) => Y)(undo: Y => Unit)(using u: Undo)(using U =:= u.type): Guarded[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val y = f(g1, g2, g3)
+    u.drop(e1)
+    u.drop(e2)
+    u.drop(e3)
+    u.add(y, () => undo(y), guarded = true)
+    y
+
+  /** [[delegate]] over four guards. */
+  def delegate[X1, X2, X3, X4, U <: Undo & Singleton, Y](g1: Guarded[X1, U], g2: Guarded[X2, U], g3: Guarded[X3, U], g4: Guarded[X4, U])(f: (X1, X2, X3, X4) => Y)(undo: Y => Unit)(using u: Undo)(using U =:= u.type): Guarded[Y, u.type] =
+    val e1 = u.guardOf(g1)
+    val e2 = u.guardOf(g2)
+    val e3 = u.guardOf(g3)
+    val e4 = u.guardOf(g4)
+    val y = f(g1, g2, g3, g4)
+    u.drop(e1)
+    u.drop(e2)
+    u.drop(e3)
+    u.drop(e4)
+    u.add(y, () => undo(y), guarded = true)
     y
 
   final class Manager() extends Tidy.CanClose {

@@ -2950,6 +2950,225 @@ class FlowTest {
     T ~ ownerGoes                                               ==== "after a!"
     T ~ log.toList                                              ==== List("+a", "+a!", "-a!")
 
+    // delegate builds the whole and guards it in one stroke: the part's undo is forgotten once the whole exists and
+    // not before, and the whole is then a guard like any other — torn down on failure, or on success unless released
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val owner = Resource.delegate(a)(x => acquire(x + "!"))(release)
+      T ~ (owner: String) ==== "a!"
+      Resource.release(owner)
+    } ==== "a!" --: typed[String]
+    T ~ log.toList ==== List("+a", "+a!")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      Resource.delegate(a, b)((x, y) => acquire(x + y))(release) __ Unit
+      Resource.release(Resource.guard(acquire("c"))(release))
+    } ==== "c"
+    T ~ log.toList ==== List("+a", "+b", "+ab", "+c", "-ab")
+    log.clear()
+    val undelegated =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          Resource.release(Resource.delegate(a)(x => throw new IllegalStateException(s"no $x"))(release))
+        } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ undelegated                                             ==== "no a"
+    T ~ log.toList                                              ==== List("+a", "-a")
+    log.clear()
+    val wholeGoes =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          val owner = Resource.delegate(a)(x => acquire(x + "!"))(release)
+          throw new IllegalStateException(s"after $owner")
+        }
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ wholeGoes                                               ==== "after a!"
+    T ~ log.toList                                              ==== List("+a", "+a!", "-a!")
+    log.clear()
+    val twiceDelegated =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          Resource.delegate(a)(x => acquire(x + "1"))(release) __ Unit
+          Resource.release(Resource.delegate(a)(x => acquire(x + "2"))(release))
+        } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ twiceDelegated                                          ==== "not guarded by this assembly: a"
+    T ~ log.toList                                              ==== List("+a", "+a1", "-a1")
+
+    // release over several guards is the tuple of their releases in one word; a guard given twice is caught
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val n = Resource.guard(7)(i => log += s"-$i")
+      Resource.guard(acquire("c"))(release) __ Unit
+      Resource.release(a, n)
+    } ==== (("a", 7)) --: typed[(String, Int)]
+    T ~ log.toList ==== List("+a", "+c", "-c")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      Resource.release(a, b, c)
+    } ==== (("a", "b", "c")) --: typed[(String, String, String)]
+    T ~ log.toList ==== List("+a", "+b", "+c")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      val d = Resource.guard(acquire("d"))(release)
+      Resource.release(a, b, c, d)
+    } ==== (("a", "b", "c", "d")) --: typed[(String, String, String, String)]
+    T ~ log.toList ==== List("+a", "+b", "+c", "+d")
+    log.clear()
+    val tupleTwice =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          val b = Resource.guard(acquire("b"))(release)
+          Resource.release(a, b, a)
+        } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ tupleTwice                                              ==== "already released: a"
+    T ~ log.toList                                              ==== List("+a", "+b", "-b", "-a")
+
+    // assembleNice is assemble inside an Ask boundary: .? leaves early with the Err and everything is torn down,
+    // an exception comes back as an Err, and a success comes back as the favored branch, bare
+    log.clear()
+    T ~ Resource.assembleNice{
+      val a = Resource.guard(acquire("a"))(release)
+      Resource.guard(acquire("c"))(release) __ Unit
+      Resource.release(a)
+    } ==== Is("a") --: typed[Ask[String]]
+    T ~ log.toList ==== List("+a", "+c", "-c")
+    log.clear()
+    T ~ Resource.assembleNice{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      Resource.release(a, b)
+    } ==== Is(("a", "b")) --: typed[Ask[(String, String)]]
+    T ~ log.toList ==== List("+a", "+b")
+    log.clear()
+    val niceEarly = Resource.assembleNice{
+      Resource.temp(acquire("t"))(release) __ Unit
+      val a = Resource.guard(acquire("a"))(release)
+      val n = (Err.or("nope"): Ask[Int]).?
+      Resource.release(Resource.guard(acquire("b" + n))(release))
+    }
+    T ~ niceEarly.isAlt                                         ==== true
+    T ~ niceEarly.fold(_ => "")(_.toString).contains("nope")    ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "-a", "-t")
+    log.clear()
+    val niceThrown = Resource.assembleNice{
+      val a = Resource.guard(acquire("a"))(release)
+      if a.nonEmpty then throw new IllegalStateException("boom")
+      Resource.release(a)
+    }
+    T ~ niceThrown.isAlt                                        ==== true
+    T ~ niceThrown.fold(_ => "")(_.toString).contains("boom")   ==== true
+    T ~ log.toList                                              ==== List("+a", "-a")
+    log.clear()
+    val niceStuck = Resource.assembleNice{
+      Resource.temp(acquire("t"))(_ => throw new IllegalStateException("stuck")) __ Unit
+      Resource.release(Resource.guard(acquire("a"))(release))
+    }
+    T ~ niceStuck.isAlt                                         ==== true
+    T ~ niceStuck.fold(_ => "")(_.toString).contains("stuck")   ==== true
+    T ~ log.toList                                              ==== List("+t", "+a", "-a")
+    log.clear()
+    val niceStopped =
+      try
+        Resource.assembleNice{
+          val a = Resource.guard(acquire("a"))(release)
+          Resource.temp(acquire("t"))(_ => throw new InterruptedException("stop")) __ Unit
+          Resource.release(a)
+        } __ Unit
+        "no"
+      catch case e: InterruptedException => e.getMessage
+    T ~ niceStopped                                             ==== "stop"
+    T ~ log.toList                                              ==== List("+a", "+t", "-a")
+    T ~ Thread.interrupted()                                    ==== false
+
+    // the Op forms and delegate take up to four guards, all released, forgotten, or delegated together once the
+    // result exists, and all still guarded should building it fail
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      Resource.releaseOp(a, b, c)((x, y, z) => x + y + z)
+    } ==== "abc" --: typed[String]
+    T ~ log.toList ==== List("+a", "+b", "+c")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      val d = Resource.guard(acquire("d"))(release)
+      Resource.releaseOp(a, b, c, d)((w, x, y, z) => w + x + y + z)
+    } ==== "abcd" --: typed[String]
+    T ~ log.toList ==== List("+a", "+b", "+c", "+d")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      Resource.release(Resource.guard(Resource.unguardedOp(a, b, c)((x, y, z) => acquire(x + y + z)))(release))
+    } ==== "abc"
+    T ~ log.toList ==== List("+a", "+b", "+c", "+abc")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      val d = Resource.guard(acquire("d"))(release)
+      Resource.release(Resource.guard(Resource.unguardedOp(a, b, c, d)((w, x, y, z) => acquire(w + x + y + z)))(release))
+    } ==== "abcd"
+    T ~ log.toList ==== List("+a", "+b", "+c", "+d", "+abcd")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      Resource.release(Resource.delegate(a, b, c)((x, y, z) => acquire(x + y + z))(release))
+    } ==== "abc"
+    T ~ log.toList ==== List("+a", "+b", "+c", "+abc")
+    log.clear()
+    T ~ Resource.assemble{
+      val a = Resource.guard(acquire("a"))(release)
+      val b = Resource.guard(acquire("b"))(release)
+      val c = Resource.guard(acquire("c"))(release)
+      val d = Resource.guard(acquire("d"))(release)
+      Resource.delegate(a, b, c, d)((w, x, y, z) => acquire(w + x + y + z))(release) __ Unit
+      Resource.release(Resource.guard(acquire("e"))(release))
+    } ==== "e"
+    T ~ log.toList ==== List("+a", "+b", "+c", "+d", "+abcd", "+e", "-abcd")
+    log.clear()
+    val fourUnbuilt =
+      try
+        Resource.assemble{
+          val a = Resource.guard(acquire("a"))(release)
+          val b = Resource.guard(acquire("b"))(release)
+          val c = Resource.guard(acquire("c"))(release)
+          val d = Resource.guard(acquire("d"))(release)
+          Resource.release(Resource.delegate(a, b, c, d)((w, x, y, z) => throw new IllegalStateException(s"no $w$x$y$z"))(release))
+        } __ Unit
+        "no"
+      catch case e: IllegalStateException => e.getMessage
+    T ~ fourUnbuilt                                             ==== "no abcd"
+    T ~ log.toList                                              ==== List("+a", "+b", "+c", "+d", "-d", "-c", "-b", "-a")
+
     // a guard on a primitive is found again by value, since it is boxed anew on the way back
     log.clear()
     T ~ Resource.assemble{ val n = Resource.guard(100000)(i => log += s"-$i"); Resource.release(n) } ==== 100000
@@ -3110,6 +3329,21 @@ class FlowTest {
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); val n = r.length; r }""").nonEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); kse.flow.Resource.release(r) }""").nonEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); kse.flow.Resource.unguarded(r) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val r = kse.flow.Resource.release(kse.flow.Resource.guard("a")(_ => ())); kse.flow.Resource.delegate(r)(_ + "!")(_ => ()) }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""kse.flow.Resource.assemble{ val a = kse.flow.Resource.guard("a")(_ => ()); kse.flow.Resource.release(kse.flow.Resource.delegate(a)(_ + "!")(_ => ())) }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""val t: (Int, String) = kse.flow.Resource.assemble{ kse.flow.Resource.release(kse.flow.Resource.guard(1)(_ => ()), kse.flow.Resource.guard("b")(_ => ())) }""").isEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""
+      kse.flow.Resource.assemble{
+        val a = kse.flow.Resource.guard("a")(_ => ())
+        val b: (String, String) = kse.flow.Resource.assemble{ kse.flow.Resource.release(a, kse.flow.Resource.guard("b")(_ => ())) }
+        kse.flow.Resource.release(a)
+      }""").nonEmpty ==== true
+    T ~ compiletime.testing.typeCheckErrors("""
+      kse.flow.Resource.assemble{
+        val a = kse.flow.Resource.guard("a")(_ => ())
+        val b: String = kse.flow.Resource.assemble{ kse.flow.Resource.release(kse.flow.Resource.delegate(a)(_ + "!")(_ => ())) }
+        kse.flow.Resource.release(a)
+      }""").nonEmpty ==== true
     T ~ compiletime.testing.typeCheckErrors("""
       kse.flow.Resource.assemble{
         val a = kse.flow.Resource.guard("a")(_ => ())
