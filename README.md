@@ -14,9 +14,10 @@ productivity.  When there is a tradeoff between enabling good user code and
 writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
-**Warning: kse3 only works on Scala 3.9 and later due to its use of
-`scala.util.boundary` and named tuples; and requires JDK 25+ due to
-using virtual threading and foreign memory segments.**
+**Warning: kse3 only works on Scala 3.9 and later: it relies deeply on
+`scala.util.boundary` and named tuples (LTS); is a testbed for new paradigms
+based on new features which will require 3.9 to build from.  kse3 also
+requires JDK 25+ due to using virtual threading and foreign memory segments.**
 
 
 ## How do I get it?
@@ -98,9 +99,19 @@ import kse.maths.{given, *}
 import kse.maths.packed.{given, *}
 import kse.loom.{given, *}
 import kse.eio.{given, *}
+import kse.thyme.*
+import kse.jsaun.{given, *}
 ```
 
-and you have everything available.
+and you have everything available that requires no additional library
+dependencies.  If more dependencies are fine with you, then you can also
+
+```scala
+import kse.alien.{given, *}
+import kse.twodee.{given, *}
+```
+
+to get even more (gRPC and ProtoBuf help and 2D plotting)
 
 (Note: I don't test without the `given` imports.  They may work, as Kse3 generally puts
 givens in places where they'll be automatically found.  No givens are defined that
@@ -402,6 +413,36 @@ Because `Or` is unboxed, this style of error-handling has particularly low overh
 user-defined error strings or a custom `ErrType` are used rather than wrapping exceptions, the failure case also
 has much higher performance than the alternative of throwing exceptions.
 
+Have you ever tried to assemble a complex object out of multiple pieces each of which need to be manually released when something goes wrong?
+kse3 has `Resource.assemble` (in addition to `Resource` loan patterns) that let you denote which things need automatic cleaning up and
+which things should be torn down _only_ if the assembly fails.
+
+```scala
+val thingOne = Mu(false)
+val thingTwo = Mu(false)
+
+def doIt(orNot1: Boolean, orNot2: Boolean): Ask[(Mu[Boolean], Mu[Boolean])] =
+  Resource.assembleNice:
+    val one = Resource.guard(thingOne)(_ := false)
+    one := true
+    if orNot1 then Err ?# "Gave up at first step"
+    val two = Resource.guard(thingTwo)(_ := false)
+    two := true
+    if orNot2 then Err ?# "Gave up at second step"
+    Resource.release(one, two)
+
+println(doIt(false, true))
+println(thingOne())
+```
+
+In this example, we keep our mutable containers false unless we make it all the way through, but typically
+you'd close a file handle, release a shared buffer, or another task like that.  Note that once it is
+assembled, it is again your responsibility to take care of any resources that might need managing!
+
+If you do not `Resource.release` on an item with `Resource.guard`, the item is cleaned up on exit.  If
+you are certain you always want it cleaned up, use `Release.temp`.  `Resource.unguarded` lets you manually
+stop guarding (without cleanup).  Put `Ask` outside the `assemble`, or use `assembleNice`.
+
 In addition to these features, kse.flow provides a variety of other nice things that you can find by
 perusing the ScalaDoc, the unit tests, or the code.
 
@@ -414,7 +455,7 @@ convert back and forth (`.u` and `.s` if you want less typing), and `.pr` to get
 So, for example, `0xE0000000.u / 2.u` is `0x40000000`.  And if you want math to be bounded rather than to wrap, use `+#`, `/#`, etc. operators to
 clip the value inside the range, or `+!`, `/!` etc. to throw an exception.  For example `UByte(0xF0) +# UByte(0x80)` is `UByte(0xFF)`.
 
-But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, and more.
+But there are also handy ways to manipulate time, some common special functions like erf, estimation and fitting routines, color mappings, and more.
 
 ### kse.loom
 
