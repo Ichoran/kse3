@@ -297,6 +297,15 @@ println(eel == a())   // prints true
 
 The interface to `Atom` is nearly identical to the interface to `Mu`, in order to aid refactoring from single-threaded to multi-threaded computations.
 
+`kse.basics.testutilities` enables a very succinct but delightfully powerful testing framework, where your tests look like
+
+```scala
+T ~ myTestFunction ==== myExpectedValue --: typed[MyExpectedType]
+```
+
+For one-liner tests, it's incredibly effective.  All the tests for `kse` use `kse.basics.testutilities`.
+
+
 See the test suite, or package Scaladoc, for more examples of what you could do with `kse.basics`!
 
 
@@ -530,6 +539,9 @@ fail, so the later ones should be cancelled.  The Java mechanism is to use `Inte
 anything that catches and ignores the exception won't be killed, and long-running computations would
 need explicit `Thread.yield` calls to mark points where interruption is acceptable.
 
+There are also Go-like channels with subprocesses that consume them via virtual threads, a work-centric
+non-virtually-threaded framework (`Percolate`), and more!
+
 
 ### kse.thyme
 
@@ -636,16 +648,26 @@ Use -- to end option parsing. Short options may be combined as -abc.
 
 And if you just want the options collected into a named tuple, and the arguments in an array, use `oarg.options` and `oarg.args` respectively.
 
-### kse.testing
 
-This enables a very succinct but delightfully powerful testing framework, where your tests look like
+### kse.jsaun
 
-```scala
-T ~ myTestFunction ==== myExpectedValue --: typed[MyExpectedType]
-```
+Not described yet--but JSON parsing and writing can be easy, fast, and pretty!
 
-For one-liner tests, it's incredibly effective.  All the tests for `kse` use `kse.basics.testutilities` (the package name is
-longer because it's nice to reserve `testing` for other use).
+### kse.foundation
+
+Everything above in one easy package!  No external dependencies.
+
+(Anything below?  Some external dependencies, but they're worth it.)
+
+
+### kse.alien
+
+Work in progress.  Want Scala-native ProtoBuf, and easier gRPC?  kse.alien can help with that now!
+
+### kse.twodee
+
+Work in progress.  Someday you'll be able to draw publication-quality plots with a plot generator algebra.
+
 
 ## Naming Conventions
 
