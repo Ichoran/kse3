@@ -52,10 +52,11 @@ object FdSock {
   val defaultTimeout: Duration = 30.s
 
   /** Timeouts are applied at whole-millisecond resolution, rounding up so a short timeout stays a timeout
-    * (200.us waits 1 ms, not forever); a zero or negative timeout means wait without limit.
+    * (200.us waits 1 ms, not forever); a zero or negative timeout means wait without limit.  The conversion
+    * saturates, so a timeout longer than nanoseconds can hold waits as long as they can rather than failing.
     */
   private[eio] def millisOf(timeout: Duration): Long =
-    val ms = timeout.ceil.ms.toMillis
+    val ms = timeout.nano.into.ceil.ms
     if ms < 0 then 0L else ms
 
   private def checkSupported(): Ask[Unit] =
