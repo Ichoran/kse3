@@ -4,7 +4,7 @@
 package kse.loom
 
 import java.lang.{Math => jm}
-import java.util.concurrent.{ConcurrentLinkedQueue, LinkedTransferQueue, Semaphore}
+import java.util.concurrent.{ConcurrentLinkedQueue, LinkedTransferQueue, Semaphore, TimeUnit}
 import java.util.concurrent.locks.ReentrantLock
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, Queue, TreeMap}
@@ -204,14 +204,23 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
       else
         threadnice{ open() }.flatten.fold{ _ =>
           opened = true
-          if emergencyClose.isDefined then
-            registerErrorExitItem(() => nice{ if !emergencyDone.swap(true) then emergencyClose.foreach(_()) })
+          if emergencyClose.isDefined then registerErrorExitItem(() => nice{ emergency() })
           true
         }{ e =>
           errors.zap(e :: _)
           openFailed = true
           false
         }
+
+    /** The emergency close, under the guard so it never runs beside a normal close in progress: the hook
+      * waits for that close and then finds the resource cleanly closed, or not and closes it hard.  A
+      * close stuck past the wait is not going to finish, and the emergency close goes ahead regardless. */
+    private def emergency(): Unit =
+      val held =
+        try guard.tryLock(Percolate.emergencyWaitNanos, TimeUnit.NANOSECONDS)
+        catch case _: InterruptedException => false
+      try if !emergencyDone.swap(true) then emergencyClose.foreach(_())
+      finally if held then guard.unlock()
 
     /** Run one queued item under exclusive access, or skip.  Never blocks.  Returns true iff it ran one. */
     private[Percolate] def tryServe(): Boolean =
@@ -223,16 +232,24 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
           else
             val w = q.poll()
             if w eq null then false                         // lost the race for the item; fine
-            else { runItem(w); true }
+            else
+              runItem(w)
+              // the wakeup credit this item's enqueue posted is spent now, so credits track what is queued
+              affinity match
+                case Affinity.Any  => available.tryAcquire() __ Unit
+                case Affinity.Own  => ownSignal.tryAcquire() __ Unit
+                case Affinity.Main => ()
+              true
         finally guard.unlock()
 
     /** Close once, at teardown (under the guard); a `close` failure is recorded.  `emergencyDone` is set
       * only on a *successful* close — if close fails, the resource is not cleanly closed, so the
-      * emergency-close hook stays armed to try on hard exit. */
+      * emergency-close hook stays armed to try on hard exit.  A resource the hook already closed hard
+      * is not closed again. */
     private[Percolate] def closeIfOpen(): Unit =
       guard.lock()
       try
-        if opened && !closed then
+        if opened && !closed && !emergencyDone() then
           closed = true
           threadnice{ close() }.flatten.fold(_ => emergencyDone := true)(e => errors.zap(e :: _))
       finally guard.unlock()
@@ -249,14 +266,10 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
 
   private val resourceList = ArrayBuffer.empty[Resource]
   private var resources: Array[Resource] = Array.empty[Resource]
-  private[Percolate] def registerResource(r: Resource): Unit = { val _ = resourceList += r }
-
-  // Close `Any`/`Main` resources here (on main); `Own` resources are closed by their own threads.
-  private def closeAllResources(): Unit =
-    var j = resources.length - 1
-    while j >= 0 do
-      if resources(j).affinity != Affinity.Own then resources(j).closeIfOpen()
-      j -= 1
+  @volatile private var frozen = false                     // set once `go` has taken its snapshot of the resources
+  private[Percolate] def registerResource(r: Resource): Unit =
+    if frozen then throw new IllegalStateException(s"resource '${r.name}' constructed after go() began serving: construct resources before go(), or in setup()")
+    val _ = resourceList += r
 
 
   // === Producers (the engine-level newWork + each Producer resource), rotated under one permit pool ===
@@ -404,15 +417,19 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
       while running do
         var did = false
         val w = worklist.poll()
-        if w ne null then { runItem(w); did = true }
+        if w ne null then
+          runItem(w)
+          available.tryAcquire() __ Unit                   // its enqueue's wakeup credit, spent
+          did = true
         else
           var i = 0
           while i < resources.length && !did do
             val r = resources(i)
             if (r.affinity == Affinity.Any) && r.tryServe() then did = true    // Main/Own are not ours
             i += 1
-        // Nothing to do: park until an enqueue (or shutdown) releases a permit, then re-scan.
-        if !did && running then available.acquireUninterruptibly()
+        // Nothing to do: park until an enqueue (or shutdown) posts a credit, then re-scan.  Interruptibly:
+        // an interrupt while idle ends this worker, and the run, like one during an item does.
+        if !did && running then available.acquire()
   }
 
   private val workers = new Array[Worker](parallelism max 0)
@@ -437,7 +454,7 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
                 case _ =>
             if !did && running then
               if producing then Thread.`yield`()                  // permit-blocked but more to make: spin
-              else r.ownSignal.acquireUninterruptibly()           // idle: wait for routed work / shutdown
+              else r.ownSignal.acquire()                          // idle: wait for routed work / shutdown; an interrupt ends the run
         .foreachAlt(e => errors.zap(e :: _))
       finally r.closeIfOpen()                                     // close on this (the pinned) thread
     catch case e: InterruptedException => errors.zap(Err(e) :: _) // not ours: the run ends on it, and so does this thread
@@ -458,6 +475,7 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     var i = 0
     while i < workers.length do
       val wk = new Worker()
+      wk.setName(s"percolate-worker-$i")
       workers(i) = wk
       wk.start()
       i += 1
@@ -479,12 +497,27 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     i = 0
     while i < ownThreads.length do { joinThread(ownThreads(i)); i += 1 }
 
+  /** Stop workers, close `Any`/`Main` resources (LIFO; `Own` ones are closed by their own threads), and
+    * tear down.  Each step runs in isolation (see `Unwind`): a failure or an interruption in one is
+    * recorded and the rest still run, and an interrupt pending on entry — a work item's, re-set by
+    * `runItem` — is held aside so an interruptible `close` is not cut before it starts, then re-established
+    * once everything has run.  Answers `teardown`'s own failure, if any. */
+  private def windDown(): Ask[Unit] =
+    val unwind = new Unwind
+    def note(t: Throwable): Unit = if t ne null then errors.zap(Err(t) :: _)
+    note(unwind(stopWorkers()))
+    var j = resources.length - 1
+    while j >= 0 do
+      val r = resources(j)
+      if r.affinity != Affinity.Own then note(unwind(r.closeIfOpen()))
+      j -= 1
+    var torn: Ask[Unit] = Is.unit
+    note(unwind{ torn = threadnice(teardown()).flatten })
+    unwind.restore()
+    torn
+
   /** Stop workers, close resources (LIFO), tear down; returns total busy nanos across all threads. */
-  def shutdown(): Ask[Long] = Ask:
-    stopWorkers()
-    closeAllResources()
-    teardown().?
-    busyNanos()
+  def shutdown(): Ask[Long] = windDown().map(_ => busyNanos())
 
 
   // === The main-thread loop: serve resources, steal general work, admit from a producer under a permit ===
@@ -524,7 +557,10 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
         if (r.affinity == Affinity.Any) && r.tryServe() then progressed = true
         i += 1
       val w = worklist.poll()
-      if w ne null then { runItem(w); progressed = true }
+      if w ne null then
+        runItem(w)
+        available.tryAcquire() __ Unit                       // its enqueue's wakeup credit, spent
+        progressed = true
 
     if mainProdsDone && ownProdsDone && incomplete() == 0 && allQueuesEmpty then false
     else
@@ -533,8 +569,13 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
 
   /** Run the whole computation to completion (or first error), returning (wall, total-busy) time. */
   def go(): Ask[(NanoDuration, NanoDuration)] = boundary[Ask[(NanoDuration, NanoDuration)]]:
-    resources = resourceList.toArray
     running = true
+    threadnice(setup()).flatten.?                                  // setup cleans up after itself on error
+
+    // The resources are taken only now, so ones constructed in `setup()` are served like the rest; none
+    // may be constructed from here on.
+    resources = resourceList.toArray
+    frozen = true
 
     // Producers: the general `newWork`, plus every `Producer` resource.
     val pbuf = ArrayBuffer.empty[Prod]
@@ -555,23 +596,25 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
     // teardown, and hand the error back for `?+` to surface — so teardown always runs even if
     // thread creation fails.
     def abortStartup(e: Err): Err =
-      stopWorkers()
-      closeAllResources()
-      threadnice(teardown()).flatten.foreachAlt(_ => ())
+      windDown().foreachAlt(_ => ())
       e
 
-    threadnice(setup()).flatten.?                                  // setup cleans up after itself on error
     threadnice(startWorkers()).flatten.?+(abortStartup)
     threadnice{ startOwnThreads() }.?+(abortStartup)
 
-    var wall = 0L
-    threadnice:
-      val t0 = System.nanoTime
-      var goOn = true
-      while goOn && errors().isEmpty do
-        goOn = step().fold(b => b)(e => { errors.zap(e :: _); false })
-      wall = System.nanoTime - t0
-    .foreachAlt(e => errors.zap(e :: _))
+    val t0 = System.nanoTime
+    try
+      threadnice:
+        var goOn = true
+        while goOn && errors().isEmpty do
+          goOn = step().fold(b => b)(e => { errors.zap(e :: _); false })
+      .foreachAlt(e => errors.zap(e :: _))
+    catch case e: InterruptedException =>
+      // Not ours -- the engine never interrupts its own threads -- so it ends the run: an error like any
+      // other, with the status re-set for once the shutdown below has run
+      Thread.currentThread().interrupt()
+      errors.zap(Err(e) :: _)
+    val wall = System.nanoTime - t0
 
     var busy = 0L
     threadnice{ shutdown() }.flatten.fold(busy = _)(e => errors.zap(e :: _))
@@ -591,6 +634,10 @@ abstract class Percolate(parallelism: Int, maxPermits: Option[Int] = None) {
         Alt(Err(ErrType.Many(all)))
 }
 object Percolate {
+  /** How long a hard-exit emergency close waits for a normal close of the same resource to finish
+    * before going ahead anyway. */
+  private[loom] val emergencyWaitNanos = 5_000_000_000L
+
   /** The outcome of drawing from a [[Source]]: a batch of assembled items, nothing ready yet (but more may
     * still come), or exhausted.  This explicit three-way replaces an `Option[Array]` whose `Some(empty)` vs
     * `None` carried the not-yet-vs-done distinction implicitly. */

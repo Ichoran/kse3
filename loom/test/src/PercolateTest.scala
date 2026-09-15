@@ -3,6 +3,9 @@
 
 package kse.test.loom
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
+
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.junit._
@@ -11,6 +14,7 @@ import org.junit.Assert._
 import kse.basics._
 import kse.flow._
 import kse.loom._
+import kse.maths._
 import kse.loom.Percolate.Drawn
 
 
@@ -394,4 +398,160 @@ class PercolateTest {
       if par == 0 then
         assertEquals(0, p.inFlight)                        // main ran it alone, so nothing was left admitted
         assertTrue("the status is re-set on the thread that ran the item", flag)
+
+
+  // === Shutdown robustness: an interruption while producing, or during an item, still closes every
+  //     resource and tears down; a resource made in setup() is served; an idle worker's interrupt ends
+  //     the run; the emergency close never runs beside a normal close ===
+
+  private def soon(what: String)(cond: => Boolean): Unit =
+    val end = System.nanoTime + 5_000_000_000L
+    while !cond && System.nanoTime < end do Thread.sleep(1)
+    assertTrue(s"not in time: $what", cond)
+
+  abstract class Plain(parallelism: Int) extends Percolate(parallelism) {
+    val toreDown = Atom(false)
+    def setup(): Ask[Unit] = Is.unit
+    def teardown(): Ask[Unit] = { toreDown := true; Is.unit }
+  }
+
+  @Test(timeout = 30000)
+  def interruptedProducerStillShutsDown(): Unit = (Reps / 5).times:
+    val p = new Plain(1) { def newWork(): Ask[Work] = throw new InterruptedException("producer interrupted") }
+    val r = p.go()
+    assertTrue("the status is re-set once the shutdown has run", Thread.interrupted())
+    assertTrue(s"expected the interruption as the error, got $r", r.existsAlt(_.toString.contains("producer interrupted")))
+    assertTrue(p.toreDown())
+    soon("the worker ended"){ !Thread.getAllStackTraces.keySet.stream.anyMatch(t => t.getName.startsWith("percolate-worker") && t.isAlive) }
+
+  @Test(timeout = 30000)
+  def interruptedItemStillClosesEverything(): Unit = (Reps / 5).times:
+    val closedFirst = Atom(false)
+    val closedSecond = Atom(false)
+    val p = new Plain(0) {
+      var i = 0
+      class R(name: String, second: Boolean) extends Resource(name) {
+        override protected def close(): Ask[Unit] =
+          if second then
+            new CountDownLatch(0).await()                  // instant, but throws if an interrupt were left pending
+            closedSecond := true
+          else closedFirst := true
+          Is.unit
+        class Job extends On() { def work(): Ask[Array[Work]] = Is(Work.none) }
+      }
+      val a = new R("a", false)
+      val b = new R("b", true)
+      class Bull extends Work() { def work(): Ask[Array[Work]] = throw new InterruptedException("work interrupted") }
+      def newWork(): Ask[Work] =
+        i += 1
+        Is(i match
+          case 1 => new a.Job
+          case 2 => new b.Job
+          case 3 => new Bull
+          case _ => Work.Empty)
+    }
+    val r = p.go()
+    assertTrue("the status is re-set once the shutdown has run", Thread.interrupted())
+    assertTrue(s"expected the interruption as the error, got $r", r.existsAlt(_.toString.contains("work interrupted")))
+    assertTrue(closedFirst())
+    assertTrue(closedSecond())
+    assertTrue(p.toreDown())
+
+  @Test(timeout = 30000)
+  def setupResourceIsServed(): Unit = Reps.times:
+    val ran = Atom(false)
+    val p = new Plain(0) {
+      var i = 0
+      class R extends Resource("made in setup") {
+        class Job extends On() { def work(): Ask[Array[Work]] = { ran := true; Is(Work.none) } }
+      }
+      var r: R = null
+      override def setup(): Ask[Unit] = { r = new R; Is.unit }
+      def newWork(): Ask[Work] =
+        i += 1
+        if i == 1 then Is({ val rr = r; new rr.Job }) else Is(Work.Empty)
+    }
+    assertTrue(p.go().isIs)
+    assertTrue(ran())
+    assertTrue(p.toreDown())
+
+  @Test(timeout = 30000)
+  def lateResourceIsRefused(): Unit = Reps.times:
+    val p = new Plain(0) {
+      var i = 0
+      class Late extends Work() {
+        def work(): Ask[Array[Work]] =
+          val r = new Resource("too late") {}
+          Is(Work.none)
+      }
+      def newWork(): Ask[Work] =
+        i += 1
+        if i == 1 then Is(new Late) else Is(Work.Empty)
+    }
+    val r = p.go()
+    assertTrue(s"expected a refusal, got $r", r.existsAlt(_.toString.contains("after go()")))
+    assertTrue(p.toreDown())
+
+  @Test(timeout = 30000)
+  def idleWorkerInterruptEndsRun(): Unit = (Reps / 5).times:
+    val entered = new CountDownLatch(1)
+    val release = new CountDownLatch(1)
+    val p = new Plain(1) {
+      def newWork(): Ask[Work] = { entered.countDown(); release.await(); Is(Work.Empty) }
+    }
+    val result = new AtomicReference[Ask[(NanoDuration, NanoDuration)]]()
+    val t = Thread.ofVirtual().start(() => result.set(p.go()))
+    entered.await()
+    var worker: Thread = null
+    soon("the worker parked"){
+      val it = Thread.getAllStackTraces.keySet.iterator
+      while (worker eq null) && it.hasNext do
+        val c = it.next()
+        if c.getName.startsWith("percolate-worker") && c.getState == Thread.State.WAITING then worker = c
+      worker ne null
+    }
+    worker.interrupt()
+    soon("the worker ended"){ !worker.isAlive }
+    release.countDown()
+    t.join()
+    val r = result.get()
+    assertTrue(s"expected the interruption as the error, got $r", r.existsAlt(_.toString.contains("InterruptedException")))
+    assertTrue(p.toreDown())
+
+  @Test(timeout = 30000)
+  def emergencyCloseWaitsForClose(): Unit = (Reps / 5).times:
+    val closeEntered = new CountDownLatch(1)
+    val closeRelease = new CountDownLatch(1)
+    val closing = Atom(false)
+    val overlapped = Atom(false)
+    val emergencyRan = Atom(false)
+    val hook = new AtomicReference[() => Ask[Unit]]()
+    val p = new Plain(0) {
+      override protected def registerErrorExitItem(f: () => Ask[Unit]): Unit =
+        hook.set(f)
+        super.registerErrorExitItem(f)
+      class R extends Resource("guarded", emergencyClose = Some(() => { emergencyRan := true; overlapped := closing() })) {
+        override protected def close(): Ask[Unit] =
+          closing := true
+          closeEntered.countDown()
+          closeRelease.await()
+          closing := false
+          Is.unit
+        class Job extends On() { def work(): Ask[Array[Work]] = Is(Work.none) }
+      }
+      val r = new R
+      var n = 0
+      def newWork(): Ask[Work] = { n += 1; Is(if n == 1 then new r.Job else Work.Empty) }
+    }
+    val goer = Thread.ofVirtual().start(() => p.go() __ Unit)
+    closeEntered.await()
+    // the hook, invoked as a hard exit would, must wait for the close in progress rather than run beside it
+    val hooker = Thread.ofVirtual().start(() => hook.get()() __ Unit)
+    soon("the hook waited on the guard"){ hooker.getState == Thread.State.TIMED_WAITING || hooker.getState == Thread.State.WAITING }
+    closeRelease.countDown()
+    hooker.join()
+    goer.join()
+    assertFalse("the emergency close ran beside the normal close", overlapped())
+    assertFalse("a cleanly closed resource needs no emergency close", emergencyRan())
+    assertTrue(p.toreDown())
 }

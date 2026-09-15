@@ -235,14 +235,13 @@ final class Chan[A] private (buffer: Array[AnyRef]) extends ChanIn[A], ChanOut[A
     * never appears here — a successful receive *is* the favored branch. */
   def tryRecv(): A Or RunStatus = lock.uninterrupted:
     if count > 0 then
-      val wasFull = count >= buffer.length
       val v = buffer(head)
       buffer(head) = null
       head += 1
       if head >= buffer.length then head = 0
       count -= 1
       if myState == State.Closed && count == 0 then myState = State.Complete
-      if wasFull then wakeSenders()
+      wakeSenders()                     // whenever any are armed: one woken earlier may not have run yet
       Is((if v eq Sentinel then null else v).asInstanceOf[A])
     else myState match
       case State.Open => RunStatus.altWait

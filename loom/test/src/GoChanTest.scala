@@ -465,5 +465,145 @@ class GoChanTest {
     assertTrue(s"expected the cancellation as the error, got $r", r.existsAlt(_.toString == "cancelled"))
 
 
+  // === Robustness: a producer whose channel closes under it, a task spawned after a stop, a Stop() in an
+  //     initializer, an all-skipping batch, failures in defers and escaped breaks, a root Defer under
+  //     cancel, and a stray interrupt ===
+
+  private def soon(what: String)(cond: => Boolean): Unit =
+    val end = System.nanoTime + 5_000_000_000L
+    while !cond && System.nanoTime < end do Thread.sleep(1)
+    assertTrue(s"not in time: $what", cond)
+
+  @Test(timeout = 30000)
+  def closedChannelProducersFinish(): Unit = Reps.times:
+    val c = Chan[Int](1)
+    c.close() __ Unit
+    assertTrue(Go.session { c.put { 1 } }.await().isIs)
+    val cn = ChanN[Int](1)
+    cn.close() __ Unit
+    assertTrue(Go.session { cn.put(2) { i => i } }.await().isIs)
+    assertTrue(Go.session { cn.put() { 1 } }.await().isIs)
+    // a self-stopped transfer holding a value for a destination that closes under it drops the value
+    val dst = Chan[Int](1)
+    assertEquals(RunStatus.Okay, dst.trySend(0))
+    val produced = new CountDownLatch(1)
+    val h = Go.session:
+      Chan.Source(Array(1)).into(dst){ x => Stop(); produced.countDown(); x }
+    produced.await()
+    dst.close() __ Unit
+    assertTrue(h.await().isIs)
+
+  @Test(timeout = 30000)
+  def lateTaskSeesStop(): Unit = Reps.times:
+    val entered = new CountDownLatch(1)
+    val release = new CountDownLatch(1)
+    val empty = Chan[Int](1)
+    val h = Go.session:
+      entered.countDown()
+      release.await()
+      Go { empty.get { _ => () } }                            // spawned after the stop was asked for
+    entered.await()
+    h.stop()
+    release.countDown()
+    assertTrue(h.await().isIs)
+
+  @Test(timeout = 30000)
+  def stopInInitializerHonorsBarrier(): Unit = 20.times:
+    val early = Chan[Int](1)
+    val stopper = new AtomicReference[Thread]()
+    val sent = new AtomicReference[RunStatus]()
+    val got = new AtomicInteger(-1)
+    val proceed = new CountDownLatch(1)
+    val h = Go.session:
+      Go { stopper.set(Thread.currentThread()); early.writing; Stop() }   // has nothing to do, but may not finish yet
+      Go { early.get { v => got.set(v) } }
+      proceed.await()
+      early.writing
+      sent.set(early.send(2))
+    soon("the stopper parked at the barrier"){ val t = stopper.get(); (t ne null) && t.getState == Thread.State.TIMED_WAITING }
+    proceed.countDown()
+    assertTrue(h.await().isIs)
+    assertEquals(RunStatus.Okay, sent.get())
+    assertEquals(2, got.get())
+
+  @Test(timeout = 30000)
+  def allSkippedBatchStopsOnCancel(): Unit = SleepReps.times:
+    val skipping = new CountDownLatch(1)
+    val out = ChanN[Int](2)
+    val h = Go.session:
+      out.put(2) { i => skipping.countDown(); shortcut.skip_?(true); i }
+    skipping.await()
+    h.cancel()
+    val r = h.await()
+    assertTrue(s"expected the cancellation, got $r", r.existsAlt(_.toString == "cancelled"))
+
+  @Test(timeout = 30000)
+  def allSkippedBatchStopsOnStop(): Unit = SleepReps.times:
+    val skipping = new CountDownLatch(1)
+    val out = ChanN[Int](2)
+    val h = Go.session:
+      out.put(2) { i => skipping.countDown(); shortcut.skip_?(true); i }
+    skipping.await()
+    h.stop()
+    assertTrue(h.await().isIs)
+
+  @Test(timeout = 30000)
+  def sparseSkipsStillFillBatches(): Unit = Reps.times:
+    val out = ChanN[Int](8)
+    val seen = new AtomicReference[List[Int]](Nil)
+    val h = Go.session:
+      Go { out.put(4) { i => shortcut.quit_?(i >= 40); shortcut.skip_?(i % 7 != 0); i } }
+      Go { out.get { v => seen.updateAndGet(v :: _) __ Unit } }
+    assertTrue(h.await().isIs)
+    assertEquals(List(0, 7, 14, 21, 28, 35), seen.get().reverse)
+
+  @Test(timeout = 30000)
+  def deferFailureCancelsSiblings(): Unit = Reps.times:
+    val forever = Chan[Int](1)                                // nobody writes it: its reader ends only by cancellation
+    val h = Go.session:
+      Go { Defer { throw new IllegalStateException("defer failure") } }
+      Go { forever.get { _ => () } }
+    val r = h.await()
+    assertTrue(s"expected the defer failure, got $r", r.fold(_ => "")(_.toString).contains("defer failure"))
+
+  @Test(timeout = 30000)
+  def escapedBreakCancelsSiblings(): Unit = Reps.times:
+    val trigger = Chan[Int](1)
+    assertEquals(RunStatus.Okay, trigger.trySend(1))
+    val stuck = Chan[Int](1)
+    val h = Go.session:
+      Go:
+        scala.util.boundary[Unit]:
+          trigger.get { _ => scala.util.boundary.break() }    // to a boundary long gone by the time the handler runs
+      Go { stuck.get { _ => () } }
+    assertTrue(h.await().isAlt)
+
+  @Test(timeout = 30000)
+  def cancelNagsRootDefer(): Unit = 3.times:
+    val ready = new CountDownLatch(1)
+    val input = Chan[Int](1)
+    val h = Go.session:
+      input.get { _ => () }
+      Defer { new CountDownLatch(1).await() }                 // ends only by interruption, so only the nag ends it
+      ready.countDown()
+    ready.await()
+    val t0 = System.nanoTime
+    h.cancel()
+    val r = h.await()
+    assertTrue(s"cancel took ${(System.nanoTime - t0) / 1e6} ms", System.nanoTime - t0 < 5_000_000_000L)
+    assertTrue(s"expected the cancellation as the error, got $r", r.existsAlt(_.toString == "cancelled"))
+
+  @Test(timeout = 30000)
+  def unexpectedInterruptFailsTask(): Unit = SleepReps.times:
+    val t = new AtomicReference[Thread]()
+    val input = Chan[Int](1)
+    val h = Go.session:
+      t.set(Thread.currentThread())
+      input.get { _ => () }
+    soon("the task parked"){ val th = t.get(); (th ne null) && th.getState == Thread.State.TIMED_WAITING }
+    t.get().interrupt()
+    val r = h.await()
+    assertTrue(s"expected an error from the stray interrupt, got $r", r.isAlt)
+
   private def info(s: String): Unit = println(s"[GoChanTest] $s")
 }

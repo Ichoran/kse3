@@ -125,11 +125,15 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
 
   // Must be called while holding `lock`.  Batch-aware wakeup: an insert of k elements can
   // satisfy at most k waiting takers (usually far fewer — one chunked consumer drains many),
-  // so wake at most k instead of broadcasting.  Mirrored for freed space and senders.
+  // so wake at most k instead of broadcasting.  Mirrored for freed space and senders.  Every
+  // receive wakes senders, not only one from a full buffer: a sender woken by an earlier
+  // receive may not have run yet, and the one behind it must not wait out the park cap.
   // Caveat: the scan is positional, so a full-chunk waiter (which re-parks until its chunk
   // assembles) can soak up wakeups that an as-available waiter could have used; the park cap
   // (~20ms) bounds the resulting delay.  Mixing the two modes on one channel under trickle
-  // loads pays that; same-mode mixes do not.
+  // loads pays that; same-mode mixes do not.  A parker we wake is disarmed here, so a later
+  // wake counts past it to the next waiter instead of spending itself on one that has not run
+  // yet; the permit it holds wakes it regardless, and it re-arms before it parks again.
   private def wakeRecvers(k: Int): Unit =
     if recvArmedN() > 0 then
       var togo = k
@@ -137,6 +141,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
       while i < waiters.length && togo > 0 do
         val p = waiters(i)
         if p.armed then
+          p.armed = false
           LockSupport.unpark(p.thread)
           togo -= 1
         i += 1
@@ -147,6 +152,7 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
       while i < sends && togo > 0 do
         val p = waiters(i)
         if p.armed then
+          p.armed = false
           LockSupport.unpark(p.thread)
           togo -= 1
         i += 1
@@ -180,10 +186,9 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
   /** Attempt to dequeue without blocking; a successful receive *is* the favored branch. */
   def tryRecv(): A Or RunStatus = lock.uninterrupted:
     if impl.count > 0 then
-      val wasFull = impl.count >= capacity
       val x = impl.popLeft()
       if myState == State.Closed && impl.count == 0 then myState = State.Complete
-      if wasFull then wakeSenders(1)
+      wakeSenders(1)
       Is((if x eq Sentinel then null else x).asInstanceOf[A])
     else myState match
       case State.Open => RunStatus.altWait
@@ -217,12 +222,11 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
   private inline def recvCore(n: Int, full: Boolean)(inline take: Int => Unit): Int Or RunStatus = lock.uninterrupted:
     val m = impl.count
     if m > 0 && (!full || m >= n || myState != State.Open) then
-      val wasFull = m >= capacity
       var k = n
       if k > m then k = m
       take(k)
       if myState == State.Closed && impl.count == 0 then myState = State.Complete
-      if wasFull then wakeSenders(k)
+      wakeSenders(k)
       Is(k)
     else if m > 0 then RunStatus.altWait     // full-chunk mode: not enough yet, still open
     else myState match
@@ -515,6 +519,10 @@ object ChanN {
           pendingFlag = false
           pending = null.asInstanceOf[A]
           RunStatus.Okay
+        case RunStatus.Done =>                                // closed under us: nobody can take it, so drop it
+          pendingFlag = false
+          pending = null.asInstanceOf[A]
+          RunStatus.Done
         case other => other
   }
 
@@ -522,7 +530,9 @@ object ChanN {
     * (skips omit an element, a quit ends production for good), then delivers the whole batch
     * in as few lock acquisitions as room allows.  An undelivered remainder is pending: it is
     * flushed before the task may stop, and only ever dropped if the channel closes under us
-    * (exactly when Chan drops a pending value). */
+    * (exactly when Chan drops a pending value).  A fill is bounded at `2n` calls of `f`, so a
+    * run of skips hands control back to the loop, where a stop or a cancellation is seen, rather
+    * than spinning inside one step; skipping is progress, so the loop comes straight back. */
   private[loom] final class PutNHandler[A](chan: ChanOutN[A], n: Int,
     f: (Go.CanFail[Unit], boundary.Label[shortcut.Type]) ?=> Int => A
   ) extends Go.Handler {
@@ -542,15 +552,19 @@ object ChanN {
         if !producing || !live then return RunStatus.Done  // stopping or quit: produce nothing new
         sent = 0
         fill = 0
+        var calls = 0
+        var ended = false
         Go.attempt[Unit]{
           shortcut.outer:
-            while fill < n do
+            while fill < n && calls < 2 * n do
+              calls += 1
               shortcut.inner:
                 buf(fill) = f(idx).asInstanceOf[AnyRef]
                 fill += 1
               idx += 1
+            ended = true                                   // only a quit leaves before this
         }.fold{ _ =>
-          if fill < n then live = false                    // only a quit exits the loop short
+          if !ended then live = false
         }{ e =>
           var i = 0
           while i < fill do
@@ -559,7 +573,8 @@ object ChanN {
           fill = 0
           return RunStatus.Fail(e)
         }
-        if fill == 0 then return RunStatus.Done            // quit before producing anything
+        if fill == 0 then
+          return if live then RunStatus.Okay else RunStatus.Done   // all skipped: progress; quit: done
       flush()
     private def flush(): RunStatus =
       chan.trySendRaw(buf, sent, fill).fold{ k =>
@@ -568,7 +583,13 @@ object ChanN {
           buf(sent) = null
           sent += 1
         RunStatus.Okay
-      }(identity)                                          // Wait (no room) / Done / Fail
+      }{ st =>
+        if st == RunStatus.Done then                     // closed under us: nobody can take the rest
+          while sent < fill do
+            buf(sent) = null
+            sent += 1
+        st                                               // Wait (no room) / Done / Fail
+      }
   }
 
   /** Drains `source(x0 until xN)` into the channel, up to `chunk` elements per lock

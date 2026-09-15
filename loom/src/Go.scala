@@ -157,13 +157,16 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       if coord.pendingInit.subAndGet(1) == 0 then coord.releaseInit()
 
       // --- run phase (skipped if we already failed or are being cancelled).  The loop may run
-      //     before the barrier opens; it just can't *finish* until then. ---
-      if errs.isEmpty && (coord.failure() eq null) && !stopRequested then
+      //     before the barrier opens; it just can't *finish* until then.  A stop already requested
+      //     goes through the loop too: it flushes nothing, but it waits for the barrier like any
+      //     finish, so a `Stop()` in an initializer cannot close a channel a sibling is yet to
+      //     register on. ---
+      if errs.isEmpty && (coord.failure() eq null) then
         runLoop()
     catch
       case e: InterruptedException => interrupted(e)
-      case e if e.threadCatchable =>        // a break that escaped the loop is stranded here — package it
-        if errs.isEmpty then errs = Err(e) :: errs
+      case e if e.threadCatchable =>        // a break that escaped the loop is stranded here — it is a
+        if errs.isEmpty then fail(Err(e))   // failure of this task like any other, so the tree comes down
     finally
       cleanup()
 
@@ -182,7 +185,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   /** Are we still producing/consuming new work, or stopping (explicit stop, or a Stop.on
     * condition has fired)?  When not producing, handlers only flush what they already hold. */
   private def producing(): Boolean =
-    if stopRequested then false
+    if stopRequested || coord.stopping then false
     else if stopConds eq null then true
     else
       var k = 0
@@ -198,39 +201,42 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     var i = 0
     while i < hs.length do { hs(i).register(p); i += 1 }
 
-    var running = true
-    while running do
-      if (coord.failure() ne null) || Thread.currentThread().isInterrupted then
-        running = false
-      else
-        tryExecuteOne(producing()) match
-          case RunStatus.Okay    => ()                                    // made progress; keep going
-          case RunStatus.Fail(e) => fail(e); running = false
-          case _ =>                                                    // idle: nothing ready this scan
-            // Arm *before* the re-scan, so a producer/consumer that fires now sees us armed.
-            arm(p)
-            if coord.failure() ne null then
+    var armed = false
+    try
+      var running = true
+      while running do
+        if coord.failure() ne null then running = false
+        else if Thread.currentThread().isInterrupted then
+          // an interrupt with no cancellation on record is nobody's doing that we know of: a failure
+          // of this task, not a quiet success
+          interrupted(new InterruptedException("task interrupted"))
+          running = false
+        else
+          tryExecuteOne(producing()) match
+            case RunStatus.Okay    => ()                                    // made progress; keep going
+            case RunStatus.Fail(e) => fail(e); running = false
+            case _ =>                                                    // idle: nothing ready this scan
+              // Arm *before* the re-scan, so a producer/consumer that fires now sees us armed.
+              arm(p)
+              armed = true
+              if coord.failure() ne null then running = false
+              else
+                val prod = producing()
+                tryExecuteOne(prod) match
+                  case RunStatus.Okay    => ()
+                  case RunStatus.Fail(e) => fail(e); running = false
+                  case _ =>
+                    // We may only *finish* once every initializer in the tree has run.
+                    if coord.initGate.isDone && finished(prod) then running = false
+                    else LockSupport.parkNanos(Chan.parkCapNanos)
               disarm(p)
-              running = false
-            else
-              val prod = producing()
-              tryExecuteOne(prod) match
-                case RunStatus.Okay =>
-                  disarm(p)
-                case RunStatus.Fail(e) =>
-                  disarm(p)
-                  fail(e)
-                  running = false
-                case _ =>
-                  // We may only *finish* once every initializer in the tree has run.
-                  if coord.initGate.isDone && finished(prod) then
-                    disarm(p)
-                    running = false
-                  else
-                    LockSupport.parkNanos(Chan.parkCapNanos)
-                    disarm(p)
-    i = 0
-    while i < hs.length do { hs(i).unregister(p); i += 1 }
+              armed = false
+    finally
+      // however the loop ended, an escaping exception included, nothing of ours stays armed or
+      // registered on a channel: a dead waiter would soak up wakeups meant for the living
+      if armed then disarm(p)
+      i = 0
+      while i < hs.length do { hs(i).unregister(p); i += 1 }
 
   /** Idle with nothing to do: are we actually done?  While producing, done means no handler
     * can ever fire again.  While self-stopping (one of our own `Stop.on`/`Stop()` fired) peers
@@ -284,6 +290,17 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
       k += 1
     false
 
+  /** A thread that re-interrupts this one every nag period until it is itself interrupted (see `Join`). */
+  private def selfNag(): Thread =
+    val me = Thread.currentThread()
+    Thread.ofVirtual().start(() =>
+      try
+        while true do
+          Thread.sleep(java.time.Duration.ofNanos(Join.nagNanos))
+          me.interrupt()
+      catch case _: InterruptedException => ()
+    )
+
   private def cleanup(): Unit =
     val unwind = new Unwind
     try
@@ -302,15 +319,21 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
         j += 1
 
       // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure), each in
-      //    isolation (see `Unwind`): a throwing defer adds its error to the bundle and the rest still
-      //    run, a stray control-flow break from a defer body is captured too, and one cut by an
-      //    interrupt cuts only itself.  An interruption under cancellation is the cancellation, already
-      //    on record; any other is a failure like the rest.
-      while deferred.nonEmpty do
-        val f = deferred.head
-        deferred = deferred.tail
-        val t = unwind(f(coord.failure().fn(e => if e eq null then errs else e.asInstanceOf[Alt[Err]].alt :: errs)))
-        if (t ne null) && !(t.isInstanceOf[InterruptedException] && (coord.failure() ne null)) then errs = Err(t) :: errs
+      //    isolation (see `Unwind`): a throwing defer adds its error to the bundle and cancels the
+      //    tree, as a failure anywhere does, and the rest still run; a stray control-flow break from
+      //    a defer body is captured too, and one cut by an interrupt cuts only itself.  An
+      //    interruption under cancellation is the cancellation, already on record; any other is a
+      //    failure like the rest.  A child blocked in a defer is nagged by its parent's join above;
+      //    the root has no parent, so under cancellation it nags itself for as long as its defers run.
+      val nag: Thread = if (parent eq null) && (coord.failure() ne null) && deferred.nonEmpty then selfNag() else null
+      try
+        while deferred.nonEmpty do
+          val f = deferred.head
+          deferred = deferred.tail
+          val t = unwind(f(coord.failure().fn(e => if e eq null then errs else e.asInstanceOf[Alt[Err]].alt :: errs)))
+          if (t ne null) && !(t.isInstanceOf[InterruptedException] && (coord.failure() ne null)) then fail(Err(t))
+      finally
+        if nag ne null then nag.interrupt()
     catch
       // Steps 1-2 aren't expected to throw, but if a bug ever makes them, capture it rather than
       // letting it unwind past the result publication below (which would hang every `await()`).
@@ -376,7 +399,11 @@ object Go {
     @volatile var stopping = false                     // true once a tree-wide stop/cancel began
     private val gos = new ConcurrentLinkedQueue[Go]()
 
-    def register(go: Go): Unit = gos.add(go) __ Unit
+    /** A scope joins the tree.  One arriving after a stop has been asked for is asked too: `stopAll`
+      * only reaches the scopes registered when it ran, and an initializer may spawn later. */
+    def register(go: Go): Unit =
+      gos.add(go) __ Unit
+      if stopping then go.requestStop()
 
     /** Every initializer has run: open the barrier and nudge anyone parked waiting to finish. */
     def releaseInit(): Unit =
@@ -440,13 +467,18 @@ object Go {
     final def hasPending: Boolean = pendingFlag
 
     /** Deliver the buffered value to `out`, clearing it on success; a full channel (`Wait`) keeps
-      * it for the next round, and a terminal status passes straight through. */
+      * it for the next round, a closed one (`Done`) drops it — nobody can ever take it, and a
+      * value held forever would hold the task forever — and a failure passes straight through. */
     protected final def flush(): RunStatus =
       out.trySend(pending) match
         case RunStatus.Okay =>
           pendingFlag = false
           pending = null.asInstanceOf[B]
           RunStatus.Okay
+        case RunStatus.Done =>
+          pendingFlag = false
+          pending = null.asInstanceOf[B]
+          RunStatus.Done
         case other => other
   }
 
