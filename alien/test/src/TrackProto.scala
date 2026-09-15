@@ -162,3 +162,26 @@ object Track extends Pb.Companion[Track] {
     Track(id, pts.result, tags, score, hops.result, extra, meta, stamp, payload, wave, unknown.reverse)
 }
 
+/** One walk over a message tree: every repeated field, map and length-delimited scalar reaches the visitor,
+  * keyed by the owning message's path and the field's name as written in the .proto file, so a bound that
+  * must cover every field is one visitor rather than a list.  Messages from other files go through their
+  * own file's walker. */
+object TrackProtoWalk {
+  def walk(m: Pt)(v: Pb.Visit): Unit = ()
+  def walk(m: Track)(v: Pb.Visit): Unit =
+    v.bytes("Track", "id", m.id.length)
+    v.repeated("Track", "pts", m.pts.length)
+    m.pts.foreach(x => walk(x)(v))
+    v.repeated("Track", "tags", m.tags.size)
+    v.repeated("Track", "hops", m.hops.length)
+    m.meta.fold(x => walk(x)(v))(_ => ())
+    v.bytes("Track", "payload", m.payload.length)
+    v.repeated("Track", "wave", m.wave.length)
+    m.extra match
+      case Track.Extra.Note(x) => v.bytes("Track", "note", x.length)
+      case Track.Extra.Anchor(x) => walk(x)(v)
+      case _ => ()
+  def walk(m: Track.Meta)(v: Pb.Visit): Unit =
+    v.bytes("Track.Meta", "blob", m.blob.length)
+}
+

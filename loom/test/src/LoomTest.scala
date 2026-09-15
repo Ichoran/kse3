@@ -37,6 +37,34 @@ class LoomTest {
 
 
   @Test
+  def syncWaitTest(): Unit =
+    import kse.maths.{given, _}
+    val lock = Sync()
+    val w = lock.waiter()
+    @volatile var ready = false
+    def signalSoon(): Thread =
+      val t = new Thread(() => { Thread.sleep(30); lock.uninterrupted { ready = true; w.!!! } })
+      t.start()
+      t
+    // a Duration past what nanoseconds can hold is why the clamp exists: the raw conversion throws
+    T ~ safe(1e8.days.duration.toNanos).isAlt ==== true
+    // and the wait is bounded by the longest bound nanoseconds can say, never an untimed wait
+    val t1 = signalSoon()
+    lock { while !ready do w(1e8.days.duration) __ Unit }
+    T ~ ready ==== true
+    t1.join()
+    ready = false
+    val t2 = signalSoon()
+    lock { while !ready do w(NanoDuration.MaxValue) __ Unit }
+    T ~ ready ==== true
+    t2.join()
+    ready = false
+    val t3 = signalSoon()
+    lock { while !ready do w(Double.PositiveInfinity.days.duration) __ Unit }
+    T ~ ready ==== true
+    t3.join()
+
+  @Test
   def loomTest(): Unit =
     import java.util.concurrent.atomic.{AtomicLong, AtomicInteger}
     import java.util.concurrent.{CountDownLatch, TimeUnit}

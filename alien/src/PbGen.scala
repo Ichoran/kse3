@@ -52,6 +52,13 @@ import kse.flow.{given, _}
   * behavior a future fixed-layout `Mem.Struct`/`Mem.AoS` target will have by nature).
   * Writers emit in ascending field-number order.  Services generate nothing yet — the
   * schema keeps their descriptions for a future transport layer.
+  *
+  * `Config(walker = true)` adds, to each file, an `object <FileName>Walk` whose `walk(m)(v)`
+  * overloads take a `Pb.Visit` over every repeated field (count; maps and views included) and
+  * every `bytes`/`string` field (length) of a message tree, keyed by the owning message's
+  * path and the proto field name — nested messages, oneof arms and other files' messages
+  * reached through their own walkers.  A size or count bound that must cover every field
+  * is then one visitor, regenerated with the schema, rather than a list kept by hand.
   */
 object PbGen {
 
@@ -60,7 +67,7 @@ object PbGen {
     * re-emit unknown fields (they do unless told otherwise).
     */
   final case class Config(pkgOf: String => String = p => p, header: String = "", retainUnknown: Boolean = true,
-                          viewFields: Set[String] = Set.empty)
+                          viewFields: Set[String] = Set.empty, walker: Boolean = false)
 
   /** Generate one Scala source per file in the schema, as (suggested filename, content). */
   def generate(schema: Proto.Schema, config: Config = Config()): Ask[List[(String, String)]] =
@@ -692,6 +699,79 @@ object PbGen {
       line(indent, "}")
       blank()
 
+    // --- the walker: one visitor over every repeated, map, view and length-delimited field ---
+
+    private def walkObjectName(protoName: String): String = scalaFileName(protoName).dropRight(6) + "Walk"
+
+    private def lengthy(s: Proto.Scalar): Boolean = s == Proto.Scalar.Str || s == Proto.Scalar.Bytes
+
+    /** How a message of `fqn` is walked from here: locally, or through its own file's walker. */
+    private def walkCallOf(fqn: String, x: String): String = schema.syms.get(fqn) match
+      case Some(Proto.Sym.M(_, f)) if f eq file => s"walk($x)(v)"
+      case Some(Proto.Sym.M(_, f)) =>
+        val p = config.pkgOf(f.pkg)
+        val obj = walkObjectName(f.name)
+        (if p.isEmpty then obj else "_root_." + p.split('.').map(sident).mkString(".") + "." + obj) + s".walk($x)(v)"
+      case _ => Pb.fail(s"internal: unresolved '$fqn' survived linking")
+
+    private def genWalk(m: Proto.Message, indent: Int): Unit =
+      val owner = "\"" + m.path + "\""
+      def nm(f: Proto.Field) = "\"" + f.name + "\""
+      val body = List.newBuilder[String]
+      m.fields.filter(_.oneof < 0).foreach: f =>
+        val x = "m." + fieldScalaName(f)
+        if isView(m, f) then
+          if f.label == Proto.Label.Rep then body += s"v.repeated($owner, ${nm(f)}, $x.length)"
+          else body += s"v.bytes($owner, ${nm(f)}, $x.length)"
+        else f.tpe match
+          case Proto.PType.Prim(s) if lengthy(s) => f.label match
+            case Proto.Label.Rep =>
+              body += s"v.repeated($owner, ${nm(f)}, $x.length)"
+              body += s"$x.foreach(x => v.bytes($owner, ${nm(f)}, x.length))"
+            case Proto.Label.Opt => body += s"$x.fold(x => v.bytes($owner, ${nm(f)}, x.length))(_ => ())"
+            case Proto.Label.Singular => body += s"v.bytes($owner, ${nm(f)}, $x.length)"
+          case Proto.PType.Prim(_) | Proto.PType.EnumT(_) =>
+            if f.label == Proto.Label.Rep then body += s"v.repeated($owner, ${nm(f)}, $x.length)"
+          case Proto.PType.MsgT(fqn) =>
+            if f.label == Proto.Label.Rep then
+              body += s"v.repeated($owner, ${nm(f)}, $x.length)"
+              body += s"$x.foreach(x => ${walkCallOf(fqn, "x")})"
+            else body += s"$x.fold(x => ${walkCallOf(fqn, "x")})(_ => ())"
+          case Proto.PType.MapOf(_, vt) =>
+            body += s"v.repeated($owner, ${nm(f)}, $x.size)"
+            vt match
+              case Proto.PType.MsgT(fqn) => body += s"$x.values.foreach(x => ${walkCallOf(fqn, "x")})"
+              case Proto.PType.Prim(s) if lengthy(s) => body += s"$x.values.foreach(x => v.bytes($owner, ${nm(f)}, x.length))"
+              case _ => ()
+          case Proto.PType.Named(ref, _) => Pb.fail(s"internal: unresolved reference '$ref' survived linking")
+      m.oneofs.zipWithIndex.foreach: (o, oidx) =>
+        val ot = s"${m.path}.${oneofTypeName(o)}"
+        val arms = oneofCases(m, oidx).flatMap: (f, cname) =>
+          f.tpe match
+            case Proto.PType.MsgT(fqn) => List(s"case $ot.$cname(x) => ${walkCallOf(fqn, "x")}")
+            case Proto.PType.Prim(s) if lengthy(s) => List(s"case $ot.$cname(x) => v.bytes($owner, ${nm(f)}, x.length)")
+            case _ => Nil
+        if arms.nonEmpty then
+          body += s"m.${sident(camel(o.name))} match"
+          arms.foreach(a => body += "  " + a)
+          body += "  case _ => ()"
+      val lines = body.result()
+      if lines.isEmpty then line(indent, s"def walk(m: ${m.path})(v: Pb.Visit): Unit = ()")
+      else
+        line(indent, s"def walk(m: ${m.path})(v: Pb.Visit): Unit =")
+        lines.foreach(l => line(indent + 1, l))
+      m.nested.foreach(genWalk(_, indent))
+
+    private def genWalker(): Unit =
+      line(0, "/** One walk over a message tree: every repeated field, map and length-delimited scalar reaches the visitor,")
+      line(0, "  * keyed by the owning message's path and the field's name as written in the .proto file, so a bound that")
+      line(0, "  * must cover every field is one visitor rather than a list.  Messages from other files go through their")
+      line(0, "  * own file's walker. */")
+      line(0, s"object ${walkObjectName(file.name)} {")
+      file.messages.foreach(m => genWalk(m, 1))
+      line(0, "}")
+      blank()
+
     def result: (String, String) =
       line(0, s"// Generated by kse.alien.PbGen from ${file.name} -- DO NOT EDIT.")
       if config.header.nonEmpty then line(0, config.header)
@@ -708,6 +788,7 @@ object PbGen {
       blank()
       file.enums.foreach(e => genEnum(e, 0))
       file.messages.foreach(m => genMessage(m, 0))
+      if config.walker then genWalker()
       (scalaFileName(file.name), sb.toString)
   }
 }

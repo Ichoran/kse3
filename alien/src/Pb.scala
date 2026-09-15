@@ -228,6 +228,9 @@ object Pb {
   object OptInt {
     inline def apply(v: Int): OptInt = v.toLong
     val unit: OptInt = AbsentL
+    inline def from(o: Option[Int]): OptInt = o match
+      case Some(v) => apply(v)
+      case None => unit
     extension (x: OptInt)
       inline def isIs: Boolean = x != AbsentL
       inline def isAlt: Boolean = x == AbsentL
@@ -242,6 +245,9 @@ object Pb {
   object OptUInt {
     inline def apply(v: UInt): OptUInt = v.signed & 0xFFFFFFFFL
     val unit: OptUInt = AbsentL
+    inline def from(o: Option[UInt]): OptUInt = o match
+      case Some(v) => apply(v)
+      case None => unit
     extension (x: OptUInt)
       inline def isIs: Boolean = x != AbsentL
       inline def isAlt: Boolean = x == AbsentL
@@ -256,6 +262,9 @@ object Pb {
   object OptFloat {
     inline def apply(v: Float): OptFloat = v.bitsI.toLong & 0xFFFFFFFFL
     val unit: OptFloat = AbsentL
+    inline def from(o: Option[Float]): OptFloat = o match
+      case Some(v) => apply(v)
+      case None => unit
     extension (x: OptFloat)
       inline def isIs: Boolean = x != AbsentL
       inline def isAlt: Boolean = x == AbsentL
@@ -270,6 +279,9 @@ object Pb {
   object OptBool {
     inline def apply(v: Boolean): OptBool = if v then 1 else 0
     val unit: OptBool = AbsentI
+    inline def from(o: Option[Boolean]): OptBool = o match
+      case Some(v) => apply(v)
+      case None => unit
     extension (x: OptBool)
       inline def isIs: Boolean = x != AbsentI
       inline def isAlt: Boolean = x == AbsentI
@@ -345,6 +357,16 @@ object Pb {
     * how many bytes that takes.  `Out.msg` uses `sizeOf` for the length prefix and then
     * writes the body straight into the enclosing sink, so nesting never stages a buffer.
     */
+  /** What a generated walker reports (`PbGen.Config(walker = true)`): every repeated field's count -- maps and
+    * views included -- and every `bytes` or `string` field's length, keyed by the owning message's path and the
+    * field's name as written in the .proto file.  Lengths are `Long` because a view's are.  One visitor over a
+    * message tree is how a bound that must cover every field stays true as the schema grows.
+    */
+  trait Visit {
+    def repeated(owner: String, field: String, count: Long): Unit
+    def bytes(owner: String, field: String, length: Long): Unit
+  }
+
   trait Writable {
     private var sizeMemo: Int = -1
 

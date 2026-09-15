@@ -220,4 +220,6 @@ object Sync:
       inline def ! : Unit = (wait: Condition).signal()
       inline def !!! : Unit = (wait: Condition).signalAll()
       inline def apply(nd: NanoDuration)(using sync: S): Boolean = (wait: Condition).await(nd.unwrap, TimeUnit.NANOSECONDS)
-      inline def apply(d: Duration)(using sync: S): Boolean = (wait: Condition).await(d.toNanos, TimeUnit.NANOSECONDS)
+      /** A `Duration` beyond what nanoseconds can hold waits the longest they can, rather than overflowing:
+        * `1e9.days.duration` is an explicit very long wait, which is what it should be. */
+      inline def apply(d: Duration)(using sync: S): Boolean = (wait: Condition).await(d.nano.unwrap, TimeUnit.NANOSECONDS)

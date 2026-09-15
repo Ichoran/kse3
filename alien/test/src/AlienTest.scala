@@ -65,7 +65,7 @@ object TestProtos {
     |""".stripMargin
 
   /** The config the checked-in TrackProto.scala was generated with. */
-  val trackConfig = kse.alien.PbGen.Config(pkgOf = _ => "kse.test.alien.track")
+  val trackConfig = kse.alien.PbGen.Config(pkgOf = _ => "kse.test.alien.track", walker = true)
 }
 
 
@@ -600,10 +600,43 @@ class AlienTest {
     T ~ src.contains("def readFrom(in: Pb.In, prior: Track): Track") ==== true   // spec merge semantics
     T ~ src.contains("payload: Mem[Byte] = Mem of Array.empty[Byte]") ==== true  // Mem type = zero-copy view
     T ~ src.contains("def owned: Track") ==== true                               // the view-severing copy
+    T ~ src.contains("object TrackProtoWalk {") ==== true                        // Config(walker = true)
+    T ~ src.contains("def walk(m: Track.Meta)(v: Pb.Visit): Unit =") ==== true  // nested messages walked too
     // if the checked-in generated file is reachable from here, it matches regeneration exactly
     val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
     if java.nio.file.Files.exists(p) then
       T ~ java.nio.file.Files.readString(p) ==== src
+
+  @Test
+  def pbGenWalkTest(): Unit =
+    import kse.test.alien.track.{Mood, Pt, Track, TrackProtoWalk}
+    val t = Track(
+      id = "t1", pts = Array(Pt(1.5, -2.5), Pt(0.0, 3.0)), tags = Map("a" -> -1L, "b" -> 700L), hops = Array(3, -4, 5),
+      extra = Track.Extra.Note("hello"), meta = Is(Track.Meta(Mood.GRUMPY, Array[Byte](1, 2, 3))),
+      payload = Mem of Array[Byte](9, 9, 9, 9), wave = Mem of Array(1.0, 2.0)
+    )
+    val seen = scala.collection.mutable.ArrayBuffer.empty[(String, String, Long)]
+    TrackProtoWalk.walk(t)(new Pb.Visit {
+      def repeated(owner: String, field: String, count: Long): Unit = seen += ((owner, "#" + field, count))
+      def bytes(owner: String, field: String, length: Long): Unit = seen += ((owner, field, length))
+    })
+    // declaration order, oneofs after the plain fields, the view fields by their Mem lengths, the nested message by its path
+    T ~ seen.toList ==== List(
+      ("Track", "id", 2L), ("Track", "#pts", 2L), ("Track", "#tags", 2L), ("Track", "#hops", 3L),
+      ("Track.Meta", "blob", 3L), ("Track", "payload", 4L), ("Track", "#wave", 2L), ("Track", "note", 5L)
+    )
+    // an all-defaults message still names its empty repeated and scalar fields, so a bound can see zero
+    val zeros = scala.collection.mutable.ArrayBuffer.empty[String]
+    TrackProtoWalk.walk(Track())(new Pb.Visit {
+      def repeated(owner: String, field: String, count: Long): Unit = { zeros += field; T ~ count ==== 0L }
+      def bytes(owner: String, field: String, length: Long): Unit = { zeros += field; T ~ length ==== 0L }
+    })
+    T ~ zeros.toList ==== List("id", "pts", "tags", "hops", "payload", "wave")
+    // the boxless optional carriers can be built from an Option
+    T ~ Pb.OptInt.from(Some(3)) ==== Pb.OptInt(3)
+    T ~ Pb.OptInt.from(None) ==== Pb.OptInt.unit
+    T ~ Pb.OptBool.from(Some(false)) ==== Pb.OptBool(false)
+    T ~ Pb.OptFloat.from(None) ==== Pb.OptFloat.unit
 
   @Test
   def pbGenRoundTripTest(): Unit =
