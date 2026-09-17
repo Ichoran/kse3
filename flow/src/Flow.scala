@@ -320,21 +320,21 @@ object escape {
       f
       (): escape.Token
 
-  opaque type Test = Boolean
-  object Test {
-    extension (p: Test)
-      inline def ?(using Label[escape.Token]): Unit =
-        if p then boundary.break(Token())
-  }
-  
-  /** Exit early if test condition is true */
-  inline def when(test: Boolean)(using Label[escape.Token]): Test = test
+  /** Leaves the enclosing `escape` block if the condition holds.  A literal `true` always leaves
+    * (nothing else is evaluated); a literal `false` compiles to nothing.
+    */
+  inline def when_?(inline test: Boolean)(using Label[escape.Token]): Unit = inline test match
+    case true  => boundary.break(Token())
+    case false => ()
+    case _     => if test then boundary.break(Token())
 
-  /** Exit early if test condition is false */
-  inline def unless(test: Boolean)(using Label[escape.Token]): Test = !test
-
-  /** Exit early immediately */
-  inline def break()(using Label[escape.Token]): Nothing = boundary.break(Token())
+  /** Leaves the enclosing `escape` block if the condition fails.  A literal `false` always leaves
+    * (nothing else is evaluated); a literal `true` compiles to nothing.
+    */
+  inline def unless_?(inline test: Boolean)(using Label[escape.Token]): Unit = inline test match
+    case true  => ()
+    case false => boundary.break(Token())
+    case _     => if !test then boundary.break(Token())
 }
 
 
@@ -360,19 +360,21 @@ object loop {
       escape.Token()
     }: Unit
 
-  inline def break()(using Label[escape.Token]): Nothing =
-    boundary.break(escape.Token())
+  /** Ends the loop if the condition holds.  A literal `true` always ends it (nothing else is
+    * evaluated); a literal `false` compiles to nothing.
+    */
+  inline def stop_?(inline p: Boolean)(using Label[escape.Token]): Unit = inline p match
+    case true  => boundary.break(escape.Token())
+    case false => ()
+    case _     => if p then boundary.break(escape.Token())
 
-  opaque type Test = Boolean
-  object Test {
-    extension (p: Test)
-      inline def ?(using Label[escape.Token]): Unit =
-        if p then boundary.break(escape.Token())
-  }
-
-  inline def stop(p: Boolean): Test = p
-
-  inline def proceed(p: Boolean): Test = !p
+  /** Ends the loop if the condition fails.  A literal `false` always ends it (nothing else is
+    * evaluated); a literal `true` compiles to nothing.
+    */
+  inline def proceed_?(inline p: Boolean)(using Label[escape.Token]): Unit = inline p match
+    case true  => ()
+    case false => boundary.break(escape.Token())
+    case _     => if !p then boundary.break(escape.Token())
 }
 
 

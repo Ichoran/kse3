@@ -657,7 +657,7 @@ object Xsv {
     var n = -1
     escape:
       cell.visit(){ (c, i) =>
-        escape.unless(c != '\r' && c != '\n' && c != '"' && c != separator).?
+        escape.unless_?(c != '\r' && c != '\n' && c != '"' && c != separator)
         n = i
       }
     if n == cell.length-1 then sb += cell
@@ -666,7 +666,7 @@ object Xsv {
       var m = 0
       escape:
         cell.visit(n+1 to End){ (c, i) =>
-          escape.unless(c != '"').?
+          escape.unless_?(c != '"')
           n = i
         }
       while n != cell.length-1 do
@@ -677,7 +677,7 @@ object Xsv {
           n = m
           escape:
             cell.visit(n to End){ (c, i) =>
-              escape.unless(c != '"').?
+              escape.unless_?(c != '"')
               n = i
             }
         else n = cell.length -1

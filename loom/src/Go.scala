@@ -15,8 +15,8 @@ import kse.flow._
 
 /** A persistent structured-concurrency scope running on a virtual thread.
   *
-  * `Go.session { ... }` opens a coordination scope and returns a handle.  Inside it you spawn
-  * tasks with `Go { ... }` (the managing session is the contextual receiver), wire channels
+  * `Go.session:` opens a coordination scope and returns a handle.  Inside it you spawn
+  * tasks with `Go:` (the managing session is the contextual receiver), wire channels
   * together, and let the scope tear itself down when the work is finished.
   *
   * The block you pass to a task runs **once** as an initializer: it registers the channel
@@ -93,7 +93,7 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
   /** Spawn a child task managed by *this* scope.  The child runs to completion and is joined
     * when this scope finishes, so its errors propagate here and channels it writes to
-    * auto-close as part of the cascade.  Usually written `Go { ... }` (this scope is the
+    * auto-close as part of the cascade.  Usually written `Go:` with the body indented (this scope is the
     * contextual manager).  Spawn from an initializer. */
   def go(body: Go ?=> Unit): Unit =
     val child = new Go(this, coord)
@@ -363,13 +363,13 @@ object Go {
     catch case t if t.catchable => Alt(Err(t))
 
   /** Open a coordination scope and return a handle you can `await()`.  Spawn tasks inside it
-    * with `Go { ... }` (this session is their contextual manager). */
+    * with `Go:` (this session is their contextual manager). */
   def session(body: Go ?=> Unit): Go =
     val go = new Go(null, null)
     go.launch(body)
     go
 
-  /** Spawn a task in the enclosing session.  Written `Go { ... }`; the managing session is the
+  /** Spawn a task in the enclosing session.  Written `Go:` with the body indented; the managing session is the
     * contextual `Go`, so this only compiles inside a `Go.session` (or another task). */
   def apply(body: Go ?=> Unit)(using parent: Go): Unit =
     parent.go(body)
@@ -379,7 +379,7 @@ object Go {
     * error instead of an attempt to launch millions of threads. */
   final val MaxDuplication = 16384
 
-  /** Spawn `n` identical tasks in the enclosing session — `Go.x(n){ ... }` is `Go { ... }` run
+  /** Spawn `n` identical tasks in the enclosing session — `Go.x(n):` is `Go:` run
     * `n` times.  Each copy is its own scope on its own virtual thread, so a pool of `n` workers
     * all draining the same channel is just `Go.x(n){ ch.get{ ... } }`.  `n <= 0` spawns none;
     * `n > MaxDuplication` is refused as almost certainly a mistake. */

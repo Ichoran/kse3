@@ -28,8 +28,8 @@ class GeomTest() {
   def testVectors(): Unit =
     given Approximation[Double] = Approximation.OfDouble(1e-12, 1e-6, 1e-12)
 
-    val v = 1.2 ~> 3.1
-    val u = -1.5 ~> 0.7
+    val v = Vec2D(1.2, 3.1)
+    val u = Vec2D(-1.5, 0.7)
     T ~ v                            ==== Vec2D(1.2, 3.1)      --: typed[Vec2D]
     T ~ (v === Vec2D(1.2, 3.1))      ==== true
     T ~ Vec2D.zero.isZero            ==== true
@@ -108,8 +108,8 @@ class GeomTest() {
     T ~ v.toVc                       ==== Vc.F(1.2f, 3.1f)
     T ~ Vc.F(1.2f, 3.1f).toVec2D     ==== Vec2D(1.2f, 3.1f)
 
-    val w = 1.2 ~> 3.1 ~> -0.6
-    val t = -1.5 ~> 0.7 ~> 2.2
+    val w = Vec3D(1.2, 3.1, -0.6)
+    val t = Vec3D(-1.5, 0.7, 2.2)
     T ~ w                            ==== Vec3D(1.2, 3.1, -0.6) --: typed[Vec3D]
     T ~ (w === Vec3D(1.2, 3.1, -0.6))==== true
     T ~ Vec3D.zero.isZero            ==== true
@@ -173,7 +173,7 @@ class GeomTest() {
     T ~ w.angle(-1.5, 0.7, 2.2)      =~~= 1.6731266621210677
     T ~ (w angle t)                  ==== w.angle(-1.5, 0.7, 2.2)
     T ~ (t angle w)                  ==== (w angle t)
-    val ax = 0.3 ~> -1.0 ~> 0.2
+    val ax = Vec3D(0.3, -1.0, 0.2)
     T ~ w.rotate(ax, 0.83).x         =~~= 0.54910291738796916
     T ~ w.rotate(ax, 0.83).y         =~~= 3.2065544007635481
     T ~ w.rotate(ax, 0.83).z         =~~= 0.90911762773578661
@@ -187,8 +187,8 @@ class GeomTest() {
     T ~ w.yz                         ==== Vec2D(3.1, -0.6)
     T ~ w.toVec3F                    ==== Vec3F(1.2f, 3.1f, -0.6f)
 
-    val w3 = 1.2f ~> 3.1f ~> -0.6f
-    val t3 = 1.5f.unary_- ~> 0.7f ~> 2.2f
+    val w3 = Vec3F(1.2f, 3.1f, -0.6f)
+    val t3 = Vec3F(-1.5f, 0.7f, 2.2f)
     val w3d = w3.toVec3D
     val t3d = t3.toVec3D
     T ~ w3                           ==== Vec3F(1.2f, 3.1f, -0.6f) --: typed[Vec3F]
@@ -239,7 +239,7 @@ class GeomTest() {
     T ~ (w3 dist t3)                 =~~= (w3d dist t3d).toFloat
     T ~ (w3 angle t3).f32            =~~= (w3d angle t3d).f32
     T ~ (t3 angle w3)                ==== (w3 angle t3)
-    val ax3 = 0.3f ~> -1f ~> 0.2f
+    val ax3 = Vec3F(0.3f, -1f, 0.2f)
     T ~ w3.rotate(ax3, 0.83f).x      =~~= w3d.rotate(ax3.toVec3D, 0.83f).x.toFloat
     T ~ w3.rotate(ax3, 0.83f).y      =~~= w3d.rotate(ax3.toVec3D, 0.83f).y.toFloat
     T ~ w3.rotate(ax3, 0.83f).z      =~~= w3d.rotate(ax3.toVec3D, 0.83f).z.toFloat
@@ -250,7 +250,7 @@ class GeomTest() {
     T ~ w3.xz                        ==== Vc.F(1.2f, -0.6f)
     T ~ w3.yz                        ==== Vc.F(3.1f, -0.6f)
     T ~ w3.toVec3D.toVec3F           ==== w3
-    T ~ (Vc.F(1.2f, 3.1f) ~> -0.6f)  ==== w3
+    T ~ Vec3F(1.2f, 3.1f, -0.6f)      ==== w3
 
   def testMatD(): Unit =
     given Approximation[Double] = Approximation.OfDouble(1e-12, 1e-6, 1e-12)

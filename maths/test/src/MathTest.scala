@@ -51,7 +51,7 @@ class MathTest {
   def randomTestWith(rng: Prng, name: String): Unit =
     T(name) ~ rng.isClean ==== true
     var r2 = rng.copy
-    nFor(10){ n => T(s"$name iter $n") ~ rng.Z ==== r2.Z }
+    10.visit{ n => T(s"$name iter $n") ~ rng.Z ==== r2.Z }
     T(name) ~ rng.isClean ==== r2.isClean
     T(name) ~ rng.isClean ==== false
     T(name) ~ rng.B ==== r2.B
@@ -61,12 +61,12 @@ class MathTest {
     T(name) ~ rng.F ==== r2.F
     T(name) ~ rng.L ==== r2.L
     T(name) ~ rng.D ==== r2.D
-    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.D;  0 <= a && a <= 1 } ==== true }
-    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.W; -1 <= a && a <= 1 } ==== true }
-    nFor(1000){ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.uniform(-1e-322, 1e-323); -1e-322 <= a && a <= 1e-323 } ==== true }
+    1000.visit{ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.D;  0 <= a && a <= 1 } ==== true }
+    1000.visit{ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.W; -1 <= a && a <= 1 } ==== true }
+    1000.visit{ n => val title = s"$name iter $n"; T(title) ~ { val a = rng.uniform(-1e-322, 1e-323); -1e-322 <= a && a <= 1e-323 } ==== true }
     var hit0 = false
     var hit42 = false
-    nFor(1000){ n =>
+    1000.visit{ n =>
       val title = s"$name iter $n"
       T(title) ~ { val a = rng % 43L; if a == 0 then hit0 = true; if a == 42 then hit42 = true; 0 <= a && a <= 42 } ==== true 
     }
@@ -75,7 +75,7 @@ class MathTest {
     hit0 = false
     hit42 = false
     r2 = rng.copy
-    nFor(1000){ n => 
+    1000.visit{ n => 
       val title = s"$name iter $n"
       T(title) ~ { val a = rng % 43; if a == 0 then hit0 = true; a } ==== { val b = r2 % 43; if b == 42 then hit42 = true; b }
     }
@@ -103,18 +103,18 @@ class MathTest {
 
     // Expected number of extreme values is 23
     var nHi = 0
-    nFor(1000){ n => if rng.gaussian > 2.0 then nHi += 1 }
+    1000.visit{ n => if rng.gaussian > 2.0 then nHi += 1 }
     T(name) ~ (nHi >= 10) ==== true
     T(name) ~ (nHi <= 50) ==== true
     var nLo = 10
-    nFor(500){ n => r2.gaussianPair((x, y) => { if x < -2 then nLo += 1; if y < -2 then nLo += 1 }) }
+    500.visit{ n => r2.gaussianPair((x, y) => { if x < -2 then nLo += 1; if y < -2 then nLo += 1 }) }
     T(name) ~ (nLo >= 10) ==== true
     T(name) ~ (nLo <= 50) ==== true
     val v = r2.gaussianVc
     T(name) ~ rng.gaussian.toFloat ==== v.x
     T(name) ~ rng.gaussian.toFloat ==== v.y
 
-    nFor(10){ n => T(s"$name iter $n") ~ rng.Z ==== { var x = false; r2.tapZ(x = _): Unit; x } }
+    10.visit{ n => T(s"$name iter $n") ~ rng.Z ==== { var x = false; r2.tapZ(x = _): Unit; x } }
     T(name) ~ rng.B ==== { var x: Byte   = 0; r2.tapB(x = _): Unit; x }
     T(name) ~ rng.S ==== { var x: Short  = 0; r2.tapS(x = _): Unit; x }
     T(name) ~ rng.C ==== { var x  = 0.toChar; r2.tapC(x = _): Unit; x }
@@ -128,7 +128,7 @@ class MathTest {
 
     val zs1 = Array.fill(20)(false)
     val zs2 = Array.fill(20)(false)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % zs1.length
       val j = i + (rng % (zs1.length - i))
@@ -141,7 +141,7 @@ class MathTest {
 
     val bs1 = Array.fill(20)(0: Byte)
     val bs2 = Array.fill(20)(0: Byte)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % bs1.length
       val j = i + (rng % (bs1.length - i))
@@ -154,7 +154,7 @@ class MathTest {
 
     val ss1 = Array.fill(20)(0: Short)
     val ss2 = Array.fill(20)(0: Short)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ss1.length
       val j = i + (rng % (ss1.length - i))
@@ -167,7 +167,7 @@ class MathTest {
 
     val cs1 = Array.fill(20)('\u0000')
     val cs2 = Array.fill(20)('\u0000')
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % cs1.length
       val j = i + (rng % (cs1.length - i))
@@ -180,7 +180,7 @@ class MathTest {
 
     val is1 = Array.fill(20)(0)
     val is2 = Array.fill(20)(0)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
@@ -193,7 +193,7 @@ class MathTest {
 
     val ls1 = Array.fill(20)(0L)
     val ls2 = Array.fill(20)(0L)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
@@ -206,7 +206,7 @@ class MathTest {
 
     val fs1 = Array.fill(20)(0.0f)
     val fs2 = Array.fill(20)(0.0f)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % fs1.length
       val j = i + (rng % (fs1.length - i))
@@ -219,7 +219,7 @@ class MathTest {
 
     val ds1 = Array.fill(20)(0.0)
     val ds2 = Array.fill(20)(0.0)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
@@ -230,7 +230,7 @@ class MathTest {
       T(title) ~ ds1 =**= ds2
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
@@ -241,7 +241,7 @@ class MathTest {
       T(title) ~ is1 =**= is2
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
@@ -252,7 +252,7 @@ class MathTest {
       T(title) ~ ls1 =**= ls2
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
@@ -275,7 +275,7 @@ class MathTest {
     T(name) ~ { rng.fillModL(43)(ls1); ls1 } =**= { r2.arrayModL(43)(ls1.length) }
     T(name) ~ { rng.fillGaussian(ds1); ds1 } =**= { r2.arrayGaussian(ds1.length) }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % zs1.length
       val j = i + (rng % (zs1.length - i))
@@ -285,7 +285,7 @@ class MathTest {
       T(title) ~ zs1.slice(i, j).sorted =**= zs2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % bs1.length
       val j = i + (rng % (bs1.length - i))
@@ -295,7 +295,7 @@ class MathTest {
       T(title) ~ bs1.slice(i, j).sorted =**= bs2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ss1.length
       val j = i + (rng % (ss1.length - i))
@@ -305,7 +305,7 @@ class MathTest {
       T(title) ~ ss1.slice(i, j).sorted =**= ss2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % cs1.length
       val j = i + (rng % (cs1.length - i))
@@ -315,7 +315,7 @@ class MathTest {
       T(title) ~ cs1.slice(i, j).sorted =**= cs2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % is1.length
       val j = i + (rng % (is1.length - i))
@@ -325,7 +325,7 @@ class MathTest {
       T(title) ~ is1.slice(i, j).sorted =**= is2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ls1.length
       val j = i + (rng % (ls1.length - i))
@@ -335,7 +335,7 @@ class MathTest {
       T(title) ~ ls1.slice(i, j).sorted =**= ls2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % fs1.length
       val j = i + (rng % (fs1.length - i))
@@ -345,7 +345,7 @@ class MathTest {
       T(title) ~ fs1.slice(i, j).sorted =**= fs2.slice(i, j).sorted
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % ds1.length
       val j = i + (rng % (ds1.length - i))
@@ -357,7 +357,7 @@ class MathTest {
 
     val as1 = ds1.map(d => if d >= 0 then Some(d) else None)
     val as2 = ds2.map(d => if d >= 0 then Some(d) else None)
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % as1.length
       val j = i + (rng % (as1.length - i))
@@ -369,7 +369,7 @@ class MathTest {
 
     val us1 = ds1.map(d => if d >= 0 then (d+1).toUInt else 0.u)
     val us2 = us1.dup()
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % as1.length
       val j = i + (rng % (as1.length - i))
@@ -405,7 +405,7 @@ class MathTest {
     r2.setCacheAndBits(rng.getCache, rng.getCacheBits)
     T(name) ~ rng.I ==== r2.I
 
-    nFor(20){ n =>
+    20.visit{ n =>
       val title = s"$name iter $n"
       val i = rng % as1.length
       val j = i + (rng % (as1.length - i))
@@ -691,7 +691,7 @@ class MathTest {
       T(name) ~ us1.tap(_.randomFillOp(1 to k)(p => (p%9).u))   =**= us2.tap(_.randomFillOp(1 to 8)(r2)(p => (p%9).u))
     }
 
-    nFor(20){ n =>
+    20.visit{ n =>
       import kse.basics.intervals._
       given AutoPrng = rng.givable
 
@@ -864,7 +864,7 @@ class MathTest {
     T(name) ~ amap.forall{ case (c, _) => 0 <= c && c < 128 } ==== true
     T(name) ~ (0 until 128).forall(i => amap(i.toChar) > 0) ==== true
     var nsur = 0
-    nFor(1000) { n =>
+    1000.visit { n =>
       val title = s"Valid string iteration $n"
       val s = rng.validString(20.roll(using rng.givable))
       var i = 0
@@ -1138,7 +1138,7 @@ class MathTest {
   def randomHs(n: Int, lim: Int = 128)(rng: Prng): Hiter =
     val a = collection.mutable.ArrayBuffer.empty[H]
     given AutoPrng = rng.givable
-    nFor(n){ _ =>
+    n.visit{ _ =>
       val h: H = (rng % 12) match {
         case 0 => HZ(rng.Z)
         case 1 => HB(rng.B)
@@ -1482,7 +1482,7 @@ class MathTest {
     T ~ Crc32.hash32("123456789".getBytes) ==== 0xCBF43926
     T ~ Crc32C.hash32("123456789".getBytes) ==== 0xE3069283
 
-    nFor(200) { n =>
+    200.visit { n =>
       def t(x: String) = s"Iteration $n of $x"
 
       val hz = HZ(r.Z)
@@ -2988,13 +2988,13 @@ class MathTest {
 
   @Test
   def dualvaluedMathTest(): Unit =
-    val v = 1.2f ~> 3.1f
-    val u = -1.5f ~> 0.7f
+    val v = Vc(1.2f, 3.1f)
+    val u = Vc(-1.5f, 0.7f)
     T ~ (v == Vc.F(1.2f, 3.1f))    ==== true
     T ~ (v === Vc.D(1.2, 3.1))     ==== true
-    T ~ (1.0f ~> 0.0f)             ==== Vc.wrap(0x000000003F800000L)
-    T ~ (0.0f ~> 1.0f)             ==== Vc.wrap(0x3F80000000000000L)
-    T ~ (1.0f ~> 0.0f).unwrap      ==== 0x000000003F800000L
+    T ~ Vc(1.0f, 0.0f)             ==== Vc.wrap(0x000000003F800000L)
+    T ~ Vc(0.0f, 1.0f)             ==== Vc.wrap(0x3F80000000000000L)
+    T ~ Vc(1.0f, 0.0f).unwrap      ==== 0x000000003F800000L
     T ~ Vc(0, 0)                   ==== Vc.zero
     T ~ Vc(5, 9)                   ==== Vc.F(5f, 9f)
     T ~ Vc(5f, 9f)                 ==== Vc.F(5f, 9f)

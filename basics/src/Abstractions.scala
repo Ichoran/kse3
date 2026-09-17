@@ -267,17 +267,6 @@ object shortcut {
       Skips
     if what eq Quits then boundary.break(Quits)
 
-  opaque type QuitTest = Boolean
-  object QuitTest {
-    extension (p: QuitTest)
-      inline def ?[Q >: Quits.type <: Type](using boundary.Label[Q]): Unit = if p then boundary.break(Quits: Q)
-  }
-  opaque type SkipTest = Boolean
-  object SkipTest {
-    extension (p: SkipTest)
-      inline def ?[S >: Skips.type <: Type](using boundary.Label[S]): Unit = if p then boundary.break(Skips: S)
-  }
-
   /** Jumps to the enclosing skippable boundary if the condition holds.  A literal `true` always
     * jumps (nothing else is evaluated); a literal `false` compiles to nothing.
     */
@@ -293,18 +282,6 @@ object shortcut {
     case true  => boundary.break(Quits: Q)
     case false => ()
     case _     => if p then boundary.break(Quits: Q)
-
-  @deprecated("use quit_?(condition) instead", "0.8.0")
-  inline def quit(p: Boolean): QuitTest = p
-
-  @deprecated("use skip_?(condition) instead", "0.8.0")
-  inline def skip(p: Boolean): SkipTest = p
-
-  @deprecated("use skip_?(true) instead", "0.8.0")
-  inline def skip[S >: Skips.type <: Type]()(using boundary.Label[S]) = boundary.break(Skips: S)
-
-  @deprecated("use quit_?(true) instead", "0.8.0")
-  inline def quit[Q >: Quits.type <: Type]()(using boundary.Label[Q]) = boundary.break(Quits: Q)
 
   /** Jumps within pre-specified corrals, but presently these aren't fully optimized so only use when it's essential. */
   object hopped {

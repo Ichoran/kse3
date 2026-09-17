@@ -2636,19 +2636,6 @@ object Vc {
 
   given Sayable[Vc] = (x, m, _) => m += x.pr
 }
-extension (value: Float) {
-  inline def ~>(y: Float): kse.maths.Vc = Vc(value, y)
-
-  // +(Vc) in OverloadedExtensions
-  // -(Vc) in OverloadedExtensions
-  // *(Vc) in OverloadedExtensions
-}
-extension (value: Double) {
-  inline def ~>(y: Double): kse.maths.Vec2D = Vec2D(value, y)
-}
-extension (v: kse.maths.Vc) {
-  inline def ~>(z: Float): kse.maths.Vec3F = Vec3F(v.x, v.y, z)
-}
 
 
 

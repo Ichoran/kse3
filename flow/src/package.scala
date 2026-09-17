@@ -292,12 +292,12 @@ package kse
   * **escape and calculate**
   * 
   * If you just want to bail out of some side-effecting code if a condition fails, use `escape:` and specify
-  * the escape condition with `escape.when(condition).?` or `escape.unless(condition).?`.
+  * the escape condition with `escape.when_?(condition)` or `escape.unless_?(condition)`.
   * 
   * {{{
   * escape:
   *   for i <- 0 to 10 do
-  *     escape.unless(i < a.length).?
+  *     escape.unless_?(i < a.length)
   *     a(i) = i
   * }}}
   * 

@@ -12,20 +12,6 @@ inline def cFor[A](inline zero: A)(inline p: A => Boolean)(inline next: A => A)(
     x = next(x)
 
 
-/** Repeat: run `f` on arguments up to the Int `n` */
-inline def nFor(n: Int)(inline f: Int => Unit): Unit =
-  var i = 0
-  while i < n do
-    f(i)
-    i += 1
-
-/** Repeat: run `f` on arguments up to the Long `n` */
-inline def nFor(n: Long)(inline f: Long => Unit): Unit =
-  var i = 0L
-  while i < n do
-    f(i)
-    i += 1
-
 
 /** For everything in iterator `i`, run `f` on the item plus its index */
 inline def iFor[A](i: Iterator[A])(inline f: (A, Int) => Unit): Unit =

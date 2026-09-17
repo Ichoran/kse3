@@ -50,47 +50,47 @@ class EioTest {
   def conversionTest(): Unit =
     val r: Prng = Pcg64(239751892795L)
     T ~ "fish".bytes =**= Array('f'.toByte, 'i'.toByte, 's'.toByte, 'h'.toByte)
-    nFor(32){ i =>
+    32.visit{ i =>
       val s = r.validString(i)
       T ~ s.bytes.utf8 ==== s
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val s = r.asciiString(i)
       T ~ s.bytes.ascii ==== s
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(i)
       T ~ b.rawString.map(_.toByte).toArray =**= b
       T ~ b.iso8859_1.map(_.toByte).toArray =**= b
     }
 
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(i)
       T ~ b.stringEncode64.decode64.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64.decode64.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(i)
       T ~ b.stringEncode64basic.decode64.map(_.toVector)      ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.stringEncode64basic.decode64basic.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64basic.decode64.map(_.toVector)            ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64basic.decode64basic.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(i)
       T ~ b.stringEncode64url.decode64.map(_.toVector)    ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.stringEncode64url.decode64url.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64url.decode64.map(_.toVector)          ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64url.decode64url.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(if i < 16 then i else 16 + 7*(i-16))
       T ~ b.stringEncode64mime.decode64.map(_.toVector)     ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.stringEncode64mime.decode64mime.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64mime.decode64.map(_.toVector)           ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64mime.decode64mime.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(if i < 16 then i else 16 + 7*(i-16))
       T ~ b.stringEncode64lines.decode64.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode64lines.decode64.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
@@ -98,26 +98,26 @@ class EioTest {
 
     def chs(s: String): String = if s.length > 31 then s.grouped(31).mkString("\n") else s
     def chb(ab: Array[Byte]): Array[Byte] = chs(ab.ascii).bytes
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(if i < 16 then i else 16 + 7*(i-16))
       T ~ b.stringEncode85.decode85.map(_.toVector)      ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode85.decode85.map(_.toVector)            ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ chs(b.stringEncode85).decode85.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ chb(b.encode85).decode85.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(if i < 16 then i else 16 + 7*(i-16))
       T ~ b.stringEncode85zmq.decode85zmq.map(_.toVector)      ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode85zmq.decode85zmq.map(_.toVector)            ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ chs(b.stringEncode85zmq).decode85zmq.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ chb(b.encode85zmq).decode85zmq.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(if i < 16 then i else 16 + 7*(i-16))
       T ~ b.stringEncode85ascii.decode85ascii.map(_.toVector) ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.encode85ascii.decode85ascii.map(_.toVector)       ==== b.toVector --: typed[Vector[Byte] Or Err]
     }
-    nFor(32){ i =>
+    32.visit{ i =>
       val b = r.arrayB(i)
       T ~ b.stringEncodeHex.decodeHex.map(_.toVector)      ==== b.toVector --: typed[Vector[Byte] Or Err]
       T ~ b.stringEncodeHexLo.decodeHex.map(_.toVector)    ==== b.toVector --: typed[Vector[Byte] Or Err]

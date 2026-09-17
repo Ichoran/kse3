@@ -707,7 +707,7 @@ object Args {
               result = result :* value
             work = rest
           case _ => Err("Internal error: trying to read options but did not put them in Elt").toss
-        case _ => loop.break()
+        case _ => loop.stop_?(true)
     result.asInstanceOf[NamedTuple.NamedTuple[TupleNames[T], TupleTypes[T]]]
 
   inline def asLabeledTuple[T <: Tuple](tuple: T): AsLabeledTuple[T] =
@@ -720,7 +720,7 @@ object Args {
             result = result :* e.value
             work = rest
           case _ => Err("Internal error: trying to read options but did not put them in Elt").toss
-        case _ => loop.break()
+        case _ => loop.stop_?(true)
     result.asInstanceOf[AsLabeledTuple[T]]
 }
 
@@ -760,7 +760,7 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
   transparent inline def parse[E >: Alt[Err]](args: Array[String]) = Ask:
     escape:
       args.visit(): (arg, i) =>
-        escape.when(arg == "--" || arg == "--=").?
+        escape.when_?(arg == "--" || arg == "--=")
         if arg.startsWith("--") then
           val i = arg.indexOf('=')
           val argname = if i < 0 then arg.select(2 to End) else arg.select(2, i)
@@ -784,7 +784,7 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
       var aboutW = 0
       loop:
         ops match
-          case EmptyTuple => loop.break()
+          case EmptyTuple => loop.stop_?(true)
           case t *: tp =>
             ops = tp
             t match
@@ -868,7 +868,7 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
       ops = options
       loop:
         ops match
-          case EmptyTuple => loop.break()
+          case EmptyTuple => loop.stop_?(true)
           case t *: tp =>
             ops = tp
             if t.asInstanceOf[AnyRef] ne Opt.done then
@@ -928,7 +928,7 @@ object Cleasy {
             result = result :* Args.elt(o.parse_?(arguments, consumed))
             work = rest
           case _ => boundary.break(Err.or("Internal error: trying to parse options but not using Opt"))
-        case _ => loop.break()
+        case _ => loop.stop_?(true)
     result.asInstanceOf[Parsed[T]]
 
   def goodCaps(s: String, ts: String*) =

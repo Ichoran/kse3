@@ -136,14 +136,6 @@ class FlowTest {
     cFor("hi")(_.length < 20)(s => s + " " + s){ s => if babble.nonEmpty then babble ++= ", "; babble ++= s }
     T("generic cFor") ~ babble.toString ==== "hi, hi hi, hi hi hi hi"
 
-    var sumi = 0
-    nFor(1000)(i => sumi += i*i + 1)
-    T("int nFor") ~ sumi ==== 332834500
-
-    var suml = 0L
-    nFor(10000L)(l => suml += l*l + 1)
-    T("long nFor") ~ suml ==== 333283345000L
-
     val xs = "cod" :: "bass" :: "perch" :: "salmon" :: Nil
     val fish = new StringBuilder
     iFor(xs.iterator){ (s, i) =>
@@ -1551,20 +1543,20 @@ class FlowTest {
       escape:
         defer(k *= 2):
           k += 1
-          escape.break()
+          escape.when_?(true)
           k += 3
       T ~ k ==== 2
     }
 
     {
       var k = 0
-      T ~ escape.completed{ k += 1; escape.when(k > 1).?;    k += 1 } ==== true
-      T ~ escape.completed{ k += 1; escape.unless(k <= 1).?; k += 1 } ==== false
+      T ~ escape.completed{ k += 1; escape.when_?(k > 1);    k += 1 } ==== true
+      T ~ escape.completed{ k += 1; escape.unless_?(k <= 1); k += 1 } ==== false
       T ~ k ==== 3
-      T ~ { escape{ k += 1; escape.when(k > 1).?; k += 1 }; val kk = k; escape{ k += 1; escape.unless(k <= 10).?; k += 1 }; k*kk } ==== 24
-      T ~ { loop{ k += 1; if k > 7 then loop.break() }; k } ==== 8
-      T ~ { loop{ k += 1; loop.stop(k > 10).? }; k }         ==== 11
-      T ~ { loop{ k += 1; loop.proceed(k < 13).? }; k }     ==== 13
+      T ~ { escape{ k += 1; escape.when_?(k > 1); k += 1 }; val kk = k; escape{ k += 1; escape.unless_?(k <= 10); k += 1 }; k*kk } ==== 24
+      T ~ { loop{ k += 1; if k > 7 then loop.stop_?(true) }; k } ==== 8
+      T ~ { loop{ k += 1; loop.stop_?(k > 10) }; k }         ==== 11
+      T ~ { loop{ k += 1; loop.proceed_?(k < 13) }; k }     ==== 13
     }
 
     T ~ attempt( optionQ1("eel").! ).default(0)                                 ==== 0

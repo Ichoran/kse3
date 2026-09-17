@@ -35,7 +35,7 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
     else publicationName
   }
 
-  def publishVersion = "0.10.1"
+  def publishVersion = "0.10.2"
 
   def pomSettings = PomSettings(
     description = "Kerr Scala Extensions 3, module " + artifactName(),
@@ -133,4 +133,10 @@ object all extends Common {
     )
   }
   def moduleDeps = Seq(foundation, twodee, alien)
+}
+
+// Not published: verifies that the GUIDE files match the examples they quote (`mill guides.run`).
+object guides extends Base {
+  def moduleDeps = Seq(basics, flow, maths, eio)
+  def mainClass = Task { Some("kse.guides.CheckGuides") }
 }

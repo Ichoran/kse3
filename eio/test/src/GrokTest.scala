@@ -343,7 +343,7 @@ class GrokTest {
     for s <- Array("0", "-0.0", "1.25e-3", "0.1", "1e400", "NaN", "Infinity", "-Infinity",
                    "", "1.0q", ".5", "5.", "1e", "1.7976931348623157e308") do
       agreeD(s)
-    nFor(200){ _ =>
+    200.visit{ _ =>
       val l = r.L
       agreeL(l.toString)
       agreeU(java.lang.Long.toUnsignedString(l))

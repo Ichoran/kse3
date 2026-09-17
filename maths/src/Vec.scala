@@ -12,7 +12,7 @@ import kse.basics.{given, _}
 
 
 /** A 2D vector of `Double`s, with the same method vocabulary as `Vc` but at full precision.
-  * Construct with `x ~> y`; extend into 3D with `x ~> y ~> z`.
+  * Construct with `Vec2D(x, y)`.
   */
 final case class Vec2D(x: Double, y: Double) {
   inline def xTo(value: Double): Vec2D = Vec2D(value, y)
@@ -118,7 +118,6 @@ final case class Vec2D(x: Double, y: Double) {
       sb += ']'
 
   inline def toVc: Vc = Vc.D(x, y)
-  inline def ~>(z: Double): Vec3D = Vec3D(x, y, z)
 }
 object Vec2D {
   final val zero: Vec2D = Vec2D(0, 0)
@@ -129,7 +128,7 @@ object Vec2D {
 /** A 3D vector of `Double`s, with the same method vocabulary as `Vc` extended to three
   * dimensions: the cross product `X` is a vector, the angle between vectors is unsigned
   * (there is no preferred orientation), and rotation takes an axis.  Construct with
-  * `x ~> y ~> z`; project onto coordinate planes with `xy`, `xz`, `yz`.
+  * `Vec3D(x, y, z)`; project onto coordinate planes with `xy`, `xz`, `yz`.
   */
 final case class Vec3D(x: Double, y: Double, z: Double) {
   inline def xTo(value: Double): Vec3D = Vec3D(value, y, z)
@@ -256,7 +255,7 @@ object Vec3D {
 
 /** A 3D vector of `Float`s, following `Vc`'s conventions: components and vector results
   * are `Float`, but distances and dot products widen to `Double` the way `Vc`'s do.
-  * Construct by extending a `Vc` with `x ~> y ~> z`; project onto coordinate planes
+  * Construct with `Vec3F(x, y, z)`; project onto coordinate planes
   * with `xy`, `xz`, `yz` (which are exact `Vc`s).
   */
 final case class Vec3F(x: Float, y: Float, z: Float) {
@@ -399,9 +398,6 @@ object Vec3F {
   final val NaN: Vec3F = Vec3F(Float.NaN, Float.NaN, Float.NaN)
 }
 
-
-// ~>(Double) making Vec2D, and ~>(Vc, Float) making Vec3F, are in Maths.scala with Float's ~>
-// (top-level overloads must share a file)
 
 extension (v: kse.maths.Vc) {
   inline def toVec2D: kse.maths.Vec2D = Vec2D(v.x, v.y)

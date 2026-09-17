@@ -161,7 +161,7 @@ class ParsingTest {
     check("0")
     check("")
     check("nope")
-    nFor(200){ _ =>
+    200.visit{ _ =>
       val l = r.L
       check(l.toString)
       check(java.lang.Long.toUnsignedString(l))

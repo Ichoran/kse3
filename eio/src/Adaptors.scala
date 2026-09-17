@@ -1331,7 +1331,7 @@ extends SeekableByteChannel {
       ans
     else if index == limit then
       val a = new Array[Array[Byte]](iactive + 1)
-      nFor(iactive){ i => a(i) = storage(i) }
+      iactive.visit{ i => a(i) = storage(i) }
       a(iactive) = active.shrinkCopy((index - zero).toInt)
       storage = null
       a
@@ -1343,7 +1343,7 @@ extends SeekableByteChannel {
         na += 1
       val a = new Array[Array[Byte]](na)
       nb = limit
-      nFor(na - 1){ i => val si = storage(i); nb -= si.length; a(i) = si }
+      (na - 1).visit{ i => val si = storage(i); nb -= si.length; a(i) = si }
       a(na - 1) = storage(na - 1).shrinkCopy(nb.toInt)
       storage = null
       a
