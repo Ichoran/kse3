@@ -40,6 +40,7 @@ basics                      arrays, intervals, Mu and Atom, strings, sorting, la
        ├─ thyme             Thyme benchmarks, Parsley in-situ profiler                                (basics, flow, maths)
        └─ eio               paths and files, Xsv, Grok text parsing, command lines, streams, sockets  (flow, maths)
             ├─ jsaun        JSON                                                                       (basics, flow, maths, eio)
+           ^^^ foundation   everything above here has NO external dependencies
             ├─ twodee       static 2D plotting                                                         (basics, flow, maths, eio)
             └─ alien        protobuf and gRPC, wire codec plus schema parser and code generator        (basics, flow, maths, loom, eio)
 foundation = basics flow maths loom thyme eio jsaun        all = foundation twodee alien
