@@ -76,7 +76,8 @@ several together, resolving type references the way protoc does.  Proto2, editio
 and `extensions` are refused by name.  `PbGen.generate(schema, config)` gives one Scala source per file.  A message
 becomes a `final case class` with proto3 defaults whose companion is a `Pb.Companion`, so `Msg.parse(bytes)` is an
 `Ask[Msg]`, `msg.toBytes` the encoding, and `Msg.readFrom(in, prior)` a merge on top of an existing value.  An
-optional message is `T Or Unit`, an optional narrow scalar the boxless `Pb.OptInt` and kin, a repeated field a plain
+optional message is `T Or Unit`, an optional narrow scalar the boxless `Pb.OptInt` and kin (with `Option`'s
+vocabulary as inline extensions, `isEmpty`, `getOrElse`, `map`, `toOption`, and `from(Option)` to build one), a repeated field a plain
 array, a map an immutable `Map`, an enum an open opaque `Int` with names, and a `oneof` a Scala enum with an `Unset`
 case.  Unknown fields are retained and re-emitted unless `Config(retainUnknown = false)`.  A field marked
 `[(kse3.view) = true]`, or named in `Config.viewFields`, decodes as a `Mem` view aliasing the buffer, and a message

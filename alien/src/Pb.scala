@@ -223,6 +223,9 @@ object Pb {
   private inline val AbsentL = 0x6B39A0D54C17E28BL
   private inline val AbsentI = 0x5AD093C6
 
+  // Each carrier has Option's vocabulary (isEmpty, getOrElse, map, toOption, ...) as inline extensions, so a
+  // generated field reads like an Option and still never boxes; `from(Option)` builds one and `or` is the Or view.
+
   /** An `optional int32`/`sint32`/`sfixed32` value, present or absent, without a box. */
   opaque type OptInt = Long
   object OptInt {
@@ -238,6 +241,17 @@ object Pb {
       inline def getOrElse(inline v: Int): Int = if x == AbsentL then v else x.toInt
       inline def fold[Z](inline f: Int => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(x.toInt)
       inline def or: Int Or Unit = if x == AbsentL then Alt.unit else Is(x.toInt)
+      inline def isEmpty: Boolean = x == AbsentL
+      inline def isDefined: Boolean = x != AbsentL
+      inline def nonEmpty: Boolean = x != AbsentL
+      inline def toOption: Option[Int] = if x == AbsentL then None else Some(x.toInt)
+      inline def foreach(inline f: Int => Unit): Unit = if x != AbsentL then f(x.toInt)
+      inline def exists(inline p: Int => Boolean): Boolean = x != AbsentL && p(x.toInt)
+      inline def forall(inline p: Int => Boolean): Boolean = x == AbsentL || p(x.toInt)
+      inline def contains(v: Int): Boolean = x != AbsentL && x.toInt == v
+      inline def map(inline f: Int => Int): OptInt = if x == AbsentL then x else OptInt(f(x.toInt))
+      inline def filter(inline p: Int => Boolean): OptInt = if x != AbsentL && p(x.toInt) then x else unit
+      inline def orElse(inline other: OptInt): OptInt = if x == AbsentL then other else x
   }
 
   /** An `optional uint32`/`fixed32` value, present or absent, without a box. */
@@ -255,6 +269,17 @@ object Pb {
       inline def getOrElse(inline v: UInt): UInt = if x == AbsentL then v else UInt(x.toInt)
       inline def fold[Z](inline f: UInt => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(UInt(x.toInt))
       inline def or: UInt Or Unit = if x == AbsentL then Alt.unit else Is(UInt(x.toInt))
+      inline def isEmpty: Boolean = x == AbsentL
+      inline def isDefined: Boolean = x != AbsentL
+      inline def nonEmpty: Boolean = x != AbsentL
+      inline def toOption: Option[UInt] = if x == AbsentL then None else Some(UInt(x.toInt))
+      inline def foreach(inline f: UInt => Unit): Unit = if x != AbsentL then f(UInt(x.toInt))
+      inline def exists(inline p: UInt => Boolean): Boolean = x != AbsentL && p(UInt(x.toInt))
+      inline def forall(inline p: UInt => Boolean): Boolean = x == AbsentL || p(UInt(x.toInt))
+      inline def contains(v: UInt): Boolean = x != AbsentL && UInt(x.toInt) == v
+      inline def map(inline f: UInt => UInt): OptUInt = if x == AbsentL then x else OptUInt(f(UInt(x.toInt)))
+      inline def filter(inline p: UInt => Boolean): OptUInt = if x != AbsentL && p(UInt(x.toInt)) then x else unit
+      inline def orElse(inline other: OptUInt): OptUInt = if x == AbsentL then other else x
   }
 
   /** An `optional float` value, present or absent, without a box; bits are kept raw. */
@@ -272,6 +297,17 @@ object Pb {
       inline def getOrElse(inline v: Float): Float = if x == AbsentL then v else x.toInt.bitsF
       inline def fold[Z](inline f: Float => Z)(inline g: Unit => Z): Z = if x == AbsentL then g(()) else f(x.toInt.bitsF)
       inline def or: Float Or Unit = if x == AbsentL then Alt.unit else Is(x.toInt.bitsF)
+      inline def isEmpty: Boolean = x == AbsentL
+      inline def isDefined: Boolean = x != AbsentL
+      inline def nonEmpty: Boolean = x != AbsentL
+      inline def toOption: Option[Float] = if x == AbsentL then None else Some(x.toInt.bitsF)
+      inline def foreach(inline f: Float => Unit): Unit = if x != AbsentL then f(x.toInt.bitsF)
+      inline def exists(inline p: Float => Boolean): Boolean = x != AbsentL && p(x.toInt.bitsF)
+      inline def forall(inline p: Float => Boolean): Boolean = x == AbsentL || p(x.toInt.bitsF)
+      inline def contains(v: Float): Boolean = x != AbsentL && x.toInt.bitsF == v
+      inline def map(inline f: Float => Float): OptFloat = if x == AbsentL then x else OptFloat(f(x.toInt.bitsF))
+      inline def filter(inline p: Float => Boolean): OptFloat = if x != AbsentL && p(x.toInt.bitsF) then x else unit
+      inline def orElse(inline other: OptFloat): OptFloat = if x == AbsentL then other else x
   }
 
   /** An `optional bool` value, present or absent, without a box. */
@@ -289,6 +325,17 @@ object Pb {
       inline def getOrElse(inline v: Boolean): Boolean = if x == AbsentI then v else x == 1
       inline def fold[Z](inline f: Boolean => Z)(inline g: Unit => Z): Z = if x == AbsentI then g(()) else f(x == 1)
       inline def or: Boolean Or Unit = if x == AbsentI then Alt.unit else Is(x == 1)
+      inline def isEmpty: Boolean = x == AbsentI
+      inline def isDefined: Boolean = x != AbsentI
+      inline def nonEmpty: Boolean = x != AbsentI
+      inline def toOption: Option[Boolean] = if x == AbsentI then None else Some(x == 1)
+      inline def foreach(inline f: Boolean => Unit): Unit = if x != AbsentI then f(x == 1)
+      inline def exists(inline p: Boolean => Boolean): Boolean = x != AbsentI && p(x == 1)
+      inline def forall(inline p: Boolean => Boolean): Boolean = x == AbsentI || p(x == 1)
+      inline def contains(v: Boolean): Boolean = x != AbsentI && x == 1 == v
+      inline def map(inline f: Boolean => Boolean): OptBool = if x == AbsentI then x else OptBool(f(x == 1))
+      inline def filter(inline p: Boolean => Boolean): OptBool = if x != AbsentI && p(x == 1) then x else unit
+      inline def orElse(inline other: OptBool): OptBool = if x == AbsentI then other else x
   }
 
 

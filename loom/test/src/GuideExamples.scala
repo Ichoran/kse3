@@ -182,14 +182,22 @@ object GuideExamples {
 
   def munch(): Ask[Long] =
     // guide: munch.kse3
-    val acc = Atom(0L)
+    enum Job:
+      case Add(n: Int)
+      case Total(reply: Munch.Reply[Long])
     val sup = Munch.supervisor()
-    val adders = sup.registry[String, Int]("adders")
-    val adder = adders.spawn("main"){ (n: Int) => acc += n }
-    adder ! 5
-    adder ! 7
-    sup.stop().map(_ => acc())                // drains mailboxes, then reports
+    val jobs = sup.registry[String, Job]("jobs")
+    val worker = jobs.spawn("main"):
+      var total = 0L                              // private state: only this muncher's thread ever touches it
+      (job: Job) => job match
+        case Job.Add(n) => total += n
+        case Job.Total(reply) => reply(total)
+    worker ! Job.Add(5)                           // fire-and-forget, from any thread
+    worker ! Job.Add(7)
+    val t = worker.feed(Job.Total(_)).await()     // a request with a typed reply, as an Ask[Long]
+    sup.stop() __ Unit                            // drains the mailboxes, then ends every muncher
     // guide: end
+    t
 }
 
 

@@ -43,6 +43,15 @@ object GuideExamples {
   // guide: end
 
 
+  // guide: chosen.kse3
+  def profile(xs: Array[Double], ys: Array[Double], joined: Boolean): Figure =
+    Fig: f =>
+      import f.*
+      val look = if joined then visual(Line) + visual(Scatter) else visual(Scatter)   // a Looking: one Look, or a sum of them
+      data(x = xs, y = ys) * look + axis.horz.title("distance") + axis.vert.title("value")
+  // guide: end
+
+
   // guide: stats.kse3
   def distributions(values: Array[Double], arm: Array[String]): Board =
     val hist = Fig: f =>
@@ -112,6 +121,14 @@ class GuideTest {
     T ~ svg.map(_.contains("<circle")) ==== true
     T ~ svg.map(count(_, "<polyline") >= 2) ==== true
     T ~ svg.map(s => s.contains("north") && s.contains("south")) ==== true
+
+  @Test
+  def chosenTest(): Unit =
+    val joined = G.profile(days, temps, true).svg()
+    T ~ joined.map(s => s.contains("<polyline") && s.contains("<circle")) ==== true
+    val dots = G.profile(days, temps, false).svg()
+    T ~ dots.map(_.contains("<circle")) ==== true
+    T ~ dots.map(count(_, "<polyline") < count(joined.getOrElse(_ => ""), "<polyline")) ==== true
 
   @Test
   def statsTest(): Unit =

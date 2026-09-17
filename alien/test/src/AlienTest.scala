@@ -635,6 +635,30 @@ class AlienTest {
     // the boxless optional carriers can be built from an Option
     T ~ Pb.OptInt.from(Some(3)) ==== Pb.OptInt(3)
     T ~ Pb.OptInt.from(None) ==== Pb.OptInt.unit
+    T ~ Pb.OptInt(3).isDefined ==== true
+    T ~ Pb.OptInt(3).isEmpty ==== false
+    T ~ Pb.OptInt.unit.isEmpty ==== true
+    T ~ Pb.OptInt.unit.nonEmpty ==== false
+    T ~ Pb.OptInt(3).toOption ==== Some(3)
+    T ~ Pb.OptInt.unit.toOption ==== None
+    T ~ Pb.OptInt(3).map(_ + 1) ==== Pb.OptInt(4)
+    T ~ Pb.OptInt.unit.map(_ + 1) ==== Pb.OptInt.unit
+    T ~ Pb.OptInt(3).filter(_ > 5) ==== Pb.OptInt.unit
+    T ~ Pb.OptInt(3).filter(_ > 1) ==== Pb.OptInt(3)
+    T ~ Pb.OptInt(3).contains(3) ==== true
+    T ~ Pb.OptInt.unit.contains(3) ==== false
+    T ~ Pb.OptInt.unit.orElse(Pb.OptInt(9)) ==== Pb.OptInt(9)
+    T ~ Pb.OptInt(3).orElse(Pb.OptInt(9)) ==== Pb.OptInt(3)
+    T ~ Pb.OptInt(3).exists(_ == 3) ==== true
+    T ~ Pb.OptInt.unit.forall(_ == 3) ==== true
+    T ~ Pb.OptInt(-2).map(_ * 2).get ==== -4
+    T ~ Pb.OptFloat(0.5f).map(_ * 2) ==== Pb.OptFloat(1.0f)
+    T ~ Pb.OptFloat(Float.NaN).contains(Float.NaN) ==== false
+    T ~ Pb.OptFloat(Float.NaN).isDefined ==== true
+    T ~ Pb.OptBool(true).contains(true) ==== true
+    T ~ Pb.OptBool(false).toOption ==== Some(false)
+    T ~ Pb.OptBool.unit.nonEmpty ==== false
+    T ~ Pb.OptUInt.from(None).isEmpty ==== true
     T ~ Pb.OptBool.from(Some(false)) ==== Pb.OptBool(false)
     T ~ Pb.OptFloat.from(None) ==== Pb.OptFloat.unit
 

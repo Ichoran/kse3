@@ -85,6 +85,19 @@ def byRegion(rows: Array[Reading]): Figure =
       legend("Region") + axis.horz.title("day")
 ```
 
+A look chosen at runtime composes the same way: a `Look` and a sum of looks are both a `Looking`, a `Layer` and a
+sum of layers both a `Layered`, and `*` and `+` accept either side, so the choice needs no cast and no duplicated
+expression.
+
+<!-- guide: chosen.kse3 -->
+```scala
+def profile(xs: Array[Double], ys: Array[Double], joined: Boolean): Figure =
+  Fig: f =>
+    import f.*
+    val look = if joined then visual(Line) + visual(Scatter) else visual(Scatter)   // a Looking: one Look, or a sum of them
+    data(x = xs, y = ys) * look + axis.horz.title("distance") + axis.vert.title("value")
+```
+
 When an attribute is both mapped and styled, the column wins; when neither, the theme default applies.  A layer
 mapping a column the visual doesn't use is fine, and one missing a column the visual needs is refused.
 

@@ -149,6 +149,7 @@ Plain-Scala habits and what kse3 has instead.  A section reference is `GUIDE-*mo
 | `latch.await()`, `future.get()`, `thread.join()` with no timeout | the same call with the bound stated, `NanoDuration.MaxValue` or `1e9.days` if it truly is forever | GUIDE-loom.md § Sync and waiting |
 | `new Thread`, `ExecutorService`, `scala.concurrent.Future` | `Fu`, or `Go`/`Chan`, or `Munch` | GUIDE-loom.md § Fu |
 | `synchronized`, `ReentrantLock` | `Sync` for a lock, `Atom` for a single value | GUIDE-loom.md § Sync and waiting |
+| a single-thread executor, a queue of thunks with a consumer thread, or a lock around a model several threads update | `Munch`: one muncher owns the state, `!` to tell it, `feed` for a typed reply | GUIDE-loom.md § Munch |
 | `Files.readAllLines(p)`, `Files.write(p, ...)` | `p.slurp`, `p.gulp`, `p.write`, `p.atomically.write` | GUIDE-eio.md § Paths |
 | `line.split(",")` | `Csv.read`, `Xsv` | GUIDE-eio.md § Xsv |
 | `s.toInt` inside a `try`, `Try(s.toDouble)` | the `parse` verbs on `String`, which give an `Ask` or use `.?` | GUIDE-eio.md § Parsing |

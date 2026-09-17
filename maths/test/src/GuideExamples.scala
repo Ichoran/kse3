@@ -253,15 +253,16 @@ object GuideExamples {
     (c, named, hex, red, faded, dusk, hsv)
 
 
-  def numbersAsText(): (String, Long, List[String], String, String) =
+  def numbersAsText(): (String, String, Long, List[String], String, String) =
     // guide: text.kse3
     val text = Ryu.string(0.1 + 0.2)          // "0.30000000000000004": the shortest digits that round-trip
+    val three = Ryu.fmt(0.1 + 0.2, 0, 3)      // "0.3": at most three significant figures, the shortest decimal within that
     val n = Parse.long("12345")               // failure is the in-band Parse.failLong; see spellsFailLong
     val order = List("file10", "file2").sorted(using SemanticOrder)
     val nine = RomanNumber.text(9)            // "IX"
     val words = SpokenNumber.text(42L.u)      // "forty-two"
     // guide: end
-    (text, n, order, nine, words)
+    (text, three, n, order, nine, words)
 }
 
 
@@ -399,7 +400,8 @@ class GuideTest {
     T ~ faded.pr ==== "#80FA8072"
     T ~ (dusk.rI < c.rI && dusk.rI > 0) ==== true
     T ~ (hsv.s > 0.5f && hsv.v > 0.9f) ==== true
-    val (text, num, order, nine, words) = G.numbersAsText()
+    val (text, three, num, order, nine, words) = G.numbersAsText()
+    T ~ three ==== "0.3"
     T ~ text ==== "0.30000000000000004"
     T ~ num ==== 12345L
     T ~ order ==== List("file2", "file10")

@@ -21,7 +21,7 @@ that the two copies are identical.
 - **Channels from any thread**: `send`, `recv`, `close`, and the `RunStatus` that says why not; `ChanN` for bulk; `Source` and `Sink` endpoints.
 - **Percolate**: work that produces work, run on a few threads with the main thread always able to do any of it.
 - **SplitDeque**: a concurrent deque that moves batches in logarithmic time.
-- **Munch**: named, supervised, message-driven entities, when a pipeline is the wrong shape.
+- **Munch**: one owner of mutable state fed from other threads, a model or a session or a connection: `!` to tell it, `feed` for a typed reply.
 
 ## Fu
 
@@ -280,23 +280,40 @@ Full API: `loom/src/SplitDeque.scala`.
 
 ## Munch
 
-`Munch` is an actor runtime for when the things you're coordinating have identities: a connection, a session, a
-device.  A supervisor holds keyed registries of "munchers", each a behavior `M => Unit` running single-threaded over
-its own mailbox with private state in closed-over `var`s.  `reg.spawn(key){ behavior }` makes one and gives a
-`Ref`; `ref ! msg` sends, and `ref.feed(Msg(_))` sends a request and gives a `Fu` for the reply.  A muncher that
-fails consults its own decider (stop, restart, escalate) and doesn't take its siblings down, which is the opposite
-of a `Go` session's tree failure and the right thing for independent entities.  This is the least-used part of
-loom; for a known pipeline use `Go` and `Chan`, and for work-generates-work use `Percolate`.
+`Munch` is for one thing that owns mutable state and is handed work from other threads: a model behind a user
+interface, a session, a connection, a device.  A supervisor holds keyed registries of "munchers", each a behavior
+`M => Unit` running single-threaded over its own mailbox with private state in closed-over `var`s, so the state
+needs no lock and every message sees the last one's effects.  `reg.spawn(key){ behavior }` makes one and gives a
+`Ref`; `ref ! msg` is fire-and-forget from any thread, and `ref.feed(Msg(_))` sends a request carrying a typed reply
+slot and gives a `Fu` for the answer, so a caller that wants a result waits on that and one that doesn't just
+sends.  A muncher that fails consults its own decider (stop, restart, escalate) and doesn't take its siblings down,
+which is the opposite of a `Go` session's tree failure and the right thing for independent entities.  It is small,
+and it is the answer to a serial job queue: prefer it to a single-thread executor, a queue of thunks with a consumer
+thread, or a lock around a model that several threads update.
+
+**Reach for this when** work arrives from several threads but must run one item at a time, in order, some of it
+wanting an answer back; a `Go` pipeline is the wrong shape when there is no flow of data, just a thing with state.
 
 <!-- guide: munch.kse3 -->
 ```scala
-val acc = Atom(0L)
+enum Job:
+  case Add(n: Int)
+  case Total(reply: Munch.Reply[Long])
 val sup = Munch.supervisor()
-val adders = sup.registry[String, Int]("adders")
-val adder = adders.spawn("main"){ (n: Int) => acc += n }
-adder ! 5
-adder ! 7
-sup.stop().map(_ => acc())                // drains mailboxes, then reports
+val jobs = sup.registry[String, Job]("jobs")
+val worker = jobs.spawn("main"):
+  var total = 0L                              // private state: only this muncher's thread ever touches it
+  (job: Job) => job match
+    case Job.Add(n) => total += n
+    case Job.Total(reply) => reply(total)
+worker ! Job.Add(5)                           // fire-and-forget, from any thread
+worker ! Job.Add(7)
+val t = worker.feed(Job.Total(_)).await()     // a request with a typed reply, as an Ask[Long]
+sup.stop() __ Unit                            // drains the mailboxes, then ends every muncher
 ```
+
+A `Ref` to a muncher that has stopped drops a `!` (to the supervisor's dead-letter sink) and fails a `feed` at once,
+so nothing waits on a thing that is gone.  A behavior may `.?` on an `Ask`; the failure goes to the muncher's own
+decider, never to its siblings.
 
 Full API: `loom/src/Munch.scala`; its header comment explains what it adds over `Go` and why.

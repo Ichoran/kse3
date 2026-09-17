@@ -460,7 +460,9 @@ Full API: `maths/src/Colour.scala` (package `kse.maths.colours`).
 Mostly you don't touch this layer: the `say` interpolator (basics) is how numbers become text, and `Grok` (eio) is
 how text becomes numbers.  What's here is what they stand on.  `Ryu` renders a `Double` or `Float` as the shortest
 digits that read back to the same value, into a byte or char buffer, a `Mem`, or a `MkStr` with no allocation, and
-with a lowercase `e` on the exponent.  `Parse` turns a range of a string, byte array, or `Mem` into a `Long`,
+with a lowercase `e` on the exponent; `Ryu.fmt(x, mag, sig)` limits the precision instead, to the shortest decimal
+within a don't-care tolerance set by the last place that matters (`mag`) or a count of significant figures (`sig`),
+which is how jsaun prints a `Double` when asked to round.  `Parse` turns a range of a string, byte array, or `Mem` into a `Long`,
 `ULong`, or hex value with no boxing on either path: failure is a sentinel that never occurs in real data,
 `Parse.failLong`, and `spellsFailLong` tells you if the input really did spell it.  `SemanticOrder` is a natural
 string ordering where `file2` sorts before `file10`, with presets for signed, decimal, versioned, and prose numbers.
@@ -470,6 +472,7 @@ uses inside `say`.
 <!-- guide: text.kse3 -->
 ```scala
 val text = Ryu.string(0.1 + 0.2)          // "0.30000000000000004": the shortest digits that round-trip
+val three = Ryu.fmt(0.1 + 0.2, 0, 3)      // "0.3": at most three significant figures, the shortest decimal within that
 val n = Parse.long("12345")               // failure is the in-band Parse.failLong; see spellsFailLong
 val order = List("file10", "file2").sorted(using SemanticOrder)
 val nine = RomanNumber.text(9)            // "IX"

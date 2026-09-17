@@ -220,10 +220,22 @@ object Style:
   val Backoff: Key[Double] = new Key[Double]("backoff")
 
 
+/** A `Look` or a sum of them, so a look chosen at runtime (`if joined then visual(Line) + visual(Scatter)
+  * else visual(Scatter)`) composes exactly as either would: `*` and `+` on every side accept it.  The
+  * operations here are the general ones; `Look` and `Looks` keep their exact-typed overloads.
+  */
+sealed trait Looking:
+  def terms: List[Look]
+  def *(any: Looking): Looks = Looks(terms.flatMap(a => any.terms.map(a * _)))
+  def *(any: Layered): Layers = Layers(terms.flatMap(t => any.terms.map(l => Layer(l.data, t * l.look))))
+  def +(any: Looking): Looks = Looks(terms ::: any.terms)
+
+
 /** The data-free part of a layer: visual, stats, style.  `visual(...)`, `smooth(...)`, and
   * recipes like `timeseries` are Looks; a Look meets data via `layer * look`.
   */
-final case class Look(visual: Visual | Null, stats: List[Stat], style: Style):
+final case class Look(visual: Visual | Null, stats: List[Stat], style: Style) extends Looking:
+  def terms: List[Look] = this :: Nil
   /** Right-biased merge: `that`'s visual wins if set; stats compose in order; styles merge. */
   def *(that: Look): Look =
     Look(if that.visual == null then visual else that.visual, stats ::: that.stats, style mergedWith that.style)
@@ -239,7 +251,7 @@ object Look:
 
 
 /** An ordered sum of Looks; `+` order is draw order once applied to a layer. */
-final case class Looks(terms: List[Look]):
+final case class Looks(terms: List[Look]) extends Looking:
   def *(that: Look): Looks = Looks(terms.map(_ * that))
   def *(those: Looks): Looks = Looks(terms.flatMap(a => those.terms.map(a * _)))
   def *(l: Layer): Layers = Layers(terms.map(t => Layer(l.data, t * l.look)))
@@ -253,6 +265,17 @@ final case class Looks(terms: List[Look]):
 /// Layers and the algebra ///
 //////////////////////////////
 
+/** A `Layer` or a sum of them, the layer-side twin of `Looking`: a layer set chosen at runtime meets a look,
+  * another layer set, or the figure's parts exactly as either would.
+  */
+sealed trait Layered:
+  def terms: List[Layer]
+  def *(any: Looking): Layers = Layers(terms.flatMap(l => any.terms.map(t => Layer(l.data, l.look * t))))
+  def *(any: Layered): Layers = Layers(terms.flatMap(l => any.terms.map(l * _)))
+  def +(any: Layered): Layers = Layers(terms ::: any.terms)
+  def +(parts: Parts): Parts = Parts.of(this) + parts
+
+
 /** One product term of the spec algebra: a bundle of columns plus a look.  Ungraded — every
   * layer is born with its aesthetics, so superposition is total and layers with different
   * aesthetic sets coexist (unmapped attributes resolve to styled constants or theme
@@ -261,7 +284,8 @@ final case class Looks(terms: List[Look]):
   * `*` is record merge (right-biased on both data fields and look), distributing over sums
   * on either side; `+` is superposition, and its order is draw order.
   */
-final case class Layer(data: Data, look: Look):
+final case class Layer(data: Data, look: Look) extends Layered:
+  def terms: List[Layer] = this :: Nil
   def *(that: Layer): Layer = Layer(data mergedWith that.data, look * that.look)
   def *(lk: Look): Layer = Layer(data, look * lk)
   def *(lks: Looks): Layers = Layers(lks.terms.map(t => Layer(data, look * t)))
@@ -269,11 +293,10 @@ final case class Layer(data: Data, look: Look):
 
   def +(that: Layer): Layers = Layers(this :: that :: Nil)
   def +(those: Layers): Layers = Layers(this :: those.terms)
-  def +(parts: Parts): Parts = Parts.of(this) + parts
 
 
 /** An ordered sum of layers; term order is draw order. */
-final case class Layers(terms: List[Layer]):
+final case class Layers(terms: List[Layer]) extends Layered:
   def *(that: Layer): Layers = Layers(terms.map(_ * that))
   def *(lk: Look): Layers = Layers(terms.map(_ * lk))
   def *(lks: Looks): Layers = Layers(terms.flatMap(l => lks.terms.map(t => Layer(l.data, l.look * t))))
@@ -281,7 +304,6 @@ final case class Layers(terms: List[Layer]):
 
   def +(that: Layer): Layers = Layers(terms :+ that)
   def +(those: Layers): Layers = Layers(terms ::: those.terms)
-  def +(parts: Parts): Parts = Parts.of(this) + parts
 
 
 /** Compass directions for anchored placement — checked string literals, so no names are
@@ -335,11 +357,13 @@ final case class Parts(layers: Vector[Layer], config: Vector[Parts.Config]):
   def +(that: Parts): Parts = Parts(layers ++ that.layers, config ++ that.config)
   def +(that: Layer): Parts = Parts(layers :+ that, config)
   def +(those: Layers): Parts = Parts(layers ++ those.terms, config)
+  def +(any: Layered): Parts = Parts(layers ++ any.terms, config)
 
 object Parts:
   val empty: Parts = Parts(Vector.empty, Vector.empty)
   def of(l: Layer): Parts = Parts(Vector(l), Vector.empty)
   def of(ls: Layers): Parts = Parts(ls.terms.toVector, Vector.empty)
+  def of(any: Layered): Parts = Parts(any.terms.toVector, Vector.empty)
 
   enum Axis:
     case Horz, Vert
@@ -689,9 +713,8 @@ trait Vocabulary:
 object Fig extends Vocabulary:
   final class Scope private[Fig] () extends Vocabulary
 
-  def apply(f: Scope => (Parts | Layer | Layers)): Figure =
+  def apply(f: Scope => (Parts | Layered)): Figure =
     val parts = f(new Scope()) match
-      case p: Parts   => p
-      case l: Layer   => Parts.of(l)
-      case ls: Layers => Parts.of(ls)
+      case p: Parts     => p
+      case ls: Layered  => Parts.of(ls)
     Figure(parts)
