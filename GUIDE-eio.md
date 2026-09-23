@@ -406,7 +406,10 @@ bounded by the timeout given at creation.  `SharedMemory` maps RAM-backed memory
 `Mem`: `createNamed` and `attach` by an OS name, which also works on Windows, or `createFd` and `attachFd`
 anonymously, with `offerFd(path, n)` and `acceptFd(path)` doing the socket handoff in one call each.  The receiving
 side holds a `Mem.Owned[A]` over the same physical pages.  Calls block in native code, so give a long wait a
-platform thread, and a failed system call is an `Err` carrying the `errno` as data.  These two examples are
+platform thread, and a failed system call is an `Err` carrying the `errno` as data (`GetLastError` on Windows),
+even from an entry point that throws: `PosixSocket.errnoOf(err)` reads the code back, and `SharedMemory.exhausted(err)`
+says whether a failure was the system running out of memory or descriptors, worth retrying rather than reporting.
+These two examples are
 compiled but not run by the guide test, since they need a peer and native access.
 
 **Reach for these when** another process on the same machine should see the same memory or receive an open

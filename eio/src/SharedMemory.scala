@@ -85,6 +85,42 @@ import kse.maths.{given, _}
   * and can attach with `path.openIOMem[A]()`, recovering the count from the file length.
   */
 object SharedMemory {
+  /** A Windows call failure with its `GetLastError` code intact, as [[PosixSocket.Failed]] is for an errno:
+    * `call` is the kernel32 function, `detail` whatever the caller adds (a name).  Renders as
+    * `MapViewOfFile failed: GetLastError 8 ('Local\\x')`. */
+  final class Win32Failed(val call: String, val lastError: Int, val detail: String = "") extends ErrType {
+    type E = Int
+    def error: Int = lastError
+    override def toString: String =
+      if detail.isEmpty then s"$call failed: GetLastError $lastError" else s"$call failed: GetLastError $lastError ($detail)"
+    def buildLines(sb: MkStr, prefix: String): Unit = ErrType.buildLinesFromString(sb, toString, prefix)
+    def toThrowable: Throwable = new Win32Failed.Thrown(this)
+    override def equals(a: Any): Boolean = a match
+      case f: Win32Failed => f.call == call && f.lastError == lastError && f.detail == detail
+      case _ => false
+    override def hashCode: Int = (call.hashCode * 31 + lastError) * 31 + detail.hashCode
+  }
+  object Win32Failed {
+    /** A [[Win32Failed]] thrown from an entry point that throws, keeping the code for [[exhausted]]. */
+    final class Thrown(val failed: Win32Failed) extends java.io.IOException(failed.toString)
+    /** ERROR_TOO_MANY_OPEN_FILES, ERROR_NOT_ENOUGH_MEMORY, ERROR_OUTOFMEMORY, ERROR_NO_SYSTEM_RESOURCES,
+      * ERROR_COMMITMENT_LIMIT: the system out of handles, memory or commit charge. */
+    def exhausted(code: Int): Boolean = code == 4 || code == 8 || code == 14 || code == 1450 || code == 1455
+  }
+
+  /** Whether a failure to create, attach or map shared memory is the system running out of memory, address space,
+    * descriptors or handles -- worth trying again once something is released, rather than a refusal.  Judged from
+    * the code a failure carries ([[PosixSocket.Failed]], [[Win32Failed]], thrown or not), never from its text. */
+  def exhausted(err: Err): Boolean = err.underlying match
+    case f: PosixSocket.Failed => PosixSocket.Errno.exhausted(f.errno)
+    case w: Win32Failed => Win32Failed.exhausted(w.lastError)
+    case t: ErrType.ThrowableErr => t.error match
+      case x: PosixSocket.Failed.Thrown => PosixSocket.Errno.exhausted(x.failed.errno)
+      case x: Win32Failed.Thrown => Win32Failed.exhausted(x.failed.lastError)
+      case e => e.getCause.isInstanceOf[OutOfMemoryError]   // FileChannel.map's IOException when address space runs out
+    case x: ErrType.Explained => exhausted(x.error)
+    case _ => false
+
   /** A writable RAM-filesystem (tmpfs) directory where mappings stay off disk, if one can be found.
     * Checked in order: `-Dkse.eio.shmdir`, then `/dev/shm`, `/run/shm`.  `None` on macOS/Windows.
     */
@@ -267,13 +303,13 @@ object SharedMemory {
       val tmp = Resource.temp(Arena.ofConfined())(_.close())
       val cap = tmp.allocate(PosixNative.captureLayout)
       val fd: Int = PosixNative.shmOpen.invoke(cap, tmp.allocateFrom(posixName(name)), if readOnly then 0 else 0x2, 0)  // O_RDONLY / O_RDWR
-      if fd < 0 then throw new java.io.IOException(s"shm_open failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+      if fd < 0 then throw PosixSocket.Failed("shm_open", (PosixNative.errnoVH.get(cap, 0L): Int), s"'$name'").toThrowable
       Resource.temp(fd)(PosixSocket.closeQuietly) __ Unit   // the mapping keeps the memory; the descriptor is transient
       val n = if bytes > 0 then bytes else darwinSize(cap, tmp, fd)
-      if n <= 0 then throw new java.io.IOException(s"could not measure '$name' (fstat gave $n, errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+      if n <= 0 then throw PosixSocket.Failed("fstat", (PosixNative.errnoVH.get(cap, 0L): Int), s"measuring '$name' gave $n").toThrowable
       val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
       val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, n, prot, 0x1, fd, 0L)  // MAP_SHARED
-      if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")  // MAP_FAILED
+      if view.address() == -1L then throw PosixSocket.Failed("mmap", (PosixNative.errnoVH.get(cap, 0L): Int), s"'$name'").toThrowable  // MAP_FAILED
       Resource.releaseOp(arena){ a =>
         val whole = view.reinterpret(n, a, s => (PosixNative.munmap.invoke(s, n): Int) __ Unit)
         Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)   // the pages are PROT_READ: a write must throw, not fault
@@ -313,7 +349,7 @@ object SharedMemory {
     else
       val out = tmp.allocate(ADDRESS)
       if (WindowsNative.sddlToSd.invoke(cap, tmp.allocateFrom(sddl, StandardCharsets.UTF_16LE), 1, out, MemorySegment.NULL): Int) == 0 then   // SDDL_REVISION_1
-        throw new java.io.IOException(s"'$sddl' is not a valid security descriptor (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+        throw Win32Failed("ConvertStringSecurityDescriptorToSecurityDescriptorW", (WindowsNative.lastErrorVH.get(cap, 0L): Int), s"'$sddl' is not a valid security descriptor").toThrowable
       val sd = out.get(ADDRESS, 0L)
       try
         val sa = tmp.allocate(24L)               // { DWORD nLength; LPVOID lpSecurityDescriptor; BOOL bInheritHandle }, 64-bit
@@ -337,14 +373,14 @@ object SharedMemory {
       val tmp = Resource.temp(Arena.ofConfined())(_.close())
       val cap = tmp.allocate(WindowsNative.captureLayout)
       val handle: MemorySegment = WindowsNative.openMapping.invoke(cap, access, 0, tmp.allocateFrom(name, StandardCharsets.UTF_16LE))
-      if handle.address() == 0L then throw new java.io.IOException(s"OpenFileMapping failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      if handle.address() == 0L then throw Win32Failed("OpenFileMapping", (WindowsNative.lastErrorVH.get(cap, 0L): Int), s"'$name'").toThrowable
       Resource.temp(handle)(h => (WindowsNative.closeHandle.invoke(h): Int) __ Unit) __ Unit   // the view keeps the section; the handle is transient
       val view: MemorySegment = WindowsNative.mapView.invoke(cap, handle, access, 0, 0, bytes)   // 0 bytes maps the whole section
-      if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+      if view.address() == 0L then throw Win32Failed("MapViewOfFile", (WindowsNative.lastErrorVH.get(cap, 0L): Int), s"'$name'").toThrowable
       val n = if bytes > 0 then bytes else windowsViewSize(cap, tmp, view)
       if n <= 0 then
         (WindowsNative.unmapView.invoke(view): Int) __ Unit
-        throw new java.io.IOException(s"could not measure the view of '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+        throw Win32Failed("VirtualQuery", (WindowsNative.lastErrorVH.get(cap, 0L): Int), s"measuring the view of '$name'").toThrowable
       Resource.releaseOp(arena){ a =>
         val whole = view.reinterpret(n, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit)
         Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)   // FILE_MAP_READ pages: a write must throw, not fault
@@ -528,16 +564,16 @@ object SharedMemory {
       if fd < 0 then
         val e = (PosixNative.errnoVH.get(cap, 0L): Int)
         if e == 17 then null    // EEXIST: a clash, for the caller to retry or report
-        else throw new java.io.IOException(s"shm_open failed for '$name' (errno=$e)")
+        else throw PosixSocket.Failed("shm_open", e, s"'$name'").toThrowable
       else Resource.assemble:
         Resource.temp(fd)(PosixSocket.closeQuietly) __ Unit   // the mapping keeps the memory; the descriptor is transient
         val made = Resource.guard(name)(shmUnlink)   // gone if we fail from here on
         if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
-          throw new java.io.IOException(s"ftruncate failed for '$name' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+          throw PosixSocket.Failed("ftruncate", (PosixNative.errnoVH.get(cap, 0L): Int), s"'$name'").toThrowable
         val arena = Resource.guard(Arena.ofShared())(_.close())
         Resource.releaseOp(made, arena){ (nm, a) =>
           val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, bytes, 0x3, 0x1, fd, 0L)  // PROT_READ|WRITE, MAP_SHARED
-          if view.address() == -1L then throw new java.io.IOException(s"mmap failed for '$nm' (errno=${PosixNative.errnoVH.get(cap, 0L): Int})")
+          if view.address() == -1L then throw PosixSocket.Failed("mmap", (PosixNative.errnoVH.get(cap, 0L): Int), s"'$nm'").toThrowable
           val owned = Mem.Owned.create[A](a)(_ => view.reinterpret(bytes, a, s => (PosixNative.munmap.invoke(s, bytes): Int) __ Unit))
           new Created[A](nm, owned, () => shmUnlink(nm))
         }
@@ -561,7 +597,7 @@ object SharedMemory {
       }
       val lastErr = (WindowsNative.lastErrorVH.get(cap, 0L): Int)
       if handle.address() == 0L then
-        throw new java.io.IOException(s"CreateFileMapping failed for '$name' (GetLastError=$lastErr)")   // real failure: fail loud
+        throw Win32Failed("CreateFileMapping", lastErr, s"'$name'").toThrowable   // real failure: fail loud
       else if lastErr == 183 then                                // ERROR_ALREADY_EXISTS: a clash, for the caller to retry or report
         (WindowsNative.closeHandle.invoke(handle): Int) __ Unit
         null
@@ -570,7 +606,7 @@ object SharedMemory {
         val arena = Resource.guard(Arena.ofShared())(_.close())
         Resource.releaseOp(section, arena){ (h, a) =>
           val view: MemorySegment = WindowsNative.mapView.invoke(cap, h, 0x0002, 0, 0, bytes)  // FILE_MAP_WRITE: a read-write view
-          if view.address() == 0L then throw new java.io.IOException(s"MapViewOfFile failed for '$name' (GetLastError=${WindowsNative.lastErrorVH.get(cap, 0L): Int})")
+          if view.address() == 0L then throw Win32Failed("MapViewOfFile", (WindowsNative.lastErrorVH.get(cap, 0L): Int), s"'$name'").toThrowable
           val owned = Mem.Owned.create[A](a)(_ => view.reinterpret(bytes, a, s => (WindowsNative.unmapView.invoke(s): Int) __ Unit))
           new Created[A](name, owned, () => (WindowsNative.closeHandle.invoke(h): Int) __ Unit)
         }
@@ -625,7 +661,7 @@ object SharedMemory {
         val arena = Resource.guard(Arena.ofShared())(_.close())
         val prot = if readOnly then 0x1 else 0x3   // PROT_READ [| PROT_WRITE]
         val view: MemorySegment = PosixNative.mmap.invoke(cap, MemorySegment.NULL, size, prot, 0x1, fd, 0L)  // MAP_SHARED
-        if view.address() == -1L then Err ?# s"mmap failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+        if view.address() == -1L then Err.or(PosixSocket.Failed("mmap", (PosixNative.errnoVH.get(cap, 0L): Int))).?
         Resource.releaseOp(arena){ a =>
           val whole = view.reinterpret(size, a, s => (PosixNative.munmap.invoke(s, size): Int) __ Unit)
           Mem.Owned.create[A](a)(_ => if readOnly then whole.asReadOnly else whole)
@@ -643,12 +679,12 @@ object SharedMemory {
       Ask:
         Resource.assemble:
           val fd: Int = PosixNative.memfdCreate.invoke(cap, tmp.allocateFrom("kse-shm"), 0x1 | 0x2)   // MFD_CLOEXEC | MFD_ALLOW_SEALING
-          if fd < 0 then Err ?# s"memfd_create failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+          if fd < 0 then Err.or(PosixSocket.Failed("memfd_create", (PosixNative.errnoVH.get(cap, 0L): Int))).?
           val ours = Resource.guard(fd)(PosixSocket.closeQuietly)   // the Anon owns it once mapped; until then it is ours to close
           if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
-            Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+            Err.or(PosixSocket.Failed("ftruncate", (PosixNative.errnoVH.get(cap, 0L): Int))).?
           if (PosixNative.fcntl.invoke(cap, fd, 1033, 0x2): Int) != 0 then                          // F_ADD_SEALS, F_SEAL_SHRINK
-            Err ?# s"F_ADD_SEALS(F_SEAL_SHRINK) failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+            Err.or(PosixSocket.Failed("fcntl", (PosixNative.errnoVH.get(cap, 0L): Int), "F_ADD_SEALS(F_SEAL_SHRINK)")).?
           Resource.releaseOp(ours)(f => mapAnonFd[A](f, bytes, cap).?)
     finally tmp.close()
 
@@ -669,14 +705,14 @@ object SharedMemory {
           if fd < 0 then
             val e = (PosixNative.errnoVH.get(cap, 0L): Int)
             if e == 17 then clashing = true   // EEXIST: name clash, try another
-            else Err ?# s"shm_open failed (errno=$e)"
+            else Err.or(PosixSocket.Failed("shm_open", e)).?
           else
             made = Ask:
               Resource.assemble:
                 val ours = Resource.guard(fd)(PosixSocket.closeQuietly)   // the Anon owns it once mapped; until then it is ours to close
                 Resource.temp(name)(shmUnlink) __ Unit              // anonymous from birth: the name goes once the region is mapped, or sooner
                 if (PosixNative.ftruncate.invoke(cap, fd, bytes): Int) != 0 then
-                  Err ?# s"ftruncate failed (errno=${PosixNative.errnoVH.get(cap, 0L): Int})"
+                  Err.or(PosixSocket.Failed("ftruncate", (PosixNative.errnoVH.get(cap, 0L): Int))).?
                 Resource.releaseOp(ours)(f => mapAnonFd[A](f, bytes, cap).?)
         made
     finally tmp.close()
@@ -715,7 +751,7 @@ object SharedMemory {
           if bytes > 0 then bytes
           else
             val z: Long = if onMac then darwinSize(cap, tmp, fd) else PosixNative.lseek.invoke(cap, fd, 0L, 2)   // SEEK_END; Darwin's shm descriptors do not seek
-            if z <= 0 then Err ?# s"could not measure the shared descriptor (got $z, errno=${PosixNative.errnoVH.get(cap, 0L): Int}); pass n explicitly"
+            if z <= 0 then Err.or(PosixSocket.Failed(if onMac then "fstat" else "lseek", (PosixNative.errnoVH.get(cap, 0L): Int), s"measuring the shared descriptor gave $z; pass n explicitly")).?
             z
         Resource.release(Resource.guard(mapOwned[A](fd, size, readOnly, cap).?)(_.close()))
 

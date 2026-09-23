@@ -706,6 +706,30 @@ class NativeTest {
 
 
   @Test
+  def sharedMemoryFailuresCarryTheirCode(): Unit =
+    import PosixSocket.Errno.*
+    // judged from the code a failure carries, never from its text
+    T ~ SharedMemory.exhausted(Err(PosixSocket.Failed("mmap", ENOMEM)))                              ==== true
+    T ~ SharedMemory.exhausted((Err(PosixSocket.Failed("shm_open", EMFILE)) +# "attaching"))            ==== true
+    T ~ SharedMemory.exhausted(Err(PosixSocket.Failed("mmap", EBADF)))                               ==== false
+    T ~ SharedMemory.exhausted(Err("mmap failed: ENOMEM"))                                           ==== false
+    T ~ SharedMemory.exhausted(Err(SharedMemory.Win32Failed("MapViewOfFile", 8)))                     ==== true
+    T ~ SharedMemory.exhausted(Err(SharedMemory.Win32Failed("OpenFileMapping", 5)))                   ==== false
+    // an entry point that throws keeps the code through `nice`
+    val thrown = nice{ throw PosixSocket.Failed("mmap", ENFILE, "'x'").toThrowable }
+    T ~ thrown.fold(_ => -1)(PosixSocket.errnoOf)                                                     ==== ENFILE
+    T ~ thrown.fold(_ => false)(SharedMemory.exhausted)                                               ==== true
+    T ~ nice{ throw SharedMemory.Win32Failed("CreateFileMapping", 1455).toThrowable }.fold(_ => false)(SharedMemory.exhausted) ==== true
+    T ~ nice{ throw new java.io.IOException("Map failed", new OutOfMemoryError("Map failed")) }.fold(_ => false)(SharedMemory.exhausted) ==== true
+    T ~ nice{ throw new java.io.IOException("Cannot allocate memory") }.fold(_ => true)(SharedMemory.exhausted)                     ==== false
+    // and a real one: mapping a descriptor that is not open
+    if FdSock.supported then
+      val bad = SharedMemory.attachFdBytes[Byte](-1, 64L, false)
+      T ~ errnoOf(bad)                                                                                 ==== EBADF
+      T ~ bad.fold(_ => true)(SharedMemory.exhausted)                                                  ==== false
+
+
+  @Test
   def namedSharedMemoryTest(): Unit =
     // the OS-named route exists everywhere: a tmpfs file on Linux, shm_open on macOS, a pagefile-backed
     // section on Windows; the name is random and the round trip is the same on all three

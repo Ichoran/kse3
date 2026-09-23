@@ -126,6 +126,9 @@ object PosixSocket {
     /** The symbolic name of a code on this platform, or `errno N` for one not in the table. */
     def name(e: Int): String = names.getOrElse(e, s"errno $e")
 
+    /** The system is out of memory, address space or descriptors: worth trying again later, not a refusal. */
+    def exhausted(e: Int): Boolean = e == ENOMEM || e == EMFILE || e == ENFILE || e == EAGAIN
+
     /** The call would block (a non-blocking socket, or a timeout on a blocking one). */
     def wouldBlock(e: Int): Boolean = e == EAGAIN || e == EWOULDBLOCK
     /** A signal interrupted the call; retrying is the usual answer. */
@@ -185,16 +188,24 @@ object PosixSocket {
     override def toString: String =
       if detail.isEmpty then s"$call failed: ${Errno.name(errno)}" else s"$call failed: ${Errno.name(errno)} ($detail)"
     def buildLines(sb: MkStr, prefix: String): Unit = ErrType.buildLinesFromString(sb, toString, prefix)
-    def toThrowable: Throwable = new java.io.IOException(toString)
+    def toThrowable: Throwable = new Failed.Thrown(this)
     override def equals(a: Any): Boolean = a match
       case f: Failed => f.call == call && f.errno == errno && f.detail == detail
       case _ => false
     override def hashCode: Int = (call.hashCode * 31 + errno) * 31 + detail.hashCode
   }
+  object Failed {
+    /** A [[Failed]] thrown from an entry point that throws: an `IOException` that keeps the code, so an `Err`
+      * caught from it by `nice` still answers [[errnoOf]]. */
+    final class Thrown(val failed: Failed) extends java.io.IOException(failed.toString)
+  }
 
   /** The errno inside an `Err`, digging through explanations; -1 if the error is not a system call failure. */
   def errnoOf(err: Err): Int = err.underlying match
     case f: Failed => f.errno
+    case t: ErrType.ThrowableErr => t.error match
+      case x: Failed.Thrown => x.failed.errno
+      case _ => -1
     case x: ErrType.Explained => errnoOf(x.error)
     case _ => -1
 
