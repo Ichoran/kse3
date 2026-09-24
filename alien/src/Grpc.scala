@@ -9,7 +9,8 @@ import java.time.Duration
 import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch, ExecutorService, Executors, LinkedBlockingQueue, TimeUnit}
 
 import io.grpc.{BindableService, CallOptions, Channel, ConnectivityState, Drainable, KnownLength, ManagedChannel, ManagedChannelBuilder}
-import io.grpc.{Metadata, MethodDescriptor, Server, ServerBuilder, ServerMethodDefinition, ServerServiceDefinition}
+import io.grpc.{ForwardingServerCall, Metadata, MethodDescriptor, Server, ServerBuilder, ServerCall, ServerCallHandler, ServerInterceptor, ServerInterceptors}
+import io.grpc.{ServerMethodDefinition, ServerServiceDefinition}
 import io.grpc.{Status, StatusException, StatusRuntimeException}
 import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
 import io.grpc.stub.{ClientCalls, ServerCalls, ServerCallStreamObserver, StreamObserver}
@@ -648,6 +649,23 @@ object Grpc {
     val ans = nice{ new Link(ManagedChannelBuilder.forTarget(target).usePlaintext().executor(ex).build(), ex) }
     if !ans.isIs then ex.shutdown()
     ans.flatMap(readied(_, readyWithin))
+
+  /** `sd` with each call's response headers sent the moment the call opens, rather than with its first response
+    * message as grpc-java does by default.  Lazy headers are the norm and legal -- gRPC fixes their order (headers,
+    * messages, trailers), not their timing -- but some clients will not write their first request until the headers
+    * arrive (awaiting a streaming call in tonic resolves on them), and against a server whose first message answers
+    * that request both sides wait forever.  Serve `Grpc.eagerHeaders(service.definition)` for such peers.  A handler's
+    * own headers are then dropped, since a call sends headers once.
+    */
+  def eagerHeaders(sd: ServerServiceDefinition): ServerServiceDefinition = ServerInterceptors.intercept(sd, EagerHeaders)
+
+  private object EagerHeaders extends ServerInterceptor {
+    def interceptCall[Q, R](call: ServerCall[Q, R], headers: Metadata, next: ServerCallHandler[Q, R]): ServerCall.Listener[Q] =
+      call.sendHeaders(new Metadata())
+      next.startCall(new ForwardingServerCall.SimpleForwardingServerCall[Q, R](call) {
+        override def sendHeaders(h: Metadata): Unit = ()
+      }, headers)
+  }
 
   /** A server and a channel joined by the in-process transport: real grpc semantics, no
     * network, no extra transport dependency beyond grpc-inprocess.  This is the test-server

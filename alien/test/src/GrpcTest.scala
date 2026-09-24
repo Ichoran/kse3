@@ -236,6 +236,33 @@ class GrpcTest {
     lazily.close()
 
   @Test
+  def grpcEagerHeaders(): Unit =
+    import io.grpc.{CallOptions, ClientCall, Metadata}
+    import java.util.concurrent.{CountDownLatch, TimeUnit}
+    // Shift answers requests and never speaks first; with no message either way, only eager headers arrive
+    def headersWithin(sd: io.grpc.ServerServiceDefinition, ms: Long): Boolean =
+      val (host, link) = got(Grpc.loopback(sd))
+      try
+        val arrived = new CountDownLatch(1)
+        val call = link.channel.newCall(shiftM, CallOptions.DEFAULT)
+        call.start(new ClientCall.Listener[Pt] { override def onHeaders(h: Metadata): Unit = arrived.countDown() }, new Metadata())
+        call.request(1)
+        val ans = arrived.await(ms, TimeUnit.MILLISECONDS)
+        call.cancel("done", null)
+        ans
+      finally
+        link.close()
+        host.close()
+    T ~ headersWithin(Grpc.eagerHeaders(trackService.definition), 10000) ==== true
+    T ~ headersWithin(trackService.definition, 300)                         ==== false   // grpc-java's default: with the first message
+    // eager headers change nothing else: calls still answer
+    val (host, link) = got(Grpc.loopback(Grpc.eagerHeaders(trackService.definition)))
+    try T ~ got(Grpc.call(link.channel, centerM, Track(id = "e", pts = Array(Pt(4, 6))))) ==== Pt(4, 6)
+    finally
+      link.close()
+      host.close()
+
+  @Test
   def grpcChanPumpTest(): Unit =
     import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
     import kse.loom.Chan
