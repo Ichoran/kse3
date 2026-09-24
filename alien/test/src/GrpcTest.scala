@@ -204,6 +204,38 @@ class GrpcTest {
     T ~ h2.server.isTerminated ==== true
 
   @Test
+  def grpcConnectWaitsForReady(): Unit =
+    import io.grpc.ConnectivityState
+    import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
+    import java.time.Duration
+    import java.util.concurrent.{CountDownLatch, SynchronousQueue, TimeUnit}
+    // a link to a server not there yet comes back READY once it is, rather than failing its first call
+    val name = InProcessServerBuilder.generateName()
+    val started = new CountDownLatch(1)
+    val out = new SynchronousQueue[Ask[Grpc.Link]]
+    Thread.ofPlatform().start: () =>
+      started.countDown()
+      out.put(Grpc.connect(InProcessChannelBuilder.forName(name), Duration.ofSeconds(30)))
+    T ~ started.await(10, TimeUnit.SECONDS) ==== true
+    val host = got(Grpc.serve(InProcessServerBuilder.forName(name).executor(Grpc.virtualThreads()))(trackService.definition))
+    val link = got(out.poll(60, TimeUnit.SECONDS))
+    try
+      T ~ link.channel.getState(false) ==== ConnectivityState.READY
+      T ~ got(Grpc.call(link.channel, centerM, Track(id = "r", pts = Array(Pt(3, 5))))) ==== Pt(3, 5)
+    finally
+      link.close()
+      host.close()
+    // nobody there: an Err naming the state once the wait is over
+    val t0 = System.nanoTime
+    val none = Grpc.connect(InProcessChannelBuilder.forName(InProcessServerBuilder.generateName()), Duration.ofMillis(300))
+    T ~ none.fold(_ => "")(_.toString).contains("not READY within") ==== true
+    T ~ (System.nanoTime - t0 >= 300_000_000L) ==== true
+    // a zero wait is the lazy channel grpc builds by default
+    val lazily = got(Grpc.connect(InProcessChannelBuilder.forName(InProcessServerBuilder.generateName()), Duration.ZERO))
+    T ~ lazily.channel.getState(false) ==== ConnectivityState.IDLE
+    lazily.close()
+
+  @Test
   def grpcChanPumpTest(): Unit =
     import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
     import kse.loom.Chan

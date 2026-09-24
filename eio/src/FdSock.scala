@@ -4,6 +4,7 @@
 package kse.eio
 
 
+import java.lang.{Math => jm}
 import java.lang.foreign.{Arena, MemorySegment}
 import java.lang.foreign.ValueLayout.JAVA_BYTE
 import java.nio.charset.StandardCharsets
@@ -321,6 +322,10 @@ object FdSock {
         setRcvTimeout(cap, tmp, accepted, timeoutMs).?
         Resource.releaseOp(accepted)(new Conn(_, timeoutMs))
 
+    /** The same listening socket, known by `p` now: its descriptor moves to the new handle, and this one is left
+      * closed without unlinking anything. */
+    private[eio] def at(p: Path): Server = new Server(disown(), p, timeoutMs)
+
     def close(): Unit =
       if fd >= 0 then
         PosixSocket.closeQuietly(fd)
@@ -345,10 +350,47 @@ object FdSock {
         new Conn(fd, 0L)
     finally tmp.close()
 
-  /** Binds and listens at `path`, which must not already exist (stale socket files are the caller's to
-    * clear).  The timeout bounds each `accept` wait and is inherited by accepted connections.
+  private val staged = new java.util.concurrent.atomic.AtomicLong(0L)
+
+  /** A sibling of `path` to bind at before the socket appears there: in the same directory, so a link stays on one
+    * filesystem, and short, since a socket path is at most `SockAddrUn.pathMax` bytes; unique to this process and
+    * call. */
+  private def staging(path: Path): Path =
+    val tag = java.lang.Long.toString(ProcessHandle.current.pid, 36) + java.lang.Long.toString(staged.incrementAndGet(), 36)
+    path.resolveSibling(path.getFileName.toString + "." + tag)
+
+  /** A Unix-domain socket that appears at `path` only once it is listening.  A socket file exists from `bind`, but
+    * connections are refused until `listen`, and a peer that dials when it sees the path -- a host waiting for a
+    * plugin, a test for its server -- is refused in between, which on a loaded machine happens (the JDK always
+    * binds in two calls).  So `bindAt` is handed a staging name beside `path`, binds and starts listening there by
+    * whatever means it likes (a JDK channel, netty, gRPC, this library), and when it returns the socket is
+    * hard-linked to `path` and the staging name removed: the path appears whole, already listening.  A link, not a
+    * rename, so `path` must not already exist, as for `bind`; if the link fails, `close` is given what `bindAt`
+    * made, so a server is never left bound at a name nobody can find.
     */
-  def listen(path: Path, timeout: Duration = defaultTimeout): Ask[Server] = Ask:
+  def appear[A](path: Path)(bindAt: Path => Ask[A])(close: A => Unit): Ask[A] = Ask.flat:
+    if Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS) then
+      Err.or(PosixSocket.Failed("bind", PosixSocket.Errno.EADDRINUSE, s"$path already exists"))
+    else
+      val at = staging(path)
+      bindAt(at).flatMap: a =>
+        val linked = nice{ Files.createLink(path, at) __ Unit }
+        Files.deleteIfExists(at) __ Unit
+        linked.fold(_ => Is(a)){ e =>
+          close(a)
+          Err.or(s"a socket listening at $at could not appear at $path: $e")
+        }
+
+  /** Binds and listens at `path`, which must not already exist (stale socket files are the caller's to clear).
+    * The timeout bounds each `accept` wait and is inherited by accepted connections.  With `atomic` (the default)
+    * the path appears only once the socket is listening, so a peer that dials as soon as it sees it is never
+    * refused (see `appear`); `atomic = false` binds `path` itself, visible from `bind`.
+    */
+  def listen(path: Path, timeout: Duration = defaultTimeout, atomic: Boolean = true): Ask[Server] =
+    if atomic then appear(path)(bindListen(_, timeout))(_.close()).map(_.at(path))
+    else bindListen(path, timeout)
+
+  private def bindListen(path: Path, timeout: Duration): Ask[Server] = Ask:
     checkSupported().?
     Resource.assemble:
       val tmp = Resource.temp(Arena.ofConfined())(_.close())
@@ -364,8 +406,31 @@ object FdSock {
       setRcvTimeout(cap, tmp, fd, ms).?
       Resource.releaseOp(fd, bound)((f, p) => new Server(f, p, ms))
 
-  /** Connects to the listening socket at `path`; receives on the connection are bounded by the timeout. */
-  def connect(path: Path, timeout: Duration = defaultTimeout): Ask[Conn] = Ask:
+  /** Connects to the listening socket at `path`; receives on the connection are bounded by the timeout.  With
+    * `patient` (the default), a socket not there yet (`ENOENT`) or not yet listening (`ECONNREFUSED`) is tried
+    * again, the pause growing from 5 ms to 100 ms, until the timeout has passed, so a client started alongside its
+    * server does not fail for arriving first; the last refusal is the answer.  An interrupt ends the waiting
+    * early, the flag kept.  With `patient = false`, or a timeout of zero (no limit to bound the waiting by), the
+    * first refusal is the answer.
+    */
+  def connect(path: Path, timeout: Duration = defaultTimeout, patient: Boolean = true): Ask[Conn] =
+    val ms = millisOf(timeout)
+    if !patient || ms == 0 then connectOnce(path, ms)
+    else
+      val deadline = System.nanoTime + ms * 1000000L
+      var pauseNs = 5000000L
+      var answer = connectOnce(path, ms)
+      def retry(e: Err): Boolean =
+        val errno = PosixSocket.errnoOf(e)
+        (errno == PosixSocket.Errno.ENOENT || errno == PosixSocket.Errno.ECONNREFUSED) &&
+          deadline - System.nanoTime > 0 && !Thread.currentThread.isInterrupted
+      while answer.fold(_ => false)(retry) do
+        java.util.concurrent.locks.LockSupport.parkNanos(jm.min(pauseNs, jm.max(0L, deadline - System.nanoTime)))
+        pauseNs = jm.min(pauseNs * 2, 100000000L)
+        answer = connectOnce(path, ms)
+      answer
+
+  private def connectOnce(path: Path, ms: Long): Ask[Conn] = Ask:
     checkSupported().?
     Resource.assemble:
       val tmp = Resource.temp(Arena.ofConfined())(_.close())
@@ -374,7 +439,6 @@ object FdSock {
       val sa = sockaddr(tmp, path).?
       if (PosixSocket.Sys.connect.invoke(cap, fd, sa, PosixSocket.SockAddrUn.size): Int) != 0 then
         PosixSocket.Failed("connect", PosixSocket.errnoOf(cap), s"at $path").?
-      val ms = millisOf(timeout)
       setRcvTimeout(cap, tmp, fd, ms).?
       Resource.releaseOp(fd)(new Conn(_, ms))
 

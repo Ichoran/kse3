@@ -126,7 +126,10 @@ gives the whole mapping.
 answers `Ask[B]`, `serverStream(m){ (a, sender) => ... }` pushes through a `Sender`, `clientStream(m){ inbox => ... }`
 pulls from an `Inbox`, and `bidi` has both; `definition` is what a server serves.  `Grpc.serve(port)(defs)` serves
 on TCP with handlers on virtual threads, `Grpc.loopback(defs)` joins a server and a channel in-process for tests,
-and `Grpc.connectLocal(target)` opens a plaintext channel; each comes back as a closeable `Host` or `Link`.  On the
+and `Grpc.connectLocal(target)` opens a plaintext channel; each comes back as a closeable `Host` or `Link`.
+`connect` and `connectLocal` hand the `Link` back READY, waiting up to `readyWithin` (10 s by default) for a server
+that is still starting, so a first call does not fail fast with `UNAVAILABLE`; `Duration.ZERO` gives grpc's lazy
+channel, and `link.ready(within)` waits again later.  On the
 client, `Grpc.call(channel, m, a)` is an `Ask[B]`, `stream` hands each response to a function, `upload` feeds a
 `Sender`, and `converse` gives both ends.  A failed call is an `Err` that remembers its `Status`, read with
 `Grpc.statusOf`, and a handler refuses with `Grpc.or(code, why)`.  Handlers may block, since every executor this

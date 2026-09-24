@@ -402,7 +402,11 @@ Two native facilities sit at the bottom of eio, for Linux and macOS, and the JVM
 `--enable-native-access=ALL-UNNAMED` to use them.  `FdSock` is a Unix-domain stream socket that can carry a file
 descriptor along with bytes (`SCM_RIGHTS`), which the JDK's own Unix-domain channels can't: `FdSock.listen(path)`
 gives a `Server` and `connect(path)` a `Conn`, with `read`, `write`, `sendFd`, and `recvFd`, and every receive is
-bounded by the timeout given at creation.  `SharedMemory` maps RAM-backed memory shared between processes as a
+bounded by the timeout given at creation.  A socket file exists from `bind` but refuses connections until `listen`,
+so by default `listen` makes the path appear only once the socket is listening, and `connect` retries a path that
+is not there or not listening yet until its timeout; `atomic = false` and `patient = false` give the plain calls.
+`FdSock.appear(path)(bindAt)(close)` does the same for a server this library does not own, netty or gRPC say: it
+binds at a staging name, and the path appears when it listens.  `SharedMemory` maps RAM-backed memory shared between processes as a
 `Mem`: `createNamed` and `attach` by an OS name, which also works on Windows, or `createFd` and `attachFd`
 anonymously, with `offerFd(path, n)` and `acceptFd(path)` doing the socket handoff in one call each.  The receiving
 side holds a `Mem.Owned[A]` over the same physical pages.  Calls block in native code, so give a long wait a

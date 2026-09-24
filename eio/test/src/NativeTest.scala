@@ -705,6 +705,85 @@ class NativeTest {
       Files.deleteIfExists(dir) __ Unit
 
 
+  // A socket file exists from bind, and connections are refused until listen: the path must appear only once the
+  // socket listens, or a peer that dials on seeing it -- a host waiting for a plugin -- is refused under load
+  @Test
+  def aSocketAppearsOnlyOnceItListens(): Unit =
+    import PosixSocket.Errno.*
+    if FdSock.supported then
+      val dir = socketDir("kse-appear-")
+      def names = Files.list(dir).toArray.map(_.toString.split('/').last).toList.sorted
+      // the path is the only name left behind, and it answers the first dial
+      val path = dir.resolve("a.sock")
+      val srv = must(FdSock.listen(path, 5.s))
+      T ~ names ==== List("a.sock")
+      val c = must(FdSock.connect(path, 5.s, patient = false))
+      must(srv.accept()).close()
+      c.close()
+      // a path already there is refused as bind refuses it, and nothing is left behind
+      T ~ errnoOf(FdSock.listen(path, 1.s)) ==== EADDRINUSE
+      T ~ names ==== List("a.sock")
+      srv.close()
+      T ~ names ==== Nil
+      // the hazard itself: a socket bound and not yet listening has a path, and a dial there is refused
+      val half = dir.resolve("half.sock")
+      val hfd = loneSocket(PosixSocket.SOCK_STREAM)
+      locally:
+        val tmp = Arena.ofConfined()
+        try
+          val sa = tmp.allocate(PosixSocket.SockAddrUn.size)
+          PosixSocket.SockAddrUn.write(sa, half.toString.getBytes("UTF-8"))
+          T ~ (PosixSocket.Sys.bind.invoke(PosixSocket.capture(tmp), hfd, sa, PosixSocket.SockAddrUn.size): Int) ==== 0
+        finally tmp.close()
+      T ~ half.exists ==== true
+      T ~ errnoOf(FdSock.connect(half, 5.s, patient = false)) ==== ECONNREFUSED
+      PosixSocket.closeQuietly(hfd)
+      Files.deleteIfExists(half) __ Unit
+      // the old way still binds the path itself
+      val plain = must(FdSock.listen(dir.resolve("plain.sock"), 1.s, atomic = false))
+      T ~ names ==== List("plain.sock")
+      plain.close()
+      // a patient client started before its server connects once the server appears
+      val late = dir.resolve("late.sock")
+      val started = new java.util.concurrent.CountDownLatch(1)
+      val result = new SynchronousQueue[Int]
+      Thread.ofPlatform().start: () =>
+        started.countDown()
+        val r = FdSock.connect(late, 10.s)
+        r.foreach(_.close())
+        result.put(errnoOf(r))
+      T ~ started.await(10, TimeUnit.SECONDS) ==== true
+      val ls = must(FdSock.listen(late, 10.s))
+      T ~ handoff(result) ==== -1
+      ls.close()
+      // nobody there: at once when impatient, after the timeout when patient, the code kept either way
+      val nobody = dir.resolve("nobody.sock")
+      T ~ errnoOf(FdSock.connect(nobody, 10.s, patient = false)) ==== ENOENT
+      val t0 = System.nanoTime
+      T ~ errnoOf(FdSock.connect(nobody, 300.ms)) ==== ENOENT
+      T ~ (System.nanoTime - t0 >= 300_000_000L) ==== true
+      // appear, for a server this library does not own: a JDK channel bound at the staging name
+      import java.nio.channels.ServerSocketChannel
+      def jdkAt(at: Path) = nice:
+        val ch = ServerSocketChannel.open(java.net.StandardProtocolFamily.UNIX)
+        ch.bind(java.net.UnixDomainSocketAddress.of(at))
+        ch
+      val q = dir.resolve("jdk.sock")
+      var absentWhileBinding = false
+      val ch = must(FdSock.appear(q)(at => { val c = jdkAt(at); absentWhileBinding = !Files.exists(q); c })(_.close()))
+      T ~ absentWhileBinding ==== true   // the path did not exist until the socket was listening
+      T ~ names ==== List("jdk.sock")
+      val jc = must(FdSock.connect(q, 5.s, patient = false))
+      ch.accept().close()
+      jc.close()
+      var called = false
+      T ~ errnoOf(FdSock.appear(q)(at => { called = true; jdkAt(at) })(_.close())) ==== EADDRINUSE
+      T ~ called ==== false
+      ch.close()
+      Files.deleteIfExists(q) __ Unit
+      Files.deleteIfExists(dir) __ Unit
+
+
   @Test
   def sharedMemoryFailuresCarryTheirCode(): Unit =
     import PosixSocket.Errno.*

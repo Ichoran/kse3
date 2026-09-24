@@ -5,9 +5,10 @@ package kse.alien
 
 
 import java.io.{InputStream, OutputStream}
-import java.util.concurrent.{ArrayBlockingQueue, ExecutorService, Executors, LinkedBlockingQueue, TimeUnit}
+import java.time.Duration
+import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch, ExecutorService, Executors, LinkedBlockingQueue, TimeUnit}
 
-import io.grpc.{BindableService, CallOptions, Channel, Drainable, KnownLength, ManagedChannel, ManagedChannelBuilder}
+import io.grpc.{BindableService, CallOptions, Channel, ConnectivityState, Drainable, KnownLength, ManagedChannel, ManagedChannelBuilder}
 import io.grpc.{Metadata, MethodDescriptor, Server, ServerBuilder, ServerMethodDefinition, ServerServiceDefinition}
 import io.grpc.{Status, StatusException, StatusRuntimeException}
 import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
@@ -15,6 +16,7 @@ import io.grpc.stub.{ClientCalls, ServerCalls, ServerCallStreamObserver, StreamO
 
 import kse.basics.{given, _}
 import kse.flow.{given, _}
+import kse.maths.{given, _}
 import kse.loom.{Chan, ChanIn, ChanN, ChanOut, RunStatus}
 
 
@@ -562,6 +564,32 @@ object Grpc {
 
   /** A client channel, closeable the same way as [[Host]]. */
   final class Link private[alien] (val channel: ManagedChannel, ownedExec: ExecutorService | Null) extends java.io.Closeable {
+    /** Waits, at most `within`, for the channel to be READY: it starts connecting if idle, and rides out a server
+      * that is still starting -- refused connections are the channel's to retry, on its own backoff -- so the call
+      * that follows does not fail fast with `UNAVAILABLE` for arriving first.  An `Err` names the state the channel
+      * was in when the time ran out; a channel shut down fails at once, and an interrupt ends the wait early, the
+      * flag kept.  Nothing waits longer than `within`. */
+    def ready(within: Duration): Ask[Unit] =
+      val deadline = System.nanoTime + within.nano.into.ceil.ms * 1000000L
+      var state = channel.getState(true)
+      var answer: Option[Ask[Unit]] = None
+      while answer.isEmpty do
+        if state == ConnectivityState.READY then answer = Some(Is.unit)
+        else if state == ConnectivityState.SHUTDOWN then answer = Some(Err.or("the channel is shut down"))
+        else
+          val leftMs = (deadline - System.nanoTime) / 1000000L
+          if leftMs <= 0 then answer = Some(Err.or(s"the channel was not READY within $within; it was $state"))
+          else
+            val changed = new CountDownLatch(1)
+            channel.notifyWhenStateChanged(state, () => changed.countDown())
+            try
+              changed.await(leftMs, TimeUnit.MILLISECONDS) __ Unit
+              state = channel.getState(true)
+            catch case _: InterruptedException =>
+              Thread.currentThread.interrupt()
+              answer = Some(Err.or(s"interrupted waiting for the channel to be READY; it was $state"))
+      answer.get
+
     def close(): Unit = closeIn(2000)
     def closeIn(graceMs: Long): Unit =
       channel.shutdown() __ Unit
@@ -596,18 +624,30 @@ object Grpc {
     if !ans.isIs then ex.shutdown()
     ans
 
-  /** Connect via a builder configured by the caller (transport, TLS, executor all theirs). */
-  def connect(b: ManagedChannelBuilder[?]): Ask[Link] = nice{ new Link(b.build(), null) }
+  /** How long `connect` and `connectLocal` wait for their channel to be READY unless told otherwise. */
+  val defaultReadyWithin: Duration = Duration.ofSeconds(10)
+
+  // a link comes back READY, or closed with the reason; a zero wait is the lazy channel grpc builds by default
+  private def readied(link: Link, within: Duration): Ask[Link] =
+    if within.isNegative || within.isZero then Is(link)
+    else link.ready(within).fold(_ => Is(link)){ e => link.close(); Alt(e) }
+
+  /** Connect via a builder configured by the caller (transport, TLS, executor all theirs).  The link comes back
+    * READY, waiting up to `readyWithin` for the server (see `Link.ready`), so a first call does not fail fast
+    * against a server still starting; `Duration.ZERO` returns the channel unconnected, as grpc builds it.
+    */
+  def connect(b: ManagedChannelBuilder[?], readyWithin: Duration = defaultReadyWithin): Ask[Link] =
+    nice{ new Link(b.build(), null) }.flatMap(readied(_, readyWithin))
 
   /** Connect in plaintext with callbacks on virtual threads: the same-host case -- a local
     * port, a test server -- where TLS would be ceremony.  Anything crossing a real network
-    * deserves a configured builder and `connect` instead.
+    * deserves a configured builder and `connect` instead.  READY before it returns, as for `connect`.
     */
-  def connectLocal(target: String): Ask[Link] =
+  def connectLocal(target: String, readyWithin: Duration = defaultReadyWithin): Ask[Link] =
     val ex = virtualThreads()
     val ans = nice{ new Link(ManagedChannelBuilder.forTarget(target).usePlaintext().executor(ex).build(), ex) }
     if !ans.isIs then ex.shutdown()
-    ans
+    ans.flatMap(readied(_, readyWithin))
 
   /** A server and a channel joined by the in-process transport: real grpc semantics, no
     * network, no extra transport dependency beyond grpc-inprocess.  This is the test-server

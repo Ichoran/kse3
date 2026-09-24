@@ -15,9 +15,10 @@ writing "good" library code (DRY, etc.), Kse3 favors the user.  Kse is
 supposed to take care of any necessary ugly stuff so you don't have to.
 
 **Warning: kse3 only works on Scala 3.9 and later: it relies deeply on
-`scala.util.boundary` and named tuples (LTS); is a testbed for new paradigms
-based on new features which will require 3.9 to build from.  kse3 also
-requires JDK 25+ due to using virtual threading and foreign memory segments.**
+`scala.util.boundary` and named tuples; is a testbed for new paradigms
+based on new features which will require 3.9 (a LTS version) to run.
+kse3 also requires JDK 25+ due to using virtual threading and foreign
+memory segments.**
 
 
 ## How do I get it?
@@ -32,15 +33,15 @@ def scalaVersion = "3.9.0"
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.10.4"
-mvn"com.github.ichoran::kse3-flow:0.10.4"
-mvn"com.github.ichoran::kse3-maths:0.10.4"
-mvn"com.github.ichoran::kse3-loom:0.10.4"
-mvn"com.github.ichoran::kse3-thyme:0.10.4"
-mvn"com.github.ichoran::kse3-eio:0.10.4"
-mvn"com.github.ichoran::kse3-jsaun:0.10.4"
-mvn"com.github.ichoran::kse3-twodee:0.10.4"
-mvn"com.github.ichoran::kse3-alien:0.10.4"
+mvn"com.github.ichoran::kse3-basics:0.10.5"
+mvn"com.github.ichoran::kse3-flow:0.10.5"
+mvn"com.github.ichoran::kse3-maths:0.10.5"
+mvn"com.github.ichoran::kse3-loom:0.10.5"
+mvn"com.github.ichoran::kse3-thyme:0.10.5"
+mvn"com.github.ichoran::kse3-eio:0.10.5"
+mvn"com.github.ichoran::kse3-jsaun:0.10.5"
+mvn"com.github.ichoran::kse3-twodee:0.10.5"
+mvn"com.github.ichoran::kse3-alien:0.10.5"
 ```
 
 to try it out; `kse3-foundation` (same version) is an aggregator with no code of its own
@@ -50,15 +51,15 @@ header equivalent:
 ```scala
 //> using scala 3.9.0
 //> using jvm 25
-//> using dep com.github.ichoran::kse3-basics:0.10.4
-//> using dep com.github.ichoran::kse3-flow:0.10.4
-//> using dep com.github.ichoran::kse3-maths:0.10.4
-//> using dep com.github.ichoran::kse3-loom:0.10.4
-//> using dep com.github.ichoran::kse3-thyme:0.10.4
-//> using dep com.github.ichoran::kse3-eio:0.10.4
-//> using dep com.github.ichoran::kse3-jsaun:0.10.4
-//> using dep com.github.ichoran::kse3-twodee:0.10.4
-//> using dep com.github.ichoran::kse3-alien:0.10.4
+//> using dep com.github.ichoran::kse3-basics:0.10.5
+//> using dep com.github.ichoran::kse3-flow:0.10.5
+//> using dep com.github.ichoran::kse3-maths:0.10.5
+//> using dep com.github.ichoran::kse3-loom:0.10.5
+//> using dep com.github.ichoran::kse3-thyme:0.10.5
+//> using dep com.github.ichoran::kse3-eio:0.10.5
+//> using dep com.github.ichoran::kse3-jsaun:0.10.5
+//> using dep com.github.ichoran::kse3-twodee:0.10.5
+//> using dep com.github.ichoran::kse3-alien:0.10.5
 ```
 
 The `//> using jvm 25` line is not optional: scala-cli picks an older JVM by default, and the
