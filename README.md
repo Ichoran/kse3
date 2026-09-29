@@ -33,15 +33,15 @@ def scalaVersion = "3.9.0"
 And add at least one of
 
 ```scala
-mvn"com.github.ichoran::kse3-basics:0.10.6"
-mvn"com.github.ichoran::kse3-flow:0.10.6"
-mvn"com.github.ichoran::kse3-maths:0.10.6"
-mvn"com.github.ichoran::kse3-loom:0.10.6"
-mvn"com.github.ichoran::kse3-thyme:0.10.6"
-mvn"com.github.ichoran::kse3-eio:0.10.6"
-mvn"com.github.ichoran::kse3-jsaun:0.10.6"
-mvn"com.github.ichoran::kse3-twodee:0.10.6"
-mvn"com.github.ichoran::kse3-alien:0.10.6"
+mvn"com.github.ichoran::kse3-basics:0.10.7"
+mvn"com.github.ichoran::kse3-flow:0.10.7"
+mvn"com.github.ichoran::kse3-maths:0.10.7"
+mvn"com.github.ichoran::kse3-loom:0.10.7"
+mvn"com.github.ichoran::kse3-thyme:0.10.7"
+mvn"com.github.ichoran::kse3-eio:0.10.7"
+mvn"com.github.ichoran::kse3-jsaun:0.10.7"
+mvn"com.github.ichoran::kse3-twodee:0.10.7"
+mvn"com.github.ichoran::kse3-alien:0.10.7"
 ```
 
 to try it out; `kse3-foundation` (same version) is an aggregator with no code of its own
