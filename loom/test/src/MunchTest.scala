@@ -284,6 +284,182 @@ class MunchTest {
     assertFalse(s"the interruption is the stop, not an error of its own: $r", r.existsAlt(_.toString.contains("InterruptedException")))
 
 
+  // === Controls that say "not this any more", apart from those that stop a muncher ===
+
+  // A muncher whose Hold(gate) message blocks until the test opens the gate; Take feeds answer their number,
+  // blocking first for `slow` of them (the ones a cancel should cut short); the decider escalates, so a
+  // cancellation mistaken for a fault would stop the whole supervisor.
+  enum Q:
+    case Hold(started: CountDownLatch, gate: CountDownLatch)
+    case Take(n: Int, reply: Munch.Reply[Int])
+    case Slow(started: CountDownLatch, reply: Munch.Reply[Int])
+    case Tell(n: Int)
+    case Spin(started: CountDownLatch, saw: AtomicInteger, reply: Munch.Reply[Int])
+
+  private def queued(sup: Munch.Supervisor, seen: java.util.Queue[Int]): Munch.Ref[Q] =
+    sup.registry[String, Q]("q", onError = Munch.Supervise.escalate).spawn("a"){
+      (m: Q) => m match
+        case Q.Hold(s, g)       => s.countDown(); g.await()
+        case Q.Take(n, r)       => seen.add(n) __ Unit; r := n
+        case Q.Slow(s, r)       => s.countDown(); Thread.sleep(10_000); r := -1   // the loser: only an interrupt ends it early
+        case Q.Tell(n)          => seen.add(n) __ Unit
+        case Q.Spin(s, saw, r)  =>
+          s.countDown()
+          while !Munch.isCancelled do Thread.onSpinWait()                   // never blocks, so only the poll can see it
+          saw.incrementAndGet() __ Unit
+          r := -2
+    }
+
+  private def failedWith(r: Ask[Int], word: String): Boolean = r.existsAlt(_.toString.contains(word))
+
+  @Test(timeout = 30000)
+  def withdrawRemovesOnlyWhatHasNotStarted(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val seen = new java.util.concurrent.ConcurrentLinkedQueue[Int]
+    val ref = queued(sup, seen)
+    val started = new CountDownLatch(1)
+    val gate = new CountDownLatch(1)
+    ref ! Q.Hold(started, gate)
+    started.await()
+    val queuedFeed = ref.feed(Q.Take(1, _))
+    assertTrue("a queued feed is withdrawn", queuedFeed.withdraw())
+    assertFalse("and only once", queuedFeed.withdraw())
+    assertTrue(failedWith(queuedFeed.await(), "withdrawn"))
+    gate.countDown()
+    assertEquals(Is(2), ref.feed(Q.Take(2, _)).await())
+    assertEquals(List(2), seen.toArray.toList)                            // the withdrawn one never ran
+    // a feed already running is not withdrawn: it finishes and answers
+    val slowStarted = new CountDownLatch(1)
+    val gate2 = new CountDownLatch(1)
+    ref ! Q.Hold(slowStarted, gate2)
+    slowStarted.await()
+    val later = ref.feed(Q.Take(3, _))
+    gate2.countDown()
+    assertEquals(Is(3), later.await())
+    assertFalse("an answered feed cannot be withdrawn", later.withdraw())
+    assertTrue(ref.isLive)
+    assertEquals(Nil, sup.errors)
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
+  def cancelStopsOnlyThatMessage(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val seen = new java.util.concurrent.ConcurrentLinkedQueue[Int]
+    val ref = queued(sup, seen)
+    val started = new CountDownLatch(1)
+    val slow = ref.feed(Q.Slow(started, _))
+    started.await()
+    assertTrue("a running feed is cancelled", slow.cancel())
+    assertTrue(failedWith(slow.await(), "cancelled"))
+    // the interrupt was for that message alone: the next one blocks on a gate and is not cut
+    val s2 = new CountDownLatch(1)
+    val gate = new CountDownLatch(1)
+    ref ! Q.Hold(s2, gate)
+    s2.await()
+    val next = ref.feed(Q.Take(7, _))
+    gate.countDown()
+    assertEquals(Is(7), next.await())
+    assertFalse("an answered feed cannot be cancelled", next.cancel())
+    assertTrue("the muncher went on", ref.isLive)
+    assertEquals("a cancellation is not a fault: nothing recorded, no escalation", Nil, sup.errors)
+    // a plain Fu of a feed cancels the feed too
+    val s3 = new CountDownLatch(1)
+    val viaFu = ref.feed(Q.Slow(s3, _)).fu
+    s3.await()
+    assertTrue(viaFu.cancel())
+    assertTrue(viaFu.await().existsAlt(_.toString.contains("cancelled")))
+    assertEquals(Is(8), ref.feed(Q.Take(8, _)).await())
+    sup.stop().foreachThem(_ => ())(e => fail(e.toString))
+
+  @Test(timeout = 30000)
+  def aHandlerThatNeverBlocksSeesCancellationByPolling(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val ref = queued(sup, new java.util.concurrent.ConcurrentLinkedQueue[Int])
+    val started = new CountDownLatch(1)
+    val saw = new AtomicInteger(0)
+    val spin = ref.feed(Q.Spin(started, saw, _))
+    started.await()
+    assertTrue(spin.cancel())
+    assertEquals(Is(9), ref.feed(Q.Take(9, _)).await())                 // the spin ended, and left no interrupt behind
+    assertEquals(1, saw.get())
+    assertEquals(Nil, sup.errors)
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
+  def priorityGoesNextAndHoldsOneSlot(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val seen = new java.util.concurrent.ConcurrentLinkedQueue[Int]
+    val ref = queued(sup, seen)
+    val started = new CountDownLatch(1)
+    val gate = new CountDownLatch(1)
+    ref ! Q.Hold(started, gate)
+    started.await()
+    ref ! Q.Tell(1)
+    ref ! Q.Tell(2)
+    assertTrue(ref.priority(Q.Tell(99)))
+    assertFalse("one slot: a second is refused while the first waits", ref.priority(Q.Tell(100)))
+    gate.countDown()
+    assertEquals(Is(3), ref.feed(Q.Take(3, _)).await())
+    assertEquals(List(99, 1, 2, 3), seen.toArray.toList)
+    // a muncher parked on an empty mailbox wakes for one
+    assertTrue(ref.priority(Q.Tell(42)))
+    soon(seen.contains(42))
+    assertTrue(seen.contains(42))
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
+  def clearDropsTheQueueButNotTheMuncher(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val seen = new java.util.concurrent.ConcurrentLinkedQueue[Int]
+    val ref = queued(sup, seen)
+    val started = new CountDownLatch(1)
+    val gate = new CountDownLatch(1)
+    ref ! Q.Hold(started, gate)
+    started.await()
+    ref ! Q.Tell(1)
+    val f = ref.feed(Q.Take(2, _))
+    ref ! Q.Tell(3)
+    assertTrue(ref.priority(Q.Tell(50)))
+    assertEquals(3, ref.clear())
+    assertTrue(failedWith(f.await(), "withdrawn"))
+    gate.countDown()
+    ref ! Q.Tell(4)
+    assertEquals(Is(5), ref.feed(Q.Take(5, _)).await())
+    assertEquals("the priority message stayed; the queue went", List(50, 4, 5), seen.toArray.toList)
+    assertTrue(ref.isLive)
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
+  def stopAndAbortEndOneMuncher(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val reg = sup.registry[String, Int]("ends")
+    val served = new AtomicInteger(0)
+    val cleaned = new AtomicInteger(0)
+    val graceful = reg.spawn("g"){ Defer { cleaned.incrementAndGet() __ Unit }; (i: Int) => served.addAndGet(i) __ Unit }
+    val other = reg.spawn("o"){ (i: Int) => served.addAndGet(1000 * i) __ Unit }
+    graceful ! 1
+    graceful ! 2
+    assertTrue(graceful.stop())
+    assertFalse("gone from its address as soon as it stops", graceful.isLive)
+    soon(served.get() == 3 && cleaned.get() == 1)
+    assertEquals("stop handles what was queued", 3, served.get())
+    assertFalse("already gone", graceful.stop())
+    val started = new CountDownLatch(1)
+    val hard = reg.spawn("h"){ Defer { cleaned.incrementAndGet() __ Unit }; (i: Int) => { started.countDown(); Thread.sleep(10_000) } }
+    hard ! 1
+    started.await()
+    assertTrue(hard.abort())
+    soon(!hard.isLive)
+    assertFalse(hard.isLive)
+    soon(cleaned.get() == 2)
+    assertEquals("both ran their cleanups", 2, cleaned.get())
+    assertTrue("the abort is on record", sup.errors.exists(_.toString.contains("aborted")))
+    other ! 1
+    soon(served.get() >= 1000)
+    assertTrue("a sibling goes on", other.isLive && served.get() >= 1000)
+    sup.stop() __ Unit
+
+
   /** Waits, up to five seconds, for something the munchers do asynchronously, so the assertion after it
     * checks the settled state instead of racing a slow or loaded runner. */
   private def soon(ready: => Boolean): Unit =

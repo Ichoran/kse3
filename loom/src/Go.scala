@@ -51,15 +51,21 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   private val result = new CompletableFuture[Ask[Unit]]()
   private val handlers = new java.util.ArrayList[Handler](4)
   private var hs: Array[Handler] = null   // handlers frozen into a bare array once the loop starts
-  private val children = new java.util.ArrayList[Go](2)
+  // Concurrent because a latch stopping this task walks it from another thread; added to only at spawn.
+  private val children = new ConcurrentLinkedQueue[Go]()
   // Channels this scope writes to, keyed by identity; drives the auto-close cascade in cleanup.
   private val writingTo = new java.util.IdentityHashMap[WriterTracked, java.lang.Boolean]()
+  // Channels this scope reads, keyed by identity; leaving them in cleanup is how a stop reaches upstream.
+  private val readingFrom = new java.util.IdentityHashMap[ReaderTracked, java.lang.Boolean]()
+  private var latches: List[Latch] = Nil                                // latches this task stops with
   private var stopConds: java.util.ArrayList[() => Boolean] = null   // Stop.on predicates
   private var deferred: List[List[Err] => Unit] = Nil                // Defer cleanups (LIFO)
 
   @volatile private var myThread: Thread = null
   @volatile private var myParker: Parker = null
   @volatile private[loom] var stopRequested = false
+  // A latch this task (or an ancestor) stops with has fired: stop, and stop every task spawned from here.
+  @volatile private var stoppedDown = false
   private var inInit = true
   private var handlerIndex = 0
   private var errs: List[Err] = Nil                    // this scope's errors, newest first; bundled at the end
@@ -100,6 +106,8 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     children.add(child) __ Unit
     coord.pendingInit.++
     child.launch(body)
+    // added before the flag is read, and a latch sets the flag before it walks the children: one of us sees the other
+    if stoppedDown then child.stopDown()
 
 
   // === Registration (init phase only) ===
@@ -110,6 +118,14 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
 
   private[loom] def trackWriter(chan: WriterTracked): Unit =
     if writingTo.put(chan, java.lang.Boolean.TRUE) eq null then chan.registerWriter()
+
+  private[loom] def trackReader(chan: ReaderTracked): Unit =
+    if readingFrom.put(chan, java.lang.Boolean.TRUE) eq null then chan.registerReader()
+
+  private[loom] def stopWith(latch: Latch): Unit =
+    if !inInit then throw new IllegalStateException("Latch.stops can only be registered during a task's initializer")
+    latches = latch :: latches
+    latch.enlist(this)
 
   private[loom] def addStopCond(cond: () => Boolean): Unit =
     if !inInit then throw new IllegalStateException("Stop.on can only be registered during a task's initializer")
@@ -130,6 +146,12 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
     stopRequested = true
     val t = myThread
     if t ne null then LockSupport.unpark(t)
+
+  /** Stop gracefully, with every task spawned from here, now or later: what a fired latch does. */
+  private[loom] def stopDown(): Unit =
+    stoppedDown = true
+    requestStop()
+    children.forEach(_.stopDown())
 
 
   // === Lifecycle ===
@@ -304,19 +326,23 @@ final class Go private (private val parent: Go | Null, coordIn: Go.Coord | Null)
   private def cleanup(): Unit =
     val unwind = new Unwind
     try
-      // 1. Tell every channel we write to that one writer is gone (cascade-closes channels).
+      // 1. Tell every channel we write to that one writer is gone (cascade-closes channels), and every channel we
+      //    read that one reader is gone (closing it to its writers once nobody reads: a stop reaches upstream).
       writingTo.keySet.forEach(c => c.writerDone())
+      readingFrom.keySet.forEach(c => c.readerDone())
 
       // 2. Join children and fold their errors into ours, so a failing tree reports every distinct
       //    cause.  An interrupt meanwhile is kept rather than consumed, and under cancellation the
       //    join nags the child (see `Join`), so a child whose cleanup blocks cannot hold us.
-      var j = 0
-      while j < children.size do
-        val c = children.get(j)
+      val kids = children.iterator()
+      while kids.hasNext do
+        val c = kids.next()
         val ct = c.thread
         if ct ne null then Join(ct, Join.nagNanos)(coord.failure() ne null)
         c.errors.foreach(e => errs = e :: errs)
-        j += 1
+      // Only now, with every child ended, may this task leave its latches: a latch stops a task's children through
+      // it, and one with no handlers of its own reaches cleanup long before they end.
+      latches.foreach(_.release(this))
 
       // 3. Run deferred cleanups, last-registered first.  Always runs (success or failure), each in
       //    isolation (see `Unwind`): a throwing defer adds its error to the bundle and cancels the
@@ -436,6 +462,68 @@ object Go {
   }
 
 
+  // === A once-in-a-lifetime signal tasks can stop with or act on ===
+
+  /** A signal that flips once, for tasks anywhere -- in one session or several -- to stop with or act on.  A task
+    * whose initializer calls `latch.stops()` stops gracefully when the latch is marked, as `Stop()` would stop it
+    * (a value it already holds is still delivered, its cleanups run, it ends without error), and so does every task
+    * spawned from it, then or later.  Because a stopped task leaves the channels it read, a stop travels upstream
+    * too: a channel nobody reads any more refuses its writers, which then end in their turn.  `latch.triggers:`
+    * registers a body that runs once, on the task's own thread like any handler, when the latch is marked.
+    * `mark()` may be called from anywhere, as often as you like; only the first does anything.
+    *
+    * For a stop that is not a failure; a failure anywhere still cancels its whole tree, as always. */
+  final class Latch private[loom] () {
+    @volatile private var marked = false
+    private val stopping = java.util.concurrent.ConcurrentHashMap.newKeySet[Go]()
+    private val wakers = java.util.concurrent.ConcurrentHashMap.newKeySet[Parker]()
+
+    def isMarked: Boolean = marked
+
+    /** Flip the latch; true for the call that flipped it, false once it had been. */
+    def mark(): Boolean =
+      val first = synchronized { if marked then false else { marked = true; true } }
+      if first then
+        stopping.forEach(_.stopDown())
+        wakers.forEach(_.unparkArmed())                 // set before `armed` is read, as a channel does
+      first
+
+    /** From a task's initializer: stop this task, and every task spawned from it, when the latch is marked. */
+    def stops()(using go: Go): Unit = go.stopWith(this)
+
+    /** From a task's initializer: run `body` once, on this task's thread, when the latch is marked.  Until then
+      * it keeps the task alive; a `.?` in it fails the task as in any handler. */
+    def triggers(body: Go.CanFail[Unit] ?=> Unit)(using go: Go): Unit =
+      go.addHandler(new TriggerHandler(this, () => Go.attempt(body)))
+
+    private[loom] def enlist(g: Go): Unit =
+      stopping.add(g) __ Unit
+      if marked then g.stopDown()                      // marked meanwhile: the walk above may have missed us
+    private[loom] def release(g: Go): Unit = stopping.remove(g) __ Unit
+    private[loom] def addWaker(p: Parker): Unit = wakers.add(p) __ Unit
+    private[loom] def dropWaker(p: Parker): Unit = wakers.remove(p) __ Unit
+  }
+  object Latch {
+    def apply(): Latch = new Latch()
+  }
+
+  private[loom] final class TriggerHandler(latch: Latch, body: () => Ask[Unit]) extends Handler {
+    private var fired = false
+    def alive: Boolean = !fired
+    def hasPending: Boolean = false
+    def register(p: Parker): Unit = latch.addWaker(p)
+    def unregister(p: Parker): Unit = latch.dropWaker(p)
+    def arm(): Unit = ()
+    def disarm(): Unit = ()
+    def tryRun(producing: Boolean): RunStatus =
+      if fired || !producing then RunStatus.Done
+      else if !latch.isMarked then RunStatus.Wait
+      else
+        fired = true
+        body().fold(_ => RunStatus.Okay)(e => RunStatus.Fail(e))
+  }
+
+
   // === Select-loop handlers ===
   //
   // A handler step, a channel op, and a whole-loop scan all report the same four outcomes, so
@@ -550,6 +638,7 @@ extension [A](chan: Chan[A]) {
     * `into`).  When the channel completes this registration goes inactive; if that leaves the
     * task with nothing to do, the task terminates. */
   def get(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.trackReader(chan)
     go.addHandler(new Go.RecvHandler(chan, v => Go.attempt(f(v))))
 
   /** Produce a value whenever the channel has room.  Registers this task as a writer, so the
@@ -562,6 +651,7 @@ extension [A](chan: Chan[A]) {
   /** Transfer values from this channel into `dst`, transforming with `f`, one in-flight item at
     * a time (deterministic backpressure).  Registers this task as a writer of `dst`. */
   def into[B](dst: ChanOut[B])(f: A => (Go.CanFail[B] ?=> B))(using go: Go): Unit =
+    go.trackReader(chan)
     go.trackWriter(dst)
     go.addHandler(new Go.TransferHandler(chan, dst, v => Go.attempt(f(v))))
 
@@ -580,12 +670,17 @@ extension [A](chan: Chan[A]) {
 
   /** Alias for `get`. */
   def onRecv(f: A => Unit)(using go: Go): Unit =
+    go.trackReader(chan)
     go.addHandler(new Go.RecvHandler(chan, v => { try { f(v); Is.unit } catch case e if e.catchable => Alt(Err(e)) }))
 
   /** Declare that the current task writes to this channel via imperative `send` (rather than a
     * `put`/`into`/`onSend*` registration), so the channel still auto-closes when the task
     * finishes.  Use this for relay tasks that `recv` then `send` by hand. */
   def writing(using go: Go): Unit = go.trackWriter(chan)
+
+  /** Declare that the current task reads this channel via imperative `recv` (rather than a `get`/`onRecv`/`into`
+    * registration), so its writers are refused only once this task, too, has stopped reading. */
+  def reading(using go: Go): Unit = go.trackReader(chan)
 }
 
 
@@ -595,11 +690,13 @@ extension [A](chan: ChanN[A]) {
   /** Consume each value as it arrives, extracting up to the channel's default batch per wakeup.
     * The per-item shape is identical to `Chan`'s `get`; only the transport is chunked. */
   def get(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.trackReader(chan)
     go.addHandler(new ChanN.GetNHandler(chan, chan.batch, false, v => Go.attempt(f(v))))
 
   /** Consume each value as it arrives, extracting up to `n` per wakeup. */
   def get(n: Int)(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
     if n < 1 then throw new IllegalArgumentException(s"get batch must be at least 1: $n")
+    go.trackReader(chan)
     go.addHandler(new ChanN.GetNHandler(chan, n, false, v => Go.attempt(f(v))))
 
   /** Like `get`, but consume only whole chunks of the channel's default batch: nothing runs
@@ -607,11 +704,13 @@ extension [A](chan: ChanN[A]) {
     * partial chunk is delivered.  The chunk is clamped to the capacity so it can always
     * assemble. */
   def getFull(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.trackReader(chan)
     go.addHandler(new ChanN.GetNHandler(chan, chan.batch, true, v => Go.attempt(f(v))))
 
   /** Like `get(n)`, but consume only whole chunks of `n` (see `getFull`). */
   def getFull(n: Int)(f: A => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
     if n < 1 then throw new IllegalArgumentException(s"get batch must be at least 1: $n")
+    go.trackReader(chan)
     go.addHandler(new ChanN.GetNHandler(chan, n, true, v => Go.attempt(f(v))))
 
   /** Produce one value at a time whenever the channel has room — the Chan-like form (the
@@ -643,6 +742,46 @@ extension [A](chan: ChanN[A]) {
   /** Declare that the current task writes to this channel via imperative `send`/`sendN`, so
     * the channel still auto-closes when the task finishes. */
   def writing(using go: Go): Unit = go.trackWriter(chan)
+
+  /** Declare that the current task reads this channel via imperative `recv`/`recvN`; see `Chan`'s `reading`. */
+  def reading(using go: Go): Unit = go.trackReader(chan)
+}
+
+
+// === The same verbs for a fold map: it is written like a channel of `U` and read as its folded `Item`s ===
+
+extension [U, K, V](fm: FoldMap[U, K, V]) {
+  /** Take each key with its folded value as it becomes pending; see `Chan`'s `get`. */
+  def get(f: FoldMap.Item[K, V] => (Go.CanFail[Unit] ?=> Unit))(using go: Go): Unit =
+    go.trackReader(fm)
+    go.addHandler(new Go.RecvHandler(fm, v => Go.attempt(f(v))))
+
+  /** Alias for `get` without the `.?` context. */
+  def onRecv(f: FoldMap.Item[K, V] => Unit)(using go: Go): Unit =
+    go.trackReader(fm)
+    go.addHandler(new Go.RecvHandler(fm, v => { try { f(v); Is.unit } catch case e if e.catchable => Alt(Err(e)) }))
+
+  /** Transfer each key's folded value into `dst`, transforming with `f`; see `Chan`'s `into`. */
+  def into[B](dst: ChanOut[B])(f: FoldMap.Item[K, V] => (Go.CanFail[B] ?=> B))(using go: Go): Unit =
+    go.trackReader(fm)
+    go.trackWriter(dst)
+    go.addHandler(new Go.TransferHandler(fm, dst, v => Go.attempt(f(v))))
+
+  /** Produce an item whenever the fold map will take one, registered as a writer; see `Chan`'s `put`. */
+  def put(produce: Go.CanFail[U] ?=> U)(using go: Go): Unit =
+    go.trackWriter(fm)
+    go.addHandler(new Go.SendHandler(fm, () => true, () => Go.attempt(produce)))
+
+  /** Produce items while `cond` holds; see `Chan`'s `onSendWhile`. */
+  def onSendWhile(cond: => Boolean)(producer: => U)(using go: Go): Unit =
+    go.trackWriter(fm)
+    go.addHandler(new Go.SendHandler(fm, () => cond, () => { try Is(producer) catch case e if e.catchable => Alt(Err(e)) }))
+
+  /** Declare that the current task sends to this fold map by hand; see `Chan`'s `writing`. */
+  def writing(using go: Go): Unit = go.trackWriter(fm)
+
+  /** Declare that the current task receives from this fold map by hand; see `Chan`'s `reading`. */
+  def reading(using go: Go): Unit = go.trackReader(fm)
 }
 
 

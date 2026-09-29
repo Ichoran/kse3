@@ -5,6 +5,9 @@ package kse.loom
 
 import java.util.concurrent.{CompletableFuture, ConcurrentHashMap}
 
+import scala.annotation.publicInBinary
+import scala.util.boundary.Label
+
 import kse.basics._
 import kse.flow._
 
@@ -70,17 +73,93 @@ object Munch {
   }
 
 
+  /** One feed, as one object: the caller's [[Fed]], the handler's [[Reply]], and the mailbox entry that carries the
+    * message.  Its phase moves Queued -> Running -> Done, or Queued -> Withdrawn, or Running -> Cancelling -> Done;
+    * every move out of Running is made under the muncher's monitor, which is what keeps a cancellation's interrupt
+    * from landing on the next message. */
+  private[loom] final class Feeding[M, B](private[loom] val mu: Muncher[M] | Null) extends CompletableFuture[Ask[B]] {
+    @publicInBinary private[loom] var phase: Int = Feeding.Queued
+    private[loom] var msg: M = scala.compiletime.uninitialized
+
+    private[loom] def answer(a: Ask[B]): Unit = if complete(a) then settled()
+    private[loom] def settled(): Unit = { val m = mu; if m ne null then m.settle(this) }
+
+    /** Remove it if it has not started. */
+    private[loom] def withdraw(): Boolean =
+      Feeding.phaseH.compareAndSet(this, Feeding.Queued, Feeding.Withdrawn) && { answer(Alt(Err("feed withdrawn"))); true }
+
+    /** Withdraw it, or, if it is running, fail its reply and interrupt its handler; false once it has answered. */
+    private[loom] def cancelFeed(): Boolean =
+      withdraw() || {
+        val m = mu
+        (m ne null) && complete(Alt(Err("feed cancelled"))) && { settled(); m.cancelRunning(this); true }
+      }
+
+    /** `Future.cancel`, so a plain `Fu` of a feed cancels the feed: with `mayInterrupt`, as `cancel()`; without, as
+      * `withdraw()`, declining work already begun, which the contract allows. */
+    override def cancel(mayInterrupt: Boolean): Boolean = if mayInterrupt then cancelFeed() else withdraw()
+  }
+  private[loom] object Feeding {
+    import java.lang.invoke.MethodHandles
+    import scala.annotation.static
+    @static private[loom] final val phaseH =
+      MethodHandles.privateLookupIn(classOf[Feeding[?, ?]], MethodHandles.lookup()).findVarHandle(classOf[Feeding[?, ?]], "phase", classOf[Int])
+    final val Queued = 0
+    final val Running = 1
+    final val Cancelling = 2
+    final val Withdrawn = 3
+    final val Done = 4
+  }
+
+  /** What a priority message puts in the mailbox so a muncher parked on an empty one wakes and takes it. */
+  private[loom] object Wake
+
+  /** The caller's handle on one feed: the reply (`.?`, `await()`, or `fu` for a plain [[Fu]]), and two ways to say
+    * it is no longer wanted, which differ on work already begun.  `withdraw()` removes it only if it has not
+    * started; `cancel()` also stops it if it has, interrupting the muncher's thread, which is running that message
+    * and no other.  Either way its reply fails and the muncher goes on to its next message; each answers whether it
+    * took effect (a feed already answered, or already begun for `withdraw`, is left alone).  Stopping the muncher
+    * itself is `Ref.stop` or `Ref.abort`.  The handle is the feed itself, so it costs nothing. */
+  opaque type Fed[B] = Feeding[?, B]
+  object Fed {
+    private[loom] def of[B](f: Feeding[?, B]): Fed[B] = f
+    private[loom] def failed[B](err: Err): Fed[B] =
+      val f = new Feeding[Any, B](null)
+      f.phase = Feeding.Done
+      f.complete(Alt(err)) __ Unit
+      f
+
+    extension [B](f: Fed[B]) {
+      /** The reply as a plain `Fu`; its `cancel()` cancels the feed as `Fed.cancel()` does. */
+      def fu: Fu[B] = Fu.wrap(f)
+      /** Wait for the reply. */
+      def await(): Ask[B] =
+        try f.get()
+        catch case e if e.catchable => Alt(Err(e))
+      def isComplete: Boolean = f.isDone
+      /** Remove the feed if it has not started; true if it was removed. */
+      def withdraw(): Boolean = f.withdraw()
+      /** Remove the feed, or stop it if it is running; true unless it had already answered. */
+      def cancel(): Boolean = f.cancelFeed()
+      inline def ?[L >: Alt[Err]](using lb: Label[L]): B = kse.flow.?[B, Err](Fed.await(f)())(using lb)
+    }
+  }
+
   /** A typed, write-once reply slot carried inside a `feed` message.  The handler completes it with
-    * `reply(value)` (or `reply := value`); the caller observes the result through its `Fu[B]`.  If
-    * the muncher dies first, the runtime completes it with an error, so the caller never hangs. */
-  final class Reply[B] private[loom] (private val cf: CompletableFuture[Ask[B]], private val onDone: () => Unit) {
-    /** Answer the feed. */
-    def apply(value: B): Unit = if cf.complete(Is(value)) then onDone()
-    /** Answer the feed (alias for `apply`). */
-    inline def :=(value: B): Unit = apply(value)
-    /** Answer the feed with an error (surfaces via the caller's `.?`). */
-    def fail(err: Err): Unit = if cf.complete(Alt(err)) then onDone()
-    private[loom] def gone(err: Err): Unit = cf.complete(Alt(err)) __ Unit
+    * `reply(value)` (or `reply := value`); the caller observes the result through its [[Fed]].  If
+    * the muncher dies first, the runtime completes it with an error, so the caller never hangs.  A reply to a
+    * feed already withdrawn or cancelled goes nowhere. */
+  opaque type Reply[B] = Feeding[?, B]
+  object Reply {
+    private[loom] def of[B](f: Feeding[?, B]): Reply[B] = f
+    extension [B](r: Reply[B]) {
+      /** Answer the feed. */
+      def apply(value: B): Unit = r.answer(Is(value))
+      /** Answer the feed (alias for `apply`). */
+      inline def :=(value: B): Unit = r.answer(Is(value))
+      /** Answer the feed with an error (surfaces via the caller's `.?`). */
+      def fail(err: Err): Unit = r.answer(Alt(err))
+    }
   }
 
 
@@ -93,10 +172,16 @@ object Munch {
     def self: Ref[M]
     private[loom] def stopSelf(): Unit
     private[loom] def addDefer(body: List[Err] => Unit): Unit
+    private[loom] def cancelledNow: Boolean
   }
 
   /** This muncher's own address, from inside its behavior (when you need to hand it out or self-send). */
   def self[M](using ctx: Context[M]): Ref[M] = ctx.self
+
+  /** From inside a behavior: whether the message being handled is no longer wanted -- its feed was cancelled, or the
+    * muncher is being aborted -- so a long handler can stop at a clean point instead of waiting for the interrupt
+    * (which a handler that never blocks would not see).  A tell is never cancelled on its own. */
+  def isCancelled[M](using ctx: Context[M]): Boolean = ctx.cancelledNow
 
 
   /** A handle to a muncher addressed by key.  Always resolvable to *something*: if the target is
@@ -108,12 +193,41 @@ object Munch {
       val mu = resolve()
       if (mu eq null) || !mu.deliver(m) then onDrop(m)
 
-    /** Feed a request and get a typed `Fu[B]` reply.  `make` builds the message from the reply
-      * slot, e.g. `ref.feed(Msg.Stats(_))`.  A gone target yields a failed `Fu` (observe via `.?`). */
-    def feed[B](make: Reply[B] => M): Fu[B] =
+    /** Feed a request and get its typed reply as a [[Fed]], which can also withdraw or cancel it.  `make` builds
+      * the message from the reply slot, e.g. `ref.feed(Msg.Stats(_))`.  A gone target yields a failed reply
+      * (observe via `.?`). */
+    def feed[B](make: Reply[B] => M): Fed[B] =
       val mu = resolve()
-      if mu eq null then Fu.of[B](Alt(Err("feed to a muncher that is gone")))
+      if mu eq null then Fed.failed[B](Err("feed to a muncher that is gone"))
       else mu.feedDeliver(make)
+
+    /** Put `m` ahead of everything queued: the muncher takes it next, once the message it is handling ends.  There
+      * is one such slot, so this is refused (false) while another priority message waits, or if the muncher is
+      * gone; nothing is queued then, and nothing is dead-lettered, since the caller is told.  For what makes the
+      * queued work moot -- a changed state, how to wind down -- not for ordinary traffic. */
+    def priority(m: M): Boolean =
+      val mu = resolve()
+      (mu ne null) && mu.offerPriority(m)
+
+    /** Remove every message still queued, and answer how many.  The message being handled finishes and the muncher
+      * goes on; the removed feeds' replies fail as withdrawn; a waiting priority message stays.  To stop one
+      * request, withdraw or cancel its [[Fed]]. */
+    def clear(): Int =
+      val mu = resolve()
+      if mu eq null then 0 else mu.clear()
+
+    /** End the muncher gracefully, as `Stop()` does from inside: it takes nothing new, handles what is queued, runs
+      * its cleanups and goes.  False if it was already gone.  Its supervisor and siblings go on. */
+    def stop(): Boolean =
+      val mu = resolve()
+      (mu ne null) && { mu.stopGraceful(); true }
+
+    /** End the muncher now: the message being handled is interrupted, what is queued fails, its cleanups run and it
+      * goes.  False if it was already gone.  Use with care; to drop one request, cancel its [[Fed]], and to drop
+      * the queue but keep the muncher, `clear()`. */
+    def abort(): Boolean =
+      val mu = resolve()
+      (mu ne null) && { mu.stopHard(Err(s"${mu.name} aborted")); true }
 
     /** Is the target currently live? */
     def isLive: Boolean = resolve() ne null
@@ -134,12 +248,17 @@ object Munch {
     sup: Supervisor,
     removeSelf: Muncher[M] => Unit
   ) extends Context[M] {
-    private val mailbox = Chan[M](capacity)
+    // A tell rides as itself, a feed as its Feeding, and a priority message's wake-up as Wake.
+    private val mailbox = Chan[Any](capacity)
     @volatile private var live = true
     @volatile private var hardStop: Err Or Unit = Alt.unit   // the cause of a hard stop, once one is under way
     private val pending = ConcurrentHashMap.newKeySet[CompletableFuture[?]]()
     private var defers: List[List[Err] => Unit] = Nil
     private var thread: Thread = null
+    // The feed being handled; set and cleared under this muncher's monitor, which a cancellation takes to interrupt.
+    private var current: Feeding[M, ?] | Null = null
+    // The one priority message waiting, or null.
+    @publicInBinary private[loom] var urgent: AnyRef = null
 
     def isLive: Boolean = live
 
@@ -147,21 +266,50 @@ object Munch {
 
     private[loom] def stopSelf(): Unit = mailbox.close() __ Unit
     private[loom] def addDefer(body: List[Err] => Unit): Unit = defers = body :: defers
+    private[loom] def cancelledNow: Boolean =
+      hardStop.isIs || {
+        val f = current
+        (f ne null) && { val st = Feeding.phaseH.getVolatile(f).asInstanceOf[Int]; st == Feeding.Cancelling }
+      }
 
     /** Try to enqueue a message; false if the muncher is gone or its mailbox has closed. */
-    private[loom] def deliver(m: M): Boolean =
+    private[loom] def deliver(m: Any): Boolean =
       live && (mailbox.send(m) == RunStatus.Okay)
 
-    /** Build a feed message, register its reply for gone-completion, and deliver it. */
-    private[loom] def feedDeliver[B](make: Reply[B] => M): Fu[B] =
-      val cf = new CompletableFuture[Ask[B]]()
-      pending.add(cf) __ Unit
-      val rep = new Reply[B](cf, () => pending.remove(cf) __ Unit)
-      val m = make(rep)
-      if !deliver(m) then
-        cf.complete(Alt(Err(s"feed to $name failed: it is gone"))) __ Unit
-        pending.remove(cf) __ Unit
-      Fu.wrap(cf)
+    /** Build a feed message around its own reply slot, register it for gone-completion, and deliver it. */
+    private[loom] def feedDeliver[B](make: Reply[B] => M): Fed[B] =
+      val f = new Feeding[M, B](this)
+      f.msg = make(Reply.of(f))
+      pending.add(f) __ Unit
+      if !deliver(f) then f.answer(Alt(Err(s"feed to $name failed: it is gone")))
+      Fed.of(f)
+
+    private[loom] def settle(f: Feeding[?, ?]): Unit = pending.remove(f) __ Unit
+
+    /** Mark a running feed cancelled and interrupt its handler, if it is still the one being handled; under the
+      * monitor, so the interrupt cannot reach the next message. */
+    private[loom] def cancelRunning(f: Feeding[M, ?]): Unit = synchronized:
+      if Feeding.phaseH.compareAndSet(f, Feeding.Running, Feeding.Cancelling) && (current eq f) then
+        val t = thread
+        if t ne null then t.interrupt()
+
+    private[loom] def offerPriority(m: M): Boolean =
+      val box = m.asInstanceOf[AnyRef]
+      live && (box ne null) && Muncher.urgentH.compareAndSet(this, null: AnyRef, box) && {
+        mailbox.trySend(Wake) __ Unit   // wakes a muncher parked on an empty mailbox; a busy one looks before its next
+        true
+      }
+
+    private[loom] def clear(): Int =
+      var n = 0
+      var more = true
+      while more do
+        mailbox.tryRecv().fold{
+          case Wake => ()
+          case f: Feeding[?, ?] => if f.withdraw() then n += 1
+          case _ => n += 1
+        }{ _ => more = false }
+      n
 
     private[loom] def start(): Unit =
       val t = Thread.ofVirtual().name(name).unstarted(() =>
@@ -207,40 +355,79 @@ object Munch {
       try loop()
       finally teardown()
 
+    /** Begin a feed if it is still queued, making it the one a cancellation may interrupt. */
+    private def begin(f: Feeding[M, ?]): Boolean = synchronized:
+      Feeding.phaseH.compareAndSet(f, Feeding.Queued, Feeding.Running) && { current = f; true }
+
+    /** End the current feed; true if it was cancelled while it ran.  An interrupt aimed at it is cleared here, under
+      * the monitor, so none survives into the next message; a hard stop's is kept. */
+    private def finish(f: Feeding[M, ?]): Boolean = synchronized:
+      current = null
+      val was = Feeding.phaseH.getAndSet(f, Feeding.Done).asInstanceOf[Int]
+      if was == Feeding.Cancelling && hardStop.isAlt then Thread.interrupted() __ Unit
+      was == Feeding.Cancelling
+
     private def loop(): Unit =
       var restarts = 0
       var behavior = build()
       var looping = true
+      def handle(m: M, f: Feeding[M, ?] | Null): Unit =
+        var interrupted: InterruptedException = null
+        val outcome: Ask[Unit] =
+          try Go.attempt(behavior(m))
+          catch case e: InterruptedException => { interrupted = e; Is.unit }
+        val cancelled = (f ne null) && finish(f)
+        if hardStop.isIs && ((interrupted ne null) || outcome.isAlt) then
+          // Aborted: its cause is what gets recorded, and the muncher ends; there is nothing to retry.
+          sup.record(hardStop.getOrElse(_ => Err("aborted")))
+          looping = false
+        else if cancelled then ()   // not wanted any more, which is not a fault: the muncher goes on
+        else if interrupted ne null then
+          // Interrupted by an outsider: this muncher ends.  The decider is not asked: there is nothing to retry.
+          sup.record(Err(interrupted))
+          looping = false
+        else outcome.foreachAlt: e =>
+          runDefers(e :: Nil)                            // this incarnation's cleanup sees the error
+          decider(e, restarts) match
+            case Directive.Stop     => sup.record(e); looping = false
+            case Directive.Escalate => sup.record(e); looping = false; sup.escalate()
+            case Directive.Restart  => restarts += 1; behavior = build()
+      def takePriority(): Unit =
+        val u = Muncher.urgentH.getAndSet(this, null: AnyRef).asInstanceOf[AnyRef]
+        if u ne null then handle(u.asInstanceOf[M], null)
       while looping do
-        mailbox.recv().fold{ m =>
-          val outcome: Ask[Unit] =
-            try Go.attempt(behavior(m))
-            catch case e: InterruptedException =>
-              // The handler was interrupted, by a hard stop (its cause is what gets recorded) or by an
-              // outsider; either way this muncher ends.  The decider is not asked: there is nothing to retry.
-              sup.record(hardStop.getOrElse(_ => Err(e)))
-              looping = false
-              Is.unit
-          outcome.foreachAlt: e =>
-            runDefers(e :: Nil)                          // this incarnation's cleanup sees the error
-            decider(e, restarts) match
-              case Directive.Stop     => sup.record(e); looping = false
-              case Directive.Escalate => sup.record(e); looping = false; sup.escalate()
-              case Directive.Restart  => restarts += 1; behavior = build()
+        val waiting = Muncher.urgentH.getVolatile(this).asInstanceOf[AnyRef]
+        if waiting ne null then takePriority()
+        else mailbox.recv().fold{
+          case Wake => ()                                // a priority message arrived; the top of the loop takes it
+          case f: Feeding[?, ?] =>
+            val g = f.asInstanceOf[Feeding[M, ?]]
+            if begin(g) then handle(g.msg, g)            // one withdrawn while queued is passed over
+          case m => handle(m.asInstanceOf[M], null)
         }{ st =>
           st match
             case RunStatus.Fail(e) => sup.record(e)      // hard-stopped
-            case _                 => ()                 // closed/drained — normal retire
+            case _                 => takePriority()     // closed and drained: a priority message that came last still goes
           looping = false
         }
 
     private def teardown(): Unit =
       live = false
+      val u = Muncher.urgentH.getAndSet(this, null: AnyRef).asInstanceOf[AnyRef]
+      if u ne null then sup.deadLetter(u)                // a priority message the muncher ended without taking
       runDefers(Nil)                                     // ended okay (a failure path already ran + cleared)
       pending.forEach(cf => cf.asInstanceOf[CompletableFuture[Ask[Any]]].complete(Alt(Err(s"$name retired"))) __ Unit)
       pending.clear()
       removeSelf(this)
       sup.deregister(this)
+  }
+
+
+  private[loom] object Muncher {
+    import java.lang.invoke.MethodHandles
+    import scala.annotation.static
+    @static private[loom] final val urgentH =
+      MethodHandles.privateLookupIn(classOf[Muncher[?]], MethodHandles.lookup()).findVarHandle(classOf[Muncher[?]], "urgent", classOf[AnyRef])
   }
 
 

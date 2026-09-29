@@ -68,6 +68,15 @@ The `Executor` is a given; the default is a virtual-thread-per-task executor, an
 another if you want isolation.  `Fu.of(ask)` is an already-complete future and `Fu.wrap(cf)` adopts a
 `CompletableFuture`.  Don't block inside a `Fu` before you've started everything else you can: `.?` waits.
 
+When answers arrive from elsewhere by key (replies over a socket, a pipe, another process), a `Fu.TimedMap[K, V]` holds
+what is still awaited: `expect(key)` gives a `Fu.MapEntry` whose `fu` completes when `fulfil(key, value)` hands the
+answer over.  `Fu.GrantMap[K, V](zero)(next)` chooses the keys itself (`grant()`), and `Fu.IdMap[V]()` counts `Long`
+ids up from zero.  The answer is an `Option`: `Some(v)` when it came, `None` when it didn't, because every entry has a
+deadline (`within`, or the map's `patience`) and not being answered is ordinary.  `entry.cancel()` or `fu.cancel()`
+gives up on one; closing the map fails the rest with its cause.  An entry leaves the map the moment it ends, and
+`fulfil` says whether the answer was taken, `Late` (its waiter had given up) or `Stray` (never known), so a caller can
+release what an unclaimed answer owns.  Sending the request is the caller's business.
+
 Full API: `loom/src/Fu.scala`.
 
 ## Sync and waiting
@@ -179,8 +188,16 @@ The session body is itself a task, so registrations there run on the session's t
 task gracefully, `Stop.on(cond)` does so when a condition holds, and `Defer{ ... }` registers cleanup; both words are
 the same in a `Munch` handler.  `h.stop()` asks the whole tree to finish and `h.cancel()` interrupts it.  Inside
 `get`, `put`, and `into` handlers, `.?` on an `Ask` fails the task, and a failed task fails the session.  A task that
-writes to a channel it doesn't otherwise register declares it with `ch.writing`, so the close cascade counts it.
-`Go.x(n){ ... }` spawns `n` identical tasks.
+writes to a channel it doesn't otherwise register declares it with `ch.writing`, so the close cascade counts it, and
+one that reads by hand declares `ch.reading`.  `Go.x(n){ ... }` spawns `n` identical tasks.
+
+A stop travels upstream as closing travels downstream: a channel counts the tasks reading it, and once the last has
+stopped, however it stopped, nobody will take what is written, so the channel closes to its writers, which end in
+turn.  What it already holds stays for anyone who still reads it.  So a consumer that stops early never leaves a
+producer blocked on a full channel.  To stop a group of tasks from elsewhere, give them a `Go.Latch()`: a task whose
+initializer calls `latch.stops()` stops gracefully when anyone calls `latch.mark()`, and so does every task spawned
+from it; `latch.triggers{ ... }` runs a body once, on the task's own thread, when the latch is marked.  A latch flips
+once, may be marked from any thread, and a stop by it is not a failure.
 
 Full API: `loom/src/Go.scala` for tasks and the channel verbs, `loom/src/Orchestrate.scala` for `Stop` and `Defer`.
 
@@ -190,7 +207,16 @@ A `Chan` also works imperatively, from any thread.  `send(x)` blocks while the c
 `RunStatus`: `Okay`, or `Done` if the channel is closed, or `Fail` if it was failed.  `recv()` blocks while empty and
 gives `A Or RunStatus`, so the value is the favored branch and the reason it stopped is the other.  `trySend` and
 `tryRecv` don't block and can say `Wait`.  `close()` lets the remaining values drain; `fail(err)` poisons the
-channel for everyone.  `ChanN` is the same with bulk moves: `sendN` and `recvN` move a slice of an array under one
+channel for everyone.  A thread that reads a channel `Go` tasks also read brackets its reading with `startReading()`
+and `stopReading()`, so the channel doesn't close to its writers while this thread still wants values.
+
+A `FoldMap[U, K, V]` is a channel that folds what arrives under one key into one pending value, for when a reader
+wants each key's state rather than every step: `FoldMap(capacity)(key)(put)(join)` starts a key's value with
+`put(u)` and folds later items in with `join(u, v)`, and the reader takes `(key, value)` items in the order keys first
+arrived.  `FoldMap.latest` keeps the newest item per key, `FoldMap.first` the oldest (work asked for twice is queued
+once), and `FoldMap.count` counts.  `Alt.unit` from `put` queues nothing, and from `join` withdraws the key, so a
+"created" then "deleted" cancels out.  Capacity counts pending keys, so folding into a pending key never waits; it is
+written as a plain channel of `U`, so a `Go` task can `put` into it or `into` it from another channel.  `ChanN` is the same with bulk moves: `sendN` and `recvN` move a slice of an array under one
 lock acquisition, and `getFull` waits for a whole chunk.  `Chan.Source` wraps an iterator or array as something a
 `Go` task can read, and `Chan.Sink` wraps a builder, collection, or function as something it can write.
 
@@ -285,8 +311,8 @@ interface, a session, a connection, a device.  A supervisor holds keyed registri
 `M => Unit` running single-threaded over its own mailbox with private state in closed-over `var`s, so the state
 needs no lock and every message sees the last one's effects.  `reg.spawn(key){ behavior }` makes one and gives a
 `Ref`; `ref ! msg` is fire-and-forget from any thread, and `ref.feed(Msg(_))` sends a request carrying a typed reply
-slot and gives a `Fu` for the answer, so a caller that wants a result waits on that and one that doesn't just
-sends.  A muncher that fails consults its own decider (stop, restart, escalate) and doesn't take its siblings down,
+slot and gives a `Fed` for the answer (`.?`, `await()`, or `fed.fu` for a plain `Fu`), so a caller that wants a
+result waits on that and one that doesn't just sends.  A muncher that fails consults its own decider (stop, restart, escalate) and doesn't take its siblings down,
 which is the opposite of a `Go` session's tree failure and the right thing for independent entities.  It is small,
 and it is the answer to a serial job queue: prefer it to a single-thread executor, a queue of thunks with a consumer
 thread, or a lock around a model that several threads update.
@@ -315,5 +341,15 @@ sup.stop() __ Unit                            // drains the mailboxes, then ends
 A `Ref` to a muncher that has stopped drops a `!` (to the supervisor's dead-letter sink) and fails a `feed` at once,
 so nothing waits on a thing that is gone.  A behavior may `.?` on an `Ask`; the failure goes to the muncher's own
 decider, never to its siblings.
+
+Saying "not this any more" is separate from stopping the muncher, and each comes in a form that leaves running work
+alone and one that doesn't.  For one request, `fed.withdraw()` removes it only if it hasn't started, and
+`fed.cancel()` also stops it if it has, by interrupting the muncher's thread, which is running that message and no
+other; either way its reply fails and the muncher goes on to its next message, and neither is a failure its decider
+hears of.  A handler that never blocks can poll `Munch.isCancelled` to stop at a clean point.  For the queue,
+`ref.clear()` removes everything not yet started and keeps the muncher.  For the muncher itself, `ref.stop()` ends it
+after what is queued, as `Stop()` does from inside, and `ref.abort()` ends it now; both leave the supervisor and its
+siblings running.  `ref.priority(msg)` puts one message ahead of the queue, for the rare one that makes the queued
+work moot; there is a single slot, so it answers `false` when another is already waiting.
 
 Full API: `loom/src/Munch.scala`; its header comment explains what it adds over `Go` and why.

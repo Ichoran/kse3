@@ -169,6 +169,22 @@ final class ChanN[A] private (val capacity: Int, val batch: Int) extends ChanInN
     if writerCount.subAndGet(1) == 0 then close() __ Unit
 
 
+  // === Reader tracking (a stop reaches upstream) ===
+
+  private val readerCount = Atom(0)
+
+  private[loom] def registerReader(): Unit = readerCount.++
+
+  /** A reader has left; once the last is gone the channel closes, as `Chan`'s does. */
+  private[loom] def readerDone(): Unit =
+    if readerCount.subAndGet(1) == 0 then close() __ Unit
+
+  /** Declare that this thread, outside any `Go` task, reads the channel; see `Chan.startReading`. */
+  def startReading(): Unit = registerReader()
+  /** This thread no longer reads the channel; see `Chan.startReading`. */
+  def stopReading(): Unit = readerDone()
+
+
   // === Non-blocking core ===
 
   /** Attempt to enqueue without blocking.  Has no value to return, so reports a flat `RunStatus`. */

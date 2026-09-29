@@ -605,5 +605,118 @@ class GoChanTest {
     val r = h.await()
     assertTrue(s"expected an error from the stray interrupt, got $r", r.isAlt)
 
+  // === A stop reaches upstream: a channel nobody reads refuses its writers, and they end ===
+
+  @Test(timeout = 30000)
+  def aStoppedReaderReleasesItsWriters(): Unit = Reps.times:
+    val raw = Chan[Int](2)
+    val cooked = Chan[Int](2)
+    val seen = new AtomicInteger(0)
+    val producerEnded = new AtomicInteger(0)
+    val h = Go.session: g ?=>
+      Go:
+        Defer { producerEnded.incrementAndGet() __ Unit }
+        var i = 0
+        raw.onSendWhile(true){ i += 1; i }                          // unbounded: only a refusal ends it
+      Go:
+        raw.into(cooked)(_ * 2)
+      Go:
+        Stop.on(seen.get() >= 5)
+        cooked.onRecv{ _ => seen.incrementAndGet() __ Unit }
+    assertEquals("nobody waits on a stage nobody reads", Is.unit, h.await())
+    assertEquals(1, producerEnded.get())
+    assertTrue(seen.get() >= 5)
+
+  // Nobody's leaving is noticed until the whole session is live: a reader that stops in its initializer still waits at
+  // the establishment barrier, so a reader still being wired up finds the channel open and gets every value.
+  @Test(timeout = 30000)
+  def noReaderLeavesBeforeTheSessionIsLive(): Unit = SleepReps.times:
+    val ch = Chan[Int](2)
+    val got = new AtomicInteger(0)
+    val openWhileWiring = new AtomicReference[java.lang.Boolean](null)
+    val h = Go.session: g ?=>
+      Go:
+        Stop()                                                       // stops at once, in its initializer
+        ch.onRecv{ _ => () }
+      Go:
+        var i = 0
+        ch.onSendWhile(i < 20){ i += 1; i }
+      Go:
+        Thread.sleep(100)                                            // the loser side: time for a broken barrier to show
+        openWhileWiring.set(ch.isOpen)
+        ch.onRecv{ _ => got.incrementAndGet() __ Unit }
+    assertEquals(Is.unit, h.await())
+    assertEquals("the channel was open while the last reader was still wiring up", java.lang.Boolean.TRUE, openWhileWiring.get())
+    assertEquals("and every value reached it", 20, got.get())
+
+  @Test(timeout = 30000)
+  def anUnreadChannelKeepsWhatItHolds(): Unit = Reps.times:
+    val ch = Chan[Int](8)
+    ch.startReading()
+    assertEquals(RunStatus.Okay, ch.send(1))
+    assertEquals(RunStatus.Okay, ch.send(2))
+    ch.stopReading()                                                 // the last reader leaves
+    assertEquals("writers are refused", RunStatus.Done, ch.trySend(3))
+    assertEquals("what is buffered stays for anyone who looks", Is(1), ch.recv())
+    assertEquals(Is(2), ch.recv())
+    assertTrue(ch.recv().isAlt)
+
+  @Test(timeout = 30000)
+  def aDeclaredOutsideReaderKeepsWritersGoing(): Unit = Reps.times:
+    val ch = Chan[Int](1)
+    ch.startReading()                                                // this thread reads too
+    val inTask = new AtomicInteger(0)
+    val h = Go.session: g ?=>
+      Go:
+        var i = 0
+        ch.onSendWhile(i < 10){ i += 1; i }
+      Go:
+        ch.onRecv{ _ => inTask.incrementAndGet() __ Unit; Stop() }   // takes one value, then stops reading
+    var outside = 0
+    var more = true
+    while more do ch.recv().fold(_ => outside += 1)(_ => more = false)
+    ch.stopReading()
+    assertEquals(Is.unit, h.await())
+    assertEquals("every value reached a reader", 10, outside + inTask.get())
+
+  @Test(timeout = 30000)
+  def aLatchStopsItsTasksAndEveryTaskTheySpawn(): Unit = Reps.times:
+    val latch = Go.Latch()
+    val ch = Chan[Int](4)
+    val ended = new AtomicInteger(0)
+    def endless(c: Chan[Int])(using Go): Unit =
+      Defer { ended.incrementAndGet() __ Unit }
+      var i = 0
+      c.onSendWhile(true){ i += 1; i }
+    val side = Chan[Int](4)
+    val h = Go.session: g ?=>
+      Go:
+        Go:                                                          // spawned before the latch was named
+          endless(side)
+        latch.stops()
+        Go:                                                          // and after
+          endless(ch)
+      Go:
+        side.onRecv{ _ => () }
+      Go:
+        ch.onRecv{ v => if v >= 3 then latch.mark() __ Unit }
+    assertEquals("a stop is not a failure", Is.unit, h.await())
+    assertEquals("both children stopped with their parent", 2, ended.get())
+    assertTrue(latch.isMarked)
+    assertFalse("only the first mark flips it", latch.mark())
+
+  @Test(timeout = 30000)
+  def aLatchTriggersOnce(): Unit = Reps.times:
+    val latch = Go.Latch()
+    val fired = new AtomicInteger(0)
+    val h = Go.session: g ?=>
+      Go:
+        latch.triggers{ fired.incrementAndGet() __ Unit }            // the task lives until then
+      Go:
+        latch.mark() __ Unit
+        latch.mark() __ Unit
+    assertEquals(Is.unit, h.await())
+    assertEquals(1, fired.get())
+
   private def info(s: String): Unit = println(s"[GoChanTest] $s")
 }

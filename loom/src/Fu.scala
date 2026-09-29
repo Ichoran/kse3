@@ -99,6 +99,172 @@ object Fu {
         finally Executor.stopIfGroup(ex)()
       })
 
+  // === Waiting for answers that arrive from elsewhere, by key ===
+
+  /** What became of an answer handed to a [[TimedMap]]: taken by its waiter, `Late` for a key whose waiter had
+    * already given up (it expired, was cancelled, or was given up by the map), or `Stray` for a key the map never
+    * knew or has forgotten.  A late or stray value reached nobody, so whatever it owns is the caller's to release. */
+  enum Delivery {
+    case Delivered, Late, Stray
+  }
+
+  /** One answer being waited for: its `key`, and the answer as `fu` (`await()` and `.?` for short) -- `Some(v)` when
+    * it arrives, `None` if it never does (the deadline passed, or someone gave up on it), or an error if the map was
+    * closed with one.  `cancel()` gives up on it, as `fu.cancel()` does.  The entry is the future itself, so it costs
+    * nothing beyond one object, and however it ends it leaves its map at that moment. */
+  final class MapEntry[K, V] private[loom] (map: TimedMap[K, V] | Null, val key: K, private[loom] val deadline: Long)
+  extends CompletableFuture[Ask[Option[V]]] {
+    def fu: kse.loom.Fu[Option[V]] = this
+    def await(): Ask[Option[V]] =
+      try get()
+      catch case e if e.catchable => Alt(Err(e))
+    inline def ?[L >: Alt[Err]](using lb: boundary.Label[L]): Option[V] = kse.flow.?(await())(using lb)
+    /** Give up on the answer; false once it had already ended. */
+    def cancel(): Boolean = { val m = map; (m ne null) && m.retire(this, Is(None), gaveUp = true) }
+    /** However a caller ends it -- `cancel`, `complete` -- it leaves the map, as the map's own endings do. */
+    override def cancel(mayInterrupt: Boolean): Boolean = cancel()
+    override def complete(value: Ask[Option[V]]): Boolean =
+      val m = map
+      if m eq null then super.complete(value) else m.retire(this, value, gaveUp = false)
+    private[loom] def settle(value: Ask[Option[V]]): Boolean = super.complete(value)
+  }
+
+  /** A table of answers being waited for, each under a key the caller chooses, each with a deadline: `expect(key)`
+    * gives a [[MapEntry]] whose `fu` the waiter holds, and `fulfil(key, value)` completes it when the answer arrives
+    * from wherever answers come from (a socket, a pipe, another process).  Not being answered is ordinary, so an
+    * entry that expires or is given up completes with `None`, and only closing the map with a cause is an error.  An
+    * entry leaves the table the moment it ends, by any route, so the table holds exactly what is still awaited.
+    *
+    * Every entry has a deadline -- `within`, or the map's `patience` -- enforced by one virtual thread that sleeps
+    * until the earliest and, each time it wakes, ends every entry whose deadline has passed, so a thread that was
+    * held up clears the whole backlog at once.  Keys given up on are remembered (the most recent `remember` of
+    * them), so an answer arriving for one is `Late`, not `Stray`.  Sending the request is the caller's affair: the
+    * table is transport-free.  `onGiveUp`, if given, hears each key its waiter stopped waiting for, for a transport
+    * that tells the other side. */
+  class TimedMap[K, V](patience: DoubleDuration, remember: Int = 1024, onGiveUp: K => Unit = (_: K) => ()) {
+    protected val lock = new AnyRef
+    private val entries = new java.util.concurrent.ConcurrentHashMap[K, MapEntry[K, V]]()
+    // Deadlines, earliest first.  An entry that ends early stays here until its time comes, and is passed over.
+    private val deadlines = new java.util.PriorityQueue[MapEntry[K, V]](16, (a, b) => java.lang.Long.compare(a.deadline, b.deadline))
+    private val gaveUp = new java.util.LinkedHashSet[K]()
+    @volatile private var closedWith: Err Or Unit = Alt.unit   // the cause, once closed
+    @volatile private var timer: Thread = null
+
+    /** How many answers are still awaited. */
+    def pending: Int = entries.size
+
+    /** Wait for the answer under `key`, until `within` has passed; refused while `key` is already awaited, or once
+      * the map is closed. */
+    def expect(key: K, within: DoubleDuration = patience): MapEntry[K, V] Or Err =
+      if closedWith.isIs then Alt(closedWith.getOrElse(_ => Err("closed")))
+      else
+        val e = new MapEntry[K, V](this, key, TimedMap.deadlineIn(within))
+        if entries.putIfAbsent(key, e) ne null then Err.or(s"$key is already awaited")
+        else { schedule(e); Is(e) }
+
+    /** Hand over the answer for `key`. */
+    def fulfil(key: K, value: V): Delivery =
+      val e = entries.get(key)
+      if (e ne null) && retire(e, Is(Some(value)), gaveUp = false) then Delivery.Delivered
+      else if lock.synchronized(gaveUp.remove(key)) then Delivery.Late
+      else Delivery.Stray
+
+    /** Stop waiting for `key`, as its entry's `cancel()` does; false if it was not awaited. */
+    def giveUp(key: K): Boolean =
+      val e = entries.get(key)
+      (e ne null) && retire(e, Is(None), gaveUp = true)
+
+    /** Fail every awaited answer with `why`, refuse new ones, stop the timer; answers how many were failed. */
+    def close(why: Err): Int =
+      closedWith = Is(why)
+      var n = 0
+      entries.values.forEach(e => if retire(e, Alt(why), gaveUp = false) then n += 1)
+      val t = timer
+      if t ne null then t.interrupt()
+      n
+
+    /** End `e` with `value` if it is still awaited: it leaves the table first, so exactly one ending wins. */
+    private[loom] def retire(e: MapEntry[K, V], value: Ask[Option[V]], gaveUp: Boolean): Boolean =
+      entries.remove(e.key, e) && {
+        if gaveUp then
+          lock.synchronized:
+            this.gaveUp.add(e.key) __ Unit
+            if this.gaveUp.size > remember then this.gaveUp.remove(this.gaveUp.iterator.next()) __ Unit
+          try onGiveUp(e.key) catch case t if t.catchable => ()
+        e.settle(value) __ Unit
+        true
+      }
+
+    protected def isPending(key: K): Boolean = entries.containsKey(key)
+    protected def closedCause: Err Or Unit = closedWith
+    protected def adopt(e: MapEntry[K, V]): Boolean = (entries.putIfAbsent(e.key, e) eq null) && { schedule(e); true }
+
+    private def schedule(e: MapEntry[K, V]): Unit =
+      val wake = lock.synchronized:
+        deadlines.add(e) __ Unit
+        deadlines.peek() eq e
+      if timer eq null then startTimer()
+      else if wake then java.util.concurrent.locks.LockSupport.unpark(timer)
+
+    private def startTimer(): Unit = lock.synchronized:
+      if (timer eq null) && closedWith.isAlt then
+        timer = Thread.ofVirtual().name("Fu.TimedMap timer").start(() => expire())
+
+    // Each wake ends EVERY entry past its deadline, not just the first, so a starved timer catches up in one pass.
+    private def expire(): Unit =
+      while closedWith.isAlt do
+        val now = System.nanoTime
+        var due: List[MapEntry[K, V]] = Nil
+        val next = lock.synchronized:
+          while !deadlines.isEmpty && deadlines.peek().deadline - now <= 0 do due = deadlines.poll() :: due
+          if deadlines.isEmpty then TimedMap.Idle else deadlines.peek().deadline - now
+        due.foreach(e => retire(e, Is(None), gaveUp = true) __ Unit)
+        java.util.concurrent.locks.LockSupport.parkNanos(next)
+        Thread.interrupted() __ Unit   // a stray interrupt must not turn the sleep into a spin; only a close ends it
+  }
+  object TimedMap {
+    // How long an idle timer sleeps before looking again; any new earliest deadline wakes it sooner.
+    private[loom] final val Idle = 60_000_000_000L
+    private[loom] def deadlineIn(within: DoubleDuration): Long =
+      val s = within.unwrap
+      val ns = if !(s > 0) then 0L else if s >= 9.2e9 then Long.MaxValue / 4 else (s * 1e9).toLong
+      System.nanoTime + ns
+  }
+
+  /** A [[TimedMap]] that chooses the keys: `grant()` takes the next from `zero` by `next`, passing over any still
+    * awaited, so a key comes round again only once its last use has ended.  If every key `next` reaches is in use,
+    * the grant fails at once. */
+  class GrantMap[K, V](zero: K)(next: K => K)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: K => Unit = (_: K) => ())
+  extends TimedMap[K, V](patience, remember, onGiveUp) {
+    private var cursor = zero
+
+    /** Wait for an answer under a fresh key, until `within` has passed: the entry says which key to send it under. */
+    def grant(within: DoubleDuration = patience): MapEntry[K, V] =
+      val deadline = TimedMap.deadlineIn(within)
+      if closedCause.isIs then failed(zero, deadline, closedCause.getOrElse(_ => Err("closed")))
+      else
+        val e = lock.synchronized:
+          var k = cursor
+          var tries = 0
+          while isPending(k) && tries <= pending do { k = next(k); tries += 1 }
+          cursor = next(k)
+          if isPending(k) then null
+          else new MapEntry[K, V](this, k, deadline)
+        if (e eq null) then failed(zero, deadline, Err("every key is awaited"))
+        else if !adopt(e) then failed(e.key, deadline, Err(s"${e.key} is already awaited"))
+        else e
+
+    private def failed(k: K, deadline: Long, why: Err): MapEntry[K, V] =
+      val e = new MapEntry[K, V](null, k, deadline)
+      e.settle(Alt(why)) __ Unit
+      e
+  }
+
+  /** A [[GrantMap]] whose keys are `Long`s counting up from `zero`: request ids. */
+  class IdMap[V](zero: Long = 0L)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: Long => Unit = (_: Long) => ())
+  extends GrantMap[Long, V](zero)(_ + 1)(patience, remember, onGiveUp)
+
+
   extension [A](fu: Fu[A]) {
     def isComplete: Boolean = (fu: Future[Ask[A]]).isDone
 

@@ -38,6 +38,14 @@ private[loom] trait WriterTracked {
   private[loom] def writerDone(): Unit
 }
 
+/** A channel whose readers are counted, so it closes when the last registered reader leaves: nobody will take
+  * what its writers produce, so they are refused from then on, while what is buffered stays for anyone who
+  * still looks.  The mirror of [[WriterTracked]]; a source, which has no writers to release, counts nothing. */
+private[loom] trait ReaderTracked {
+  private[loom] def registerReader(): Unit
+  private[loom] def readerDone(): Unit
+}
+
 
 // === The receive / send surfaces the verbs and select-loop handlers target ===
 //
@@ -52,7 +60,7 @@ private[loom] trait WriterTracked {
 /** The receive end of a channel-like source of values: pull one value (the favored branch) or
   * learn why you can't — `Wait` (nothing yet, but more may come), `Done` (drained and closed),
   * `Fail`.  A [[Chan.Source]] is the case that never says `Wait`. */
-trait ChanIn[A] {
+trait ChanIn[A] extends ReaderTracked {
   /** Pull one value without blocking; a successful receive *is* the favored branch. */
   def tryRecv(): A Or RunStatus
   /** Pull one value, blocking until one is available or the source is done/failed. */
@@ -212,6 +220,25 @@ final class Chan[A] private (buffer: Array[AnyRef]) extends ChanIn[A], ChanOut[A
   /** A writer scope has finished; close the channel once the last writer is gone. */
   private[loom] def writerDone(): Unit =
     if writerCount.subAndGet(1) == 0 then close() __ Unit
+
+
+  // === Reader tracking (a stop reaches upstream) ===
+
+  private val readerCount = Atom(0)
+
+  private[loom] def registerReader(): Unit = readerCount.++
+
+  /** A reader has left; once the last is gone nobody will take what is written, so the channel closes: writers
+    * are refused, and what is buffered stays for anyone who still reads. */
+  private[loom] def readerDone(): Unit =
+    if readerCount.subAndGet(1) == 0 then close() __ Unit
+
+  /** Declare that this thread, outside any `Go` task, reads the channel, so it stays open for writers while the
+    * thread reads though every task reading it has stopped.  Pair with `stopReading()`.  (A task reading by hand
+    * declares it with `reading`.) */
+  def startReading(): Unit = registerReader()
+  /** This thread no longer reads the channel; see `startReading`. */
+  def stopReading(): Unit = readerDone()
 
 
   // === Non-blocking core ===
@@ -441,6 +468,10 @@ object Chan {
             else { finish(null) __ Unit; out = endedStatus }
           catch case e if e.catchable => { finish(Err(e)) __ Unit; out = endedStatus }
           out
+
+    // Its values are on hand, not written by anyone waiting to be told nobody reads: nothing to count.
+    private[loom] def registerReader(): Unit = ()
+    private[loom] def readerDone(): Unit = ()
 
     // A live source always has its next value, so no consumer ever parks on it: nothing to wire.
     private[loom] def addRecvWaiter(p: Parker): Unit = ()
