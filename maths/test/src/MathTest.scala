@@ -1951,6 +1951,11 @@ class MathTest {
     T ~ i.clampToShort          ==== i              --: typed[Short]
     T ~ i3.clampToShort         ==== Short.MinValue --: typed[Short]
     T ~ i6.clampToShort         ==== Short.MaxValue --: typed[Short]
+    T ~ i.clampToUShort         ==== UShort(0)      --: typed[UShort]
+    T ~ 0.clampToUShort         ==== UShort(0)
+    T ~ i5.clampToUShort        ==== UShort(2000)
+    T ~ 65535.clampToUShort     ==== UShort.MaxValue
+    T ~ i6.clampToUShort        ==== UShort.MaxValue
     T ~ i.clampToChar           ==== '\u0000'       --: typed[Char]
     T ~ i5.clampToChar          ==== '\u07D0'       --: typed[Char]
     T ~ i6.clampToChar          ==== '\uFFFF'       --: typed[Char]
@@ -2170,6 +2175,7 @@ class MathTest {
     T ~ f.closeTo(1f,1f,1f) ==== true
     T ~ f.bitsI             ==== 1067030938
     T ~ f.f64               ==== 1.2f.toDouble  --: typed[Double]
+    T ~ 40000.7f.toUShort   ==== UShort(40000.toShort)  --: typed[UShort]
 
     T ~ Array(1f, 2f, 4f).isIncreasing  ==== true
     T ~ Array(1f, 4f, 2f).isIncreasing  ==== false
@@ -2307,6 +2313,7 @@ class MathTest {
     T ~ d.closeTo(1.0,1,1)    ==== true
     T ~ d.bitsL               ==== 4608083138725491507L
     T ~ d.f32                 ==== 1.2f  --: typed[Float]
+    T ~ 40000.7.toUShort      ==== UShort(40000.toShort)  --: typed[UShort]
 
     val dd = Array(5.0, 4.0, 3.0, 2.0, 1.0)
     T ~ Array(1.0, 2.0).accumulateInto(dd) =**= Array(1.0, 3.0, 3.0, 2.0, 1.0)
@@ -2529,6 +2536,7 @@ class MathTest {
     T ~ (b /# bz)       ==== UByte(255)
     T ~ (bz /# bz)      ==== bz
     T ~ (b /! c)        ==== UByte(14)   --: typed[UByte]
+    T ~ (b /! UByte(0)) ==== thrown[ArithmeticException]
     T ~ (b % c)         ==== UInt(4)     --: typed[UInt]
     T ~ (b % UShort(9)) ==== UInt(2)     --: typed[UInt]
     T ~ (b % UInt(14))  ==== UInt(4)     --: typed[UInt]
@@ -2625,6 +2633,7 @@ class MathTest {
     T ~ (s /# t)         ==== UShort(2857)    --: typed[UShort]
     T ~ (s /# sz)        ==== UShort.MaxValue --: typed[UShort]
     T ~ (s /! t)         ==== UShort(2857)    --: typed[UShort]
+    T ~ (s /! UShort(0)) ==== thrown[ArithmeticException]
     T ~ (s /! sz)        ==== thrown[ArithmeticException]
     T ~ (s % c)          ==== UInt(2)         --: typed[UInt]
     T ~ (s % t)          ==== UInt(2)         --: typed[UInt]

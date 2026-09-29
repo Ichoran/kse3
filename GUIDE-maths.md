@@ -127,7 +127,10 @@ val ones = i.bitCount
 ```
 
 Each unsigned type has a `Sorting.Order` in its companion, so arrays of them sort correctly.  `Hex` is the type of
-one hex digit, `Bit` of one bit, and `x.bitString` shows the bits.
+one hex digit, `Bit` of one bit, and `x.bitString` shows the bits.  A `Hex` (made with `Hex(n)` or `Hex.wrap(i)`) is an
+`Int` for ordinary arithmetic, so `h + g` widens, but its saturating (`+#`) and checked (`+!`) operators stay in 0 to 15;
+a bare `14` is not a `Hex` and never picks them up.  Builders such as `Hex.I(1, 2)` take any value 0 to 15
+(`Hex.Values`).
 
 Full API: `maths/src/Maths.scala` for the unsigned types; `maths/src/Packed.scala` for the accessors and packed
 tuples.

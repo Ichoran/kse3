@@ -645,7 +645,10 @@ final class UDDSketch private (val alpha0: Double, val maxBuckets: Int, val spar
 
   override def toString =
     if total <= 0 then s"UDDSketch(empty, α=$alpha0)"
-    else f"UDDSketch(n=$total, α=$alpha%.4g${if signed then ", signed" else ""}${if nCollapse > 0 then s", $nCollapse collapses" else ""}, median≈${quantile(0.5)}%.4g)"
+    else
+      val sgn = if signed then ", signed" else ""
+      val clp = if nCollapse > 0 then s", $nCollapse collapses" else ""
+      f"UDDSketch(n=$total, α=$alpha%.4g$sgn$clp, median≈${quantile(0.5)}%.4g)"
 }
 object UDDSketch {
   /** A sketch with base relative accuracy `alpha` (e.g. `0.01` for ~1% buckets).

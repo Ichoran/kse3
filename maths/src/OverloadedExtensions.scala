@@ -166,6 +166,38 @@ extension (value: Int) {
 
 
 
+extension (value: kse.maths.packed.Hex) {
+  /////////////////////////////////
+  // Overflow-throwing operators //
+  /////////////////////////////////
+  @targetName("hex_addExact") def +!(h: packed.Hex.Values): packed.Hex =
+    val x = value + h
+    if x > 15 then throw new ArithmeticException("Hex overflow") else packed.Hex.wrap(x)
+  @targetName("hex_subExact") def -!(h: packed.Hex.Values): packed.Hex =
+    val x = value - h
+    if x < 0 then throw new ArithmeticException("Hex overflow") else packed.Hex.wrap(x)
+  @targetName("hex_mulExact") def *!(h: packed.Hex.Values): packed.Hex =
+    val x = value * h
+    if x > 15 then throw new ArithmeticException("Hex overflow") else packed.Hex.wrap(x)
+  @targetName("hex_divExact") def /!(h: packed.Hex.Values): packed.Hex = packed.Hex.wrap(value / h)
+
+
+  /////////////////////////
+  // Range-aware methods //
+  /////////////////////////
+  @targetName("hex_clamp") inline def clamp(lo: packed.Hex.Values, hi: packed.Hex.Values): packed.Hex =
+    if lo <= value then
+      if value <= hi then value
+      else if lo <= hi then packed.Hex(hi)
+      else packed.Hex(lo)
+    else packed.Hex(lo)
+  @targetName("hex_checkIn") inline def checkIn(lo: packed.Hex.Values, hi: packed.Hex.Values): packed.Hex =
+    if value < lo || value > hi then throw new ArithmeticException("Hex out of range")
+    else value
+}
+
+
+
 extension (value: Long) {
   /////////////////////////////////
   // Overflow-throwing operators //

@@ -908,6 +908,21 @@ extension (c: Char) {
   @targetName("char_checkedShort") def checkedToShort: Short           = if c > '\u7FFF' then throw new ArithmeticException("short overflow") else c.toShort
 }
 
+// Hex is an Int subtype, so its ordinary arithmetic is Int's and widens; these stay in 0 to 15.  They must be overloads
+// beside Int's, not members of object Hex: a lexical Int extension would otherwise capture a Hex receiver first.
+extension (h: kse.maths.packed.Hex) {
+  @targetName("hex_satAdd") def +#(g: packed.Hex.Values): packed.Hex = { val x = h + g; packed.Hex.wrap(if x > 15 then 15 else x) }
+  @targetName("hex_satSub") def -#(g: packed.Hex.Values): packed.Hex = { val x = h - g; packed.Hex.wrap(if x < 0 then 0 else x) }
+  @targetName("hex_satMul") def *#(g: packed.Hex.Values): packed.Hex = { val x = h * g; packed.Hex.wrap(if x > 15 then 15 else x) }
+  @targetName("hex_satDiv") def /#(g: packed.Hex.Values): packed.Hex =
+    if g == 0 then (if h == 0 then packed.Hex.zero else packed.Hex(15)) else packed.Hex.wrap(h / g)
+  @targetName("hex_satMod") inline def %#(g: packed.Hex.Values): packed.Hex = if g == 0 then packed.Hex.zero else packed.Hex.wrap(h % g)
+
+  @targetName("hex_hiHex") inline def hiHexString: String = "0123456789ABCDEF".substring(h, h + 1)
+  @targetName("hex_loHex") inline def loHexString: String = "0123456789abcdef".substring(h, h + 1)
+  @targetName("hex_hex")   inline def hexString:   String = "0123456789ABCDEF".substring(h, h + 1)
+}
+
 extension (i: Int) {
   def +#(j: Int): Int =
     val x = i.toLong + j.toLong
@@ -948,7 +963,7 @@ extension (i: Int) {
   @targetName("int_clampByte")   def clampToByte: Byte               = if i < -128 then -128 else if i > 127 then 127 else i.toByte
   @targetName("int_clampUByte")  def clampToUByte: kse.maths.UByte   = if i < 0 then UByte(0) else if i > 255 then UByte(255) else UByte(i.toByte)
   @targetName("int_clampShort")  def clampToShort: Short             = if i < Short.MinValue then Short.MinValue else if i > Short.MaxValue then Short.MaxValue else i.toShort
-  @targetName("int_clampUShort") def clampToUShort: kse.maths.UShort = if i < 0 then UShort(0) else if i > UShort.MaxValue then UShort.MaxValue else UShort(i.toShort)
+  @targetName("int_clampUShort") def clampToUShort: kse.maths.UShort = if i < 0 then UShort(0) else if i > 0xFFFF then UShort.MaxValue else UShort(i.toShort)
   @targetName("int_clampChar")   def clampToChar: Char               = if i < 0 then '\u0000' else if i > 0xFFFF then '\uFFFF' else i.toChar
   @targetName("int_clampUInt")   def clampToUInt: kse.maths.UInt     = if i < 0 then UInt(0) else UInt(i)
   @targetName("int_clampULong")  def clampToULong: kse.maths.ULong   = if i < 0 then ULong(0L) else ULong(i.toLong)
@@ -1115,7 +1130,7 @@ extension (f: Float) {
   def toUByte: kse.maths.UByte =
     if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
   def toUShort: kse.maths.UShort =
-    if f < 0 then UShort(0) else if f > 65535 then UShort.MaxValue else UShort((f.toInt & 0xFFFF).toByte)
+    if f < 0 then UShort(0) else if f > 65535 then UShort.MaxValue else UShort((f.toInt & 0xFFFF).toShort)
   def toUInt: kse.maths.UInt =
     if f < 0 then UInt(0)
     else
@@ -1254,7 +1269,7 @@ extension (d: Double) {
   def toUByte: kse.maths.UByte =
     if d < 0 then UByte(0) else if d > 255 then UByte(255) else UByte((d.toInt & 0xFF).toByte)
   def toUShort: kse.maths.UShort =
-    if d < 0 then UShort(0) else if d > 65535 then UShort.MaxValue else UShort((d.toInt & 0xFFFF).toByte)
+    if d < 0 then UShort(0) else if d > 65535 then UShort.MaxValue else UShort((d.toInt & 0xFFFF).toShort)
   def toUInt: kse.maths.UInt =
     if d < 0 then UInt(0)
     else
@@ -1768,9 +1783,7 @@ object UShort {
       if j.signed == 0 then { if i.signed == 0 then UShort(0) else UShort.MaxValue }
       else UShort(((i.signed & 0xFFFF) / (j.signed & 0xFFFF)).toShort)
 
-    def /!(j: kse.maths.UShort): kse.maths.UShort  =
-      if j.signed == 0 then throw new ArithmeticException("UShort division by zero")
-      else UShort(((i.signed & 0xFFFF) / (j.signed & 0xFFFF)).toShort)
+    def /!(j: kse.maths.UShort): kse.maths.UShort = UShort(((i.signed & 0xFFFF) / (j.signed & 0xFFFF)).toShort)
 
     inline def %(b: kse.maths.UByte):  kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) % (b.signed & 0xFF))
     inline def %(t: kse.maths.UShort): kse.maths.UInt  =  UInt.wrap((i.signed & 0xFFFF) % (t.signed & 0xFFFF))

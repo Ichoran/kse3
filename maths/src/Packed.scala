@@ -691,12 +691,10 @@ object Bit{
     z15: Bit, z14: Bit, z13: Bit, z12: Bit, z11: Bit, z10: Bit,  z9: Bit,  z8: Bit,
     z7: Bit,   z6: Bit,  z5: Bit,  z4: Bit,  z3: Bit,  z2: Bit,  z1: Bit,  z0: Bit
   ): Long =
-    (
-      (( z0      ) | ( z1 << 1 ) | ( z2 << 2 ) | ( z3 << 3 )) | (( z4 << 4 ) | ( z5 << 5 ) | ( z6 << 6 ) | ( z7 << 7 )) |
-      (( z8 << 8 ) | ( z9 << 9 ) | (z10 << 10) | (z11 << 11)) | ((z12 << 12) | (z13 << 13) | (z14 << 14) | (z15 << 15)) |
-      ((z16 << 16) | (z17 << 17) | (z18 << 18) | (z19 << 19)) | ((z20 << 20) | (z21 << 21) | (z22 << 22) | (z23 << 23)) |
-      ((z24 << 24) | (z25 << 25) | (z26 << 26) | (z27 << 27)) | ((z28 << 28) | (z29 << 29) | (z30 << 30) | ((z31+0L) << 31))
-    ) & 0xFFFFFFFFL
+    (( z0      ) | ( z1 << 1 ) | ( z2 << 2 ) | ( z3 << 3 )) | (( z4 << 4 ) | ( z5 << 5 ) | ( z6 << 6 ) | ( z7 << 7 )) |
+    (( z8 << 8 ) | ( z9 << 9 ) | (z10 << 10) | (z11 << 11)) | ((z12 << 12) | (z13 << 13) | (z14 << 14) | (z15 << 15)) |
+    ((z16 << 16) | (z17 << 17) | (z18 << 18) | (z19 << 19)) | ((z20 << 20) | (z21 << 21) | (z22 << 22) | (z23 << 23)) |
+    ((z24 << 24) | (z25 << 25) | (z26 << 26) | (z27 << 27)) | ((z28 << 28) | (z29 << 29) | (z30 << 30) | ((z31+0L) << 31))
   inline def L(
     z32: Bit,
     z31: Bit, z30: Bit, z29: Bit, z28: Bit, z27: Bit, z26: Bit, z25: Bit, z24: Bit,
@@ -1318,18 +1316,26 @@ object Bit{
 }
 
 
-type Hex = 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15
+/** One hexadecimal digit, 0 to 15.  It is an `Int` wherever an `Int` is wanted, so `h + g` is an `Int` as widening
+  * makes it, but only a `Hex` carries the operators that stay in bounds (`+#` saturates, `+!` throws), which a bare
+  * 14 must not pick up.  Builders take `Hex.Values`, so a literal or any narrower union of digits works there too. */
+opaque type Hex <: Hex.Values = Hex.Values
 object Hex {
+  /** Every digit's value: what a builder takes, a `Hex` included. */
+  type Values = 0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15
+
   type CharLiterals = '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|'A'|'B'|'C'|'D'|'E'|'F'|'a'|'b'|'c'|'d'|'e'|'f'
 
   type BinaryLiterals = 0|1|10|11|100|101|110|111|1000|1001|1010|1011|1100|1101|1110|1111
 
   inline def zero: Hex = 0
 
-  inline def apply(h: Hex): Hex = h
-  def flip(h: Hex): Hex = (15 - h).asInstanceOf[Hex]
+  inline def apply(h: Hex.Values): Hex = h
+  /** The low four bits of `i`. */
+  inline def wrap(i: Int): Hex = (i & 0xF).asInstanceOf[Hex]
+  def flip(h: Hex.Values): Hex = (15 - h).asInstanceOf[Hex]
 
-  transparent inline def from(inline h: CharLiterals): Hex = inline h match
+  inline def from(inline h: CharLiterals): Hex = inline h match
     case _: '0' => 0
     case _: '1' => 1
     case _: '2' => 2
@@ -1353,7 +1359,7 @@ object Hex {
     case _: 'e' => 14
     case _: 'f' => 15
 
-  transparent inline def literal(inline h: BinaryLiterals): Hex = inline h match
+  inline def literal(inline h: BinaryLiterals): Hex = inline h match
     case _:    0 => 0
     case _:    1 => 1
     case _:   10 => 2
@@ -1371,16 +1377,16 @@ object Hex {
     case _: 1110 => 14
     case _: 1111 => 15
 
-  inline def B(h0: Hex): Byte = h0.toByte
-  inline def B(h1: Hex, h0: Hex): Byte = (h0 | (h1 << 4)).toByte
+  inline def B(h0: Hex.Values): Byte = h0.toByte
+  inline def B(h1: Hex.Values, h0: Hex.Values): Byte = (h0 | (h1 << 4)).toByte
   inline def B(inline h0: CharLiterals): Byte = from(h0).toByte
   inline def B(inline h1: CharLiterals, inline h0: CharLiterals): Byte = (from(h0) | (from(h1) << 4)).toByte
   inline def literalB(inline h1: BinaryLiterals, inline h0: BinaryLiterals) = (literal(h0) | (literal(h1) << 4)).toByte
 
-  inline def S(h0: Hex): Short = h0.toShort
-  inline def S(h1: Hex, h0: Hex): Short = (h0 | (h1 << 4)).toShort
-  inline def S(h2: Hex, h1: Hex, h0: Hex): Short = (h0 | (h1 << 4) | (h2 << 8)).toShort
-  inline def S(h3: Hex, h2: Hex, h1: Hex, h0: Hex): Short = (h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)).toShort
+  inline def S(h0: Hex.Values): Short = h0.toShort
+  inline def S(h1: Hex.Values, h0: Hex.Values): Short = (h0 | (h1 << 4)).toShort
+  inline def S(h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Short = (h0 | (h1 << 4) | (h2 << 8)).toShort
+  inline def S(h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Short = (h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)).toShort
   inline def S(inline h0: CharLiterals): Short = from(h0).toShort
   inline def S(inline h1: CharLiterals, inline h0: CharLiterals): Short = (from(h0) | (from(h1) << 4)).toShort
   inline def S(inline h2: CharLiterals, inline h1: CharLiterals, inline h0: CharLiterals): Short =
@@ -1390,10 +1396,10 @@ object Hex {
   inline def literalS(inline h3: BinaryLiterals, inline h2: BinaryLiterals, inline h1: BinaryLiterals, inline h0: BinaryLiterals): Short =
     (literal(h0) | (literal(h1) << 4) | (literal(h2) << 8) | (literal(h3) << 12)).toShort
 
-  inline def C(h0: Hex): Char = h0.toChar
-  inline def C(h1: Hex, h0: Hex): Char = (h0 | (h1 << 4)).toChar
-  inline def C(h2: Hex, h1: Hex, h0: Hex): Char = (h0 | (h1 << 4) | (h2 << 8)).toChar
-  inline def C(h3: Hex, h2: Hex, h1: Hex, h0: Hex): Char = (h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)).toChar
+  inline def C(h0: Hex.Values): Char = h0.toChar
+  inline def C(h1: Hex.Values, h0: Hex.Values): Char = (h0 | (h1 << 4)).toChar
+  inline def C(h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Char = (h0 | (h1 << 4) | (h2 << 8)).toChar
+  inline def C(h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Char = (h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)).toChar
   inline def C(inline h0: CharLiterals): Char = from(h0).toChar
   inline def C(inline h1: CharLiterals, inline h0: CharLiterals): Char = (from(h0) | (from(h1) << 4)).toChar
   inline def C(inline h2: CharLiterals, inline h1: CharLiterals, inline h0: CharLiterals): Char =
@@ -1403,17 +1409,17 @@ object Hex {
   inline def literalC(inline h3: BinaryLiterals, inline h2: BinaryLiterals, inline h1: BinaryLiterals, inline h0: BinaryLiterals): Char =
     (literal(h0) | (literal(h1) << 4) | (literal(h2) << 8) | (literal(h3) << 12)).toChar
 
-  inline def I(h0: Hex): Int = h0
-  inline def I(h1: Hex, h0: Hex): Int = h0 | (h1 << 4)
-  inline def I(h2: Hex, h1: Hex, h0: Hex): Int = h0 | (h1 << 4) | (h2 << 8)
-  inline def I(h3: Hex, h2: Hex, h1: Hex, h0: Hex): Int = h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)
-  inline def I(h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Int = 
+  inline def I(h0: Hex.Values): Int = h0
+  inline def I(h1: Hex.Values, h0: Hex.Values): Int = h0 | (h1 << 4)
+  inline def I(h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = h0 | (h1 << 4) | (h2 << 8)
+  inline def I(h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)
+  inline def I(h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16)
-  inline def I(h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Int = 
+  inline def I(h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20)
-  inline def I(h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Int = 
+  inline def I(h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20) | (h6 << 24)
-  inline def I(h7: Hex, h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Int = 
+  inline def I(h7: Hex.Values, h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Int = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20) | (h6 << 24) | (h7 << 28)
   inline def I(inline h0: CharLiterals): Int = from(h0)
   inline def I(inline h1: CharLiterals, inline h0: CharLiterals): Int = from(h0) | (from(h1) << 4)
@@ -1448,73 +1454,73 @@ object Hex {
     (literal(h0)      ) | (literal(h1) <<  4) | (literal(h2) <<  8) | (literal(h3) << 12) |
     (literal(h4) << 16) | (literal(h5) << 20) | (literal(h6) << 24) | (literal(h7) << 28)
 
-  inline def L(h0: Hex): Long = h0
-  inline def L(h1: Hex, h0: Hex): Long = h0 | (h1 << 4)
-  inline def L(h2: Hex, h1: Hex, h0: Hex): Long = h0 | (h1 << 4) | (h2 << 8)
-  inline def L(h3: Hex, h2: Hex, h1: Hex, h0: Hex): Long = h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)
-  inline def L(h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Long = 
+  inline def L(h0: Hex.Values): Long = h0
+  inline def L(h1: Hex.Values, h0: Hex.Values): Long = h0 | (h1 << 4)
+  inline def L(h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = h0 | (h1 << 4) | (h2 << 8)
+  inline def L(h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = h0 | (h1 << 4) | (h2 << 8) | (h3 << 12)
+  inline def L(h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16)
-  inline def L(h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Long = 
+  inline def L(h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20)
-  inline def L(h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Long = 
+  inline def L(h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20) | (h6 << 24)
-  inline def L(h7: Hex, h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex): Long = 
+  inline def L(h7: Hex.Values, h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values): Long = 
     h0 | (h1 << 4) | (h2 << 8) | (h3 << 12) | (h4 << 16) | (h5 << 20) | (h6 << 24) | ((h7+0L) << 28)
   inline def L(
-    h8: Hex,
-    h7: Hex, h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h8: Hex.Values,
+    h7: Hex.Values, h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0          ) | (h1 << 4 ) | (h2 << 8 ) | ( h3     << 12) |
     ( h4     << 16) | (h5 << 20) | (h6 << 24) | ((h7+0L) << 28) |
     ((h8+0L) << 32)
   inline def L(
-    h9: Hex, h8: Hex,
-    h7: Hex, h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h9: Hex.Values, h8: Hex.Values,
+    h7: Hex.Values, h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0          ) | ( h1     << 4 ) | (h2 << 8 ) | ( h3     << 12) |
     ( h4     << 16) | ( h5     << 20) | (h6 << 24) | ((h7+0L) << 28) |
     ((h8+0L) << 32) | ((h9+0L) << 36)
   inline def L(
-    h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6: Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6: Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0          ) | ( h1     << 4 ) | ( h2      << 8 ) | ( h3     << 12) |
     ( h4     << 16) | ( h5     << 20) | ( h6      << 24) | ((h7+0L) << 28) |
     ((h8+0L) << 32) | ((h9+0L) << 36) | ((h10+0L) << 40)
   inline def L(
-    h11: Hex, h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6:  Hex, h5: Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h11: Hex.Values, h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6:  Hex.Values, h5: Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0          ) | ( h1     << 4 ) | ( h2      << 8 ) | ( h3      << 12) |
     ( h4     << 16) | ( h5     << 20) | ( h6      << 24) | ((h7 +0L) << 28) |
     ((h8+0L) << 32) | ((h9+0L) << 36) | ((h10+0L) << 40) | ((h11+0L) << 44)
   inline def L(
-    h12: Hex, h11: Hex, h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6:  Hex, h5:  Hex, h4: Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h12: Hex.Values, h11: Hex.Values, h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6:  Hex.Values, h5:  Hex.Values, h4: Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0           ) | ( h1     << 4 ) | ( h2      << 8 ) | ( h3      << 12) |
     ( h4      << 16) | ( h5     << 20) | ( h6      << 24) | ((h7 +0L) << 28) |
     ((h8 +0L) << 32) | ((h9+0L) << 36) | ((h10+0L) << 40) | ((h11+0L) << 44) |
     ((h12+0L) << 48)
   inline def L(
-    h13: Hex, h12: Hex, h11: Hex, h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6:  Hex, h5:  Hex, h4:  Hex, h3: Hex, h2: Hex, h1: Hex, h0: Hex
+    h13: Hex.Values, h12: Hex.Values, h11: Hex.Values, h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6:  Hex.Values, h5:  Hex.Values, h4:  Hex.Values, h3: Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0           ) | ( h1      << 4 ) | ( h2      << 8 ) | ( h3      << 12) |
     ( h4      << 16) | ( h5      << 20) | ( h6      << 24) | ((h7 +0L) << 28) |
     ((h8 +0L) << 32) | ((h9 +0L) << 36) | ((h10+0L) << 40) | ((h11+0L) << 44) |
     ((h12+0L) << 48) | ((h13+0L) << 52)
   inline def L(
-    h14: Hex, h13: Hex, h12: Hex, h11: Hex, h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6:  Hex, h5:  Hex, h4:  Hex, h3:  Hex, h2: Hex, h1: Hex, h0: Hex
+    h14: Hex.Values, h13: Hex.Values, h12: Hex.Values, h11: Hex.Values, h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6:  Hex.Values, h5:  Hex.Values, h4:  Hex.Values, h3:  Hex.Values, h2: Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0           ) | ( h1      << 4 ) | ( h2      << 8 ) | ( h3      << 12) |
     ( h4      << 16) | ( h5      << 20) | ( h6      << 24) | ((h7 +0L) << 28) |
     ((h8 +0L) << 32) | ((h9 +0L) << 36) | ((h10+0L) << 40) | ((h11+0L) << 44) |
     ((h12+0L) << 48) | ((h13+0L) << 52) | ((h14+0L) << 56)
   inline def L(
-    h15: Hex, h14: Hex, h13: Hex, h12: Hex, h11: Hex, h10: Hex, h9: Hex, h8: Hex,
-    h7:  Hex, h6:  Hex, h5:  Hex, h4:  Hex, h3:  Hex, h2:  Hex, h1: Hex, h0: Hex
+    h15: Hex.Values, h14: Hex.Values, h13: Hex.Values, h12: Hex.Values, h11: Hex.Values, h10: Hex.Values, h9: Hex.Values, h8: Hex.Values,
+    h7:  Hex.Values, h6:  Hex.Values, h5:  Hex.Values, h4:  Hex.Values, h3:  Hex.Values, h2:  Hex.Values, h1: Hex.Values, h0: Hex.Values
   ): Long = 
     ( h0           ) | ( h1      << 4 ) | ( h2      << 8 ) | ( h3      << 12) |
     ( h4      << 16) | ( h5      << 20) | ( h6      << 24) | ((h7 +0L) << 28) |
@@ -1726,7 +1732,7 @@ extension (z8: Byte) {
   inline def hex(index: HexIndices.B): Hex =
     ((z8 >>> 4*index) & 0xF).asInstanceOf[Hex]
 
-  inline def hexTo(index: HexIndices.B)(value: Hex): Byte =
+  inline def hexTo(index: HexIndices.B)(value: Hex.Values): Byte =
     ((z8 & (0xF0F >>> 4*(1-index))) | (value << 4*index)).toByte
 
   inline def reverseHex: Byte =
@@ -1768,7 +1774,7 @@ extension (z16: Short) {
   inline def hex(index: HexIndices.S): Hex =
     ((z16 >>> 4*index) & 0xF).asInstanceOf[Hex]
 
-  inline def hexTo(index: HexIndices.S)(value: Hex): Short =
+  inline def hexTo(index: HexIndices.S)(value: Hex.Values): Short =
     ((z16 & (0xFFF0FFF >>> 4*(3-index))) | (value << 4*index)).toShort
 
   inline def reverseHex: Short =
@@ -1819,7 +1825,7 @@ extension (z16: Char) {
   inline def hex(index: HexIndices.C): Hex =
     ((z16 >>> 4*index) & 0xF).asInstanceOf[Hex]
 
-  inline def hexTo(index: HexIndices.C)(value: Hex): Char =
+  inline def hexTo(index: HexIndices.C)(value: Hex.Values): Char =
     ((z16 & (0xFFF0FFF >>> 4*(3-index))) | (value << 4*index)).toChar
 
   inline def reverseHex: Char =
@@ -1866,7 +1872,7 @@ extension (z32: Int) {
   inline def hex(index: HexIndices.I): Hex =
     ((z32 >>> 4*index) & 0xF).asInstanceOf[Hex]
 
-  inline def hexTo(index: HexIndices.I)(value: Hex): Int =
+  inline def hexTo(index: HexIndices.I)(value: Hex.Values): Int =
     (z32 & ~(0xF << 4*index)) | (value << 4*index)
 
   def reverseHex: Int =
@@ -1930,7 +1936,7 @@ extension (z64: Long) {
   inline def hex(index: HexIndices.L): Hex =
     ((z64 >>> 4*index) & 0xF).asInstanceOf[Hex]
 
-  inline def hexTo(index: HexIndices.L)(value: Hex): Long =
+  inline def hexTo(index: HexIndices.L)(value: Hex.Values): Long =
     (z64 & ~(0xFL << 4*index)) | ((value+0L) << 4*index)
 
   def reverseHex: Long =

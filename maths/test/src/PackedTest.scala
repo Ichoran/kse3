@@ -260,6 +260,7 @@ class PackedTest() {
     T ~ Bit.L(                                                                1,1,1,1,0,1,0,1,0,0,0,1,1,1,0,0,1,0,0,0,0,1,0,0,1,1,0,1,1,0,0,1) ==== 0x00000000F51C84D9L
     T ~ Bit.L(                                                                0,0,0,0,1,0,1,0,1,1,1,0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,0,0,1,1,0) ==== 0x000000000AE37B26L
     T ~ Bit.L(                                                                1,1,1,1,0,1,0,1,0,0,0,1,1,1,0,0,1,0,0,0,0,1,0,0,1,1,0,1,1,0,0,1) ==== 0x00000000F51C84D9L
+    T ~ Bit.L(                                                                1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0) ==== 0x0000000080000000L
     T ~ Bit.L(                                                              1,0,0,0,0,1,0,1,0,1,1,1,0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,0,0,1,1,0) ==== 0x000000010AE37B26L
     T ~ Bit.L(                                                              0,1,1,1,1,0,1,0,1,0,0,0,1,1,1,0,0,1,0,0,0,0,1,0,0,1,1,0,1,1,0,0,1) ==== 0x00000000F51C84D9L
     T ~ Bit.L(                                                            0,1,0,0,0,0,1,0,1,0,1,1,1,0,0,0,1,1,0,1,1,1,1,0,1,1,0,0,1,0,0,1,1,0) ==== 0x000000010AE37B26L
@@ -337,6 +338,44 @@ class PackedTest() {
 
 
   def packedHexTest(): Unit =
+    // what UByte has that stays in bounds, Hex has: saturating, checked, range-aware, one-digit strings
+    val h9 = Hex(9)
+    val h3 = Hex(3)
+    T ~ (h9 +# h9)          ==== 15                   --: typed[Hex]
+    T ~ (h9 +# 3)           ==== 12                   --: typed[Hex]
+    T ~ (h3 -# h9)          ==== 0                    --: typed[Hex]
+    T ~ (h9 -# 3)           ==== 6
+    T ~ (h9 *# h3)          ==== 15                   --: typed[Hex]
+    T ~ (h3 *# 4)           ==== 12
+    T ~ (h9 /# 2)           ==== 4                    --: typed[Hex]
+    T ~ (h9 /# 0)           ==== 15
+    T ~ (Hex.zero /# 0)     ==== 0
+    T ~ (h9 %# 4)           ==== 1                    --: typed[Hex]
+    T ~ (h9 %# 0)           ==== 0
+    T ~ (h9 +! 6)           ==== 15                   --: typed[Hex]
+    T ~ (h9 +! h9)          ==== thrown[ArithmeticException]
+    T ~ (h9 -! 9)           ==== 0                    --: typed[Hex]
+    T ~ (h3 -! h9)          ==== thrown[ArithmeticException]
+    T ~ (h3 *! 5)           ==== 15                   --: typed[Hex]
+    T ~ (h9 *! h3)          ==== thrown[ArithmeticException]
+    T ~ (h9 /! 4)           ==== 2                    --: typed[Hex]
+    T ~ (h9 /! 0)           ==== thrown[ArithmeticException]
+    T ~ h9.clamp(2, 5)      ==== 5                    --: typed[Hex]
+    T ~ h3.clamp(5, 12)     ==== 5
+    T ~ h9.clamp(2, 12)     ==== 9
+    T ~ h9.checkIn(2, 12)   ==== 9                    --: typed[Hex]
+    T ~ h9.checkIn(2, 5)    ==== thrown[ArithmeticException]
+    T ~ Hex(11).hexString   ==== "B"
+    T ~ Hex(11).hiHexString ==== "B"
+    T ~ Hex(11).loHexString ==== "b"
+    // ordinary arithmetic is an Int's and widens, and a bare Int never picks up a Hex operator
+    T ~ (h9 + h9)           ==== 18                   --: typed[Int]
+    T ~ (10 +# 10)          ==== 20                   --: typed[Int]
+    // a builder takes any narrower union of digits, not only a literal or a Hex
+    val odd: 1 | 3 | 5 = 3
+    T ~ Hex.I(odd, 1)       ==== 0x31
+    T ~ Hex.wrap(0x1F)      ==== 15                   --: typed[Hex]
+
     T ~ Hex.zero ==== 0
     T ~ Hex(0)   ==== 0
     T ~ Hex(1)   ==== 1
