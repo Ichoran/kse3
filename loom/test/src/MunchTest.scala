@@ -372,6 +372,19 @@ class MunchTest {
     sup.stop().foreachThem(_ => ())(e => fail(e.toString))
 
   @Test(timeout = 30000)
+  def aFedCanBeAwaitedWithATimeout(): Unit = (Reps / 10).times:
+    import kse.maths._
+    val sup = Munch.supervisor()
+    val ref = queued(sup, new java.util.concurrent.ConcurrentLinkedQueue[Int])
+    val started = new CountDownLatch(1)
+    val slow = ref.feed(Q.Slow(started, _))
+    started.await()
+    assertEquals("time ran out: None, and the feed is still in flight", Alt(None), slow.await(0.02.s))
+    assertTrue(slow.cancel())
+    assertEquals(Is(4), ref.feed(Q.Take(4, _)).await(10.0.s))
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
   def aHandlerThatNeverBlocksSeesCancellationByPolling(): Unit = (Reps / 10).times:
     val sup = Munch.supervisor()
     val ref = queued(sup, new java.util.concurrent.ConcurrentLinkedQueue[Int])

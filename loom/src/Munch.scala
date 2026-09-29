@@ -136,6 +136,9 @@ object Munch {
       def await(): Ask[B] =
         try f.get()
         catch case e if e.catchable => Alt(Err(e))
+      /** Wait at most `timeout` for the reply, as `Fu`'s timed `await` does: the value, or `None` if time ran out
+        * (the feed stays in flight; withdraw or cancel it if it is no longer wanted), or its error. */
+      def await(timeout: kse.maths.DoubleDuration): B Or Option[Err] = Fu.wrap(f).await(timeout)
       def isComplete: Boolean = f.isDone
       /** Remove the feed if it has not started; true if it was removed. */
       def withdraw(): Boolean = f.withdraw()

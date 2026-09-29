@@ -311,7 +311,7 @@ interface, a session, a connection, a device.  A supervisor holds keyed registri
 `M => Unit` running single-threaded over its own mailbox with private state in closed-over `var`s, so the state
 needs no lock and every message sees the last one's effects.  `reg.spawn(key){ behavior }` makes one and gives a
 `Ref`; `ref ! msg` is fire-and-forget from any thread, and `ref.feed(Msg(_))` sends a request carrying a typed reply
-slot and gives a `Fed` for the answer (`.?`, `await()`, or `fed.fu` for a plain `Fu`), so a caller that wants a
+slot and gives a `Fed` for the answer (`.?`, `await()`, `await(timeout)`, or `fed.fu` for a plain `Fu`), so a caller that wants a
 result waits on that and one that doesn't just sends.  A muncher that fails consults its own decider (stop, restart, escalate) and doesn't take its siblings down,
 which is the opposite of a `Go` session's tree failure and the right thing for independent entities.  It is small,
 and it is the answer to a serial job queue: prefer it to a single-thread executor, a queue of thunks with a consumer
