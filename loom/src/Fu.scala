@@ -101,11 +101,13 @@ object Fu {
 
   // === Waiting for answers that arrive from elsewhere, by key ===
 
-  /** What became of an answer handed to a [[TimedMap]]: taken by its waiter, `Late` for a key whose waiter had
-    * already given up (it expired, was cancelled, or was given up by the map), or `Stray` for a key the map never
-    * knew or has forgotten.  A late or stray value reached nobody, so whatever it owns is the caller's to release. */
+  /** What became of an answer handed to a [[TimedMap]]: taken by its waiter; `Expired` for a key whose deadline had
+    * passed first; `Withdrawn` for one given up on purpose (`cancel`, `giveUp`, or the map's `close`); or `Stray` for
+    * a key the map never knew or has forgotten.  An answer that is not `Delivered` reached nobody, so whatever it owns
+    * is the caller's to release; the difference is whether it was expected -- a withdrawn key's answer crossing the
+    * withdrawal is ordinary, an expired one's says the other side was slow, a stray one's that something is amiss. */
   enum Delivery {
-    case Delivered, Late, Stray
+    case Delivered, Expired, Withdrawn, Stray
   }
 
   /** One answer being waited for: its `key`, and the answer as `fu` (`await()` and `.?` for short) -- `Some(v)` when
@@ -120,12 +122,36 @@ object Fu {
       catch case e if e.catchable => Alt(Err(e))
     inline def ?[L >: Alt[Err]](using lb: boundary.Label[L]): Option[V] = kse.flow.?(await())(using lb)
     /** Give up on the answer; false once it had already ended. */
-    def cancel(): Boolean = { val m = map; (m ne null) && m.retire(this, Is(None), gaveUp = true) }
+    def cancel(): Boolean = { val m = map; (m ne null) && m.retire(this, Is(None), Delivery.Withdrawn) }
+    /** Waits no longer than the deadline in a map with no timer thread, ending the entry when it passes; so do
+      * `get` with a timeout and `join`, which is what every wait on the entry comes to. */
+    override def get(): Ask[Option[V]] =
+      val m = map
+      if (m eq null) || m.threaded then super.get()
+      else
+        val left = deadline - System.nanoTime
+        try super.get(left max 0L, java.util.concurrent.TimeUnit.NANOSECONDS)
+        catch case _: java.util.concurrent.TimeoutException => { m.sweep(); super.get() }
+    override def get(timeout: Long, unit: java.util.concurrent.TimeUnit): Ask[Option[V]] =
+      val m = map
+      if (m eq null) || m.threaded then super.get(timeout, unit)
+      else
+        val asked = System.nanoTime + unit.toNanos(timeout)
+        if asked - deadline < 0 then super.get(timeout, unit)
+        else get()
+    override def join(): Ask[Option[V]] =
+      val m = map
+      if (m eq null) || m.threaded then super.join()
+      else
+        try get()
+        catch
+          case e: java.util.concurrent.ExecutionException => throw new java.util.concurrent.CompletionException(e.getCause)
+          case e: InterruptedException => { Thread.currentThread.interrupt(); super.join() }
     /** However a caller ends it -- `cancel`, `complete` -- it leaves the map, as the map's own endings do. */
     override def cancel(mayInterrupt: Boolean): Boolean = cancel()
     override def complete(value: Ask[Option[V]]): Boolean =
       val m = map
-      if m eq null then super.complete(value) else m.retire(this, value, gaveUp = false)
+      if m eq null then super.complete(value) else m.retire(this, value, Delivery.Delivered)
     private[loom] def settle(value: Ask[Option[V]]): Boolean = super.complete(value)
   }
 
@@ -135,27 +161,42 @@ object Fu {
     * entry that expires or is given up completes with `None`, and only closing the map with a cause is an error.  An
     * entry leaves the table the moment it ends, by any route, so the table holds exactly what is still awaited.
     *
-    * Every entry has a deadline -- `within`, or the map's `patience` -- enforced by one virtual thread that sleeps
-    * until the earliest and, each time it wakes, ends every entry whose deadline has passed, so a thread that was
-    * held up clears the whole backlog at once.  Keys given up on are remembered (the most recent `remember` of
-    * them), so an answer arriving for one is `Late`, not `Stray`.  Sending the request is the caller's affair: the
-    * table is transport-free.  `onGiveUp`, if given, hears each key its waiter stopped waiting for, for a transport
-    * that tells the other side. */
-  class TimedMap[K, V](patience: DoubleDuration, remember: Int = 1024, onGiveUp: K => Unit = (_: K) => ()) {
+    * Every entry has a deadline -- `within`, or the map's `patience`.  A `threaded` map enforces it with one virtual
+    * thread that sleeps until the earliest and, each time it wakes, ends every entry whose deadline has passed, so a
+    * thread that was held up clears the whole backlog at once.  An unthreaded one starts no thread: every call on the
+    * map (`expect`, `fulfil`, `giveUp`, `pending`, and `sweep()` for a caller with a clock of its own) first ends
+    * what is due, and a wait on an entry waits no longer than its deadline and then ends it; an entry nobody waits on
+    * and nothing touches the map about ends at the next call.  Keys that ended unanswered are remembered (the most
+    * recent `remember` of them) with how they ended, so an answer arriving for one is `Expired` or `Withdrawn`, not
+    * `Stray`.  Sending the request is the caller's affair: the table is transport-free.  `onGiveUp`, if given, hears
+    * each key its waiter stopped waiting for, with `Expired` or `Withdrawn` (what an answer for it would now get), for
+    * a transport that tells the other side; closing the map tells it nothing, since the transport is ending too. */
+  class TimedMap[K, V](patience: DoubleDuration, remember: Int = 1024, onGiveUp: (K, Delivery) => Unit = (_: K, _: Delivery) => (),
+                       val threaded: Boolean = true) {
     protected val lock = new AnyRef
     private val entries = new java.util.concurrent.ConcurrentHashMap[K, MapEntry[K, V]]()
     // Deadlines, earliest first.  An entry that ends early stays here until its time comes, and is passed over.
     private val deadlines = new java.util.PriorityQueue[MapEntry[K, V]](16, (a, b) => java.lang.Long.compare(a.deadline, b.deadline))
-    private val gaveUp = new java.util.LinkedHashSet[K]()
+    private val gaveUp = new java.util.LinkedHashMap[K, Delivery]()
     @volatile private var closedWith: Err Or Unit = Alt.unit   // the cause, once closed
     @volatile private var timer: Thread = null
 
     /** How many answers are still awaited. */
-    def pending: Int = entries.size
+    def pending: Int = { if !threaded then sweep(); entries.size }
+
+    /** End every entry whose deadline has passed.  An unthreaded map does this at every call; a threaded one's timer
+      * does it, so calling it there only does early what is about to be done. */
+    def sweep(): Unit =
+      val now = System.nanoTime
+      var due: List[MapEntry[K, V]] = Nil
+      lock.synchronized:
+        while !deadlines.isEmpty && deadlines.peek().deadline - now <= 0 do due = deadlines.poll() :: due
+      due.foreach(e => retire(e, Is(None), Delivery.Expired) __ Unit)
 
     /** Wait for the answer under `key`, until `within` has passed; refused while `key` is already awaited, or once
       * the map is closed. */
     def expect(key: K, within: DoubleDuration = patience): MapEntry[K, V] Or Err =
+      if !threaded then sweep()
       if closedWith.isIs then Alt(closedWith.getOrElse(_ => Err("closed")))
       else
         val e = new MapEntry[K, V](this, key, TimedMap.deadlineIn(within))
@@ -164,33 +205,39 @@ object Fu {
 
     /** Hand over the answer for `key`. */
     def fulfil(key: K, value: V): Delivery =
+      if !threaded then sweep()
       val e = entries.get(key)
-      if (e ne null) && retire(e, Is(Some(value)), gaveUp = false) then Delivery.Delivered
-      else if lock.synchronized(gaveUp.remove(key)) then Delivery.Late
-      else Delivery.Stray
+      if (e ne null) && retire(e, Is(Some(value)), Delivery.Delivered) then Delivery.Delivered
+      else
+        val how = lock.synchronized(gaveUp.remove(key))
+        if how == null then Delivery.Stray else how
 
     /** Stop waiting for `key`, as its entry's `cancel()` does; false if it was not awaited. */
     def giveUp(key: K): Boolean =
+      if !threaded then sweep()
       val e = entries.get(key)
-      (e ne null) && retire(e, Is(None), gaveUp = true)
+      (e ne null) && retire(e, Is(None), Delivery.Withdrawn)
 
-    /** Fail every awaited answer with `why`, refuse new ones, stop the timer; answers how many were failed. */
+    /** Fail every awaited answer with `why`, refuse new ones, stop the timer; answers how many were failed.  Their
+      * keys are remembered as `Withdrawn`. */
     def close(why: Err): Int =
       closedWith = Is(why)
       var n = 0
-      entries.values.forEach(e => if retire(e, Alt(why), gaveUp = false) then n += 1)
+      entries.values.forEach(e => if retire(e, Alt(why), Delivery.Withdrawn, tell = false) then n += 1)
       val t = timer
       if t ne null then t.interrupt()
       n
 
-    /** End `e` with `value` if it is still awaited: it leaves the table first, so exactly one ending wins. */
-    private[loom] def retire(e: MapEntry[K, V], value: Ask[Option[V]], gaveUp: Boolean): Boolean =
+    /** End `e` with `value` if it is still awaited: it leaves the table first, so exactly one ending wins.  `how` is
+      * `Delivered` for an answer, else how it ended unanswered, which is remembered and, if `tell`, told. */
+    private[loom] def retire(e: MapEntry[K, V], value: Ask[Option[V]], how: Delivery, tell: Boolean = true): Boolean =
       entries.remove(e.key, e) && {
-        if gaveUp then
+        if how != Delivery.Delivered then
           lock.synchronized:
-            this.gaveUp.add(e.key) __ Unit
-            if this.gaveUp.size > remember then this.gaveUp.remove(this.gaveUp.iterator.next()) __ Unit
-          try onGiveUp(e.key) catch case t if t.catchable => ()
+            this.gaveUp.put(e.key, how) __ Unit
+            if this.gaveUp.size > remember then this.gaveUp.remove(this.gaveUp.keySet.iterator.next()) __ Unit
+          if tell then
+            try onGiveUp(e.key, how) catch case t if t.catchable => ()
         e.settle(value) __ Unit
         true
       }
@@ -203,8 +250,9 @@ object Fu {
       val wake = lock.synchronized:
         deadlines.add(e) __ Unit
         deadlines.peek() eq e
-      if timer eq null then startTimer()
-      else if wake then java.util.concurrent.locks.LockSupport.unpark(timer)
+      if threaded then
+        if timer eq null then startTimer()
+        else if wake then java.util.concurrent.locks.LockSupport.unpark(timer)
 
     private def startTimer(): Unit = lock.synchronized:
       if (timer eq null) && closedWith.isAlt then
@@ -218,7 +266,7 @@ object Fu {
         val next = lock.synchronized:
           while !deadlines.isEmpty && deadlines.peek().deadline - now <= 0 do due = deadlines.poll() :: due
           if deadlines.isEmpty then TimedMap.Idle else deadlines.peek().deadline - now
-        due.foreach(e => retire(e, Is(None), gaveUp = true) __ Unit)
+        due.foreach(e => retire(e, Is(None), Delivery.Expired) __ Unit)
         java.util.concurrent.locks.LockSupport.parkNanos(next)
         Thread.interrupted() __ Unit   // a stray interrupt must not turn the sleep into a spin; only a close ends it
   }
@@ -234,12 +282,14 @@ object Fu {
   /** A [[TimedMap]] that chooses the keys: `grant()` takes the next from `zero` by `next`, passing over any still
     * awaited, so a key comes round again only once its last use has ended.  If every key `next` reaches is in use,
     * the grant fails at once. */
-  class GrantMap[K, V](zero: K)(next: K => K)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: K => Unit = (_: K) => ())
-  extends TimedMap[K, V](patience, remember, onGiveUp) {
+  class GrantMap[K, V](zero: K)(next: K => K)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: (K, Delivery) => Unit = (_: K, _: Delivery) => (),
+                       threaded: Boolean = true)
+  extends TimedMap[K, V](patience, remember, onGiveUp, threaded) {
     private var cursor = zero
 
     /** Wait for an answer under a fresh key, until `within` has passed: the entry says which key to send it under. */
     def grant(within: DoubleDuration = patience): MapEntry[K, V] =
+      if !threaded then sweep()
       val deadline = TimedMap.deadlineIn(within)
       if closedCause.isIs then failed(zero, deadline, closedCause.getOrElse(_ => Err("closed")))
       else
@@ -261,8 +311,9 @@ object Fu {
   }
 
   /** A [[GrantMap]] whose keys are `Long`s counting up from `zero`: request ids. */
-  class IdMap[V](zero: Long = 0L)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: Long => Unit = (_: Long) => ())
-  extends GrantMap[Long, V](zero)(_ + 1)(patience, remember, onGiveUp)
+  class IdMap[V](zero: Long = 0L)(patience: DoubleDuration, remember: Int = 1024, onGiveUp: (Long, Delivery) => Unit = (_: Long, _: Delivery) => (),
+                 threaded: Boolean = true)
+  extends GrantMap[Long, V](zero)(_ + 1)(patience, remember, onGiveUp, threaded)
 
 
   extension [A](fu: Fu[A]) {

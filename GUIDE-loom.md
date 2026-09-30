@@ -74,8 +74,12 @@ answer over.  `Fu.GrantMap[K, V](zero)(next)` chooses the keys itself (`grant()`
 ids up from zero.  The answer is an `Option`: `Some(v)` when it came, `None` when it didn't, because every entry has a
 deadline (`within`, or the map's `patience`) and not being answered is ordinary.  `entry.cancel()` or `fu.cancel()`
 gives up on one; closing the map fails the rest with its cause.  An entry leaves the map the moment it ends, and
-`fulfil` says whether the answer was taken, `Late` (its waiter had given up) or `Stray` (never known), so a caller can
-release what an unclaimed answer owns.  Sending the request is the caller's business.
+`fulfil` says whether the answer was `Delivered`, `Expired` (its deadline passed first: the other side was slow),
+`Withdrawn` (given up on purpose, so an answer crossing that is ordinary) or `Stray` (never known), so a caller can
+release what an unclaimed answer owns and decide which of those is worth a word; `onGiveUp` hears the same, as each
+key is given up.  By default one virtual thread per map keeps the deadlines; with `threaded = false` there is none,
+and the map's own calls keep the time instead: each ends what is due first, a wait on an entry waits no longer than its
+deadline, and `sweep()` is there for a caller with a clock of its own.  Sending the request is the caller's business.
 
 Full API: `loom/src/Fu.scala`.
 
@@ -214,9 +218,15 @@ A `FoldMap[U, K, V]` is a channel that folds what arrives under one key into one
 wants each key's state rather than every step: `FoldMap(capacity)(key)(put)(join)` starts a key's value with
 `put(u)` and folds later items in with `join(u, v)`, and the reader takes `(key, value)` items in the order keys first
 arrived.  `FoldMap.latest` keeps the newest item per key, `FoldMap.first` the oldest (work asked for twice is queued
-once), and `FoldMap.count` counts.  `Alt.unit` from `put` queues nothing, and from `join` withdraws the key, so a
-"created" then "deleted" cancels out.  Capacity counts pending keys, so folding into a pending key never waits; it is
-written as a plain channel of `U`, so a `Go` task can `put` into it or `into` it from another channel.  `ChanN` is the same with bulk moves: `sendN` and `recvN` move a slice of an array under one
+once), and `FoldMap.count` counts.  Both answer `Option[V] Or Err`: `None` from `put` filters the item out, and from
+`join` withdraws the key, so a "created" then "deleted" cancels out; an `Err` refuses that item alone.  Capacity counts
+pending keys, and `full = (k, v) => …` says when one key's value takes no more, so an item waits only for a new key's
+room or a full key's reader.  `fm.fold(u)` (and `tryFold`) answers what became of the item, `Taken`, `Filtered`,
+`Withdrawn`, `Wait` or `Done`, or an `Err` when something is wrong: a `FoldMap.Refused` for the item alone, which the
+channel survives, or the channel's own failure.  `onTake = (k, v) => …` hears each value a reader takes, so state kept
+beside the channel follows it; it, `key`, `put`, `join` and `full` all run under the channel's lock.  It is also a
+plain channel of `U` (`send` answers `Okay` for anything the fold took a look at), so a `Go` task can `put` into it or
+`into` it from another channel.  `ChanN` is the same with bulk moves: `sendN` and `recvN` move a slice of an array under one
 lock acquisition, and `getFull` waits for a whole chunk.  `Chan.Source` wraps an iterator or array as something a
 `Go` task can read, and `Chan.Sink` wraps a builder, collection, or function as something it can write.
 
@@ -346,7 +356,8 @@ Saying "not this any more" is separate from stopping the muncher, and each comes
 alone and one that doesn't.  For one request, `fed.withdraw()` removes it only if it hasn't started, and
 `fed.cancel()` also stops it if it has, by interrupting the muncher's thread, which is running that message and no
 other; either way its reply fails and the muncher goes on to its next message, and neither is a failure its decider
-hears of.  A handler that never blocks can poll `Munch.isCancelled` to stop at a clean point.  For the queue,
+hears of.  A handler can ask `Munch.isCancelled` to stop at a clean point: it is the muncher's own record, so it stays
+true after a caught `InterruptedException` has cleared the thread's flag.  For the queue,
 `ref.clear()` removes everything not yet started and keeps the muncher.  For the muncher itself, `ref.stop()` ends it
 after what is queued, as `Stop()` does from inside, and `ref.abort()` ends it now; both leave the supervisor and its
 siblings running.  `ref.priority(msg)` puts one message ahead of the queue, for the rare one that makes the queued

@@ -45,14 +45,14 @@ class FoldMapTest {
     for e <- List(Ev("a", 1), Ev("a", 2), Ev("b", 3), Ev("a", 4)) do counts.send(e) __ Unit
     assertEquals(List("a" -> 3L, "b" -> 1L), all(counts))
     // an accumulation, spelled out: the backpressure is on keys, and the fold may grow as it likes
-    val lists = FoldMap[Ev, String, List[Int]](8)(_.path)(e => Is(e.n :: Nil))((e, ns) => Is(e.n :: ns))
+    val lists = FoldMap[Ev, String, List[Int]](8)(_.path)(e => Is(Some(e.n :: Nil)))((e, ns) => Is(Some(e.n :: ns)))
     for e <- List(Ev("a", 1), Ev("a", 2), Ev("b", 3)) do lists.send(e) __ Unit
     assertEquals(List("a" -> List(2, 1), "b" -> List(3)), all(lists))
 
   @Test
-  def unitFromPutQueuesNothingAndFromJoinWithdraws(): Unit =
+  def noneFromPutQueuesNothingAndFromJoinWithdraws(): Unit =
     // created then deleted cancels out; a deletion of nothing pending starts nothing
-    val fm = FoldMap[Ev, String, Int](2)(_.path)(e => if e.n < 0 then Alt.unit else Is(e.n))((e, _) => if e.n < 0 then Alt.unit else Is(e.n))
+    val fm = FoldMap[Ev, String, Int](2)(_.path)(e => Is(if e.n < 0 then None else Some(e.n)))((e, _) => Is(if e.n < 0 then None else Some(e.n)))
     fm.send(Ev("a", 1)) __ Unit
     fm.send(Ev("b", 1)) __ Unit
     assertEquals("full of distinct keys", RunStatus.Wait, fm.trySend(Ev("c", 1)))
@@ -89,11 +89,76 @@ class FoldMapTest {
 
   @Test
   def aThrowingFoldFailsThatSendAlone(): Unit =
-    val fm = FoldMap[Ev, String, Int](8)(_.path)(e => Is(e.n))((e, v) => if e.n == 13 then throw new Exception("unlucky") else Is(v + e.n))
+    val fm = FoldMap[Ev, String, Int](8)(_.path)(e => Is(Some(e.n)))((e, v) => if e.n == 13 then throw new Exception("unlucky") else Is(Some(v + e.n)))
     fm.send(Ev("a", 1)) __ Unit
-    assertTrue(fm.trySend(Ev("a", 13)) match { case RunStatus.Fail(_) => true; case _ => false })
+    assertTrue(fm.trySend(Ev("a", 13)) match { case RunStatus.Fail(e) => FoldMap.Refused.of(e).isDefined; case _ => false })
     fm.send(Ev("a", 2)) __ Unit
     assertEquals(List("a" -> 3), all(fm))
+
+  private def status(r: Ask[FoldMap.Status]): String = r.fold(_.toString)(e => FoldMap.Refused.of(e).fold(s"failed: $e")(x => s"refused: ${x.error}"))
+
+  @Test
+  def foldSaysWhatBecameOfTheItem(): Unit =
+    // negative withdraws or filters; 13 is an error in either; a key starting with "x" is one we cannot name
+    val fm = FoldMap[Ev, String, Int](2)(e => if e.path.startsWith("x") then throw new Exception("no key") else e.path)(
+      e => if e.n == 13 then Err.or("bad start") else Is(if e.n < 0 then None else Some(e.n)))(
+      (e, v) => if e.n == 13 then Err.or("bad fold") else Is(if e.n < 0 then None else Some(v + e.n)))
+    assertEquals("Taken", status(fm.tryFold(Ev("a", 1))))
+    assertEquals("Taken", status(fm.tryFold(Ev("a", 2))))
+    assertEquals("Filtered", status(fm.tryFold(Ev("b", -1))))
+    assertEquals("refused: bad start", status(fm.tryFold(Ev("b", 13))))
+    assertEquals("refused: bad fold", status(fm.tryFold(Ev("a", 13))))
+    assertTrue(status(fm.tryFold(Ev("x", 1))).startsWith("refused: "))
+    assertEquals("a refusal leaves the channel as it was", 1, fm.size)
+    assertEquals("Taken", status(fm.tryFold(Ev("b", 5))))
+    assertEquals("Wait", status(fm.tryFold(Ev("c", 1))))
+    assertEquals("Withdrawn", status(fm.tryFold(Ev("a", -1))))
+    assertEquals("Taken", status(fm.fold(Ev("c", 1))))
+    assertEquals(List("b" -> 5, "c" -> 1), all(fm))
+    assertTrue(fm.close())
+    assertEquals("Done", status(fm.tryFold(Ev("d", 1))))
+    val failed = FoldMap.count[String, String](2)(identity)
+    assertTrue(failed.fail(Err("broken")))
+    assertEquals("the channel's own failure is no refusal", "failed: broken", status(failed.tryFold("a")))
+
+  @Test
+  def aFullValueWaitsAsAFullChannelDoes(): Unit = Reps.times:
+    // at most three items per key, and key "big" takes five
+    val fm = FoldMap[String, String, Int](4)(identity)(_ => Is(Some(1)))((_, n) => Is(Some(n + 1)), full = (k, n) => n >= (if k == "big" then 5 else 3))
+    for _ <- 1 to 3 do assertEquals("Taken", status(fm.tryFold("a")))
+    assertEquals("Wait", status(fm.tryFold("a")))
+    assertEquals(RunStatus.Wait, fm.trySend("a"))
+    for _ <- 1 to 5 do assertEquals("Taken", status(fm.tryFold("big")))
+    assertEquals("Wait", status(fm.tryFold("big")))
+    assertEquals("another key is not held up", "Taken", status(fm.tryFold("b")))
+    val later = Fu{ fm.fold("a") }                                   // blocks until "a" is taken
+    // one atomic take, so the waiting fold cannot slip a new "a" in between two receives
+    assertEquals(List("a" -> 3, "big" -> 5, "b" -> 1), fm.drain().fold(_.toList.map(it => it.key -> it.value))(_ => Nil))
+    assertEquals(Is(FoldMap.Status.Taken), later.await().flatMap(__))
+    assertEquals(List("a" -> 1), all(fm))
+
+  @Test
+  def onTakeFollowsWhatLeaves(): Unit =
+    // a side table of what is pending, kept by put, join and onTake alone -- all under the channel's lock
+    val shadow = scala.collection.mutable.Set.empty[String]
+    val fm = FoldMap[String, String, Int](8)(identity)(k => { shadow += k; Is(Some(1)) })(
+      (k, n) => if n >= 2 then { shadow -= k; Is(None) } else Is(Some(n + 1)), onTake = (k, _) => shadow -= k)
+    for k <- List("a", "b", "c", "c", "c") do fm.send(k) __ Unit       // the third "c" withdraws it
+    assertEquals(Set("a", "b"), shadow.toSet)
+    fm.tryRecv() __ Unit
+    assertEquals(Set("b"), shadow.toSet)
+    fm.send("d") __ Unit
+    assertEquals(List("b", "d"), fm.drain().fold(_.toList.map(_.key))(_ => Nil))
+    assertEquals(Set.empty[String], shadow.toSet)
+
+  @Test
+  def aThrowingOnTakeFailsTheChannelButHandsTheValueOver(): Unit =
+    val fm = FoldMap[String, String, Int](8)(identity)(_ => Is(Some(1)))((_, n) => Is(Some(n + 1)), onTake = (k, _) => if k == "bad" then throw new Exception("lost track"))
+    fm.send("bad") __ Unit
+    fm.send("b") __ Unit
+    assertEquals(Is("bad"), fm.tryRecv().map(_.key).mapAlt(_ => Err("none")))
+    assertTrue("the state onTake keeps is unknown now", fm.trySend("c") match { case RunStatus.Fail(e) => FoldMap.Refused.of(e).isEmpty; case _ => false })
+    assertTrue(fm.state match { case Chan.State.Errored(e) => e.toString.contains("lost track"); case _ => false })
 
   @Test(timeout = 30000)
   def inAGoPipelineEveryItemIsCounted(): Unit = Reps.times:

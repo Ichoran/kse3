@@ -182,8 +182,11 @@ object Munch {
   def self[M](using ctx: Context[M]): Ref[M] = ctx.self
 
   /** From inside a behavior: whether the message being handled is no longer wanted -- its feed was cancelled, or the
-    * muncher is being aborted -- so a long handler can stop at a clean point instead of waiting for the interrupt
-    * (which a handler that never blocks would not see).  A tell is never cancelled on its own. */
+    * muncher is being aborted -- so a long handler can stop at a clean point.  The interrupt a cancel sends is not a
+    * record of it: a blocking call that throws `InterruptedException` clears the thread's flag, so a handler (or a
+    * library under it) that catches one and goes on can no longer see it there, and an interrupt from elsewhere looks
+    * the same.  This reads the muncher's own record, which nothing the handler does can clear.  A tell is never
+    * cancelled on its own. */
   def isCancelled[M](using ctx: Context[M]): Boolean = ctx.cancelledNow
 
 

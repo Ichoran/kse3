@@ -295,6 +295,7 @@ class MunchTest {
     case Slow(started: CountDownLatch, reply: Munch.Reply[Int])
     case Tell(n: Int)
     case Spin(started: CountDownLatch, saw: AtomicInteger, reply: Munch.Reply[Int])
+    case Shrug(started: CountDownLatch, flags: java.util.Queue[(Boolean, Boolean)], reply: Munch.Reply[Int])
 
   private def queued(sup: Munch.Supervisor, seen: java.util.Queue[Int]): Munch.Ref[Q] =
     sup.registry[String, Q]("q", onError = Munch.Supervise.escalate).spawn("a"){
@@ -308,6 +309,11 @@ class MunchTest {
           while !Munch.isCancelled do Thread.onSpinWait()                   // never blocks, so only the poll can see it
           saw.incrementAndGet() __ Unit
           r := -2
+        case Q.Shrug(s, flags, r) =>
+          s.countDown()
+          try Thread.sleep(10_000) catch case _: InterruptedException => ()   // swallowed, as a library might
+          flags.add((Thread.currentThread.isInterrupted, Munch.isCancelled)) __ Unit
+          r := -3
     }
 
   private def failedWith(r: Ask[Int], word: String): Boolean = r.existsAlt(_.toString.contains(word))
@@ -382,6 +388,21 @@ class MunchTest {
     assertEquals("time ran out: None, and the feed is still in flight", Alt(None), slow.await(0.02.s))
     assertTrue(slow.cancel())
     assertEquals(Is(4), ref.feed(Q.Take(4, _)).await(10.0.s))
+    sup.stop() __ Unit
+
+  @Test(timeout = 30000)
+  def aSwallowedInterruptLeavesTheCancellationVisible(): Unit = (Reps / 10).times:
+    val sup = Munch.supervisor()
+    val ref = queued(sup, new java.util.concurrent.ConcurrentLinkedQueue[Int])
+    val started = new CountDownLatch(1)
+    val flags = new java.util.concurrent.ConcurrentLinkedQueue[(Boolean, Boolean)]
+    val shrug = ref.feed(Q.Shrug(started, flags, _))
+    started.await()
+    assertTrue(shrug.cancel())
+    assertEquals(Is(10), ref.feed(Q.Take(10, _)).await())
+    assertEquals("the thread's flag is gone once the interrupt was caught; the muncher's record is not",
+      List((false, true)), flags.toArray.toList)
+    assertEquals(Nil, sup.errors)
     sup.stop() __ Unit
 
   @Test(timeout = 30000)
