@@ -1119,6 +1119,20 @@ extension (inline x: Byte | Short | Int | Long) {
     case _ => compiletime.error("u (for unsigned) is defined only on Byte, Short, Int, and Long\nother primitive types are not promoted")
 }
 
+extension (companion: Float.type) {
+  /** A NaN that marks a missing value: a quiet NaN whose payload arithmetic never produces from numbers, so `isNA`
+    * tells it from a computed NaN.  Arithmetic on it may carry the payload along, so a result that `isNA` came from
+    * an NA but one that is not may have too.  Widened, it is `Double.NA`. */
+  inline def NA: Float = java.lang.Float.intBitsToFloat(0x7FE3A5C1)
+}
+
+extension (companion: Double.type) {
+  /** A NaN that marks a missing value: a quiet NaN whose payload arithmetic never produces from numbers, so `isNA`
+    * tells it from a computed NaN.  Arithmetic on it may carry the payload along, so a result that `isNA` came from
+    * an NA but one that is not may have too.  It is `Float.NA` widened, and narrows back to it. */
+  inline def NA: Double = java.lang.Double.longBitsToDouble(0x7FFC74B820000000L)
+}
+
 extension (f: Float) {
   // trunc moved to OverloadedExtensions
   // clamp moved to OverloadedExtensions
@@ -1126,6 +1140,9 @@ extension (f: Float) {
   // checkIn moved to OverloadedExtensions
 
   inline def ===(x: Float): Boolean = (f == x) || (java.lang.Float.isNaN(f) && java.lang.Float.isNaN(x))
+
+  /** True for exactly the bits of `Float.NA`, the NaN that marks a missing value. */
+  inline def isNA: Boolean = java.lang.Float.floatToRawIntBits(f) == 0x7FE3A5C1
 
   def toUByte: kse.maths.UByte =
     if f < 0 then UByte(0) else if f > 255 then UByte(255) else UByte((f.toInt & 0xFF).toByte)
@@ -1218,6 +1235,9 @@ extension (d: Double) {
   inline def rev2rad = d * NumericConstants.TwoPi
 
   inline def ===(x: Double) = (d == x) || (java.lang.Double.isNaN(d) && java.lang.Double.isNaN(x))
+
+  /** True for exactly the bits of `Double.NA`, the NaN that marks a missing value. */
+  inline def isNA: Boolean = java.lang.Double.doubleToRawLongBits(d) == 0x7FFC74B820000000L
 
   inline def between(x0: Double, x1: Double): Double = x0 + d*(x1 - x0)
   def between(xs: Array[Double]): Double =

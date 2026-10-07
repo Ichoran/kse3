@@ -83,6 +83,37 @@ object GuideExamples {
     // guide: end
     back
 
+  // guide: columnar.plain
+  def flaggedPlain(text: String): Array[String] =
+    val rows = text.split("\r?\n").filter(_.nonEmpty).map(_.split(",", -1))
+    val j = rows.head.indexOf("ok")
+    rows.drop(1).filter(r => r(j).equalsIgnoreCase("true")).map(_(0))   // no quotes; every type checked by hand
+  // guide: end
+
+  def flagged(text: String): Ask[Array[String]] = Ask:
+    // guide: columnar.kse3
+    val cd = Csv.columnar(text).?                 // each column Booleans, numbers, or text, whichever holds it all
+    val j = cd.headers.fold(-1)(_.indexOf("ok"))
+    if j < 0 then Err ?# "no ok column"
+    (cd.columns(0), cd.columns(j)) match          // the arrays' types are checked
+      case (names: Array[String], ok: Array[Xsv.OptBoolean]) => names.zip(ok).collect{ case (n, b) if b.isTrue => n }
+      case _ => Err ?# "expected names and a Boolean ok"
+    // guide: end
+
+  // guide: dataset.plain
+  def meansPlain(text: String): Array[Double] =
+    val lines = text.split("\r?\n").filter(_.nonEmpty)
+    val rows = lines.drop(1).map(_.split(",", -1).map(c => if c.isEmpty then Double.NaN else c.toDouble))
+    Array.tabulate(rows.head.length)(j => rows.map(_(j)).sum / rows.length)   // header assumed; quotes, labels missed
+  // guide: end
+
+  def means(text: String): Ask[Array[Double]] = Ask:
+    // guide: dataset.kse3
+    Csv.dataset(text).? match                     // a header and row labels are found; colHeaders = "always" forces one
+      case Right(d) => Array.tabulate(d.cols.fold(0)(_.length))(j => d.table.map(_(j)).sum / d.table.length)
+      case Left(strings) => Err ?# s"not all numbers: ${strings.length} rows of text"
+    // guide: end
+
 
   // guide: parse.plain
   def ratioPlain(a: String, b: String): Either[String, Double] =
@@ -286,6 +317,14 @@ class GuideTest {
     T ~ G.table("\"Smith, J\",3\ncod,4").map(_.map(_.toList).toList) ==== List(List("Smith, J", "3"), List("cod", "4"))
     val rows = Array(Array("name", "n"), Array("eel, the", "3"))
     T ~ G.roundTrip(dir / "t.csv", rows).map(_.map(_.toList).toList) ==== rows.map(_.toList).toList
+    val nums = "x,y\n1,2\n3,\n5,6e1"
+    T ~ G.means(nums).map(_.map(_.toString).toList) ==== G.meansPlain(nums).map(_.toString).toList
+    T ~ G.means(nums).map(_.toList.head) ==== 3.0
+    T ~ G.means("x,y\n1,two").isAlt ==== true
+    val flags = "name,ok,n\neel,true,3\ncod,FALSE,4\nram,True,\n"
+    T ~ G.flagged(flags).map(_.toList) ==== G.flaggedPlain(flags).toList
+    T ~ G.flagged(flags).map(_.toList) ==== List("eel", "ram")
+    T ~ G.flagged("name,ok\neel,yes").isAlt ==== true
   }
 
   @Test

@@ -1701,6 +1701,28 @@ class MathTest {
 
 
   @Test
+  def missingNaNTest(): Unit =
+    T ~ Double.NA.isNaN                   ==== true
+    T ~ Double.NA.isNA                    ==== true
+    T ~ Float.NA.isNaN                    ==== true
+    T ~ Float.NA.isNA                     ==== true
+    val zero = 0.0
+    val nans = List(Double.NaN, zero / zero, Math.sqrt(-1.0), Double.PositiveInfinity - Double.PositiveInfinity,
+                    Math.log(-1.0), java.lang.Double.parseDouble("NaN"), EiselLemire.parseFailD, -Double.NaN)
+    T ~ nans.map(_.isNaN)                 ==== nans.map(_ => true)
+    T ~ nans.exists(_.isNA)               ==== false    // no computed NaN is an NA
+    val zf = 0.0f
+    val fnans = List(Float.NaN, zf / zf, Math.sqrt(-1.0).toFloat, EiselLemire.parseFailF, -Float.NaN)
+    T ~ fnans.exists(_.isNA)              ==== false
+    T ~ List(0.0, -0.0, 1.0, Double.MaxValue, Double.PositiveInfinity).exists(_.isNA) ==== false
+    T ~ Float.NA.toDouble.isNA            ==== true     // the two are each other widened and narrowed
+    T ~ Double.NA.toFloat.isNA            ==== true
+    T ~ (Double.NA == Double.NA)          ==== false    // still a NaN in every comparison
+    val a = Array.fill(3)(Double.NA)
+    a(1) = 2.0
+    T ~ a.map(_.isNA).toList              ==== List(true, false, true)
+
+  @Test
   def extensionsTest(): Unit =
     val b: Byte = -8
     val b2: Byte = 32

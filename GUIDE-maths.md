@@ -467,7 +467,9 @@ with a lowercase `e` on the exponent; `Ryu.fmt(x, mag, sig)` limits the precisio
 within a don't-care tolerance set by the last place that matters (`mag`) or a count of significant figures (`sig`),
 which is how jsaun prints a `Double` when asked to round.  `Parse` turns a range of a string, byte array, or `Mem` into a `Long`,
 `ULong`, or hex value with no boxing on either path: failure is a sentinel that never occurs in real data,
-`Parse.failLong`, and `spellsFailLong` tells you if the input really did spell it.  `SemanticOrder` is a natural
+`Parse.failLong`, and `spellsFailLong` tells you if the input really did spell it.  `Double.NA` and `Float.NA` are
+NaNs whose bits no arithmetic makes from numbers, so a missing value can be stored as one and `isNA` picks it out
+from a NaN that was computed; each is the other widened or narrowed.  `SemanticOrder` is a natural
 string ordering where `file2` sorts before `file10`, with presets for signed, decimal, versioned, and prose numbers.
 `RomanNumber` and `SpokenNumber` go both ways between numbers and "IX" or "forty-two"; the latter is what `spoken(n)`
 uses inside `say`.

@@ -1667,6 +1667,129 @@ class EioTest {
     val tab = Array(Array("apple", "pear\n", "pe\"ach"), Array("herring", "", ",", "salmon"))
     T ~ Xsv.encodeTable(tab, 'l').toArray.map(_.utf8)                           =**= Array("\"apple\"l\"pear\n\"l\"pe\"\"ach\"\r\n", "herringll,l\"salmon\"\r\n")
     T ~ Xsv.create('l').get.decode(Xsv.encodeTable(tab, 'l')).get.map(_.toList) =**= tab.map(_.toList)
+
+  @Test
+  def datasetTest(): Unit =
+    // Doubles as text, so NaN compares equal to NaN
+    def show(e: Either[Array[Array[String]], Xsv.Dataset]): Any = e match
+      case Left(t) => t.map(_.toList).toList
+      case Right(d) => (d.corner, d.cols.map(_.toList), d.rows.map(_.toList), d.table.map(_.map(_.toString).toList).toList)
+    def ds(text: String) = show(Csv.dataset(text).get)
+    def num(xs: Double*) = xs.map(_.toString).toList
+
+    T ~ ds("1,2,3\n4.5,-6e2,7")        ==== (None, None, None, List(num(1, 2, 3), num(4.5, -600, 7)))
+    T ~ ds("a,b,c\n1,2,3\n4,5,6\n")    ==== (None, Some(List("a", "b", "c")), None, List(num(1, 2, 3), num(4, 5, 6)))
+    T ~ ds(",x,y\nr1,1,2\nr2,3,4")      ==== (Some(""), Some(List("x", "y")), Some(List("r1", "r2")), List(num(1, 2), num(3, 4)))
+    T ~ ds("id,x,y\nr1,1,2\n7,3,4")     ==== (Some("id"), Some(List("x", "y")), Some(List("r1", "7")), List(num(1, 2), num(3, 4)))
+    T ~ ds("r1,1,2\nr2,3,4")           ==== (None, None, Some(List("r1", "r2")), List(num(1, 2), num(3, 4)))   // labels, no header
+    T ~ ds("value\n1\n2")               ==== (None, Some(List("value")), None, List(num(1), num(2)))           // a header over one column
+    T ~ ds("value")                     ==== (None, Some(List("value")), None, Nil)
+    T ~ ds("")                          ==== (None, None, None, Nil)
+    T ~ ds("a,\"b,c\"\n\"1.5\",2")       ==== (None, Some(List("a", "b,c")), None, List(num(1.5, 2)))         // quoted cells
+    T ~ ds("1,,3\nNaN,nan,-NAN\ninf,-Infinity,+INF") ==== (None, None, None, List(num(1, Double.NaN, 3), num(Double.NaN, Double.NaN, Double.NaN), num(Double.PositiveInfinity, Double.NegativeInfinity, Double.PositiveInfinity)))
+    T ~ ds("1,2\n\n3,4\n\n")            ==== (None, None, None, List(num(1, 2), num(3, 4)))                   // blank lines skipped
+    T ~ ds("a,b\n,\n1,2")               ==== (None, Some(List("a", "b")), None, List(num(Double.NaN, Double.NaN), num(1, 2)))   // not blank
+    T ~ ds("1\n\"\"\n3")                 ==== (None, None, None, List(num(1), num(Double.NaN), num(3)))       // a quoted empty cell is a cell
+    T ~ ds("1,2\r\n3,4\r\n")            ==== (None, None, None, List(num(1, 2), num(3, 4)))
+    T ~ ds("\uFEFFa\n1")                ==== (None, Some(List("a")), None, List(num(1)))
+    T ~ Csv.dataset("\uFEFFa\n1".bytes).map(show) ==== Is((None, Some(List("a")), None, List(num(1))))
+
+    // Anything else is the plain strings, exactly as decode gives them
+    T ~ ds("a,b\n1,x")                 ==== List(List("a", "b"), List("1", "x"))
+    T ~ ds("1,2\n3")                   ==== List(List("1", "2"), List("3"))                                   // ragged
+    T ~ ds("a,b\n1,2,3")               ==== List(List("a", "b"), List("1", "2", "3"))                         // header too short
+    T ~ ds("a,b\n1, 2")                ==== List(List("a", "b"), List("1", " 2"))                         // no space allowed
+    T ~ show(Xsv.trimComma.dataset("a,b\n 1, 2 ").get) ==== (None, Some(List("a", "b")), None, List(num(1, 2)))
+    T ~ ds("1,2\n3,NA")                 ==== List(List("1", "2"), List("3", "NA"))
+    T ~ ds("r1,1\nr2,1,2")              ==== List(List("r1", "1"), List("r2", "1", "2"))
+    T ~ Csv.dataset("a,\"b").isAlt      ==== true                                                             // malformed is an error
+
+    // Headers and labels that look numeric
+    T ~ show(Csv.dataset("2001,2002\n1,2", colHeaders = "always").get) ==== (None, Some(List("2001", "2002")), None, List(num(1, 2)))
+    T ~ show(Csv.dataset("1,10\n2,20", rowLabels = "always").get)       ==== (None, None, Some(List("1", "2")), List(num(10), num(20)))
+    T ~ show(Csv.dataset("t,a\n1,10\n2,20", "always", "always").get)    ==== (Some("t"), Some(List("a")), Some(List("1", "2")), List(num(10), num(20)))
+    T ~ show(Tsv.dataset("x\ty\n1\t2").get)                            ==== (None, Some(List("x", "y")), None, List(num(1, 2)))
+    T ~ show(Csv.dataset("a\n1".bytes.input()).get)                     ==== (None, Some(List("a")), None, List(num(1)))
+
+    // Writing, as pandas does, and back
+    val d: Xsv.Dataset = (corner = Some("id"), cols = Some(Array("x", "y,z")), rows = Some(Array("r1", "r2")), table = Array(Array(1.0, Double.NaN), Array(Double.PositiveInfinity, -2.5e-300)))
+    T ~ Csv.encode(d).map(_.utf8).mkString ==== "id,x,\"y,z\"\r\nr1,1.0,NaN\r\nr2,inf,-2.5e-300\r\n"
+    val gaps: Xsv.Dataset = (corner = None, cols = None, rows = None, table = Array(Array(Double.NA, 1.0, Double.NaN)))
+    T ~ Csv.encode(gaps).map(_.utf8).mkString ==== ",1.0,NaN\r\n"                // missing is empty, NaN is NaN
+    T ~ Csv.dataset(Csv.encode(gaps).toArray.flatten).get.map(_.table(0).map(_.isNA).toList) ==== Right(List(true, false, false))
+    T ~ Csv.dataset("1,,NaN,\"\"").get.map(_.table(0).map(_.isNA).toList)       ==== Right(List(false, true, false, true))
+    T ~ show(Csv.dataset(Csv.encode(d).map(_.utf8).mkString).get) ==== show(Right(d))
+    T ~ Csv.encode((corner = None, cols = None, rows = None, table = Array(Array(1.0), Array(-0.0)))).map(_.utf8).mkString ==== "1.0\r\n-0.0\r\n"
+    T ~ Tsv.encode((corner = None, cols = Some(Array("a", "b")), rows = None, table = Array(Array(1.0, 2.0)))).map(_.utf8).mkString ==== "a\tb\r\n1.0\t2.0\r\n"
+    val r = new scala.util.Random(1234)
+    val big: Xsv.Dataset = (corner = Some(""), cols = Some(Array.tabulate(7)(j => s"c$j")), rows = Some(Array.tabulate(20000)(i => s"r$i")),
+                            table = Array.fill(20000)(Array.fill(7)(java.lang.Double.longBitsToDouble(r.nextLong()))))
+    val chunks = Csv.encode(big).toArray
+    T ~ (chunks.length > 1) ==== true
+    T ~ show(Csv.dataset(Csv.encode((corner = None, cols = big.cols, rows = big.rows, table = big.table)).flatMap(_.toSeq).toArray).get) ==== show(Right(big))   // no corner is written empty
+    T ~ show(Csv.dataset(chunks.flatten).get) ==== show(Right(big))
+    val p = EioTest.testPath.resolve("dataset.csv")
+    T ~ EioTest.testPath.mkdirs().flatMap(_ => Csv.write(big)(p)) ==== Is.unit
+    T ~ show(Csv.dataset(p).get) ==== show(Right(big))
+    T ~ p.delete() ==== true
+
+  @Test
+  def columnarTest(): Unit =
+    def show(cd: Xsv.ColumnData): Any =
+      (cd.headers.map(_.toList), cd.columns.toList.map{
+        case xs: Array[Double] => "D" :: xs.toList.map(_.toString)
+        case xs: Array[String] => "S" :: xs.toList
+        case xs: Array[Xsv.OptBoolean] => "B" :: xs.toList.map(_.toString.toLowerCase)
+      })
+    def cols(text: String) = show(Csv.columnar(text).get)
+
+    T ~ cols("name,age,ok\nbob,3,true\namy,,FALSE\ncy,4.5,") ====
+        (Some(List("name", "age", "ok")), List(List("S", "bob", "amy", "cy"), List("D", "3.0", "NaN", "4.5"), List("B", "true", "false", "missing")))
+    T ~ cols("a,b\nx,y\nz,w")                ==== (Some(List("a", "b")), List(List("S", "x", "z"), List("S", "y", "w")))   // all text: a header is assumed
+    T ~ cols("x,1\ny,2")                      ==== (None, List(List("S", "x", "y"), List("D", "1.0", "2.0")))              // the first row fits
+    T ~ cols("x,True\ny,false")               ==== (None, List(List("S", "x", "y"), List("B", "true", "false")))
+    T ~ cols("k,flag\nx,True\ny,false")      ==== (Some(List("k", "flag")), List(List("S", "x", "y"), List("B", "true", "false")))
+    T ~ cols("v\n1\n\n2\n")                  ==== (Some(List("v")), List(List("D", "1.0", "2.0")))                        // blank line skipped
+    T ~ cols("v,w\n,\n,")                     ==== (Some(List("v", "w")), List(List("D", "NaN", "NaN"), List("D", "NaN", "NaN")))   // all empty: numbers
+    T ~ cols("t,n\ntrue,nan\n1,inf")          ==== (Some(List("t", "n")), List(List("S", "true", "1"), List("D", "NaN", "Infinity")))
+    T ~ cols("q,r\n\"a,b\",\"2\"\n\"\",\"TRUE\"") ==== (Some(List("q", "r")), List(List("S", "a,b", ""), List("S", "2", "TRUE")))
+    T ~ cols("q\n\"true\"\n\"\"")             ==== (Some(List("q")), List(List("B", "true", "missing")))                  // quoted cells
+    T ~ cols("\uFEFFv\n1")                    ==== (Some(List("v")), List(List("D", "1.0")))
+    T ~ cols("v")                             ==== (Some(List("v")), List(List("D")))
+    T ~ cols("")                              ==== (None, Nil)
+    T ~ Csv.columnar("a,b\n1,2\n3").isAlt    ==== true
+    T ~ Csv.columnar("a,b\n1,2,3").isAlt      ==== true
+
+    // Headers decided, identifiers kept as text, and other Booleans
+    T ~ show(Csv.columnar("1,2\n3,4", colHeaders = "always").get) ==== (Some(List("1", "2")), List(List("D", "3.0"), List("D", "4.0")))
+    T ~ show(Csv.columnar("a,b\nc,d", colHeaders = "never").get)  ==== (None, List(List("S", "a", "c"), List("S", "b", "d")))
+    T ~ show(Csv.columnar("id,v\n0012,1\n0034,2", forceStrings = Set("id")).get) ==== (Some(List("id", "v")), List(List("S", "0012", "0034"), List("D", "1.0", "2.0")))
+    T ~ show(Csv.columnar("id,v\n0012,1\n0034,2", forceStrings = Set(1)).get)    ==== (Some(List("id", "v")), List(List("D", "12.0", "34.0"), List("S", "1", "2")))
+    val yesNo: String => Int = s => if s == "Y" then 1 else if s == "N" then 0 else -1
+    T ~ show(Csv.columnar("k,y\na,Y\nb,N\nc,", isBool = yesNo).get)   ==== (Some(List("k", "y")), List(List("S", "a", "b", "c"), List("B", "true", "false", "missing")))
+    T ~ show(Csv.columnar("k,y\na,Y\nb,N".bytes, isBool = yesNo).get)  ==== (Some(List("k", "y")), List(List("S", "a", "b"), List("B", "true", "false")))
+    T ~ show(Csv.columnar("k,y\na,true".bytes, isBool = yesNo).get)    ==== (Some(List("k", "y")), List(List("S", "a"), List("S", "true")))
+    T ~ show(Tsv.columnar("a\tb\n1\tx".bytes.input()).get)             ==== (Some(List("a", "b")), List(List("D", "1.0"), List("S", "x")))
+    T ~ show(Csv.columnar("name,age,ok\nbob,3,true\namy,,FALSE".bytes).get) ==== show(Csv.columnar("name,age,ok\nbob,3,true\namy,,FALSE").get)
+
+    // Writing, as pandas does, and back
+    val cd = new Xsv.ColumnData(Some(Array("k", "x", "ok")),
+      Array(Array("a", "b,c", ""), Array(1.5, Double.NaN, Double.NegativeInfinity), Array(Xsv.OptBoolean.True, Xsv.OptBoolean.Missing, Xsv.OptBoolean.False)))
+    T ~ Csv.encode(cd).map(_.utf8).mkString ==== "k,x,ok\r\na,1.5,True\r\n\"b,c\",NaN,\r\n,-inf,False\r\n"
+    val cgaps = new Xsv.ColumnData(None, Array(Array(Double.NA, 2.0, Double.NaN)))
+    T ~ Csv.encode(cgaps).map(_.utf8).mkString ==== "\r\n2.0\r\nNaN\r\n"
+    T ~ Csv.columnar("x,y\n,1\nNaN,2", colHeaders = "always").get.columns(0).fn{ case xs: Array[Double] => xs.map(_.isNA).toList; case _ => Nil } ==== List(true, false)
+    T ~ show(Csv.columnar(Csv.encode(cd).toArray.flatten).get) ==== show(cd)
+    T ~ Csv.encode(new Xsv.ColumnData(None, Array(Array(1.0, 2.0), Array("x")))).map(_.utf8).mkString ==== "1.0,x\r\n2.0,\r\n"   // short columns padded
+    val r = new scala.util.Random(99)
+    val n = 30000
+    val big = new Xsv.ColumnData(Some(Array("s", "d", "b")), Array(
+      Array.tabulate(n)(i => s"s$i"),
+      Array.fill(n)(java.lang.Double.longBitsToDouble(r.nextLong())),
+      Array.fill(n)(Xsv.OptBoolean.fromOrdinal(r.nextInt(3)))))
+    val chunks = Csv.encode(big).toArray
+    T ~ (chunks.length > 1) ==== true
+    T ~ show(Csv.columnar(chunks.flatten).get) ==== show(big)
 }
 object EioTest {
   import kse.basics.{given, _}

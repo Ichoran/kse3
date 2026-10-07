@@ -18,7 +18,7 @@ shared-memory ones, run there; `mill guides.run` verifies that the two copies ar
 ## What's here
 
 - **Paths**: `slurp`, `gulp`, `write`, and the rest on `Path`, answering `Ask`; `atomically` for a replace that is never half done; `/`, `ext`, `base` for taking paths apart; `raw` for the throwing forms.
-- **Xsv**: `Csv` and `Tsv` to and from `Array[Array[String]]`, other separators through `Xsv`, and a streaming visitor underneath.
+- **Xsv**: `Csv` and `Tsv` to and from `Array[Array[String]]`, a table of `Double`s with its headers (`dataset`), or typed columns (`columnar`), other separators through `Xsv`, and a streaming visitor underneath.
 - **Parsing**: `parseI`, `parseD`, and their kin read a whole string as one number, as an `Ask` or with a jump.
 - **Grok**: a direct-mode parser; ask for an `I`, a `D`, a `tok`, or a `str` and get it or an error that says where; sub-parses, alternatives, and streaming sources.
 - **Command lines**: `Cleasy` declares options with a parser, a short form, a default, and help, and gives back values typed by name.
@@ -139,6 +139,67 @@ val back = Csv.read(p).?                      // Tsv likewise; Xsv.semi, Xsv.spa
 
 The parser is a byte-level state machine, so a large file is read as bytes and decoded per cell rather than through
 a `String` of the whole thing.  Rows are as long as they are; nothing is padded.
+
+`dataset` reads a table of numbers, parsing each cell where it lies and building no `String` for it, several times
+faster than decoding and then parsing.  It answers `Right` with a `Dataset`, the named tuple
+`(corner, cols, rows, table)`, where `table` is an `Array[Array[Double]]`, `cols(j)` names column `j`, `rows(i)`
+labels row `i`, and `corner` is the top-left cell when there are both; a first row with text in it is the headers and a
+first column with text in it is the labels (`colHeaders = "always"` and `rowLabels = "always"` for numeric ones).  An
+empty cell is `Double.NA`, the NaN that marks a missing value (`isNA` tells it from other NaNs), and `nan` and `inf`
+in any case are read as pandas writes them.  Anything else, or ragged rows,
+answers `Left` with the strings `decode` gives.  `encode` and `write` take a `Dataset` back out as pandas would,
+an NA as an empty cell and any other NaN as `NaN`.
+
+**Reach for this when** the file is a matrix or a time series and every cell would otherwise be a `String` first.
+
+Plain Scala:
+
+<!-- guide: dataset.plain -->
+```scala
+def meansPlain(text: String): Array[Double] =
+  val lines = text.split("\r?\n").filter(_.nonEmpty)
+  val rows = lines.drop(1).map(_.split(",", -1).map(c => if c.isEmpty then Double.NaN else c.toDouble))
+  Array.tabulate(rows.head.length)(j => rows.map(_(j)).sum / rows.length)   // header assumed; quotes, labels missed
+```
+
+kse3:
+
+<!-- guide: dataset.kse3 -->
+```scala
+Csv.dataset(text).? match                     // a header and row labels are found; colHeaders = "always" forces one
+  case Right(d) => Array.tabulate(d.cols.fold(0)(_.length))(j => d.table.map(_(j)).sum / d.table.length)
+  case Left(strings) => Err ?# s"not all numbers: ${strings.length} rows of text"
+```
+
+When the columns are of different kinds, `columnar` reads a table as `ColumnData`: `headers`, when there are any,
+and one array per column, `Array[Xsv.OptBoolean]`, `Array[Double]`, or `Array[String]`, whichever holds every cell
+in it, so a `match` on a column's type takes it apart.  An empty cell is a missing Boolean (`OptBoolean.Missing`;
+`isTrue`, `isFalse`, and `isMissing` ask) or `Double.NA`.  Booleans are `true` and `false` in any case unless `isBool` says
+otherwise, `forceStrings` keeps identifiers that look numeric as text, by index or header, and `colHeaders` is
+`"detect"` (a first row that does not fit a column below it, or any first row when every column is text),
+`"always"`, or `"never"`.  Ragged rows are an error.  `encode` and `write` take `ColumnData` back out as pandas would.
+
+Plain Scala:
+
+<!-- guide: columnar.plain -->
+```scala
+def flaggedPlain(text: String): Array[String] =
+  val rows = text.split("\r?\n").filter(_.nonEmpty).map(_.split(",", -1))
+  val j = rows.head.indexOf("ok")
+  rows.drop(1).filter(r => r(j).equalsIgnoreCase("true")).map(_(0))   // no quotes; every type checked by hand
+```
+
+kse3:
+
+<!-- guide: columnar.kse3 -->
+```scala
+val cd = Csv.columnar(text).?                 // each column Booleans, numbers, or text, whichever holds it all
+val j = cd.headers.fold(-1)(_.indexOf("ok"))
+if j < 0 then Err ?# "no ok column"
+(cd.columns(0), cd.columns(j)) match          // the arrays' types are checked
+  case (names: Array[String], ok: Array[Xsv.OptBoolean]) => names.zip(ok).collect{ case (n, b) if b.isTrue => n }
+  case _ => Err ?# "expected names and a Boolean ok"
+```
 
 Full API: `eio/src/Xsv.scala`; `Csv` and `Tsv` are at the bottom.
 
