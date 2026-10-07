@@ -1171,6 +1171,10 @@ class EioTest {
     T ~ c0.parse(Array("-hz"))                                ==== runtype[Alt[?]]
     T ~ c0.parse(Array("-zh"))                                ==== runtype[Alt[?]]
     T ~ c0.parse(Array("eel", "-z"))                          ==== runtype[Alt[?]]
+    // the argument named by its position among all of them, a long option's `=` notwithstanding
+    T ~ c0.parse(Array("--eel", "--sturgeon")).fold(_ => "")(_.toString).contains("in argument 2, --sturgeon")       ==== true
+    T ~ c0.parse(Array("-h", "-t", "--sturgeon=3")).fold(_ => "")(_.toString).contains("in argument 3, --sturgeon=3") ==== true
+    T ~ c0.parse(Array("-h", "-tz")).fold(_ => "")(_.toString).contains("in argument 2, -tz")                         ==== true
 
     T ! """(Cleasy() -- "eel" -- 'h' -- "bass" ~ 'b' -- "minnow".x -- 't'.x -- "salmon".x ~ 's') ~ 'b'"""   // c0 restated: `T !` cannot see method-local vals
     T ! """(Cleasy() -- "eel" -- 'h' -- "bass" ~ 'b' -- "minnow".x -- 't'.x -- "salmon".x ~ 's') ~ "t""""

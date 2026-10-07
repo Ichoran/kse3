@@ -78,6 +78,30 @@ expect; `x.orAlt[E]` and `x.orIs[A]` wrap a plain value while naming the other b
 moves favored values that match into the disfavored branch and `rescue` does the reverse.  A collection of `Or`s
 splits with `collectIs`, `collectAlt`, or `collectThem`.
 
+**To act on one branch and pass the `Or` on**, `peek(f)` runs `f` on a favored value, `peekAlt(f)` on a disfavored
+one, and `peekThem(f)(g)` on whichever is there.  Each answers the same `Or`, so it sits in the middle of a chain --
+counting a success or noting a failure on its way back to the caller -- where `foreach` and `foreachAlt` end one.
+
+Plain Scala:
+
+<!-- guide: peek.plain -->
+```scala
+def loadPlain(s: String, count: () => Unit, log: String => Unit): Either[String, Int] =
+  val x = parsePlain(s)
+  x match
+    case Right(_) => count()
+    case Left(e)  => log(e)
+  x
+```
+
+kse3:
+
+<!-- guide: peek.kse3 -->
+```scala
+def load(s: String, count: () => Unit, log: String => Unit): Int Or String =
+  parse(s).peek(_ => count()).peekAlt(log)
+```
+
 Don't reach into `Is`, `IsBox`, or `IsJust`: an `Or` nested in an `Or` has representation rules that the extension
 methods respect and a cast does not.
 

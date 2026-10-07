@@ -762,8 +762,8 @@ final class Cleasy[N <: LabelStr, H <: CharVal, T <: Tuple](title: String, postf
       args.visit(): (arg, i) =>
         escape.when_?(arg == "--" || arg == "--=")
         if arg.startsWith("--") then
-          val i = arg.indexOf('=')
-          val argname = if i < 0 then arg.select(2 to End) else arg.select(2, i)
+          val eq = arg.indexOf('=')
+          val argname = if eq < 0 then arg.select(2 to End) else arg.select(2, eq)
           if !labels.contains(argname) then
             Err ?# s"No such option: $argname\n  in argument ${i+1}, $arg"
         else if arg.startsWith("-") then

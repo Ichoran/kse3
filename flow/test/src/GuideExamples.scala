@@ -42,6 +42,20 @@ object GuideExamples {
     (v, ok)
   // guide: end
 
+  // guide: peek.plain
+  def loadPlain(s: String, count: () => Unit, log: String => Unit): Either[String, Int] =
+    val x = parsePlain(s)
+    x match
+      case Right(_) => count()
+      case Left(e)  => log(e)
+    x
+  // guide: end
+
+  // guide: peek.kse3
+  def load(s: String, count: () => Unit, log: String => Unit): Int Or String =
+    parse(s).peek(_ => count()).peekAlt(log)
+  // guide: end
+
 
   // guide: ask.plain
   def portPlain(s: String): Either[String, Int] =
@@ -313,6 +327,13 @@ class GuideTest {
       T(s) ~ r0 =**= r1
       T(s) ~ l0 =**= l1
     T ~ G.scale("77", _ => (), _ => ()) ==== (7700, true)
+    for s <- List("7", "eel") do
+      val (n0, l0) = (Mu(0), collection.mutable.ArrayBuffer.empty[String])
+      val (n1, l1) = (Mu(0), collection.mutable.ArrayBuffer.empty[String])
+      T(s) ~ G.loadPlain(s, () => n0.++, l0 += _).toOption ==== G.load(s, () => n1.++, l1 += _).toOption
+      T(s) ~ n0() ==== n1()
+      T(s) ~ l0 =**= l1
+    T ~ G.load("7", () => (), _ => ()) ==== 7
     for s <- List("80", "70000", "eel") do
       T(s) ~ G.configPortPlain(s).isRight ==== G.configPort(s).isIs
     T ~ G.configPort("80")    ==== 80
