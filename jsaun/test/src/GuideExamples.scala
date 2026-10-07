@@ -121,16 +121,17 @@ object GuideExamples {
     // guide: end
 
 
-  def numbers(): (Ask[Long], Ask[Double], String, String, Ask[Double], Ask[Array[Double]]) =
+  def numbers(): (Ask[Long], Ask[Double], String, String, Ask[BigDecimal], Ask[Double], Ask[Array[Double]]) =
     // guide: numbers.kse3
     val n = Json.parse("42").long                   // Ask[Long]: a whole number a Long can hold is a Jnum.L
     val d = Json.parse("42").dbl                    // Ask[Double]: every number reads as a Double
     val kept = Json.parse("0.30000000000000001", exact = true).jsonOr(Jnull).print   // exact keeps what a Double can't
     val lost = Json.parse("0.30000000000000001").jsonOr(Jnull).print                 // "0.3": the nearest Double, shortest
+    val dec = Json.parse("0.30000000000000001", exact = true).big                    // Ask[BigDecimal], every digit
     val nan = Json.parse("NaN").dbl                 // the one extension to the standard: NaN and the infinities round-trip
     val xs = Json.parse("[1.5, 2.5, 3.5]").arr.flatMap(_.dbls)   // an Array[Double] straight out of a packed Jarr.D
     // guide: end
-    (n, d, kept, lost, nan, xs)
+    (n, d, kept, lost, dec, nan, xs)
 }
 
 
@@ -192,11 +193,12 @@ class GuideTest {
 
   @Test
   def numbersTest(): Unit =
-    val (n, d, kept, lost, nan, xs) = G.numbers()
+    val (n, d, kept, lost, dec, nan, xs) = G.numbers()
     T ~ n ==== 42L
     T ~ d ==== 42.0
     T ~ kept ==== "0.30000000000000001"
     T ~ lost ==== "0.3"
+    T ~ dec ==== BigDecimal("0.30000000000000001")
     T ~ nan.map(_.isNaN) ==== true
     T ~ xs.map(_.toList) ==== List(1.5, 2.5, 3.5)
 }

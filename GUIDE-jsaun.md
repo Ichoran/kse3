@@ -233,7 +233,10 @@ Full API: `jsaun/src/Jvisit.scala`; the `stream` and `build` overloads are in `o
 
 A number parses as `Jnum.L` when it is an integer a Long can hold and as `Jnum.D`, correctly rounded, otherwise;
 `long` fails on a fraction or a Double past the Long range, and `dbl` never fails on a number.  With `exact = true`,
-a number a Double cannot represent is kept as `Jnum.Big` with its original text and prints back unchanged.  An
+a number a Double cannot represent is kept as `Jnum.Big` with its original text and prints back unchanged.  `big`
+reads any number as a `BigDecimal`, exactly for a `Jnum.Big` and as the shortest decimal that is the same Double for
+a `Jnum.D` (so `0.1` gives 0.1), failing only on `NaN` and the infinities; `isBig` on a `Jnum` says whether a Long
+or Double would lose it.  An
 array of numbers parses packed as a `Jarr.D` of unboxed Doubles, so `dbls` hands over the `Array[Double]` in one
 copy and `to[Array[Double]]` or `to[List[Double]]` reads it without boxing; `Jarr(Array[Double])`,
 `Jarr(Array[Float])`, and `Jarr(Array[Int])` build packed arrays.  A non-finite value inside a packed array prints
@@ -248,6 +251,7 @@ val n = Json.parse("42").long                   // Ask[Long]: a whole number a L
 val d = Json.parse("42").dbl                    // Ask[Double]: every number reads as a Double
 val kept = Json.parse("0.30000000000000001", exact = true).jsonOr(Jnull).print   // exact keeps what a Double can't
 val lost = Json.parse("0.30000000000000001").jsonOr(Jnull).print                 // "0.3": the nearest Double, shortest
+val dec = Json.parse("0.30000000000000001", exact = true).big                    // Ask[BigDecimal], every digit
 val nan = Json.parse("NaN").dbl                 // the one extension to the standard: NaN and the infinities round-trip
 val xs = Json.parse("[1.5, 2.5, 3.5]").arr.flatMap(_.dbls)   // an Array[Double] straight out of a packed Jarr.D
 ```

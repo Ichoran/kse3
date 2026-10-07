@@ -104,6 +104,7 @@ object JAny {
     def bool: Ask[Boolean] = (ja: Ask[Json]).flatMap(_.bool)
     def long: Ask[Long] = (ja: Ask[Json]).flatMap(_.long)
     def dbl: Ask[Double] = (ja: Ask[Json]).flatMap(_.dbl)
+    def big: Ask[BigDecimal] = (ja: Ask[Json]).flatMap(_.big)
     def arr: Ask[Jarr] = (ja: Ask[Json]).flatMap(_.arr)
     def obj: Ask[Jobj] = (ja: Ask[Json]).flatMap(_.obj)
 
@@ -152,6 +153,7 @@ sealed abstract class Json protected () {
   def bool: Ask[Boolean] = Alt(Json.expectErr("a boolean", this))
   def long: Ask[Long] = Alt(Json.expectErr("an integer", this))
   def dbl: Ask[Double] = Alt(Json.expectErr("a number", this))
+  def big: Ask[BigDecimal] = Alt(Json.expectErr("a number", this))
   def arr: Ask[Jarr] = Alt(Json.expectErr("an array", this))
   def obj: Ask[Jobj] = Alt(Json.expectErr("an object", this))
 
@@ -586,12 +588,20 @@ sealed abstract class Jnum protected () extends Json {
   /** True if this number has no fractional part. */
   def isWhole: Boolean
 
+  /** True if neither a Long nor a Double holds this number exactly, so `long` and `double`
+    * would lose it and only `big` keeps it.
+    */
+  def isBig: Boolean
+
   override def dbl: Ask[Double] = Is(double)
   override def dblOr(alt: Double): Double = double
 }
 object Jnum {
   def apply(value: Long): Jnum = new L(value)
   def apply(value: Double): Jnum = new D(value)
+  /** A `Jnum.Big` that prints as `value` is spelled, scale included (`1.50` stays `1.50`), even
+    * when a Long or Double could hold it; `isBig` still answers by value.
+    */
   def apply(value: BigDecimal): Jnum = new Big(value.underlying.toString)
 
   /** Append `d` as JSON under the target's numeric policy.  Non-finite values print as
@@ -638,8 +648,10 @@ object Jnum {
   final class L(val value: Long) extends Jnum {
     def double = value.toDouble
     def isWhole = true
+    def isBig = false
     override def long: Ask[Long] = Is(value)
     override def longOr(alt: Long): Long = value
+    override def big: Ask[BigDecimal] = Is(BigDecimal(value))
 
     override def equals(a: Any): Boolean = a match
       case l: L => value == l.value
@@ -658,6 +670,15 @@ object Jnum {
   final class D(val value: Double) extends Jnum {
     def double = value
     def isWhole = Math.rint(value) == value && !value.isInfinite
+    def isBig = false
+
+    /** The shortest decimal that reads back as this Double, which is how it prints: `0.1` gives
+      * 0.1, not the binary expansion 0.1000000000000000055511151231257827....  NaN and the
+      * infinities have no BigDecimal and are an error.
+      */
+    override def big: Ask[BigDecimal] =
+      if value == value && !value.isInfinite then Is(BigDecimal.decimal(value))
+      else Alt(Err(s"number has no BigDecimal value: ${this.print}"))
 
     override def long: Ask[Long] =
       // Long.MinValue.toDouble is exactly -2^63 but Long.MaxValue.toDouble rounds up to 2^63,
@@ -683,21 +704,23 @@ object Jnum {
     * numbers round-trip character for character.
     */
   final class Big @publicInBinary() private[jsaun] (val text: String) extends Jnum {
-    lazy val big: BigDecimal = BigDecimal(new java.math.BigDecimal(text))
+    lazy val value: BigDecimal = BigDecimal(new java.math.BigDecimal(text))
     override lazy val double: Double = java.lang.Double.parseDouble(text)
-    def isWhole: Boolean = big.isWhole
+    def isWhole: Boolean = value.isWhole
+    lazy val isBig: Boolean = !value.isValidLong && !Jnum.exactDouble(double, text)
 
+    override def big: Ask[BigDecimal] = Is(value)
     override def long: Ask[Long] =
-      if big.isValidLong then Is(big.toLong)
+      if value.isValidLong then Is(value.toLong)
       else Alt(Err(s"number is not an integer Long can hold: $text"))
-    override def longOr(alt: Long): Long = if big.isValidLong then big.toLong else alt
+    override def longOr(alt: Long): Long = if value.isValidLong then value.toLong else alt
 
     override def equals(a: Any): Boolean = a match
-      case b: Big => big.compare(b.big) == 0
-      case l: L => big.isValidLong && big.toLong == l.value
-      case d: D => !d.value.isNaN && !d.value.isInfinite && big.compare(BigDecimal(new java.math.BigDecimal(d.value))) == 0
+      case b: Big => value.compare(b.value) == 0
+      case l: L => value.isValidLong && value.toLong == l.value
+      case d: D => !d.value.isNaN && !d.value.isInfinite && value.compare(BigDecimal(new java.math.BigDecimal(d.value))) == 0
       case _ => false
-    override def hashCode: Int = big.##   // scala.## on BigDecimal agrees with Long/Double ## when values coincide
+    override def hashCode: Int = value.##   // scala.## on BigDecimal agrees with Long/Double ## when values coincide
 
     def printTo(out: Jout): Unit = out.add(text)
   }

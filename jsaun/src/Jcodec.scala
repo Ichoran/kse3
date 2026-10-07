@@ -329,12 +329,7 @@ object FromJson {
     }
   }
 
-  given FromJson[BigDecimal] = {
-    case b: Jnum.Big => Is(b.big)
-    case n: Jnum.L => Is(BigDecimal(n.value))
-    case n: Jnum.D => Is(BigDecimal(n.value))
-    case x => Alt(Json.expectErr("a number", x))
-  }
+  given FromJson[BigDecimal] = _.big
 
   private final class OptionFrom[A](fj: FromJson[A]) extends FromJson[Option[A]] {
     def from(j: Json): Ask[Option[A]] = if j.isNull then Is(None) else fj.from(j).map(Some(_))

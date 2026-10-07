@@ -591,6 +591,42 @@ class JsaunTest {
     T ~ Jnum(BigDecimal("9007199254740993")).long  ==== Is(9007199254740993L)
 
   @Test
+  def bigDecimalTest(): Unit =
+    def num(s: String, exact: Boolean = true): Jnum = Json.parse(s, exact).jsonOr(Jnull) match
+      case n: Jnum => n
+      case j => throw new AssertionError(s"not a number: $j")
+    T ~ Json.parse("42").big                     ==== Is(BigDecimal(42))
+    T ~ Json.parse("-9223372036854775808").big   ==== Is(BigDecimal(Long.MinValue))
+    T ~ Json.parse("0.1").big                    ==== Is(BigDecimal("0.1"))   // shortest decimal, not the binary expansion
+    T ~ Json.parse("1e300").big                  ==== Is(BigDecimal("1e300"))
+    T ~ Json.parse("0.1", exact = true).big      ==== Is(BigDecimal("0.1"))
+    T ~ Json.parse("0.30000000000000001", exact = true).big ==== Is(BigDecimal("0.30000000000000001"))
+    T ~ Json.parse("0.30000000000000001").big    ==== Is(BigDecimal("0.3"))
+    T ~ Json.parse("1e400", exact = true).big    ==== Is(BigDecimal("1e400"))
+    T ~ Json.parse("""{"a": [1, 2.5]}""")("a")(1).big ==== Is(BigDecimal("2.5"))   // packed Jarr.D element
+    T ~ bad(Json.parse("NaN").big)               ==== true
+    T ~ bad(Json.parse("-Infinity").big)         ==== true
+    T ~ bad(Json.parse("\"0.1\"").big)           ==== true
+    T ~ bad(Json.parse("""{"a": 1}""")("b").big) ==== true
+    T ~ Jnum(Double.NaN).big.isAlt               ==== true
+    T ~ Json.parse("NaN").ask.flatMap(_.to[BigDecimal]).isAlt ==== true      // FromJson used to throw here
+    T ~ Json.parse("0.1").ask.flatMap(_.to[BigDecimal])       ==== Is(BigDecimal("0.1"))
+    T ~ num("42").isBig                           ==== false
+    T ~ num("0.5").isBig                          ==== false
+    T ~ num("1e400", exact = false).isBig         ==== false   // rounded to Infinity, a Double
+    T ~ num("0.1").isBig                          ==== true
+    T ~ num("1e400").isBig                        ==== true
+    T ~ num("10000000000000000001").isBig         ==== true
+    T ~ Jnum(BigDecimal("3")).isBig               ==== false   // held as text, but a Long holds it
+    T ~ Jnum(BigDecimal("2.5")).isBig             ==== false   // and a Double holds this
+    T ~ Jnum(BigDecimal("9007199254740993")).isBig ==== false
+    T ~ Jnum(BigDecimal("0.1")).isBig             ==== true
+    T ~ Jnum(BigDecimal("1.50")).print            ==== "1.50"   // the caller's spelling is kept
+    T ~ Jnum(BigDecimal("1.50")).big              ==== Is(BigDecimal("1.50"))
+    T ~ (Jnum(BigDecimal("1.50")) == Jnum(1.5))   ==== true
+    T ~ Jnum(BigDecimal("1.5e-400")).big          ==== Is(BigDecimal("1.5e-400"))
+
+  @Test
   def packedArrayTest(): Unit =
     val packed = Json.parse("[1.5, 2.5, 3.5]").jsonOr(Jnull)
     T ~ packed.isInstanceOf[Jarr.D]  ==== true
