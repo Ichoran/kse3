@@ -414,6 +414,84 @@ object Pb {
     def bytes(owner: String, field: String, length: Long): Unit
   }
 
+  /** A oneof left unset in a message that carries unknown fields (`PbGen.Config(known = true)`): most likely a
+    * later schema's arm, which decodes as no arm and an unknown field.  `path` leads from the message asked about
+    * to the one holding the oneof, by proto field names, `[i]` for a repeated element and `[key]` for a map value
+    * (empty when it is that message itself); `owner` is the holder's message path and `fields` the numbers of its
+    * unknown fields in encounter order, any of which may be the arm, since nothing on the wire says which.
+    * `toString` is the diagnostic: `params["gain"] Value.kind (field 7)`.
+    */
+  final case class UnknownArm(path: String, owner: String, oneof: String, fields: List[Int]) {
+    def under(seg: String): UnknownArm = copy(path = if path.isEmpty then seg else seg + "." + path)
+    override def toString: String =
+      val at = if path.isEmpty then "" else path + " "
+      val ns = if fields.lengthIs == 1 then s"field ${fields.head}" else fields.mkString("fields ", ", ", "")
+      s"$at$owner.$oneof ($ns)"
+  }
+  object UnknownArm {
+    /** The finding for an unset oneof of `owner`: there is one only if `us` is not empty. */
+    def unset(owner: String, oneof: String, us: List[Unknown]): UnknownArm Or Unit =
+      if us.isEmpty then Alt.unit else Is(UnknownArm("", owner, oneof, us.map(_.field).distinct))
+
+    /** A finding inside a field's message, moved under that field's name. */
+    inline def under(seg: String, a: UnknownArm Or Unit): UnknownArm Or Unit = a.map(_.under(seg))
+
+    /** The first finding among a repeated field's messages, by index. */
+    inline def inArray[A](field: String, xs: Array[A])(inline f: A => UnknownArm Or Unit): UnknownArm Or Unit =
+      var a: UnknownArm Or Unit = Alt.unit
+      var i = 0
+      while i < xs.length && a.isAlt do
+        a = under(s"$field[$i]", f(xs(i)))
+        i += 1
+      a
+
+    /** The finding under a map's least key that has one, so the answer does not hang on hash order. */
+    def inMap[K, V](field: String, kvs: Map[K, V])(text: K => String)(f: V => UnknownArm Or Unit)(using o: Ordering[K]): UnknownArm Or Unit =
+      var k: K Or Unit = Alt.unit
+      var a: UnknownArm Or Unit = Alt.unit
+      kvs.foreach: (kk, v) =>
+        if k.forall(o.lt(kk, _)) then
+          f(v).foreach: x =>
+            k = Is(kk)
+            a = Is(x)
+      k.fold(kk => under(s"$field[${text(kk)}]", a))(_ => a)
+
+    /** A string map key as it is written in a finding's path. */
+    def quote(s: String): String = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+  }
+
+  /** Copies that keep the original whenever nothing under it changed, for generated `known` methods. */
+  object Known {
+    /** A repeated message field with each element through `f`, copied only if some element changed. */
+    inline def array[A <: AnyRef](xs: Array[A])(inline f: A => A): Array[A] =
+      var ys = xs
+      var i = 0
+      while i < xs.length do
+        val x = xs(i)
+        val y = f(x)
+        if !(y eq x) then
+          if ys eq xs then ys = xs.clone()
+          ys(i) = y
+        i += 1
+      ys
+
+    /** A map with each message value through `f`, the same map if no value changed. */
+    inline def map[K, V <: AnyRef](kvs: Map[K, V])(inline f: V => V): Map[K, V] =
+      var ys = kvs
+      kvs.foreach: (k, v) =>
+        val w = f(v)
+        if !(w eq v) then ys = ys.updated(k, w)
+      ys
+
+    /** An optional message field through `f`, the same value if the message did not change. */
+    inline def opt[A <: AnyRef](x: A Or Unit)(inline f: A => A): A Or Unit =
+      x.fold(a => { val b = f(a); if b eq a then x else Is(b) })(_ => x)
+
+    /** Whether `opt` left an optional message field as it was. */
+    inline def same[A <: AnyRef](x: A Or Unit, y: A Or Unit): Boolean =
+      x.fold(a => y.fold(b => a eq b)(_ => false))(_ => y.isAlt)
+  }
+
   trait Writable {
     private var sizeMemo: Int = -1
 

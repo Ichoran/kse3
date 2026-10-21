@@ -82,7 +82,10 @@ array, a map an immutable `Map`, an enum an open opaque `Int` with names, and a 
 case.  Unknown fields are retained and re-emitted unless `Config(retainUnknown = false)`.  A field marked
 `[(kse3.view) = true]`, or named in `Config.viewFields`, decodes as a `Mem` view aliasing the buffer, and a message
 holding one gets an `owned` method that copies it off.  `Config(walker = true)` adds a generated walker over every
-repeated and length-carrying field, for a size bound that must cover a whole schema.
+repeated and length-carrying field, for a size bound that must cover a whole schema.  `Config(known = true)` adds an
+object per file whose `known(m)` drops unknown fields at every depth (returning `m` itself when there are none), so
+`known(a).toBytes` compares only what the receiver knows, and whose `unknownArm(m)` names the first oneof left unset
+in a message carrying unknown fields, which is how a later schema's oneof arm arrives.
 
 **Reach for these when** you'd run protoc and ScalaPB, or keep a message class in step with a `.proto` file by hand.
 

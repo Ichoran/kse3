@@ -59,21 +59,36 @@ import kse.flow.{given, _}
   * path and the proto field name — nested messages, oneof arms and other files' messages
   * reached through their own walkers.  A size or count bound that must cover every field
   * is then one visitor, regenerated with the schema, rather than a list kept by hand.
+  *
+  * `Config(known = true)` adds, to each file, an `object <FileName>Known` for a protocol that
+  * compares messages on the fields the receiver knows.  `known(m)` is `m` with every retained
+  * unknown field dropped at every depth -- optional, repeated and map-valued messages, oneof
+  * arms, other files' messages through their own Known objects -- and is `m` itself, not a
+  * copy, when nothing under it has any; so `known(a).toBytes` equal to `known(b).toBytes` is
+  * equality on known content (stripping on write would not do, since a nested length prefix is
+  * the memoized `sizeOf`, unknowns included).  `unknownArm(m): Pb.UnknownArm Or Unit` finds the
+  * first oneof, in declaration order and depth first, left unset in a message that carries
+  * unknown fields, which is how a later schema's arm decodes; its `toString` names it by path
+  * and field numbers, `params["gain"] Value.kind (field 7)`, with map values taken by least key.
+  * It needs `retainUnknown`, and generation refuses the pair otherwise.
   */
 object PbGen {
 
   /** Knobs for generation: where generated code lands (proto package -> Scala package,
-    * identity by default), an extra header line if wanted, and whether messages carry and
-    * re-emit unknown fields (they do unless told otherwise).
+    * identity by default), an extra header line if wanted, whether messages carry and
+    * re-emit unknown fields (they do unless told otherwise), which fields are views, and
+    * whether each file also gets a walker and a Known object (see above; both off).
     */
   final case class Config(pkgOf: String => String = p => p, header: String = "", retainUnknown: Boolean = true,
-                          viewFields: Set[String] = Set.empty, walker: Boolean = false)
+                          viewFields: Set[String] = Set.empty, walker: Boolean = false, known: Boolean = false)
 
   /** Generate one Scala source per file in the schema, as (suggested filename, content). */
   def generate(schema: Proto.Schema, config: Config = Config()): Ask[List[(String, String)]] =
     try
+      if config.known && !config.retainUnknown then Pb.fail("Config(known = true) needs retainUnknown = true: without unknowns there is nothing to drop or find")
       val viewful = viewfulSet(schema, config)
-      Is(schema.files.map(f => new Gen(schema, config, viewful, f).result))
+      val armful = armfulSet(schema)
+      Is(schema.files.map(f => new Gen(schema, config, viewful, armful, f).result))
     catch
       case h: Pb.Halt => Alt(Err(h.message))
       case e if e.catchable => Alt(Err(e))
@@ -97,6 +112,27 @@ object PbGen {
           vf = vf + fqn
           grew = true
     vf
+
+  /** Messages that have a oneof or reach one through any message-typed field, to fixpoint: the only ones
+    * where `unknownArm` has anything to look at.
+    */
+  private def armfulSet(schema: Proto.Schema): Set[String] =
+    val msgs = schema.syms.toList.collect{ case (fqn, Proto.Sym.M(m, _)) => (fqn, m) }
+    var af = msgs.collect{ case (fqn, m) if m.oneofs.nonEmpty => fqn }.toSet
+    var grew = true
+    while grew do
+      grew = false
+      msgs.foreach: (fqn, m) =>
+        if !af(fqn) && m.fields.exists(f => msgRefOf(f).exists(af)) then
+          af = af + fqn
+          grew = true
+    af
+
+  /** The message a field holds, singly, repeatedly, as a map value, or as a oneof arm. */
+  private def msgRefOf(f: Proto.Field): String Or Unit = f.tpe match
+    case Proto.PType.MsgT(fqn) => Is(fqn)
+    case Proto.PType.MapOf(_, Proto.PType.MsgT(fqn)) => Is(fqn)
+    case _ => Alt.unit
 
   /** Parse, link, and generate in one go, for (filename, text) sources. */
   def generate(sources: Seq[(String, String)]): Ask[List[(String, String)]] = Or.Ret:
@@ -141,7 +177,7 @@ object PbGen {
     pascal(base.replace('.', '_').replace('-', '_')) + "Proto.scala"
 
 
-  private final class Gen(schema: Proto.Schema, config: Config, viewful: Set[String], file: Proto.File) {
+  private final class Gen(schema: Proto.Schema, config: Config, viewful: Set[String], armful: Set[String], file: Proto.File) {
     private val sb = new java.lang.StringBuilder
     private val pkg = file.pkg
     private val scalaPkg = config.pkgOf(pkg)
@@ -706,12 +742,17 @@ object PbGen {
     private def lengthy(s: Proto.Scalar): Boolean = s == Proto.Scalar.Str || s == Proto.Scalar.Bytes
 
     /** How a message of `fqn` is walked from here: locally, or through its own file's walker. */
-    private def walkCallOf(fqn: String, x: String): String = schema.syms.get(fqn) match
-      case Some(Proto.Sym.M(_, f)) if f eq file => s"walk($x)(v)"
+    private def walkCallOf(fqn: String, x: String): String = viaFileObject(fqn, walkObjectName, "walk") + s"($x)(v)"
+
+    /** The per-file generated method `meth` for a message of `fqn`: bare if the message is in this file, else
+      * through the object (named by `objName` from its .proto file name) generated beside the message's own file.
+      */
+    private def viaFileObject(fqn: String, objName: String => String, meth: String): String = schema.syms.get(fqn) match
+      case Some(Proto.Sym.M(_, f)) if f eq file => meth
       case Some(Proto.Sym.M(_, f)) =>
         val p = config.pkgOf(f.pkg)
-        val obj = walkObjectName(f.name)
-        (if p.isEmpty then obj else "_root_." + p.split('.').map(sident).mkString(".") + "." + obj) + s".walk($x)(v)"
+        val obj = objName(f.name)
+        (if p.isEmpty then obj else "_root_." + p.split('.').map(sident).mkString(".") + "." + obj) + "." + meth
       case _ => Pb.fail(s"internal: unresolved '$fqn' survived linking")
 
     private def genWalk(m: Proto.Message, indent: Int): Unit =
@@ -772,6 +813,115 @@ object PbGen {
       line(0, "}")
       blank()
 
+    // --- known: a message on its known fields alone, and the unset oneof a later schema may have set ---
+
+    private def knownObjectName(protoName: String): String = scalaFileName(protoName).dropRight(6) + "Known"
+
+    /** How a map key is written in an `unknownArm` path. */
+    private def keyTextOf(k: Proto.Scalar): String = k match
+      case Proto.Scalar.Str => "Pb.UnknownArm.quote"
+      case Proto.Scalar.UInt32 | Proto.Scalar.Fixed32 => "_.toLong.toString"
+      case Proto.Scalar.UInt64 | Proto.Scalar.Fixed64 => "k => java.lang.Long.toUnsignedString(k.signed)"
+      case _ => "_.toString"
+
+    /** The message slots in declaration order, each oneof at its first member. */
+    private def declSlots(m: Proto.Message): List[Proto.Field Or Int] =
+      var seen = Set.empty[Int]
+      m.fields.flatMap: f =>
+        if f.oneof < 0 then List(Is(f))
+        else if seen(f.oneof) then Nil
+        else
+          seen = seen + f.oneof
+          List(Alt(f.oneof))
+
+    private def genKnownOf(m: Proto.Message, indent: Int): Unit =
+      def kn(fqn: String) = viaFileObject(fqn, knownObjectName, "known")
+      val un = unknownNameOf(m)
+      // (copy argument, unchanged test) for each field that can hold unknowns below it
+      val locals = List.newBuilder[(String, String)]
+      val body = List.newBuilder[String]
+      var k = 0
+      def local(x: String, rhs: String, same: String => String): Unit =
+        val v = s"k$k"
+        k += 1
+        body += s"val $v = $rhs"
+        locals += ((s"$x = $v", same(v)))
+      m.fields.filter(f => f.oneof < 0 && !isView(m, f)).foreach: f =>
+        val x = fieldScalaName(f)
+        f.tpe match
+          case Proto.PType.MsgT(fqn) =>
+            if f.label == Proto.Label.Rep then local(x, s"Pb.Known.array(m.$x)(${kn(fqn)}(_))", v => s"($v eq m.$x)")
+            else local(x, s"Pb.Known.opt(m.$x)(${kn(fqn)}(_))", v => s"Pb.Known.same($v, m.$x)")
+          case Proto.PType.MapOf(_, Proto.PType.MsgT(fqn)) =>
+            local(x, s"Pb.Known.map(m.$x)(${kn(fqn)}(_))", v => s"($v eq m.$x)")
+          case _ => ()
+      m.oneofs.zipWithIndex.foreach: (o, oidx) =>
+        val ov = sident(camel(o.name))
+        val ot = s"${m.path}.${oneofTypeName(o)}"
+        val arms = oneofCases(m, oidx).flatMap: (f, cname) =>
+          f.tpe match
+            case Proto.PType.MsgT(fqn) =>
+              List(s"case $ot.$cname(x) => { val y = ${kn(fqn)}(x); if y eq x then m.$ov else $ot.$cname(y) }")
+            case _ => Nil
+        if arms.nonEmpty then
+          local(ov, s"m.$ov match", v => s"($v eq m.$ov)")
+          arms.foreach(a => body += "  " + a)
+          body += "  case e => e"
+      val ls = locals.result()
+      line(indent, s"def known(m: ${m.path}): ${m.path} =")
+      body.result().foreach(l => line(indent + 1, l))
+      val clean = (s"m.$un.isEmpty" :: ls.map(_._2)).mkString(" && ")
+      line(indent + 1, s"if $clean then m")
+      line(indent + 1, s"else m.copy(${(ls.map(_._1) :+ s"$un = Nil").mkString(", ")})")
+      m.nested.foreach(genKnownOf(_, indent))
+
+    private def genUnknownArmOf(m: Proto.Message, indent: Int): Unit =
+      def ua(fqn: String) = viaFileObject(fqn, knownObjectName, "unknownArm")
+      def nm(f: Proto.Field) = "\"" + f.name + "\""
+      val un = unknownNameOf(m)
+      val parts = List.newBuilder[String]
+      declSlots(m).foreach: s =>
+        s.fold{ f =>
+          val x = "m." + fieldScalaName(f)
+          if !isView(m, f) then f.tpe match
+            case Proto.PType.MsgT(fqn) if armful(fqn) =>
+              if f.label == Proto.Label.Rep then parts += s"Pb.UnknownArm.inArray(${nm(f)}, $x)(${ua(fqn)}(_))"
+              else parts += s"$x.fold(x => Pb.UnknownArm.under(${nm(f)}, ${ua(fqn)}(x)))(_ => Alt.unit)"
+            case Proto.PType.MapOf(kt, Proto.PType.MsgT(fqn)) if armful(fqn) =>
+              parts += s"Pb.UnknownArm.inMap(${nm(f)}, $x)(${keyTextOf(kt)})(${ua(fqn)}(_))"
+            case _ => ()
+        }{ oidx =>
+          val o = m.oneofs(oidx)
+          val ot = s"${m.path}.${oneofTypeName(o)}"
+          val cases = oneofCases(m, oidx)
+          val arms = cases.flatMap: (f, cname) =>
+            f.tpe match
+              case Proto.PType.MsgT(fqn) if armful(fqn) => List(s"case $ot.$cname(x) => Pb.UnknownArm.under(${nm(f)}, ${ua(fqn)}(x))")
+              case _ => Nil
+          val unset = s"case $ot.Unset => Pb.UnknownArm.unset(\"${m.path}\", \"${o.name}\", m.$un)"
+          val rest = if arms.length < cases.length then List("case _ => Alt.unit") else Nil
+          parts += (s"(m.${sident(camel(o.name))} match { " + (unset :: arms ::: rest).mkString("; ") + " })")
+        }
+      val ps = parts.result()
+      if ps.isEmpty then line(indent, s"def unknownArm(m: ${m.path}): Pb.UnknownArm Or Unit = Alt.unit")
+      else
+        line(indent, s"def unknownArm(m: ${m.path}): Pb.UnknownArm Or Unit =")
+        line(indent + 1, ps.head)
+        ps.tail.foreach(p => line(indent + 1, "|| " + p))
+      m.nested.foreach(genUnknownArmOf(_, indent))
+
+    private def genKnown(): Unit =
+      line(0, "/** Messages on their known fields alone: `known(m)` is `m` with every retained unknown field dropped, at every")
+      line(0, "  * depth (`m` itself when there are none), so two messages that differ only in what a later schema added are")
+      line(0, "  * equal by `known(a).toBytes`; `unknownArm(m)` finds the first oneof, in declaration order and depth first,")
+      line(0, "  * that is unset in a message carrying unknown fields, which is how a later schema's arm decodes.  Messages")
+      line(0, "  * from other files go through their own file's object. */")
+      line(0, s"object ${knownObjectName(file.name)} {")
+      file.messages.foreach(m => genKnownOf(m, 1))
+      file.messages.foreach(m => genUnknownArmOf(m, 1))
+      line(0, "}")
+      blank()
+
     def result: (String, String) =
       line(0, s"// Generated by kse.alien.PbGen from ${file.name} -- DO NOT EDIT.")
       if config.header.nonEmpty then line(0, config.header)
@@ -789,6 +939,7 @@ object PbGen {
       file.enums.foreach(e => genEnum(e, 0))
       file.messages.foreach(m => genMessage(m, 0))
       if config.walker then genWalker()
+      if config.known then genKnown()
       (scalaFileName(file.name), sb.toString)
   }
 }

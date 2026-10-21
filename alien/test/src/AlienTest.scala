@@ -66,6 +66,67 @@ object TestProtos {
 
   /** The config the checked-in TrackProto.scala was generated with. */
   val trackConfig = kse.alien.PbGen.Config(pkgOf = _ => "kse.test.alien.track", walker = true)
+
+  /** Two files, the second reaching into the first, for `Config(known = true)`: optional, repeated, map and oneof
+    * message fields, two oneofs in one message, and an unsigned map key.
+    */
+  val knownBase = """
+    |syntax = "proto3";
+    |package alien.knownbase;
+    |
+    |message Value {
+    |  oneof kind {
+    |    double num = 1;
+    |    string text = 2;
+    |  }
+    |  string unit = 3;
+    |}
+    |
+    |message Shape {
+    |  oneof x {
+    |    int32 width = 1;
+    |    Value scale = 2;
+    |  }
+    |}
+    |
+    |message Flat {
+    |  int32 a = 1;
+    |  repeated Flat more = 2;
+    |}
+    |""".stripMargin
+
+  val knownStage = """
+    |syntax = "proto3";
+    |package alien.known;
+    |
+    |import "knownbase.proto";
+    |
+    |message Stage {
+    |  string name = 1;
+    |  optional alien.knownbase.Shape input = 2;
+    |  map<string, alien.knownbase.Value> params = 3;
+    |  repeated Row rows = 4;
+    |  map<uint32, Row> by_id = 5;
+    |  oneof body {
+    |    Row single = 6;
+    |    string note = 7;
+    |  }
+    |  oneof mode {
+    |    int32 level = 8;
+    |    bool off = 9;
+    |  }
+    |  alien.knownbase.Flat flat = 10;
+    |  message Row {
+    |    int32 n = 1;
+    |    alien.knownbase.Value v = 2;
+    |  }
+    |}
+    |""".stripMargin
+
+  val knownSources = List(("knownbase.proto", knownBase), ("stage.proto", knownStage))
+
+  /** The config the checked-in KnownbaseProto.scala and StageProto.scala were generated with. */
+  val knownConfig = kse.alien.PbGen.Config(pkgOf = p => "kse.test.alien." + p.split('.').last, known = true)
 }
 
 
@@ -661,6 +722,114 @@ class AlienTest {
     T ~ Pb.OptUInt.from(None).isEmpty ==== true
     T ~ Pb.OptBool.from(Some(false)) ==== Pb.OptBool(false)
     T ~ Pb.OptFloat.from(None) ==== Pb.OptFloat.unit
+
+  @Test
+  def pbGenKnownGoldenTest(): Unit =
+    import kse.alien.PbGen
+    val out = got(Or.Ret[List[(String, String)], Err]{ PbGen.generate(Proto.read(TestProtos.knownSources).?, TestProtos.knownConfig).? })
+    T ~ out.map(_._1) ==== List("KnownbaseProto.scala", "StageProto.scala")
+    T ~ out(0)._2.contains("object KnownbaseProtoKnown {") ==== true
+    T ~ out(1)._2.contains("def known(m: Stage.Row): Stage.Row =") ==== true
+    T ~ out(1)._2.contains("def unknownArm(m: Stage): Pb.UnknownArm Or Unit =") ==== true
+    T ~ out(1)._2.contains("_root_.kse.test.alien.knownbase.KnownbaseProtoKnown.known(_)") ==== true   // cross-file reach
+    T ~ out(0)._2.contains("def unknownArm(m: Flat): Pb.UnknownArm Or Unit = Alt.unit") ==== true      // no oneof below
+    // known needs unknowns to drop, and the default is off
+    T ~ errText(PbGen.generate(got(Proto.read(TestProtos.knownSources)), TestProtos.knownConfig.copy(retainUnknown = false))).contains("retainUnknown") ==== true
+    T ~ got(PbGen.generate(got(Proto.read(TestProtos.knownSources)))).exists(_._2.contains("Known {")) ==== false
+    // the checked-in generated files match regeneration exactly, when reachable from here
+    out.foreach: (name, src) =>
+      val p = java.nio.file.Path.of("alien/test/src", name)
+      if java.nio.file.Files.exists(p) then
+        T ~ java.nio.file.Files.readString(p) ==== src
+
+  /** A varint unknown field, as a later schema's scalar arm would arrive. */
+  def unk(n: Int): Pb.Unknown = Pb.Unknown(n, 0, Array[Byte](1))
+
+  @Test
+  def pbGenKnownStripTest(): Unit =
+    import kse.test.alien.known.{Stage, StageProtoKnown}
+    import kse.test.alien.knownbase.{Flat, Shape, Value, KnownbaseProtoKnown}
+    import StageProtoKnown.known
+    def dirty(u: Int) = Value(Value.Kind.Num(1.5), "m", List(unk(u)))
+    val clean = Value(Value.Kind.Num(1.5), "m")
+    val s = Stage(
+      name = "s",
+      input = Is(Shape(Shape.X.Scale(dirty(40)), List(unk(41)))),
+      params = Map("gain" -> dirty(42), "bias" -> clean),
+      rows = Array(Stage.Row(1, Is(clean)), Stage.Row(2, Is(dirty(43)), List(unk(44)))),
+      byId = Map(UInt(7) -> Stage.Row(3, Is(dirty(45)))),
+      body = Stage.Body.Single(Stage.Row(4, Is(dirty(46)), List(unk(47)))),
+      flat = Is(Flat(5, Array(Flat(6, unknown = List(unk(48)))))),
+      unknown = List(unk(49))
+    )
+    val k = known(s)
+    T ~ k.unknown ==== Nil
+    T ~ k.input.fold(i => (i.unknown, i.x == Shape.X.Scale(clean)))(_ => (List(unk(0)), false)) ==== (Nil, true)
+    T ~ k.params ==== Map("gain" -> clean, "bias" -> clean)
+    T ~ k.rows.toList ==== List(Stage.Row(1, Is(clean)), Stage.Row(2, Is(clean)))
+    T ~ k.byId ==== Map(UInt(7) -> Stage.Row(3, Is(clean)))
+    T ~ k.body ==== Stage.Body.Single(Stage.Row(4, Is(clean)))
+    T ~ k.flat.fold(f => f.more.toList.map(_.unknown))(_ => Nil) ==== List(Nil)
+    T ~ k.name ==== "s"
+    // nothing to drop is no copy at all, at the top and wherever a branch was already clean
+    val ok = Stage(name = "ok", input = Is(Shape(Shape.X.Width(3))), params = Map("bias" -> clean), rows = Array(Stage.Row(1)))
+    T ~ (known(ok) eq ok) ==== true
+    T ~ (KnownbaseProtoKnown.known(clean) eq clean) ==== true
+    T ~ (k.rows(0) eq s.rows(0)) ==== true
+    T ~ (k.params("bias") eq s.params("bias")) ==== true
+    // and the original is untouched
+    T ~ s.rows(1).unknown.map(_.field) ==== List(44)
+
+  @Test
+  def pbGenKnownEqualityTest(): Unit =
+    import kse.test.alien.known.{Stage, StageProtoKnown}
+    import kse.test.alien.knownbase.{Shape, Value}
+    import StageProtoKnown.known
+    def stage(extra: List[Pb.Unknown], deep: List[Pb.Unknown], gain: Double) = Stage(
+      name = "s",
+      input = Is(Shape(Shape.X.Scale(Value(Value.Kind.Num(2.0), unknown = deep)))),
+      params = Map("gain" -> Value(Value.Kind.Num(gain), unknown = deep)),
+      rows = Array(Stage.Row(1, Is(Value(Value.Kind.Text("t"), unknown = deep)))),
+      unknown = extra
+    )
+    // decoded from the wire, as a receiver would see what a later schema sent
+    def wire(st: Stage): Stage = got(Stage.parse(st.toBytes))
+    val a = wire(stage(Nil, Nil, 0.5))
+    val b = wire(stage(List(unk(30)), List(unk(31), unk(32)), 0.5))
+    val c = wire(stage(List(unk(30)), List(unk(31)), 0.25))
+    T ~ (a.toBytes sameElements b.toBytes) ==== false
+    T ~ (known(a).toBytes sameElements known(b).toBytes) ==== true    // unknowns at any depth take no part
+    T ~ (known(b).toBytes sameElements known(c).toBytes) ==== false   // but known content still does
+    T ~ (known(a).toBytes sameElements a.toBytes) ==== true
+
+  @Test
+  def pbGenUnknownArmTest(): Unit =
+    import kse.test.alien.known.{Stage, StageProtoKnown}
+    import kse.test.alien.knownbase.{Flat, Shape, Value, KnownbaseProtoKnown}
+    import StageProtoKnown.unknownArm
+    def arm(st: Stage): String = unknownArm(got(Stage.parse(st.toBytes))).fold(_.toString)(_ => "none")
+    val later = Value(unknown = List(unk(7)))           // a later minor's kind: no arm set, an unknown field
+    val known = Value(Value.Kind.Num(1.0))
+    // inside a map value, by key, least key first whatever the hash order
+    T ~ arm(Stage(params = Map("zeta" -> later, "gain" -> later, "alpha" -> known))) ==== "params[\"gain\"] Value.kind (field 7)"
+    // inside a nested optional message, and an arm of that message's own oneof
+    T ~ arm(Stage(input = Is(Shape(unknown = List(unk(9)))))) ==== "input Shape.x (field 9)"
+    T ~ arm(Stage(input = Is(Shape(Shape.X.Scale(later))))) ==== "input.scale Value.kind (field 7)"
+    // repeated by index, unsigned map keys as unsigned, oneof arms by the arm's name
+    T ~ arm(Stage(rows = Array(Stage.Row(1, Is(known)), Stage.Row(2, Is(later))))) ==== "rows[1].v Value.kind (field 7)"
+    T ~ arm(Stage(byId = Map(UInt(-1) -> Stage.Row(v = Is(later))))) ==== "by_id[4294967295].v Value.kind (field 7)"
+    T ~ arm(Stage(body = Stage.Body.Single(Stage.Row(v = Is(later))))) ==== "single.v Value.kind (field 7)"
+    // in the message itself: the first unset oneof, every unknown number once, in encounter order
+    T ~ arm(Stage(unknown = List(unk(20), unk(21), unk(20)))) ==== "Stage.body (fields 20, 21)"
+    T ~ arm(Stage(body = Stage.Body.Note("n"), unknown = List(unk(20)))) ==== "Stage.mode (field 20)"
+    T ~ unknownArm(Stage(unknown = List(unk(20)))).fold(a => (a.path, a.owner, a.oneof, a.fields))(_ => ("", "", "", Nil)) ==== ("", "Stage", "body", List(20))
+    // depth first in declaration order: the input before the params
+    T ~ arm(Stage(input = Is(Shape(unknown = List(unk(9)))), params = Map("gain" -> later))) ==== "input Shape.x (field 9)"
+    // none when every oneof is set or nothing is unknown
+    T ~ arm(Stage(body = Stage.Body.Note("n"), mode = Stage.Mode.Off(true), unknown = List(unk(20)))) ==== "none"
+    T ~ arm(Stage(params = Map("gain" -> Value(Value.Kind.Num(1.0), unknown = List(unk(7)))))) ==== "none"
+    T ~ arm(Stage(name = "s", params = Map("gain" -> known), rows = Array(Stage.Row(1, Is(known))))) ==== "none"
+    T ~ KnownbaseProtoKnown.unknownArm(Flat(1, unknown = List(unk(3)))).isAlt ==== true
 
   @Test
   def pbGenRoundTripTest(): Unit =
