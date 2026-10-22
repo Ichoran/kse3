@@ -63,10 +63,11 @@ import kse.flow.{given, _}
   * `Config(known = true)` adds, to each file, an `object <FileName>Known` for a protocol that
   * compares messages on the fields the receiver knows.  `known(m)` is `m` with every retained
   * unknown field dropped at every depth -- optional, repeated and map-valued messages, oneof
-  * arms, other files' messages through their own Known objects -- and is `m` itself, not a
-  * copy, when nothing under it has any; so `known(a).toBytes` equal to `known(b).toBytes` is
-  * equality on known content (stripping on write would not do, since a nested length prefix is
-  * the memoized `sizeOf`, unknowns included).  `unknownArm(m): Pb.UnknownArm Or Unit` finds the
+  * arms, other files' messages through their own Known objects -- and every map in key order
+  * (a `TreeMap` where it was not), since the wire leaves map entry order to the sender.  It is
+  * `m` itself, not a copy, when nothing under it has unknowns and every map is in order; so
+  * `known(a).toBytes` equal to `known(b).toBytes` is equality on known content (stripping on
+  * write would not do, since a nested length prefix is the memoized `sizeOf`, unknowns included).  `unknownArm(m): Pb.UnknownArm Or Unit` finds the
   * first oneof, in declaration order and depth first, left unset in a message that carries
   * unknown fields, which is how a later schema's arm decodes; its `toString` names it by path
   * and field numbers, `params["gain"] Value.kind (field 7)`, with map values taken by least key.
@@ -854,6 +855,8 @@ object PbGen {
             else local(x, s"Pb.Known.opt(m.$x)(${kn(fqn)}(_))", v => s"Pb.Known.same($v, m.$x)")
           case Proto.PType.MapOf(_, Proto.PType.MsgT(fqn)) =>
             local(x, s"Pb.Known.map(m.$x)(${kn(fqn)}(_))", v => s"($v eq m.$x)")
+          case Proto.PType.MapOf(_, _) =>
+            local(x, s"Pb.Known.ordered(m.$x)", v => s"($v eq m.$x)")
           case _ => ()
       m.oneofs.zipWithIndex.foreach: (o, oidx) =>
         val ov = sident(camel(o.name))
@@ -912,10 +915,11 @@ object PbGen {
 
     private def genKnown(): Unit =
       line(0, "/** Messages on their known fields alone: `known(m)` is `m` with every retained unknown field dropped, at every")
-      line(0, "  * depth (`m` itself when there are none), so two messages that differ only in what a later schema added are")
-      line(0, "  * equal by `known(a).toBytes`; `unknownArm(m)` finds the first oneof, in declaration order and depth first,")
-      line(0, "  * that is unset in a message carrying unknown fields, which is how a later schema's arm decodes.  Messages")
-      line(0, "  * from other files go through their own file's object. */")
+      line(0, "  * depth, and every map in key order (`m` itself when nothing changes), so two messages that differ only in")
+      line(0, "  * what a later schema added, or in the order map entries arrived, are equal by `known(a).toBytes`;")
+      line(0, "  * `unknownArm(m)` finds the first oneof, in declaration order and depth first, that is unset in a message")
+      line(0, "  * carrying unknown fields, which is how a later schema's arm decodes.  Messages from other files go through")
+      line(0, "  * their own file's object.  */")
       line(0, s"object ${knownObjectName(file.name)} {")
       file.messages.foreach(m => genKnownOf(m, 1))
       file.messages.foreach(m => genUnknownArmOf(m, 1))

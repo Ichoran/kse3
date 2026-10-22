@@ -83,8 +83,8 @@ case.  Unknown fields are retained and re-emitted unless `Config(retainUnknown =
 `[(kse3.view) = true]`, or named in `Config.viewFields`, decodes as a `Mem` view aliasing the buffer, and a message
 holding one gets an `owned` method that copies it off.  `Config(walker = true)` adds a generated walker over every
 repeated and length-carrying field, for a size bound that must cover a whole schema.  `Config(known = true)` adds an
-object per file whose `known(m)` drops unknown fields at every depth (returning `m` itself when there are none), so
-`known(a).toBytes` compares only what the receiver knows, and whose `unknownArm(m)` names the first oneof left unset
+object per file whose `known(m)` drops unknown fields at every depth and puts every map in key order (returning `m`
+itself when nothing changes), so `known(a).toBytes` compares only what the receiver knows, and whose `unknownArm(m)` names the first oneof left unset
 in a message carrying unknown fields, which is how a later schema's oneof arm arrives.
 
 **Reach for these when** you'd run protoc and ScalaPB, or keep a message class in step with a `.proto` file by hand.
@@ -114,9 +114,9 @@ def roundTrip(): Ask[Track] =
   Track.parse(bytes)                                 // Ask[Track]; an error names the message, field, and byte offset
 ```
 
-`Track` and `Pt` there are generated output, checked in as `alien/test/src/TrackProto.scala`, which compiles under
-the project's full warning set; `mill alien.test.runMain kse.test.alien.GenMain <dir>` regenerates it from the
-schema in `AlienTest`.  A generated companion also parses from an `InputStream` and from a span of an array or
+`Track` and `Pt` there are generated output, which the build writes from the schema in
+`alien/testgen/src/TestProtos.scala` before the tests compile, under the project's full warning set;
+`mill alien.testgen.run <dir>` writes it (`TrackProto.scala`) where it can be read.  A generated companion also parses from an `InputStream` and from a span of an array or
 `Mem`.
 
 Full API: `alien/src/Schema.scala` for `Proto` and its syntax tree; `alien/src/PbGen.scala`, whose header comment

@@ -53,11 +53,13 @@ trait PublishKse3 extends SonatypeCentralPublishModule {
 trait Common extends Base {
   def extraTestDeps: Seq[ScalaModule] = Seq.empty
   def extraTestIvy: T[Seq[Dep]] = Task{ Seq.empty[Dep] }
+  def extraTestSources: T[Seq[PathRef]] = Task{ Seq.empty[PathRef] }
 
   object test extends ScalaTests with TestModule.Junit4 {
     override def mvnDeps = Task {
       super.mvnDeps() ++ extraTestIvy()
     }
+    override def generatedSources = Task { super.generatedSources() ++ extraTestSources() }
     def moduleDeps = extraTestDeps ++ super.moduleDeps
     def forkArgs = Task { Seq("--enable-native-access=ALL-UNNAMED") }   // FFM native paths (SharedMemory, FdSock)
   }
@@ -114,6 +116,21 @@ object alien extends Common with PublishKse3 {
     mvn"io.grpc:grpc-stub:1.83.1",
     mvn"io.grpc:grpc-inprocess:1.83.1"
   ) }
+  // The schemas the tests use, and the runner that turns them into the generated code the tests compile against
+  object testgen extends Base {
+    def moduleDeps = Seq(alien)
+    override def compileMvnDeps = alien.compileMvnDeps   // Grpc's signatures, to read alien's TASTy
+  }
+  override def extraTestDeps = Seq(testgen)
+  override def extraTestSources = Task {
+    mill.util.Jvm.callProcess(
+      mainClass = "kse.test.alien.GenMain",
+      classPath = testgen.runClasspath().map(_.path),
+      mainArgs = Seq(Task.dest.toString),
+      cwd = Task.dest
+    )
+    Seq(PathRef(Task.dest))
+  }
   override def extraTestIvy = Task { Seq(
     mvn"com.google.protobuf:protobuf-java:4.28.3",  // differential oracle for the Pb wire codec; test-only
     mvn"io.grpc:grpc-stub:1.83.1",                  // gRPC layer tests run client and server

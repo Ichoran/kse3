@@ -469,19 +469,36 @@ object Pb {
       while i < xs.length do
         val x = xs(i)
         val y = f(x)
-        if !(y eq x) then
+        if y ne x then
           if ys eq xs then ys = xs.clone()
           ys(i) = y
         i += 1
       ys
 
-    /** A map with each message value through `f`, the same map if no value changed. */
-    inline def map[K, V <: AnyRef](kvs: Map[K, V])(inline f: V => V): Map[K, V] =
+    /** A map with each message value through `f`, then in key order as `ordered` leaves it; the same map if no
+      * value changed and it was already in key order.
+      */
+    inline def map[K, V <: AnyRef](kvs: Map[K, V])(inline f: V => V)(using Ordering[K]): Map[K, V] =
       var ys = kvs
       kvs.foreach: (k, v) =>
         val w = f(v)
-        if !(w eq v) then ys = ys.updated(k, w)
-      ys
+        if w ne v then ys = ys.updated(k, w)
+      ordered(ys)
+
+    /** A map that iterates in key order, so that it encodes the same whatever order its entries arrived in: a map
+      * of two or more entries not already in key order becomes a `TreeMap`; any other is returned as it is.
+      */
+    def ordered[K, V](kvs: Map[K, V])(using o: Ordering[K]): Map[K, V] =
+      if kvs.sizeIs < 2 then kvs
+      else
+        val ks = kvs.keysIterator
+        var prev = ks.next()
+        var inOrder = true
+        while inOrder && ks.hasNext do
+          val k = ks.next()
+          inOrder = o.lt(prev, k)
+          prev = k
+        if inOrder then kvs else scala.collection.immutable.TreeMap.from(kvs)
 
     /** An optional message field through `f`, the same value if the message did not change. */
     inline def opt[A <: AnyRef](x: A Or Unit)(inline f: A => A): A Or Unit =

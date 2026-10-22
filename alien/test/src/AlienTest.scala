@@ -10,124 +10,6 @@ import org.junit._
 import org.junit.Assert._
 
 
-object TestProtos {
-  val track = """
-    |// Everything the parser should chew through, commentary included.
-    |syntax = "proto3";  /* block
-    |                       comment */
-    |package alien.test;
-    |
-    |import "other.proto";
-    |option java_package = "com.example" ".suffix";
-    |
-    |enum Mood {
-    |  option allow_alias = true;
-    |  MOOD_UNSPECIFIED = 0;
-    |  HAPPY = 1;
-    |  GLAD = 1;       // alias, blessed above
-    |  GRUMPY = 0x10;
-    |  reserved 5 to 8, -2;
-    |  reserved "SULLEN";
-    |}
-    |
-    |message Pt {
-    |  double x = 1;
-    |  double y = 2;
-    |}
-    |
-    |message Track {
-    |  string id = 1;
-    |  repeated Pt pts = 2;
-    |  map<string, sint64> tags = 3;
-    |  optional float score = 4 [deprecated = true];
-    |  repeated int32 hops = 5 [packed = false];
-    |  oneof extra {
-    |    string note = 10;
-    |    Pt anchor = 11;
-    |    .alien.test.Mood mood = 12;
-    |  }
-    |  message Meta {
-    |    Mood mood = 1;
-    |    bytes blob = 2;
-    |  }
-    |  Meta meta = 20;
-    |  uint64 stamp = 21;
-    |  bytes payload = 30 [(kse3.view) = true];
-    |  repeated double wave = 31 [(kse3.view) = true];
-    |  reserved 100 to max;
-    |  reserved "old_name";
-    |}
-    |
-    |service Tracker {
-    |  rpc Get (Pt) returns (Track);
-    |  rpc Watch (Pt) returns (stream Track) { option idempotency_level = NO_SIDE_EFFECTS; }
-    |}
-    |""".stripMargin
-
-  /** The config the checked-in TrackProto.scala was generated with. */
-  val trackConfig = kse.alien.PbGen.Config(pkgOf = _ => "kse.test.alien.track", walker = true)
-
-  /** Two files, the second reaching into the first, for `Config(known = true)`: optional, repeated, map and oneof
-    * message fields, two oneofs in one message, and an unsigned map key.
-    */
-  val knownBase = """
-    |syntax = "proto3";
-    |package alien.knownbase;
-    |
-    |message Value {
-    |  oneof kind {
-    |    double num = 1;
-    |    string text = 2;
-    |  }
-    |  string unit = 3;
-    |}
-    |
-    |message Shape {
-    |  oneof x {
-    |    int32 width = 1;
-    |    Value scale = 2;
-    |  }
-    |}
-    |
-    |message Flat {
-    |  int32 a = 1;
-    |  repeated Flat more = 2;
-    |}
-    |""".stripMargin
-
-  val knownStage = """
-    |syntax = "proto3";
-    |package alien.known;
-    |
-    |import "knownbase.proto";
-    |
-    |message Stage {
-    |  string name = 1;
-    |  optional alien.knownbase.Shape input = 2;
-    |  map<string, alien.knownbase.Value> params = 3;
-    |  repeated Row rows = 4;
-    |  map<uint32, Row> by_id = 5;
-    |  oneof body {
-    |    Row single = 6;
-    |    string note = 7;
-    |  }
-    |  oneof mode {
-    |    int32 level = 8;
-    |    bool off = 9;
-    |  }
-    |  alien.knownbase.Flat flat = 10;
-    |  message Row {
-    |    int32 n = 1;
-    |    alien.knownbase.Value v = 2;
-    |  }
-    |}
-    |""".stripMargin
-
-  val knownSources = List(("knownbase.proto", knownBase), ("stage.proto", knownStage))
-
-  /** The config the checked-in KnownbaseProto.scala and StageProto.scala were generated with. */
-  val knownConfig = kse.alien.PbGen.Config(pkgOf = p => "kse.test.alien." + p.split('.').last, known = true)
-}
 
 
 @RunWith(classOf[JUnit4])
@@ -663,10 +545,6 @@ class AlienTest {
     T ~ src.contains("def owned: Track") ==== true                               // the view-severing copy
     T ~ src.contains("object TrackProtoWalk {") ==== true                        // Config(walker = true)
     T ~ src.contains("def walk(m: Track.Meta)(v: Pb.Visit): Unit =") ==== true  // nested messages walked too
-    // if the checked-in generated file is reachable from here, it matches regeneration exactly
-    val p = java.nio.file.Path.of("alien/test/src/TrackProto.scala")
-    if java.nio.file.Files.exists(p) then
-      T ~ java.nio.file.Files.readString(p) ==== src
 
   @Test
   def pbGenWalkTest(): Unit =
@@ -736,11 +614,6 @@ class AlienTest {
     // known needs unknowns to drop, and the default is off
     T ~ errText(PbGen.generate(got(Proto.read(TestProtos.knownSources)), TestProtos.knownConfig.copy(retainUnknown = false))).contains("retainUnknown") ==== true
     T ~ got(PbGen.generate(got(Proto.read(TestProtos.knownSources)))).exists(_._2.contains("Known {")) ==== false
-    // the checked-in generated files match regeneration exactly, when reachable from here
-    out.foreach: (name, src) =>
-      val p = java.nio.file.Path.of("alien/test/src", name)
-      if java.nio.file.Files.exists(p) then
-        T ~ java.nio.file.Files.readString(p) ==== src
 
   /** A varint unknown field, as a later schema's scalar arm would arrive. */
   def unk(n: Int): Pb.Unknown = Pb.Unknown(n, 0, Array[Byte](1))
@@ -777,6 +650,15 @@ class AlienTest {
     T ~ (KnownbaseProtoKnown.known(clean) eq clean) ==== true
     T ~ (k.rows(0) eq s.rows(0)) ==== true
     T ~ (k.params("bias") eq s.params("bias")) ==== true
+    // a map already in key order is kept; one out of order becomes a TreeMap, unsigned keys as unsigned
+    val inOrder = Stage(tags = Map(1 -> "x", 2 -> "y"))
+    T ~ (known(inOrder) eq inOrder) ==== true
+    val outOfOrder = Stage(tags = Map(2 -> "y", 1 -> "x"), byId = Map(UInt(-1) -> Stage.Row(1), UInt(5) -> Stage.Row(2)))
+    val ko = known(outOfOrder)
+    T ~ (ko eq outOfOrder) ==== false
+    T ~ ko.tags.keys.toList ==== List(1, 2)
+    T ~ ko.byId.keys.toList.map(_.toLong) ==== List(5L, 4294967295L)
+    T ~ (known(ko) eq ko) ==== true
     // and the original is untouched
     T ~ s.rows(1).unknown.map(_.field) ==== List(44)
 
@@ -801,6 +683,15 @@ class AlienTest {
     T ~ (known(a).toBytes sameElements known(b).toBytes) ==== true    // unknowns at any depth take no part
     T ~ (known(b).toBytes sameElements known(c).toBytes) ==== false   // but known content still does
     T ~ (known(a).toBytes sameElements a.toBytes) ==== true
+    // map entries may arrive in any order; known puts every map, of messages or of scalars, in key order
+    val v1 = Value(Value.Kind.Num(1.0))
+    val v2 = Value(Value.Kind.Text("two"), unknown = List(unk(33)))
+    val fwd = wire(Stage(params = Map("a" -> v1, "b" -> v2), tags = Map(1 -> "x", 2 -> "y", 3 -> "z")))
+    val rev = wire(Stage(params = Map("b" -> v2, "a" -> v1), tags = Map(3 -> "z", 1 -> "x", 2 -> "y")))
+    T ~ (fwd.toBytes sameElements rev.toBytes) ==== false
+    T ~ (known(fwd).toBytes sameElements known(rev).toBytes) ==== true
+    val many = (1 to 9).map(i => i -> i.toString)
+    T ~ (known(wire(Stage(tags = many.toMap))).toBytes sameElements known(wire(Stage(tags = many.reverse.toMap))).toBytes) ==== true
 
   @Test
   def pbGenUnknownArmTest(): Unit =
@@ -818,6 +709,8 @@ class AlienTest {
     // repeated by index, unsigned map keys as unsigned, oneof arms by the arm's name
     T ~ arm(Stage(rows = Array(Stage.Row(1, Is(known)), Stage.Row(2, Is(later))))) ==== "rows[1].v Value.kind (field 7)"
     T ~ arm(Stage(byId = Map(UInt(-1) -> Stage.Row(v = Is(later))))) ==== "by_id[4294967295].v Value.kind (field 7)"
+    // the least key is least unsigned: a signed order would take 4294967295 (-1) first
+    T ~ arm(Stage(byId = Map(UInt(-1) -> Stage.Row(v = Is(later)), UInt(5) -> Stage.Row(v = Is(later))))) ==== "by_id[5].v Value.kind (field 7)"
     T ~ arm(Stage(body = Stage.Body.Single(Stage.Row(v = Is(later))))) ==== "single.v Value.kind (field 7)"
     // in the message itself: the first unset oneof, every unknown number once, in encounter order
     T ~ arm(Stage(unknown = List(unk(20), unk(21), unk(20)))) ==== "Stage.body (fields 20, 21)"
