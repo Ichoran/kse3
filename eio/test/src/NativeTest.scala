@@ -121,29 +121,41 @@ class NativeTest {
   /** Has `multiprocessing.shared_memory` (3.8+): the named-object peer, on Windows too. */
   private lazy val pythonShm: Option[String] = pythonWith("import multiprocessing.shared_memory")
 
-  /** Retries an `Ask` for up to five seconds, for a peer that is still getting started. */
-  private def eventually[A](a: => Ask[A]): Ask[A] =
+  /** Retries an `Ask` every 25 ms, by default for up to five seconds, for a peer that is still getting started. */
+  private def eventually[A](a: => Ask[A], limit: Int = 200): Ask[A] =
     var r = a
     var tries = 0
-    while r.isAlt && tries < 200 do
+    while r.isAlt && tries < limit do
       Thread.sleep(25)
       r = a
       tries += 1
     r
+
+  /** A second JVM running [[SharedMemoryPeer]], on this one's JDK and classpath. */
+  private def startPeer(args: String*): Process =
+    val java = Path.of(System.getProperty("java.home"), "bin", "java").toString
+    val pb = new ProcessBuilder((java :: "--enable-native-access=ALL-UNNAMED" :: "kse.test.eio.SharedMemoryPeer" :: args.toList)*)
+    pb.environment.put("CLASSPATH", System.getProperty("java.class.path")) __ Unit
+    pb.start()
+
+  /** Runs `f` with a second JVM started, which is gone afterwards however `f` ended. */
+  private def withPeer[A](args: String*)(f: Process => A): A =
+    val p = startPeer(args*)
+    try f(p) finally p.destroyForcibly() __ Unit
 
   private def startPython(py: String, dir: Path, name: String, script: String, args: String*): Process =
     val file = dir.resolve(name)
     Files.writeString(file, script) __ Unit
     new ProcessBuilder((py :: file.toString :: args.toList)*).start()
 
-  /** The trimmed standard output of a finished python, or a description of how it failed. */
-  private def finish(p: Process): String =
-    val done = p.waitFor(20, TimeUnit.SECONDS)
+  /** The trimmed standard output of a finished peer, or a description of how it failed. */
+  private def finish(p: Process, seconds: Int = 20, who: String = "python"): String =
+    val done = p.waitFor(seconds, TimeUnit.SECONDS)
     if !done then p.destroyForcibly() __ Unit
     val out = new String(p.getInputStream.readAllBytes()).trim
     val err = new String(p.getErrorStream.readAllBytes()).trim
     if done && p.exitValue == 0 then out
-    else s"python ${if done then s"exit ${p.exitValue}" else "timed out"}: $out $err".trim
+    else s"$who ${if done then s"exit ${p.exitValue}" else "timed out"}: $out $err".trim
 
 
   @Test
@@ -906,9 +918,9 @@ class NativeTest {
     if PosixSocket.supported then T ~ SharedMemory.createNamed[Long]("/a/b", 1).isAlt ==== true
 
     // a foreign creator: python makes a named object and we attach by name alone; then the reverse.  The
-    // same script runs on all three platforms; python supplies the POSIX slash itself.  Linux and macOS
-    // always have a python that can do this, so there the interop must not quietly skip.
-    if PosixSocket.supported then T ~ pythonShm.isDefined ==== true
+    // same script runs on all three platforms; python supplies the POSIX slash itself.  Every platform's
+    // runner has a python that can do this, so the interop must not quietly skip.
+    T ~ pythonShm.isDefined ==== true
     pythonShm.foreach{ py =>
       val dir = Files.createTempDirectory("kse-pyshm-")
       val pyName = s"kse-pyshm-$pid"
@@ -961,5 +973,130 @@ class NativeTest {
       } ==== Is(777L)
       List("pyhost.py", "pyclient.py").foreach(f => Files.deleteIfExists(dir.resolve(f)) __ Unit)
       Files.deleteIfExists(dir) __ Unit
+    }
+
+
+  @Test
+  def jvmToJvmSharedMemoryTest(): Unit =
+    import SharedMemoryPeer.{rally, word, words, rounds, patience}
+    val checked = (rounds / 2) * (words - 1)
+    val peerWait = patience + 30
+    val pid = ProcessHandle.current().pid()
+
+    // we create and the peer attaches, knowing only the name; it then also proves a read-only view refuses writes
+    val ours = s"/kse-jvm-$pid-a"
+    must(Resource.nice(SharedMemory.createNamed[Long](ours, words))(_.close()){ later =>
+      withPeer("attach", ours){ p =>
+        T ~ later.op(_.op(m => rally(m, 0, () => p.isAlive))) ==== Is(checked)
+        T ~ finish(p, peerWait, "peer") ==== s"$checked refused"
+      }
+    })
+
+    // the peer creates and we attach; its mapping leaves with it, ours stays good, and the name is gone for newcomers
+    val theirs = s"/kse-jvm-$pid-b"
+    withPeer("create", theirs){ p =>
+      T ~ Resource.nice(eventually(SharedMemory.attach[Long](theirs, 0), patience * 40))(_.close()){ o =>
+        T ~ o.op(m => rally(m, 0, () => p.isAlive)) ==== Is(checked)
+        T ~ finish(p, peerWait, "peer") ==== s"$checked"
+        o.op(_(words - 1))
+      } ==== Is(word(rounds, words - 1))
+    }
+    T ~ Resource.nice(SharedMemory.attach[Long](theirs, 0))(_.close())(_ => 0).isAlt ==== true
+
+    // no name at all: the peer hands its region over by descriptor, and the memory outlives the peer
+    if FdSock.supported then
+      val dir = socketDir("kse-jvmfd-")
+      val sock = dir.resolve("offer.sock")
+      withPeer("offer", sock.toString){ p =>
+        T ~ Resource.nice(SharedMemory.acceptFd[Long](sock, timeout = patience.s))(_.close()){ o =>
+          T ~ o.op(m => rally(m, 0, () => p.isAlive)) ==== Is(checked)
+          T ~ finish(p, peerWait, "peer") ==== s"$checked"
+          o.op(_(words - 1))
+        } ==== Is(word(rounds, words - 1))
+      }
+      Files.deleteIfExists(sock) __ Unit
+      Files.deleteIfExists(dir) __ Unit
+}
+
+
+/** The other JVM in `NativeTest.jvmToJvmSharedMemoryTest`, sharing a region with it by name or by descriptor. */
+object SharedMemoryPeer {
+  import kse.basics.{given, _}
+  import kse.flow.{given, _}
+  import kse.maths.{given, _}
+  import kse.eio.{given, _}
+
+  /** Longs in a shared region: enough to span pages, so that no one page's luck stands in for the mapping. */
+  val words = 1024L
+
+  /** Turns taken across a rally; enough to show that it really is a rally, and no kind of stress test. */
+  val rounds = 100L
+
+  /** Seconds either side waits for the other, far beyond any JVM start or scheduling delay, only to end a hang. */
+  val patience = 120
+
+  /** The content of word `i` of round `r`, different from every other word of every round. */
+  def word(r: Long, i: Long): Long = (r << 32) ^ (i * 0x9E3779B97F4A7C15L)
+
+  /** Two processes take turns on `m`, side 0 on even rounds and side 1 on odd ones: fill words 1 and up, then
+    * publish the round in word 0 by a volatile write; the other side waits for that and checks every word.
+    * Answers how many words it checked, or gives up if `live` says the other side has gone or it runs out of patience.
+    */
+  def rally(m: Mem[Long], side: Long, live: () => Boolean): Ask[Long] = Ask:
+    val a = m.atom
+    val deadline = System.nanoTime + patience * 1000000000L
+    var checked = 0L
+    var r = 1L
+    while r <= rounds do
+      if r % 2 == side then
+        var i = 1L
+        while i < words do
+          m(i) = word(r, i)
+          i += 1
+        a(0L) = r
+      else
+        while a(0L) < r do
+          if !live() then Err.or(s"the other side is gone, waiting for round $r").?
+          if System.nanoTime - deadline > 0 then Err.or(s"timed out waiting for round $r").?
+          Thread.`yield`()
+        var i = 1L
+        while i < words do
+          val x = m(i)
+          if x != word(r, i) then Err.or(s"round $r word $i is $x").?
+          checked += 1
+          i += 1
+      r += 1
+    checked
+
+  private def attach(name: String): Ask[String] = Ask:
+    val checked = Resource.nice(SharedMemory.attach[Long](name, 0))(_.close()){ o =>
+      o.op(m => rally(m, 1, () => true)).?
+    }.?
+    val refused = Resource.nice(SharedMemory.attach[Long](name, words, readOnly = true))(_.close()){ o =>
+      if o.op(_(words - 1)) != word(rounds, words - 1) then Err.or("a read-only view sees the wrong data").?
+      try { o.use(m => m(1) = 0L); "wrote" } catch { case _: IllegalArgumentException => "refused" }
+    }.?
+    s"$checked $refused"
+
+  private def create(name: String): Ask[String] = Ask:
+    Resource.nice(SharedMemory.createNamed[Long](name, words))(_.close()){ later =>
+      later.op(_.op(m => rally(m, 1, () => true))).?.toString
+    }.?
+
+  private def offer(sock: String): Ask[String] = Ask:
+    Resource.nice(SharedMemory.offerFd[Long](Path.of(sock), words, patience.s))(_.close()){ later =>
+      later.op(_.serveOne()).?
+      later.op(_.op(m => rally(m, 1, () => true))).?.toString
+    }.?
+
+  def main(args: Array[String]): Unit =
+    val answer = args(0) match
+      case "attach" => attach(args(1))
+      case "create" => create(args(1))
+      case "offer"  => offer(args(1))
+      case x        => Err.or(s"no such peer: $x")
+    answer.fold(println){ e =>
+      println(e)
+      sys.exit(1)
     }
 }

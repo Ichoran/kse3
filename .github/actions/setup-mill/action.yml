@@ -1,13 +1,24 @@
-name: Set up JDK 25 and Mill
-description: Temurin 25, the Coursier and Mill caches, and the Mill bootstrap launcher (which then fetches the version build.mill names)
+name: Set up Mill
+description: The Coursier and Mill caches and the Mill bootstrap launcher, which fetches the Mill version and the JDK that build.mill names
+
+inputs:
+  jvm:
+    description: A JDK to use in place of build.mill's mill-jvm-version, for a platform where Mill's default vendor has no build
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
-    - uses: actions/setup-java@v6
-      with:
-        distribution: temurin
-        java-version: '25'
+    - name: Override the JDK
+      if: inputs.jvm != ''
+      shell: bash
+      env:
+        JVM: ${{ inputs.jvm }}
+      run: |
+        sed -i.orig -E "s#^(//[|] *mill-jvm-version:).*#\1 $JVM#" build.mill
+        rm build.mill.orig
+        grep -F "mill-jvm-version: $JVM" build.mill
 
     - uses: actions/cache@v6
       with:

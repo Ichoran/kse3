@@ -1,9 +1,11 @@
 # Cross-platform CI.  The native job is the reason this exists: kse.eio's descriptor-passing sockets
-# and shared memory (PosixSocket, FdSock, SharedMemory) are written for Linux, macOS on both
-# architectures, and Windows (named shared memory only), and eio's NativeTest pins each platform's
-# behaviour with real system calls -- struct layouts, errno values, the per-message descriptor limit,
-# close-on-exec on received descriptors, shm_open's variadic mode on Darwin, size discovery, and Windows
-# answering "unsupported" cleanly.  Only that class runs on the other platforms: what needs checking is
+# and shared memory (PosixSocket, FdSock, SharedMemory) are written for Linux, macOS, and Windows (named
+# shared memory only), each on both architectures, and eio's NativeTest pins each platform's behaviour
+# with real system calls -- struct layouts, errno values, the per-message descriptor limit, close-on-exec
+# on received descriptors, shm_open's variadic mode on Darwin, size discovery, regions shared with a
+# second JVM and with python, and Windows answering "unsupported" cleanly.  Mill fetches the JDK that
+# build.mill names; windows-11-arm alone overrides it because Mill's default vendor, Temurin, has no
+# Windows arm64 build.  Only that class runs on the other platforms: what needs checking is
 # our own cross-platform awareness (native linking, and behaviour that branches on the OS), not the
 # JVM's portability, so the ordinary suite runs once, on Linux.  thyme stays off shared runners because
 # its tests are timing-calibrated.
@@ -29,10 +31,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15, macos-15-intel, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-latest, windows-11-arm]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-mill
+        with:
+          jvm: ${{ matrix.os == 'windows-11-arm' && 'zulu:25' || '' }}
       - name: Native layer (PosixSocket, FdSock, SharedMemory)
         shell: bash
         run: ./mill${{ runner.os == 'Windows' && '.bat' || '' }} eio.test.testOnly kse.test.eio.NativeTest
