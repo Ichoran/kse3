@@ -37,10 +37,15 @@ jobs:
       - uses: ./.github/actions/setup-mill
         with:
           jvm: ${{ matrix.os == 'windows-11-arm' && 'zulu:25' || '' }}
-      # Not Git Bash on Windows: on ARM, mill.bat run from there fetched an x64 Mill and JDK, and ran everything under emulation
       - name: Native layer (PosixSocket, FdSock, SharedMemory)
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
-        run: ${{ runner.os == 'Windows' && 'mill.bat' || './mill' }} eio.test.testOnly kse.test.eio.NativeTest
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./mill eio.test.testOnly kse.test.eio.NativeTest
+      # Not Git Bash: on ARM, mill.bat run from there fetched an x64 Mill and JDK, and ran everything under emulation
+      - name: Native layer (PosixSocket, FdSock, SharedMemory)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mill.bat eio.test.testOnly kse.test.eio.NativeTest
 
   suite:
     name: suite (ubuntu-latest)
