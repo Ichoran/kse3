@@ -1003,6 +1003,15 @@ class NativeTest {
       }
     })
 
+    // both at once on a fresh region: read-modify-writes that lose nothing, then a handoff at full speed
+    val raced = s"/kse-jvm-$pid-c"
+    must(Resource.nice(SharedMemory.createNamed[Long](raced, SharedMemoryPeer.raceWords))(_.close()){ later =>
+      withPeer("race", raced){ p =>
+        T ~ later.op(_.op(m => SharedMemoryPeer.race(m, 0, () => p.isAlive))) ==== Is(SharedMemoryPeer.volleys / 2)
+        T ~ finish(p, peerWait, "peer") ==== s"${SharedMemoryPeer.volleys / 2}"
+      }
+    })
+
     // the peer creates and we attach; its mapping leaves with it, ours stays good, and the name is gone for newcomers
     val theirs = s"/kse-jvm-$pid-b"
     withPeer("create", theirs){ p =>
@@ -1079,6 +1088,77 @@ object SharedMemoryPeer {
       r += 1
     checked
 
+  /** Updates each side makes to each shared counter in a [[race]]. */
+  val contests = 1000000L
+
+  /** Handoffs in a [[race]]: enough for the JIT to compile the loop, and for it to spend real time racing. */
+  val volleys = 100000L
+
+  // Words of a race, a cache line apart (128 bytes, the longest of the platforms), so each stands or falls alone
+  private val arrived = 0L
+  private val added = 16L
+  private val swapped = 32L
+  private val turn = 48L
+  private val first = 64L
+  private val second = 80L
+
+  /** Longs in the region of a [[race]], which starts out zeroed. */
+  val raceWords = 96L
+
+  /** Waits for word `i` to reach `n`, spinning at first and then yielding so that a busy machine still gets through. */
+  private def await(a: Mem.Atom[Long], i: Long, n: Long, live: () => Boolean, deadline: Long): Ask[Unit] = Ask:
+    var spins = 0
+    while a(i) < n do
+      spins += 1
+      if (spins & 0x3FF) != 0 then Thread.onSpinWait()
+      else
+        if !live() then Err.or(s"the other side is gone, waiting for word $i to reach $n").?
+        if System.nanoTime - deadline > 0 then Err.or(s"timed out waiting for word $i to reach $n").?
+        Thread.`yield`()
+
+  /** Has two processes contend on `m`: each adds to one counter with `addAndGet` and to another with a `cas` loop,
+    * and neither total may lose a count; then they hand off as in a [[rally]] but as fast as they can, with two words
+    * on their own cache lines written before the volatile publish and checked after it.  Answers how many handoffs
+    * it checked.  A smoke test, able to show blatant failures of atomicity and ordering, not to prove their absence.
+    */
+  def race(m: Mem[Long], side: Long, live: () => Boolean): Ask[Long] = Ask:
+    val a = m.atom
+    val deadline = System.nanoTime + patience * 1000000000L
+    def meet(n: Long): Ask[Unit] =
+      a.addAndGet(arrived, 1L) __ Unit
+      await(a, arrived, n, live, deadline)
+
+    meet(2).?
+    var n = 0L
+    while n < contests do
+      a.addAndGet(added, 1L) __ Unit
+      n += 1
+    meet(4).?
+    if a(added) != 2 * contests then Err.or(s"addAndGet came to ${a(added)} of ${2 * contests}").?
+
+    n = 0L
+    while n < contests do
+      val x = a(swapped)
+      if a.cas(swapped)(x, x + 1) then n += 1
+    meet(6).?
+    if a(swapped) != 2 * contests then Err.or(s"cas came to ${a(swapped)} of ${2 * contests}").?
+
+    var checked = 0L
+    var r = 1L
+    while r <= volleys do
+      if r % 2 == side then
+        m(first) = r
+        m(second) = ~r
+        a(turn) = r
+      else
+        await(a, turn, r, live, deadline).?
+        val x = m(first)
+        val y = m(second)
+        if x != r || y != ~r then Err.or(s"handoff $r saw $x and ${~y}").?
+        checked += 1
+      r += 1
+    checked
+
   private def attach(name: String): Ask[String] = Ask:
     val checked = Resource.nice(SharedMemory.attach[Long](name, 0))(_.close()){ o =>
       o.op(m => rally(m, 1, () => true)).?
@@ -1100,8 +1180,14 @@ object SharedMemoryPeer {
       later.op(_.op(m => rally(m, 1, () => true))).?.toString
     }.?
 
+  private def racer(name: String): Ask[String] = Ask:
+    Resource.nice(SharedMemory.attach[Long](name, raceWords))(_.close()){ o =>
+      o.op(m => race(m, 1, () => true)).?.toString
+    }.?
+
   def main(args: Array[String]): Unit =
     val answer = args(0) match
+      case "race"   => racer(args(1))
       case "attach" => attach(args(1))
       case "create" => create(args(1))
       case "offer"  => offer(args(1))
