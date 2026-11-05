@@ -158,6 +158,17 @@ class NativeTest {
     else s"$who ${if done then s"exit ${p.exitValue}" else "timed out"}: $out $err".trim
 
 
+  // Windows on ARM runs x64 programs under emulation, where everything here would pass and prove nothing about ARM
+  @Test
+  def actionsRunnerArchitectureIsOursTest(): Unit =
+    val arch = System.getProperty("os.arch", "")
+    sys.env.get("RUNNER_ARCH").foreach{
+      case "ARM64" => T ~ arch ==== "aarch64"
+      case "X64"   => T ~ (arch == "amd64" || arch == "x86_64") ==== true
+      case _       => ()
+    }
+
+
   @Test
   def errnoAsDataTest(): Unit =
     // pure: the table, the count-or-code Result, and the code kept inside an Err; runs on Windows too
