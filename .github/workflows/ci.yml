@@ -46,6 +46,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: mill.bat eio.test.testOnly kse.test.eio.NativeTest
+      - name: Mill's launcher log
+        if: failure()
+        shell: bash
+        run: find out/mill-launcher -type f -print -exec cat {} \; || true
 
   suite:
     name: suite (ubuntu-latest)
